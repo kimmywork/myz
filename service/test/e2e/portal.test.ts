@@ -122,12 +122,12 @@ test.describe('Web UI Portal', () => {
     // Test mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
     await expect(page.locator('.container')).toBeVisible();
-    await expect(page.locator('.card')).toBeVisible();
+    await expect(page.locator('.card').first()).toBeVisible();
     
     // Test desktop viewport
     await page.setViewportSize({ width: 1920, height: 1080 });
     await expect(page.locator('.container')).toBeVisible();
-    await expect(page.locator('.card')).toBeVisible();
+    await expect(page.locator('.card').first()).toBeVisible();
   });
 
   test('should validate password confirmation on register', async ({ page }) => {
