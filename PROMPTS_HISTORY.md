@@ -137,3 +137,11 @@ Handler error myz:syncLogseq Error: LogSeq 返回的块数量与请求不匹配
 ---
 
 很奇怪，发送过去的还是纯文本而非Markdown格式（比如 pre / b / h1 等都没成功转换。我看你代码里有多个转换为markdown的逻辑，请检查出现这个情况的原因。
+
+---
+
+pre 块始终没能正常格式化成Markdown格式，请增强这方面的处理。另外如果 DOMParser 在 ServiceWorker 中不能用，请移除对应的逻辑。
+
+---
+
+诸如 GitHub 等网站，其 pre 块中包含了大量的 span 标签用于代码高亮，这些东西也应该被移除。请处理这块逻辑。

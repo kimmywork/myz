@@ -988,105 +988,13 @@ function htmlToMarkdown(html) {
     return "";
   }
 
-  try {
-    if (typeof DOMParser !== "undefined") {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(`<div>${source}</div>`, "text/html");
-      const container = doc.body.firstElementChild;
-      if (container) {
-        const markdown = normalizeMarkdown(serializeNodes(Array.from(container.childNodes))).trim();
-        if (markdown) {
-          return markdown;
-        }
-      }
-    }
-  } catch (error) {
-    console.warn("Failed to convert HTML to markdown", error);
-  }
-
-  const fallback = normalizeMarkdown(fallbackHtmlToMarkdown(source));
-  if (fallback) {
-    return fallback;
+  const fallback = fallbackHtmlToMarkdown(source);
+  const normalized = normalizeMarkdown(fallback);
+  if (normalized) {
+    return normalized;
   }
 
   return cleanLogseqMultiline(stripHtmlTags(source));
-}
-
-function serializeNodes(nodes, context = {}) {
-  return nodes
-    .map((node, index) => nodeToMarkdown(node, { ...context, index }))
-    .join("");
-}
-
-function nodeToMarkdown(node, context) {
-  const TEXT_NODE = 3;
-  const ELEMENT_NODE = 1;
-  if (node.nodeType === TEXT_NODE) {
-    return node.textContent || "";
-  }
-  if (node.nodeType !== ELEMENT_NODE) {
-    return "";
-  }
-  const tag = node.tagName.toLowerCase();
-  const children = Array.from(node.childNodes);
-  switch (tag) {
-    case "br":
-      return "\n";
-    case "strong":
-    case "b":
-      return `**${serializeNodes(children, context).trim()}**`;
-    case "em":
-    case "i":
-      return `*${serializeNodes(children, context).trim()}*`;
-    case "code":
-      return `\`${serializeNodes(children, context).trim()}\``;
-    case "pre": {
-      const code = serializeNodes(children, context).replace(/\n+$/g, "");
-      return `\n\n\`\`\`\n${code}\n\`\`\`\n\n`;
-    }
-    case "a": {
-      const href = node.getAttribute("href") || "";
-      const label = serializeNodes(children, context).trim() || href;
-      return `[${label}](${href})`;
-    }
-    case "mark":
-      return `==${serializeNodes(children, context)}==`;
-    case "blockquote": {
-      const quote = serializeNodes(children, context)
-        .split("\n")
-        .map((line) => (line ? `> ${line}` : ">"))
-        .join("\n");
-      return `\n${quote}\n`;
-    }
-    case "ul":
-      return "\n" + Array.from(node.children)
-        .map((child) => `- ${serializeNodes(Array.from(child.childNodes), context).trim()}`)
-        .join("\n") + "\n";
-    case "ol":
-      return "\n" + Array.from(node.children)
-        .map((child, idx) => `${idx + 1}. ${serializeNodes(Array.from(child.childNodes), context).trim()}`)
-        .join("\n") + "\n";
-    case "li":
-      return serializeNodes(children, context).trim();
-    case "p":
-    case "div":
-      return `\n\n${serializeNodes(children, context).trim()}\n\n`;
-    case "span":
-    case "u":
-    case "small":
-      return serializeNodes(children, context);
-    case "h1":
-    case "h2":
-    case "h3":
-    case "h4":
-    case "h5":
-    case "h6": {
-      const level = parseInt(tag.slice(1), 10);
-      return `\n\n${"#".repeat(level)} ${serializeNodes(children, context).trim()}\n\n`;
-    }
-    default:
-      return serializeNodes(children, context);
-  }
 }
 
 function normalizeMarkdown(markdown) {
@@ -1094,7 +1002,20 @@ function normalizeMarkdown(markdown) {
 }
 
 function fallbackHtmlToMarkdown(html) {
+  if (!html) {
+    return "";
+  }
+
   let output = html;
+  const preservedPre = [];
+
+  output = output.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, (match, inner) => {
+    const normalized = normalizePreBlock(inner);
+    const token = `__MYZ_PRE_BLOCK_${preservedPre.length}__`;
+    preservedPre.push(normalized);
+    return token;
+  });
+
   output = output.replace(/\s*<br\s*\/?>\s*/gi, "\n");
   output = output.replace(/<\/?p[^>]*>/gi, "\n\n");
   output = output.replace(/<\/?div[^>]*>/gi, "\n\n");
@@ -1107,10 +1028,7 @@ function fallbackHtmlToMarkdown(html) {
   output = output.replace(/<\/strong>|<\/b>/gi, "**");
   output = output.replace(/<em[^>]*>|<i[^>]*>/gi, "*");
   output = output.replace(/<\/em>|<\/i>/gi, "*");
-  output = output.replace(/<code[^>]*>/gi, "`");
-  output = output.replace(/<\/code>/gi, "`");
-  output = output.replace(/<pre[^>]*>/gi, "\n\n```");
-  output = output.replace(/<\/pre>/gi, "```\n\n");
+  output = output.replace(/<code\b[^>]*>([\s\S]*?)<\/code>/gi, (match, content) => `\`${decodeHtmlEntities(content)}\``);
   output = output.replace(/<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)");
   output = output.replace(/<mark[^>]*>(.*?)<\/mark>/gi, "==$1==");
   output = output.replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (match, level, text) => `\n\n${"#".repeat(Number(level))} ${text}\n\n`);
@@ -1120,5 +1038,33 @@ function fallbackHtmlToMarkdown(html) {
   output = output.replace(/<t[dh][^>]*>/gi, " | ");
   output = output.replace(/<\/t[dh]>/gi, " ");
   output = output.replace(/<[^>]+>/g, "");
+  output = decodeHtmlEntities(output);
+
+  if (preservedPre.length) {
+    preservedPre.forEach((block, index) => {
+      const token = new RegExp(`__MYZ_PRE_BLOCK_${index}__`, "g");
+      output = output.replace(token, `\n\n\`\`\`\n${block}\n\`\`\`\n\n`);
+    });
+  }
+
   return output;
+}
+
+function normalizePreBlock(value) {
+  const decoded = decodeHtmlEntities(value || "")
+    .replace(/<span\b[^>]*>([\s\S]*?)<\/span>/gi, "$1")
+    .replace(/<div\b[^>]*>([\s\S]*?)<\/div>/gi, "$1")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "");
+  if (!decoded) {
+    return "";
+  }
+  const lines = decoded.replace(/\r\n?/g, "\n").split("\n");
+  while (lines.length && !lines[0].trim()) {
+    lines.shift();
+  }
+  while (lines.length && !lines[lines.length - 1].trim()) {
+    lines.pop();
+  }
+  return lines.map((line) => line.replace(/\s+$/g, "")).join("\n");
 }
