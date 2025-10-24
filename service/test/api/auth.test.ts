@@ -1,5 +1,6 @@
 import request from 'supertest';
 import app from '../../src/index';
+import { setupDatabase, cleanDatabase, closeDatabase } from '../setup';
 
 // Helper function to get captcha session
 async function getCaptchaSession(): Promise<{ cookie: string; answer: string }> {
@@ -14,6 +15,21 @@ async function getCaptchaSession(): Promise<{ cookie: string; answer: string }> 
 }
 
 describe('Authentication API', () => {
+  // Initialize database before all tests in this suite
+  beforeAll(async () => {
+    await setupDatabase();
+  });
+
+  // Clean database after all tests in this suite
+  afterAll(async () => {
+    await closeDatabase();
+  });
+
+  // Clean database before each test to ensure isolation
+  beforeEach(async () => {
+    await cleanDatabase();
+  });
+
   describe('POST /api/auth/register', () => {
     // Captcha validation tests are skipped in test mode since captcha is optional
     it.skip('should require captcha', async () => {

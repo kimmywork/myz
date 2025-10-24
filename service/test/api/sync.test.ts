@@ -1,11 +1,18 @@
 import request from 'supertest';
 import app from '../../src/index';
+import { setupDatabase, cleanDatabase, closeDatabase } from '../setup';
 
 describe('Sync API', () => {
   let testToken: string;
   const testEmail = `sync${Date.now()}@example.com`;
 
   beforeAll(async () => {
+    // Initialize database schema
+    await setupDatabase();
+    
+    // Clean database before setting up test user
+    await cleanDatabase();
+    
     // Create and login a test user
     const response = await request(app)
       .post('/api/auth/register')
@@ -103,5 +110,9 @@ describe('Sync API', () => {
       expect(response.status).toBe(401);
       expect(response.body).toHaveProperty('error');
     });
+  });
+
+  afterAll(async () => {
+    await closeDatabase();
   });
 });
