@@ -74,6 +74,7 @@ describe('Authentication API', () => {
     });
   });
 
+  describe('POST /api/auth/register - Validation', () => {
     it('should reject registration with invalid email', async () => {
       const response = await request(app)
         .post('/api/auth/register')

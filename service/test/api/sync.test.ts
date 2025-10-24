@@ -14,6 +14,10 @@ describe('Sync API', () => {
         password: 'password123',
       });
     
+    if (response.status !== 201 || !response.body.token) {
+      throw new Error(`Failed to register test user: ${JSON.stringify(response.body)}`);
+    }
+    
     testToken = response.body.token;
   });
 
