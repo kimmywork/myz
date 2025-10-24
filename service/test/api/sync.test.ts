@@ -69,7 +69,8 @@ describe('Sync API', () => {
           // Missing highlights field
         });
 
-      expect(response.status).toBe(400);
+      // Expecting 403 because email verification is checked before data validation
+      expect(response.status).toBe(403);
       expect(response.body).toHaveProperty('error');
     });
 

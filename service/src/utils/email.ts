@@ -3,17 +3,26 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-});
+// Skip email configuration in test mode
+const transporter = process.env.NODE_ENV === 'test' 
+  ? null 
+  : nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD,
+      },
+    });
 
 export async function sendVerificationEmail(email: string, token: string): Promise<void> {
+  // Skip sending email in test mode
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`[TEST MODE] Verification email would be sent to: ${email}`);
+    return;
+  }
+
   const verificationUrl = `${process.env.FRONTEND_URL}/verify?token=${token}`;
   
   const mailOptions = {
@@ -39,10 +48,16 @@ export async function sendVerificationEmail(email: string, token: string): Promi
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  await transporter!.sendMail(mailOptions);
 }
 
 export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
+  // Skip sending email in test mode
+  if (process.env.NODE_ENV === 'test') {
+    console.log(`[TEST MODE] Password reset email would be sent to: ${email}`);
+    return;
+  }
+
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
   
   const mailOptions = {
@@ -68,5 +83,5 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  await transporter!.sendMail(mailOptions);
 }
