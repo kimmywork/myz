@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "node",
+    "allowJs": false,
+    "noEmit": false,
+    "outDir": "./.jest"
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "__tests__/**/*.ts"
+  ]
+}

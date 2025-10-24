@@ -115,6 +115,31 @@
               </div>
             </div>
           </section>
+
+          <section class="settings__group">
+            <div class="settings__group-header">
+              <h3>导入标注</h3>
+            </div>
+            <div class="settings__fields">
+              <p class="settings__hint">选择先前导出的 JSON 文件，或导入他人分享的标注。</p>
+              <label class="field">
+                <span>JSON 文件</span>
+                <input id="import-file" type="file" accept="application/json" />
+              </label>
+              <label class="field">
+                <span>冲突处理</span>
+                <select id="import-strategy">
+                  <option value="skip">遇到重复时跳过</option>
+                  <option value="overwrite">遇到重复时覆盖</option>
+                  <option value="latest">保留最近更新</option>
+                </select>
+              </label>
+              <div class="settings__actions">
+                <button id="import-button" class="btn" type="button">导入 JSON</button>
+                <p id="import-status" class="status-line"></p>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
     </main>
