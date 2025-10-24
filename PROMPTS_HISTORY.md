@@ -53,3 +53,11 @@ model: GPT-5-Codex
 ---
 
 你并没有完成任务。
+
+---
+
+1. 截图模式有问题：
+  - Selection capture failed Error: chrome.tabs.captureVisibleArea is not a function
+  - Handler error myz:captureSelection TypeError: chrome.tabs.captureVisibleArea is not a function
+2. 采集基本HTML的功能也不工作
+3. Markdown导出异常

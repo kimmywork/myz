@@ -198,7 +198,7 @@ const messageHandlers = {
     }
     const format = payload?.format === "jpeg" ? "jpeg" : "png";
     const quality = typeof payload?.quality === "number" ? payload.quality : undefined;
-    const dataUrl = await chrome.tabs.captureVisibleArea(sender.tab.windowId, {
+    const dataUrl = await chrome.tabs.captureVisibleTab(sender.tab.windowId, {
       format,
       quality
     });
@@ -355,17 +355,19 @@ function htmlToMarkdown(html) {
     return "";
   }
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
-    const container = doc.body.firstElementChild;
-    if (!container) {
-      return "";
+    if (typeof DOMParser !== "undefined") {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+      const container = doc.body.firstElementChild;
+      if (!container) {
+        return "";
+      }
+      return normalizeMarkdown(serializeNodes(Array.from(container.childNodes))).trim();
     }
-    return normalizeMarkdown(serializeNodes(Array.from(container.childNodes))).trim();
   } catch (error) {
     console.warn("Failed to convert HTML to markdown", error);
-    return html;
   }
+  return normalizeMarkdown(fallbackHtmlToMarkdown(html));
 }
 
 function serializeNodes(nodes, context = {}) {
@@ -447,4 +449,34 @@ function nodeToMarkdown(node, context) {
 
 function normalizeMarkdown(markdown) {
   return markdown.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function fallbackHtmlToMarkdown(html) {
+  let output = html;
+  output = output.replace(/\s*<br\s*\/?>\s*/gi, "\n");
+  output = output.replace(/<\/?p[^>]*>/gi, "\n\n");
+  output = output.replace(/<\/?div[^>]*>/gi, "\n\n");
+  output = output.replace(/<\/?blockquote[^>]*>/gi, (match) => (match.startsWith("</") ? "\n" : "\n> "));
+  output = output.replace(/<li[^>]*>/gi, "\n- ");
+  output = output.replace(/<\/?ul[^>]*>/gi, "\n");
+  output = output.replace(/<ol[^>]*>/gi, "\n");
+  output = output.replace(/<\/?ol[^>]*>/gi, "\n");
+  output = output.replace(/<strong[^>]*>|<b[^>]*>/gi, "**");
+  output = output.replace(/<\/strong>|<\/b>/gi, "**");
+  output = output.replace(/<em[^>]*>|<i[^>]*>/gi, "*");
+  output = output.replace(/<\/em>|<\/i>/gi, "*");
+  output = output.replace(/<code[^>]*>/gi, "`");
+  output = output.replace(/<\/code>/gi, "`");
+  output = output.replace(/<pre[^>]*>/gi, "\n\n```");
+  output = output.replace(/<\/pre>/gi, "```\n\n");
+  output = output.replace(/<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)");
+  output = output.replace(/<mark[^>]*>(.*?)<\/mark>/gi, "==$1==");
+  output = output.replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (match, level, text) => `\n\n${"#".repeat(Number(level))} ${text}\n\n`);
+  output = output.replace(/<table[^>]*>|<\/table>|<thead[^>]*>|<\/thead>|<tbody[^>]*>|<\/tbody>/gi, "\n");
+  output = output.replace(/<tr[^>]*>/gi, "\n");
+  output = output.replace(/<\/tr>/gi, "\n");
+  output = output.replace(/<t[dh][^>]*>/gi, " | ");
+  output = output.replace(/<\/t[dh]>/gi, " ");
+  output = output.replace(/<[^>]+>/g, "");
+  return output;
 }

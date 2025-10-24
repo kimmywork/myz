@@ -74,7 +74,9 @@
     "th"
   ]);
   const ALLOWED_HTML_ATTRS = {
-    a: new Set(["href", "title"])
+    a: new Set(["href", "title"]),
+    td: new Set(["colspan", "rowspan"]),
+    th: new Set(["colspan", "rowspan"])
   };
   const highlightCache = new Map();
 
@@ -700,7 +702,11 @@
       inspector.tags.classList.add("myz-hidden");
     }
 
-    inspector.quote.textContent = record.text || "";
+    if (record.html) {
+      inspector.quote.innerHTML = record.html;
+    } else {
+      inspector.quote.textContent = record.text || "";
+    }
   inspector.note.textContent = record.note || "无批注";
 
     inspector.container.classList.remove("myz-hidden");
