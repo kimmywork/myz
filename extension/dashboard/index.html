@@ -8,7 +8,10 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <h1 class="sidebar__title">MyZ 标注</h1>
+      <header class="sidebar__header">
+        <h1 class="sidebar__title">MyZ 标注</h1>
+        <button id="open-settings" class="sidebar__settings" type="button" aria-label="打开设置" aria-expanded="false">⚙️</button>
+      </header>
       <section class="sidebar__section">
         <h2>筛选</h2>
         <label class="field">
@@ -21,8 +24,8 @@
         </label>
         <label class="field">
           <span>标签</span>
-          <select id="filter-tags" multiple></select>
-          <small>按 ⌘/Ctrl + 点击可多选</small>
+          <div id="filter-tags" class="tag-input" data-role="multiselect"></div>
+          <small>输入后回车或逗号确认，Backspace 回删</small>
         </label>
         <div class="field field--inline">
           <label>
@@ -51,9 +54,6 @@
         <p id="logseq-status" class="status-line"></p>
       </section>
 
-      <div class="sidebar__footer">
-        <button id="open-settings" class="btn-link">打开设置</button>
-      </div>
     </aside>
 
     <main class="main">
@@ -190,7 +190,7 @@
         <section class="modal__section">
           <h4>标签</h4>
           <div id="modal-tags-display" class="modal__tags"></div>
-          <input id="modal-tags-input" class="modal__tags-input is-hidden" type="text" placeholder="如：研究, #logseq" />
+          <div id="modal-tags-input" class="modal__tags-input tag-input is-hidden" data-role="multiselect"></div>
         </section>
         <section class="modal__section modal__section--inline">
           <div>

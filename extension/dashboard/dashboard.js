@@ -8,7 +8,7 @@ const settingsView = document.getElementById("settings-view");
 
 const searchInput = document.getElementById("filter-search");
 const siteSelect = document.getElementById("filter-site");
-const tagSelect = document.getElementById("filter-tags");
+const filterTagsContainer = document.getElementById("filter-tags");
 const fromInput = document.getElementById("filter-from");
 const toInput = document.getElementById("filter-to");
 const resetFiltersBtn = document.getElementById("reset-filters");
@@ -40,6 +40,7 @@ const modal = {
 	noteInput: document.getElementById("modal-note-input"),
 	tagsDisplay: document.getElementById("modal-tags-display"),
 	tagsInput: document.getElementById("modal-tags-input"),
+	tagsComponent: null,
 	colorSwatch: document.getElementById("modal-color-swatch"),
 	colorPicker: document.getElementById("modal-color-picker"),
 	colorWrapper: document.getElementById("modal-color-picker")?.parentElement || null,
@@ -54,6 +55,28 @@ scrollSentinel.className = "scroll-sentinel";
 
 const DEFAULT_COLOR = "#fde68a";
 const PAGINATION_BATCH = 24;
+
+const filterTagInput = filterTagsContainer
+	? createTagInputWidget(filterTagsContainer, {
+		placeholder: "输入后按回车或逗号确认",
+		onChange: (tags) => {
+			state.filters.tags = tags;
+			applyFilters();
+		}
+	})
+	: null;
+
+if (modal.tagsInput) {
+	modal.tagsComponent = createTagInputWidget(modal.tagsInput, {
+		placeholder: "输入后按回车或逗号确认",
+		allowNew: true
+	});
+}
+
+const tagInputInstances = {
+	filter: filterTagInput,
+	modal: modal.tagsComponent
+};
 
 const state = {
 	highlights: [],
@@ -77,6 +100,7 @@ const state = {
 	pagination: {
 		rendered: 0
 	},
+	availableTags: [],
 	panel: "highlights"
 };
 
@@ -109,12 +133,6 @@ function bindEvents() {
 	if (siteSelect) {
 		siteSelect.addEventListener("change", () => {
 			state.filters.site = siteSelect.value;
-			applyFilters();
-		});
-	}
-	if (tagSelect) {
-		tagSelect.addEventListener("change", () => {
-			state.filters.tags = Array.from(tagSelect.selectedOptions).map((option) => option.value);
 			applyFilters();
 		});
 	}
@@ -250,8 +268,349 @@ async function loadHighlights() {
 	}
 }
 
+// Lightweight multiselect input that renders tag chips with suggestion dropdown.
+function createTagInputWidget(container, config = {}) {
+	if (!container) {
+		return null;
+	}
+	const settings = {
+		placeholder: "",
+		allowNew: false,
+		onChange: null,
+		...config
+	};
+	const input = document.createElement("input");
+	input.type = "text";
+	input.autocomplete = "off";
+	input.spellcheck = false;
+	input.className = "tag-input__input";
+	input.placeholder = settings.placeholder || "";
+
+	const list = document.createElement("div");
+	list.className = "tag-input__list is-hidden";
+	list.setAttribute("role", "listbox");
+	const listId = `${container.id || "tag-input"}-options-${Math.random().toString(36).slice(2, 8)}`;
+	list.id = listId;
+	input.setAttribute("role", "combobox");
+	input.setAttribute("aria-haspopup", "listbox");
+	input.setAttribute("aria-expanded", "false");
+	input.setAttribute("aria-autocomplete", "list");
+	input.setAttribute("aria-controls", listId);
+
+	container.textContent = "";
+	container.appendChild(input);
+	container.appendChild(list);
+
+	const state = {
+		tags: [],
+		options: [],
+		filtered: [],
+		activeIndex: -1,
+		dropdownOpen: false
+	};
+
+	function normalize(tag) {
+		return typeof tag === "string" ? tag.trim() : "";
+	}
+
+	function uniqueList(values) {
+		const seen = new Set();
+		const result = [];
+		values.forEach((value) => {
+			const normalized = normalize(value);
+			if (!normalized) {
+				return;
+			}
+			const key = normalized.toLowerCase();
+			if (seen.has(key)) {
+				return;
+			}
+			seen.add(key);
+			result.push(normalized);
+		});
+		return result;
+	}
+
+	function emitChange() {
+		if (typeof settings.onChange === "function") {
+			settings.onChange([...state.tags]);
+		}
+	}
+
+	function closeDropdown() {
+		state.dropdownOpen = false;
+		state.activeIndex = -1;
+		list.classList.add("is-hidden");
+		Array.from(list.children).forEach((child) => child.classList.remove("is-active"));
+		input.setAttribute("aria-expanded", "false");
+		input.removeAttribute("aria-activedescendant");
+	}
+
+	function updateActiveOption() {
+		let activeId = "";
+		Array.from(list.children).forEach((child, index) => {
+			const isActive = index === state.activeIndex;
+			child.classList.toggle("is-active", isActive);
+			child.setAttribute("aria-selected", isActive ? "true" : "false");
+			if (isActive) {
+				activeId = child.id || "";
+			}
+		});
+		if (activeId) {
+			input.setAttribute("aria-activedescendant", activeId);
+		} else {
+			input.removeAttribute("aria-activedescendant");
+		}
+	}
+
+	function renderChips() {
+		container.querySelectorAll(".tag-input__chip").forEach((chip) => chip.remove());
+		state.tags.forEach((tag) => {
+			const chip = document.createElement("span");
+			chip.className = "tag-input__chip";
+			const label = document.createElement("span");
+			label.textContent = tag;
+			const removeBtn = document.createElement("button");
+			removeBtn.type = "button";
+			removeBtn.className = "tag-input__remove";
+			removeBtn.textContent = "x";
+			removeBtn.dataset.tag = tag;
+			removeBtn.setAttribute("aria-label", `移除标签 ${tag}`);
+			removeBtn.addEventListener("click", (event) => {
+				event.stopPropagation();
+				removeTag(tag);
+			});
+			chip.appendChild(label);
+			chip.appendChild(removeBtn);
+			container.insertBefore(chip, input);
+		});
+	}
+
+	function addTag(raw, { silent = false } = {}) {
+		const tag = normalize(raw);
+		if (!tag) {
+			return false;
+		}
+		if (!settings.allowNew && !state.options.some((option) => option.toLowerCase() === tag.toLowerCase())) {
+			return false;
+		}
+		if (state.tags.some((current) => current.toLowerCase() === tag.toLowerCase())) {
+			return false;
+		}
+		state.tags.push(tag);
+		if (settings.allowNew && !state.options.some((option) => option.toLowerCase() === tag.toLowerCase())) {
+			state.options.push(tag);
+			state.options.sort((a, b) => a.localeCompare(b));
+		}
+		renderChips();
+		if (!silent) {
+			emitChange();
+		}
+		return true;
+	}
+
+	function removeTag(tag, { silent = false } = {}) {
+		const lower = tag.toLowerCase();
+		const next = state.tags.filter((item) => item.toLowerCase() !== lower);
+		if (next.length === state.tags.length) {
+			return false;
+		}
+		state.tags = next;
+		renderChips();
+		if (!silent) {
+			emitChange();
+		}
+		return true;
+	}
+
+	function renderOptions() {
+		list.innerHTML = "";
+		state.filtered.forEach((option, index) => {
+			const optionEl = document.createElement("div");
+			optionEl.className = "tag-input__option";
+			optionEl.setAttribute("role", "option");
+			const optionId = `${listId}-option-${index}`;
+			optionEl.id = optionId;
+			if (index === state.activeIndex) {
+				optionEl.classList.add("is-active");
+				optionEl.setAttribute("aria-selected", "true");
+				input.setAttribute("aria-activedescendant", optionId);
+			} else {
+				optionEl.setAttribute("aria-selected", "false");
+			}
+			optionEl.textContent = option;
+			optionEl.dataset.value = option;
+			optionEl.addEventListener("mousedown", (event) => {
+				event.preventDefault();
+				if (addTag(option)) {
+					input.value = "";
+				}
+				closeDropdown();
+				input.focus();
+			});
+			list.appendChild(optionEl);
+		});
+	}
+
+	function filterOptions(query) {
+		const term = query.trim().toLowerCase();
+		const available = state.options.filter((option) => {
+			if (state.tags.some((tag) => tag.toLowerCase() === option.toLowerCase())) {
+				return false;
+			}
+			return term ? option.toLowerCase().includes(term) : true;
+		});
+		state.filtered = available.slice(0, 50);
+		if (!state.filtered.length) {
+			closeDropdown();
+			return;
+		}
+		if (!state.dropdownOpen) {
+			state.dropdownOpen = true;
+			list.classList.remove("is-hidden");
+			input.setAttribute("aria-expanded", "true");
+		}
+		if (state.activeIndex >= state.filtered.length) {
+			state.activeIndex = 0;
+		}
+		if (state.activeIndex === -1) {
+			state.activeIndex = 0;
+		}
+		renderOptions();
+	}
+
+	function commitInput() {
+		const hasOptions = state.dropdownOpen && state.filtered[state.activeIndex];
+		if (hasOptions) {
+			if (addTag(state.filtered[state.activeIndex])) {
+				input.value = "";
+			}
+			closeDropdown();
+			return;
+		}
+		const value = input.value;
+		if (!value.trim()) {
+			return;
+		}
+		if (addTag(value)) {
+			input.value = "";
+		}
+		closeDropdown();
+	}
+
+	function handleInput(event) {
+		const value = event.target.value;
+		if (!value.trim()) {
+			filterOptions("");
+		} else {
+			filterOptions(value);
+		}
+	}
+
+	function handleKeydown(event) {
+		if (event.key === "Enter" || event.key === ",") {
+			event.preventDefault();
+			commitInput();
+			return;
+		}
+		if (event.key === "Backspace" && !input.value && state.tags.length) {
+			event.preventDefault();
+			removeTag(state.tags[state.tags.length - 1]);
+			return;
+		}
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			if (!state.dropdownOpen) {
+				filterOptions(input.value);
+				return;
+			}
+			state.activeIndex = state.activeIndex + 1 >= state.filtered.length ? 0 : state.activeIndex + 1;
+			updateActiveOption();
+			return;
+		}
+		if (event.key === "ArrowUp" && state.dropdownOpen) {
+			event.preventDefault();
+			state.activeIndex = state.activeIndex - 1 < 0 ? state.filtered.length - 1 : state.activeIndex - 1;
+			updateActiveOption();
+			return;
+		}
+		if (event.key === "Escape") {
+			closeDropdown();
+		}
+	}
+
+	function setOptions(options = []) {
+		state.options = uniqueList(options);
+		if (state.dropdownOpen) {
+			filterOptions(input.value);
+		}
+	}
+
+	function setValue(values = [], { silent = false } = {}) {
+		const next = uniqueList(values);
+		const hasChanged = next.length !== state.tags.length || next.some((tag, index) => state.tags[index]?.toLowerCase() !== tag.toLowerCase());
+		state.tags = next;
+		renderChips();
+		if (hasChanged && !silent) {
+			emitChange();
+		}
+	}
+
+	function getValue() {
+		return [...state.tags];
+	}
+
+	function focus() {
+		input.focus();
+	}
+
+	function destroy() {
+		input.removeEventListener("input", handleInput);
+		input.removeEventListener("keydown", handleKeydown);
+		input.removeEventListener("focus", handleFocus);
+		input.removeEventListener("blur", handleBlur);
+		container.removeEventListener("click", handleContainerClick);
+		closeDropdown();
+		container.textContent = "";
+	}
+
+	function handleContainerClick(event) {
+		if (event.target === container || event.target.closest?.(".tag-input__chip")) {
+			input.focus();
+		}
+	}
+
+	function handleFocus() {
+		container.classList.add("is-focused");
+		filterOptions(input.value);
+	}
+
+	function handleBlur() {
+		container.classList.remove("is-focused");
+		setTimeout(() => {
+			if (!container.contains(document.activeElement)) {
+				closeDropdown();
+			}
+		}, 120);
+	}
+
+	input.addEventListener("input", handleInput);
+	input.addEventListener("keydown", handleKeydown);
+	input.addEventListener("focus", handleFocus);
+	input.addEventListener("blur", handleBlur);
+	container.addEventListener("click", handleContainerClick);
+
+	return {
+		getValue,
+		setValue,
+		setOptions,
+		focus,
+		destroy
+	};
+}
+
 function populateFilterOptions(highlights) {
-	if (!siteSelect || !tagSelect) {
+	if (!siteSelect || !filterTagsContainer) {
 		return;
 	}
 	const sites = [...new Set(highlights.map((item) => item.hostname).filter(Boolean))].sort();
@@ -273,17 +632,17 @@ function populateFilterOptions(highlights) {
 	highlights.forEach((item) => {
 		(item.tags || []).forEach((tag) => tagSet.add(tag));
 	});
-	const selectedTags = new Set(state.filters.tags);
-	tagSelect.innerHTML = "";
-	Array.from(tagSet)
-		.sort()
-		.forEach((tag) => {
-			const option = document.createElement("option");
-			option.value = tag;
-			option.textContent = tag;
-			option.selected = selectedTags.has(tag);
-			tagSelect.appendChild(option);
-		});
+	const sortedTags = Array.from(tagSet).sort();
+	state.availableTags = sortedTags;
+	if (tagInputInstances.filter) {
+		tagInputInstances.filter.setOptions(sortedTags);
+		tagInputInstances.filter.setValue(state.filters.tags, { silent: true });
+	}
+	if (tagInputInstances.modal && typeof tagInputInstances.modal.setOptions === "function") {
+		const modalValue = typeof tagInputInstances.modal.getValue === "function" ? tagInputInstances.modal.getValue() : [];
+		const combined = new Set([...sortedTags, ...modalValue]);
+		tagInputInstances.modal.setOptions(Array.from(combined).sort());
+	}
 }
 
 function applyFilters(preserveProgress = false) {
@@ -501,10 +860,8 @@ function resetFilters() {
 	if (siteSelect) {
 		siteSelect.value = "";
 	}
-	if (tagSelect) {
-		Array.from(tagSelect.options).forEach((option) => {
-			option.selected = false;
-		});
+	if (tagInputInstances.filter) {
+		tagInputInstances.filter.setValue([], { silent: true });
 	}
 	if (fromInput) {
 		fromInput.value = "";
@@ -627,8 +984,10 @@ function openRecordModal(id, mode) {
 	if (modal.colorPicker) {
 		modal.colorPicker.value = colorValue;
 	}
-	if (modal.tagsInput) {
-		modal.tagsInput.value = (record.tags || []).join(", ");
+	if (modal.tagsComponent) {
+		const combined = new Set([...(state.availableTags || []), ...((record.tags || []))]);
+		modal.tagsComponent.setOptions(Array.from(combined).sort());
+		modal.tagsComponent.setValue(record.tags || [], { silent: true });
 	}
 	if (modal.status) {
 		modal.status.textContent = "";
@@ -678,7 +1037,7 @@ async function handleModalSave() {
 		return;
 	}
 	const note = modal.noteInput ? modal.noteInput.value.trim() : "";
-	const tags = parseTags(modal.tagsInput ? modal.tagsInput.value : "");
+	const tags = modal.tagsComponent ? modal.tagsComponent.getValue() : parseTags(modal.tagsInput ? modal.tagsInput.value : "");
 	const color = modal.colorPicker ? modal.colorPicker.value || DEFAULT_COLOR : DEFAULT_COLOR;
 
 	if (modal.saveButton) {

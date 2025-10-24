@@ -7,39 +7,54 @@ body {
   background: #0b1220;
   color: #e2e8f0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  display: flex;
   min-height: 100vh;
 }
 
 .app-shell {
-  display: flex;
-  width: 100%;
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  min-height: 100vh;
 }
 
 .sidebar {
-  width: 340px;
   background: #0f172a;
   border-right: 1px solid rgba(148, 163, 184, 0.1);
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
 }
 
-.sidebar__footer {
-  margin-top: auto;
+.sidebar__header {
   display: flex;
-  justify-content: flex-start;
-}
-
-.sidebar__footer .btn-link {
-  color: #cbd5f5;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .sidebar__title {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
+}
+
+.sidebar__settings {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #cbd5f5;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.sidebar__settings:hover {
+  transform: rotate(20deg);
 }
 
 .sidebar__section {
@@ -82,7 +97,8 @@ body {
 }
 
 .field input,
-.field select {
+.field select,
+.tag-input input {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid rgba(71, 85, 105, 0.6);
@@ -92,6 +108,88 @@ body {
 
 .field select[multiple] {
   height: 120px;
+}
+
+.tag-input {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 42px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  background: rgba(15, 23, 42, 0.6);
+  cursor: text;
+  position: relative;
+}
+
+.tag-input.is-focused {
+  border-color: rgba(59, 130, 246, 0.65);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.tag-input__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.25);
+  color: #93c5fd;
+  font-size: 12px;
+}
+
+.tag-input__remove {
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  line-height: 1;
+}
+
+.tag-input__remove:hover {
+  color: #f87171;
+}
+
+.tag-input__input {
+  flex: 1;
+  min-width: 90px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 13px;
+  padding: 4px;
+  outline: none;
+}
+
+.tag-input__list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  margin-top: 6px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  border-radius: 10px;
+  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.35);
+  max-height: 220px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.tag-input__option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #cbd5f5;
+}
+
+.tag-input__option:hover,
+.tag-input__option.is-active {
+  background: rgba(37, 99, 235, 0.3);
 }
 
 .date-picker {
@@ -276,10 +374,11 @@ body {
   transform: translate(16px, -50%);
 }
 
+
 .main {
-  flex: 1;
   padding: 32px;
   overflow-y: auto;
+  height: 100vh;
 }
 
 .main__section {
@@ -700,16 +799,21 @@ body {
 
 @media (max-width: 960px) {
   .app-shell {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .sidebar {
-    width: 100%;
+    position: static;
+    height: auto;
+    max-height: none;
+    overflow: visible;
     border-right: none;
     border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-    position: sticky;
-    top: 0;
-    z-index: 10;
+  }
+
+  .main {
+    padding: 24px 16px;
+    height: auto;
   }
 
   .list-row {
@@ -720,9 +824,5 @@ body {
     width: 100%;
     flex-direction: row;
     justify-content: flex-end;
-  }
-
-  .main {
-    padding: 24px 16px;
   }
 }

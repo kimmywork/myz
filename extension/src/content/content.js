@@ -79,6 +79,7 @@
     th: new Set(["colspan", "rowspan"])
   };
   const highlightCache = new Map();
+  const knownTags = new Set();
 
   const toolbar = createToolbar();
   const modal = createModal();
@@ -173,10 +174,13 @@
       hideInspector();
       Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) => unwrapNode(node));
       highlightCache.clear();
+      knownTags.clear();
       highlights.forEach((record) => {
         highlightCache.set(record.id, record);
+        addKnownTags(record.tags || []);
         applyHighlight(record);
       });
+      updateTagSuggestions();
     } catch (error) {
       console.error("Failed to restore highlights", error);
     }
@@ -310,8 +314,7 @@
   const noteField = createField("批注", "textarea");
   noteField.input.rows = 4;
 
-  const tagsField = createField("标签（逗号分隔）", "input");
-  tagsField.input.placeholder = "如：研究, #logseq";
+  const tagsField = createTagSelectorField();
 
   const colorField = createColorPaletteField();
 
@@ -343,7 +346,7 @@
 
     actions.append(cancelButton, deleteButton, saveButton);
 
-  body.append(header, preview, noteField.wrapper, tagsField.wrapper, colorField.wrapper, actions);
+    body.append(header, preview, noteField.wrapper, tagsField.wrapper, colorField.wrapper, actions);
     container.appendChild(body);
     document.documentElement.appendChild(container);
 
@@ -353,8 +356,8 @@
       title,
       preview,
       noteInput: noteField.input,
-      tagsInput: tagsField.input,
-  colorPalette: colorField,
+      tagsComponent: tagsField.component,
+      colorPalette: colorField,
       saveButton,
       deleteButton
     };
@@ -368,6 +371,409 @@
     const input = document.createElement(type === "textarea" ? "textarea" : "input");
     wrapper.append(label, input);
     return { wrapper, input };
+  }
+
+  function createTagSelectorField() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "myz-annotator-field";
+
+    const labelRow = document.createElement("div");
+    labelRow.className = "myz-annotator-field__label-row";
+
+    const label = document.createElement("label");
+    label.textContent = "标签";
+
+    const hint = document.createElement("span");
+    hint.className = "myz-annotator-field__hint";
+    hint.textContent = "输入后按回车或逗号确认 · Backspace 回删";
+
+    labelRow.append(label, hint);
+
+    const container = document.createElement("div");
+    container.className = "myz-tag-input";
+
+    wrapper.append(labelRow, container);
+
+    const component = createTagInputWidget(container, {
+      allowNew: true,
+      placeholder: "添加标签"
+    });
+    component.setOptions(getKnownTagsList());
+
+    return { wrapper, container, component };
+  }
+
+  // Lightweight multiselect with chip UI and suggestion dropdown for tag editing.
+  function createTagInputWidget(container, config = {}) {
+    if (!container) {
+      return null;
+    }
+    const settings = {
+      placeholder: "",
+      allowNew: false,
+      onChange: null,
+      ...config
+    };
+    const input = document.createElement("input");
+    input.type = "text";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.className = "myz-tag-input__input";
+    input.placeholder = settings.placeholder || "";
+
+    const list = document.createElement("div");
+    list.className = "myz-tag-input__list myz-hidden";
+    list.setAttribute("role", "listbox");
+    const listId = `${container.id || "myz-tag"}-options-${Math.random().toString(36).slice(2, 8)}`;
+    list.id = listId;
+
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-haspopup", "listbox");
+    input.setAttribute("aria-expanded", "false");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-controls", listId);
+
+    container.textContent = "";
+    container.appendChild(input);
+    container.appendChild(list);
+
+    const state = {
+      tags: [],
+      options: [],
+      filtered: [],
+      activeIndex: -1,
+      dropdownOpen: false
+    };
+
+    function normalize(tag) {
+      return typeof tag === "string" ? tag.trim() : "";
+    }
+
+    function uniqueList(values) {
+      const seen = new Set();
+      const result = [];
+      values.forEach((value) => {
+        const normalized = normalize(value);
+        if (!normalized) {
+          return;
+        }
+        const key = normalized.toLowerCase();
+        if (seen.has(key)) {
+          return;
+        }
+        seen.add(key);
+        result.push(normalized);
+      });
+      return result;
+    }
+
+    function emitChange() {
+      if (typeof settings.onChange === "function") {
+        settings.onChange([...state.tags]);
+      }
+    }
+
+    function closeDropdown() {
+      state.dropdownOpen = false;
+      state.activeIndex = -1;
+      list.classList.add("myz-hidden");
+      Array.from(list.children).forEach((child) => child.classList.remove("is-active"));
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+    }
+
+    function updateActiveOption() {
+      let activeId = "";
+      Array.from(list.children).forEach((child, index) => {
+        const isActive = index === state.activeIndex;
+        child.classList.toggle("is-active", isActive);
+        child.setAttribute("aria-selected", isActive ? "true" : "false");
+        if (isActive) {
+          activeId = child.id || "";
+        }
+      });
+      if (activeId) {
+        input.setAttribute("aria-activedescendant", activeId);
+      } else {
+        input.removeAttribute("aria-activedescendant");
+      }
+    }
+
+    function renderChips() {
+      container.querySelectorAll(".myz-tag-input__chip").forEach((chip) => chip.remove());
+      state.tags.forEach((tag) => {
+        const chip = document.createElement("span");
+        chip.className = "myz-tag-input__chip";
+        const label = document.createElement("span");
+        label.textContent = tag;
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "myz-tag-input__remove";
+        removeBtn.textContent = "x";
+        removeBtn.dataset.tag = tag;
+        removeBtn.setAttribute("aria-label", `移除标签 ${tag}`);
+        removeBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          removeTag(tag);
+        });
+        chip.append(label, removeBtn);
+        container.insertBefore(chip, input);
+      });
+    }
+
+    function addTag(raw, { silent = false } = {}) {
+      const tag = normalize(raw);
+      if (!tag) {
+        return false;
+      }
+      if (!settings.allowNew && !state.options.some((option) => option.toLowerCase() === tag.toLowerCase())) {
+        return false;
+      }
+      if (state.tags.some((current) => current.toLowerCase() === tag.toLowerCase())) {
+        return false;
+      }
+      state.tags.push(tag);
+      if (settings.allowNew && !state.options.some((option) => option.toLowerCase() === tag.toLowerCase())) {
+        state.options.push(tag);
+        state.options.sort((a, b) => a.localeCompare(b));
+      }
+      renderChips();
+      if (!silent) {
+        emitChange();
+      }
+      return true;
+    }
+
+    function removeTag(tag, { silent = false } = {}) {
+      const lower = tag.toLowerCase();
+      const next = state.tags.filter((item) => item.toLowerCase() !== lower);
+      if (next.length === state.tags.length) {
+        return false;
+      }
+      state.tags = next;
+      renderChips();
+      if (!silent) {
+        emitChange();
+      }
+      return true;
+    }
+
+    function renderOptions() {
+      list.innerHTML = "";
+      state.filtered.forEach((option, index) => {
+        const optionEl = document.createElement("div");
+        optionEl.className = "myz-tag-input__option";
+        optionEl.setAttribute("role", "option");
+        const optionId = `${listId}-option-${index}`;
+        optionEl.id = optionId;
+        if (index === state.activeIndex) {
+          optionEl.classList.add("is-active");
+          optionEl.setAttribute("aria-selected", "true");
+          input.setAttribute("aria-activedescendant", optionId);
+        } else {
+          optionEl.setAttribute("aria-selected", "false");
+        }
+        optionEl.textContent = option;
+        optionEl.dataset.value = option;
+        optionEl.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          if (addTag(option)) {
+            input.value = "";
+          }
+          closeDropdown();
+          input.focus();
+        });
+        list.appendChild(optionEl);
+      });
+    }
+
+    function filterOptions(query) {
+      const term = query.trim().toLowerCase();
+      const available = state.options.filter((option) => {
+        if (state.tags.some((tag) => tag.toLowerCase() === option.toLowerCase())) {
+          return false;
+        }
+        return term ? option.toLowerCase().includes(term) : true;
+      });
+      state.filtered = available.slice(0, 50);
+      if (!state.filtered.length) {
+        closeDropdown();
+        return;
+      }
+      if (!state.dropdownOpen) {
+        state.dropdownOpen = true;
+        list.classList.remove("myz-hidden");
+        input.setAttribute("aria-expanded", "true");
+      }
+      if (state.activeIndex >= state.filtered.length) {
+        state.activeIndex = 0;
+      }
+      if (state.activeIndex === -1) {
+        state.activeIndex = 0;
+      }
+      renderOptions();
+    }
+
+    function commitInput() {
+      const hasOptions = state.dropdownOpen && state.filtered[state.activeIndex];
+      if (hasOptions) {
+        if (addTag(state.filtered[state.activeIndex])) {
+          input.value = "";
+        }
+        closeDropdown();
+        return;
+      }
+      const value = input.value;
+      if (!value.trim()) {
+        return;
+      }
+      if (addTag(value)) {
+        input.value = "";
+      }
+      closeDropdown();
+    }
+
+    function handleInput(event) {
+      const value = event.target.value;
+      if (!value.trim()) {
+        filterOptions("");
+      } else {
+        filterOptions(value);
+      }
+    }
+
+    function handleKeydown(event) {
+      if (event.key === "Enter" || event.key === ",") {
+        event.preventDefault();
+        commitInput();
+        return;
+      }
+      if (event.key === "Backspace" && !input.value && state.tags.length) {
+        event.preventDefault();
+        removeTag(state.tags[state.tags.length - 1]);
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        if (!state.dropdownOpen) {
+          filterOptions(input.value);
+          return;
+        }
+        state.activeIndex = state.activeIndex + 1 >= state.filtered.length ? 0 : state.activeIndex + 1;
+        updateActiveOption();
+        return;
+      }
+      if (event.key === "ArrowUp" && state.dropdownOpen) {
+        event.preventDefault();
+        state.activeIndex = state.activeIndex - 1 < 0 ? state.filtered.length - 1 : state.activeIndex - 1;
+        updateActiveOption();
+        return;
+      }
+      if (event.key === "Escape") {
+        closeDropdown();
+      }
+    }
+
+    function setOptions(options = []) {
+      state.options = uniqueList(options);
+      if (state.dropdownOpen) {
+        filterOptions(input.value);
+      }
+    }
+
+    function setValue(values = [], { silent = false } = {}) {
+      const next = uniqueList(values);
+      const hasChanged = next.length !== state.tags.length || next.some((tag, index) => state.tags[index]?.toLowerCase() !== tag.toLowerCase());
+      state.tags = next;
+      renderChips();
+      if (hasChanged && !silent) {
+        emitChange();
+      }
+    }
+
+    function getValue() {
+      return [...state.tags];
+    }
+
+    function focus() {
+      input.focus();
+    }
+
+    function destroy() {
+      input.removeEventListener("input", handleInput);
+      input.removeEventListener("keydown", handleKeydown);
+      input.removeEventListener("focus", handleFocus);
+      input.removeEventListener("blur", handleBlur);
+      container.removeEventListener("click", handleContainerClick);
+      closeDropdown();
+      container.textContent = "";
+    }
+
+    function handleContainerClick(event) {
+      if (event.target === container || event.target.closest?.(".myz-tag-input__chip")) {
+        input.focus();
+      }
+    }
+
+    function handleFocus() {
+      container.classList.add("is-focused");
+      filterOptions(input.value);
+    }
+
+    function handleBlur() {
+      container.classList.remove("is-focused");
+      setTimeout(() => {
+        if (!container.contains(document.activeElement)) {
+          closeDropdown();
+        }
+      }, 120);
+    }
+
+    input.addEventListener("input", handleInput);
+    input.addEventListener("keydown", handleKeydown);
+    input.addEventListener("focus", handleFocus);
+    input.addEventListener("blur", handleBlur);
+    container.addEventListener("click", handleContainerClick);
+
+    return {
+      getValue,
+      setValue,
+      setOptions,
+      focus,
+      destroy
+    };
+  }
+
+  function normalizeTagValue(value) {
+    return typeof value === "string" ? value.trim() : "";
+  }
+
+  function addKnownTags(tags) {
+    if (!Array.isArray(tags)) {
+      return false;
+    }
+    let changed = false;
+    tags.forEach((tag) => {
+      const normalized = normalizeTagValue(tag);
+      if (!normalized) {
+        return;
+      }
+      if (!knownTags.has(normalized)) {
+        knownTags.add(normalized);
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
+  function getKnownTagsList() {
+    return Array.from(knownTags).sort((a, b) => a.localeCompare(b));
+  }
+
+  function updateTagSuggestions() {
+    if (modal.tagsComponent) {
+      modal.tagsComponent.setOptions(getKnownTagsList());
+    }
   }
 
   function createColorPaletteField() {
@@ -454,7 +860,16 @@
     modal.title.textContent = options.mode === "edit" ? "编辑批注" : "添加批注";
     modal.preview.textContent = options.preview || "";
     modal.noteInput.value = options.note || "";
-    modal.tagsInput.value = Array.isArray(options.tags) ? options.tags.join(", ") : options.tags || "";
+    if (modal.tagsComponent) {
+      const initialTags = Array.isArray(options.tags)
+        ? options.tags.filter(Boolean)
+        : options.tags
+        ? [options.tags]
+        : [];
+      const optionsSet = new Set([...getKnownTagsList(), ...initialTags]);
+      modal.tagsComponent.setOptions(Array.from(optionsSet).sort((a, b) => a.localeCompare(b)));
+      modal.tagsComponent.setValue(initialTags, { silent: true });
+    }
     state.selectedColor = options.color || state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
     renderColorPalette();
     modal.deleteButton.classList.toggle("myz-hidden", options.mode !== "edit");
@@ -467,11 +882,14 @@
     state.currentText = "";
     state.currentHtml = "";
     state.editingId = null;
+    if (modal.tagsComponent) {
+      modal.tagsComponent.setValue([], { silent: true });
+    }
   }
 
   async function handleSubmit() {
     const note = modal.noteInput.value.trim();
-    const tags = parseTags(modal.tagsInput.value);
+    const tags = modal.tagsComponent ? modal.tagsComponent.getValue() : [];
     const color = state.selectedColor || state.settings.lastUsedColor || DEFAULT_COLORS[0];
 
     if (state.editingId) {
@@ -508,6 +926,9 @@
       if (record) {
         highlightCache.set(record.id, record);
         applyHighlight(record);
+        if (addKnownTags(record.tags || tags)) {
+          updateTagSuggestions();
+        }
       }
       persistColorSettings({ lastUsedColor: color });
     } catch (error) {
@@ -526,6 +947,9 @@
         return;
       }
       highlightCache.set(record.id, record);
+      if (addKnownTags(record.tags || [])) {
+        updateTagSuggestions();
+      }
       const nodes = document.querySelectorAll(`[data-highlight-id="${record.id}"]`);
       nodes.forEach((node) => {
         node.style.backgroundColor = record.color || "#ffe58f";
@@ -1127,8 +1551,13 @@
         element.removeAttribute(attr.name);
         return;
       }
-      if (attr.name === "href" && !isSafeUrl(attr.value)) {
-        element.removeAttribute(attr.name);
+      if (attr.name === "href") {
+        const sanitizedHref = normalizeHref(attr.value);
+        if (sanitizedHref) {
+          element.setAttribute("href", sanitizedHref);
+        } else {
+          element.removeAttribute("href");
+        }
       }
     });
 
@@ -1148,25 +1577,28 @@
     return whitelist.has(name);
   }
 
-  function isSafeUrl(url) {
+  function normalizeHref(value) {
+    if (!value || typeof value !== "string") {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
     try {
-      const parsed = new URL(url, window.location.href);
+      const parsed = new URL(trimmed, window.location.href);
       const protocol = parsed.protocol.toLowerCase();
-      return protocol === "http:" || protocol === "https:" || protocol === "mailto:";
+      if (protocol === "http:" || protocol === "https:" || protocol === "mailto:") {
+        return parsed.toString();
+      }
+      return null;
     } catch (error) {
-      return false;
+      return null;
     }
   }
 
-  function parseTags(value) {
-    if (!value) {
-      return [];
-    }
-    return value
-      .split(/[,#]/)
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-      .map((tag) => (tag.startsWith("#") ? tag.slice(1) : tag));
+  function isSafeUrl(url) {
+    return Boolean(normalizeHref(url));
   }
 
   function recordToMarkdown(record) {
