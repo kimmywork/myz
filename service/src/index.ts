@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import passport from 'passport';
+import path from 'path';
 import authRoutes from './routes/auth';
 import syncRoutes from './routes/sync';
 
@@ -12,13 +13,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Allow inline scripts for the web UI
+}));
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files for web UI
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.use(passport.initialize());
 

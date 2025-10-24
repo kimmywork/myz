@@ -103,7 +103,7 @@ export class OAuthController {
     (req: Request, res: Response) => {
       const user = req.user as any;
       if (!user) {
-        res.redirect('/auth/failure');
+        res.redirect('/?error=authentication_failed');
         return;
       }
 
@@ -113,7 +113,8 @@ export class OAuthController {
         emailVerified: user.email_verified,
       });
 
-      res.redirect(`${process.env.FRONTEND_URL}/auth/success?token=${token}`);
+      // Redirect to web UI with token
+      res.redirect(`/?token=${token}`);
     }
   ];
 
@@ -127,7 +128,7 @@ export class OAuthController {
     (req: Request, res: Response) => {
       const user = req.user as any;
       if (!user) {
-        res.redirect('/auth/failure');
+        res.redirect('/?error=authentication_failed');
         return;
       }
 
@@ -137,11 +138,12 @@ export class OAuthController {
         emailVerified: user.email_verified,
       });
 
-      res.redirect(`${process.env.FRONTEND_URL}/auth/success?token=${token}`);
+      // Redirect to web UI with token
+      res.redirect(`/?token=${token}`);
     }
   ];
 
   static authFailure(_req: Request, res: Response): void {
-    res.status(401).json({ error: 'OAuth authentication failed' });
+    res.redirect('/?error=authentication_failed');
   }
 }
