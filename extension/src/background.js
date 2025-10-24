@@ -641,17 +641,17 @@ function buildHighlightBlock(record) {
 
   const noteContent = extractRecordNote(record);
   if (noteContent) {
-    const combined = makeMarkdownBlock(`批注:\n${noteContent}`);
-    if (combined) {
-      detailBlocks.push(combined);
+    const noteBlock = makeMarkdownBlock(noteContent);
+    if (noteBlock) {
+      detailBlocks.push(makeBlock("批注", [noteBlock]));
     }
   }
 
   const quoteContent = extractRecordQuote(record);
   if (quoteContent) {
-    const combined = makeMarkdownBlock(`摘录:\n${quoteContent}`);
-    if (combined) {
-      detailBlocks.push(combined);
+    const quoteBlock = makeMarkdownBlock(quoteContent);
+    if (quoteBlock) {
+      detailBlocks.push(makeBlock("摘录", [quoteBlock]));
     }
   }
 
@@ -920,6 +920,60 @@ function interpretLogseqResponse(text) {
   return parsed;
 }
 
+function decodeHtmlEntities(value) {
+  if (!value) {
+    return "";
+  }
+  return String(value).replace(/&(#x?[0-9a-f]+|#\d+|[a-zA-Z]+);/g, (match, entity) => {
+    const lower = entity.toLowerCase();
+    if (lower.startsWith("#x")) {
+      const code = parseInt(lower.slice(2), 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+    }
+    if (lower.startsWith("#")) {
+      const code = parseInt(lower.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
+    }
+    switch (lower) {
+      case "amp":
+        return "&";
+      case "lt":
+        return "<";
+      case "gt":
+        return ">";
+      case "quot":
+        return '"';
+      case "apos":
+      case "lsquo":
+      case "rsquo":
+        return "'";
+      case "nbsp":
+        return " ";
+      case "hellip":
+        return "…";
+      case "mdash":
+        return "—";
+      default:
+        return match;
+    }
+  });
+}
+
+function stripHtmlTags(value) {
+  if (!value) {
+    return "";
+  }
+  return String(value)
+    .replace(/<br\s*\/?>(\r?\n)?/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n\n")
+    .replace(/<li[^>]*>/gi, "\n- ")
+    .replace(/<\/li>/gi, "")
+    .replace(/<\/?(ul|ol|table|thead|tbody|tr)[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 function normalizeTagValue(tag) {
   return typeof tag === "string" ? tag.trim() : "";
 }
@@ -928,20 +982,34 @@ function htmlToMarkdown(html) {
   if (!html) {
     return "";
   }
+
+  const source = decodeHtmlEntities(html);
+  if (!source) {
+    return "";
+  }
+
   try {
     if (typeof DOMParser !== "undefined") {
       const parser = new DOMParser();
-      const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
+      const doc = parser.parseFromString(`<div>${source}</div>`, "text/html");
       const container = doc.body.firstElementChild;
-      if (!container) {
-        return "";
+      if (container) {
+        const markdown = normalizeMarkdown(serializeNodes(Array.from(container.childNodes))).trim();
+        if (markdown) {
+          return markdown;
+        }
       }
-      return normalizeMarkdown(serializeNodes(Array.from(container.childNodes))).trim();
     }
   } catch (error) {
     console.warn("Failed to convert HTML to markdown", error);
   }
-  return normalizeMarkdown(fallbackHtmlToMarkdown(html));
+
+  const fallback = normalizeMarkdown(fallbackHtmlToMarkdown(source));
+  if (fallback) {
+    return fallback;
+  }
+
+  return cleanLogseqMultiline(stripHtmlTags(source));
 }
 
 function serializeNodes(nodes, context = {}) {
