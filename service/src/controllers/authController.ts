@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { UserModel } from '../models/User';
 import { generateToken } from '../utils/jwt';
 import { sendVerificationEmail } from '../utils/email';
+import { validateCaptcha } from '../utils/captcha';
 import { AuthRequest } from '../middleware/auth';
 
 function asAuthRequest(req: Request): AuthRequest {
@@ -11,7 +12,20 @@ function asAuthRequest(req: Request): AuthRequest {
 export class AuthController {
   static async register(req: Request, res: Response): Promise<void> {
     try {
-      const { email, password } = req.body;
+      const { email, password, captcha } = req.body;
+
+      // Validate captcha
+      const captchaSession = req.cookies.captcha_session;
+      if (!captchaSession || !captcha) {
+        res.status(400).json({ error: 'Captcha is required' });
+        return;
+      }
+
+      const isCaptchaValid = validateCaptcha(captchaSession, captcha);
+      if (!isCaptchaValid) {
+        res.status(400).json({ error: 'Invalid captcha' });
+        return;
+      }
 
       const existingUser = await UserModel.findByEmail(email);
       if (existingUser) {
@@ -48,7 +62,20 @@ export class AuthController {
 
   static async login(req: Request, res: Response): Promise<void> {
     try {
-      const { email, password } = req.body;
+      const { email, password, captcha } = req.body;
+
+      // Validate captcha
+      const captchaSession = req.cookies.captcha_session;
+      if (!captchaSession || !captcha) {
+        res.status(400).json({ error: 'Captcha is required' });
+        return;
+      }
+
+      const isCaptchaValid = validateCaptcha(captchaSession, captcha);
+      if (!isCaptchaValid) {
+        res.status(400).json({ error: 'Invalid captcha' });
+        return;
+      }
 
       const user = await UserModel.findByEmail(email);
       if (!user) {

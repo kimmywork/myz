@@ -36,12 +36,16 @@ test.describe('Web UI Portal', () => {
   });
 
   test('should display captcha on login form', async ({ page }) => {
+    // Wait for captcha to load from server
+    await page.waitForTimeout(1000);
     await expect(page.locator('#login-captcha-canvas')).toBeVisible();
     await expect(page.locator('#login-captcha')).toBeVisible();
   });
 
   test('should display captcha on register form', async ({ page }) => {
     await page.locator('[data-tab="register"]').click();
+    // Wait for captcha to load from server
+    await page.waitForTimeout(1000);
     await expect(page.locator('#register-captcha-canvas')).toBeVisible();
     await expect(page.locator('#register-captcha')).toBeVisible();
   });
@@ -49,14 +53,17 @@ test.describe('Web UI Portal', () => {
   test('should refresh captcha when clicking refresh button', async ({ page }) => {
     const canvas = page.locator('#login-captcha-canvas');
     
+    // Wait for initial captcha to load
+    await page.waitForTimeout(1000);
+    
     // Take screenshot of initial captcha
     const initialImage = await canvas.screenshot();
     
     // Click refresh button
     await page.locator('.refresh-captcha').first().click();
     
-    // Wait a bit for the captcha to regenerate
-    await page.waitForTimeout(100);
+    // Wait for new captcha to load from server
+    await page.waitForTimeout(1000);
     
     // Take screenshot of new captcha
     const newImage = await canvas.screenshot();
@@ -90,14 +97,16 @@ test.describe('Web UI Portal', () => {
     await page.fill('#login-email', 'nonexistent@example.com');
     await page.fill('#login-password', 'wrongpassword');
     
-    // We can't actually fill the captcha correctly, so we'll just test the UI exists
-    // In a real test, you'd need to either mock the captcha or use a test captcha
-    await page.fill('#login-captcha', 'test');
+    // Wait for captcha to load
+    await page.waitForTimeout(1000);
+    
+    // Fill in some captcha text (will be wrong but tests the flow)
+    await page.fill('#login-captcha', 'ABCDEF');
     
     // Submit form
     await page.locator('#login-form button[type="submit"]').click();
     
-    // Should show error message
+    // Should show error message (either captcha error or login error)
     await expect(page.locator('.message-error')).toBeVisible({ timeout: 5000 });
   });
 
@@ -127,7 +136,10 @@ test.describe('Web UI Portal', () => {
     await page.fill('#register-email', 'test@example.com');
     await page.fill('#register-password', 'password123');
     await page.fill('#register-password-confirm', 'differentpassword');
-    await page.fill('#register-captcha', 'test');
+    
+    // Wait for captcha to load
+    await page.waitForTimeout(1000);
+    await page.fill('#register-captcha', 'ABCDEF');
     
     await page.locator('#register-form button[type="submit"]').click();
     

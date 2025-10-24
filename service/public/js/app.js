@@ -36,9 +36,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     const password = document.getElementById('login-password').value;
     const captcha = document.getElementById('login-captcha').value;
     
-    if (!validateCaptcha('login', captcha)) {
-        showMessage('验证码错误，请重试', 'error');
-        refreshCaptcha('login');
+    if (!captcha) {
+        showMessage('请输入验证码', 'error');
         return;
     }
     
@@ -46,7 +45,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            credentials: 'include', // Include cookies for captcha session
+            body: JSON.stringify({ email, password, captcha })
         });
         
         const data = await response.json();
@@ -58,11 +58,11 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
             showDashboard();
         } else {
             showMessage(data.error || '登录失败', 'error');
-            refreshCaptcha('login');
+            await refreshCaptcha('login'); // Refresh captcha on error
         }
     } catch (error) {
         showMessage('网络错误，请重试', 'error');
-        refreshCaptcha('login');
+        await refreshCaptcha('login');
     }
 });
 
@@ -80,9 +80,8 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         return;
     }
     
-    if (!validateCaptcha('register', captcha)) {
-        showMessage('验证码错误，请重试', 'error');
-        refreshCaptcha('register');
+    if (!captcha) {
+        showMessage('请输入验证码', 'error');
         return;
     }
     
@@ -90,7 +89,8 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
         const response = await fetch(`${API_BASE}/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            credentials: 'include', // Include cookies for captcha session
+            body: JSON.stringify({ email, password, captcha })
         });
         
         const data = await response.json();
@@ -102,11 +102,11 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
             showDashboard();
         } else {
             showMessage(data.error || '注册失败', 'error');
-            refreshCaptcha('register');
+            await refreshCaptcha('register'); // Refresh captcha on error
         }
     } catch (error) {
         showMessage('网络错误，请重试', 'error');
-        refreshCaptcha('register');
+        await refreshCaptcha('register');
     }
 });
 

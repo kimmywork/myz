@@ -42,21 +42,20 @@ Navigate to `http://localhost:3000/` in your browser to access the web UI.
 
 ### 2. Captcha System
 
-A simple canvas-based captcha system to reduce automated/anonymous API calls.
-
-#### How it works:
-- Generates random 6-character alphanumeric strings
-- Renders them with:
-  - Random colors and rotation
-  - Background noise lines
-  - Random dots for additional security
-- Validates user input case-insensitively
+Server-side canvas-based captcha for enhanced security:
+- Generates 6-character alphanumeric codes **on the server**
+- Rendered with random colors, rotations, and noise
+- **Validates server-side** to prevent client-side bypass
+- Stores session in HTTP-only cookies
+- One-time use (expires after validation or 5 minutes)
 - Auto-refreshes on failed attempts
 
 #### Integration:
-- Embedded in both login and registration forms
-- Client-side validation before API calls
-- Refresh button for new captcha generation
+- Captcha image generated via `/api/captcha/generate` endpoint
+- Session stored in HTTP-only cookie
+- Client fetches image and displays in canvas
+- Server validates captcha on login/registration
+- Refresh button requests new captcha from server
 
 ### 3. Comprehensive Testing
 
@@ -208,10 +207,12 @@ Test results are available in `playwright-report/index.html` after running E2E t
 ## Security Considerations
 
 ### Captcha
-- Not cryptographically secure
-- Designed for basic bot prevention
-- Should be combined with rate limiting
-- Consider upgrading to reCAPTCHA for production
+- **Server-side generation and validation** prevents client bypass
+- Generated using Node.js `canvas` library
+- Session stored in HTTP-only cookies
+- One-time use prevents replay attacks
+- 5-minute expiration window
+- Consider adding rate limiting per IP for additional protection
 
 ### OAuth Redirects
 - Redirects to web UI with token in URL parameter
@@ -254,15 +255,17 @@ Test results are available in `playwright-report/index.html` after running E2E t
 ## Future Improvements
 
 1. **Enhanced Captcha**
-   - Integrate Google reCAPTCHA
+   - Integrate Google reCAPTCHA as alternative
    - Add audio captcha for accessibility
-   - Server-side captcha validation
+   - Implement difficulty levels
+   - Add IP-based rate limiting
 
 2. **More Tests**
    - Test email verification flow
    - Test sync conflict resolution
    - Test OAuth provider interactions
    - Performance testing
+   - Captcha validation edge cases
 
 3. **UI Enhancements**
    - Dark mode support
@@ -275,6 +278,7 @@ Test results are available in `playwright-report/index.html` after running E2E t
    - Keyboard navigation
    - Screen reader support
    - High contrast mode
+   - Audio captcha alternative
 
 ## Screenshots
 
