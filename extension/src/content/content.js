@@ -39,6 +39,43 @@
 
   const CANONICAL_URL = canonicalUrl(window.location.href);
   const DEFAULT_COLORS = ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"];
+  const ALLOWED_HTML_TAGS = new Set([
+    "a",
+    "b",
+    "strong",
+    "em",
+    "i",
+    "u",
+    "s",
+    "code",
+    "pre",
+    "blockquote",
+    "mark",
+    "span",
+    "sup",
+    "sub",
+    "p",
+    "div",
+    "ul",
+    "ol",
+    "li",
+    "br",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "td",
+    "th"
+  ]);
+  const ALLOWED_HTML_ATTRS = {
+    a: new Set(["href", "title"])
+  };
   const highlightCache = new Map();
 
   const toolbar = createToolbar();
@@ -48,6 +85,7 @@
   const state = {
     currentRange: null,
     currentText: "",
+    currentHtml: "",
     editingId: null,
     toolbarShownAt: 0,
     settings: {
@@ -209,12 +247,19 @@
   function createToolbar() {
     const node = document.createElement("div");
     node.className = "myz-annotator-toolbar myz-hidden";
-    const button = document.createElement("button");
-    button.type = "button";
-  button.textContent = "✍️";
-  button.setAttribute("aria-label", "添加标注");
-    button.addEventListener("click", handleAnnotateClick);
-    node.appendChild(button);
+    const annotateButton = document.createElement("button");
+    annotateButton.type = "button";
+    annotateButton.textContent = "✍️";
+    annotateButton.setAttribute("aria-label", "添加标注");
+    annotateButton.addEventListener("click", handleAnnotateClick);
+
+    const captureButton = document.createElement("button");
+    captureButton.type = "button";
+    captureButton.textContent = "📸";
+    captureButton.setAttribute("aria-label", "截取选区截图");
+    captureButton.addEventListener("click", handleScreenshotClick);
+
+    node.append(annotateButton, captureButton);
     document.documentElement.appendChild(node);
     return node;
   }
@@ -227,6 +272,7 @@
     }
     state.currentRange = selection.getRangeAt(0).cloneRange();
     state.currentText = selection.toString().trim();
+    state.currentHtml = serializeRangeToHtml(state.currentRange);
     state.editingId = null;
     state.selectedColor = state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
     openModal({
@@ -417,6 +463,7 @@
     modal.container.classList.add("myz-hidden");
     state.currentRange = null;
     state.currentText = "";
+    state.currentHtml = "";
     state.editingId = null;
   }
 
@@ -448,6 +495,7 @@
         sourceUrl: window.location.href,
         title: document.title,
         text: state.currentText,
+        html: state.currentHtml || "",
         note,
         tags,
         color,
@@ -919,6 +967,188 @@
       return u.toString();
     } catch (error) {
       return url;
+    }
+  }
+
+  async function handleScreenshotClick() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      hideToolbar();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const rect = getSelectionBoundingRect(range);
+    if (!rect || rect.width < 4 || rect.height < 4) {
+      hideToolbar();
+      return;
+    }
+    try {
+      const result = await sendMessage("myz:captureSelection", { format: "png" });
+      if (!result || !result.dataUrl) {
+        return;
+      }
+      await cropAndDownloadSelection(result.dataUrl, rect);
+    } catch (error) {
+      console.error("Selection capture failed", error);
+    } finally {
+      hideToolbar();
+    }
+  }
+
+  function getSelectionBoundingRect(range) {
+    const rects = Array.from(range.getClientRects()).filter((rect) => rect.width && rect.height);
+    if (!rects.length) {
+      const fallback = range.getBoundingClientRect();
+      if (!fallback || !fallback.width || !fallback.height) {
+        return null;
+      }
+      return {
+        top: fallback.top,
+        left: fallback.left,
+        width: fallback.width,
+        height: fallback.height
+      };
+    }
+    const bounds = rects.reduce(
+      (acc, rect) => ({
+        top: Math.min(acc.top, rect.top),
+        left: Math.min(acc.left, rect.left),
+        right: Math.max(acc.right, rect.right),
+        bottom: Math.max(acc.bottom, rect.bottom)
+      }),
+      {
+        top: rects[0].top,
+        left: rects[0].left,
+        right: rects[0].right,
+        bottom: rects[0].bottom
+      }
+    );
+    return {
+      top: bounds.top,
+      left: bounds.left,
+      width: bounds.right - bounds.left,
+      height: bounds.bottom - bounds.top
+    };
+  }
+
+  async function cropAndDownloadSelection(dataUrl, rect) {
+    const image = await loadImage(dataUrl);
+    const viewportWidth = window.innerWidth || image.width;
+    const viewportHeight = window.innerHeight || image.height;
+    const scaleX = image.width / viewportWidth;
+    const scaleY = image.height / viewportHeight;
+    const sx = Math.max(0, Math.floor(rect.left * scaleX));
+    const sy = Math.max(0, Math.floor(rect.top * scaleY));
+    const sw = Math.min(image.width - sx, Math.floor(rect.width * scaleX));
+    const sh = Math.min(image.height - sy, Math.floor(rect.height * scaleY));
+    if (sw <= 0 || sh <= 0) {
+      throw new Error("Selection bounds are outside the captured area");
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = sw;
+    canvas.height = sh;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Canvas context is unavailable");
+    }
+    context.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
+    const cropped = canvas.toDataURL("image/png");
+    downloadImage(cropped, `myz-selection-${Date.now()}.png`);
+  }
+
+  function loadImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Failed to load screenshot"));
+      image.src = dataUrl;
+    });
+  }
+
+  function downloadImage(dataUrl, filename) {
+    const anchor = document.createElement("a");
+    anchor.href = dataUrl;
+    anchor.download = filename;
+    anchor.click();
+  }
+
+  function serializeRangeToHtml(range) {
+    try {
+      const fragment = range.cloneContents();
+      if (!fragment || !fragment.childNodes.length) {
+        return "";
+      }
+      const container = document.createElement("div");
+      container.appendChild(fragment);
+      sanitizeNode(container);
+      return container.innerHTML.trim();
+    } catch (error) {
+      console.warn("Failed to serialize selection HTML", error);
+      return "";
+    }
+  }
+
+  function sanitizeNode(root) {
+    Array.from(root.childNodes).forEach((child) => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        sanitizeElement(child);
+      } else if (child.nodeType === Node.COMMENT_NODE) {
+        root.removeChild(child);
+      }
+    });
+  }
+
+  function sanitizeElement(element) {
+    const tag = element.tagName.toLowerCase();
+    if (!ALLOWED_HTML_TAGS.has(tag)) {
+      const parent = element.parentNode;
+      if (!parent) {
+        return;
+      }
+      const children = Array.from(element.childNodes);
+      children.forEach((child) => parent.insertBefore(child, element));
+      parent.removeChild(element);
+      children.forEach((child) => {
+        if (child.nodeType === Node.ELEMENT_NODE) {
+          sanitizeElement(child);
+        }
+      });
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attr) => {
+      if (!isAllowedAttribute(tag, attr.name)) {
+        element.removeAttribute(attr.name);
+        return;
+      }
+      if (attr.name === "href" && !isSafeUrl(attr.value)) {
+        element.removeAttribute(attr.name);
+      }
+    });
+
+    if (tag === "a" && element.hasAttribute("href")) {
+      element.setAttribute("target", "_blank");
+      element.setAttribute("rel", "noopener noreferrer");
+    }
+
+    sanitizeNode(element);
+  }
+
+  function isAllowedAttribute(tag, name) {
+    const whitelist = ALLOWED_HTML_ATTRS[tag];
+    if (!whitelist) {
+      return false;
+    }
+    return whitelist.has(name);
+  }
+
+  function isSafeUrl(url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      const protocol = parsed.protocol.toLowerCase();
+      return protocol === "http:" || protocol === "https:" || protocol === "mailto:";
+    } catch (error) {
+      return false;
     }
   }
 

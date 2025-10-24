@@ -120,6 +120,10 @@ h1 {
   margin-bottom: 4px;
 }
 
+.highlight-item__note.is-empty {
+  display: none;
+}
+
 .highlight-item__meta {
   font-size: 11px;
   color: #94a3b8;

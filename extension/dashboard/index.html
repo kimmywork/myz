@@ -28,14 +28,14 @@
           <label>
             <span>开始日期</span>
             <div class="date-picker">
-              <input id="filter-from" type="date" readonly />
+              <input id="filter-from" type="date" />
               <button type="button" class="btn-icon" data-picker-for="filter-from">📅</button>
             </div>
           </label>
           <label>
             <span>结束日期</span>
             <div class="date-picker">
-              <input id="filter-to" type="date" readonly />
+              <input id="filter-to" type="date" />
               <button type="button" class="btn-icon" data-picker-for="filter-to">📅</button>
             </div>
           </label>
@@ -47,40 +47,71 @@
         <h2>导出</h2>
         <button id="export-markdown" class="btn">导出 Markdown</button>
         <button id="export-json" class="btn">导出 JSON</button>
-      </section>
-
-      <section class="sidebar__section">
-        <h2>LogSeq 同步</h2>
-        <label class="field">
-          <span>服务器地址</span>
-          <input id="logseq-endpoint" type="url" placeholder="http://127.0.0.1:12315/api/annotations" />
-        </label>
-        <label class="field">
-          <span>认证 Token (可选)</span>
-          <input id="logseq-token" type="text" placeholder="Bearer ..." />
-        </label>
-        <div class="sidebar__actions">
-          <button id="save-settings" class="btn btn-secondary">保存设置</button>
-          <button id="sync-logseq" class="btn btn-primary">同步到 LogSeq</button>
-        </div>
+        <button id="sync-logseq" class="btn btn-primary is-hidden">同步 LogSeq</button>
         <p id="logseq-status" class="status-line"></p>
       </section>
+
+      <div class="sidebar__footer">
+        <button id="open-settings" class="btn-link">打开设置</button>
+      </div>
     </aside>
 
     <main class="main">
-      <header class="main__header">
-        <div>
-          <h2>全部标注</h2>
-          <p id="summary" class="summary"></p>
-        </div>
-        <div class="view-toggle" role="group" aria-label="视图切换">
-          <button type="button" id="view-cards" class="btn-toggle is-active">卡片</button>
-          <button type="button" id="view-list" class="btn-toggle">列表</button>
-        </div>
-      </header>
+      <section id="highlights-view" class="main__section is-active" aria-labelledby="highlights-title">
+        <header class="main__header">
+          <div>
+            <h2 id="highlights-title">全部标注</h2>
+            <p id="summary" class="summary"></p>
+          </div>
+          <div class="view-toggle" role="group" aria-label="视图切换">
+            <button type="button" id="view-cards" class="btn-toggle is-active">卡片</button>
+            <button type="button" id="view-list" class="btn-toggle">列表</button>
+          </div>
+        </header>
 
-      <section id="highlight-groups" class="highlight-groups">
-        <p class="empty-state">正在加载…</p>
+        <section id="highlight-groups" class="highlight-groups">
+          <p class="empty-state">正在加载…</p>
+        </section>
+      </section>
+
+      <section id="settings-view" class="main__section main__section--settings is-hidden" aria-labelledby="settings-title">
+        <header class="settings__header">
+          <div>
+            <h2 id="settings-title">设置</h2>
+            <p class="settings__subtitle">配置 LogSeq 同步与默认选项</p>
+          </div>
+          <button id="close-settings" class="btn-link">返回标注</button>
+        </header>
+
+        <div class="settings__content">
+          <section class="settings__group">
+            <div class="settings__group-header">
+              <h3>LogSeq 同步</h3>
+              <label class="toggle">
+                <input id="logseq-sync-enabled" type="checkbox" />
+                <span>启用同步</span>
+              </label>
+            </div>
+            <div id="logseq-settings-fields" class="settings__fields">
+              <label class="field">
+                <span>服务器地址</span>
+                <input id="logseq-endpoint" type="url" placeholder="http://127.0.0.1:12315/api/logseq/markup/import" />
+              </label>
+              <label class="field">
+                <span>Graph 名称 (可选)</span>
+                <input id="logseq-graph" type="text" placeholder="默认 graph" />
+              </label>
+              <label class="field">
+                <span>认证 Token (可选)</span>
+                <input id="logseq-token" type="text" placeholder="Bearer ..." />
+              </label>
+              <div class="settings__actions">
+                <button id="save-settings" class="btn btn-primary" type="button">保存设置</button>
+                <p id="settings-status" class="status-line"></p>
+              </div>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
   </div>
@@ -111,6 +142,8 @@
       <div class="card__tags"></div>
       <div class="card__footer">
         <a class="btn-link" target="_blank" rel="noopener">打开页面</a>
+        <button class="btn-link" data-action="view">查看</button>
+        <button class="btn-link" data-action="edit">编辑</button>
         <button class="btn-link" data-action="copy">复制</button>
         <button class="btn-link btn-link--danger" data-action="delete">删除</button>
       </div>
@@ -130,11 +163,53 @@
       <div class="list-row__tags"></div>
       <div class="list-row__actions">
         <a class="btn-link" target="_blank" rel="noopener">打开页面</a>
+        <button class="btn-link" data-action="view">查看</button>
+        <button class="btn-link" data-action="edit">编辑</button>
         <button class="btn-link" data-action="copy">复制</button>
         <button class="btn-link btn-link--danger" data-action="delete">删除</button>
       </div>
     </div>
   </template>
+
+  <div id="record-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal__dialog">
+      <header class="modal__header">
+        <h3 id="modal-title">标注详情</h3>
+        <button type="button" id="modal-close" class="btn-icon" aria-label="关闭">✕</button>
+      </header>
+      <div class="modal__body">
+        <section class="modal__section">
+          <h4>标注</h4>
+          <div id="modal-quote" class="modal__quote"></div>
+        </section>
+        <section class="modal__section">
+          <h4>批注</h4>
+          <div id="modal-note-display" class="modal__note"></div>
+          <textarea id="modal-note-input" class="modal__note-input is-hidden" rows="4"></textarea>
+        </section>
+        <section class="modal__section">
+          <h4>标签</h4>
+          <div id="modal-tags-display" class="modal__tags"></div>
+          <input id="modal-tags-input" class="modal__tags-input is-hidden" type="text" placeholder="如：研究, #logseq" />
+        </section>
+        <section class="modal__section modal__section--inline">
+          <div>
+            <h4>颜色</h4>
+            <span id="modal-color-swatch" class="modal__color"></span>
+          </div>
+          <label class="modal__color-input is-hidden">
+            <span class="sr-only">选择颜色</span>
+            <input id="modal-color-picker" type="color" />
+          </label>
+        </section>
+        <p id="modal-status" class="status-line"></p>
+      </div>
+      <footer class="modal__footer">
+        <button type="button" id="modal-cancel" class="btn btn-secondary">关闭</button>
+        <button type="button" id="modal-save" class="btn btn-primary is-hidden">保存</button>
+      </footer>
+    </div>
+  </div>
 
   <script type="module" src="dashboard.js"></script>
 </body>

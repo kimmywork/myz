@@ -64,8 +64,15 @@ function renderHighlights(items) {
     container.dataset.id = item.id;
     const color = instance.querySelector(".highlight-item__color");
     color.style.background = item.color || "#ffe58f";
-    instance.querySelector(".highlight-item__quote").textContent = item.text || "";
-    instance.querySelector(".highlight-item__note").textContent = item.note || "";
+    instance.querySelector(".highlight-item__quote").innerHTML = renderRichContent(item);
+    const noteEl = instance.querySelector(".highlight-item__note");
+    if (item.note) {
+      noteEl.innerHTML = formatNote(item.note);
+      noteEl.classList.remove("is-empty");
+    } else {
+      noteEl.textContent = "";
+      noteEl.classList.add("is-empty");
+    }
     instance.querySelector(".highlight-item__meta").textContent = buildMeta(item);
     fragment.appendChild(instance);
   });
@@ -241,4 +248,16 @@ function buildMeta(record) {
   const created = record.createdAt ? new Date(record.createdAt).toLocaleString() : "";
   const tags = Array.isArray(record.tags) && record.tags.length ? `#${record.tags.join(" #")}` : "";
   return [created, tags].filter(Boolean).join(" · ");
+}
+
+function renderRichContent(record) {
+  if (record.html) {
+    return record.html;
+  }
+  const text = record.text || "";
+  return escapeHtml(text).replace(/\r?\n/g, "<br>");
+}
+
+function formatNote(value) {
+  return escapeHtml(value).replace(/\r?\n/g, "<br>");
 }
