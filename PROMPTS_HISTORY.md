@@ -109,3 +109,31 @@ logseq-api in the knowledge base is incorrect, first argument of `insertBatchBlo
 
 Handler error myz:syncLogseq Error: LogSeq API 响应无法解析：No protocol method IAssociative.-assoc defined for type string: MyZ Export 2025-10-24T06:55:34.888Z
 src/background.js:43 (anonymous function)
+
+---
+
+同步的功能存在一些缺陷。我希望的是增量更新，而不是每一次都把之前的内容同步一遍。你需要在每次同步以后保存下来对应的block id，然后在下次同步的时候检查block id之间的变化，对于 LogSeq 端没有的标注再重新同步一次，已有的则保持不变。如果 LogSeq 端多出来了不属于 MyZ 的标注 block，则忽略。
+
+因此 MyZ Inbox （或者其他自定义的页面）中不需要使用日期来做标记。
+
+而如果本身在MyZ中存在的标注，其block id存在但是在LogSeq中不存在，则再次同步到LogSeq中，并把MyZ中的标注替换成新的block id。
+
+请尝试理解这种增量同步机制，再次更新对应的同步逻辑。
+
+---
+
+Handler error myz:syncLogseq Error: LogSeq 返回的块数量与请求不匹配
+
+看起来同步成功了，但是校验失败了。请检查校验逻辑是不是需要重新调整。 另外，请不要同步颜色字段，这会在 LogSeq 里创建垃圾页面。 metadataBlocks等字段块儿也请使用 `:` 而非 `::` 。这也会创建额外的垃圾页面。
+
+---
+
+完美，现在可以成功同步了。鉴于 LogSeq 原生支持 markdown，接下来请在同步的过程中，把 HTML 格式转换成 Markdown 直接作为一整个block同步给 LogSeq，而不是再把 quoteLines 分别创建 block 同步给 LogSeq。 对于批注内容也进行同样的操作，批注文本合并成一块儿创建一个 block 同步给 LogSeq 而不是按行创建 block。
+
+---
+
+我看你还是把 rawText 发送了过去，摘录的部分请先从 HTML 中提取 markdown，如果做不到再提取 rawText。
+
+---
+
+很奇怪，发送过去的还是纯文本而非Markdown格式（比如 pre / b / h1 等都没成功转换。我看你代码里有多个转换为markdown的逻辑，请检查出现这个情况的原因。

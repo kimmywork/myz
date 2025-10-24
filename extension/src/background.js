@@ -174,13 +174,6 @@ const messageHandlers = {
     if (!highlights.length) {
       return { success: true, inserted: 0, message: "没有可同步的标注", page: pageName };
     }
-    const exportedAt = new Date();
-    const title = payload?.title || `MyZ 同步 ${exportedAt.toLocaleString()}`;
-    const blockTree = buildLogseqBlocks(highlights, { title, exportedAt });
-    if (!blockTree.length) {
-      throw new Error("没有可写入的内容");
-    }
-
     const token = (payload?.token || settings.logseqAuthToken || "").trim();
 
     const endpoints = buildLogseqEndpointList(settings, payload);
@@ -196,26 +189,101 @@ const messageHandlers = {
           throw new Error("无法确定 LogSeq 页面 UUID");
         }
 
-        const result = await callLogseq({
-          endpoint,
-          token,
-          method: "logseq.Editor.insertBatchBlock",
-          args: [
-            pageUuid,
-            blockTree,
-            { sibling: false, before: false }
-          ]
+        const exportedAt = new Date();
+        const recordsToInsertMap = new Map();
+        const recordsWithKnownUuid = [];
+
+        highlights.forEach((record) => {
+          if (!record) {
+            return;
+          }
+          if (record.logseqBlockUuid) {
+            recordsWithKnownUuid.push(record);
+          } else {
+            recordsToInsertMap.set(record.id, record);
+          }
         });
+
+        for (const record of recordsWithKnownUuid) {
+          const uuid = record.logseqBlockUuid;
+          if (!uuid) {
+            recordsToInsertMap.set(record.id, record);
+            continue;
+          }
+          const existingBlock = await callLogseq({
+            endpoint,
+            token,
+            method: "logseq.Editor.getBlock",
+            args: [uuid]
+          });
+          if (!existingBlock) {
+            recordsToInsertMap.set(record.id, record);
+          }
+        }
+
+        const recordsToInsert = Array.from(recordsToInsertMap.values());
+        const payloadEntries = recordsToInsert
+          .map((record) => ({
+            record,
+            block: buildHighlightBlock(record)
+          }))
+          .filter((entry) => !!entry.block);
+
+        let inserted = 0;
+        let stateMutated = false;
+
+        if (payloadEntries.length) {
+          const blocksPayload = payloadEntries.map((entry) => entry.block);
+          const result = await callLogseq({
+            endpoint,
+            token,
+            method: "logseq.Editor.insertBatchBlock",
+            args: [pageUuid, blocksPayload, { sibling: false, before: false }]
+          });
+
+          const createdBlocks = extractInsertedBlockEntities(result);
+          const blockMatches = await matchInsertedHighlights({
+            entries: payloadEntries,
+            candidates: createdBlocks,
+            pageName,
+            endpoint,
+            token
+          });
+
+          const syncedAt = exportedAt.toISOString();
+          blockMatches.forEach((entity, entry) => {
+            const blockUuid = extractEntityUuid(entity);
+            if (!blockUuid) {
+              throw new Error("未能获取新建块的 UUID");
+            }
+            const current = state.highlights[entry.record.id] || entry.record;
+            state.highlights[entry.record.id] = {
+              ...current,
+              logseqBlockUuid: blockUuid,
+              logseqSyncedAt: syncedAt
+            };
+            inserted += 1;
+            stateMutated = true;
+          });
+        }
+
+        if (stateMutated) {
+          await writeState(state);
+        }
 
         if (!settings.logseqEndpoint || normalizeLogseqEndpoint(settings.logseqEndpoint) !== endpoint) {
           await writeSettings({ logseqEndpoint: endpoint });
         }
-        const inserted = Array.isArray(result)
-          ? result.length
-          : result
-            ? 1
-            : 0;
-        return { success: true, endpoint, inserted, page: pageName, pageUuid };
+
+        return {
+          success: true,
+          endpoint,
+          page: pageName,
+          pageUuid,
+          inserted,
+          total: highlights.length,
+          skipped: highlights.length - inserted
+        };
       } catch (error) {
         lastError = error;
       }
@@ -526,8 +594,8 @@ function buildLogseqBlocks(highlights, options = {}) {
   }
 
   const metadataBlocks = [
-    makeBlock(`导出时间:: ${formattedTime}`),
-    makeBlock(`条目数:: ${highlightBlocks.length}`)
+    makeBlock(`导出时间: ${formattedTime}`),
+    makeBlock(`条目数: ${highlightBlocks.length}`)
   ].filter(Boolean);
 
   const headerBlock = makeBlock(headerContent, [...metadataBlocks, ...highlightBlocks]);
@@ -554,14 +622,11 @@ function buildHighlightBlock(record) {
     detailBlocks.push(makeBlock(`页面：[${cleanLogseqInline(domain || link)}](${link})`));
   }
   if (record.id) {
-    detailBlocks.push(makeBlock(`ID:: ${record.id}`));
-  }
-  if (record.color) {
-    detailBlocks.push(makeBlock(`颜色:: ${cleanLogseqInline(record.color)}`));
+    detailBlocks.push(makeBlock(`ID: ${record.id}`));
   }
   if (record.createdAt) {
     const created = new Date(record.createdAt).toLocaleString();
-    detailBlocks.push(makeBlock(`创建时间:: ${cleanLogseqInline(created)}`));
+    detailBlocks.push(makeBlock(`创建时间: ${cleanLogseqInline(created)}`));
   }
   const tags = Array.isArray(record.tags)
     ? record.tags
@@ -571,22 +636,22 @@ function buildHighlightBlock(record) {
         .join(" ")
     : "";
   if (tags) {
-    detailBlocks.push(makeBlock(`标签:: ${tags}`));
+    detailBlocks.push(makeBlock(`标签: ${tags}`));
   }
 
-  const noteLines = normalizeMultiline(record.note);
-  if (noteLines.length) {
-    const noteBlocks = noteLines.map((line) => makeBlock(line)).filter(Boolean);
-    if (noteBlocks.length) {
-      detailBlocks.push(makeBlock("批注", noteBlocks));
+  const noteContent = extractRecordNote(record);
+  if (noteContent) {
+    const combined = makeMarkdownBlock(`批注:\n${noteContent}`);
+    if (combined) {
+      detailBlocks.push(combined);
     }
   }
 
-  const quoteLines = extractRecordQuote(record);
-  if (quoteLines.length) {
-    const quoteBlocks = quoteLines.map((line) => makeBlock(line)).filter(Boolean);
-    if (quoteBlocks.length) {
-      detailBlocks.push(makeBlock("摘录", quoteBlocks));
+  const quoteContent = extractRecordQuote(record);
+  if (quoteContent) {
+    const combined = makeMarkdownBlock(`摘录:\n${quoteContent}`);
+    if (combined) {
+      detailBlocks.push(combined);
     }
   }
 
@@ -613,37 +678,211 @@ function cleanLogseqInline(value) {
   return String(value).replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim();
 }
 
-function normalizeMultiline(value) {
+function cleanLogseqMultiline(value) {
   if (!value) {
-    return [];
+    return "";
   }
-  return String(value)
-    .split(/\r?\n/)
-    .map((line) => cleanLogseqInline(line))
-    .filter(Boolean);
+  const lines = String(value)
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
+    .split("\n");
+
+  while (lines.length && !lines[0].trim()) {
+    lines.shift();
+  }
+  while (lines.length && !lines[lines.length - 1].trim()) {
+    lines.pop();
+  }
+
+  const normalized = lines.map((line) =>
+    line.replace(/\t/g, "  ").replace(/[\v\f]/g, " ").replace(/\s+$/g, "")
+  );
+
+  return normalized.join("\n");
+}
+
+function makeMarkdownBlock(content) {
+  const safeContent = cleanLogseqMultiline(content);
+  if (!safeContent) {
+    return null;
+  }
+  return { content: safeContent };
 }
 
 function extractRecordQuote(record) {
-  const rawText = typeof record?.text === "string" ? record.text : "";
-  if (rawText && rawText.trim()) {
-    return rawText
-      .split(/\r?\n/)
-      .map((line) => cleanLogseqInline(line))
-      .filter(Boolean);
-  }
   const html = record?.html;
-  if (!html) {
-    return [];
+  if (html) {
+    const markdown = htmlToMarkdown(html || "");
+    const cleanedMarkdown = cleanLogseqMultiline(markdown);
+    if (cleanedMarkdown) {
+      return cleanedMarkdown;
+    }
   }
-  const markdown = htmlToMarkdown(html || "");
-  if (!markdown) {
-    return [];
+
+  const rawText = typeof record?.text === "string" ? record.text : "";
+  const cleanedText = cleanLogseqMultiline(rawText);
+  if (cleanedText) {
+    return cleanedText;
   }
-  return markdown
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^>\s?/, ""))
-    .map((line) => cleanLogseqInline(line))
-    .filter(Boolean);
+
+  return "";
+}
+
+function extractRecordNote(record) {
+  const note = typeof record?.note === "string" ? record.note : "";
+  if (!note) {
+    return "";
+  }
+  return cleanLogseqMultiline(note);
+}
+
+// Flatten various LogSeq API responses into a list of block entities with UUIDs.
+function extractInsertedBlockEntities(result) {
+  const collected = [];
+  collectBlockEntities(result, collected);
+  const unique = [];
+  const seen = new Set();
+  collected.forEach((entity) => {
+    const uuid = extractEntityUuid(entity);
+    if (!uuid || seen.has(uuid)) {
+      return;
+    }
+    seen.add(uuid);
+    unique.push(entity);
+  });
+  return unique;
+}
+
+function collectBlockEntities(node, bucket) {
+  if (!bucket || !Array.isArray(bucket)) {
+    return;
+  }
+  if (!node) {
+    return;
+  }
+  if (Array.isArray(node)) {
+    node.forEach((item) => collectBlockEntities(item, bucket));
+    return;
+  }
+  if (typeof node !== "object") {
+    return;
+  }
+  if (typeof node.uuid === "string" && typeof node.content === "string") {
+    bucket.push(node);
+  }
+  if (node.children) {
+    collectBlockEntities(node.children, bucket);
+  }
+  if (node.block) {
+    collectBlockEntities(node.block, bucket);
+  }
+  if (node.blocks) {
+    collectBlockEntities(node.blocks, bucket);
+  }
+  if (node.result) {
+    collectBlockEntities(node.result, bucket);
+  }
+  if (node.vector) {
+    collectBlockEntities(node.vector, bucket);
+  }
+  if (node.data) {
+    collectBlockEntities(node.data, bucket);
+  }
+  if (node.page) {
+    collectBlockEntities(node.page, bucket);
+  }
+}
+
+// Try to align each inserted highlight entry with the created LogSeq block entity.
+async function matchInsertedHighlights({ entries, candidates, pageName, endpoint, token }) {
+  const matches = new Map();
+  const usedUuids = new Set();
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const safeCandidates = Array.isArray(candidates) ? candidates : [];
+
+  safeEntries.forEach((entry) => {
+    const matched = findMatchingBlock(entry, safeCandidates, usedUuids);
+    if (matched) {
+      matches.set(entry, matched);
+    }
+  });
+
+  const remaining = safeEntries.filter((entry) => !matches.has(entry));
+  if (remaining.length && endpoint && pageName) {
+    try {
+      const pageTree = await callLogseq({
+        endpoint,
+        token,
+        method: "logseq.Editor.getPageBlocksTree",
+        args: [pageName]
+      });
+      const pageCandidates = extractInsertedBlockEntities(pageTree);
+      remaining.forEach((entry) => {
+        const matched = findMatchingBlock(entry, pageCandidates, usedUuids);
+        if (matched) {
+          matches.set(entry, matched);
+        }
+      });
+    } catch (error) {
+      console.warn("读取 LogSeq 页面结构失败", error);
+    }
+  }
+
+  if (matches.size !== safeEntries.length) {
+    throw new Error("无法匹配所有新建的 LogSeq 块");
+  }
+
+  return matches;
+}
+
+function findMatchingBlock(entry, candidates, usedUuids) {
+  const targetContent = cleanLogseqInline(entry?.block?.content || "");
+  const idLine = entry?.record?.id ? cleanLogseqInline(`ID: ${entry.record.id}`) : "";
+  if (!targetContent) {
+    return null;
+  }
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object") {
+      continue;
+    }
+    const uuid = extractEntityUuid(candidate);
+    if (!uuid || (usedUuids && usedUuids.has(uuid))) {
+      continue;
+    }
+    const candidateContent = cleanLogseqInline(candidate.content || "");
+    if (candidateContent !== targetContent) {
+      continue;
+    }
+    if (idLine && !blockHasDescendantContent(candidate, idLine)) {
+      continue;
+    }
+    if (usedUuids) {
+      usedUuids.add(uuid);
+    }
+    return candidate;
+  }
+  return null;
+}
+
+function blockHasDescendantContent(block, targetContent) {
+  if (!targetContent) {
+    return true;
+  }
+  const queue = Array.isArray(block?.children) ? [...block.children] : [];
+  while (queue.length) {
+    const node = queue.shift();
+    if (!node || typeof node !== "object") {
+      continue;
+    }
+    const content = cleanLogseqInline(node.content || "");
+    if (content === targetContent) {
+      return true;
+    }
+    if (Array.isArray(node.children) && node.children.length) {
+      queue.push(...node.children);
+    }
+  }
+  return false;
 }
 
 function interpretLogseqResponse(text) {
