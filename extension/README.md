@@ -1,83 +1,98 @@
 # MyZ Annotator
 
-一个用于浏览器内随时高亮网页文字、撰写批注，并在本地管理导出的 Chrome 扩展。支持将高亮内容导出为 JSON/Markdown，同时可以同步给本地 LogSeq 服务器。
+MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、撰写批注、截图收集，并在本地管理这些资料。它支持导出 JSON / Markdown，以及与本地 LogSeq graph 进行安全的增量同步。
 
-## 功能概览
+## 主要特性
 
-- 在任意网页选中文本后弹出 ✍️ 操作按钮创建高亮，同时提供 📸 截图按钮，可直接保存当前选区的屏幕截图。
-- 5 色可自定义调色板自动记忆最近使用的颜色，高亮与批注全部保存在浏览器 `chrome.storage.local` 中并随页面自动恢复。
-- 被选内容会保留基础 HTML 结构（列表、链接、代码块等），在控制台 / Popup / 导出 Markdown 中都能还原原始格式。
-- 点击高亮在页面右侧开启固定详情面板，支持复制 Markdown、编辑、删除且不遮挡正文。
-- Popup 页面快速浏览当前标签页高亮、搜索、导出或唤起页面定位。
-- 控制台按日期分组浏览全部高亮，支持网站、标签、日期（内置日期选择器）和全文检索，高亮搜索词会在结果中高亮，卡片 / 列表视图记忆上次选择并采用懒加载滚动。
-- 控制台左侧导出区域可导出 JSON / Markdown，并在启用同步后显示 LogSeq 同步按钮。
-- 新的设置页集中管理 LogSeq 地址、Graph、Token 及同步开关，自动尝试常见本地端口并记忆成功的端点。
+- ✍️ **即时高亮**：选中文本自动出现浮动工具条，可一键添加批注或使用 📸 按钮截取选区图片。
+- 🎨 **可定制调色板**：提供 5 色调色板并记忆最近使用的颜色，支持快速编辑颜色值。
+- 🧭 **稳定的高亮回放**：所有数据持久化在 `chrome.storage.local`，重新访问同一页面时自动恢复高亮。
+- 📑 **富文本保真**：采集时保留链接、列表、引用、代码块等基础结构，展示与导出时按需转换为 Markdown。
+- 🧰 **管理中心**：Dashboard 支持卡片 / 列表视图（记忆上次选择）、标签多选、全文搜索、日期范围与网站筛选，并采用懒加载保障性能。
+- 🗂️ **侧边详情面板**：点击任意高亮即可在页面右侧打开固定位置的详情面板，支持复制 Markdown、编辑、删除。
+- 🔄 **LogSeq 增量同步**：通过官方 HTTP API 在目标页面插入或恢复缺失块，自动追踪 `logseqBlockUuid`，仅同步新增或丢失的标注，并在写入前将 HTML 转换为 Markdown（含 `<pre>` 代码块）。
 
-## 安装调试
+## 快速开始
 
-1. 在 Chrome 浏览器地址栏输入 `chrome://extensions/`。
-2. 打开右上角「开发者模式」。
-3. 点击「加载已解压的扩展程序」，选择本仓库下的 `extension` 目录。
-4. 安装后，点击工具栏图标即可使用。
+1. 打开 `chrome://extensions/` 并启用「开发者模式」。
+2. 点击「加载已解压的扩展程序」，选择本仓库内的 `extension` 目录。
+3. 安装后，点击工具栏图标即可在当前页采集内容或打开管理中心。
 
-## 使用说明
+### 常用操作
 
-- **创建高亮**：在网页中选中文本，点击浮动按钮「✍️」填写批注、标签及颜色后保存；若仅需截图，可直接点击「📸」按钮保存选区图片。
-- **查看批注**：点击高亮在右侧打开详情面板，可复制 Markdown、编辑或删除，原始 HTML 会完整呈现。
-- **Popup 管理**：点击扩展图标进入 Popup，可搜索当前页高亮、导出、复制或定位到原文。
-- **控制台管理**：在 Popup 中点击「管理中心」或直接打开选项页，进行筛选、导出与 LogSeq 同步（搜索词高亮、卡片 / 列表双视图、懒加载、视图记忆及 HTML 渲染均已启用）。
-- **LogSeq 同步**：打开控制台左下角的「设置」页，开启同步开关、配置服务器地址（默认尝试 `http://127.0.0.1:12315/api/logseq/markup/import` 等常见端点）、可选填写 Graph 名称与 Token，保存后即可在导出面板看到「同步 LogSeq」按钮。
+- **新建高亮**：选中文本 → 点击浮动 ✍️ → 填写批注 / 标签 → 保存。
+- **截图选区**：选中文本 → 点击 📸 → 自动去除系统选区高亮后保存 PNG。
+- **查看 / 编辑**：点击高亮或在 Popup、Dashboard 中查看详情，支持 Markdown 复制与快速定位。
+- **导出**：Dashboard 左侧导出面板可生成 JSON 与 Markdown；开启 LogSeq 同步后出现同步按钮。
 
-### LogSeq 同步说明
+## LogSeq 同步配置
 
-1. LogSeq 需提前开启本地 HTTP Server（默认为 `http://127.0.0.1:12315`）。
-2. 设置页支持 Graph、Token 及端点配置，若未指定端点会自动尝试 `api/logseq/markup/import`、`api/logseq/page`、`api/annotations` 等常见路径并记忆成功值。
-3. 若服务端启用鉴权，请在设置中填写 `Bearer xxx` 形式的 Token；未开启则可留空。
-4. 同步时会以 `POST` 方式发送如下 JSON：
+1. 在 LogSeq 桌面端开启 Developer Mode 与 HTTP API（默认端口 `http://127.0.0.1:12315/api`）。
+2. 打开 Dashboard → ⚙️ 设置页，启用同步开关并填写：
+   - **Endpoint**：LogSeq API 地址（自动记忆最近成功的端点）。
+   - **Token**：如启用鉴权，请使用 `Bearer <token>` 或直接填入 token。
+   - **Page**：目标页面名称（默认 `MyZ Inbox`）。
+3. 点击「同步 LogSeq」按钮后，后台会：
+   - 确认页面存在或自动创建根块；
+   - 仅为缺失的高亮调用 `logseq.Editor.insertBatchBlock`；
+   - 将 HTML 转成 Markdown，代码块保持为三反引号围栏；
+   - 写回返回的 `uuid` 与 `logseqSyncedAt`，确保后续增量。
 
-  ```json
-  {
-    "title": "MyZ Annotator Export 2025-10-24T08:00:00.000Z",
-    "format": "markdown",
-    "content": "...",
-    "timestamp": "2025-10-24T08:00:00.000Z",
-    "graph": ""
-  }
-  ```
-5. 若返回 `401 Unauthorized`，表示 LogSeq 端未通过认证：
-  - 确认 LogSeq Server 已开启身份校验；
-  - 在设置中填写与服务器一致的 Token；
-  - 再次点击同步即可。
+> 若目标块在 LogSeq 端被删除，下一次同步会重新写入并更新本地 UUID。
 
-## 数据结构
-
-所有高亮存储于 `chrome.storage.local` 的键 `myz::highlights` 中，结构如下：
+## 数据结构（节选）
 
 ```json
 {
   "highlights": {
-    "myz_xxx": {
-      "id": "myz_xxx",
+    "myz_123": {
+      "id": "myz_123",
       "url": "https://example.com/path",
       "sourceUrl": "https://example.com/path#section",
       "hostname": "example.com",
       "title": "页面标题",
-  "text": "被高亮的原文（纯文本）",
-  "html": "<blockquote>保留基础格式的 HTML</blockquote>",
-      "note": "批注内容",
-      "tags": ["tag1", "tag2"],
-      "color": "#ffe58f",
+      "text": "选中文本的纯文本版本",
+      "html": "<pre><code>const n = 1;</code></pre>",
+      "note": "批注内容，支持多行",
+      "tags": ["research", "todo"],
+      "color": "#fde68a",
       "range": { "start": { "path": [...], "offset": 0 }, "end": { ... } },
       "createdAt": "2025-10-24T08:00:00.000Z",
-      "updatedAt": "2025-10-24T08:00:00.000Z"
+      "updatedAt": "2025-10-24T08:05:00.000Z",
+      "logseqBlockUuid": "5fb4...",
+      "logseqSyncedAt": "2025-10-24T09:00:00.000Z"
     }
   },
-  "order": ["myz_xxx", "myz_yyy"]
+  "order": ["myz_123", "myz_456"]
 }
 ```
 
-## 备注
+## 发布到 Chrome Web Store
 
-- 扩展默认对 `<all_urls>` 注入内容脚本，仅在本地浏览器中持久化，未上传至云端。
-- 高亮恢复依赖 DOM 结构路径，如果页面结构变化较大，可能无法定位原文。
-- LogSeq 同步接口仅提供简单的 `POST` 请求，具体需与本地 LogSeq 服务的 API 保持一致。
+1. **准备素材**：
+   - `manifest.json`（MV3）已就绪，确认 `version`、`description`、`host_permissions` 等符合政策。
+   - `action` 图标、128×128 应用图标、以及 CWS 要求的 16 / 48 / 128 尺寸资源需准备放入 `extension/assets/`（或自定义目录）。
+   - 产品截图（最少 1 张，建议多尺寸）与 1024×500 宣传横幅。
+2. **隐私与政策**：
+   - 起草隐私政策说明数据仅存储于本地，不与远端共享；在 CWS 提交时提供可访问的链接。
+   - 检查扩展是否涉及受限权限（当前仅 `storage`、`tabs`、`activeTab`）。
+3. **打包上传**：
+   - 在仓库根目录运行 `zip -r myz-extension.zip extension/*`（不可包含 `.git` 等多余文件）。
+   - 登录 CWS Dashboard，创建条目并上传压缩包。
+4. **填写商店信息**：
+   - 产品名称、简介、详细介绍（可参考本 README）。
+   - 声明该扩展在本地存储数据，并说明可选的 LogSeq 连接需要用户自有服务器。
+5. **发布前检查**：
+   - 通过 Chrome Beta / Stable 实机 smoke test。
+   - 确认 Popup、Dashboard、LogSeq 同步在无 Token / 有 Token 场景下均可使用。
+   - 检查 `manifest_version`, `service_worker` 中未使用 DOM API（已全部替换）。
+
+## 本地开发提示
+
+- 修改内容脚本后需在 `chrome://extensions/` 中点击「重新加载」。
+- 若更新后台逻辑，可在开发者工具 → Service Workers 面板查看日志。
+- `knowledges/logseq-http-api.md` 内记录了所有调用细节，可作为开发补充文档。
+
+## 支持
+
+遇到问题或希望新增功能，欢迎在仓库提 Issue 说明场景与复现步骤。
