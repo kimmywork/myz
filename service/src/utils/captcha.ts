@@ -11,7 +11,7 @@ interface CaptchaSession {
 const captchaSessions = new Map<string, CaptchaSession>();
 
 // Clean up expired sessions every 5 minutes
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [sessionId, session] of captchaSessions.entries()) {
     if (session.expiresAt < now) {
@@ -19,6 +19,9 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
+
+// Unref the interval so it doesn't keep the process alive
+cleanupInterval.unref();
 
 export function generateCaptchaImage(): { image: Buffer; sessionId: string; answer: string } {
   const width = 200;
@@ -111,4 +114,9 @@ export function validateCaptcha(sessionId: string, userAnswer: string): boolean 
 
 export function cleanupCaptchaSession(sessionId: string): void {
   captchaSessions.delete(sessionId);
+}
+
+// Export cleanup function for testing
+export function stopCleanupInterval(): void {
+  clearInterval(cleanupInterval);
 }

@@ -13,4 +13,8 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
+  // Force Jest to exit after all tests complete
+  forceExit: true,
+  // Detect open handles in development
+  detectOpenHandles: false,
 };
