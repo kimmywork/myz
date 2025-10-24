@@ -118,6 +118,27 @@ const messageHandlers = {
     return sortedHighlights(state);
   },
 
+  async "myz:getAllTags"() {
+    const state = await readState();
+    const tags = new Set();
+    Object.values(state.highlights).forEach((item) => {
+      if (!item || !Array.isArray(item.tags)) {
+        return;
+      }
+      item.tags.forEach((tag) => {
+        if (typeof tag !== "string") {
+          return;
+        }
+        const normalized = tag.trim();
+        if (!normalized) {
+          return;
+        }
+        tags.add(normalized);
+      });
+    });
+    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  },
+
   async "myz:export"() {
     const state = await readState();
     const highlights = sortedHighlights(state);

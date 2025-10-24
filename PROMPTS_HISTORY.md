@@ -80,3 +80,9 @@ model: GPT-5-Codex
 2. 增强：截图时，同时会把选择页面内容的选择状态（即文字部分高亮背景）给截取下来，尝试一种新的实现方式避免截取到选择状态。
 
 3. Popup页面里显示了完整的截取内容，有点过于冗长了，改成只显示部分摘要即可。类似管理中心的列表模式，但只呈现一列内容。
+
+---
+
+Selection capture failed Error: Extension context invalidated.
+
+src/content/content.js:1422 (handleScreenshotClick)

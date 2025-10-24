@@ -64,13 +64,25 @@ function renderHighlights(items) {
     container.dataset.id = item.id;
     const color = instance.querySelector(".highlight-item__color");
     color.style.background = item.color || "#ffe58f";
-    instance.querySelector(".highlight-item__quote").innerHTML = renderRichContent(item);
+    const quoteEl = instance.querySelector(".highlight-item__quote");
+    const fullText = getRecordPlainText(item);
+    const summary = truncateContent(fullText, 160);
+    quoteEl.textContent = summary || "(无正文内容)";
+    if (fullText) {
+      quoteEl.title = fullText;
+    } else {
+      quoteEl.removeAttribute("title");
+    }
     const noteEl = instance.querySelector(".highlight-item__note");
-    if (item.note) {
-      noteEl.innerHTML = formatNote(item.note);
+    const noteTooltip = normalizeWhitespace(item.note);
+    if (noteTooltip) {
+      const noteText = formatNote(noteTooltip);
+      noteEl.textContent = noteText;
+      noteEl.title = noteTooltip;
       noteEl.classList.remove("is-empty");
     } else {
       noteEl.textContent = "";
+      noteEl.removeAttribute("title");
       noteEl.classList.add("is-empty");
     }
     instance.querySelector(".highlight-item__meta").textContent = buildMeta(item);
@@ -250,14 +262,44 @@ function buildMeta(record) {
   return [created, tags].filter(Boolean).join(" · ");
 }
 
-function renderRichContent(record) {
-  if (record.html) {
-    return record.html;
-  }
-  const text = record.text || "";
-  return escapeHtml(text).replace(/\r?\n/g, "<br>");
+function formatNote(value) {
+  return truncateContent(value, 120);
 }
 
-function formatNote(value) {
-  return escapeHtml(value).replace(/\r?\n/g, "<br>");
+function getRecordPlainText(record) {
+  if (!record) {
+    return "";
+  }
+  const text = normalizeWhitespace(record.text);
+  if (text) {
+    return text;
+  }
+  return normalizeWhitespace(extractPlainText(record.html));
+}
+
+function extractPlainText(html) {
+  if (!html) {
+    return "";
+  }
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  return container.textContent || container.innerText || "";
+}
+
+function truncateContent(value, maxLength) {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) {
+    return "";
+  }
+  if (typeof maxLength !== "number" || normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}…`;
+}
+
+function normalizeWhitespace(value) {
+  if (!value) {
+    return "";
+  }
+  return String(value).replace(/\s+/g, " ").trim();
 }

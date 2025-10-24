@@ -101,9 +101,9 @@
   init().catch((error) => console.error("MyZ Annotator init failed", error));
 
   async function init() {
-  await loadSettings();
+    await loadSettings();
 
-  document.addEventListener("mouseup", handleSelectionTrigger);
+    document.addEventListener("mouseup", handleSelectionTrigger);
     document.addEventListener("keyup", handleSelectionTrigger);
     document.addEventListener("scroll", hideToolbar, true);
     document.addEventListener("click", handleDocumentClick, true);
@@ -167,15 +167,25 @@
 
   async function restoreHighlights() {
     try {
-      const highlights = await sendMessage("myz:getHighlightsForUrl", { url: CANONICAL_URL });
-      if (!Array.isArray(highlights)) {
-        return;
+      const [highlights, tagList] = await Promise.all([
+        sendMessage("myz:getHighlightsForUrl", { url: CANONICAL_URL }),
+        sendMessage("myz:getAllTags").catch((error) => {
+          console.warn("Failed to load known tags", error);
+          return null;
+        })
+      ]);
+
+      if (Array.isArray(tagList)) {
+        knownTags.clear();
+        addKnownTags(tagList);
       }
+
       hideInspector();
       Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) => unwrapNode(node));
       highlightCache.clear();
-      knownTags.clear();
-      highlights.forEach((record) => {
+
+      const records = Array.isArray(highlights) ? highlights : [];
+      records.forEach((record) => {
         highlightCache.set(record.id, record);
         addKnownTags(record.tags || []);
         applyHighlight(record);
@@ -1412,6 +1422,7 @@
       hideToolbar();
       return;
     }
+    const restoreSelection = suppressSelectionHighlight();
     try {
       const result = await sendMessage("myz:captureSelection", { format: "png" });
       if (!result || !result.dataUrl) {
@@ -1421,6 +1432,9 @@
     } catch (error) {
       console.error("Selection capture failed", error);
     } finally {
+      if (typeof restoreSelection === "function") {
+        restoreSelection();
+      }
       hideToolbar();
     }
   }
@@ -1500,6 +1514,25 @@
     anchor.href = dataUrl;
     anchor.download = filename;
     anchor.click();
+  }
+
+  // Temporarily hides the native selection highlight while capturing screenshots.
+  function suppressSelectionHighlight() {
+    try {
+      const style = document.createElement("style");
+      style.className = "myz-hide-selection";
+      style.textContent = "*::selection { background: transparent !important; color: inherit !important; }\n*::-moz-selection { background: transparent !important; color: inherit !important; }";
+      const target = document.head || document.documentElement;
+      target.appendChild(style);
+      return () => {
+        if (style.parentNode) {
+          style.parentNode.removeChild(style);
+        }
+      };
+    } catch (error) {
+      console.warn("Failed to suppress selection highlight", error);
+      return null;
+    }
   }
 
   function serializeRangeToHtml(range) {
