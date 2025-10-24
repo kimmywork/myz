@@ -1,10 +1,10 @@
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-this';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_SECRET: string = process.env.JWT_SECRET || 'default-secret-change-this';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface JWTPayload {
   userId: string;
@@ -13,9 +13,16 @@ export interface JWTPayload {
 }
 
 export function generateToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-  });
+  // @ts-ignore - expiresIn typing issue with jsonwebtoken 9.x
+  return jwt.sign(
+    {
+      userId: payload.userId,
+      email: payload.email,
+      emailVerified: payload.emailVerified
+    },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
 }
 
 export function verifyToken(token: string): JWTPayload | null {

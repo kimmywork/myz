@@ -5,7 +5,7 @@ export interface AuthRequest extends Request {
   user?: JWTPayload;
 }
 
-export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
+export function authenticate(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -21,17 +21,19 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
     return;
   }
 
-  req.user = payload;
+  (req as AuthRequest).user = payload;
   next();
 }
 
-export function requireVerifiedEmail(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (!req.user) {
+export function requireVerifiedEmail(req: Request, res: Response, next: NextFunction): void {
+  const authReq = req as AuthRequest;
+  
+  if (!authReq.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
-  if (!req.user.emailVerified) {
+  if (!authReq.user.emailVerified) {
     res.status(403).json({ 
       error: 'Email verification required',
       message: 'Please verify your email address before using this feature'

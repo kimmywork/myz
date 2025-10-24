@@ -1,18 +1,23 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { SyncModel } from '../models/Sync';
 import { saveHighlight, loadAllHighlights, deleteHighlight } from '../utils/storage';
 
+function asAuthRequest(req: Request): AuthRequest {
+  return req as AuthRequest;
+}
+
 export class SyncController {
-  static async syncHighlights(req: AuthRequest, res: Response): Promise<void> {
+  static async syncHighlights(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user) {
+      const authReq = asAuthRequest(req);
+      if (!authReq.user) {
         res.status(401).json({ error: 'Authentication required' });
         return;
       }
 
       const { highlights, deletedIds = [] } = req.body;
-      const userId = req.user.userId;
+      const userId = authReq.user.userId;
 
       const serverHighlights = await loadAllHighlights(userId);
       const serverMetadata = await SyncModel.getAllHighlightMetadata(userId);
@@ -84,14 +89,15 @@ export class SyncController {
     }
   }
 
-  static async getSyncStatus(req: AuthRequest, res: Response): Promise<void> {
+  static async getSyncStatus(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user) {
+      const authReq = asAuthRequest(req);
+      if (!authReq.user) {
         res.status(401).json({ error: 'Authentication required' });
         return;
       }
 
-      const userId = req.user.userId;
+      const userId = authReq.user.userId;
       const metadata = await SyncModel.getSyncMetadata(userId);
 
       if (!metadata) {
@@ -114,14 +120,15 @@ export class SyncController {
     }
   }
 
-  static async getAllHighlights(req: AuthRequest, res: Response): Promise<void> {
+  static async getAllHighlights(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user) {
+      const authReq = asAuthRequest(req);
+      if (!authReq.user) {
         res.status(401).json({ error: 'Authentication required' });
         return;
       }
 
-      const userId = req.user.userId;
+      const userId = authReq.user.userId;
       const highlights = await loadAllHighlights(userId);
 
       res.json({

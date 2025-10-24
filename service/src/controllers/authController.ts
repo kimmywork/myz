@@ -4,6 +4,10 @@ import { generateToken } from '../utils/jwt';
 import { sendVerificationEmail } from '../utils/email';
 import { AuthRequest } from '../middleware/auth';
 
+function asAuthRequest(req: Request): AuthRequest {
+  return req as AuthRequest;
+}
+
 export class AuthController {
   static async register(req: Request, res: Response): Promise<void> {
     try {
@@ -101,14 +105,15 @@ export class AuthController {
     }
   }
 
-  static async resendVerification(req: AuthRequest, res: Response): Promise<void> {
+  static async resendVerification(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user) {
+      const authReq = asAuthRequest(req);
+      if (!authReq.user) {
         res.status(401).json({ error: 'Authentication required' });
         return;
       }
 
-      const user = await UserModel.findById(req.user.userId);
+      const user = await UserModel.findById(authReq.user.userId);
       if (!user) {
         res.status(404).json({ error: 'User not found' });
         return;
@@ -129,14 +134,15 @@ export class AuthController {
     }
   }
 
-  static async getProfile(req: AuthRequest, res: Response): Promise<void> {
+  static async getProfile(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.user) {
+      const authReq = asAuthRequest(req);
+      if (!authReq.user) {
         res.status(401).json({ error: 'Authentication required' });
         return;
       }
 
-      const user = await UserModel.findById(req.user.userId);
+      const user = await UserModel.findById(authReq.user.userId);
       if (!user) {
         res.status(404).json({ error: 'User not found' });
         return;

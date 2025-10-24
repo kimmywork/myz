@@ -16,7 +16,7 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
       callbackURL: process.env.GOOGLE_CALLBACK_URL || '',
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (_accessToken, _refreshToken, profile, done) => {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) {
@@ -58,7 +58,7 @@ passport.use(
       callbackURL: process.env.GITHUB_CALLBACK_URL || '',
       scope: ['user:email'],
     },
-    async (accessToken: string, refreshToken: string, profile: any, done: any) => {
+    async (_accessToken: string, _refreshToken: string, profile: any, done: any) => {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) {
@@ -141,7 +141,7 @@ export class OAuthController {
     }
   ];
 
-  static authFailure(req: Request, res: Response): void {
+  static authFailure(_req: Request, res: Response): void {
     res.status(401).json({ error: 'OAuth authentication failed' });
   }
 }
