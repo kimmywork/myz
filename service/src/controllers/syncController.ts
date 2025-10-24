@@ -35,8 +35,8 @@ export class SyncController {
         if (!serverHighlight) {
           toUpload.push(id);
         } else {
-          const clientUpdated = new Date(clientHighlight.updatedAt || clientHighlight.createdAt);
-          const serverUpdated = new Date(serverHighlight.updatedAt || serverHighlight.createdAt);
+          const clientUpdated = new Date((clientHighlight.updatedAt || clientHighlight.createdAt) as string | number | Date);
+          const serverUpdated = new Date((serverHighlight.updatedAt || serverHighlight.createdAt) as string | number | Date);
 
           if (clientUpdated > serverUpdated) {
             toUpload.push(id);
@@ -64,7 +64,7 @@ export class SyncController {
         toDelete.push(id);
       }
 
-      const downloadData: Record<string, any> = {};
+      const downloadData: Record<string, Record<string, unknown>> = {};
       for (const id of toDownload) {
         downloadData[id] = serverHighlights[id];
       }

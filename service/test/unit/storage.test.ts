@@ -1,18 +1,14 @@
-import { ensureStorageDirectory, saveHighlight, loadHighlight, deleteHighlight, loadAllHighlights } from '../../src/utils/storage';
 import fs from 'fs/promises';
 import path from 'path';
 
 const TEST_STORAGE_PATH = '/tmp/test-storage';
 const TEST_USER_ID = 'test-user-123';
 
-// Mock the storage path
-jest.mock('dotenv', () => ({
-  config: jest.fn(),
-}));
+// Set environment before importing storage module
+process.env.DATA_STORAGE_PATH = TEST_STORAGE_PATH;
 
-beforeAll(async () => {
-  process.env.DATA_STORAGE_PATH = TEST_STORAGE_PATH;
-});
+// Now import storage utilities
+import { ensureStorageDirectory, saveHighlight, loadHighlight, deleteHighlight, loadAllHighlights } from '../../src/utils/storage';
 
 afterAll(async () => {
   // Clean up test storage
@@ -85,8 +81,11 @@ describe('Storage Utilities', () => {
       const loaded = await loadHighlight(TEST_USER_ID, highlightId);
 
       expect(loaded).toBeDefined();
-      expect(loaded.id).toBe(highlightId);
-      expect(loaded.text).toBe(data.text);
+      expect(loaded).not.toBeNull();
+      if (loaded) {
+        expect(loaded.id).toBe(highlightId);
+        expect(loaded.text).toBe(data.text);
+      }
     });
 
     it('should return null for non-existent highlight', async () => {

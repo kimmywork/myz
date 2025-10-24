@@ -46,7 +46,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/captcha', captchaRoutes);
 
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
     error: err.message || 'Internal server error',

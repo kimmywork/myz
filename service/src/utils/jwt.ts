@@ -13,7 +13,7 @@ export interface JWTPayload {
 }
 
 export function generateToken(payload: JWTPayload): string {
-  // @ts-ignore - expiresIn typing issue with jsonwebtoken 9.x
+  // @ts-expect-error - expiresIn typing issue with jsonwebtoken 9.x
   return jwt.sign(
     {
       userId: payload.userId,

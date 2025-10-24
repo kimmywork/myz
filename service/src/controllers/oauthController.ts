@@ -9,6 +9,22 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+interface PassportProfile {
+  id: string;
+  emails?: Array<{ value: string }>;
+  displayName?: string;
+}
+
+interface PassportDoneFunction {
+  (error: Error | null, user?: Express.User | false): void;
+}
+
+interface OAuthUser {
+  id: string;
+  email: string;
+  email_verified: boolean;
+}
+
 passport.use(
   new GoogleStrategy(
     {
@@ -16,7 +32,7 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
       callbackURL: process.env.GOOGLE_CALLBACK_URL || '',
     },
-    async (_accessToken, _refreshToken, profile, done) => {
+    async (_accessToken, _refreshToken, profile: PassportProfile, done: PassportDoneFunction) => {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) {
@@ -58,7 +74,7 @@ passport.use(
       callbackURL: process.env.GITHUB_CALLBACK_URL || '',
       scope: ['user:email'],
     },
-    async (_accessToken: string, _refreshToken: string, profile: any, done: any) => {
+    async (_accessToken: string, _refreshToken: string, profile: PassportProfile, done: PassportDoneFunction) => {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) {
@@ -101,7 +117,7 @@ export class OAuthController {
   static googleCallback = [
     passport.authenticate('google', { session: false, failureRedirect: '/auth/failure' }),
     (req: Request, res: Response) => {
-      const user = req.user as any;
+      const user = req.user as OAuthUser;
       if (!user) {
         res.redirect('/?error=authentication_failed');
         return;
@@ -126,7 +142,7 @@ export class OAuthController {
   static githubCallback = [
     passport.authenticate('github', { session: false, failureRedirect: '/auth/failure' }),
     (req: Request, res: Response) => {
-      const user = req.user as any;
+      const user = req.user as OAuthUser;
       if (!user) {
         res.redirect('/?error=authentication_failed');
         return;

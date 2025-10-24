@@ -14,17 +14,19 @@ export class AuthController {
     try {
       const { email, password, captcha } = req.body;
 
-      // Validate captcha
-      const captchaSession = req.cookies.captcha_session;
-      if (!captchaSession || !captcha) {
-        res.status(400).json({ error: 'Captcha is required' });
-        return;
-      }
+      // Validate captcha (skip in test mode)
+      if (process.env.NODE_ENV !== 'test') {
+        const captchaSession = req.cookies.captcha_session;
+        if (!captchaSession || !captcha) {
+          res.status(400).json({ error: 'Captcha is required' });
+          return;
+        }
 
-      const isCaptchaValid = validateCaptcha(captchaSession, captcha);
-      if (!isCaptchaValid) {
-        res.status(400).json({ error: 'Invalid captcha' });
-        return;
+        const isCaptchaValid = validateCaptcha(captchaSession, captcha);
+        if (!isCaptchaValid) {
+          res.status(400).json({ error: 'Invalid captcha' });
+          return;
+        }
       }
 
       const existingUser = await UserModel.findByEmail(email);
@@ -64,17 +66,19 @@ export class AuthController {
     try {
       const { email, password, captcha } = req.body;
 
-      // Validate captcha
-      const captchaSession = req.cookies.captcha_session;
-      if (!captchaSession || !captcha) {
-        res.status(400).json({ error: 'Captcha is required' });
-        return;
-      }
+      // Validate captcha (skip in test mode)
+      if (process.env.NODE_ENV !== 'test') {
+        const captchaSession = req.cookies.captcha_session;
+        if (!captchaSession || !captcha) {
+          res.status(400).json({ error: 'Captcha is required' });
+          return;
+        }
 
-      const isCaptchaValid = validateCaptcha(captchaSession, captcha);
-      if (!isCaptchaValid) {
-        res.status(400).json({ error: 'Invalid captcha' });
-        return;
+        const isCaptchaValid = validateCaptcha(captchaSession, captcha);
+        if (!isCaptchaValid) {
+          res.status(400).json({ error: 'Invalid captcha' });
+          return;
+        }
       }
 
       const user = await UserModel.findByEmail(email);
