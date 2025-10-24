@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>MyZ 标注控制台</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h1 class="sidebar__title">MyZ 标注</h1>
+      <section class="sidebar__section">
+        <h2>筛选</h2>
+        <label class="field">
+          <span>关键词</span>
+          <input id="filter-search" type="search" placeholder="搜索文本、批注或标签" />
+        </label>
+        <label class="field">
+          <span>网站</span>
+          <select id="filter-site"></select>
+        </label>
+        <label class="field">
+          <span>标签</span>
+          <select id="filter-tags" multiple></select>
+          <small>按 ⌘/Ctrl + 点击可多选</small>
+        </label>
+        <div class="field field--inline">
+          <label>
+            <span>开始日期</span>
+            <input id="filter-from" type="date" />
+          </label>
+          <label>
+            <span>结束日期</span>
+            <input id="filter-to" type="date" />
+          </label>
+        </div>
+        <button id="reset-filters" class="btn btn-secondary">重置筛选</button>
+      </section>
+
+      <section class="sidebar__section">
+        <h2>导出</h2>
+        <button id="export-markdown" class="btn">导出 Markdown</button>
+        <button id="export-json" class="btn">导出 JSON</button>
+      </section>
+
+      <section class="sidebar__section">
+        <h2>LogSeq 同步</h2>
+        <label class="field">
+          <span>服务器地址</span>
+          <input id="logseq-endpoint" type="url" placeholder="http://127.0.0.1:12315/api/annotations" />
+        </label>
+        <label class="field">
+          <span>认证 Token (可选)</span>
+          <input id="logseq-token" type="text" placeholder="Bearer ..." />
+        </label>
+        <div class="sidebar__actions">
+          <button id="save-settings" class="btn btn-secondary">保存设置</button>
+          <button id="sync-logseq" class="btn btn-primary">同步到 LogSeq</button>
+        </div>
+        <p id="logseq-status" class="status-line"></p>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header class="main__header">
+        <div>
+          <h2>全部标注</h2>
+          <p id="summary" class="summary"></p>
+        </div>
+      </header>
+
+      <section id="highlight-groups" class="highlight-groups">
+        <p class="empty-state">正在加载…</p>
+      </section>
+    </main>
+  </div>
+
+  <template id="group-template">
+    <section class="group">
+      <h3 class="group__title"></h3>
+      <div class="group__list"></div>
+    </section>
+  </template>
+
+  <template id="card-template">
+    <article class="card">
+      <div class="card__header">
+        <span class="card__site"></span>
+        <span class="card__date"></span>
+      </div>
+      <blockquote class="card__quote"></blockquote>
+      <p class="card__note"></p>
+      <div class="card__tags"></div>
+      <div class="card__footer">
+        <a class="btn-link" target="_blank" rel="noopener">打开页面</a>
+        <button class="btn-link" data-action="copy">复制</button>
+        <button class="btn-link btn-link--danger" data-action="delete">删除</button>
+      </div>
+    </article>
+  </template>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>

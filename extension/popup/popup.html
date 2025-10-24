@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>MyZ 标注助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="popup-header">
+    <div class="popup-header__info">
+      <h1>MyZ 标注助手</h1>
+      <p id="page-meta" class="popup-header__meta"></p>
+    </div>
+    <div class="popup-header__actions">
+      <button id="open-dashboard" class="btn btn-primary">管理中心</button>
+      <button id="export-markdown" class="btn">导出 Markdown</button>
+      <button id="export-json" class="btn">导出 JSON</button>
+    </div>
+  </header>
+
+  <section class="popup-controls">
+    <input id="search-input" type="search" placeholder="搜索当前页面的高亮或批注" />
+  </section>
+
+  <main id="highlight-list" class="highlight-list">
+    <p class="empty-state">加载中…</p>
+  </main>
+
+  <template id="highlight-item-template">
+    <article class="highlight-item">
+      <div class="highlight-item__color"></div>
+      <div class="highlight-item__content">
+        <div class="highlight-item__quote"></div>
+        <div class="highlight-item__note"></div>
+        <div class="highlight-item__meta"></div>
+      </div>
+      <div class="highlight-item__actions">
+        <button class="btn-link" data-action="focus">定位</button>
+        <button class="btn-link" data-action="copy">复制</button>
+        <button class="btn-link btn-link--danger" data-action="delete">删除</button>
+      </div>
+    </article>
+  </template>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
