@@ -2,26 +2,67 @@
   if (window.__myzAnnotatorInitialized) {
     return;
   }
+
+  function selectColor(index) {
+    const colors = state.settings.colorPalette || [];
+    const color = colors[index] || DEFAULT_COLORS[index] || DEFAULT_COLORS[0];
+    state.selectedColor = color;
+    state.settings.lastUsedColor = color;
+    renderColorPalette();
+    persistColorSettings({ lastUsedColor: color });
+  }
+
+  function updatePaletteColor(index, value) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(value)) {
+      return;
+    }
+    const palette = [...(state.settings.colorPalette || [])];
+    while (palette.length < 5) {
+      palette.push(DEFAULT_COLORS[palette.length] || DEFAULT_COLORS[0]);
+    }
+    const previous = palette[index];
+    palette[index] = value;
+    state.settings.colorPalette = palette;
+    if (state.selectedColor === previous) {
+      state.selectedColor = value;
+    }
+    renderColorPalette();
+    persistColorSettings({ colorPalette: palette, lastUsedColor: state.selectedColor });
+  }
+
+  function persistColorSettings(patch) {
+    sendMessage("myz:updateSettings", patch).catch((error) => {
+      console.warn("Failed to persist color settings", error);
+    });
+  }
   window.__myzAnnotatorInitialized = true;
 
   const CANONICAL_URL = canonicalUrl(window.location.href);
+  const DEFAULT_COLORS = ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"];
   const highlightCache = new Map();
 
   const toolbar = createToolbar();
   const modal = createModal();
-  const tooltip = createTooltip();
+  const inspector = createInspector();
 
   const state = {
     currentRange: null,
     currentText: "",
     editingId: null,
-    toolbarShownAt: 0
+    toolbarShownAt: 0,
+    settings: {
+      colorPalette: [...DEFAULT_COLORS],
+      lastUsedColor: DEFAULT_COLORS[0]
+    },
+    selectedColor: DEFAULT_COLORS[0]
   };
 
   init().catch((error) => console.error("MyZ Annotator init failed", error));
 
   async function init() {
-    document.addEventListener("mouseup", handleSelectionTrigger);
+  await loadSettings();
+
+  document.addEventListener("mouseup", handleSelectionTrigger);
     document.addEventListener("keyup", handleSelectionTrigger);
     document.addEventListener("scroll", hideToolbar, true);
     document.addEventListener("click", handleDocumentClick, true);
@@ -57,12 +98,39 @@
     await restoreHighlights();
   }
 
+  async function loadSettings() {
+    try {
+      const settings = await sendMessage("myz:getSettings");
+      if (!settings) {
+        renderColorPalette();
+        return;
+      }
+      const palette = Array.isArray(settings.colorPalette) && settings.colorPalette.length
+        ? settings.colorPalette.slice(0, 5)
+        : [...DEFAULT_COLORS];
+      while (palette.length < 5) {
+        palette.push(DEFAULT_COLORS[palette.length] || DEFAULT_COLORS[0]);
+      }
+      state.settings = {
+        ...state.settings,
+        ...settings,
+        colorPalette: palette
+      };
+      state.selectedColor = settings.lastUsedColor || palette[0] || DEFAULT_COLORS[0];
+    } catch (error) {
+      console.warn("Failed to load settings", error);
+      state.selectedColor = DEFAULT_COLORS[0];
+    }
+    renderColorPalette();
+  }
+
   async function restoreHighlights() {
     try {
       const highlights = await sendMessage("myz:getHighlightsForUrl", { url: CANONICAL_URL });
       if (!Array.isArray(highlights)) {
         return;
       }
+      hideInspector();
       Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) => unwrapNode(node));
       highlightCache.clear();
       highlights.forEach((record) => {
@@ -113,13 +181,14 @@
       const highlightId = highlightEl.dataset.highlightId;
       const record = highlightCache.get(highlightId);
       if (record) {
-        showTooltip(highlightEl, record);
+        showInspector(record);
+        focusHighlight(highlightId);
       }
       return;
     }
 
-    if (tooltip.container && !tooltip.container.contains(event.target)) {
-      hideTooltip();
+    if (inspector.container && inspector.container.contains(event.target)) {
+      return;
     }
 
     if (toolbar.contains(event.target)) {
@@ -142,7 +211,8 @@
     node.className = "myz-annotator-toolbar myz-hidden";
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = "标注";
+  button.textContent = "✍️";
+  button.setAttribute("aria-label", "添加标注");
     button.addEventListener("click", handleAnnotateClick);
     node.appendChild(button);
     document.documentElement.appendChild(node);
@@ -158,12 +228,13 @@
     state.currentRange = selection.getRangeAt(0).cloneRange();
     state.currentText = selection.toString().trim();
     state.editingId = null;
+    state.selectedColor = state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
     openModal({
       mode: "create",
       preview: state.currentText,
       note: "",
       tags: [],
-      color: "#ffe58f"
+      color: state.selectedColor
     });
   }
 
@@ -188,15 +259,13 @@
     const preview = document.createElement("div");
     preview.className = "myz-annotator-preview";
 
-    const noteField = createField("批注", "textarea");
-    noteField.input.rows = 4;
+  const noteField = createField("批注", "textarea");
+  noteField.input.rows = 4;
 
-    const tagsField = createField("标签（逗号分隔）", "input");
-    tagsField.input.placeholder = "如：研究, #logseq";
+  const tagsField = createField("标签（逗号分隔）", "input");
+  tagsField.input.placeholder = "如：研究, #logseq";
 
-    const colorField = createField("高亮颜色", "input");
-    colorField.input.type = "color";
-    colorField.input.value = "#ffe58f";
+  const colorField = createColorPaletteField();
 
     const actions = document.createElement("div");
     actions.className = "myz-annotator-actions";
@@ -226,7 +295,7 @@
 
     actions.append(cancelButton, deleteButton, saveButton);
 
-    body.append(header, preview, noteField.wrapper, tagsField.wrapper, colorField.wrapper, actions);
+  body.append(header, preview, noteField.wrapper, tagsField.wrapper, colorField.wrapper, actions);
     container.appendChild(body);
     document.documentElement.appendChild(container);
 
@@ -237,7 +306,7 @@
       preview,
       noteInput: noteField.input,
       tagsInput: tagsField.input,
-      colorInput: colorField.input,
+  colorPalette: colorField,
       saveButton,
       deleteButton
     };
@@ -253,12 +322,93 @@
     return { wrapper, input };
   }
 
+  function createColorPaletteField() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "myz-annotator-field";
+
+    const labelRow = document.createElement("div");
+    labelRow.className = "myz-annotator-field__label-row";
+    const label = document.createElement("label");
+    label.textContent = "高亮颜色";
+    const hint = document.createElement("span");
+    hint.className = "myz-annotator-field__hint";
+    hint.textContent = "点击选择 · 调整色块可自定义";
+    labelRow.append(label, hint);
+
+    const paletteContainer = document.createElement("div");
+    paletteContainer.className = "myz-color-palette";
+
+    wrapper.append(labelRow, paletteContainer);
+
+    return {
+      wrapper,
+      container: paletteContainer,
+      swatches: []
+    };
+  }
+
+  function renderColorPalette() {
+    if (!modal.colorPalette?.container) {
+      return;
+    }
+    const container = modal.colorPalette.container;
+    container.innerHTML = "";
+    const colors = (state.settings.colorPalette || []).slice(0, 5);
+    while (colors.length < 5) {
+      colors.push(DEFAULT_COLORS[colors.length] || DEFAULT_COLORS[0]);
+    }
+
+    colors.forEach((color, index) => {
+      const swatchWrapper = document.createElement("div");
+      swatchWrapper.className = "myz-color-swatch-wrapper";
+
+      const swatchButton = document.createElement("button");
+      swatchButton.type = "button";
+      swatchButton.className = "myz-color-swatch";
+      swatchButton.style.setProperty("--myz-swatch-color", color);
+      swatchButton.dataset.index = String(index);
+      swatchButton.setAttribute("aria-label", `选择颜色 ${color}`);
+      if (color === state.selectedColor) {
+        swatchButton.classList.add("is-active");
+      }
+      swatchButton.addEventListener("click", () => selectColor(index));
+
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "myz-color-edit";
+      editButton.dataset.index = String(index);
+      editButton.textContent = "✎";
+      editButton.setAttribute("aria-label", `编辑颜色 ${color}`);
+
+      const colorInput = document.createElement("input");
+      colorInput.type = "color";
+      colorInput.value = color;
+      colorInput.className = "myz-color-editor";
+      colorInput.addEventListener("input", (event) => {
+        const value = event.target.value;
+        updatePaletteColor(index, value);
+      });
+
+      editButton.addEventListener("click", () => {
+        if (typeof colorInput.showPicker === "function") {
+          colorInput.showPicker();
+        } else {
+          colorInput.click();
+        }
+      });
+
+      swatchWrapper.append(swatchButton, editButton, colorInput);
+      container.appendChild(swatchWrapper);
+    });
+  }
+
   function openModal(options) {
     modal.title.textContent = options.mode === "edit" ? "编辑批注" : "添加批注";
     modal.preview.textContent = options.preview || "";
     modal.noteInput.value = options.note || "";
     modal.tagsInput.value = Array.isArray(options.tags) ? options.tags.join(", ") : options.tags || "";
-    modal.colorInput.value = options.color || "#ffe58f";
+    state.selectedColor = options.color || state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
+    renderColorPalette();
     modal.deleteButton.classList.toggle("myz-hidden", options.mode !== "edit");
     modal.container.classList.remove("myz-hidden");
   }
@@ -273,7 +423,7 @@
   async function handleSubmit() {
     const note = modal.noteInput.value.trim();
     const tags = parseTags(modal.tagsInput.value);
-    const color = modal.colorInput.value || "#ffe58f";
+    const color = state.selectedColor || state.settings.lastUsedColor || DEFAULT_COLORS[0];
 
     if (state.editingId) {
       await updateExistingHighlight({ id: state.editingId, note, tags, color });
@@ -309,6 +459,7 @@
         highlightCache.set(record.id, record);
         applyHighlight(record);
       }
+      persistColorSettings({ lastUsedColor: color });
     } catch (error) {
       console.error("Failed to save highlight", error);
     } finally {
@@ -329,9 +480,13 @@
       nodes.forEach((node) => {
         node.style.backgroundColor = record.color || "#ffe58f";
       });
-      if (tooltip.currentId === record.id) {
-        showTooltip(tooltip.anchor, record);
+      if (inspector.currentId === record.id) {
+        showInspector(record);
       }
+      state.settings.lastUsedColor = record.color || state.settings.lastUsedColor;
+      state.selectedColor = record.color || state.selectedColor;
+      renderColorPalette();
+      persistColorSettings({ lastUsedColor: record.color });
     } catch (error) {
       console.error("Failed to update highlight", error);
     }
@@ -342,27 +497,51 @@
       await sendMessage("myz:removeHighlight", { id });
       highlightCache.delete(id);
       removeHighlightFromDom(id);
-      hideTooltip();
+      if (inspector.currentId === id) {
+        hideInspector();
+      }
     } catch (error) {
       console.error("Failed to delete highlight", error);
     }
   }
+  function createInspector() {
+    const aside = document.createElement("aside");
+    aside.className = "myz-inspector myz-hidden";
 
-  function createTooltip() {
-    const node = document.createElement("div");
-    node.className = "myz-annotator-tooltip myz-hidden";
+    const header = document.createElement("div");
+    header.className = "myz-inspector__header";
+    const title = document.createElement("div");
+    title.className = "myz-inspector__title";
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "myz-inspector__close";
+    closeButton.textContent = "×";
+    header.append(title, closeButton);
 
-    const meta = document.createElement("div");
-    meta.className = "myz-annotator-tooltip__meta";
+  const infoRow = document.createElement("div");
+  infoRow.className = "myz-inspector__info";
+
+  const colorBadge = document.createElement("span");
+  colorBadge.className = "myz-inspector__color";
+
+  const meta = document.createElement("div");
+  meta.className = "myz-inspector__meta";
+  infoRow.append(colorBadge, meta);
+
     const tags = document.createElement("div");
-    tags.className = "myz-annotator-tooltip__tags";
-    const quote = document.createElement("div");
-    quote.className = "myz-annotator-tooltip__quote";
-    const note = document.createElement("div");
-    note.className = "myz-annotator-tooltip__note";
+    tags.className = "myz-inspector__tags";
 
-    const actions = document.createElement("div");
-    actions.className = "myz-annotator-tooltip__actions";
+    const body = document.createElement("div");
+    body.className = "myz-inspector__body";
+
+    const quote = document.createElement("blockquote");
+    quote.className = "myz-inspector__quote";
+
+    const note = document.createElement("div");
+    note.className = "myz-inspector__note";
+
+    const footer = document.createElement("div");
+    footer.className = "myz-inspector__actions";
 
     const copyButton = document.createElement("button");
     copyButton.type = "button";
@@ -379,14 +558,18 @@
     deleteButton.textContent = "删除";
     deleteButton.className = "myz-btn-danger";
 
-    actions.append(copyButton, editButton, deleteButton);
-  node.append(meta, tags, quote, note, actions);
+  footer.append(copyButton, editButton, deleteButton);
+  body.append(infoRow, tags, quote, note);
+    aside.append(header, body, footer);
+    document.documentElement.appendChild(aside);
+
+    closeButton.addEventListener("click", hideInspector);
 
     copyButton.addEventListener("click", async () => {
-      if (!tooltip.currentId) {
+      if (!inspector.currentId) {
         return;
       }
-      const record = highlightCache.get(tooltip.currentId);
+      const record = highlightCache.get(inspector.currentId);
       if (!record) {
         return;
       }
@@ -399,10 +582,10 @@
     });
 
     editButton.addEventListener("click", () => {
-      if (!tooltip.currentId) {
+      if (!inspector.currentId) {
         return;
       }
-      const record = highlightCache.get(tooltip.currentId);
+      const record = highlightCache.get(inspector.currentId);
       if (!record) {
         return;
       }
@@ -412,25 +595,39 @@
         preview: record.text,
         note: record.note || "",
         tags: record.tags || [],
-        color: record.color || "#ffe58f"
+        color: record.color || state.selectedColor
       });
-      hideTooltip();
     });
 
     deleteButton.addEventListener("click", () => {
-      if (!tooltip.currentId) {
+      if (!inspector.currentId) {
         return;
       }
-      deleteHighlight(tooltip.currentId);
+      deleteHighlight(inspector.currentId);
     });
 
-    document.documentElement.appendChild(node);
-    return { container: node, meta, tags, quote, note, currentId: null, anchor: null };
+    return {
+      container: aside,
+      header,
+      title,
+      color: colorBadge,
+  info: infoRow,
+  meta,
+      tags,
+      quote,
+      note,
+      currentId: null
+    };
   }
 
-  function showTooltip(anchorEl, record) {
-    tooltip.anchor = anchorEl;
-    tooltip.currentId = record.id;
+  function showInspector(record) {
+    if (!record) {
+      return;
+    }
+    inspector.currentId = record.id;
+    inspector.title.textContent = record.title || record.hostname || "标注详情";
+  inspector.color.style.background = record.color || "#ffe58f";
+  inspector.color.title = `高亮颜色：${record.color || "#ffe58f"}`;
 
     const createdAt = record.createdAt ? new Date(record.createdAt) : null;
     const metaParts = [];
@@ -440,41 +637,30 @@
     if (record.hostname) {
       metaParts.push(record.hostname);
     }
-    tooltip.meta.textContent = metaParts.join(" · ") || "";
+    inspector.meta.textContent = metaParts.join(" · ") || "";
 
-    tooltip.tags.innerHTML = "";
-    if (Array.isArray(record.tags)) {
+    inspector.tags.innerHTML = "";
+    if (Array.isArray(record.tags) && record.tags.length) {
+      inspector.tags.classList.remove("myz-hidden");
       record.tags.forEach((tag) => {
         const span = document.createElement("span");
         span.className = "myz-tag";
         span.textContent = tag;
-        tooltip.tags.appendChild(span);
+        inspector.tags.appendChild(span);
       });
+    } else {
+      inspector.tags.classList.add("myz-hidden");
     }
 
-    tooltip.quote.textContent = record.text || "";
-    tooltip.note.textContent = record.note || "无批注";
+    inspector.quote.textContent = record.text || "";
+  inspector.note.textContent = record.note || "无批注";
 
-    tooltip.container.style.visibility = "hidden";
-    tooltip.container.classList.remove("myz-hidden");
-
-    const rect = anchorEl.getBoundingClientRect();
-    const scrollY = window.scrollY || document.documentElement.scrollTop;
-    const scrollX = window.scrollX || document.documentElement.scrollLeft;
-    const top = rect.bottom + scrollY + 10;
-    const width = tooltip.container.offsetWidth || 260;
-    let left = rect.left + scrollX + rect.width / 2 - width / 2;
-    left = Math.max(scrollX + 12, Math.min(left, scrollX + window.innerWidth - width - 12));
-
-    tooltip.container.style.top = `${top}px`;
-    tooltip.container.style.left = `${left}px`;
-    tooltip.container.style.visibility = "visible";
+    inspector.container.classList.remove("myz-hidden");
   }
 
-  function hideTooltip() {
-    tooltip.container.classList.add("myz-hidden");
-    tooltip.currentId = null;
-    tooltip.anchor = null;
+  function hideInspector() {
+    inspector.container.classList.add("myz-hidden");
+    inspector.currentId = null;
   }
 
   function applyHighlight(record) {
@@ -483,21 +669,119 @@
     }
     try {
       const range = deserializeRange(record.range);
-      if (!range) {
+      if (!range || range.collapsed) {
         return;
       }
       removeHighlightFromDom(record.id);
-      const highlight = document.createElement("span");
-      highlight.className = "myz-highlight";
-      highlight.dataset.highlightId = record.id;
-      highlight.style.backgroundColor = record.color || "#ffe58f";
-      const fragment = range.cloneContents();
-      highlight.appendChild(fragment);
-      range.deleteContents();
-      range.insertNode(highlight);
+      if (rangeContainsBlockElements(range)) {
+        wrapRangeAcrossNodes(range, record);
+      } else {
+        wrapSimpleRange(range, record);
+      }
     } catch (error) {
       console.warn("Unable to apply highlight", error, record);
     }
+  }
+
+  function createHighlightElement(record) {
+    const highlight = document.createElement("span");
+    highlight.className = "myz-highlight";
+    highlight.dataset.highlightId = record.id;
+    highlight.style.backgroundColor = record.color || "#ffe58f";
+    return highlight;
+  }
+
+  function wrapSimpleRange(range, record) {
+    const highlight = createHighlightElement(record);
+    const fragment = range.cloneContents();
+    highlight.appendChild(fragment);
+    range.deleteContents();
+    range.insertNode(highlight);
+  }
+
+  function wrapRangeAcrossNodes(range, record) {
+    const textNodes = collectTextNodes(range);
+    textNodes.forEach((node) => wrapTextNodeSegment(node, range, record));
+  }
+
+  function collectTextNodes(range) {
+    const nodes = [];
+    const iterator = document.createNodeIterator(
+      range.commonAncestorContainer,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          if (!range.intersectsNode(node)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          if (!node.textContent || !node.textContent.trim()) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+    let current;
+    while ((current = iterator.nextNode())) {
+      nodes.push(current);
+    }
+    return nodes;
+  }
+
+  function wrapTextNodeSegment(node, range, record) {
+    const offsets = computeSegmentOffsets(node, range);
+    if (!offsets || offsets.end <= offsets.start) {
+      return;
+    }
+    let target = node;
+    const length = node.textContent.length;
+    if (offsets.end < length) {
+      target.splitText(offsets.end);
+    }
+    if (offsets.start > 0) {
+      target = target.splitText(offsets.start);
+    }
+    if (!target.textContent.trim()) {
+      return;
+    }
+    const highlight = createHighlightElement(record);
+    target.parentNode.insertBefore(highlight, target);
+    highlight.appendChild(target);
+  }
+
+  function computeSegmentOffsets(node, range) {
+    const length = node.textContent.length;
+    let start = 0;
+    let end = length;
+
+    if (node === range.startContainer) {
+      start = range.startOffset;
+    }
+    if (node === range.endContainer) {
+      end = range.endOffset;
+    }
+
+    const startPosition = range.startContainer.compareDocumentPosition(node);
+    if (startPosition & Node.DOCUMENT_POSITION_FOLLOWING) {
+      start = 0;
+    }
+    const endPosition = range.endContainer.compareDocumentPosition(node);
+    if (endPosition & Node.DOCUMENT_POSITION_PRECEDING) {
+      end = length;
+    }
+
+    start = Math.max(0, Math.min(start, length));
+    end = Math.max(start, Math.min(end, length));
+    return { start, end };
+  }
+
+  function rangeContainsBlockElements(range) {
+    const fragment = range.cloneContents();
+    if (!fragment) {
+      return false;
+    }
+    const blockSelector = "p,div,section,article,header,footer,main,aside,nav,ul,ol,li,table,tbody,tr,td,th,blockquote,pre";
+    return fragment.querySelector(blockSelector) !== null;
   }
 
   function focusHighlight(id) {

@@ -1,6 +1,7 @@
 const groupsEl = document.getElementById("highlight-groups");
 const groupTemplate = document.getElementById("group-template");
 const cardTemplate = document.getElementById("card-template");
+const listRowTemplate = document.getElementById("list-row-template");
 
 const searchInput = document.getElementById("filter-search");
 const siteSelect = document.getElementById("filter-site");
@@ -16,6 +17,9 @@ const syncLogseqBtn = document.getElementById("sync-logseq");
 const logseqStatusEl = document.getElementById("logseq-status");
 const logseqEndpointInput = document.getElementById("logseq-endpoint");
 const logseqTokenInput = document.getElementById("logseq-token");
+const viewCardsBtn = document.getElementById("view-cards");
+const viewListBtn = document.getElementById("view-list");
+const pickerButtons = document.querySelectorAll("[data-picker-for]");
 
 const state = {
   highlights: [],
@@ -26,7 +30,9 @@ const state = {
     tags: [],
     from: "",
     to: ""
-  }
+  },
+  view: "cards",
+  searchTerms: []
 };
 
 init().catch((error) => {
@@ -36,6 +42,7 @@ init().catch((error) => {
 
 async function init() {
   bindEvents();
+  updateViewToggle();
   await Promise.all([loadHighlights(), loadSettings()]);
 }
 
@@ -69,6 +76,27 @@ function bindEvents() {
   syncLogseqBtn.addEventListener("click", syncLogseq);
 
   groupsEl.addEventListener("click", handleCardAction);
+
+  pickerButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetId = button.dataset.pickerFor;
+      if (!targetId) {
+        return;
+      }
+      const input = document.getElementById(targetId);
+      if (!input) {
+        return;
+      }
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+      } else {
+        input.focus();
+      }
+    });
+  });
+
+  viewCardsBtn.addEventListener("click", () => setView("cards"));
+  viewListBtn.addEventListener("click", () => setView("list"));
 }
 
 async function loadHighlights() {
@@ -115,6 +143,8 @@ function populateFilterOptions(highlights) {
 
 function applyFilters() {
   const { search, site, tags, from, to } = state.filters;
+  const searchRaw = searchInput.value.trim();
+  state.searchTerms = getSearchTerms(searchRaw);
   state.filtered = state.highlights.filter((item) => {
     if (site && item.hostname !== site) {
       return false;
@@ -154,6 +184,7 @@ function applyFilters() {
 
 function renderHighlights(highlights) {
   groupsEl.innerHTML = "";
+  groupsEl.dataset.view = state.view;
   if (!highlights.length) {
     groupsEl.innerHTML = `<p class="empty-state">没有符合条件的标注。</p>`;
     return;
@@ -169,33 +200,98 @@ function renderHighlights(highlights) {
     title.textContent = `${date} · ${items.length} 条标注`;
 
     items.forEach((item) => {
-      const cardInstance = cardTemplate.content.cloneNode(true);
-      const card = cardInstance.querySelector(".card");
-      card.dataset.id = item.id;
-      card.querySelector(".card__site").textContent = item.hostname || item.url;
-      card.querySelector(".card__date").textContent = formatDateTime(item.createdAt);
-      card.querySelector(".card__quote").textContent = item.text || "";
-      card.querySelector(".card__note").textContent = item.note || "";
-
-      const tagContainer = card.querySelector(".card__tags");
-      (item.tags || []).forEach((tag) => {
-        const span = document.createElement("span");
-        span.textContent = tag;
-        tagContainer.appendChild(span);
-      });
-
-      const link = card.querySelector("a.btn-link");
-      link.href = item.sourceUrl || item.url;
-      card.querySelector("button[data-action='copy']").dataset.id = item.id;
-      card.querySelector("button[data-action='delete']").dataset.id = item.id;
-
-      list.appendChild(cardInstance);
+      const node = state.view === "cards" ? buildCard(item) : buildListRow(item);
+      if (node) {
+        list.appendChild(node);
+      }
     });
 
     fragment.appendChild(section);
   });
 
   groupsEl.appendChild(fragment);
+}
+
+function buildCard(item) {
+  const instance = cardTemplate.content.cloneNode(true);
+  const card = instance.querySelector(".card");
+  card.dataset.id = item.id;
+  card.classList.remove("card--single");
+  card.querySelector(".card__site").innerHTML = formatInline(item.hostname || item.url || "");
+  card.querySelector(".card__date").textContent = formatDateTime(item.createdAt);
+
+  const quoteEl = card.querySelector(".card__quote");
+  quoteEl.innerHTML = formatContent(item.text);
+
+  const noteEl = card.querySelector(".card__note");
+  noteEl.classList.remove("is-empty");
+  if (item.note) {
+    noteEl.innerHTML = formatContent(item.note);
+  } else {
+    card.classList.add("card--single");
+    noteEl.innerHTML = "";
+  }
+
+  const tagContainer = card.querySelector(".card__tags");
+  tagContainer.classList.remove("is-empty");
+  if (item.tags && item.tags.length) {
+    item.tags.forEach((tag) => {
+      const span = document.createElement("span");
+      span.innerHTML = formatInline(tag);
+      tagContainer.appendChild(span);
+    });
+  } else {
+    tagContainer.classList.add("is-empty");
+  }
+
+  const link = card.querySelector("a.btn-link");
+  link.href = item.sourceUrl || item.url;
+  link.title = item.title || item.url;
+  card.querySelector("button[data-action='copy']").dataset.id = item.id;
+  card.querySelector("button[data-action='delete']").dataset.id = item.id;
+
+  return instance;
+}
+
+function buildListRow(item) {
+  const instance = listRowTemplate.content.cloneNode(true);
+  const row = instance.querySelector(".list-row");
+  row.dataset.id = item.id;
+
+  row.querySelector(".list-row__date").textContent = formatDateTime(item.createdAt);
+  row.querySelector(".list-row__site").innerHTML = formatInline(item.hostname || item.url || "");
+
+  const quoteEl = row.querySelector(".list-row__quote");
+  quoteEl.innerHTML = formatContent(item.text);
+
+  const noteEl = row.querySelector(".list-row__note");
+  noteEl.classList.remove("is-empty");
+  if (item.note) {
+    noteEl.innerHTML = formatContent(item.note);
+  } else {
+    noteEl.classList.add("is-empty");
+    noteEl.innerHTML = "";
+  }
+
+  const tagContainer = row.querySelector(".list-row__tags");
+  tagContainer.classList.remove("is-empty");
+  if (item.tags && item.tags.length) {
+    item.tags.forEach((tag) => {
+      const span = document.createElement("span");
+      span.innerHTML = formatInline(tag);
+      tagContainer.appendChild(span);
+    });
+  } else {
+    tagContainer.classList.add("is-empty");
+  }
+
+  const link = row.querySelector("a.btn-link");
+  link.href = item.sourceUrl || item.url;
+  link.title = item.title || item.url;
+  row.querySelector("button[data-action='copy']").dataset.id = item.id;
+  row.querySelector("button[data-action='delete']").dataset.id = item.id;
+
+  return instance;
 }
 
 function updateSummary() {
@@ -216,6 +312,86 @@ function resetFilters() {
   fromInput.value = "";
   toInput.value = "";
   applyFilters();
+}
+
+function setView(view) {
+  if (state.view === view) {
+    return;
+  }
+  state.view = view;
+  updateViewToggle();
+  renderHighlights(state.filtered);
+}
+
+function updateViewToggle() {
+  if (!viewCardsBtn || !viewListBtn) {
+    return;
+  }
+  viewCardsBtn.classList.toggle("is-active", state.view === "cards");
+  viewListBtn.classList.toggle("is-active", state.view === "list");
+  groupsEl.dataset.view = state.view;
+}
+
+function formatContent(value) {
+  if (!value) {
+    return "";
+  }
+  const escaped = escapeHtml(String(value));
+  const withBreaks = escaped.replace(/\r?\n/g, "<br>");
+  return applySearchHighlights(withBreaks);
+}
+
+function formatInline(value) {
+  if (!value) {
+    return "";
+  }
+  return applySearchHighlights(escapeHtml(String(value)));
+}
+
+function applySearchHighlights(html) {
+  if (!state.searchTerms.length || !html) {
+    return html;
+  }
+  return state.searchTerms.reduce((output, term) => {
+    const pattern = escapeRegExp(term);
+    if (!pattern) {
+      return output;
+    }
+    const regex = new RegExp(`(${pattern})`, "gi");
+    return output.replace(regex, '<mark class="search-hit">$1</mark>');
+  }, html);
+}
+
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|\[\]\\]/g, "\\$&");
+}
+
+function getSearchTerms(input) {
+  if (!input) {
+    return [];
+  }
+  const seen = new Set();
+  const terms = [];
+  input
+    .split(/\s+/)
+    .filter(Boolean)
+    .forEach((term) => {
+      const key = term.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        terms.push(term);
+      }
+    });
+  return terms;
 }
 
 function handleCardAction(event) {

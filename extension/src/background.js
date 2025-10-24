@@ -3,7 +3,9 @@ const SETTINGS_KEY = "myz::settings";
 const DEFAULT_STATE = { highlights: {}, order: [] };
 const DEFAULT_SETTINGS = {
   logseqEndpoint: "http://127.0.0.1:12315/api/annotations",
-  logseqAuthToken: ""
+  logseqAuthToken: "",
+  colorPalette: ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"],
+  lastUsedColor: "#fde68a"
 };
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -67,6 +69,7 @@ const messageHandlers = {
     }
     state.highlights[id] = record;
     await writeState(state);
+    await persistColorSelection(record.color);
     return record;
   },
 
@@ -83,6 +86,7 @@ const messageHandlers = {
     const updated = { ...existing, ...payload, updatedAt: now };
     state.highlights[payload.id] = updated;
     await writeState(state);
+    await persistColorSelection(updated.color);
     return updated;
   },
 
@@ -119,10 +123,14 @@ const messageHandlers = {
   },
 
   async "myz:updateSettings"(payload) {
-    const current = await readSettings();
-    const updated = { ...current, ...payload };
-    await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
-    return updated;
+    return writeSettings(payload || {});
+  },
+
+  async "myz:updatePalette"(payload) {
+    if (!payload) {
+      return readSettings();
+    }
+    return writeSettings(payload);
   },
 
   async "myz:syncLogseq"(payload) {
@@ -186,6 +194,24 @@ async function readSettings() {
     return { ...DEFAULT_SETTINGS };
   }
   return { ...DEFAULT_SETTINGS, ...stored };
+}
+
+async function writeSettings(patch) {
+  const current = await readSettings();
+  const updated = { ...current, ...patch };
+  await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
+  return updated;
+}
+
+async function persistColorSelection(color) {
+  if (!color) {
+    return;
+  }
+  const settings = await readSettings();
+  if (settings.lastUsedColor === color) {
+    return;
+  }
+  await writeSettings({ lastUsedColor: color });
 }
 
 function sortedHighlights(state) {
