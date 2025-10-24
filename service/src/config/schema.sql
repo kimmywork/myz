@@ -65,11 +65,14 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_sync_metadata_updated_at ON sync_metadata;
 CREATE TRIGGER update_sync_metadata_updated_at BEFORE UPDATE ON sync_metadata
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_highlights_metadata_updated_at ON highlights_metadata;
 CREATE TRIGGER update_highlights_metadata_updated_at BEFORE UPDATE ON highlights_metadata
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

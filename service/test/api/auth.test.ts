@@ -145,8 +145,8 @@ describe('Authentication API', () => {
     const testEmail = `login${Date.now()}@example.com`;
     const testPassword = 'password123';
 
-    beforeAll(async () => {
-      // Create a test user
+    beforeEach(async () => {
+      // Create a test user before each test (after cleanDatabase runs)
       await request(app)
         .post('/api/auth/register')
         .send({
@@ -210,8 +210,8 @@ describe('Authentication API', () => {
     let testToken: string;
     const testEmail = `profile${Date.now()}@example.com`;
 
-    beforeAll(async () => {
-      // Create and login a test user
+    beforeEach(async () => {
+      // Create and login a test user before each test (after cleanDatabase runs)
       const response = await request(app)
         .post('/api/auth/register')
         .send({
