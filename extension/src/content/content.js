@@ -85,12 +85,15 @@
   const modal = createModal();
   const inspector = createInspector();
 
+  let scrollUpdateHandle = null;
+
   const state = {
     currentRange: null,
     currentText: "",
     currentHtml: "",
     editingId: null,
     toolbarShownAt: 0,
+    toolbarRange: null,
     settings: {
       colorPalette: [...DEFAULT_COLORS],
       lastUsedColor: DEFAULT_COLORS[0]
@@ -105,12 +108,18 @@
 
     document.addEventListener("mouseup", handleSelectionTrigger);
     document.addEventListener("keyup", handleSelectionTrigger);
-    document.addEventListener("scroll", hideToolbar, true);
+    document.addEventListener("scroll", handleScrollWhileSelecting, true);
+    window.addEventListener("scroll", handleScrollWhileSelecting, { capture: true, passive: true });
+    window.addEventListener("resize", handleScrollWhileSelecting, { passive: true });
     document.addEventListener("click", handleDocumentClick, true);
     document.addEventListener("selectionchange", () => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {
         hideToolbar();
+        return;
+      }
+      if (selection.toString().trim()) {
+        state.toolbarRange = selection.getRangeAt(0).cloneRange();
       }
     });
 
@@ -206,11 +215,12 @@
       return;
     }
     const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
+    const rect = getSelectionBoundingRect(range);
     if (!rect || rect.width === 0 && rect.height === 0) {
       hideToolbar();
       return;
     }
+    state.toolbarRange = range.cloneRange();
     showToolbar(rect);
   }
 
@@ -224,8 +234,13 @@
   }
 
   function hideToolbar() {
+    if (scrollUpdateHandle) {
+      cancelAnimationFrame(scrollUpdateHandle);
+      scrollUpdateHandle = null;
+    }
     toolbar.classList.add("myz-hidden");
     state.toolbarShownAt = 0;
+    state.toolbarRange = null;
   }
 
   function handleDocumentClick(event) {
@@ -260,6 +275,47 @@
     hideToolbar();
   }
 
+  function handleScrollWhileSelecting() {
+    if (scrollUpdateHandle) {
+      cancelAnimationFrame(scrollUpdateHandle);
+    }
+    scrollUpdateHandle = requestAnimationFrame(() => {
+      scrollUpdateHandle = null;
+      if (toolbar.classList.contains("myz-hidden")) {
+        return;
+      }
+      if (modal.container && !modal.container.classList.contains("myz-hidden")) {
+        return;
+      }
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && selection.toString().trim()) {
+        state.toolbarRange = selection.getRangeAt(0).cloneRange();
+      }
+      const range = state.toolbarRange;
+      if (!range) {
+        hideToolbar();
+        return;
+      }
+      const rect = getSelectionBoundingRect(range);
+      if (!rect) {
+        hideToolbar();
+        return;
+      }
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      const outsideViewport =
+        rect.bottom < 0 ||
+        rect.top > viewportHeight ||
+        rect.right < 0 ||
+        rect.left > viewportWidth;
+      if (outsideViewport) {
+        hideToolbar();
+        return;
+      }
+      showToolbar(rect);
+    });
+  }
+
   function createToolbar() {
     const node = document.createElement("div");
     node.className = "myz-annotator-toolbar myz-hidden";
@@ -286,7 +342,9 @@
       hideToolbar();
       return;
     }
-    state.currentRange = selection.getRangeAt(0).cloneRange();
+    const liveRange = selection.getRangeAt(0);
+    state.currentRange = liveRange.cloneRange();
+    state.toolbarRange = liveRange.cloneRange();
     state.currentText = selection.toString().trim();
     state.currentHtml = serializeRangeToHtml(state.currentRange);
     state.editingId = null;
@@ -1449,6 +1507,8 @@
       return {
         top: fallback.top,
         left: fallback.left,
+        right: fallback.right,
+        bottom: fallback.bottom,
         width: fallback.width,
         height: fallback.height
       };
@@ -1470,6 +1530,8 @@
     return {
       top: bounds.top,
       left: bounds.left,
+      right: bounds.right,
+      bottom: bounds.bottom,
       width: bounds.right - bounds.left,
       height: bounds.bottom - bounds.top
     };

@@ -86,3 +86,26 @@ model: GPT-5-Codex
 Selection capture failed Error: Extension context invalidated.
 
 src/content/content.js:1422 (handleScreenshotClick)
+
+---
+
+context: knowledges/logseq-http-api.md
+
+1. fix bug: 选中文字后，如果滚动网页，则对应的工具栏会消失
+
+2. logseq同步一直不能正常工作，请参考 `logseq-http-api.md` 重新设计 logseq 的同步功能
+
+---
+
+滚动以后工具栏消失的行为依然存在。
+
+另外同步会提示这个问题：同步失败：LogSeq API 响应无法解析：MyZ Inbox is not a valid UUID string.
+
+---
+
+logseq-api in the knowledge base is incorrect, first argument of `insertBatchBlock` is block uuid. So to sync you should try `createPage` first then  insertBatchBlock to sync remaining content. Please try research and update the knowledge base document first. then update logseq sync implementation
+
+---
+
+Handler error myz:syncLogseq Error: LogSeq API 响应无法解析：No protocol method IAssociative.-assoc defined for type string: MyZ Export 2025-10-24T06:55:34.888Z
+src/background.js:43 (anonymous function)

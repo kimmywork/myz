@@ -24,6 +24,7 @@ const saveSettingsBtn = document.getElementById("save-settings");
 const logseqSettingsFields = document.getElementById("logseq-settings-fields");
 const logseqSyncToggle = document.getElementById("logseq-sync-enabled");
 const logseqEndpointInput = document.getElementById("logseq-endpoint");
+const logseqPageInput = document.getElementById("logseq-page");
 const logseqTokenInput = document.getElementById("logseq-token");
 const logseqGraphInput = document.getElementById("logseq-graph");
 const settingsStatusEl = document.getElementById("settings-status");
@@ -92,6 +93,7 @@ const state = {
 	view: "cards",
 	settings: {
 		logseqEndpoint: "",
+		logseqPage: "MyZ Inbox",
 		logseqAuthToken: "",
 		logseqGraph: "",
 		logseqSyncEnabled: false,
@@ -1154,6 +1156,9 @@ async function loadSettings() {
 		if (logseqEndpointInput) {
 			logseqEndpointInput.value = settings.logseqEndpoint || "";
 		}
+		if (logseqPageInput) {
+			logseqPageInput.value = state.settings.logseqPage || "MyZ Inbox";
+		}
 		if (logseqTokenInput) {
 			logseqTokenInput.value = settings.logseqAuthToken || "";
 		}
@@ -1181,6 +1186,11 @@ function updateLogseqFieldsState(enabled) {
 	if (logseqSettingsFields) {
 		logseqSettingsFields.classList.toggle("is-disabled", !enabled);
 	}
+	[logseqEndpointInput, logseqPageInput, logseqTokenInput, logseqGraphInput].forEach((input) => {
+		if (input) {
+			input.disabled = !enabled;
+		}
+	});
 }
 
 function updateSyncButtonVisibility() {
@@ -1221,6 +1231,7 @@ async function saveSettings() {
 	}
 	const payload = {
 		logseqEndpoint: logseqEndpointInput ? logseqEndpointInput.value.trim() : "",
+		logseqPage: logseqPageInput ? logseqPageInput.value.trim() : "",
 		logseqAuthToken: logseqTokenInput ? logseqTokenInput.value.trim() : "",
 		logseqGraph: logseqGraphInput ? logseqGraphInput.value.trim() : "",
 		logseqSyncEnabled: logseqSyncToggle ? logseqSyncToggle.checked : false
@@ -1260,9 +1271,19 @@ async function syncLogseq() {
 		syncLogseqBtn.disabled = true;
 	}
 	try {
-		await sendMessage("myz:syncLogseq", { title: `MyZ Export ${new Date().toISOString()}` });
+		const payload = {
+			title: `MyZ Export ${new Date().toISOString()}`,
+			endpoint: logseqEndpointInput ? logseqEndpointInput.value.trim() : undefined,
+			token: logseqTokenInput ? logseqTokenInput.value.trim() : undefined,
+			page: logseqPageInput ? logseqPageInput.value.trim() : undefined
+		};
+		const result = await sendMessage("myz:syncLogseq", payload);
 		if (logseqStatusEl) {
-			logseqStatusEl.textContent = "同步成功";
+			const count = typeof result?.inserted === "number" ? result.inserted : null;
+			const message = typeof result?.message === "string" ? result.message : "";
+			const pageName = typeof result?.page === "string" && result.page ? result.page : "";
+			const baseText = message || (count !== null ? `同步成功（新增 ${count} 条）` : "同步成功");
+			logseqStatusEl.textContent = pageName ? `${baseText} → ${pageName}` : baseText;
 		}
 	} catch (error) {
 		if (logseqStatusEl) {

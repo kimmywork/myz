@@ -1,16 +1,14 @@
 const STORAGE_KEY = "myz::highlights";
 const SETTINGS_KEY = "myz::settings";
 const DEFAULT_STATE = { highlights: {}, order: [] };
-const LOGSEQ_ENDPOINT_CANDIDATES = [
-  "http://127.0.0.1:12315/api/logseq/markup/import",
-  "http://127.0.0.1:12315/api/logseq/page",
-  "http://127.0.0.1:12315/api/annotations"
-];
+const DEFAULT_LOGSEQ_ENDPOINT = "http://127.0.0.1:12315/api";
+const DEFAULT_LOGSEQ_PAGE = "MyZ Inbox";
 
 const DEFAULT_SETTINGS = {
   logseqEndpoint: "",
   logseqAuthToken: "",
   logseqGraph: "",
+  logseqPage: DEFAULT_LOGSEQ_PAGE,
   logseqSyncEnabled: false,
   colorPalette: ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"],
   lastUsedColor: "#fde68a",
@@ -165,43 +163,59 @@ const messageHandlers = {
 
   async "myz:syncLogseq"(payload) {
     const settings = await readSettings();
+    if (!settings.logseqSyncEnabled) {
+      throw new Error("LogSeq 同步未启用");
+    }
     const state = await readState();
     const highlights = sortedHighlights(state);
-    const markdown = buildMarkdownExport(highlights);
-    const body = {
-      title: payload?.title || `MyZ Annotator Export ${new Date().toISOString()}`,
-      format: "markdown",
-      content: markdown,
-      timestamp: new Date().toISOString(),
-      graph: settings.logseqGraph || ""
-    };
-
-    const headers = { "Content-Type": "application/json" };
-    if (settings.logseqAuthToken) {
-      headers.Authorization = settings.logseqAuthToken;
+    const pageName = normalizeLogseqPageName(
+      payload?.page || settings.logseqPage || DEFAULT_LOGSEQ_PAGE
+    );
+    if (!highlights.length) {
+      return { success: true, inserted: 0, message: "没有可同步的标注", page: pageName };
     }
+    const exportedAt = new Date();
+    const title = payload?.title || `MyZ 同步 ${exportedAt.toLocaleString()}`;
+    const blockTree = buildLogseqBlocks(highlights, { title, exportedAt });
+    if (!blockTree.length) {
+      throw new Error("没有可写入的内容");
+    }
+
+    const token = (payload?.token || settings.logseqAuthToken || "").trim();
 
     const endpoints = buildLogseqEndpointList(settings, payload);
     let lastError = null;
     for (const endpoint of endpoints) {
+      if (!endpoint) {
+        continue;
+      }
       try {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body)
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          if (response.status === 404 || response.status === 405) {
-            lastError = new Error(`LogSeq sync failed: ${response.status} ${text}`);
-            continue;
-          }
-          throw new Error(`LogSeq sync failed: ${response.status} ${text}`);
+        const pageInfo = await ensureLogseqPage({ endpoint, token, pageName });
+        const pageUuid = pageInfo?.uuid;
+        if (!pageUuid) {
+          throw new Error("无法确定 LogSeq 页面 UUID");
         }
-        if (!settings.logseqEndpoint || settings.logseqEndpoint !== endpoint) {
+
+        const result = await callLogseq({
+          endpoint,
+          token,
+          method: "logseq.Editor.insertBatchBlock",
+          args: [
+            pageUuid,
+            blockTree,
+            { sibling: false, before: false }
+          ]
+        });
+
+        if (!settings.logseqEndpoint || normalizeLogseqEndpoint(settings.logseqEndpoint) !== endpoint) {
           await writeSettings({ logseqEndpoint: endpoint });
         }
-        return { success: true, endpoint };
+        const inserted = Array.isArray(result)
+          ? result.length
+          : result
+            ? 1
+            : 0;
+        return { success: true, endpoint, inserted, page: pageName, pageUuid };
       } catch (error) {
         lastError = error;
       }
@@ -356,19 +370,319 @@ function extractHostname(url) {
 }
 
 function buildLogseqEndpointList(settings, payload) {
+  const rawCandidates = [payload?.endpoint, settings.logseqEndpoint, DEFAULT_LOGSEQ_ENDPOINT];
   const endpoints = [];
-  if (payload?.endpoint) {
-    endpoints.push(payload.endpoint);
-  }
-  if (settings.logseqEndpoint) {
-    endpoints.push(settings.logseqEndpoint);
-  }
-  LOGSEQ_ENDPOINT_CANDIDATES.forEach((candidate) => {
-    if (!endpoints.includes(candidate)) {
-      endpoints.push(candidate);
+  rawCandidates.forEach((candidate) => {
+    const normalized = normalizeLogseqEndpoint(candidate);
+    if (normalized && !endpoints.includes(normalized)) {
+      endpoints.push(normalized);
     }
   });
   return endpoints;
+}
+
+function createLogseqHeaders(token) {
+  const headers = { "Content-Type": "application/json" };
+  const normalizedToken = typeof token === "string" ? token.trim() : "";
+  if (normalizedToken) {
+    headers.Authorization = normalizedToken.startsWith("Bearer ")
+      ? normalizedToken
+      : `Bearer ${normalizedToken}`;
+  }
+  return headers;
+}
+
+async function callLogseq({ endpoint, token, method, args }) {
+  if (!endpoint) {
+    throw new Error("缺少 LogSeq API 地址");
+  }
+  if (!method) {
+    throw new Error("缺少 LogSeq API 方法名");
+  }
+  const headers = createLogseqHeaders(token);
+  const payload = {
+    method,
+    args: Array.isArray(args) ? args : typeof args === "undefined" ? [] : [args]
+  };
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload)
+  });
+  const text = await response.text().catch(() => "");
+  if (!response.ok) {
+    throw new Error(`LogSeq 请求失败：${response.status} ${text || ""}`.trim());
+  }
+  return interpretLogseqResponse(text);
+}
+
+async function ensureLogseqPage({ endpoint, token, pageName }) {
+  const existing = await callLogseq({
+    endpoint,
+    token,
+    method: "logseq.Editor.getPage",
+    args: [pageName]
+  });
+  const existingUuid = extractEntityUuid(existing);
+  if (existingUuid) {
+    return { entity: existing, uuid: existingUuid };
+  }
+
+  const created = await callLogseq({
+    endpoint,
+    token,
+    method: "logseq.Editor.createPage",
+    args: [pageName, null, { createFirstBlock: true, redirect: false }]
+  });
+  const createdUuid = extractEntityUuid(created);
+  if (createdUuid) {
+    return { entity: created, uuid: createdUuid };
+  }
+
+  const fallback = await callLogseq({
+    endpoint,
+    token,
+    method: "logseq.Editor.getPage",
+    args: [pageName]
+  });
+  const fallbackUuid = extractEntityUuid(fallback);
+  if (fallbackUuid) {
+    return { entity: fallback, uuid: fallbackUuid };
+  }
+
+  throw new Error("无法获取 LogSeq 页面 UUID");
+}
+
+function extractEntityUuid(entity) {
+  if (!entity || typeof entity !== "object") {
+    return "";
+  }
+  if (typeof entity.uuid === "string" && entity.uuid.trim()) {
+    return entity.uuid.trim();
+  }
+  if (entity.page && typeof entity.page === "object") {
+    const nestedPage = extractEntityUuid(entity.page);
+    if (nestedPage) {
+      return nestedPage;
+    }
+  }
+  if (entity.block && typeof entity.block === "object") {
+    const nestedBlock = extractEntityUuid(entity.block);
+    if (nestedBlock) {
+      return nestedBlock;
+    }
+  }
+  if (typeof entity.id === "string" && entity.id.includes("-")) {
+    return entity.id.trim();
+  }
+  return "";
+}
+
+function normalizeLogseqEndpoint(value) {
+  if (!value) {
+    return "";
+  }
+  let candidate = String(value).trim();
+  if (!candidate) {
+    return "";
+  }
+  if (!/^https?:/i.test(candidate)) {
+    candidate = `http://${candidate}`;
+  }
+  try {
+    const url = new URL(candidate);
+    let path = url.pathname || "";
+    if (!path || path === "/") {
+      path = "/api";
+    } else if (path !== "/api") {
+      path = path.startsWith("/api/") ? "/api" : "/api";
+    }
+    url.pathname = path;
+    url.search = "";
+    url.hash = "";
+    const normalized = url.toString().replace(/\/$/, "");
+    return normalized;
+  } catch (error) {
+    console.warn("Invalid LogSeq endpoint", value, error);
+    return "";
+  }
+}
+
+function normalizeLogseqPageName(value) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed || DEFAULT_LOGSEQ_PAGE;
+}
+
+function buildLogseqBlocks(highlights, options = {}) {
+  const exportedAt = options.exportedAt instanceof Date ? options.exportedAt : new Date();
+  const formattedTime = exportedAt.toLocaleString();
+  const headerContent = (options.title || `MyZ 同步 ${formattedTime}`).trim();
+  const highlightBlocks = highlights
+    .map((record) => buildHighlightBlock(record))
+    .filter(Boolean);
+
+  if (!highlightBlocks.length) {
+    return [];
+  }
+
+  const metadataBlocks = [
+    makeBlock(`导出时间:: ${formattedTime}`),
+    makeBlock(`条目数:: ${highlightBlocks.length}`)
+  ].filter(Boolean);
+
+  const headerBlock = makeBlock(headerContent, [...metadataBlocks, ...highlightBlocks]);
+  if (headerBlock) {
+    return [headerBlock];
+  }
+
+  return highlightBlocks;
+}
+
+function buildHighlightBlock(record) {
+  if (!record) {
+    return null;
+  }
+  const link = record.sourceUrl || record.url || "";
+  const domain = link ? extractHostname(link) : "";
+  const displayTitle = record.title || domain || "Untitled";
+  const mainContent = link
+    ? `[${cleanLogseqInline(displayTitle)}](${link})`
+    : cleanLogseqInline(displayTitle);
+
+  const detailBlocks = [];
+  if (link) {
+    detailBlocks.push(makeBlock(`页面：[${cleanLogseqInline(domain || link)}](${link})`));
+  }
+  if (record.id) {
+    detailBlocks.push(makeBlock(`ID:: ${record.id}`));
+  }
+  if (record.color) {
+    detailBlocks.push(makeBlock(`颜色:: ${cleanLogseqInline(record.color)}`));
+  }
+  if (record.createdAt) {
+    const created = new Date(record.createdAt).toLocaleString();
+    detailBlocks.push(makeBlock(`创建时间:: ${cleanLogseqInline(created)}`));
+  }
+  const tags = Array.isArray(record.tags)
+    ? record.tags
+        .map((tag) => normalizeTagValue(tag))
+        .filter(Boolean)
+        .map((tag) => (tag.startsWith("#") ? tag : `#${tag}`))
+        .join(" ")
+    : "";
+  if (tags) {
+    detailBlocks.push(makeBlock(`标签:: ${tags}`));
+  }
+
+  const noteLines = normalizeMultiline(record.note);
+  if (noteLines.length) {
+    const noteBlocks = noteLines.map((line) => makeBlock(line)).filter(Boolean);
+    if (noteBlocks.length) {
+      detailBlocks.push(makeBlock("批注", noteBlocks));
+    }
+  }
+
+  const quoteLines = extractRecordQuote(record);
+  if (quoteLines.length) {
+    const quoteBlocks = quoteLines.map((line) => makeBlock(line)).filter(Boolean);
+    if (quoteBlocks.length) {
+      detailBlocks.push(makeBlock("摘录", quoteBlocks));
+    }
+  }
+
+  return makeBlock(mainContent, detailBlocks.filter(Boolean));
+}
+
+function makeBlock(content, children = []) {
+  const safeContent = cleanLogseqInline(content);
+  if (!safeContent) {
+    return null;
+  }
+  const block = { content: safeContent };
+  const childBlocks = Array.isArray(children) ? children.filter(Boolean) : [];
+  if (childBlocks.length) {
+    block.children = childBlocks;
+  }
+  return block;
+}
+
+function cleanLogseqInline(value) {
+  if (!value) {
+    return "";
+  }
+  return String(value).replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim();
+}
+
+function normalizeMultiline(value) {
+  if (!value) {
+    return [];
+  }
+  return String(value)
+    .split(/\r?\n/)
+    .map((line) => cleanLogseqInline(line))
+    .filter(Boolean);
+}
+
+function extractRecordQuote(record) {
+  const rawText = typeof record?.text === "string" ? record.text : "";
+  if (rawText && rawText.trim()) {
+    return rawText
+      .split(/\r?\n/)
+      .map((line) => cleanLogseqInline(line))
+      .filter(Boolean);
+  }
+  const html = record?.html;
+  if (!html) {
+    return [];
+  }
+  const markdown = htmlToMarkdown(html || "");
+  if (!markdown) {
+    return [];
+  }
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^>\s?/, ""))
+    .map((line) => cleanLogseqInline(line))
+    .filter(Boolean);
+}
+
+function interpretLogseqResponse(text) {
+  const trimmed = typeof text === "string" ? text.trim() : "";
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.toLowerCase() === "ok") {
+    return "ok";
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new Error(`LogSeq API 响应无法解析：${trimmed}`);
+  }
+
+  if (parsed && typeof parsed === "object") {
+    if ("error" in parsed && parsed.error) {
+      const message = typeof parsed.error === "string"
+        ? parsed.error
+        : parsed.error.message || JSON.stringify(parsed.error);
+      const err = new Error(message);
+      if (parsed.error.code) {
+        err.code = parsed.error.code;
+      }
+      throw err;
+    }
+    if ("result" in parsed) {
+      return parsed.result;
+    }
+  }
+
+  return parsed;
+}
+
+function normalizeTagValue(tag) {
+  return typeof tag === "string" ? tag.trim() : "";
 }
 
 function htmlToMarkdown(html) {

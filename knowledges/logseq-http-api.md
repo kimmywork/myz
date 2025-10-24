@@ -44,34 +44,78 @@ LogSeq 提供了一个本地 HTTP API 服务器，允许第三方应用（如脚
 
 ### **1. 批量插入块 (`logseq.Editor.insertBatchBlock`)**
 
-**这是同步 Markdown 片段的【最推荐】方法。** 它可以将一个包含多行或多层级的 Markdown 字符串数组，一次性作为独立的块插入，并能正确处理缩进关系。
+**这是同步 Markdown 片段的【最推荐】方法。** 它可以将一个包含多行或多层级的 Markdown 块对象数组，一次性写入并保留正确的层级关系。
 
-* **用途:** 在指定页面的开头或末尾，插入一个或多个块。  
+⚠️ **注意**：`insertBatchBlock` 的第一个参数必须是**父块的 UUID**，而不是页面名称。要向页面写入内容，需要先获取该页面的根块 UUID。
+
+典型流程如下：
+
+1. 调用 `logseq.Editor.getPage` 获取页面。如果结果为 `null`，说明页面不存在。  
+2. 调用 `logseq.Editor.createPage` 创建页面（可加上 `options.createFirstBlock = true` 让页面生成一个空块）。  
+3. 从返回的 `PageEntity` 中读取 `uuid`，这就是页面根块的 UUID。  
+4. 调用 `logseq.Editor.insertBatchBlock(uuid, contentArray, options)` 向该页面追加内容。
+
+* **用途:** 在指定父块下插入一个或多个子块。对于页面来说，父块就是页面的根块（其 `uuid` 可通过上面的流程取得）。  
 * **参数 (args):**  
-  1. `pageName` (string): 目标页面的名称。如果页面不存在，LogSeq 会自动创建它。  
-  2. `contentArray` (array of strings): 一个包含所有块内容的字符串数组。数组中的每个字符串都会成为一个独立的块。  
+  1. `parentBlockUuid` (string): 目标父块的 UUID。  
+  2. `contentArray` (array of block objects): **每个元素必须是一个对象**，至少包含 `content` 字段，可选 `children`（同样是 block 对象数组）和 `properties`。LogSeq 会根据这些对象生成层级结构。  
   3. `options` (object):  
-     * `sibling`: true (推荐): 插入为顶级块。  
-     * `before`: false (推荐): 插入到页面末尾（true 则插入到开头）。  
+     * `sibling`: false（默认）表示作为父块的子块插入。传 `true` 时将作为“同级块”插入。  
+     * `before`: false（默认）表示插入在末尾；传 `true` 时插入到开头。  
 * **返回值:** `BlockEntity[] | null` - 一个包含所有被创建块的对象数组。**这是验证写入成功的关键**，每个对象都包含 uuid。
 
-**示例：将一个 Markdown 片段插入到 "Inbox" 页面**
+**示例：确保页面存在并追加一组块**
+
+先读取页面：
+
+```json
+{
+  "method": "logseq.Editor.getPage",
+  "args": ["Inbox"]
+}
 ```
-{  
-  "method": "logseq.Editor.insertBatchBlock",  
-  "args": [  
-    "Inbox",  
-    [  
-      "一个新收集的片段",  
-      "  - 来源：[LogSeq 官网](https://logseq.com/)",  
-      "  - 详情：一个本地优先、注重隐私的知识库。",  
-      "  - 标签：\#clipping"  
-    ],  
-    {  
-      "sibling": true,  
-      "before": false  
-    }  
-  ]  
+
+如果结果为 `null`，再创建页面并生成根块：
+
+```json
+{
+  "method": "logseq.Editor.createPage",
+  "args": [
+    "Inbox",
+    null,
+    { "createFirstBlock": true, "redirect": false }
+  ]
+}
+```
+
+获取到页面的 `uuid` 后，再批量插入块：
+
+```json
+{
+  "method": "logseq.Editor.insertBatchBlock",
+  "args": [
+    "6715f8a0-8a6a-4b0c-80f2-11a3b123abcd",
+    [
+      {
+        "content": "剪藏收集箱",
+        "children": [
+          { "content": "页面：[LogSeq 官网](https://logseq.com/)" },
+          { "content": "ID:: clip-12345" },
+          { "content": "标签:: #clipping" },
+          {
+            "content": "摘录",
+            "children": [
+              { "content": "LogSeq 是一个本地优先、隐私友好的知识库。" }
+            ]
+          }
+        ]
+      }
+    ],
+    {
+      "sibling": false,
+      "before": false
+    }
+  ]
 }
 ```
 
@@ -88,13 +132,14 @@ LogSeq 提供了一个本地 HTTP API 服务器，允许第三方应用（如脚
 **示例：将一个多行 Markdown 笔记附加到当日日记**
 
 *（假设今天是 2025-10-24）*
-```
-{  
-  "method": "logseq.Editor.appendBlockInPage",  
-  "args": [  
-    "2025-10-24",   
-    "刚收集到一条笔记：\n- 这是第一行。\n- 这是第二行，包含 **加粗**。"  
-  ]  
+
+```json
+{
+  "method": "logseq.Editor.appendBlockInPage",
+  "args": [
+    "2025-10-24",
+    "刚收集到一条笔记：\n- 这是第一行。\n- 这是第二行，包含 **加粗**。"
+  ]
 }
 ```
 
@@ -109,7 +154,7 @@ LogSeq 提供了一个本地 HTTP API 服务器，允许第三方应用（如脚
      * `redirect`: false (可选): 是否在 LogSeq 客户端中跳转到这个新页面。  
 * **返回值:** `PageEntity | null` - 被创建的页面的对象。
 
-**提示：** 单独创建页面后，你仍需使用 `insertBatchBlock` 或 `appendBlockInPage` 来向其中添加内容。不过，`insertBatchBlock` 本身就会在页面不存在时自动创建页面，因此这个方法不是必须的。
+**提示：** 单独创建页面后，你仍需使用 `insertBatchBlock` 或 `appendBlockInPage` 来向其中添加内容。由于 `insertBatchBlock` 需要一个已存在的父块 UUID，因此强烈建议先调用 `getPage`/`createPage` 来确保页面存在并获取正确的 UUID。
 
 ## **四、 核心 API：查询与验证结果**
 
@@ -222,32 +267,70 @@ LogSeq 提供了一个本地 HTTP API 服务器，允许第三方应用（如脚
 
 **请将 `<你的Token>` 替换为你的真实 API Token。**
 
-### **1. 写入内容**
+### **1. 获取（或创建）目标页面**
 
-我们将一个片段写入到 "Inbox" 页面。
+先查询页面是否存在：
 
 ```
-curl http://127.0.0.1:12315/api \ 
+curl http://127.0.0.1:12315/api \
 -X POST \
 -H "Content-Type: application/json" \
 -H "Authorization: Bearer <你的Token>" \
--d '{  
-  "method": "logseq.Editor.insertBatchBlock",  
-  "args": [  
-    "Inbox",  
-    [  
-      "我的验证测试片段",  
-      "  - ID: clip-12345"  
-    ],  
-    {  
-      "sibling": true,  
-      "before": false  
-    }  
-  ]  
+-d '{
+  "method": "logseq.Editor.getPage",
+  "args": ["Inbox"]
 }'
 ```
 
-### **2. 查看写入响应**
+如果响应为 `null`，需要显式创建页面，并让 LogSeq 生成根块：
+
+```
+curl http://127.0.0.1:12315/api \
+-X POST \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer <你的Token>" \
+-d '{
+  "method": "logseq.Editor.createPage",
+  "args": [
+    "Inbox",
+    null,
+    { "createFirstBlock": true, "redirect": false }
+  ]
+}'
+```
+
+两种情况下都会得到一个 `PageEntity` 对象。记下其中的 `uuid`，它就是页面根块的 UUID。
+
+### **2. 写入内容**
+
+拿到根块 UUID（例如 `6715f8a0-8a6a-4b0c-80f2-11a3b123abcd`）后，再批量写入：
+
+```
+curl http://127.0.0.1:12315/api \
+-X POST \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer <你的Token>" \
+-d '{
+  "method": "logseq.Editor.insertBatchBlock",
+  "args": [
+    "6715f8a0-8a6a-4b0c-80f2-11a3b123abcd",
+    [
+      {
+        "content": "我的验证测试片段",
+        "children": [
+          { "content": "ID:: clip-12345" }
+        ]
+      }
+    ],
+    {
+      "sibling": false,
+      "before": false
+    }
+  ]
+}'
+```
+
+### **3. 查看写入响应**
 
 上述命令会返回一个 JSON 数组，包含新创建的块。记下第一个块的 uuid。
 
@@ -272,9 +355,9 @@ curl http://127.0.0.1:12315/api \
 ]
 ```
 
-我们得到了父块的 uuid："6715f9d4-c48c-4a37-9af3-4c9f1a23b45d"
+我们得到了新建块的 uuid："6715f9d4-c48c-4a37-9af3-4c9f1a23b45d"
 
-### **3. (验证方法一) 通过 UUID 获取块**
+### **4. (验证方法一) 通过 UUID 获取块**
 
 ```
 curl http://127.0.0.1:12315/api \
@@ -291,7 +374,7 @@ curl http://127.0.0.1:12315/api \
 
 如果这能返回块的 JSON，说明写入已确认。
 
-### **4. (验证方法二) 通过 Datalog 查询**
+### **5. (验证方法二) 通过 Datalog 查询**
 
 我们也可以通过内容来查询，以验证其是否存在于数据库中。
 

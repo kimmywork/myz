@@ -1,3 +1,4 @@
 {
-    "chat.editing.autoAcceptDelay": 5
+    "chat.editing.autoAcceptDelay": 5,
+    "chat.mcp.gallery.enabled": true
 }
