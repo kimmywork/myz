@@ -1,0 +1,116 @@
+name: Service Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'service/**'
+      - '.github/workflows/service-tests.yml'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'service/**'
+      - '.github/workflows/service-tests.yml'
+
+jobs:
+  test:
+    name: Run Service Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: myz_test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./service
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./service
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint code
+        working-directory: ./service
+        run: npm run lint
+
+      - name: Build TypeScript
+        working-directory: ./service
+        run: npm run build
+
+      - name: Run unit tests
+        working-directory: ./service
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret-key-for-ci
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: myz_test_db
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+        run: npm run test:unit
+
+      - name: Run API tests
+        working-directory: ./service
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret-key-for-ci
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: myz_test_db
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+        run: npm run test:api
+
+      - name: Run E2E tests
+        working-directory: ./service
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret-key-for-ci
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: myz_test_db
+          DB_USER: test_user
+          DB_PASSWORD: test_password
+        run: npm run test:e2e
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          directory: ./service/coverage
+          flags: service
+          name: service-coverage
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: service/playwright-report/
+          retention-days: 30
