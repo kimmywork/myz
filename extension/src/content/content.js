@@ -14,7 +14,8 @@
   const state = {
     currentRange: null,
     currentText: "",
-    editingId: null
+    editingId: null,
+    toolbarShownAt: 0
   };
 
   init().catch((error) => console.error("MyZ Annotator init failed", error));
@@ -97,10 +98,12 @@
     toolbar.style.top = `${rect.top + scrollY}px`;
     toolbar.style.left = `${rect.left + scrollX + rect.width / 2}px`;
     toolbar.classList.remove("myz-hidden");
+    state.toolbarShownAt = Date.now();
   }
 
   function hideToolbar() {
     toolbar.classList.add("myz-hidden");
+    state.toolbarShownAt = 0;
   }
 
   function handleDocumentClick(event) {
@@ -124,6 +127,10 @@
     }
 
     if (modal.container && modal.container.contains(event.target)) {
+      return;
+    }
+
+    if (state.toolbarShownAt && Date.now() - state.toolbarShownAt < 250) {
       return;
     }
 
