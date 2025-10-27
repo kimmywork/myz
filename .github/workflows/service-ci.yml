@@ -62,4 +62,4 @@ jobs:
         env:
           PLAYWRIGHT_HEADLESS: "1"
           DATABASE_URL: postgres://postgres:password@localhost:5432/postgres
-        run: npm run test:e2e
+        run: npm run db:migrate && npm run test:e2e
