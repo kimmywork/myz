@@ -4,6 +4,7 @@
 - Chrome MV3 extension split across `extension/src/background.js` (service worker), `extension/src/content/content.js` (content script UI/DOM), `extension/popup/*`, and `extension/dashboard/*` (options UI). State lives entirely in `chrome.storage.local` under `myz::highlights` and `myz::settings`.
 - Background worker exposes a message bus (`messageHandlers[...]`) consumed by the content script, popup, and dashboard. Reuse existing handlers instead of inventing new message types when possible.
 - LogSeq sync is orchestrated from `background.js` via `callLogseq`. It already handles endpoint discovery, authentication headers, incremental inserts, and UUID bookkeeping—extend that pipeline, don’t bypass it.
+- The background action badge is controlled exclusively through `messageHandlers["myz:updateBadge"]`; content scripts call it via `syncBadgeWithBackground()` when they are the top-level frame. Do not reintroduce DOM badges on the toolbar itself.
 
 ## Patterns to Follow
 - Use `readState`/`writeState` helpers when mutating highlights; they normalise storage shape and prune invalid `order` entries.
@@ -12,11 +13,13 @@
 - All LogSeq RPCs must be JSON-RPC calls through `callLogseq({ endpoint, token, method, args })`; it handles response parsing and error surfacing. Service worker cannot rely on DOM APIs—never reintroduce `DOMParser` or similar.
 - Toolbar logic in `content.js` keeps the floating actions pinned while scrolling; if you touch selection handling, preserve `state.toolbarRange` updates and the debounce animation frame pattern.
 - Tag pickers (content modal + dashboard) share behaviour: multi-select, comma-to-create, backspace delete, dropdown filtering. Use the existing component utilities when tweaking UI logic.
+- Highlight restoration relies on `highlightReapplyState` plus the `unreachableHighlights` set. If reworking apply logic, fire `markHighlightForReapply` for failures and maintain the toast notification + deadline behaviour.
+- Popup pulls unreachable metadata through `myz:getHighlightState`; ensure any new state you expose is serialisable and guarded against frames without access.
 
 ## Workflows & Testing
 - Manual testing is the primary loop: load the unpacked `extension` folder via `chrome://extensions` and reload after code changes.
 - For LogSeq validation, ensure the desktop app has HTTP API + token enabled (see `knowledges/logseq-http-api.md`) and watch the service worker console for `callLogseq` logs.
-- Screenshot capture uses `chrome.tabs.captureVisibleTab`; if you change it, maintain the selection-suppression logic so the highlight overlay isn’t captured.
+- Screenshot capture uses `chrome.tabs.captureVisibleTab`; we now clear the selection ranges, wait for two `requestAnimationFrame` ticks, capture, then restore the stored ranges. Preserve this sequencing to avoid capturing native highlights.
 
 ## Common Pitfalls
 - Never write the `color` property into LogSeq blocks; it creates unwanted pages. Metadata should use single colon separators (`ID:`, `标签:` etc.).
