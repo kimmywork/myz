@@ -40,3 +40,7 @@ tests/e2e/.playwright-env
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+storage/
+
+test-results/

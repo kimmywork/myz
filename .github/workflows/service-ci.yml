@@ -14,6 +14,20 @@ on:
 
 jobs:
   lint-test:
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -47,4 +61,5 @@ jobs:
       - name: Run Playwright smoke tests
         env:
           PLAYWRIGHT_HEADLESS: "1"
+          DATABASE_URL: postgres://postgres:password@localhost:5432/postgres
         run: npm run test:e2e
