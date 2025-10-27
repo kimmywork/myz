@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -34,10 +35,10 @@ export default function RootLayout({
                 MyZ Sync Service
               </div>
               <div className="flex items-center gap-4 text-sm text-white/70">
-                <a href="/" className="hover:text-white">Home</a>
-                <a href="/dashboard" className="hover:text-white">Dashboard</a>
-                <a href="/login" className="hover:text-white">Login</a>
-                <a href="/register" className="hover:text-white">Register</a>
+                <Link href="/" className="hover:text-white">Home</Link>
+                <Link href="/dashboard" className="hover:text-white">Dashboard</Link>
+                <Link href="/login" className="hover:text-white">Login</Link>
+                <Link href="/register" className="hover:text-white">Register</Link>
               </div>
             </nav>
           </header>
