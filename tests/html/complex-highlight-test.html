@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>MyZ Highlight Stress Test</title>
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 40px;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    header, section, article, aside, footer {
+      margin-bottom: 32px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+    .panel {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+    }
+    .panel h3 {
+      margin-top: 0;
+    }
+    .note {
+      padding: 14px;
+      border-left: 4px solid #38bdf8;
+      background: #f0f9ff;
+      margin: 18px 0;
+    }
+    .code-block {
+      background: #0f172a;
+      color: #e0f2fe;
+      padding: 16px;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 24px 0;
+    }
+    th, td {
+      border: 1px solid #cbd5f5;
+      padding: 10px 14px;
+      text-align: left;
+    }
+    blockquote {
+      margin: 20px 0;
+      padding-left: 18px;
+      border-left: 4px solid #94a3b8;
+      color: #475569;
+      font-style: italic;
+      background: #e2e8f066;
+    }
+    details {
+      margin: 16px 0;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+    summary {
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .callout {
+      border-radius: 10px;
+      padding: 16px;
+      border: 1px dashed #64748b;
+      background: #f8fafc;
+    }
+    .callout.warning {
+      background: #fef3c7;
+      border-color: #f59e0b;
+    }
+    .callout.success {
+      background: #dcfce7;
+      border-color: #22c55e;
+    }
+    .repeat {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .repeat .line {
+      padding: 6px 0;
+      border-bottom: 1px dotted #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>复杂页面高亮定位测试</h1>
+    <p>这个页面聚合了各种常见与极端的 DOM 结构，便于验证高亮定位、重复文本处理、延迟加载等场景。</p>
+  </header>
+
+  <section>
+    <h2>章节一：结构化文本</h2>
+    <p>第一段介绍性文字，内容包含 <strong>重点强调</strong> 与 <em>斜体内容</em>，并且重复出现「高亮测试」字样以验证重复定位。</p>
+    <p>高亮测试 高亮测试 高亮测试 —— 这一行重复了三次同样的词语。</p>
+    <ul>
+      <li>列表项一，内含链接 <a href="https://example.com">Example</a></li>
+      <li>列表项二，继续强调高亮测试</li>
+      <li>
+        列表项三，包含嵌套列表：
+        <ul>
+          <li>子项 A 高亮测试</li>
+          <li>子项 B，含 <mark>已有高亮的文本</mark></li>
+        </ul>
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>章节二：表格与引用</h2>
+    <blockquote>
+      这是一个引用区域，用于测试跨块元素的标注。
+      引用中也出现了关键字：高亮测试。
+    </blockquote>
+    <table>
+      <thead>
+        <tr>
+          <th>名称</th>
+          <th>描述</th>
+          <th>备注</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Alpha</td>
+          <td>第一行描述高亮测试案例</td>
+          <td rowspan="2">跨行单元格</td>
+        </tr>
+        <tr>
+          <td>Beta</td>
+          <td>第二行描述，与 Alpha 相似</td>
+        </tr>
+        <tr>
+          <td>Gamma</td>
+          <td>第三行，包含重复短语：高亮测试</td>
+          <td>单独备注</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>章节三：代码与折叠内容</h2>
+    <div class="code-block" data-language="js">
+      <pre><code>function highlight(targetText) {
+  const matches = document.body.innerText.split(targetText).length - 1;
+  console.log(`Found ${matches} instances of ${targetText}`);
+}
+
+highlight("高亮测试");</code></pre>
+    </div>
+    <details>
+      <summary>延迟内容 —— 展开查看</summary>
+      <p>这个段落藏在详情里，模拟需要用户交互后才出现的 DOM 节点。</p>
+      <p>这里也放入关键字：高亮测试，以便测试。</p>
+    </details>
+    <div class="note">
+      <p>提示框：确保在面向复杂布局时仍能稳定匹配。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>章节四：重复文本块</h2>
+    <div class="repeat">
+      <div class="line">第 1 行：高亮测试重复段落，用于定位验证。</div>
+      <div class="line">第 2 行：高亮测试重复段落，用于定位验证。</div>
+      <div class="line">第 3 行：高亮测试重复段落，用于定位验证。</div>
+      <div class="line">第 4 行：高亮测试重复段落，用于定位验证。</div>
+      <div class="line">第 5 行：高亮测试重复段落，用于定位验证。</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>章节五：栅格布局与卡片</h2>
+    <div class="grid">
+      <article class="panel">
+        <h3>卡片一</h3>
+        <p>描述信息，其中包含术语“高亮测试”。</p>
+      </article>
+      <article class="panel">
+        <h3>卡片二</h3>
+        <p>重复文本：高亮测试，确保多卡片间定位一致。</p>
+      </article>
+      <article class="panel">
+        <h3>卡片三</h3>
+        <p>复杂内容包含 <code>&lt;code&gt;</code> 与 <strong>加粗</strong>。</p>
+      </article>
+      <article class="panel">
+        <h3>卡片四</h3>
+        <p>混合语句：The quick brown fox jumps over the lazy dog. 高亮测试。</p>
+      </article>
+    </div>
+  </section>
+
+  <aside>
+    <div class="callout warning">
+      <strong>警告：</strong>此区域用于确认标注能否在浮动侧边栏中恢复。
+    </div>
+    <div class="callout success">
+      <strong>成功：</strong>如果你在这里看到“高亮测试”，说明重复内容仍然存在。
+    </div>
+  </aside>
+
+  <footer>
+    <p>页脚信息：最后再出现一次高亮测试以便收尾。</p>
+    <p>联系邮箱：<a href="mailto:test@example.com">test@example.com</a></p>
+  </footer>
+</body>
+</html>

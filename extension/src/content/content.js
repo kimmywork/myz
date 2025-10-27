@@ -79,7 +79,23 @@
     th: new Set(["colspan", "rowspan"])
   };
   const highlightCache = new Map();
+  const unreachableHighlights = new Set();
   const knownTags = new Set();
+
+  const HIGHLIGHT_REAPPLY_INTERVAL = 1200;
+  const HIGHLIGHT_REAPPLY_TIMEOUT = 20000;
+  const NOTIFICATION_DEFAULT_DURATION = 6000;
+
+  const highlightReapplyState = {
+    pending: new Set(),
+    timerId: null,
+    observer: null,
+    deadline: 0,
+    tickHandle: null,
+    failureNotified: false,
+    deadlineListenerAttached: false,
+    deadlineListener: null
+  };
 
   const toolbar = createToolbar();
   const modal = createModal();
@@ -100,6 +116,9 @@
     },
     selectedColor: DEFAULT_COLORS[0]
   };
+
+  const TOOLBAR_MIN_VIEWPORT_GAP = 12;
+  const TOOLBAR_VERTICAL_OFFSET_RATIO = 1.5; // Keep in sync with CSS translateY percentage.
 
   init().catch((error) => console.error("MyZ Annotator init failed", error));
 
@@ -141,6 +160,10 @@
             sendResponse?.({ ok: false });
           });
         return true;
+      }
+      if (message.type === "myz:getHighlightState") {
+        sendResponse?.({ ok: true, data: buildHighlightStateSnapshot() });
+        return false;
       }
       return false;
     });
@@ -192,16 +215,28 @@
       hideInspector();
       Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) => unwrapNode(node));
       highlightCache.clear();
+      unreachableHighlights.clear();
+      resetHighlightReapplyState();
 
       const records = Array.isArray(highlights) ? highlights : [];
       records.forEach((record) => {
         highlightCache.set(record.id, record);
         addKnownTags(record.tags || []);
-        applyHighlight(record);
+        const applied = applyHighlight(record);
+        if (applied) {
+          unreachableHighlights.delete(record.id);
+          removeHighlightFromPending(record.id);
+        } else if (record?.id) {
+          markHighlightForReapply(record.id);
+        }
       });
       updateTagSuggestions();
+      updateHighlightIndicators();
     } catch (error) {
       console.error("Failed to restore highlights", error);
+      highlightCache.clear();
+      unreachableHighlights.clear();
+      updateHighlightIndicators();
     }
   }
 
@@ -227,9 +262,13 @@
   function showToolbar(rect) {
     const scrollY = window.scrollY || document.documentElement.scrollTop;
     const scrollX = window.scrollX || document.documentElement.scrollLeft;
-    toolbar.style.top = `${rect.top + scrollY}px`;
-    toolbar.style.left = `${rect.left + scrollX + rect.width / 2}px`;
     toolbar.classList.remove("myz-hidden");
+    const toolbarHeight = toolbar.offsetHeight || 0;
+    const offsetY = toolbarHeight * TOOLBAR_VERTICAL_OFFSET_RATIO;
+    const minTop = scrollY + TOOLBAR_MIN_VIEWPORT_GAP + offsetY;
+    const topPosition = Math.max(rect.top + scrollY, minTop);
+    toolbar.style.top = `${topPosition}px`;
+    toolbar.style.left = `${rect.left + scrollX + rect.width / 2}px`;
     state.toolbarShownAt = Date.now();
   }
 
@@ -334,6 +373,24 @@
     node.append(annotateButton, captureButton);
     document.documentElement.appendChild(node);
     return node;
+  }
+
+  function updateHighlightIndicators() {
+    syncBadgeWithBackground();
+  }
+
+  function syncBadgeWithBackground() {
+    let isTopLevel = false;
+    try {
+      isTopLevel = window.top === window;
+    } catch (error) {
+      isTopLevel = false;
+    }
+    if (!isTopLevel) {
+      return;
+    }
+    const count = highlightCache.size;
+    sendMessage("myz:updateBadge", { count }).catch(() => {});
   }
 
   function handleAnnotateClick() {
@@ -993,10 +1050,17 @@
       const record = await sendMessage("myz:saveHighlight", payload);
       if (record) {
         highlightCache.set(record.id, record);
-        applyHighlight(record);
+        const applied = applyHighlight(record);
+        if (applied) {
+          unreachableHighlights.delete(record.id);
+          removeHighlightFromPending(record.id);
+        } else {
+          markHighlightForReapply(record.id);
+        }
         if (addKnownTags(record.tags || tags)) {
           updateTagSuggestions();
         }
+        updateHighlightIndicators();
       }
       persistColorSettings({ lastUsedColor: color });
     } catch (error) {
@@ -1038,10 +1102,13 @@
     try {
       await sendMessage("myz:removeHighlight", { id });
       highlightCache.delete(id);
+      removeHighlightFromPending(id);
+      unreachableHighlights.delete(id);
       removeHighlightFromDom(id);
       if (inspector.currentId === id) {
         hideInspector();
       }
+      updateHighlightIndicators();
     } catch (error) {
       console.error("Failed to delete highlight", error);
     }
@@ -1211,22 +1278,24 @@
 
   function applyHighlight(record) {
     if (!record?.range) {
-      return;
+      return false;
     }
     try {
       const range = deserializeRange(record.range);
       if (!range || range.collapsed) {
-        return;
+        return false;
       }
       removeHighlightFromDom(record.id);
-      if (rangeContainsBlockElements(range)) {
-        wrapRangeAcrossNodes(range, record);
-      } else {
-        wrapSimpleRange(range, record);
+      const applied = rangeContainsBlockElements(range)
+        ? wrapRangeAcrossNodes(range, record)
+        : wrapSimpleRange(range, record);
+      if (applied) {
+        return true;
       }
     } catch (error) {
       console.warn("Unable to apply highlight", error, record);
     }
+    return false;
   }
 
   function createHighlightElement(record) {
@@ -1238,16 +1307,28 @@
   }
 
   function wrapSimpleRange(range, record) {
-    const highlight = createHighlightElement(record);
     const fragment = range.cloneContents();
+    if (!fragment || !fragment.childNodes.length) {
+      return false;
+    }
+    const highlight = createHighlightElement(record);
     highlight.appendChild(fragment);
     range.deleteContents();
     range.insertNode(highlight);
+    return true;
   }
 
   function wrapRangeAcrossNodes(range, record) {
     const textNodes = collectTextNodes(range);
-    textNodes.forEach((node) => wrapTextNodeSegment(node, range, record));
+    if (!textNodes.length) {
+      return false;
+    }
+    let applied = false;
+    textNodes.forEach((node) => {
+      const didWrap = wrapTextNodeSegment(node, range, record);
+      applied = didWrap || applied;
+    });
+    return applied;
   }
 
   function collectTextNodes(range) {
@@ -1277,7 +1358,7 @@
   function wrapTextNodeSegment(node, range, record) {
     const offsets = computeSegmentOffsets(node, range);
     if (!offsets || offsets.end <= offsets.start) {
-      return;
+      return false;
     }
     let target = node;
     const length = node.textContent.length;
@@ -1287,12 +1368,17 @@
     if (offsets.start > 0) {
       target = target.splitText(offsets.start);
     }
-    if (!target.textContent.trim()) {
-      return;
+    if (!target || !target.textContent.trim()) {
+      return false;
+    }
+    const parent = target.parentNode;
+    if (!parent) {
+      return false;
     }
     const highlight = createHighlightElement(record);
-    target.parentNode.insertBefore(highlight, target);
+    parent.insertBefore(highlight, target);
     highlight.appendChild(target);
+    return true;
   }
 
   function computeSegmentOffsets(node, range) {
@@ -1359,6 +1445,230 @@
     }
     parent.removeChild(node);
     parent.normalize();
+  }
+
+  function markHighlightForReapply(id) {
+    if (!id) {
+      return;
+    }
+    highlightReapplyState.pending.add(id);
+    highlightReapplyState.failureNotified = false;
+    scheduleHighlightReapply();
+  }
+
+  function removeHighlightFromPending(id) {
+    if (!id) {
+      return;
+    }
+    if (highlightReapplyState.pending.delete(id) && !highlightReapplyState.pending.size) {
+      cleanupHighlightReapply();
+    }
+  }
+
+  function resetHighlightReapplyState() {
+    highlightReapplyState.pending.clear();
+    highlightReapplyState.failureNotified = false;
+    cleanupHighlightReapply();
+  }
+
+  function scheduleHighlightReapply() {
+    if (!highlightReapplyState.pending.size) {
+      cleanupHighlightReapply();
+      return;
+    }
+    ensureReapplyDeadline();
+    queueHighlightReapply();
+    if (!highlightReapplyState.timerId) {
+      highlightReapplyState.timerId = setInterval(queueHighlightReapply, HIGHLIGHT_REAPPLY_INTERVAL);
+    }
+    if (!highlightReapplyState.observer) {
+      const target = document.body || document.documentElement;
+      if (target) {
+        highlightReapplyState.observer = new MutationObserver(() => queueHighlightReapply());
+        highlightReapplyState.observer.observe(target, { childList: true, subtree: true });
+      }
+    }
+  }
+
+  function ensureReapplyDeadline() {
+    if (highlightReapplyState.deadline) {
+      return;
+    }
+    if (document.readyState === "complete") {
+      highlightReapplyState.deadline = Date.now() + HIGHLIGHT_REAPPLY_TIMEOUT;
+      return;
+    }
+    if (highlightReapplyState.deadlineListenerAttached) {
+      return;
+    }
+    const handler = () => {
+      if (document.readyState !== "complete") {
+        return;
+      }
+      highlightReapplyState.deadline = Date.now() + HIGHLIGHT_REAPPLY_TIMEOUT;
+      highlightReapplyState.deadlineListenerAttached = false;
+      if (highlightReapplyState.deadlineListener) {
+        document.removeEventListener("readystatechange", highlightReapplyState.deadlineListener);
+        highlightReapplyState.deadlineListener = null;
+      }
+    };
+    highlightReapplyState.deadlineListener = handler;
+    highlightReapplyState.deadlineListenerAttached = true;
+    document.addEventListener("readystatechange", handler);
+  }
+
+  function queueHighlightReapply() {
+    if (!highlightReapplyState.pending.size) {
+      cleanupHighlightReapply();
+      return;
+    }
+    if (!highlightReapplyState.observer) {
+      const target = document.body || document.documentElement;
+      if (target) {
+        highlightReapplyState.observer = new MutationObserver(() => queueHighlightReapply());
+        highlightReapplyState.observer.observe(target, { childList: true, subtree: true });
+      }
+    }
+    if (highlightReapplyState.tickHandle) {
+      return;
+    }
+    highlightReapplyState.tickHandle = setTimeout(() => {
+      highlightReapplyState.tickHandle = null;
+      attemptHighlightReapply();
+    }, 80);
+  }
+
+  function attemptHighlightReapply() {
+    if (!highlightReapplyState.pending.size) {
+      cleanupHighlightReapply();
+      return;
+    }
+    const pendingIds = Array.from(highlightReapplyState.pending);
+    let appliedThisRound = 0;
+    pendingIds.forEach((id) => {
+      const record = highlightCache.get(id);
+      if (!record) {
+        highlightReapplyState.pending.delete(id);
+        return;
+      }
+      const applied = applyHighlight(record);
+      if (applied) {
+        highlightReapplyState.pending.delete(id);
+        unreachableHighlights.delete(id);
+        appliedThisRound += 1;
+      }
+    });
+
+    if (!highlightReapplyState.pending.size) {
+      cleanupHighlightReapply();
+      return;
+    }
+
+    if (appliedThisRound > 0) {
+      if (document.readyState === "complete") {
+        highlightReapplyState.deadline = Date.now() + HIGHLIGHT_REAPPLY_TIMEOUT;
+      } else {
+        highlightReapplyState.deadline = 0;
+        ensureReapplyDeadline();
+      }
+    }
+
+    if (highlightReapplyState.deadline && Date.now() > highlightReapplyState.deadline) {
+      const failedIds = Array.from(highlightReapplyState.pending);
+      const remaining = failedIds.length;
+      failedIds.forEach((id) => unreachableHighlights.add(id));
+      highlightReapplyState.pending.clear();
+      cleanupHighlightReapply();
+      if (!highlightReapplyState.failureNotified && remaining > 0) {
+        highlightReapplyState.failureNotified = true;
+        console.warn("MyZ Annotator: failed to reapply highlights", { remaining });
+        const message = remaining === 1
+          ? "部分标注无法定位，可能因为页面内容已改变。"
+          : `有 ${remaining} 条标注无法定位，可能因为页面内容已改变。`;
+        showNotification(message);
+      }
+    }
+  }
+
+  function cleanupHighlightReapply() {
+    if (highlightReapplyState.timerId) {
+      clearInterval(highlightReapplyState.timerId);
+      highlightReapplyState.timerId = null;
+    }
+    if (highlightReapplyState.tickHandle) {
+      clearTimeout(highlightReapplyState.tickHandle);
+      highlightReapplyState.tickHandle = null;
+    }
+    if (highlightReapplyState.observer) {
+      highlightReapplyState.observer.disconnect();
+      highlightReapplyState.observer = null;
+    }
+    if (highlightReapplyState.deadlineListener) {
+      document.removeEventListener("readystatechange", highlightReapplyState.deadlineListener);
+      highlightReapplyState.deadlineListener = null;
+    }
+    highlightReapplyState.deadlineListenerAttached = false;
+    highlightReapplyState.deadline = 0;
+  }
+
+  function showNotification(message, duration = NOTIFICATION_DEFAULT_DURATION) {
+    if (!message) {
+      return;
+    }
+    const container = ensureNotificationContainer();
+    if (!container) {
+      return;
+    }
+    const toast = document.createElement("div");
+    toast.className = "myz-toast";
+    toast.textContent = message;
+    toast.style.cssText = "max-width: 280px; padding: 12px 14px; border-radius: 12px; background: rgba(15, 23, 42, 0.95); color: #f8fafc; font-size: 13px; box-shadow: 0 18px 32px rgba(15, 23, 42, 0.4); opacity: 0; transform: translateY(-6px); transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: auto;";
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateY(0)";
+    });
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(-6px)";
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+        if (!container.childElementCount && container.parentNode) {
+          container.parentNode.removeChild(container);
+        }
+      }, 240);
+    }, duration);
+  }
+
+  function ensureNotificationContainer() {
+    let container = document.querySelector(".myz-toast-container");
+    if (container) {
+      return container;
+    }
+    container = document.createElement("div");
+    container.className = "myz-toast-container";
+    container.style.cssText = "position: fixed; top: 16px; right: 16px; z-index: 2147483646; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: none;";
+    const host = document.documentElement || document.body;
+    if (!host) {
+      return null;
+    }
+    host.appendChild(container);
+    return container;
+  }
+
+  function buildHighlightStateSnapshot() {
+    const unreachable = Array.from(unreachableHighlights).filter((id) => highlightCache.has(id));
+    if (unreachable.length !== unreachableHighlights.size) {
+      unreachableHighlights.clear();
+      unreachable.forEach((id) => unreachableHighlights.add(id));
+    }
+    return {
+      count: highlightCache.size,
+      unreachableIds: unreachable,
+      unreachableCount: unreachable.length
+    };
   }
 
   function serializeRange(range) {
@@ -1480,7 +1790,15 @@
       hideToolbar();
       return;
     }
-    const restoreSelection = suppressSelectionHighlight();
+
+    const storedRanges = [];
+    for (let index = 0; index < selection.rangeCount; index += 1) {
+      storedRanges.push(selection.getRangeAt(index).cloneRange());
+    }
+
+    selection.removeAllRanges();
+    await waitForNextPaint();
+
     try {
       const result = await sendMessage("myz:captureSelection", { format: "png" });
       if (!result || !result.dataUrl) {
@@ -1490,11 +1808,28 @@
     } catch (error) {
       console.error("Selection capture failed", error);
     } finally {
-      if (typeof restoreSelection === "function") {
-        restoreSelection();
+      try {
+        selection.removeAllRanges();
+        storedRanges.forEach((storedRange) => {
+          try {
+            selection.addRange(storedRange);
+          } catch (restoreError) {
+            console.warn("Failed to restore selection range", restoreError);
+          }
+        });
+      } catch (restoreError) {
+        console.warn("Unable to restore selection", restoreError);
       }
       hideToolbar();
     }
+  }
+
+  function waitForNextPaint() {
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(resolve);
+      });
+    });
   }
 
   function getSelectionBoundingRect(range) {
@@ -1578,24 +1913,6 @@
     anchor.click();
   }
 
-  // Temporarily hides the native selection highlight while capturing screenshots.
-  function suppressSelectionHighlight() {
-    try {
-      const style = document.createElement("style");
-      style.className = "myz-hide-selection";
-      style.textContent = "*::selection { background: transparent !important; color: inherit !important; }\n*::-moz-selection { background: transparent !important; color: inherit !important; }";
-      const target = document.head || document.documentElement;
-      target.appendChild(style);
-      return () => {
-        if (style.parentNode) {
-          style.parentNode.removeChild(style);
-        }
-      };
-    } catch (error) {
-      console.warn("Failed to suppress selection highlight", error);
-      return null;
-    }
-  }
 
   function serializeRangeToHtml(range) {
     try {

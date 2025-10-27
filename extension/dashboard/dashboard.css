@@ -311,6 +311,12 @@ body {
   gap: 16px;
 }
 
+.settings__hint {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
 .settings__fields.is-disabled {
   opacity: 0.6;
 }

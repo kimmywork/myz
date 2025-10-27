@@ -29,6 +29,11 @@ const logseqTokenInput = document.getElementById("logseq-token");
 const logseqGraphInput = document.getElementById("logseq-graph");
 const settingsStatusEl = document.getElementById("settings-status");
 
+const importFileInput = document.getElementById("import-file");
+const importStrategySelect = document.getElementById("import-strategy");
+const importButton = document.getElementById("import-button");
+const importStatusEl = document.getElementById("import-status");
+
 const viewCardsBtn = document.getElementById("view-cards");
 const viewListBtn = document.getElementById("view-list");
 const pickerButtons = document.querySelectorAll("[data-picker-for]");
@@ -56,6 +61,7 @@ scrollSentinel.className = "scroll-sentinel";
 
 const DEFAULT_COLOR = "#fde68a";
 const PAGINATION_BATCH = 24;
+const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 
 const filterTagInput = filterTagsContainer
 	? createTagInputWidget(filterTagsContainer, {
@@ -208,6 +214,10 @@ function bindEvents() {
 		saveSettingsBtn.addEventListener("click", saveSettings);
 	}
 
+		if (importButton) {
+			importButton.addEventListener("click", handleImportJson);
+		}
+
 	if (modal.closeButton) {
 		modal.closeButton.addEventListener("click", closeRecordModal);
 	}
@@ -234,6 +244,105 @@ function bindEvents() {
 	}
 
 	document.addEventListener("keydown", handleModalKeydown);
+}
+
+async function handleImportJson() {
+	if (!importFileInput) {
+		return;
+	}
+	if (!importFileInput.files || !importFileInput.files.length) {
+		setImportStatus("请先选择 JSON 文件", true);
+		return;
+	}
+	const file = importFileInput.files[0];
+	if (!file) {
+		setImportStatus("未找到文件", true);
+		return;
+	}
+	if (file.size > IMPORT_MAX_BYTES) {
+		setImportStatus(`文件体积过大（>${Math.floor(IMPORT_MAX_BYTES / 1024 / 1024)}MB）`, true);
+		return;
+	}
+
+		const previousLabel = importButton ? importButton.textContent : "";
+	if (importButton) {
+		importButton.disabled = true;
+		importButton.textContent = "导入中…";
+	}
+		setImportStatus("解析文件…");
+
+	try {
+		const text = await file.text();
+		let parsed;
+		try {
+			parsed = JSON.parse(text);
+		} catch (error) {
+			throw new Error("JSON 格式无效");
+		}
+
+		const records = normalizeImportedPayload(parsed);
+		if (!records.length) {
+			throw new Error("文件中未找到有效的标注数据");
+		}
+
+			setImportStatus("写入中…");
+			const strategy = importStrategySelect ? importStrategySelect.value : "skip";
+			const result = await sendMessage("myz:importHighlights", { records, strategy });
+			const inserted = typeof result?.inserted === "number" ? result.inserted : 0;
+			const replaced = typeof result?.replaced === "number" ? result.replaced : 0;
+			const skipped = typeof result?.skipped === "number" ? result.skipped : Math.max(records.length - inserted - replaced, 0);
+			const summaryParts = [];
+			if (inserted) {
+				summaryParts.push(`新增 ${inserted}`);
+			}
+			if (replaced) {
+				summaryParts.push(`更新 ${replaced}`);
+			}
+			if (skipped) {
+				summaryParts.push(`跳过 ${skipped}`);
+			}
+			const summary = summaryParts.length ? summaryParts.join(" · ") : "无可导入的标注";
+			setImportStatus(`导入完成：${summary}`, false, inserted || replaced ? "success" : "info");
+
+		importFileInput.value = "";
+		await loadHighlights();
+		applyFilters();
+	} catch (error) {
+		console.error("导入失败", error);
+		setImportStatus(`导入失败：${error.message}`, true);
+	} finally {
+			if (importButton) {
+				importButton.disabled = false;
+				importButton.textContent = previousLabel || "导入 JSON";
+			}
+	}
+}
+
+function normalizeImportedPayload(payload) {
+	if (Array.isArray(payload)) {
+		return payload;
+	}
+	if (payload && typeof payload === "object") {
+		if (Array.isArray(payload.highlights)) {
+			return payload.highlights;
+		}
+		if (Array.isArray(payload.data)) {
+			return payload.data;
+		}
+	}
+	return [];
+}
+
+function setImportStatus(message, isError = false, variant = "info") {
+	if (!importStatusEl) {
+		return;
+	}
+	importStatusEl.textContent = message || "";
+	if (isError) {
+		importStatusEl.style.color = "#f87171";
+		return;
+	}
+	importStatusEl.style.color = variant === "success" ? "#34d399" : "#facc15";
 }
 
 function setupInfiniteScroll() {

@@ -146,6 +146,140 @@ const messageHandlers = {
     };
   },
 
+  async "myz:updateBadge"(payload, sender) {
+    const tabId = typeof payload?.tabId === "number" ? payload.tabId : sender?.tab?.id;
+    if (typeof tabId !== "number" || Number.isNaN(tabId)) {
+      return { success: false };
+    }
+    const rawCount = typeof payload?.count === "number" ? payload.count : 0;
+    const count = Number.isFinite(rawCount) && rawCount > 0 ? Math.floor(rawCount) : 0;
+    const text = count > 0 ? (count > 99 ? "99+" : String(count)) : "";
+    await chrome.action.setBadgeText({ tabId, text });
+    if (text) {
+      await chrome.action.setBadgeBackgroundColor({ tabId, color: [37, 99, 235, 255] });
+      if (typeof chrome.action.setBadgeTextColor === "function") {
+        await chrome.action.setBadgeTextColor({ tabId, color: [255, 255, 255, 255] });
+      }
+    }
+    return { success: true };
+  },
+
+  async "myz:importHighlights"(payload) {
+    const records = Array.isArray(payload?.records) ? payload.records : [];
+    if (!records.length) {
+      throw new Error("没有可导入的数据");
+    }
+
+    const strategy = normalizeImportStrategy(payload?.strategy);
+    const state = await readState();
+    const existingHighlights = state.highlights || {};
+    const usedIds = new Set(Object.keys(existingHighlights));
+
+    const existingSignatures = new Set();
+    Object.values(existingHighlights).forEach((record) => {
+      const signature = buildHighlightSignature(record);
+      if (signature) {
+        existingSignatures.add(signature);
+      }
+    });
+
+    const replacements = new Map();
+    const additions = new Map();
+    let skipped = 0;
+
+    records.forEach((raw) => {
+      const sanitized = sanitizeImportedHighlight(raw);
+      if (!sanitized) {
+        skipped += 1;
+        return;
+      }
+
+      let identifier = typeof sanitized.id === "string" ? sanitized.id.trim() : "";
+
+      // Handle conflicts with existing highlights first.
+      if (identifier && existingHighlights[identifier] && !replacements.has(identifier)) {
+        const existingRecord = existingHighlights[identifier];
+        if (!resolveImportConflict(strategy, existingRecord, sanitized)) {
+          skipped += 1;
+          return;
+        }
+        sanitized.id = identifier;
+        applyTimestampFallback(sanitized, existingRecord);
+        const signature = buildHighlightSignature(sanitized);
+        if (signature) {
+          existingSignatures.add(signature);
+        }
+        replacements.set(identifier, sanitized);
+        return;
+      }
+
+      // Conflicts with already staged replacements or additions (duplicate IDs within payload).
+      if (identifier && (replacements.has(identifier) || additions.has(identifier))) {
+        const staged = replacements.get(identifier) || additions.get(identifier);
+        if (!resolveImportConflict(strategy, staged, sanitized)) {
+          skipped += 1;
+          return;
+        }
+        sanitized.id = identifier;
+        applyTimestampFallback(sanitized, staged);
+        const signature = buildHighlightSignature(sanitized);
+        if (signature) {
+          existingSignatures.add(signature);
+        }
+        if (replacements.has(identifier)) {
+          replacements.set(identifier, sanitized);
+        } else {
+          additions.set(identifier, sanitized);
+        }
+        return;
+      }
+
+      // De-duplicate by selection signature to avoid creating multiple identical highlights.
+      const signature = buildHighlightSignature(sanitized);
+      if (signature && existingSignatures.has(signature)) {
+        skipped += 1;
+        return;
+      }
+
+      let resolvedId = identifier;
+      if (!resolvedId || usedIds.has(resolvedId) || additions.has(resolvedId)) {
+        resolvedId = generateUniqueImportId(usedIds);
+      } else {
+        usedIds.add(resolvedId);
+      }
+      sanitized.id = resolvedId;
+      applyTimestampFallback(sanitized);
+      sanitized.updatedAt = sanitized.updatedAt || sanitized.createdAt;
+      if (signature) {
+        existingSignatures.add(signature);
+      }
+      additions.set(resolvedId, sanitized);
+    });
+
+    if (!additions.size && !replacements.size && skipped === 0) {
+      throw new Error("没有符合要求的标注");
+    }
+
+    replacements.forEach((record, id) => {
+      state.highlights[id] = record;
+      state.order.push(id);
+    });
+
+    additions.forEach((record, id) => {
+      state.highlights[id] = record;
+      state.order.push(id);
+    });
+
+    state.order = dedupeOrder(state.order, state.highlights);
+
+    await writeState(state);
+    return {
+      inserted: additions.size,
+      replaced: replacements.size,
+      skipped
+    };
+  },
+
   async "myz:getSettings"() {
     return readSettings();
   },
@@ -368,6 +502,15 @@ function sortedHighlights(state) {
 
 function generateId() {
   return `myz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function generateUniqueImportId(usedIds) {
+  let candidate = generateId();
+  while (usedIds.has(candidate)) {
+    candidate = generateId();
+  }
+  usedIds.add(candidate);
+  return candidate;
 }
 
 function buildMarkdownExport(highlights) {
@@ -641,17 +784,17 @@ function buildHighlightBlock(record) {
 
   const noteContent = extractRecordNote(record);
   if (noteContent) {
-    const noteBlock = makeMarkdownBlock(noteContent);
-    if (noteBlock) {
-      detailBlocks.push(makeBlock("批注", [noteBlock]));
+    const noteBlocks = makeMarkdownBlock(noteContent);
+    if (noteBlocks?.length) {
+      detailBlocks.push(makeBlock("批注", noteBlocks));
     }
   }
 
   const quoteContent = extractRecordQuote(record);
   if (quoteContent) {
-    const quoteBlock = makeMarkdownBlock(quoteContent);
-    if (quoteBlock) {
-      detailBlocks.push(makeBlock("摘录", [quoteBlock]));
+    const quoteBlocks = makeMarkdownBlock(quoteContent);
+    if (quoteBlocks?.length) {
+      detailBlocks.push(makeBlock("摘录", quoteBlocks));
     }
   }
 
@@ -704,9 +847,136 @@ function cleanLogseqMultiline(value) {
 function makeMarkdownBlock(content) {
   const safeContent = cleanLogseqMultiline(content);
   if (!safeContent) {
-    return null;
+    return [];
   }
-  return { content: safeContent };
+
+  const root = {
+    level: -1,
+    indent: -1,
+    type: "root",
+    lines: [],
+    children: []
+  };
+  const stack = [root];
+  let currentParagraph = null;
+  let activeCodeBlock = null;
+
+  function flushParagraph() {
+    if (currentParagraph && !currentParagraph.lines.length) {
+      const index = root.children.indexOf(currentParagraph);
+      if (index >= 0) {
+        root.children.splice(index, 1);
+      }
+    }
+    currentParagraph = null;
+  }
+
+  safeContent.split("\n").forEach((originalLine) => {
+    const line = originalLine.replace(/\t/g, "  ");
+    const trimmed = line.trim();
+
+    if (activeCodeBlock) {
+      activeCodeBlock.lines.push(originalLine);
+      if (trimmed.startsWith("```") && activeCodeBlock !== null) {
+        activeCodeBlock = null;
+      }
+      return;
+    }
+
+    if (!trimmed) {
+      flushParagraph();
+      return;
+    }
+
+    if (trimmed.startsWith("```") ) {
+      flushParagraph();
+      const parentNode = stack[stack.length - 1];
+      const codeNode = {
+        level: parentNode.level + 1,
+        indent: parentNode.indent,
+        type: "code",
+        lines: [trimmed],
+        children: []
+      };
+      parentNode.children.push(codeNode);
+      activeCodeBlock = codeNode;
+      return;
+    }
+
+    const listMatch = line.match(/^(\s*)(?:[-*+]|(?:\d+)[.)])\s+(.*)$/);
+    if (listMatch) {
+      flushParagraph();
+      const indentSpaces = listMatch[1].length;
+      const level = Math.max(0, Math.floor(indentSpaces / 2));
+      while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+        stack.pop();
+      }
+      const parentNode = stack[stack.length - 1];
+      const node = {
+        level,
+        indent: indentSpaces,
+        type: "list",
+        lines: [listMatch[2].trim()],
+        children: []
+      };
+      parentNode.children.push(node);
+      stack.push(node);
+      return;
+    }
+
+    const indentSpaces = line.match(/^\s*/)[0].length;
+    while (stack.length > 1 && indentSpaces <= stack[stack.length - 1].indent) {
+      stack.pop();
+    }
+    const currentNode = stack[stack.length - 1];
+    if (currentNode.type !== "root" && indentSpaces > currentNode.indent) {
+      currentNode.lines.push(trimmed);
+      return;
+    }
+
+    stack.length = 1;
+    if (!currentParagraph) {
+      currentParagraph = {
+        level: 0,
+        indent: 0,
+        type: "paragraph",
+        lines: [],
+        children: []
+      };
+      root.children.push(currentParagraph);
+    }
+    currentParagraph.lines.push(trimmed);
+  });
+
+  function buildBlocks(nodes) {
+    const blocks = [];
+    nodes.forEach((node) => {
+      const childBlocks = buildBlocks(node.children);
+      const rawContent = node.lines.join(node.type === "code" ? "\n" : " ").trim();
+      if (!rawContent && !childBlocks.length) {
+        return;
+      }
+      let content;
+      if (node.type === "code") {
+        content = cleanLogseqMultiline(node.lines.join("\n"));
+      } else if (node.type === "paragraph") {
+        content = cleanLogseqMultiline(node.lines.join("\n"));
+      } else {
+        content = cleanLogseqInline(rawContent);
+      }
+      if (!content && !childBlocks.length) {
+        return;
+      }
+      const block = { content };
+      if (childBlocks.length) {
+        block.children = childBlocks;
+      }
+      blocks.push(block);
+    });
+    return blocks;
+  }
+
+  return buildBlocks(root.children);
 }
 
 function extractRecordQuote(record) {
@@ -978,6 +1248,277 @@ function normalizeTagValue(tag) {
   return typeof tag === "string" ? tag.trim() : "";
 }
 
+function normalizeImportStrategy(value) {
+  const normalized = typeof value === "string" ? value.toLowerCase() : "";
+  if (normalized === "overwrite") {
+    return "overwrite";
+  }
+  if (normalized === "latest" || normalized === "keep-latest") {
+    return "latest";
+  }
+  return "skip";
+}
+
+function sanitizeImportedHighlight(raw) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const url = sanitizeUrl(raw.url || raw.sourceUrl);
+  if (!url) {
+    return null;
+  }
+
+  const range = sanitizeImportedRange(raw.range);
+  if (!range) {
+    return null;
+  }
+
+  const result = {
+    id: typeof raw.id === "string" ? raw.id.trim() : "",
+    url,
+    sourceUrl: sanitizeUrl(raw.sourceUrl) || url,
+    title: sanitizeNullableString(raw.title),
+    text: sanitizeNullableString(raw.text),
+    html: sanitizeNullableString(raw.html),
+    note: sanitizeNullableString(raw.note),
+    color: sanitizeColor(raw.color),
+    tags: sanitizeTags(raw.tags),
+    range,
+    hostname: sanitizeHostname(raw.hostname, url)
+  };
+
+  const createdAt = coerceIsoTimestamp(raw.createdAt);
+  if (createdAt) {
+    result.createdAt = createdAt;
+  }
+  const updatedAt = coerceIsoTimestamp(raw.updatedAt);
+  if (updatedAt) {
+    result.updatedAt = updatedAt;
+  }
+  const logseqUuid = typeof raw.logseqBlockUuid === "string" ? raw.logseqBlockUuid.trim() : "";
+  if (logseqUuid) {
+    result.logseqBlockUuid = logseqUuid;
+  }
+  const syncedAt = coerceIsoTimestamp(raw.logseqSyncedAt);
+  if (syncedAt) {
+    result.logseqSyncedAt = syncedAt;
+  }
+
+  if (!result.text && !result.html) {
+    return null;
+  }
+
+  if (!result.html) {
+    delete result.html;
+  }
+  if (!result.note) {
+    delete result.note;
+  }
+  if (!result.color) {
+    delete result.color;
+  }
+  if (!result.tags.length) {
+    delete result.tags;
+  }
+  if (!result.title) {
+    delete result.title;
+  }
+  if (!result.text) {
+    delete result.text;
+  }
+  if (!result.hostname) {
+    delete result.hostname;
+  }
+
+  return result;
+}
+
+function sanitizeUrl(value) {
+  if (!value || typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  try {
+    const url = new URL(trimmed);
+    if (!/^https?:$/i.test(url.protocol)) {
+      return "";
+    }
+    return url.toString();
+  } catch (error) {
+    return trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : "";
+  }
+}
+
+function sanitizeNullableString(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  return trimmed;
+}
+
+function sanitizeColor(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed : "";
+}
+
+function sanitizeTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+  const normalized = tags
+    .map((tag) => normalizeTagValue(tag))
+    .filter(Boolean);
+  const unique = Array.from(new Set(normalized));
+  return unique;
+}
+
+function sanitizeHostname(candidate, fallbackUrl) {
+  if (typeof candidate === "string" && candidate.trim()) {
+    return candidate.trim();
+  }
+  if (fallbackUrl) {
+    return extractHostname(fallbackUrl);
+  }
+  return "";
+}
+
+function sanitizeImportedRange(range) {
+  if (!range || typeof range !== "object") {
+    return null;
+  }
+  const start = sanitizeRangeEdge(range.start);
+  const end = sanitizeRangeEdge(range.end);
+  if (!start || !end) {
+    return null;
+  }
+  return { start, end };
+}
+
+function sanitizeRangeEdge(edge) {
+  if (!edge || typeof edge !== "object") {
+    return null;
+  }
+  const path = Array.isArray(edge.path)
+    ? edge.path.map(sanitizeRangeSegment).filter(Boolean)
+    : [];
+  if (!path.length) {
+    return null;
+  }
+  const offset = typeof edge.offset === "number" ? edge.offset : parseInt(edge.offset, 10);
+  const normalizedOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
+  return { path, offset: normalizedOffset };
+}
+
+function sanitizeRangeSegment(segment) {
+  if (!segment || typeof segment !== "object") {
+    return null;
+  }
+  const name = typeof segment.name === "string" ? segment.name.trim() : "";
+  const indexRaw = typeof segment.index === "number" ? segment.index : parseInt(segment.index, 10);
+  if (!name) {
+    return null;
+  }
+  const index = Number.isFinite(indexRaw) && indexRaw >= 0 ? indexRaw : 0;
+  return { name, index };
+}
+
+function coerceIsoTimestamp(value) {
+  if (!value || typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const timestamp = Date.parse(trimmed);
+  if (Number.isNaN(timestamp)) {
+    return "";
+  }
+  return new Date(timestamp).toISOString();
+}
+
+function buildHighlightSignature(record) {
+  if (!record || typeof record !== "object") {
+    return "";
+  }
+  const url = typeof record.url === "string" && record.url ? record.url : record.sourceUrl;
+  if (!url || !record.range) {
+    return "";
+  }
+  try {
+    return `${url}::${JSON.stringify(record.range)}`;
+  } catch (error) {
+    return "";
+  }
+}
+
+function resolveImportConflict(strategy, existing, incoming) {
+  if (strategy === "overwrite") {
+    return true;
+  }
+  if (strategy === "skip") {
+    return false;
+  }
+  const incomingTime = getRecordTimestamp(incoming);
+  if (!incomingTime) {
+    return false;
+  }
+  const existingTime = getRecordTimestamp(existing);
+  if (!existingTime) {
+    return true;
+  }
+  return incomingTime > existingTime;
+}
+
+function getRecordTimestamp(record) {
+  if (!record || typeof record !== "object") {
+    return 0;
+  }
+  const source = record.updatedAt || record.updated_at || record.createdAt || record.created_at;
+  if (!source || typeof source !== "string") {
+    return 0;
+  }
+  const parsed = Date.parse(source);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function applyTimestampFallback(target, fallback) {
+  const nowIso = new Date().toISOString();
+  if (!target.createdAt) {
+    target.createdAt = fallback?.createdAt || fallback?.updatedAt || nowIso;
+  }
+  if (!target.updatedAt) {
+    target.updatedAt = fallback?.updatedAt || target.createdAt || nowIso;
+  }
+}
+
+function dedupeOrder(order, highlights) {
+  if (!Array.isArray(order)) {
+    return [];
+  }
+  const result = [];
+  const seen = new Set();
+  order.forEach((id) => {
+    if (!id || seen.has(id)) {
+      return;
+    }
+    if (!highlights[id]) {
+      return;
+    }
+    seen.add(id);
+    result.push(id);
+  });
+  return result;
+}
+
 function htmlToMarkdown(html) {
   if (!html) {
     return "";
@@ -1009,6 +1550,8 @@ function fallbackHtmlToMarkdown(html) {
   let output = html;
   const preservedPre = [];
 
+  output = annotateHtmlLists(output);
+
   output = output.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, (match, inner) => {
     const normalized = normalizePreBlock(inner);
     const token = `__MYZ_PRE_BLOCK_${preservedPre.length}__`;
@@ -1020,7 +1563,7 @@ function fallbackHtmlToMarkdown(html) {
   output = output.replace(/<\/?p[^>]*>/gi, "\n\n");
   output = output.replace(/<\/?div[^>]*>/gi, "\n\n");
   output = output.replace(/<\/?blockquote[^>]*>/gi, (match) => (match.startsWith("</") ? "\n" : "\n> "));
-  output = output.replace(/<li[^>]*>/gi, "\n- ");
+  output = output.replace(/<\/li>/gi, "");
   output = output.replace(/<\/?ul[^>]*>/gi, "\n");
   output = output.replace(/<ol[^>]*>/gi, "\n");
   output = output.replace(/<\/?ol[^>]*>/gi, "\n");
@@ -1048,6 +1591,61 @@ function fallbackHtmlToMarkdown(html) {
   }
 
   return output;
+}
+
+function annotateHtmlLists(html) {
+  if (!html || typeof html !== "string") {
+    return html || "";
+  }
+  const tagPattern = /<\/?([a-zA-Z0-9]+)([^>]*)>/g;
+  const stack = [];
+  let result = "";
+  let lastIndex = 0;
+
+  while (true) {
+    const match = tagPattern.exec(html);
+    if (!match) {
+      result += html.slice(lastIndex);
+      break;
+    }
+
+    result += html.slice(lastIndex, match.index);
+    const raw = match[0];
+    const tagName = match[1].toLowerCase();
+    const isClosing = raw.startsWith("</");
+
+    if (!isClosing) {
+      if (tagName === "ul" || tagName === "ol") {
+        stack.push({ type: tagName, counter: 0 });
+      } else if (tagName === "li") {
+        if (!stack.length) {
+          result += "\n- ";
+        } else {
+          const current = stack[stack.length - 1];
+          const depth = Math.max(0, stack.length - 1);
+          let marker = "-";
+          if (current.type === "ol") {
+            current.counter += 1;
+            marker = `${current.counter}.`;
+          }
+          const indent = depth ? "  ".repeat(depth) : "";
+          result += `\n${indent}${marker} `;
+        }
+      } else {
+        result += raw;
+      }
+    } else {
+      if ((tagName === "ul" || tagName === "ol") && stack.length) {
+        stack.pop();
+      } else if (tagName !== "li") {
+        result += raw;
+      }
+    }
+
+    lastIndex = tagPattern.lastIndex;
+  }
+
+  return result;
 }
 
 function normalizePreBlock(value) {

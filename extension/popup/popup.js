@@ -11,6 +11,25 @@ let filteredHighlights = [];
 let activeTabId = null;
 let canonicalPageUrl = null;
 
+async function getPageHighlightState() {
+  if (!activeTabId) {
+    return null;
+  }
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(activeTabId, { type: "myz:getHighlightState" }, (response) => {
+      if (chrome.runtime.lastError || !response) {
+        resolve(null);
+        return;
+      }
+      if (!response.ok) {
+        resolve(null);
+        return;
+      }
+      resolve(response.data || null);
+    });
+  });
+}
+
 init().catch((error) => console.error("Popup init failed", error));
 
 async function init() {
@@ -41,8 +60,14 @@ function bindEvents() {
 
 async function loadHighlights() {
   try {
-    const highlights = await sendMessage("myz:getHighlightsForUrl", { url: canonicalPageUrl });
-    allHighlights = Array.isArray(highlights) ? highlights : [];
+    const [highlights, highlightState] = await Promise.all([
+      sendMessage("myz:getHighlightsForUrl", { url: canonicalPageUrl }),
+      getPageHighlightState()
+    ]);
+    const unreachableIds = new Set(Array.isArray(highlightState?.unreachableIds) ? highlightState.unreachableIds : []);
+    allHighlights = Array.isArray(highlights)
+      ? highlights.map((item) => ({ ...item, unreachable: unreachableIds.has(item.id) }))
+      : [];
     filteredHighlights = [...allHighlights];
     renderHighlights(filteredHighlights);
   } catch (error) {
@@ -62,8 +87,18 @@ function renderHighlights(items) {
     const instance = template.content.cloneNode(true);
     const container = instance.querySelector(".highlight-item");
     container.dataset.id = item.id;
+    container.classList.toggle("highlight-item--unreachable", Boolean(item.unreachable));
     const color = instance.querySelector(".highlight-item__color");
     color.style.background = item.color || "#ffe58f";
+    const statusEl = instance.querySelector(".highlight-item__status");
+    if (statusEl) {
+      statusEl.setAttribute("aria-hidden", item.unreachable ? "false" : "true");
+      if (item.unreachable) {
+        statusEl.title = "标注无法定位";
+      } else {
+        statusEl.removeAttribute("title");
+      }
+    }
     const quoteEl = instance.querySelector(".highlight-item__quote");
     const fullText = getRecordPlainText(item);
     const summary = truncateContent(fullText, 160);
