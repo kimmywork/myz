@@ -27,3 +27,11 @@
 ## Useful References
 - `knowledges/logseq-http-api.md` summarises the expected LogSeq RPC flow and insert semantics.
 - `extension/README.md` documents user-facing behaviour; keep it updated when introducing new UI or sync flows.
+
+## MyZ Sync Service – Copilot Instructions
+- Located in `service/` and built with Next.js App Router + Drizzle (PostgreSQL). Respect the split between API routes under `src/app/api/**` and the management portal under `src/app/**`. Avoid adding pages that bypass existing auth/session helpers.
+- Server state: user metadata and sync history live in Postgres (`users`, `sync_states`, `sync_records`); raw highlight payloads live on disk via `src/lib/storage.ts`. Keep payload writes idempotent and JSON-based to preserve the future end-to-end encryption plan.
+- Reuse helpers: authentication goes through `requireAuthenticatedUser`, sessions via `lib/auth/session.ts`, captcha through `lib/captcha.ts`, and sync utilities in `lib/sync.ts`. Extend these modules instead of duplicating logic.
+- Tests: Jest integration tests use Testcontainers (requires Docker) and live under `service/__tests__`. Playwright smoke tests in `service/tests/e2e` also start a disposable PostgreSQL container via Testcontainers and run with `NEXT_PUBLIC_DISABLE_AUTO_REDIRECT=1` to keep login flows stable.
+- Environment: see `service/src/lib/env.ts` for required variables. Local dev typically sets `DATABASE_URL`, `STORAGE_ROOT`, and `CAPTCHA_MODE`. CI and Playwright rely on the same schema, so avoid introducing ad-hoc env checks.
+- Documentation: keep `knowledges/service-api.md` aligned with any API changes and update `service/README.md` when setup steps move.

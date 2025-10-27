@@ -1,0 +1,50 @@
+name: Service CI
+
+on:
+  push:
+    paths:
+      - "service/**"
+      - "knowledges/service-api.md"
+      - ".github/workflows/service-ci.yml"
+  pull_request:
+    paths:
+      - "service/**"
+      - "knowledges/service-api.md"
+      - ".github/workflows/service-ci.yml"
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: service/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run integration tests
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+        run: npm test
+
+      - name: Run Playwright smoke tests
+        env:
+          PLAYWRIGHT_HEADLESS: "1"
+        run: npm run test:e2e

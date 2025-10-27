@@ -1,4 +1,8 @@
 {
     "chat.editing.autoAcceptDelay": 5,
-    "chat.mcp.gallery.enabled": true
+    "chat.mcp.gallery.enabled": true,
+    "chat.tools.terminal.autoApprove": {
+        "npm install": true,
+        "npm test": true
+    }
 }

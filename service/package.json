@@ -1,0 +1,52 @@
+{
+  "name": "myz-service",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "jest",
+    "test:ci": "jest --ci",
+    "test:watch": "jest --watch",
+    "test:e2e": "playwright test",
+    "db:migrate": "drizzle-kit migrate",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "drizzle-orm": "^0.44.7",
+    "next": "^15.1.6",
+    "pg": "^8.16.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "uuid": "^13.0.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/supertest": "^6.0.3",
+    "@testcontainers/postgresql": "^11.7.2",
+    "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.5",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.0",
+    "jest": "^29.7.0",
+    "supertest": "^7.1.4",
+    "tailwindcss": "^4",
+    "testcontainers": "^11.7.2",
+    "ts-jest": "^29.4.5",
+    "typescript": "^5"
+  }
+}
