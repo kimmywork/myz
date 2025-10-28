@@ -22,3 +22,6 @@ model: GPT-5-Codex
 
 ---
 
+content script 和 dashboard 创建、编辑和查看的弹出窗口中，展示采集title的部分如果过长也会影响样式。请修改成更小一号的字体，保持只展示一行，并且隐藏溢出的部分。
+
+---

@@ -422,9 +422,14 @@
 }
 
 .myz-inspector__title {
+  flex: 1;
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .myz-inspector__close {
