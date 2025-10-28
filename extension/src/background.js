@@ -12,8 +12,42 @@ const DEFAULT_SETTINGS = {
   logseqSyncEnabled: false,
   colorPalette: ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"],
   lastUsedColor: "#fde68a",
+  lastUsedStyle: "paint",
   dashboardView: "cards"
 };
+
+const HIGHLIGHT_STYLES = {
+  PAINT: "paint",
+  UNDERLINE: "underline",
+  WAVY: "wavy"
+};
+
+const DEFAULT_HIGHLIGHT_STYLE = HIGHLIGHT_STYLES.PAINT;
+
+function normalizeHighlightStyle(style) {
+  if (!style) {
+    return DEFAULT_HIGHLIGHT_STYLE;
+  }
+  const value = String(style).toLowerCase();
+  if (value === HIGHLIGHT_STYLES.UNDERLINE) {
+    return HIGHLIGHT_STYLES.UNDERLINE;
+  }
+  if (value === HIGHLIGHT_STYLES.WAVY) {
+    return HIGHLIGHT_STYLES.WAVY;
+  }
+  return DEFAULT_HIGHLIGHT_STYLE;
+}
+
+function describeHighlightStyle(style) {
+  const normalized = normalizeHighlightStyle(style);
+  if (normalized === HIGHLIGHT_STYLES.UNDERLINE) {
+    return "下划线";
+  }
+  if (normalized === HIGHLIGHT_STYLES.WAVY) {
+    return "波浪线";
+  }
+  return "高亮";
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
   const { [STORAGE_KEY]: existingHighlights } = await chrome.storage.local.get(STORAGE_KEY);
@@ -64,19 +98,31 @@ const messageHandlers = {
     const state = await readState();
     const now = new Date().toISOString();
     const id = payload.id || generateId();
+    const kind = payload.kind === "clip" ? "clip" : "highlight";
     const record = {
       ...payload,
       id,
+      kind,
       createdAt: payload.createdAt || now,
       updatedAt: now
     };
+
+    if (kind === "clip") {
+      record.range = null;
+      record.color = null;
+      record.style = null;
+    } else {
+      record.style = normalizeHighlightStyle(payload.style);
+    }
 
     if (!state.highlights[id]) {
       state.order.push(id);
     }
     state.highlights[id] = record;
     await writeState(state);
-    await persistColorSelection(record.color);
+    if (kind === "highlight") {
+      await persistHighlightPreferences({ color: record.color, style: record.style });
+    }
     return record;
   },
 
@@ -90,10 +136,27 @@ const messageHandlers = {
       throw new Error("Highlight not found");
     }
     const now = new Date().toISOString();
-    const updated = { ...existing, ...payload, updatedAt: now };
+    const requestedKind =
+      payload.kind === "clip"
+        ? "clip"
+        : payload.kind === "highlight"
+        ? "highlight"
+        : existing.kind === "clip"
+        ? "clip"
+        : "highlight";
+    const updated = { ...existing, ...payload, kind: requestedKind, updatedAt: now };
+    if (updated.kind === "clip") {
+      updated.range = null;
+      updated.color = null;
+      updated.style = null;
+    } else {
+      updated.style = normalizeHighlightStyle(updated.style);
+    }
     state.highlights[payload.id] = updated;
     await writeState(state);
-    await persistColorSelection(updated.color);
+    if (updated.kind === "highlight") {
+      await persistHighlightPreferences({ color: updated.color, style: updated.style });
+    }
     return updated;
   },
 
@@ -151,15 +214,20 @@ const messageHandlers = {
     if (typeof tabId !== "number" || Number.isNaN(tabId)) {
       return { success: false };
     }
-    const rawCount = typeof payload?.count === "number" ? payload.count : 0;
-    const count = Number.isFinite(rawCount) && rawCount > 0 ? Math.floor(rawCount) : 0;
-    const text = count > 0 ? (count > 99 ? "99+" : String(count)) : "";
+    const { total, highlightCount, savedCount } = normalizeBadgeCounts(payload);
+    const text = total > 0 ? (total > 99 ? "99+" : String(total)) : "";
     await chrome.action.setBadgeText({ tabId, text });
     if (text) {
       await chrome.action.setBadgeBackgroundColor({ tabId, color: [37, 99, 235, 255] });
       if (typeof chrome.action.setBadgeTextColor === "function") {
         await chrome.action.setBadgeTextColor({ tabId, color: [255, 255, 255, 255] });
       }
+    }
+    const title = buildActionTitle({ total, highlightCount, savedCount });
+    try {
+      await chrome.action.setTitle({ tabId, title });
+    } catch (error) {
+      console.warn("Failed to update action title", error);
     }
     return { success: true };
   },
@@ -468,25 +536,93 @@ async function readSettings() {
   if (!stored) {
     return { ...DEFAULT_SETTINGS };
   }
-  return { ...DEFAULT_SETTINGS, ...stored };
+  const merged = { ...DEFAULT_SETTINGS, ...stored };
+  merged.lastUsedStyle = normalizeHighlightStyle(merged.lastUsedStyle);
+  return merged;
 }
 
 async function writeSettings(patch) {
   const current = await readSettings();
   const updated = { ...current, ...patch };
+  updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
   await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
   return updated;
 }
 
-async function persistColorSelection(color) {
-  if (!color) {
-    return;
-  }
+async function persistHighlightPreferences({ color, style } = {}) {
+  const patch = {};
   const settings = await readSettings();
-  if (settings.lastUsedColor === color) {
-    return;
+
+  if (typeof color === "string" && color.trim()) {
+    const normalizedColor = color.trim();
+    if (settings.lastUsedColor !== normalizedColor) {
+      patch.lastUsedColor = normalizedColor;
+    }
   }
-  await writeSettings({ lastUsedColor: color });
+
+  if (style) {
+    const normalizedStyle = normalizeHighlightStyle(style);
+    if (settings.lastUsedStyle !== normalizedStyle) {
+      patch.lastUsedStyle = normalizedStyle;
+    }
+  }
+
+  if (Object.keys(patch).length) {
+    await writeSettings(patch);
+  }
+}
+
+function normalizeBadgeCounts(payload = {}) {
+  const highlightFromPayload = coerceBadgeCount(payload.highlightCount);
+  const savedFromPayload = coerceBadgeCount(payload.savedCount);
+  const totalFromPayload = coerceBadgeCount(payload.total);
+  const legacyCount = coerceBadgeCount(payload.count);
+
+  const highlightCount = highlightFromPayload ?? (legacyCount !== null ? legacyCount : 0);
+  const savedCount = savedFromPayload ?? 0;
+
+  let total = totalFromPayload;
+  if (total === null) {
+    if (highlightFromPayload !== null || savedFromPayload !== null) {
+      total = (highlightFromPayload ?? 0) + (savedFromPayload ?? 0);
+    } else if (legacyCount !== null) {
+      total = legacyCount;
+    } else {
+      total = 0;
+    }
+  }
+
+  return {
+    highlightCount: Math.max(0, highlightCount ?? 0),
+    savedCount: Math.max(0, savedCount ?? 0),
+    total: Math.max(0, total ?? 0)
+  };
+}
+
+function coerceBadgeCount(value) {
+  if (typeof value !== "number") {
+    return null;
+  }
+  if (!Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+  return Math.floor(value);
+}
+
+function buildActionTitle({ total, highlightCount, savedCount }) {
+  const base = "MyZ Annotator";
+  if (!total) {
+    return `${base} · 暂无条目`;
+  }
+  const detailParts = [];
+  if (highlightCount) {
+    detailParts.push(`高亮 ${highlightCount}`);
+  }
+  if (savedCount) {
+    detailParts.push(`保存 ${savedCount}`);
+  }
+  const detail = detailParts.length ? `（${detailParts.join(" · ")}）` : "";
+  return `${base} · 共 ${total} 条${detail}`;
 }
 
 function sortedHighlights(state) {
@@ -546,6 +682,9 @@ function buildMarkdownExport(highlights) {
       }
       if (item.color) {
         lines.push(`  - Color: ${item.color}`);
+      }
+      if (item.kind === "highlight") {
+        lines.push(`  - Style: ${describeHighlightStyle(item.style)}`);
       }
       lines.push("");
     });
@@ -780,6 +919,10 @@ function buildHighlightBlock(record) {
     : "";
   if (tags) {
     detailBlocks.push(makeBlock(`标签: ${tags}`));
+  }
+
+  if (record.kind === "highlight") {
+    detailBlocks.push(makeBlock(`样式: ${describeHighlightStyle(record.style)}`));
   }
 
   const noteContent = extractRecordNote(record);
@@ -1269,9 +1412,14 @@ function sanitizeImportedHighlight(raw) {
     return null;
   }
 
-  const range = sanitizeImportedRange(raw.range);
-  if (!range) {
-    return null;
+  const kind = raw.kind === "clip" ? "clip" : "highlight";
+
+  let range = null;
+  if (kind === "highlight") {
+    range = sanitizeImportedRange(raw.range);
+    if (!range) {
+      return null;
+    }
   }
 
   const result = {
@@ -1282,11 +1430,19 @@ function sanitizeImportedHighlight(raw) {
     text: sanitizeNullableString(raw.text),
     html: sanitizeNullableString(raw.html),
     note: sanitizeNullableString(raw.note),
-    color: sanitizeColor(raw.color),
     tags: sanitizeTags(raw.tags),
-    range,
-    hostname: sanitizeHostname(raw.hostname, url)
+    hostname: sanitizeHostname(raw.hostname, url),
+    kind
   };
+
+  if (kind === "highlight") {
+    result.range = range;
+    const color = sanitizeColor(raw.color);
+    if (color) {
+      result.color = color;
+    }
+    result.style = normalizeHighlightStyle(raw.style);
+  }
 
   const createdAt = coerceIsoTimestamp(raw.createdAt);
   if (createdAt) {
@@ -1318,7 +1474,7 @@ function sanitizeImportedHighlight(raw) {
   if (!result.color) {
     delete result.color;
   }
-  if (!result.tags.length) {
+  if (!result.tags || !result.tags.length) {
     delete result.tags;
   }
   if (!result.title) {
@@ -1329,6 +1485,10 @@ function sanitizeImportedHighlight(raw) {
   }
   if (!result.hostname) {
     delete result.hostname;
+  }
+  if (result.kind === "clip") {
+    delete result.range;
+    delete result.style;
   }
 
   return result;

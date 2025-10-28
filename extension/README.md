@@ -1,10 +1,15 @@
 # MyZ Annotator
 
+[Chrome 安装](https://chromewebstore.google.com/detail/myz-annotator/mhakfcbobhdemicjelhjjpmgibhnnplg)
+[Edge 安装](https://microsoftedge.microsoft.com/addons/detail/myz-annotator/fepakkoggnancnpcclldodfbpgobkabj)
+
 MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、撰写批注、截图收集，并在本地管理这些资料。它支持导出 JSON / Markdown，以及与本地 LogSeq graph 进行安全的增量同步。
 
 ## 主要特性
 
 - ✍️ **即时高亮**：选中文本自动出现浮动工具条，可一键添加批注或使用 📸 按钮截取选区图片。
+- 🖊️ **多样标注样式**：支持 🖍️ 高亮、✏️ 下划线、〰️ 波浪线三种样式，记忆最近使用的颜色与样式并在 LogSeq / Markdown 导出中带出描述。
+- 📝 **快速保存文本**：浮动工具条新增 📝 按钮可将选中文字存入收集箱而不在页面上呈现标注，Popup 与 Dashboard 会使用独立的样式区分保存项并提供一键降级 / 升级。
 - 🎨 **可定制调色板**：提供 5 色调色板并记忆最近使用的颜色，支持快速编辑颜色值。
 - 🔔 **操作栏角标**：扩展图标会实时显示当前页面的标注数量，方便浏览时掌握进度。
 - 🛡️ **稳健的高亮回放**：所有数据持久化在 `chrome.storage.local`，重新访问同一页面时自动恢复，并且在 DOM 变化时自动轮询重试；若仍无法定位，会通过页面内 toast 与 Popup 异常提示提醒处理。
@@ -21,7 +26,8 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 
 ### 常用操作
 
-- **新建高亮**：选中文本 → 点击浮动 ✍️ → 填写批注 / 标签 → 保存。
+- **新建高亮**：选中文本 → 点击浮动 ✍️ → 选择想要的颜色 / 样式 → 填写批注 / 标签 → 保存。
+- **保存文本**：选中文本 → 点击 📝 → 直接保存为纯文本记录，可在 Popup / Dashboard 中继续编辑或转换为标注。
 - **截图选区**：选中文本 → 点击 📸 → 自动去除系统选区高亮后保存 PNG。
 - **查看 / 编辑**：点击高亮或在 Popup、Dashboard 中查看详情，支持 Markdown 复制与快速定位。
 - **导出 / 导入**：Dashboard 左侧导出面板可生成 JSON 与 Markdown；开启 LogSeq 同步后出现同步按钮。设置页新增 JSON 导入入口，可选择冲突策略并查看导入统计。
@@ -43,11 +49,12 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 
 ## 数据结构（节选）
 
-```json
+```
 {
   "highlights": {
     "myz_123": {
       "id": "myz_123",
+      "kind": "highlight",
       "url": "https://example.com/path",
       "sourceUrl": "https://example.com/path#section",
       "hostname": "example.com",
@@ -57,6 +64,7 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
       "note": "批注内容，支持多行",
       "tags": ["research", "todo"],
       "color": "#fde68a",
+      "style": "paint",
       "range": { "start": { "path": [...], "offset": 0 }, "end": { ... } },
       "createdAt": "2025-10-24T08:00:00.000Z",
       "updatedAt": "2025-10-24T08:05:00.000Z",
@@ -64,7 +72,7 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
       "logseqSyncedAt": "2025-10-24T09:00:00.000Z"
     }
   },
-  "order": ["myz_123", "myz_456"]
+   "order": ["myz_123", "myz_456"]
 }
 ```
 

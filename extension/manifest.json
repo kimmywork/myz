@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MyZ Annotator",
   "description": "Highlight and annotate web pages with JSON/Markdown export and LogSeq sync.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icons": {
     "16": "assets/icon-128.png",
     "32": "assets/icon-128.png",

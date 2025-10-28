@@ -9,7 +9,17 @@
     state.selectedColor = color;
     state.settings.lastUsedColor = color;
     renderColorPalette();
-    persistColorSettings({ lastUsedColor: color });
+    updateModalPreview();
+    persistHighlightSettings({ lastUsedColor: color });
+  }
+
+  function selectStyle(style) {
+    const resolved = normalizeHighlightStyle(style);
+    state.selectedStyle = resolved;
+    state.settings.lastUsedStyle = resolved;
+    renderStylePicker();
+    updateModalPreview();
+    persistHighlightSettings({ lastUsedStyle: resolved });
   }
 
   function updatePaletteColor(index, value) {
@@ -27,18 +37,30 @@
       state.selectedColor = value;
     }
     renderColorPalette();
-    persistColorSettings({ colorPalette: palette, lastUsedColor: state.selectedColor });
+    updateModalPreview();
+    persistHighlightSettings({ colorPalette: palette, lastUsedColor: state.selectedColor });
   }
 
-  function persistColorSettings(patch) {
+  function persistHighlightSettings(patch) {
     sendMessage("myz:updateSettings", patch).catch((error) => {
-      console.warn("Failed to persist color settings", error);
+      console.warn("Failed to persist highlight settings", error);
     });
   }
   window.__myzAnnotatorInitialized = true;
 
   const CANONICAL_URL = canonicalUrl(window.location.href);
   const DEFAULT_COLORS = ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"];
+  const HIGHLIGHT_STYLES = {
+    PAINT: "paint",
+    UNDERLINE: "underline",
+    WAVY: "wavy"
+  };
+  const DEFAULT_HIGHLIGHT_STYLE = HIGHLIGHT_STYLES.PAINT;
+  const HIGHLIGHT_STYLE_OPTIONS = {
+    [HIGHLIGHT_STYLES.PAINT]: { icon: "🖍️", label: "高亮" },
+    [HIGHLIGHT_STYLES.UNDERLINE]: { icon: "✏️", label: "下划线" },
+    [HIGHLIGHT_STYLES.WAVY]: { icon: "〰️", label: "波浪线" }
+  };
   const ALLOWED_HTML_TAGS = new Set([
     "a",
     "b",
@@ -78,9 +100,88 @@
     td: new Set(["colspan", "rowspan"]),
     th: new Set(["colspan", "rowspan"])
   };
+  const RECORD_KINDS = {
+    HIGHLIGHT: "highlight",
+    CLIP: "clip"
+  };
+
   const highlightCache = new Map();
   const unreachableHighlights = new Set();
   const knownTags = new Set();
+
+  function normalizeHighlightStyle(style) {
+    if (!style) {
+      return DEFAULT_HIGHLIGHT_STYLE;
+    }
+    const value = String(style).toLowerCase();
+    if (value === HIGHLIGHT_STYLES.UNDERLINE) {
+      return HIGHLIGHT_STYLES.UNDERLINE;
+    }
+    if (value === HIGHLIGHT_STYLES.WAVY) {
+      return HIGHLIGHT_STYLES.WAVY;
+    }
+    return DEFAULT_HIGHLIGHT_STYLE;
+  }
+
+  function getStyleMeta(style) {
+    const key = normalizeHighlightStyle(style);
+    return HIGHLIGHT_STYLE_OPTIONS[key] || HIGHLIGHT_STYLE_OPTIONS[DEFAULT_HIGHLIGHT_STYLE];
+  }
+
+  function getRecordKind(record) {
+    if (record && record.kind === RECORD_KINDS.CLIP) {
+      return RECORD_KINDS.CLIP;
+    }
+    return RECORD_KINDS.HIGHLIGHT;
+  }
+
+  function normalizeRecord(record) {
+    if (!record) {
+      return record;
+    }
+    const kind = getRecordKind(record);
+    const normalized = { ...record, kind };
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
+      normalized.style = normalizeHighlightStyle(record.style);
+    } else {
+      normalized.style = null;
+    }
+    return normalized;
+  }
+
+  function isHighlightRecord(record) {
+    return getRecordKind(record) === RECORD_KINDS.HIGHLIGHT;
+  }
+
+  function isClipRecord(record) {
+    return getRecordKind(record) === RECORD_KINDS.CLIP;
+  }
+
+  function computeHighlightStats() {
+    let highlightCount = 0;
+    let savedCount = 0;
+    highlightCache.forEach((record) => {
+      if (isClipRecord(record)) {
+        savedCount += 1;
+      } else {
+        highlightCount += 1;
+      }
+    });
+    return {
+      highlightCount,
+      savedCount,
+      total: highlightCount + savedCount
+    };
+  }
+
+  function storeRecord(record) {
+    if (!record || !record.id) {
+      return null;
+    }
+    const normalized = normalizeRecord(record);
+    highlightCache.set(normalized.id, normalized);
+    return normalized;
+  }
 
   const HIGHLIGHT_REAPPLY_INTERVAL = 1200;
   const HIGHLIGHT_REAPPLY_TIMEOUT = 20000;
@@ -112,9 +213,12 @@
     toolbarRange: null,
     settings: {
       colorPalette: [...DEFAULT_COLORS],
-      lastUsedColor: DEFAULT_COLORS[0]
+      lastUsedColor: DEFAULT_COLORS[0],
+      lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE
     },
-    selectedColor: DEFAULT_COLORS[0]
+    selectedColor: DEFAULT_COLORS[0],
+    selectedStyle: DEFAULT_HIGHLIGHT_STYLE,
+    formKind: RECORD_KINDS.HIGHLIGHT
   };
 
   const TOOLBAR_MIN_VIEWPORT_GAP = 12;
@@ -176,6 +280,7 @@
       const settings = await sendMessage("myz:getSettings");
       if (!settings) {
         renderColorPalette();
+        renderStylePicker();
         return;
       }
       const palette = Array.isArray(settings.colorPalette) && settings.colorPalette.length
@@ -184,17 +289,22 @@
       while (palette.length < 5) {
         palette.push(DEFAULT_COLORS[palette.length] || DEFAULT_COLORS[0]);
       }
+      const lastUsedStyle = normalizeHighlightStyle(settings.lastUsedStyle);
       state.settings = {
         ...state.settings,
         ...settings,
-        colorPalette: palette
+        colorPalette: palette,
+        lastUsedStyle
       };
       state.selectedColor = settings.lastUsedColor || palette[0] || DEFAULT_COLORS[0];
+      state.selectedStyle = lastUsedStyle;
     } catch (error) {
       console.warn("Failed to load settings", error);
       state.selectedColor = DEFAULT_COLORS[0];
+      state.selectedStyle = DEFAULT_HIGHLIGHT_STYLE;
     }
     renderColorPalette();
+    renderStylePicker();
   }
 
   async function restoreHighlights() {
@@ -220,14 +330,22 @@
 
       const records = Array.isArray(highlights) ? highlights : [];
       records.forEach((record) => {
-        highlightCache.set(record.id, record);
-        addKnownTags(record.tags || []);
-        const applied = applyHighlight(record);
-        if (applied) {
-          unreachableHighlights.delete(record.id);
-          removeHighlightFromPending(record.id);
-        } else if (record?.id) {
-          markHighlightForReapply(record.id);
+        const stored = storeRecord(record);
+        if (!stored) {
+          return;
+        }
+        addKnownTags(stored.tags || []);
+        if (isHighlightRecord(stored) && stored.range) {
+          const applied = applyHighlight(stored);
+          if (applied) {
+            unreachableHighlights.delete(stored.id);
+            removeHighlightFromPending(stored.id);
+          } else if (stored?.id) {
+            markHighlightForReapply(stored.id);
+          }
+        } else if (stored?.id) {
+          unreachableHighlights.delete(stored.id);
+          removeHighlightFromPending(stored.id);
         }
       });
       updateTagSuggestions();
@@ -364,13 +482,19 @@
     annotateButton.setAttribute("aria-label", "添加标注");
     annotateButton.addEventListener("click", handleAnnotateClick);
 
+  const clipButton = document.createElement("button");
+  clipButton.type = "button";
+  clipButton.textContent = "📝";
+  clipButton.setAttribute("aria-label", "保存文字");
+  clipButton.addEventListener("click", handleClipClick);
+
     const captureButton = document.createElement("button");
     captureButton.type = "button";
     captureButton.textContent = "📸";
     captureButton.setAttribute("aria-label", "截取选区截图");
     captureButton.addEventListener("click", handleScreenshotClick);
 
-    node.append(annotateButton, captureButton);
+  node.append(annotateButton, clipButton, captureButton);
     document.documentElement.appendChild(node);
     return node;
   }
@@ -389,8 +513,13 @@
     if (!isTopLevel) {
       return;
     }
-    const count = highlightCache.size;
-    sendMessage("myz:updateBadge", { count }).catch(() => {});
+    const stats = computeHighlightStats();
+    sendMessage("myz:updateBadge", {
+      count: stats.total,
+      total: stats.total,
+      highlightCount: stats.highlightCount,
+      savedCount: stats.savedCount
+    }).catch(() => {});
   }
 
   function handleAnnotateClick() {
@@ -406,12 +535,41 @@
     state.currentHtml = serializeRangeToHtml(state.currentRange);
     state.editingId = null;
     state.selectedColor = state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
+    state.selectedStyle =
+      state.settings.lastUsedStyle || state.selectedStyle || DEFAULT_HIGHLIGHT_STYLE;
+    state.formKind = RECORD_KINDS.HIGHLIGHT;
     openModal({
       mode: "create",
       preview: state.currentText,
       note: "",
       tags: [],
-      color: state.selectedColor
+      color: state.selectedColor,
+      style: state.selectedStyle,
+      kind: RECORD_KINDS.HIGHLIGHT
+    });
+  }
+
+  function handleClipClick() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      hideToolbar();
+      return;
+    }
+    const liveRange = selection.getRangeAt(0);
+    state.currentRange = liveRange.cloneRange();
+    state.toolbarRange = liveRange.cloneRange();
+    state.currentText = selection.toString().trim();
+    state.currentHtml = serializeRangeToHtml(state.currentRange);
+    state.editingId = null;
+    state.formKind = RECORD_KINDS.CLIP;
+    openModal({
+      mode: "create",
+      preview: state.currentText,
+      note: "",
+      tags: [],
+      color: null,
+      style: null,
+      kind: RECORD_KINDS.CLIP
     });
   }
 
@@ -436,6 +594,7 @@
     const preview = document.createElement("div");
     preview.className = "myz-annotator-preview";
 
+  const styleField = createStylePickerField();
   const noteField = createField("批注", "textarea");
   noteField.input.rows = 4;
 
@@ -471,7 +630,15 @@
 
     actions.append(cancelButton, deleteButton, saveButton);
 
-    body.append(header, preview, noteField.wrapper, tagsField.wrapper, colorField.wrapper, actions);
+    body.append(
+      header,
+      preview,
+      styleField.wrapper,
+      noteField.wrapper,
+      tagsField.wrapper,
+      colorField.wrapper,
+      actions
+    );
     container.appendChild(body);
     document.documentElement.appendChild(container);
 
@@ -480,6 +647,7 @@
       body,
       title,
       preview,
+      stylePicker: styleField,
       noteInput: noteField.input,
       tagsComponent: tagsField.component,
       colorPalette: colorField,
@@ -526,6 +694,50 @@
     component.setOptions(getKnownTagsList());
 
     return { wrapper, container, component };
+  }
+
+  function createStylePickerField() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "myz-annotator-field";
+
+    const labelRow = document.createElement("div");
+    labelRow.className = "myz-annotator-field__label-row";
+
+    const label = document.createElement("label");
+    label.textContent = "样式";
+
+    const hint = document.createElement("span");
+    hint.className = "myz-annotator-field__hint";
+    hint.textContent = "选择呈现方式";
+
+    labelRow.append(label, hint);
+
+    const container = document.createElement("div");
+    container.className = "myz-style-picker";
+    container.setAttribute("role", "radiogroup");
+
+    const buttons = [];
+    Object.entries(HIGHLIGHT_STYLE_OPTIONS).forEach(([value, meta]) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "myz-style-picker__option";
+      button.dataset.style = value;
+      button.textContent = `${meta.icon} ${meta.label}`;
+      button.setAttribute("role", "radio");
+      button.setAttribute("aria-pressed", "false");
+      button.setAttribute("aria-label", `${meta.icon} ${meta.label}`);
+      button.addEventListener("click", () => selectStyle(value));
+      container.appendChild(button);
+      buttons.push(button);
+    });
+
+    wrapper.append(labelRow, container);
+
+    return {
+      wrapper,
+      container,
+      buttons
+    };
   }
 
   // Lightweight multiselect with chip UI and suggestion dropdown for tag editing.
@@ -914,8 +1126,9 @@
     hint.textContent = "点击选择 · 调整色块可自定义";
     labelRow.append(label, hint);
 
-    const paletteContainer = document.createElement("div");
-    paletteContainer.className = "myz-color-palette";
+  const paletteContainer = document.createElement("div");
+  paletteContainer.className = "myz-color-palette";
+  paletteContainer.setAttribute("role", "radiogroup");
 
     wrapper.append(labelRow, paletteContainer);
 
@@ -947,9 +1160,10 @@
       swatchButton.style.setProperty("--myz-swatch-color", color);
       swatchButton.dataset.index = String(index);
       swatchButton.setAttribute("aria-label", `选择颜色 ${color}`);
-      if (color === state.selectedColor) {
-        swatchButton.classList.add("is-active");
-      }
+      swatchButton.setAttribute("role", "radio");
+      const isActive = color === state.selectedColor;
+      swatchButton.classList.toggle("is-active", isActive);
+      swatchButton.setAttribute("aria-pressed", isActive ? "true" : "false");
       swatchButton.addEventListener("click", () => selectColor(index));
 
       const editButton = document.createElement("button");
@@ -979,11 +1193,65 @@
       swatchWrapper.append(swatchButton, editButton, colorInput);
       container.appendChild(swatchWrapper);
     });
+
+    updateModalPreview();
+  }
+
+  function renderStylePicker() {
+    if (!modal.stylePicker?.buttons?.length) {
+      return;
+    }
+    const isHighlight = state.formKind === RECORD_KINDS.HIGHLIGHT;
+    const activeStyle = normalizeHighlightStyle(state.selectedStyle);
+    modal.stylePicker.buttons.forEach((button) => {
+      const value = normalizeHighlightStyle(button.dataset.style);
+      const isActive = isHighlight && value === activeStyle;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+      button.disabled = !isHighlight;
+      button.setAttribute("aria-disabled", !isHighlight ? "true" : "false");
+    });
+  }
+
+  function updateModalPreview() {
+    if (!modal.preview) {
+      return;
+    }
+    const previewText = modal.preview.dataset.previewText || "";
+    modal.preview.innerHTML = "";
+    if (!previewText) {
+      return;
+    }
+    if (state.formKind !== RECORD_KINDS.HIGHLIGHT) {
+      modal.preview.textContent = previewText;
+      return;
+    }
+    const span = document.createElement("span");
+    span.className = "myz-highlight myz-highlight-preview";
+    span.textContent = previewText;
+    decorateHighlightElement(span, { color: state.selectedColor, style: state.selectedStyle });
+    modal.preview.appendChild(span);
   }
 
   function openModal(options) {
-    modal.title.textContent = options.mode === "edit" ? "编辑批注" : "添加批注";
-    modal.preview.textContent = options.preview || "";
+    const kind = options.kind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    state.formKind = kind;
+
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
+      state.selectedColor =
+        options.color || state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
+      state.selectedStyle = normalizeHighlightStyle(
+        options.style || state.settings.lastUsedStyle || state.selectedStyle || DEFAULT_HIGHLIGHT_STYLE
+      );
+    }
+
+    if (kind === RECORD_KINDS.CLIP) {
+      modal.title.textContent = options.mode === "edit" ? "编辑保存内容" : "保存摘录";
+    } else {
+      modal.title.textContent = options.mode === "edit" ? "编辑批注" : "添加批注";
+    }
+    modal.preview.dataset.previewText = options.preview || "";
+    modal.preview.scrollTop = 0;
     modal.noteInput.value = options.note || "";
     if (modal.tagsComponent) {
       const initialTags = Array.isArray(options.tags)
@@ -995,18 +1263,40 @@
       modal.tagsComponent.setOptions(Array.from(optionsSet).sort((a, b) => a.localeCompare(b)));
       modal.tagsComponent.setValue(initialTags, { silent: true });
     }
-    state.selectedColor = options.color || state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
-    renderColorPalette();
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
+      if (modal.colorPalette?.wrapper) {
+        modal.colorPalette.wrapper.classList.remove("myz-hidden");
+      }
+      if (modal.stylePicker?.wrapper) {
+        modal.stylePicker.wrapper.classList.remove("myz-hidden");
+      }
+      renderStylePicker();
+      renderColorPalette();
+    } else {
+      if (modal.colorPalette?.wrapper) {
+        modal.colorPalette.wrapper.classList.add("myz-hidden");
+      }
+      if (modal.stylePicker?.wrapper) {
+        modal.stylePicker.wrapper.classList.add("myz-hidden");
+      }
+      renderStylePicker();
+      updateModalPreview();
+    }
     modal.deleteButton.classList.toggle("myz-hidden", options.mode !== "edit");
     modal.container.classList.remove("myz-hidden");
   }
 
   function closeModal() {
     modal.container.classList.add("myz-hidden");
+    if (modal.preview) {
+      modal.preview.dataset.previewText = "";
+      modal.preview.textContent = "";
+    }
     state.currentRange = null;
     state.currentText = "";
     state.currentHtml = "";
     state.editingId = null;
+    state.formKind = RECORD_KINDS.HIGHLIGHT;
     if (modal.tagsComponent) {
       modal.tagsComponent.setValue([], { silent: true });
     }
@@ -1016,58 +1306,105 @@
     const note = modal.noteInput.value.trim();
     const tags = modal.tagsComponent ? modal.tagsComponent.getValue() : [];
     const color = state.selectedColor || state.settings.lastUsedColor || DEFAULT_COLORS[0];
+    const kind = state.formKind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    const style = state.selectedStyle || state.settings.lastUsedStyle || DEFAULT_HIGHLIGHT_STYLE;
 
     if (state.editingId) {
-      await updateExistingHighlight({ id: state.editingId, note, tags, color });
-      closeModal();
-      return;
-    }
-
-    if (!state.currentRange || !state.currentText) {
-      closeModal();
-      return;
-    }
-
-    const serializedRange = serializeRange(state.currentRange);
-    if (!serializedRange) {
-      closeModal();
-      return;
-    }
-
-    try {
-      const payload = {
-        url: CANONICAL_URL,
-        sourceUrl: window.location.href,
-        title: document.title,
-        text: state.currentText,
-        html: state.currentHtml || "",
+      const update = {
+        id: state.editingId,
         note,
         tags,
-        color,
-        range: serializedRange,
-        hostname: window.location.hostname
+        kind
       };
-      const record = await sendMessage("myz:saveHighlight", payload);
-      if (record) {
-        highlightCache.set(record.id, record);
-        const applied = applyHighlight(record);
-        if (applied) {
-          unreachableHighlights.delete(record.id);
-          removeHighlightFromPending(record.id);
-        } else {
-          markHighlightForReapply(record.id);
-        }
-        if (addKnownTags(record.tags || tags)) {
-          updateTagSuggestions();
-        }
-        updateHighlightIndicators();
+      if (kind === RECORD_KINDS.HIGHLIGHT) {
+        update.color = color;
+        update.style = style;
+      } else {
+        update.color = null;
+        update.range = null;
+        update.style = null;
       }
-      persistColorSettings({ lastUsedColor: color });
+      await updateExistingHighlight(update);
+      closeModal();
+      return;
+    }
+
+    if (!state.currentText) {
+      closeModal();
+      return;
+    }
+
+    const basePayload = {
+      url: CANONICAL_URL,
+      sourceUrl: window.location.href,
+      title: document.title,
+      text: state.currentText,
+      html: state.currentHtml || "",
+      note,
+      tags,
+      hostname: window.location.hostname,
+      kind
+    };
+
+    const selection = window.getSelection();
+    try {
+      if (kind === RECORD_KINDS.HIGHLIGHT) {
+        if (!state.currentRange) {
+          return;
+        }
+        const serializedRange = serializeRange(state.currentRange);
+        if (!serializedRange) {
+          return;
+        }
+        const payload = {
+          ...basePayload,
+          color,
+          style,
+          range: serializedRange
+        };
+        const record = await sendMessage("myz:saveHighlight", payload);
+        if (record) {
+          const stored = storeRecord(record);
+          if (stored) {
+            const applied = applyHighlight(stored);
+            if (applied) {
+              unreachableHighlights.delete(stored.id);
+              removeHighlightFromPending(stored.id);
+            } else if (isHighlightRecord(stored)) {
+              markHighlightForReapply(stored.id);
+            }
+            if (addKnownTags(stored.tags || tags)) {
+              updateTagSuggestions();
+            }
+            updateHighlightIndicators();
+          }
+        }
+        persistHighlightSettings({ lastUsedColor: color, lastUsedStyle: style });
+      } else {
+        const payload = {
+          ...basePayload,
+          color: null,
+          style: null,
+          range: null
+        };
+        const record = await sendMessage("myz:saveHighlight", payload);
+        if (record) {
+          const stored = storeRecord(record);
+          if (stored) {
+            unreachableHighlights.delete(stored.id);
+            removeHighlightFromPending(stored.id);
+            if (addKnownTags(stored.tags || tags)) {
+              updateTagSuggestions();
+            }
+            updateHighlightIndicators();
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to save highlight", error);
     } finally {
       closeModal();
-      window.getSelection()?.removeAllRanges();
+      selection?.removeAllRanges();
       hideToolbar();
     }
   }
@@ -1078,21 +1415,43 @@
       if (!record) {
         return;
       }
-      highlightCache.set(record.id, record);
-      if (addKnownTags(record.tags || [])) {
+      const stored = storeRecord(record);
+      if (!stored) {
+        return;
+      }
+      if (addKnownTags(stored.tags || [])) {
         updateTagSuggestions();
       }
-      const nodes = document.querySelectorAll(`[data-highlight-id="${record.id}"]`);
-      nodes.forEach((node) => {
-        node.style.backgroundColor = record.color || "#ffe58f";
-      });
-      if (inspector.currentId === record.id) {
-        showInspector(record);
+      if (isHighlightRecord(stored)) {
+        const nodes = document.querySelectorAll(`[data-highlight-id="${stored.id}"]`);
+        nodes.forEach((node) => {
+          decorateHighlightElement(node, stored);
+        });
+      } else {
+        removeHighlightFromDom(stored.id);
+        unreachableHighlights.delete(stored.id);
+        removeHighlightFromPending(stored.id);
       }
-      state.settings.lastUsedColor = record.color || state.settings.lastUsedColor;
-      state.selectedColor = record.color || state.selectedColor;
-      renderColorPalette();
-      persistColorSettings({ lastUsedColor: record.color });
+      if (inspector.currentId === stored.id) {
+        showInspector(stored);
+      }
+      if (isHighlightRecord(stored)) {
+        const resolvedColor = resolveHighlightColor(stored.color);
+        const resolvedStyle = normalizeHighlightStyle(stored.style);
+        state.settings.lastUsedColor = resolvedColor;
+        state.settings.lastUsedStyle = resolvedStyle;
+        state.selectedColor = resolvedColor;
+        state.selectedStyle = resolvedStyle;
+        renderColorPalette();
+        renderStylePicker();
+        updateModalPreview();
+        persistHighlightSettings({ lastUsedColor: resolvedColor, lastUsedStyle: resolvedStyle });
+      } else {
+        renderColorPalette();
+        renderStylePicker();
+        updateModalPreview();
+      }
+      updateHighlightIndicators();
     } catch (error) {
       console.error("Failed to update highlight", error);
     }
@@ -1127,15 +1486,15 @@
     closeButton.textContent = "×";
     header.append(title, closeButton);
 
-  const infoRow = document.createElement("div");
-  infoRow.className = "myz-inspector__info";
+    const infoRow = document.createElement("div");
+    infoRow.className = "myz-inspector__info";
 
-  const colorBadge = document.createElement("span");
-  colorBadge.className = "myz-inspector__color";
+    const styleIndicator = document.createElement("span");
+    styleIndicator.className = "myz-inspector__style";
 
-  const meta = document.createElement("div");
-  meta.className = "myz-inspector__meta";
-  infoRow.append(colorBadge, meta);
+    const meta = document.createElement("div");
+    meta.className = "myz-inspector__meta";
+    infoRow.append(styleIndicator, meta);
 
     const tags = document.createElement("div");
     tags.className = "myz-inspector__tags";
@@ -1167,8 +1526,8 @@
     deleteButton.textContent = "删除";
     deleteButton.className = "myz-btn-danger";
 
-  footer.append(copyButton, editButton, deleteButton);
-  body.append(infoRow, tags, quote, note);
+    footer.append(copyButton, editButton, deleteButton);
+    body.append(infoRow, tags, quote, note);
     aside.append(header, body, footer);
     document.documentElement.appendChild(aside);
 
@@ -1204,7 +1563,9 @@
         preview: record.text,
         note: record.note || "",
         tags: record.tags || [],
-        color: record.color || state.selectedColor
+        color: record.color || state.selectedColor,
+        style: record.style,
+        kind: getRecordKind(record)
       });
     });
 
@@ -1219,9 +1580,9 @@
       container: aside,
       header,
       title,
-      color: colorBadge,
-  info: infoRow,
-  meta,
+      styleIndicator,
+      info: infoRow,
+      meta,
       tags,
       quote,
       note,
@@ -1235,8 +1596,23 @@
     }
     inspector.currentId = record.id;
     inspector.title.textContent = record.title || record.hostname || "标注详情";
-  inspector.color.style.background = record.color || "#ffe58f";
-  inspector.color.title = `高亮颜色：${record.color || "#ffe58f"}`;
+    const kind = getRecordKind(record);
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
+      const style = normalizeHighlightStyle(record.style);
+      const color = resolveHighlightColor(record.color);
+      const meta = getStyleMeta(style);
+      inspector.styleIndicator.classList.remove("myz-hidden");
+      inspector.styleIndicator.dataset.style = style;
+      inspector.styleIndicator.style.setProperty("--myz-highlight-color", color);
+      inspector.styleIndicator.textContent = meta.icon;
+      inspector.styleIndicator.title = `${meta.label} · ${color}`;
+    } else {
+      inspector.styleIndicator.classList.add("myz-hidden");
+      inspector.styleIndicator.textContent = "";
+      inspector.styleIndicator.removeAttribute("title");
+      inspector.styleIndicator.style.removeProperty("--myz-highlight-color");
+      delete inspector.styleIndicator.dataset.style;
+    }
 
     const createdAt = record.createdAt ? new Date(record.createdAt) : null;
     const metaParts = [];
@@ -1277,6 +1653,9 @@
   }
 
   function applyHighlight(record) {
+    if (!isHighlightRecord(record)) {
+      return false;
+    }
     if (!record?.range) {
       return false;
     }
@@ -1298,11 +1677,42 @@
     return false;
   }
 
+  function resolveHighlightColor(color) {
+    if (typeof color === "string") {
+      const trimmed = color.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+        return trimmed;
+      }
+    }
+    return state.settings.lastUsedColor || DEFAULT_COLORS[0];
+  }
+
+  function decorateHighlightElement(element, record) {
+    if (!element) {
+      return;
+    }
+    const style = normalizeHighlightStyle(record?.style);
+    const color = resolveHighlightColor(record?.color);
+    Object.values(HIGHLIGHT_STYLES).forEach((value) => {
+      element.classList.remove(`myz-highlight--${value}`);
+    });
+    element.classList.add(`myz-highlight--${style}`);
+    if (record?.id) {
+      element.dataset.highlightId = record.id;
+    }
+    element.dataset.highlightStyle = style;
+    element.style.setProperty("--myz-highlight-color", color);
+    if (style === HIGHLIGHT_STYLES.PAINT) {
+      element.style.backgroundColor = color;
+    } else {
+      element.style.backgroundColor = "transparent";
+    }
+  }
+
   function createHighlightElement(record) {
     const highlight = document.createElement("span");
     highlight.className = "myz-highlight";
-    highlight.dataset.highlightId = record.id;
-    highlight.style.backgroundColor = record.color || "#ffe58f";
+    decorateHighlightElement(highlight, record);
     return highlight;
   }
 
@@ -1664,8 +2074,12 @@
       unreachableHighlights.clear();
       unreachable.forEach((id) => unreachableHighlights.add(id));
     }
+    const stats = computeHighlightStats();
     return {
-      count: highlightCache.size,
+      count: stats.total,
+      total: stats.total,
+      highlightCount: stats.highlightCount,
+      savedCount: stats.savedCount,
       unreachableIds: unreachable,
       unreachableCount: unreachable.length
     };

@@ -10,6 +10,12 @@
 - `buildHighlightStateSnapshot()` returns `{ count, unreachableIds, unreachableCount }`. Popups request this via `myz:getHighlightState` to flag list entries with warning styling.
 - Toast notifications are triggered once per failure batch in `attemptHighlightReapply()`; keep the deadline + observer loop intact when modifying highlight application.
 
+## Highlight Styles & Storage
+- `HIGHLIGHT_STYLES` currently exposes `paint`, `underline`, and `wavy`. Both content + background modules share the same helper (`normalizeHighlightStyle`) to guarantee persistence consistency.
+- CSS classes (`.myz-highlight--underline`, `.myz-highlight--wavy`) must only add underline decorations. Avoid applying `font-weight`, `line-height`, or other typography overrides that would leak into site content.
+- Modal style picker buttons derive from `HIGHLIGHT_STYLE_OPTIONS`. Update icons/labels there to keep popup, dashboard, and inspector previews aligned.
+- Only highlight records store `color` / `style`; text-only saves (`kind: "clip"`) should set these fields to `null` so LogSeq sync and exports skip them.
+
 ## JSON Import Conflict Strategies
 - `messageHandlers["myz:importHighlights"]` now accepts a `strategy` of `skip`, `overwrite`, or `latest`.
 - Imports normalise records (ids, ranges, timestamps, tags) via `sanitizeImportedHighlight`, dedupe by ID and selection signature, and reuse existing timestamps if missing.

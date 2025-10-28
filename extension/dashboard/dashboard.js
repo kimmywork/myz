@@ -6,6 +6,11 @@ const listRowTemplate = document.getElementById("list-row-template");
 const highlightsView = document.getElementById("highlights-view");
 const settingsView = document.getElementById("settings-view");
 
+const RECORD_KINDS = {
+	HIGHLIGHT: "highlight",
+	CLIP: "clip"
+};
+
 const searchInput = document.getElementById("filter-search");
 const siteSelect = document.getElementById("filter-site");
 const filterTagsContainer = document.getElementById("filter-tags");
@@ -41,6 +46,7 @@ const pickerButtons = document.querySelectorAll("[data-picker-for]");
 const modal = {
 	container: document.getElementById("record-modal"),
 	title: document.getElementById("modal-title"),
+	quoteLabel: document.getElementById("modal-quote-label"),
 	quote: document.getElementById("modal-quote"),
 	noteDisplay: document.getElementById("modal-note-display"),
 	noteInput: document.getElementById("modal-note-input"),
@@ -345,6 +351,41 @@ function setImportStatus(message, isError = false, variant = "info") {
 	importStatusEl.style.color = variant === "success" ? "#34d399" : "#facc15";
 }
 
+function getRecordKind(record) {
+	if (record && record.kind === RECORD_KINDS.CLIP) {
+		return RECORD_KINDS.CLIP;
+	}
+	return RECORD_KINDS.HIGHLIGHT;
+}
+
+function normalizeRecord(record) {
+	if (!record || typeof record !== "object") {
+		return null;
+	}
+	const kind = getRecordKind(record);
+	return { ...record, kind };
+}
+
+function computeRecordStats(records = []) {
+	let highlightCount = 0;
+	let savedCount = 0;
+	records.forEach((item) => {
+		if (!item) {
+			return;
+		}
+		if (getRecordKind(item) === RECORD_KINDS.CLIP) {
+			savedCount += 1;
+		} else {
+			highlightCount += 1;
+		}
+	});
+	return {
+		total: highlightCount + savedCount,
+		highlightCount,
+		savedCount
+	};
+}
+
 function setupInfiniteScroll() {
 	if (infiniteObserver) {
 		return;
@@ -370,7 +411,9 @@ async function loadHighlights() {
 	groupsEl.innerHTML = `<p class="empty-state">正在加载…</p>`;
 	try {
 		const highlights = await sendMessage("myz:getAllHighlights");
-		state.highlights = Array.isArray(highlights) ? highlights : [];
+		state.highlights = Array.isArray(highlights)
+			? highlights.map((item) => normalizeRecord(item)).filter(Boolean)
+			: [];
 		populateFilterOptions(state.highlights);
 	} catch (error) {
 		console.error("Failed to load highlights", error);
@@ -823,7 +866,7 @@ function renderHighlights(highlights) {
 	scrollSentinel.remove();
 
 	if (!highlights.length) {
-		groupsEl.innerHTML = `<p class="empty-state">没有符合条件的标注。</p>`;
+		groupsEl.innerHTML = `<p class="empty-state">没有符合条件的记录。</p>`;
 		return;
 	}
 
@@ -834,7 +877,16 @@ function renderHighlights(highlights) {
 		const section = groupInstance.querySelector(".group");
 		const title = groupInstance.querySelector(".group__title");
 		const list = groupInstance.querySelector(".group__list");
-		title.textContent = `${date} · ${items.length} 条标注`;
+		const stats = computeRecordStats(items);
+		const detailParts = [];
+		if (stats.highlightCount) {
+			detailParts.push(`高亮 ${stats.highlightCount}`);
+		}
+		if (stats.savedCount) {
+			detailParts.push(`保存 ${stats.savedCount}`);
+		}
+		const detailText = detailParts.length ? `（${detailParts.join(" · ")}）` : "";
+		title.textContent = `${date} · 共 ${stats.total} 条${detailText}`;
 
 		items.forEach((item) => {
 			const node = state.view === "cards" ? buildCard(item) : buildListRow(item);
@@ -862,12 +914,25 @@ function buildCard(record) {
 	const card = instance.querySelector(".card");
 	card.dataset.id = record.id;
 	card.classList.remove("card--single");
+	const kind = getRecordKind(record);
+	card.dataset.kind = kind;
+	card.classList.toggle("card--clip", kind === RECORD_KINDS.CLIP);
 
 	const siteEl = card.querySelector(".card__site");
 	siteEl.innerHTML = formatInline(record.hostname || record.url || "");
 
 	const dateEl = card.querySelector(".card__date");
 	dateEl.textContent = formatDateTime(record.createdAt);
+
+	const badgeEl = card.querySelector(".card__badge");
+	if (badgeEl) {
+		badgeEl.textContent = kind === RECORD_KINDS.CLIP ? "保存文字" : "划线标注";
+	}
+
+	const quoteLabel = card.querySelector(".card__segment-title");
+	if (quoteLabel) {
+		quoteLabel.textContent = kind === RECORD_KINDS.CLIP ? "保存文字" : "标注";
+	}
 
 	const quoteEl = card.querySelector(".card__quote");
 	quoteEl.innerHTML = renderHighlightContent(record);
@@ -899,6 +964,11 @@ function buildCard(record) {
 	link.href = record.sourceUrl || record.url;
 	link.title = record.title || record.url;
 
+	const downgradeBtn = card.querySelector('[data-action="downgrade"]');
+	if (downgradeBtn) {
+		downgradeBtn.classList.toggle("is-hidden", kind !== RECORD_KINDS.HIGHLIGHT);
+	}
+
 	card.querySelectorAll("button[data-action]").forEach((button) => {
 		button.dataset.id = record.id;
 	});
@@ -910,9 +980,16 @@ function buildListRow(record) {
 	const instance = listRowTemplate.content.cloneNode(true);
 	const row = instance.querySelector(".list-row");
 	row.dataset.id = record.id;
+	const kind = getRecordKind(record);
+	row.dataset.kind = kind;
+	row.classList.toggle("list-row--clip", kind === RECORD_KINDS.CLIP);
 
 	row.querySelector(".list-row__date").textContent = formatDateTime(record.createdAt);
 	row.querySelector(".list-row__site").innerHTML = formatInline(record.hostname || record.url || "");
+	const badgeEl = row.querySelector(".list-row__badge");
+	if (badgeEl) {
+		badgeEl.textContent = kind === RECORD_KINDS.CLIP ? "保存文字" : "划线标注";
+	}
 
 	const quoteEl = row.querySelector(".list-row__quote");
 	quoteEl.innerHTML = renderHighlightContent(record);
@@ -926,22 +1003,25 @@ function buildListRow(record) {
 		noteEl.innerHTML = "";
 	}
 
-	const tagContainer = row.querySelector(".list-row__tags");
-	tagContainer.innerHTML = "";
-	if (record.tags && record.tags.length) {
-		tagContainer.classList.remove("is-empty");
-		record.tags.forEach((tag) => {
-			const span = document.createElement("span");
-			span.innerHTML = formatInline(tag);
-			tagContainer.appendChild(span);
-		});
-	} else {
-		tagContainer.classList.add("is-empty");
+	const tagEl = row.querySelector(".list-row__tags");
+	if (tagEl) {
+		if (record.tags && record.tags.length) {
+			tagEl.textContent = record.tags.join(" · ");
+			tagEl.classList.remove("is-empty");
+		} else {
+			tagEl.textContent = "";
+			tagEl.classList.add("is-empty");
+		}
 	}
 
 	const link = row.querySelector("a.btn-link");
 	link.href = record.sourceUrl || record.url;
 	link.title = record.title || record.url;
+
+	const downgradeBtn = row.querySelector('[data-action="downgrade"]');
+	if (downgradeBtn) {
+		downgradeBtn.classList.toggle("is-hidden", kind !== RECORD_KINDS.HIGHLIGHT);
+	}
 
 	row.querySelectorAll("button[data-action]").forEach((button) => {
 		button.dataset.id = record.id;
@@ -954,9 +1034,17 @@ function updateSummary() {
 	if (!summaryEl) {
 		return;
 	}
-	const total = state.filtered.length;
+	const stats = computeRecordStats(state.filtered);
 	const sites = new Set(state.filtered.map((item) => item.hostname).filter(Boolean));
-	summaryEl.textContent = `共 ${total} 条标注 · 涉及 ${sites.size} 个站点`;
+	const detailParts = [];
+	if (stats.highlightCount) {
+		detailParts.push(`高亮 ${stats.highlightCount}`);
+	}
+	if (stats.savedCount) {
+		detailParts.push(`保存 ${stats.savedCount}`);
+	}
+	const detailText = detailParts.length ? `（${detailParts.join(" · ")}）` : "";
+	summaryEl.textContent = `共 ${stats.total} 条记录${detailText} · 涉及 ${sites.size} 个站点`;
 }
 
 function resetFilters() {
@@ -1031,6 +1119,8 @@ function handleCardAction(event) {
 		openRecordModal(id, "view");
 	} else if (action === "edit") {
 		openRecordModal(id, "edit");
+	} else if (action === "downgrade") {
+		downgradeHighlight(id);
 	}
 }
 
@@ -1064,6 +1154,29 @@ async function deleteHighlight(id) {
 	}
 }
 
+async function downgradeHighlight(id) {
+	const record = state.highlights.find((item) => item.id === id);
+	if (!record || getRecordKind(record) === RECORD_KINDS.CLIP) {
+		return;
+	}
+	try {
+		const updated = await sendMessage("myz:updateHighlight", {
+			id,
+			kind: RECORD_KINDS.CLIP,
+			range: null,
+			color: null
+		});
+		applyUpdatedRecord(updated);
+		if (modalState.recordId === id && modal.container && !modal.container.classList.contains("is-hidden")) {
+			const currentMode = modalState.mode;
+			closeRecordModal();
+			openRecordModal(id, currentMode);
+		}
+	} catch (error) {
+		console.error("降级失败", error);
+	}
+}
+
 function openRecordModal(id, mode) {
 	if (!modal.container) {
 		return;
@@ -1073,9 +1186,15 @@ function openRecordModal(id, mode) {
 		return;
 	}
 	modalState = { recordId: record.id, mode };
+	const kind = getRecordKind(record);
+	const isClip = kind === RECORD_KINDS.CLIP;
 
 	if (modal.title) {
-		modal.title.textContent = record.title || record.hostname || "标注详情";
+		const baseTitle = record.title || record.hostname || (isClip ? "保存内容" : "标注详情");
+		modal.title.textContent = isClip ? `${baseTitle}（保存）` : baseTitle;
+	}
+	if (modal.quoteLabel) {
+		modal.quoteLabel.textContent = isClip ? "保存文字" : "标注";
 	}
 	if (modal.quote) {
 		modal.quote.innerHTML = renderHighlightContent(record);
@@ -1094,6 +1213,7 @@ function openRecordModal(id, mode) {
 	}
 	if (modal.colorPicker) {
 		modal.colorPicker.value = colorValue;
+		modal.colorPicker.disabled = isClip;
 	}
 	if (modal.tagsComponent) {
 		const combined = new Set([...(state.availableTags || []), ...((record.tags || []))]);
@@ -1105,6 +1225,8 @@ function openRecordModal(id, mode) {
 	}
 
 	const isEdit = mode === "edit";
+	const showColorSwatch = !isEdit && !isClip;
+	const showColorInput = isEdit && !isClip;
 	if (modal.noteDisplay) {
 		modal.noteDisplay.classList.toggle("is-hidden", isEdit);
 	}
@@ -1118,10 +1240,10 @@ function openRecordModal(id, mode) {
 		modal.tagsInput.classList.toggle("is-hidden", !isEdit);
 	}
 	if (modal.colorSwatch) {
-		modal.colorSwatch.classList.toggle("is-hidden", isEdit);
+		modal.colorSwatch.classList.toggle("is-hidden", !showColorSwatch);
 	}
 	if (modal.colorWrapper) {
-		modal.colorWrapper.classList.toggle("is-hidden", !isEdit);
+		modal.colorWrapper.classList.toggle("is-hidden", !showColorInput);
 	}
 	if (modal.saveButton) {
 		modal.saveButton.classList.toggle("is-hidden", !isEdit);
@@ -1149,7 +1271,13 @@ async function handleModalSave() {
 	}
 	const note = modal.noteInput ? modal.noteInput.value.trim() : "";
 	const tags = modal.tagsComponent ? modal.tagsComponent.getValue() : parseTags(modal.tagsInput ? modal.tagsInput.value : "");
-	const color = modal.colorPicker ? modal.colorPicker.value || DEFAULT_COLOR : DEFAULT_COLOR;
+	const record = state.highlights.find((item) => item.id === modalState.recordId);
+	const kind = getRecordKind(record);
+	const color = kind === RECORD_KINDS.HIGHLIGHT
+		? modal.colorPicker
+			? modal.colorPicker.value || DEFAULT_COLOR
+			: DEFAULT_COLOR
+		: null;
 
 	if (modal.saveButton) {
 		modal.saveButton.disabled = true;
@@ -1159,12 +1287,19 @@ async function handleModalSave() {
 	}
 
 	try {
-		const updated = await sendMessage("myz:updateHighlight", {
+		const payload = {
 			id: modalState.recordId,
 			note,
 			tags,
-			color
-		});
+			kind
+		};
+		if (kind === RECORD_KINDS.HIGHLIGHT) {
+			payload.color = color;
+		} else {
+			payload.color = null;
+			payload.range = null;
+		}
+		const updated = await sendMessage("myz:updateHighlight", payload);
 		applyUpdatedRecord(updated);
 		if (modal.status) {
 			modal.status.textContent = "保存成功";
@@ -1187,9 +1322,15 @@ async function handleModalSave() {
 }
 
 function applyUpdatedRecord(updated) {
-	const index = state.highlights.findIndex((item) => item.id === updated.id);
+	const normalized = normalizeRecord(updated);
+	if (!normalized) {
+		return;
+	}
+	const index = state.highlights.findIndex((item) => item.id === normalized.id);
 	if (index !== -1) {
-		state.highlights[index] = { ...state.highlights[index], ...updated };
+		state.highlights[index] = { ...state.highlights[index], ...normalized };
+	} else {
+		state.highlights.unshift(normalized);
 	}
 	populateFilterOptions(state.highlights);
 	applyFilters(true);
