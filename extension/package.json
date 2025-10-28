@@ -1,10 +1,15 @@
 {
   "scripts": {
     "build": "extension build",
+    "build:webpack": "webpack --config webpack.config.js --mode production",
     "dev": "extension dev",
     "preview": "extension preview"
   },
   "devDependencies": {
-    "extension": "^2.1.3"
+    "copy-webpack-plugin": "^12.0.2",
+    "extension": "^2.1.3",
+    "terser-webpack-plugin": "^5.3.10",
+    "webpack": "^5.95.0",
+    "webpack-cli": "^5.1.4"
   }
 }
