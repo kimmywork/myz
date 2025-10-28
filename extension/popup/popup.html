@@ -19,7 +19,7 @@
   </header>
 
   <section class="popup-controls">
-    <input id="search-input" type="search" placeholder="搜索当前页面的高亮或批注" />
+    <input id="search-input" type="search" placeholder="搜索当前页面的高亮、批注或保存的文字" />
   </section>
 
   <main id="highlight-list" class="highlight-list">
@@ -30,15 +30,19 @@
     <article class="highlight-item">
       <div class="highlight-item__color"></div>
       <div class="highlight-item__content">
-        <div class="highlight-item__status">
-          <span class="highlight-item__status-icon" aria-hidden="true">⚠️</span>
-          <span class="highlight-item__status-text">标注无法定位，页面可能已改变</span>
+        <div class="highlight-item__header">
+          <span class="highlight-item__badge"></span>
+          <div class="highlight-item__status">
+            <span class="highlight-item__status-icon" aria-hidden="true">⚠️</span>
+            <span class="highlight-item__status-text">标注无法定位，页面可能已改变</span>
+          </div>
         </div>
         <div class="highlight-item__quote"></div>
         <div class="highlight-item__note"></div>
         <div class="highlight-item__meta"></div>
         <div class="highlight-item__actions">
           <button class="btn-link" data-action="focus">定位</button>
+          <button class="btn-link btn-link--muted is-hidden" data-action="downgrade">降级为保存</button>
           <button class="btn-link" data-action="copy">复制</button>
           <button class="btn-link btn-link--danger" data-action="delete">删除</button>
         </div>

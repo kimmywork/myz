@@ -1,3 +1,8 @@
+const RECORD_KINDS = {
+  HIGHLIGHT: "highlight",
+  CLIP: "clip"
+};
+
 const listEl = document.getElementById("highlight-list");
 const template = document.getElementById("highlight-item-template");
 const searchInput = document.getElementById("search-input");
@@ -66,7 +71,14 @@ async function loadHighlights() {
     ]);
     const unreachableIds = new Set(Array.isArray(highlightState?.unreachableIds) ? highlightState.unreachableIds : []);
     allHighlights = Array.isArray(highlights)
-      ? highlights.map((item) => ({ ...item, unreachable: unreachableIds.has(item.id) }))
+      ? highlights.map((item) => {
+          const normalized = normalizeRecord(item);
+          return {
+            ...normalized,
+            unreachable:
+              normalized.kind === RECORD_KINDS.HIGHLIGHT && unreachableIds.has(normalized.id)
+          };
+        })
       : [];
     filteredHighlights = [...allHighlights];
     renderHighlights(filteredHighlights);
@@ -79,7 +91,7 @@ async function loadHighlights() {
 function renderHighlights(items) {
   listEl.innerHTML = "";
   if (!items.length) {
-    listEl.innerHTML = `<p class="empty-state">当前页面还没有标注。</p>`;
+    listEl.innerHTML = `<p class="empty-state">当前页面还没有标注或保存的文字。</p>`;
     return;
   }
   const fragment = document.createDocumentFragment();
@@ -87,9 +99,15 @@ function renderHighlights(items) {
     const instance = template.content.cloneNode(true);
     const container = instance.querySelector(".highlight-item");
     container.dataset.id = item.id;
+    const kind = item.kind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
     container.classList.toggle("highlight-item--unreachable", Boolean(item.unreachable));
+    container.classList.toggle("highlight-item--clip", kind === RECORD_KINDS.CLIP);
     const color = instance.querySelector(".highlight-item__color");
-    color.style.background = item.color || "#ffe58f";
+    color.style.background = kind === RECORD_KINDS.CLIP ? "rgba(45, 212, 191, 0.5)" : item.color || "#ffe58f";
+    const badgeEl = instance.querySelector(".highlight-item__badge");
+    if (badgeEl) {
+      badgeEl.textContent = kind === RECORD_KINDS.CLIP ? "保存文字" : "划线标注";
+    }
     const statusEl = instance.querySelector(".highlight-item__status");
     if (statusEl) {
       statusEl.setAttribute("aria-hidden", item.unreachable ? "false" : "true");
@@ -121,6 +139,16 @@ function renderHighlights(items) {
       noteEl.classList.add("is-empty");
     }
     instance.querySelector(".highlight-item__meta").textContent = buildMeta(item);
+
+    const focusBtn = instance.querySelector('[data-action="focus"]');
+    if (focusBtn) {
+      focusBtn.classList.toggle("is-hidden", kind === RECORD_KINDS.CLIP);
+    }
+    const downgradeBtn = instance.querySelector('[data-action="downgrade"]');
+    if (downgradeBtn) {
+      const canDowngrade = kind === RECORD_KINDS.HIGHLIGHT && item.unreachable;
+      downgradeBtn.classList.toggle("is-hidden", !canDowngrade);
+    }
     fragment.appendChild(instance);
   });
   listEl.appendChild(fragment);
@@ -144,6 +172,8 @@ function handleListAction(event) {
     copyHighlight(id);
   } else if (action === "delete") {
     deleteHighlight(id);
+  } else if (action === "downgrade") {
+    downgradeHighlight(id);
   }
 }
 
@@ -186,6 +216,33 @@ async function deleteHighlight(id) {
     }
   } catch (error) {
     console.error("删除失败", error);
+  }
+}
+
+async function downgradeHighlight(id) {
+  const record = allHighlights.find((item) => item.id === id);
+  if (!record || record.kind === RECORD_KINDS.CLIP) {
+    return;
+  }
+  try {
+    const updated = await sendMessage("myz:updateHighlight", {
+      id,
+      kind: RECORD_KINDS.CLIP,
+      range: null,
+      color: null
+    });
+    if (!updated) {
+      return;
+    }
+    const normalized = normalizeRecord(updated);
+    normalized.unreachable = false;
+    applyRecordUpdate(normalized);
+    renderHighlights(filteredHighlights);
+    if (activeTabId) {
+      chrome.tabs.sendMessage(activeTabId, { type: "myz:refreshHighlights" }, () => void chrome.runtime.lastError);
+    }
+  } catch (error) {
+    console.error("降级失败", error);
   }
 }
 
@@ -337,4 +394,34 @@ function normalizeWhitespace(value) {
     return "";
   }
   return String(value).replace(/\s+/g, " ").trim();
+}
+
+function applyRecordUpdate(updated) {
+  if (!updated || !updated.id) {
+    return;
+  }
+  const normalized = normalizeRecord(updated);
+  const apply = (collection) =>
+    collection.map((item) => {
+      if (item.id !== normalized.id) {
+        return item;
+      }
+      const unreachable =
+        typeof normalized.unreachable === "boolean"
+          ? normalized.unreachable
+          : Boolean(item.unreachable);
+      return { ...normalized, unreachable };
+    });
+  allHighlights = apply(allHighlights);
+  filteredHighlights = apply(filteredHighlights);
+}
+
+function normalizeRecord(record) {
+  if (!record) {
+    return {
+      kind: RECORD_KINDS.HIGHLIGHT
+    };
+  }
+  const kind = record.kind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+  return { ...record, kind };
 }

@@ -78,9 +78,66 @@
     td: new Set(["colspan", "rowspan"]),
     th: new Set(["colspan", "rowspan"])
   };
+  const RECORD_KINDS = {
+    HIGHLIGHT: "highlight",
+    CLIP: "clip"
+  };
+
   const highlightCache = new Map();
   const unreachableHighlights = new Set();
   const knownTags = new Set();
+
+  function getRecordKind(record) {
+    if (record && record.kind === RECORD_KINDS.CLIP) {
+      return RECORD_KINDS.CLIP;
+    }
+    return RECORD_KINDS.HIGHLIGHT;
+  }
+
+  function normalizeRecord(record) {
+    if (!record) {
+      return record;
+    }
+    const kind = getRecordKind(record);
+    if (record.kind === kind) {
+      return record;
+    }
+    return { ...record, kind };
+  }
+
+  function isHighlightRecord(record) {
+    return getRecordKind(record) === RECORD_KINDS.HIGHLIGHT;
+  }
+
+  function isClipRecord(record) {
+    return getRecordKind(record) === RECORD_KINDS.CLIP;
+  }
+
+  function computeHighlightStats() {
+    let highlightCount = 0;
+    let savedCount = 0;
+    highlightCache.forEach((record) => {
+      if (isClipRecord(record)) {
+        savedCount += 1;
+      } else {
+        highlightCount += 1;
+      }
+    });
+    return {
+      highlightCount,
+      savedCount,
+      total: highlightCount + savedCount
+    };
+  }
+
+  function storeRecord(record) {
+    if (!record || !record.id) {
+      return null;
+    }
+    const normalized = normalizeRecord(record);
+    highlightCache.set(normalized.id, normalized);
+    return normalized;
+  }
 
   const HIGHLIGHT_REAPPLY_INTERVAL = 1200;
   const HIGHLIGHT_REAPPLY_TIMEOUT = 20000;
@@ -114,7 +171,8 @@
       colorPalette: [...DEFAULT_COLORS],
       lastUsedColor: DEFAULT_COLORS[0]
     },
-    selectedColor: DEFAULT_COLORS[0]
+    selectedColor: DEFAULT_COLORS[0],
+    formKind: RECORD_KINDS.HIGHLIGHT
   };
 
   const TOOLBAR_MIN_VIEWPORT_GAP = 12;
@@ -220,14 +278,22 @@
 
       const records = Array.isArray(highlights) ? highlights : [];
       records.forEach((record) => {
-        highlightCache.set(record.id, record);
-        addKnownTags(record.tags || []);
-        const applied = applyHighlight(record);
-        if (applied) {
-          unreachableHighlights.delete(record.id);
-          removeHighlightFromPending(record.id);
-        } else if (record?.id) {
-          markHighlightForReapply(record.id);
+        const stored = storeRecord(record);
+        if (!stored) {
+          return;
+        }
+        addKnownTags(stored.tags || []);
+        if (isHighlightRecord(stored) && stored.range) {
+          const applied = applyHighlight(stored);
+          if (applied) {
+            unreachableHighlights.delete(stored.id);
+            removeHighlightFromPending(stored.id);
+          } else if (stored?.id) {
+            markHighlightForReapply(stored.id);
+          }
+        } else if (stored?.id) {
+          unreachableHighlights.delete(stored.id);
+          removeHighlightFromPending(stored.id);
         }
       });
       updateTagSuggestions();
@@ -364,13 +430,19 @@
     annotateButton.setAttribute("aria-label", "添加标注");
     annotateButton.addEventListener("click", handleAnnotateClick);
 
+  const clipButton = document.createElement("button");
+  clipButton.type = "button";
+  clipButton.textContent = "📝";
+  clipButton.setAttribute("aria-label", "保存文字");
+  clipButton.addEventListener("click", handleClipClick);
+
     const captureButton = document.createElement("button");
     captureButton.type = "button";
     captureButton.textContent = "📸";
     captureButton.setAttribute("aria-label", "截取选区截图");
     captureButton.addEventListener("click", handleScreenshotClick);
 
-    node.append(annotateButton, captureButton);
+  node.append(annotateButton, clipButton, captureButton);
     document.documentElement.appendChild(node);
     return node;
   }
@@ -389,8 +461,13 @@
     if (!isTopLevel) {
       return;
     }
-    const count = highlightCache.size;
-    sendMessage("myz:updateBadge", { count }).catch(() => {});
+    const stats = computeHighlightStats();
+    sendMessage("myz:updateBadge", {
+      count: stats.total,
+      total: stats.total,
+      highlightCount: stats.highlightCount,
+      savedCount: stats.savedCount
+    }).catch(() => {});
   }
 
   function handleAnnotateClick() {
@@ -406,12 +483,37 @@
     state.currentHtml = serializeRangeToHtml(state.currentRange);
     state.editingId = null;
     state.selectedColor = state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
+    state.formKind = RECORD_KINDS.HIGHLIGHT;
     openModal({
       mode: "create",
       preview: state.currentText,
       note: "",
       tags: [],
-      color: state.selectedColor
+      color: state.selectedColor,
+      kind: RECORD_KINDS.HIGHLIGHT
+    });
+  }
+
+  function handleClipClick() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+      hideToolbar();
+      return;
+    }
+    const liveRange = selection.getRangeAt(0);
+    state.currentRange = liveRange.cloneRange();
+    state.toolbarRange = liveRange.cloneRange();
+    state.currentText = selection.toString().trim();
+    state.currentHtml = serializeRangeToHtml(state.currentRange);
+    state.editingId = null;
+    state.formKind = RECORD_KINDS.CLIP;
+    openModal({
+      mode: "create",
+      preview: state.currentText,
+      note: "",
+      tags: [],
+      color: null,
+      kind: RECORD_KINDS.CLIP
     });
   }
 
@@ -982,7 +1084,19 @@
   }
 
   function openModal(options) {
-    modal.title.textContent = options.mode === "edit" ? "编辑批注" : "添加批注";
+    const kind = options.kind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    state.formKind = kind;
+
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
+      state.selectedColor =
+        options.color || state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
+    }
+
+    if (kind === RECORD_KINDS.CLIP) {
+      modal.title.textContent = options.mode === "edit" ? "编辑保存内容" : "保存摘录";
+    } else {
+      modal.title.textContent = options.mode === "edit" ? "编辑批注" : "添加批注";
+    }
     modal.preview.textContent = options.preview || "";
     modal.noteInput.value = options.note || "";
     if (modal.tagsComponent) {
@@ -995,8 +1109,12 @@
       modal.tagsComponent.setOptions(Array.from(optionsSet).sort((a, b) => a.localeCompare(b)));
       modal.tagsComponent.setValue(initialTags, { silent: true });
     }
-    state.selectedColor = options.color || state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
-    renderColorPalette();
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
+      renderColorPalette();
+      modal.colorPalette.wrapper.classList.remove("myz-hidden");
+    } else {
+      modal.colorPalette.wrapper.classList.add("myz-hidden");
+    }
     modal.deleteButton.classList.toggle("myz-hidden", options.mode !== "edit");
     modal.container.classList.remove("myz-hidden");
   }
@@ -1007,6 +1125,7 @@
     state.currentText = "";
     state.currentHtml = "";
     state.editingId = null;
+    state.formKind = RECORD_KINDS.HIGHLIGHT;
     if (modal.tagsComponent) {
       modal.tagsComponent.setValue([], { silent: true });
     }
@@ -1016,58 +1135,100 @@
     const note = modal.noteInput.value.trim();
     const tags = modal.tagsComponent ? modal.tagsComponent.getValue() : [];
     const color = state.selectedColor || state.settings.lastUsedColor || DEFAULT_COLORS[0];
+    const kind = state.formKind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
 
     if (state.editingId) {
-      await updateExistingHighlight({ id: state.editingId, note, tags, color });
-      closeModal();
-      return;
-    }
-
-    if (!state.currentRange || !state.currentText) {
-      closeModal();
-      return;
-    }
-
-    const serializedRange = serializeRange(state.currentRange);
-    if (!serializedRange) {
-      closeModal();
-      return;
-    }
-
-    try {
-      const payload = {
-        url: CANONICAL_URL,
-        sourceUrl: window.location.href,
-        title: document.title,
-        text: state.currentText,
-        html: state.currentHtml || "",
+      const update = {
+        id: state.editingId,
         note,
         tags,
-        color,
-        range: serializedRange,
-        hostname: window.location.hostname
+        kind
       };
-      const record = await sendMessage("myz:saveHighlight", payload);
-      if (record) {
-        highlightCache.set(record.id, record);
-        const applied = applyHighlight(record);
-        if (applied) {
-          unreachableHighlights.delete(record.id);
-          removeHighlightFromPending(record.id);
-        } else {
-          markHighlightForReapply(record.id);
-        }
-        if (addKnownTags(record.tags || tags)) {
-          updateTagSuggestions();
-        }
-        updateHighlightIndicators();
+      if (kind === RECORD_KINDS.HIGHLIGHT) {
+        update.color = color;
+      } else {
+        update.color = null;
+        update.range = null;
       }
-      persistColorSettings({ lastUsedColor: color });
+      await updateExistingHighlight(update);
+      closeModal();
+      return;
+    }
+
+    if (!state.currentText) {
+      closeModal();
+      return;
+    }
+
+    const basePayload = {
+      url: CANONICAL_URL,
+      sourceUrl: window.location.href,
+      title: document.title,
+      text: state.currentText,
+      html: state.currentHtml || "",
+      note,
+      tags,
+      hostname: window.location.hostname,
+      kind
+    };
+
+    const selection = window.getSelection();
+    try {
+      if (kind === RECORD_KINDS.HIGHLIGHT) {
+        if (!state.currentRange) {
+          return;
+        }
+        const serializedRange = serializeRange(state.currentRange);
+        if (!serializedRange) {
+          return;
+        }
+        const payload = {
+          ...basePayload,
+          color,
+          range: serializedRange
+        };
+        const record = await sendMessage("myz:saveHighlight", payload);
+        if (record) {
+          const stored = storeRecord(record);
+          if (stored) {
+            const applied = applyHighlight(stored);
+            if (applied) {
+              unreachableHighlights.delete(stored.id);
+              removeHighlightFromPending(stored.id);
+            } else if (isHighlightRecord(stored)) {
+              markHighlightForReapply(stored.id);
+            }
+            if (addKnownTags(stored.tags || tags)) {
+              updateTagSuggestions();
+            }
+            updateHighlightIndicators();
+          }
+        }
+        persistColorSettings({ lastUsedColor: color });
+      } else {
+        const payload = {
+          ...basePayload,
+          color: null,
+          range: null
+        };
+        const record = await sendMessage("myz:saveHighlight", payload);
+        if (record) {
+          const stored = storeRecord(record);
+          if (stored) {
+            unreachableHighlights.delete(stored.id);
+            removeHighlightFromPending(stored.id);
+            if (addKnownTags(stored.tags || tags)) {
+              updateTagSuggestions();
+            }
+            updateHighlightIndicators();
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to save highlight", error);
     } finally {
       closeModal();
-      window.getSelection()?.removeAllRanges();
+      selection?.removeAllRanges();
       hideToolbar();
     }
   }
@@ -1078,21 +1239,37 @@
       if (!record) {
         return;
       }
-      highlightCache.set(record.id, record);
-      if (addKnownTags(record.tags || [])) {
+      const stored = storeRecord(record);
+      if (!stored) {
+        return;
+      }
+      if (addKnownTags(stored.tags || [])) {
         updateTagSuggestions();
       }
-      const nodes = document.querySelectorAll(`[data-highlight-id="${record.id}"]`);
-      nodes.forEach((node) => {
-        node.style.backgroundColor = record.color || "#ffe58f";
-      });
-      if (inspector.currentId === record.id) {
-        showInspector(record);
+      if (isHighlightRecord(stored)) {
+        const nodes = document.querySelectorAll(`[data-highlight-id="${stored.id}"]`);
+        nodes.forEach((node) => {
+          node.style.backgroundColor = stored.color || "#ffe58f";
+        });
+      } else {
+        removeHighlightFromDom(stored.id);
+        unreachableHighlights.delete(stored.id);
+        removeHighlightFromPending(stored.id);
       }
-      state.settings.lastUsedColor = record.color || state.settings.lastUsedColor;
-      state.selectedColor = record.color || state.selectedColor;
-      renderColorPalette();
-      persistColorSettings({ lastUsedColor: record.color });
+      if (inspector.currentId === stored.id) {
+        showInspector(stored);
+      }
+      if (isHighlightRecord(stored)) {
+        state.settings.lastUsedColor = stored.color || state.settings.lastUsedColor;
+        state.selectedColor = stored.color || state.selectedColor;
+        renderColorPalette();
+        if (stored.color) {
+          persistColorSettings({ lastUsedColor: stored.color });
+        }
+      } else {
+        renderColorPalette();
+      }
+      updateHighlightIndicators();
     } catch (error) {
       console.error("Failed to update highlight", error);
     }
@@ -1204,7 +1381,8 @@
         preview: record.text,
         note: record.note || "",
         tags: record.tags || [],
-        color: record.color || state.selectedColor
+        color: record.color || state.selectedColor,
+        kind: getRecordKind(record)
       });
     });
 
@@ -1277,6 +1455,9 @@
   }
 
   function applyHighlight(record) {
+    if (!isHighlightRecord(record)) {
+      return false;
+    }
     if (!record?.range) {
       return false;
     }
@@ -1664,8 +1845,12 @@
       unreachableHighlights.clear();
       unreachable.forEach((id) => unreachableHighlights.add(id));
     }
+    const stats = computeHighlightStats();
     return {
-      count: highlightCache.size,
+      count: stats.total,
+      total: stats.total,
+      highlightCount: stats.highlightCount,
+      savedCount: stats.savedCount,
       unreachableIds: unreachable,
       unreachableCount: unreachable.length
     };
