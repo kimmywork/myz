@@ -1,5 +1,7 @@
 import { computed, defineComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
+import "./TagInput.css";
+
 export default defineComponent({
   name: "TagInput",
   props: {

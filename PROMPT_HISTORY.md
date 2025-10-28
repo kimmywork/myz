@@ -76,3 +76,17 @@ now continue to refactoring dashboard using vue3/jsx. just split it into compone
 background.js:58 Handler error myz:importHighlights ReferenceError: normalizeImportStrategy is not defined
 
 ---
+
+Now lets refactoring content.js into Vue3/jsx component based model. Let's do it one by one, first extract this toolbar into a component then load using vue.
+
+---
+
+build success, no need to perform check, I am testing now
+
+---
+
+Now extract this modal related code into a vue component.
+
+---
+
+Continue to extract inspector to component
