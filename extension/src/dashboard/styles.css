@@ -255,6 +255,14 @@ body {
   min-height: 16px;
 }
 
+.status-line--error {
+  color: #f87171;
+}
+
+.status-line--success {
+  color: #34d399;
+}
+
 .is-hidden {
   display: none !important;
 }

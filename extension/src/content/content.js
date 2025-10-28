@@ -1,3 +1,5 @@
+import "./content.css"
+
 (() => {
   if (window.__myzAnnotatorInitialized) {
     return;
