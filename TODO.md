@@ -4,7 +4,7 @@
 - [x] 📝 Clip only mode 
 - [ ] 📎 Special Site Support: Twitter.com
 - [ ] 🗄️ Sync to Internet Archive
-- [ ] 🎨 New annotation styles: line, curly and highlight.
+- [x] 🎨 New annotation styles: line, curly and highlight.
 
 ## Quality
 
