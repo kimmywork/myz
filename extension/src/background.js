@@ -12,8 +12,42 @@ const DEFAULT_SETTINGS = {
   logseqSyncEnabled: false,
   colorPalette: ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"],
   lastUsedColor: "#fde68a",
+  lastUsedStyle: "paint",
   dashboardView: "cards"
 };
+
+const HIGHLIGHT_STYLES = {
+  PAINT: "paint",
+  UNDERLINE: "underline",
+  WAVY: "wavy"
+};
+
+const DEFAULT_HIGHLIGHT_STYLE = HIGHLIGHT_STYLES.PAINT;
+
+function normalizeHighlightStyle(style) {
+  if (!style) {
+    return DEFAULT_HIGHLIGHT_STYLE;
+  }
+  const value = String(style).toLowerCase();
+  if (value === HIGHLIGHT_STYLES.UNDERLINE) {
+    return HIGHLIGHT_STYLES.UNDERLINE;
+  }
+  if (value === HIGHLIGHT_STYLES.WAVY) {
+    return HIGHLIGHT_STYLES.WAVY;
+  }
+  return DEFAULT_HIGHLIGHT_STYLE;
+}
+
+function describeHighlightStyle(style) {
+  const normalized = normalizeHighlightStyle(style);
+  if (normalized === HIGHLIGHT_STYLES.UNDERLINE) {
+    return "下划线";
+  }
+  if (normalized === HIGHLIGHT_STYLES.WAVY) {
+    return "波浪线";
+  }
+  return "高亮";
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
   const { [STORAGE_KEY]: existingHighlights } = await chrome.storage.local.get(STORAGE_KEY);
@@ -76,6 +110,9 @@ const messageHandlers = {
     if (kind === "clip") {
       record.range = null;
       record.color = null;
+      record.style = null;
+    } else {
+      record.style = normalizeHighlightStyle(payload.style);
     }
 
     if (!state.highlights[id]) {
@@ -84,7 +121,7 @@ const messageHandlers = {
     state.highlights[id] = record;
     await writeState(state);
     if (kind === "highlight") {
-      await persistColorSelection(record.color);
+      await persistHighlightPreferences({ color: record.color, style: record.style });
     }
     return record;
   },
@@ -111,11 +148,14 @@ const messageHandlers = {
     if (updated.kind === "clip") {
       updated.range = null;
       updated.color = null;
+      updated.style = null;
+    } else {
+      updated.style = normalizeHighlightStyle(updated.style);
     }
     state.highlights[payload.id] = updated;
     await writeState(state);
     if (updated.kind === "highlight") {
-      await persistColorSelection(updated.color);
+      await persistHighlightPreferences({ color: updated.color, style: updated.style });
     }
     return updated;
   },
@@ -496,25 +536,40 @@ async function readSettings() {
   if (!stored) {
     return { ...DEFAULT_SETTINGS };
   }
-  return { ...DEFAULT_SETTINGS, ...stored };
+  const merged = { ...DEFAULT_SETTINGS, ...stored };
+  merged.lastUsedStyle = normalizeHighlightStyle(merged.lastUsedStyle);
+  return merged;
 }
 
 async function writeSettings(patch) {
   const current = await readSettings();
   const updated = { ...current, ...patch };
+  updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
   await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
   return updated;
 }
 
-async function persistColorSelection(color) {
-  if (!color) {
-    return;
-  }
+async function persistHighlightPreferences({ color, style } = {}) {
+  const patch = {};
   const settings = await readSettings();
-  if (settings.lastUsedColor === color) {
-    return;
+
+  if (typeof color === "string" && color.trim()) {
+    const normalizedColor = color.trim();
+    if (settings.lastUsedColor !== normalizedColor) {
+      patch.lastUsedColor = normalizedColor;
+    }
   }
-  await writeSettings({ lastUsedColor: color });
+
+  if (style) {
+    const normalizedStyle = normalizeHighlightStyle(style);
+    if (settings.lastUsedStyle !== normalizedStyle) {
+      patch.lastUsedStyle = normalizedStyle;
+    }
+  }
+
+  if (Object.keys(patch).length) {
+    await writeSettings(patch);
+  }
 }
 
 function normalizeBadgeCounts(payload = {}) {
@@ -627,6 +682,9 @@ function buildMarkdownExport(highlights) {
       }
       if (item.color) {
         lines.push(`  - Color: ${item.color}`);
+      }
+      if (item.kind === "highlight") {
+        lines.push(`  - Style: ${describeHighlightStyle(item.style)}`);
       }
       lines.push("");
     });
@@ -861,6 +919,10 @@ function buildHighlightBlock(record) {
     : "";
   if (tags) {
     detailBlocks.push(makeBlock(`标签: ${tags}`));
+  }
+
+  if (record.kind === "highlight") {
+    detailBlocks.push(makeBlock(`样式: ${describeHighlightStyle(record.style)}`));
   }
 
   const noteContent = extractRecordNote(record);
@@ -1379,6 +1441,7 @@ function sanitizeImportedHighlight(raw) {
     if (color) {
       result.color = color;
     }
+    result.style = normalizeHighlightStyle(raw.style);
   }
 
   const createdAt = coerceIsoTimestamp(raw.createdAt);
@@ -1425,6 +1488,7 @@ function sanitizeImportedHighlight(raw) {
   }
   if (result.kind === "clip") {
     delete result.range;
+    delete result.style;
   }
 
   return result;

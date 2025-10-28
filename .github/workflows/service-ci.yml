@@ -2,10 +2,8 @@ name: Service CI
 
 on:
   push:
-    paths:
-      - "service/**"
-      - "knowledges/service-api.md"
-      - ".github/workflows/service-ci.yml"
+    branches:
+      - master
   pull_request:
     paths:
       - "service/**"

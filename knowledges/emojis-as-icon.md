@@ -5,6 +5,7 @@
 ✏️ Pencil
 🖍️ Crayon
 🖊️ Pen
+〰️ Wavy Dash
 📝 Memo
 ✍️ Write
 📋 Clipboard

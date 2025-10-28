@@ -1,5 +1,8 @@
 # MyZ Annotator
 
+[Chrome 安装](https://chromewebstore.google.com/detail/myz-annotator/mhakfcbobhdemicjelhjjpmgibhnnplg)
+[Edge 安装](https://microsoftedge.microsoft.com/addons/detail/myz-annotator/fepakkoggnancnpcclldodfbpgobkabj)
+
 MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、撰写批注、截图收集，并在本地管理这些资料。它支持导出 JSON / Markdown，以及与本地 LogSeq graph 进行安全的增量同步。
 
 ## 主要特性
