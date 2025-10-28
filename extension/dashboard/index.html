@@ -60,7 +60,7 @@
       <section id="highlights-view" class="main__section is-active" aria-labelledby="highlights-title">
         <header class="main__header">
           <div>
-            <h2 id="highlights-title">全部标注</h2>
+            <h2 id="highlights-title">全部记录</h2>
             <p id="summary" class="summary"></p>
           </div>
           <div class="view-toggle" role="group" aria-label="视图切换">
@@ -155,12 +155,15 @@
   <template id="card-template">
     <article class="card">
       <div class="card__header">
-        <span class="card__site"></span>
-        <span class="card__date"></span>
+        <div class="card__badge"></div>
+        <div class="card__meta">
+          <span class="card__site"></span>
+          <span class="card__date"></span>
+        </div>
       </div>
       <div class="card__content">
         <section class="card__segment card__segment--quote">
-          <h4>标注</h4>
+          <h4 class="card__segment-title">标注</h4>
           <blockquote class="card__quote"></blockquote>
         </section>
         <section class="card__segment card__segment--note">
@@ -174,6 +177,7 @@
         <button class="btn-link" data-action="view">查看</button>
         <button class="btn-link" data-action="edit">编辑</button>
         <button class="btn-link" data-action="copy">复制</button>
+        <button class="btn-link btn-link--muted is-hidden" data-action="downgrade">降级为保存</button>
         <button class="btn-link btn-link--danger" data-action="delete">删除</button>
       </div>
     </article>
@@ -182,19 +186,21 @@
   <template id="list-row-template">
     <div class="list-row">
       <div class="list-row__meta">
-        <span class="list-row__date"></span>
         <span class="list-row__site"></span>
+        <span class="list-row__badge"></span>
+        <span class="list-row__tags"></span>
+        <span class="list-row__date"></span>
       </div>
       <div class="list-row__content">
         <div class="list-row__quote"></div>
         <div class="list-row__note"></div>
       </div>
-      <div class="list-row__tags"></div>
       <div class="list-row__actions">
         <a class="btn-link" target="_blank" rel="noopener">打开页面</a>
         <button class="btn-link" data-action="view">查看</button>
         <button class="btn-link" data-action="edit">编辑</button>
         <button class="btn-link" data-action="copy">复制</button>
+        <button class="btn-link btn-link--muted is-hidden" data-action="downgrade">降级为保存</button>
         <button class="btn-link btn-link--danger" data-action="delete">删除</button>
       </div>
     </div>
@@ -208,7 +214,7 @@
       </header>
       <div class="modal__body">
         <section class="modal__section">
-          <h4>标注</h4>
+          <h4 id="modal-quote-label">标注</h4>
           <div id="modal-quote" class="modal__quote"></div>
         </section>
         <section class="modal__section">

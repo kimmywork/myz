@@ -13,6 +13,8 @@
 - All LogSeq RPCs must be JSON-RPC calls through `callLogseq({ endpoint, token, method, args })`; it handles response parsing and error surfacing. Service worker cannot rely on DOM APIs—never reintroduce `DOMParser` or similar.
 - Toolbar logic in `content.js` keeps the floating actions pinned while scrolling; if you touch selection handling, preserve `state.toolbarRange` updates and the debounce animation frame pattern.
 - Tag pickers (content modal + dashboard) share behaviour: multi-select, comma-to-create, backspace delete, dropdown filtering. Use the existing component utilities when tweaking UI logic.
+- Highlight styles are enumerated via `HIGHLIGHT_STYLES`; rely on `normalizeHighlightStyle` / `describeHighlightStyle` when persisting or presenting styles. Content CSS must keep underline / wavy modes decoration-only—never change font weight or line height of the original text.
+- Record `kind` distinguishes visual highlights from text-only saves. Use existing downgrade helpers instead of clearing ranges manually; only highlight records should carry `color` / `style` metadata.
 - Highlight restoration relies on `highlightReapplyState` plus the `unreachableHighlights` set. If reworking apply logic, fire `markHighlightForReapply` for failures and maintain the toast notification + deadline behaviour.
 - Popup pulls unreachable metadata through `myz:getHighlightState`; ensure any new state you expose is serialisable and guarded against frames without access.
 
