@@ -1,13 +1,22 @@
 import { getRecordKind, RECORD_KINDS } from "../dashboard/utils/records.js";
 
-export const DEFAULT_COLOR = "#fde68a";
+// Default single color and palette tuned for better visibility on dark
+// backgrounds. These are slightly more saturated / deeper than the old
+// pastel values so highlights remain readable when the page uses a dark
+// color scheme.
+export const DEFAULT_COLOR = "#b58900";
 
 export const DEFAULT_COLORS = [
-  "#fde68a",
-  "#fca5a5",
-  "#c4b5fd",
-  "#93c5fd",
-  "#a7f3d0",
+  // amber / warm highlight
+  "#b58900",
+  // pink / coral
+  "#ef476f",
+  // muted purple
+  "#9f7aea",
+  // sky blue
+  "#38bdf8",
+  // teal / mint
+  "#34d399",
 ];
 
 export const HIGHLIGHT_STYLES = {

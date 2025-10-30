@@ -11,8 +11,12 @@ const gitignorePath = fileURLToPath(new URL(".gitignore", import.meta.url));
 export default defineConfig([
   eslintPluginPrettierRecommended,
   ...pluginVue.configs["flat/recommended"],
+  includeIgnoreFile(gitignorePath, "Imported .gitignore patterns"),
   {
-    files: ["**/*.js", "**/*.mjs"],
+    // your overrides
+  },
+  {
+    files: ["**/*.js", "**/*.mjs", "!dev/repro.js", "*.jsx", "**/*.jsx"],
     plugins: {
       js,
     },
@@ -26,21 +30,25 @@ export default defineConfig([
         ...globals.browser,
         chrome: true,
       },
-    },
-  },
-  {
-    files: ["*.jsx", "**/*.jsx"],
-    languageOptions: {
       parserOptions: {
-        ecmaVersion: 2020,
+        ecmaVersion: 2025,
         ecmaFeatures: {
           jsx: true,
         },
       },
     },
   },
-  includeIgnoreFile(gitignorePath, "Imported .gitignore patterns"),
   {
-    // your overrides
+    files: ["dev/repro.js"],
+    plugins: {
+      js,
+    },
+    extends: ["js/recommended"],
+    rules: {
+      "no-unused-vars": "off",
+    },
+    languageOptions: {
+      sourceType: "commonjs",
+    },
   },
 ]);

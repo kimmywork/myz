@@ -52,6 +52,8 @@ function createStore(options) {
   const lastUsedColor = ref(palette.value[0]);
   const lastUsedStyle = ref(defaultStyle);
   const isLoaded = ref(false);
+  // Promise that resolves when initial settings load completes
+  let _loadPromise = null;
 
   function persistColor(color) {
     const normalized = normalizeColor(color, palette.value[0]);
@@ -67,6 +69,30 @@ function createStore(options) {
     lastUsedStyle.value = normalized;
     persistSettings({ lastUsedStyle: lastUsedStyle.value });
     return normalized;
+  }
+
+  // Load persisted settings from background/storage via message bus.
+  // This will apply settings and set `isLoaded` when complete.
+  async function loadSettings() {
+    // If already loading, return the existing promise
+    if (_loadPromise) return _loadPromise;
+    _loadPromise = (async () => {
+      try {
+        const settings = await sendMessage("myz:getSettings");
+        if (settings) {
+          applySettings(settings);
+        } else {
+          // No persisted settings; still mark loaded so callers don't wait indefinitely
+          isLoaded.value = true;
+        }
+      } catch (error) {
+        console.warn("Failed to load highlight preferences", error);
+        // Mark loaded even on error to avoid blocking callers
+        isLoaded.value = true;
+      }
+      return null;
+    })();
+    return _loadPromise;
   }
 
   function updatePaletteEntry(index, value, { persist = false } = {}) {
@@ -111,6 +137,15 @@ function createStore(options) {
     });
   }
 
+  // Kick off an initial load of persisted settings. Non-blocking.
+  // Consumers can await `ensureLoaded()` if they need to wait for values to be applied.
+  loadSettings().catch(() => {});
+
+  // Allow callers to await the initial load if they need the persisted values synchronously.
+  function ensureLoaded() {
+    return loadSettings();
+  }
+
   return {
     defaultColors,
     defaultStyle,
@@ -124,6 +159,7 @@ function createStore(options) {
     persistStyle,
     updatePaletteEntry,
     getPaletteSnapshot: () => [...palette.value],
+    ensureLoaded,
   };
 }
 

@@ -20,6 +20,21 @@ import {
 
 import { serializeRangeToHtml, recordToMarkdown } from "./html.js";
 import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
+import {
+  isMyzWrapper,
+  isNodeFromMyz,
+  findPrimaryDescendant,
+  getLogicalChildNodes,
+  getDirectChildAndLogical,
+  nodeName,
+  sameNodeType,
+  buildPath,
+  resolvePath,
+  getDescendantTextNodes,
+  charOffsetWithinElement,
+  nodeForCharOffset,
+  getTextLength,
+} from "../shared/serializer.js";
 
 (() => {
   if (window.__myzAnnotatorInitialized) {
@@ -146,13 +161,68 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
       return false;
     });
 
+    // Attach SPA navigation listeners so we can re-run highlight restore when
+    // single-page apps change the visible URL without a full reload.
+    attachSpaNavigationListeners();
+
     await restoreHighlights();
+  }
+
+  // Keep track of the last canonical URL so we only re-run restoreHighlights
+  // when the logical page changes.
+  let lastKnownCanonical = CANONICAL_URL;
+
+  function attachSpaNavigationListeners() {
+    // Debounced handler to avoid thrashing during router transitions.
+    let navTimer = null;
+    function scheduleRestoreIfUrlChanged() {
+      const nowCanonical = canonicalUrl(window.location.href);
+      if (nowCanonical === lastKnownCanonical) return;
+      if (navTimer) {
+        clearTimeout(navTimer);
+      }
+      navTimer = setTimeout(async () => {
+        navTimer = null;
+        // Re-run highlight restoration for the new route. Only update the
+        // lastKnownCanonical if restore succeeds so we can retry on later
+        // attempts if page content isn't ready yet.
+        try {
+          await restoreHighlights();
+          lastKnownCanonical = nowCanonical;
+        } catch (err) {
+          console.error("Failed to restore highlights after navigation", err);
+        }
+      }, 160);
+    }
+
+    // Patch history methods so we can detect programmatic navigation.
+    try {
+      const rawPush = history.pushState;
+      const rawReplace = history.replaceState;
+      history.pushState = function (...args) {
+        const result = rawPush.apply(this, args);
+        scheduleRestoreIfUrlChanged();
+        return result;
+      };
+      history.replaceState = function (...args) {
+        const result = rawReplace.apply(this, args);
+        scheduleRestoreIfUrlChanged();
+        return result;
+      };
+    } catch (error) {
+      // Ignore if content security or readonly history in some environments.
+    }
+
+    // Also listen to popstate and hashchange
+    window.addEventListener("popstate", scheduleRestoreIfUrlChanged);
+    window.addEventListener("hashchange", scheduleRestoreIfUrlChanged);
   }
 
   async function restoreHighlights() {
     try {
+      const currentCanonical = canonicalUrl(window.location.href);
       const [highlights, tagList] = await Promise.all([
-        sendMessage("myz:getHighlightsForUrl", { url: CANONICAL_URL }),
+        sendMessage("myz:getHighlightsForUrl", { url: currentCanonical }),
         sendMessage("myz:getAllTags").catch((error) => {
           console.warn("Failed to load known tags", error);
           return null;
@@ -191,6 +261,7 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
           removeHighlightFromPending(stored.id);
         }
       });
+      // Update badge/indicators for the (current) page after restore.
       updateHighlightIndicators();
     } catch (error) {
       console.error("Failed to restore highlights", error);
@@ -319,6 +390,9 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
 
   function createToolbar() {
     const host = document.createElement("div");
+    // Mark hosts created by the extension so DOM serialization/resolution
+    // can ignore these nodes when building/resolving ranges.
+    host.setAttribute("data-myz-host", "1");
     document.documentElement.appendChild(host);
     const app = createApp(ToolbarApp, {
       onAnnotate: handleAnnotateClick,
@@ -402,6 +476,7 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
 
   function mountModal() {
     const host = document.createElement("div");
+    host.setAttribute("data-myz-host", "1");
     document.documentElement.appendChild(host);
 
     const app = createApp(ModalApp, {
@@ -425,6 +500,7 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
 
   function mountInspector() {
     const host = document.createElement("div");
+    host.setAttribute("data-myz-host", "1");
     document.documentElement.appendChild(host);
 
     const app = createApp(InspectorApp, {
@@ -454,6 +530,7 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
 
   function mountNotifications() {
     const host = document.createElement("div");
+    host.setAttribute("data-myz-host", "1");
     document.documentElement.appendChild(host);
 
     const app = createApp(NotificationsApp);
@@ -609,7 +686,7 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
     }
 
     const basePayload = {
-      url: CANONICAL_URL,
+      url: canonicalUrl(window.location.href),
       sourceUrl: window.location.href,
       title: document.title,
       text: state.currentText,
@@ -749,9 +826,20 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
         return false;
       }
       removeHighlightFromDom(record.id);
-      const applied = rangeContainsBlockElements(range)
-        ? wrapRangeAcrossNodes(range, record)
-        : wrapSimpleRange(range, record);
+      // Prefer wrapping by collecting and wrapping individual text-node
+      // segments. This avoids cloning the whole fragment which can split
+      // inline elements (links) and leave empty anchors when multiple
+      // highlights are created in the same paragraph. Fall back to the
+      // simple fragment-based wrapper if text-node wrapping doesn't apply.
+      let applied = false;
+      try {
+        applied = wrapRangeAcrossNodes(range, record);
+      } catch (e) {
+        applied = false;
+      }
+      if (!applied) {
+        applied = wrapSimpleRange(range, record);
+      }
       if (applied) {
         return true;
       }
@@ -832,6 +920,10 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
       NodeFilter.SHOW_TEXT,
       {
         acceptNode(node) {
+          // Ignore nodes that belong to the extension UI or highlights
+          if (isNodeFromMyz(node)) {
+            return NodeFilter.FILTER_REJECT;
+          }
           if (!range.intersectsNode(node)) {
             return NodeFilter.FILTER_REJECT;
           }
@@ -856,19 +948,11 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
     }
     let target = node;
     const length = node.textContent.length;
-    if (offsets.end < length) {
-      target.splitText(offsets.end);
-    }
-    if (offsets.start > 0) {
-      target = target.splitText(offsets.start);
-    }
-    if (!target || !target.textContent.trim()) {
-      return false;
-    }
+    if (offsets.end < length) target.splitText(offsets.end);
+    if (offsets.start > 0) target = target.splitText(offsets.start);
+    if (!target || !target.textContent.trim()) return false;
     const parent = target.parentNode;
-    if (!parent) {
-      return false;
-    }
+    if (!parent) return false;
     const highlight = createHighlightElement(record);
     parent.insertBefore(highlight, target);
     highlight.appendChild(target);
@@ -899,16 +983,6 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
     start = Math.max(0, Math.min(start, length));
     end = Math.max(start, Math.min(end, length));
     return { start, end };
-  }
-
-  function rangeContainsBlockElements(range) {
-    const fragment = range.cloneContents();
-    if (!fragment) {
-      return false;
-    }
-    const blockSelector =
-      "p,div,section,article,header,footer,main,aside,nav,ul,ol,li,table,tbody,tr,td,th,blockquote,pre";
-    return fragment.querySelector(blockSelector) !== null;
   }
 
   function focusHighlight(id) {
@@ -1162,16 +1236,66 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
 
   function serializeRange(range) {
     try {
-      return {
-        start: {
-          path: buildPath(range.startContainer),
-          offset: range.startOffset,
-        },
-        end: {
-          path: buildPath(range.endContainer),
-          offset: range.endOffset,
-        },
-      };
+      // If the page already contains MyZ wrapper nodes, temporarily unwrap
+      // them so we compute paths against the original DOM. Afterwards we
+      // reapply existing highlights from cache. This avoids path indexing
+      // shifts caused by wrapper elements.
+      const existingWrappers = Array.from(
+        document.querySelectorAll(".myz-highlight"),
+      );
+      const existingIds = existingWrappers
+        .map((n) => n.dataset?.highlightId)
+        .filter(Boolean);
+      try {
+        existingWrappers.forEach((node) => unwrapNode(node));
+
+        // More robust serialization: store a path to the nearest element
+        // ancestor plus a character offset within that element. This is
+        // resilient to text-node merging/splitting when wrappers are
+        // removed and prevents indices from becoming invalid.
+        const startElement =
+          range.startContainer.nodeType === Node.TEXT_NODE
+            ? range.startContainer.parentNode
+            : range.startContainer;
+        const endElement =
+          range.endContainer.nodeType === Node.TEXT_NODE
+            ? range.endContainer.parentNode
+            : range.endContainer;
+
+        const startChar = charOffsetWithinElement(
+          startElement,
+          range.startContainer,
+          range.startOffset,
+        );
+        const endChar = charOffsetWithinElement(
+          endElement,
+          range.endContainer,
+          range.endOffset,
+        );
+
+        return {
+          start: {
+            path: buildPath(startElement),
+            charOffset: startChar,
+          },
+          end: {
+            path: buildPath(endElement),
+            charOffset: endChar,
+          },
+        };
+      } finally {
+        // Reapply highlights from cache; ignore failures.
+        existingIds.forEach((id) => {
+          try {
+            const rec = highlightCache.get(id);
+            if (rec && isHighlightRecord(rec)) {
+              applyHighlight(rec);
+            }
+          } catch (e) {
+            // swallow
+          }
+        });
+      }
     } catch (error) {
       console.error("Failed to serialize range", error);
       return null;
@@ -1183,79 +1307,64 @@ import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
       return null;
     }
     const range = document.createRange();
-    const startNode = resolvePath(serialized.start.path);
-    const endNode = resolvePath(serialized.end.path);
-    if (!startNode || !endNode) {
-      return null;
-    }
-    const startOffset = clampOffset(startNode, serialized.start.offset);
-    const endOffset = clampOffset(endNode, serialized.end.offset);
+    // Prefer the new element+charOffset format. Fall back to the old
+    // node+offset format for backward compatibility.
     try {
+      // Start
+      let startNode = null;
+      let startOffset = 0;
+      if (serialized.start && typeof serialized.start.charOffset === "number") {
+        const el = resolvePath(serialized.start.path);
+        if (!el) return null;
+        const resolved = nodeForCharOffset(el, serialized.start.charOffset);
+        if (!resolved) return null;
+        startNode = resolved.node;
+        startOffset = resolved.offset;
+      } else {
+        startNode = resolvePath(serialized.start.path);
+        if (!startNode) return null;
+        startOffset = clampOffset(startNode, serialized.start.offset);
+      }
+
+      // End
+      let endNode = null;
+      let endOffset = 0;
+      if (serialized.end && typeof serialized.end.charOffset === "number") {
+        const el = resolvePath(serialized.end.path);
+        if (!el) return null;
+        const resolved = nodeForCharOffset(el, serialized.end.charOffset);
+        if (!resolved) return null;
+        endNode = resolved.node;
+        endOffset = resolved.offset;
+      } else {
+        endNode = resolvePath(serialized.end.path);
+        if (!endNode) return null;
+        endOffset = clampOffset(endNode, serialized.end.offset);
+      }
+
       range.setStart(startNode, startOffset);
       range.setEnd(endNode, endOffset);
+      return range;
     } catch (error) {
       console.error("Failed to reconstruct range", error);
       return null;
     }
-    return range;
   }
 
-  function buildPath(node) {
-    const path = [];
-    let current = node;
-    while (current && current !== document) {
-      const parent = current.parentNode;
-      if (!parent) {
-        break;
-      }
-      const siblings = Array.from(parent.childNodes).filter((child) =>
-        sameNodeType(child, current),
-      );
-      const index = siblings.indexOf(current);
-      path.unshift({
-        name: nodeName(current),
-        index,
-      });
-      current = parent;
-    }
-    return path;
+  function extractTextContext(node, offset) {
+    // No-op: removed snippet/meta support. Keep function stub in case other
+    // modules reference it in the future.
+    return null;
   }
 
-  function resolvePath(path) {
-    let current = document;
-    for (const segment of path) {
-      const candidates = Array.from(current.childNodes).filter((child) => {
-        if (segment.name === "#text") {
-          return child.nodeType === Node.TEXT_NODE;
-        }
-        return (
-          child.nodeType === Node.ELEMENT_NODE &&
-          child.nodeName.toLowerCase() === segment.name
-        );
-      });
-      current = candidates[segment.index] || null;
-      if (!current) {
-        return null;
-      }
-    }
-    return current;
-  }
+  // snippet-based lookup removed — we rely on wrapper-transparent path
+  // resolution exclusively.
 
-  function nodeName(node) {
-    return node.nodeType === Node.TEXT_NODE
-      ? "#text"
-      : node.nodeName.toLowerCase();
-  }
+  // Meta/snippet-based lookup removed: we now rely solely on wrapper-
+  // transparent path serialization and resolution. Helper functions for
+  // meta matching were deleted to reduce complexity.
 
-  function sameNodeType(a, b) {
-    if (a.nodeType !== b.nodeType) {
-      return false;
-    }
-    if (a.nodeType === Node.TEXT_NODE) {
-      return true;
-    }
-    return a.nodeName === b.nodeName;
-  }
+  // Use shared helper implementations imported from ../shared/serializer.js
 
   function clampOffset(node, requested) {
     if (node.nodeType === Node.TEXT_NODE) {
