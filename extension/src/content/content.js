@@ -21,19 +21,11 @@ import {
 import { serializeRangeToHtml, recordToMarkdown } from "./html.js";
 import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
 import {
-  isMyzWrapper,
   isNodeFromMyz,
-  findPrimaryDescendant,
-  getLogicalChildNodes,
-  getDirectChildAndLogical,
-  nodeName,
-  sameNodeType,
   buildPath,
   resolvePath,
-  getDescendantTextNodes,
   charOffsetWithinElement,
   nodeForCharOffset,
-  getTextLength,
 } from "../shared/serializer.js";
 
 (() => {

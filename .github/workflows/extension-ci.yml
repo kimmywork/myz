@@ -1,0 +1,44 @@
+name: Extension CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    paths:
+      - "extension/**"
+      - ".github/workflows/extension-ci.yml"
+
+jobs:
+  build-and-test:
+    name: Build and test extension
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install extension dependencies
+        run: npm ci
+        working-directory: extension
+
+      - name: Build extension
+        run: npm run build --if-present
+        working-directory: extension
+
+      - name: Install Playwright browsers and system deps
+        run: npx playwright install --with-deps
+        working-directory: extension
+
+      - name: Run Playwright tests
+        run: npx playwright test tests --config=tests/playwright.config.ts --reporter=list
+        working-directory: extension
+        env:
+          CI: true

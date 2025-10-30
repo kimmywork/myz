@@ -16,7 +16,14 @@ export default defineConfig([
     // your overrides
   },
   {
-    files: ["**/*.js", "**/*.mjs", "!dev/repro.js", "*.jsx", "**/*.jsx"],
+    files: [
+      "**/*.js",
+      "**/*.mjs",
+      "!dev/repro.js",
+      "*.jsx",
+      "**/*.jsx",
+      "!tests/**/*.js",
+    ],
     plugins: {
       js,
     },
@@ -39,16 +46,21 @@ export default defineConfig([
     },
   },
   {
-    files: ["dev/repro.js"],
+    files: ["dev/**/*.js", "tests/**/*.js"],
     plugins: {
       js,
     },
     extends: ["js/recommended"],
     rules: {
-      "no-unused-vars": "off",
+      "no-unused-vars": "warn",
     },
     languageOptions: {
       sourceType: "commonjs",
+      globals: {
+        ...globals.commonjs,
+        ...globals.node,
+        ...globals.jest,
+      },
     },
   },
 ]);

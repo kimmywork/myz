@@ -7,3 +7,5 @@ release/
 *.zip
 
 tsconfig.tsbuildinfo
+
+test-results

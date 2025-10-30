@@ -78,3 +78,66 @@ Badge Indicator还是没有更新，具体更新的操作应该是 在 content.j
 同样的，当我们需要呈现某个高亮记录的时候，按照上面序列化的path查找节点，如果遇到了 .myz-highlight 类型的记录，只要对比起内容跟我们记录的path一致就好，也不需要跳过。我说得清楚了吗？
 
 ---
+
+`extension` 目录下面是我实现的一个用来高亮标注网页文本的Chrome插件，请使用 Playwright 加载这个插件，同时生成一系列的自动化测试来验证其功能的可用性。
+
+在生成具体的测试之前，先根据插件文档生成具体的用户旅程和测试用例，保存在 docs/acceptance-criteria.md 中。
+
+一个例子如：
+作为一个用户，我希望高亮网页的内容，这样就能突出展示我的关注重点。
+- 给定一个网址 https://kimleo.net/blank/myz-test.html ，当用户选中文字，网页会显示标注工具栏。
+- 以及更多测试
+
+---
+
+- 在 `extension/tests/` 中创建 Playwright 测试套件，并添加最小的 fixture 页面（若需要）。
+- 配置 Playwright 以加载扩展，并实现 P0 优先级的测试。
+
+---
+
+I see the issue here, the extension path should be `extension/dist` folder.
+
+---
+
+Expand tests to cover popup/dashboard interactions.
+
+---
+
+I don't think open the page works, please just refer this github issue for reference
+https://github.com/microsoft/playwright/issues/5593
+
+---
+
+Expand the dashboard tests (edit/downgrade/import)
+
+---
+
+Add modal/tag/color edit checks and import-by-file test
+
+---
+
+Generate loads of records imported via dashboards with different createdAt, tags, hostname, and texts, to test search and filter process.
+
+---
+
+I've added another kind of complex html page in fixtures, please inspect the page and test high / comment for different sections and elements with it.
+
+---
+
+verify highlights result and codeblocks, and their exported/generated markdown
+
+---
+
+add new extension-ci workflow to build and test extensions.
+
+---
+
+Add a test for screenshot tool
+
+---
+
+see here for playwright to verify downloading https://playwright.dev/docs/downloads
+
+---
+
+Check `docs/acceptance-criteria.md` and `extension/tests` see any thing uncovered, update the document.

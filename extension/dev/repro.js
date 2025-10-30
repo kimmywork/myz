@@ -171,7 +171,8 @@ function serializeRange(doc, range) {
             // Use deserialize/apply flow to preserve logic
             const r = deserializeRange(doc, rec.range);
             if (r) {
-              wrapRangeAcrossNodes(doc, r, rec.id) || wrapSimpleRange(doc, r, rec.id);
+              wrapRangeAcrossNodes(doc, r, rec.id) ||
+                wrapSimpleRange(doc, r, rec.id);
             }
           } catch (e) {
             // swallow
@@ -269,7 +270,7 @@ function dumpLogicalChildren(parent, label) {
   // Load the shared ESM serializer so the repro uses the exact same logic
   // as the content script. The import is dynamic because this file runs
   // under CommonJS (node) while the serializer is ESM.
-  const mod = await import('../src/shared/serializer.js');
+  const mod = await import("../src/shared/serializer.js");
   ({
     isMyzWrapper,
     isNodeFromMyz,

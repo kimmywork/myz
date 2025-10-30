@@ -1,0 +1,170 @@
+const path = require("path");
+const { test, expect } = require("@playwright/test");
+const { createStaticServer } = require("../helpers/static-server");
+const { launchExtension } = require("../helpers/launch-extension");
+
+let server;
+let serverUrl;
+let context;
+let page;
+let extensionId;
+
+test.beforeAll(async () => {
+  const fixtures = path.join(__dirname, "..", "fixtures");
+  const s = createStaticServer(fixtures);
+  const listen = await s.listen(0);
+  server = listen.server;
+  serverUrl = listen.url;
+
+  const extensionPath = path.join(__dirname, "..", "..", "dist");
+  const launched = await launchExtension(extensionPath);
+  context = launched.context;
+  page = launched.page;
+  extensionId = launched.extensionId;
+});
+
+test.afterAll(async () => {
+  await context.close();
+  server.close;
+});
+
+async function selectAndAnnotate(page, locator, note = "") {
+  const el = page.locator(locator).first();
+  await el.waitFor({ timeout: 5000 });
+  const box = await el.boundingBox();
+  if (!box) throw new Error(`Could not determine box for ${locator}`);
+  // Drag across the element
+  await page.mouse.move(box.x + 6, box.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(
+    box.x + Math.max(10, box.width - 6),
+    box.y + Math.max(10, box.height - 6),
+  );
+  await page.mouse.up();
+
+  // Wait for toolbar
+  await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+  await page.click('.myz-annotator-toolbar button[aria-label="添加标注"]');
+
+  // Wait for modal, optionally fill note, then save
+  await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+  if (note) {
+    // textarea inside modal
+    await page.fill(".myz-annotator-modal textarea", note);
+  }
+  await page.click(".myz-annotator-modal .myz-btn-primary");
+  // Wait for highlight to appear
+  await page.waitForSelector(".myz-highlight", { timeout: 8000 });
+}
+
+test("highlight_and_comment_on_complex_fixture", async () => {
+  await page.goto(`${serverUrl}/complex-highlight-test.html`);
+
+  // 1) Paragraph with repeated text
+  await selectAndAnnotate(page, 'p:has-text("高亮测试")', "note para");
+
+  // 2) Table cell text
+  await selectAndAnnotate(page, 'td:has-text("高亮测试")', "note table");
+
+  // 3) Code block content (select inside pre/code)
+  await selectAndAnnotate(page, ".code-block pre", "note code");
+
+  // 4) Details collapsed content: open then select inside
+  await page.click("details summary");
+  await selectAndAnnotate(
+    page,
+    'details p:has-text("这个段落藏在详情里")',
+    "note details",
+  );
+
+  // 5) Repeat line (one of the repeated lines)
+  await selectAndAnnotate(
+    page,
+    '.repeat .line:has-text("第 3 行")',
+    "note repeat",
+  );
+
+  // After creating several highlights, reload to verify persistence
+  await page.reload({ waitUntil: "load" });
+  // Wait for highlights to reapply
+  await page.waitForSelector(".myz-highlight", { timeout: 10000 });
+  const highlights = await page.$$(".myz-highlight");
+  expect(highlights.length).toBeGreaterThanOrEqual(5);
+
+  // Click the first highlight to open inspector and then click 编辑 to open edit modal
+  await page.click(".myz-highlight");
+  await page.waitForSelector(".myz-inspector:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+  // click 编辑 (primary button in inspector)
+  await page.click(".myz-inspector .myz-btn-primary");
+  // modal should open in edit mode
+  await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+  // add a suffix note and save
+  await page.fill(".myz-annotator-modal textarea", "edited by test");
+  await page.click(".myz-annotator-modal .myz-btn-primary");
+  // modal remains in DOM but becomes hidden; wait for it to be hidden
+  await page.waitForSelector(".myz-annotator-modal", {
+    state: "hidden",
+    timeout: 10000,
+  });
+
+  // Ensure inspector updates when re-opening the highlight
+  await page.click(".myz-highlight");
+  await page.waitForSelector(".myz-inspector:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+  const noteText = await page.$eval(
+    ".myz-inspector__note",
+    (el) => el.textContent || "",
+  );
+  expect(noteText).toContain("edited by test");
+});
+
+test("export_markdown_contains_codeblock_and_notes", async () => {
+  await page.goto(`${serverUrl}/complex-highlight-test.html`);
+
+  // highlight code block and add a note
+  await selectAndAnnotate(page, ".code-block pre", "export note code");
+
+  // highlight a paragraph and add a note
+  await selectAndAnnotate(page, 'p:has-text("高亮测试")', "export note para");
+
+  // Ensure highlights applied
+  await page.waitForSelector(".myz-highlight", { timeout: 8000 });
+  const highlightCount = await page.$$eval(
+    ".myz-highlight",
+    (els) => els.length,
+  );
+  expect(highlightCount).toBeGreaterThanOrEqual(2);
+
+  // Trigger export via extension dashboard context (content pages don't have chrome.runtime)
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const extPage = await context.newPage();
+  await extPage.goto(dashboardUrl);
+  await extPage.waitForSelector(".app-shell", { timeout: 5000 });
+  const exportResult = await extPage.evaluate(async () => {
+    return await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: "myz:export" }, (resp) => {
+        if (chrome.runtime.lastError)
+          return reject(new Error(chrome.runtime.lastError.message));
+        resolve(resp);
+      });
+    });
+  });
+
+  expect(exportResult && exportResult.ok).toBeTruthy();
+  const markdown = exportResult?.data?.markdown || "";
+  // exported markdown should include a reference to the highlighted code (function name)
+  // export may use blockquote-style formatting, so be permissive and look for the function call
+  expect(markdown).toMatch(/highlight\(/);
+  // should include our notes
+  expect(markdown).toContain("export note code");
+  expect(markdown).toContain("export note para");
+});
