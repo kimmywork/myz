@@ -1,4 +1,11 @@
-import { defineComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import HighlightCard from "./HighlightCard.jsx";
 import HighlightListRow from "./HighlightListRow.jsx";
@@ -33,8 +40,8 @@ export default defineComponent({
         },
         {
           root: document.querySelector(".main") || null,
-          rootMargin: "0px 0px 200px 0px"
-        }
+          rootMargin: "0px 0px 200px 0px",
+        },
       );
       observeSentinel();
     }
@@ -61,7 +68,7 @@ export default defineComponent({
         } else {
           observeSentinel();
         }
-      }
+      },
     );
 
     watch(
@@ -69,7 +76,7 @@ export default defineComponent({
       async () => {
         await nextTick();
         setupObserver();
-      }
+      },
     );
 
     watch(
@@ -77,16 +84,24 @@ export default defineComponent({
       async () => {
         await nextTick();
         setupObserver();
-      }
+      },
     );
 
     return () => {
       if (store.loadingHighlights.value) {
-        return <section class="highlight-groups"><p class="empty-state">正在加载…</p></section>;
+        return (
+          <section class="highlight-groups">
+            <p class="empty-state">正在加载…</p>
+          </section>
+        );
       }
 
       if (!store.visibleHighlights.value.length) {
-        return <section class="highlight-groups"><p class="empty-state">没有符合条件的记录。</p></section>;
+        return (
+          <section class="highlight-groups">
+            <p class="empty-state">没有符合条件的记录。</p>
+          </section>
+        );
       }
 
       return (
@@ -102,16 +117,20 @@ export default defineComponent({
                     <HighlightCard key={item.id} record={item} />
                   ) : (
                     <HighlightListRow key={item.id} record={item} />
-                  )
+                  ),
                 )}
               </div>
             </section>
           ))}
           {store.hasMoreHighlights.value ? (
-            <div ref={sentinelRef} class="scroll-sentinel" data-role="sentinel" />
+            <div
+              ref={sentinelRef}
+              class="scroll-sentinel"
+              data-role="sentinel"
+            />
           ) : null}
         </section>
       );
     };
-  }
+  },
 });

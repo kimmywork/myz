@@ -1,4 +1,4 @@
-import { normalizeHighlightStyle } from "./constants.js";
+import { normalizeHighlightStyle } from "../shared/highlightUtils.js";
 import { extractHostname } from "./markdown.js";
 
 export function normalizeImportStrategy(value) {
@@ -42,7 +42,7 @@ export function sanitizeImportedHighlight(raw) {
     note: sanitizeNullableString(raw.note),
     tags: sanitizeTags(raw.tags),
     hostname: sanitizeHostname(raw.hostname, url),
-    kind
+    kind,
   };
 
   if (kind === "highlight") {
@@ -63,7 +63,8 @@ export function sanitizeImportedHighlight(raw) {
     result.updatedAt = updatedAt;
   }
 
-  const logseqUuid = typeof raw.logseqBlockUuid === "string" ? raw.logseqBlockUuid.trim() : "";
+  const logseqUuid =
+    typeof raw.logseqBlockUuid === "string" ? raw.logseqBlockUuid.trim() : "";
   if (logseqUuid) {
     result.logseqBlockUuid = logseqUuid;
   }
@@ -110,7 +111,10 @@ export function buildHighlightSignature(record) {
   if (!record || typeof record !== "object") {
     return "";
   }
-  const url = typeof record.url === "string" && record.url ? record.url : record.sourceUrl;
+  const url =
+    typeof record.url === "string" && record.url
+      ? record.url
+      : record.sourceUrl;
   if (!url || !record.range) {
     return "";
   }
@@ -183,7 +187,9 @@ function sanitizeUrl(value) {
     }
     return url.toString();
   } catch (error) {
-    return trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : "";
+    return trimmed.startsWith("http://") || trimmed.startsWith("https://")
+      ? trimmed
+      : "";
   }
 }
 
@@ -238,11 +244,14 @@ function sanitizeRangeEdge(edge) {
   if (!edge || typeof edge !== "object") {
     return null;
   }
-  const path = Array.isArray(edge.path) ? edge.path.map(sanitizeRangeSegment).filter(Boolean) : [];
+  const path = Array.isArray(edge.path)
+    ? edge.path.map(sanitizeRangeSegment).filter(Boolean)
+    : [];
   if (!path.length) {
     return null;
   }
-  const offset = typeof edge.offset === "number" ? edge.offset : parseInt(edge.offset, 10);
+  const offset =
+    typeof edge.offset === "number" ? edge.offset : parseInt(edge.offset, 10);
   const normalizedOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
   return { path, offset: normalizedOffset };
 }
@@ -252,7 +261,10 @@ function sanitizeRangeSegment(segment) {
     return null;
   }
   const name = typeof segment.name === "string" ? segment.name.trim() : "";
-  const indexRaw = typeof segment.index === "number" ? segment.index : parseInt(segment.index, 10);
+  const indexRaw =
+    typeof segment.index === "number"
+      ? segment.index
+      : parseInt(segment.index, 10);
   if (!name) {
     return null;
   }
@@ -279,7 +291,11 @@ function getRecordTimestamp(record) {
   if (!record || typeof record !== "object") {
     return 0;
   }
-  const source = record.updatedAt || record.updated_at || record.createdAt || record.created_at;
+  const source =
+    record.updatedAt ||
+    record.updated_at ||
+    record.createdAt ||
+    record.created_at;
   if (!source || typeof source !== "string") {
     return 0;
   }

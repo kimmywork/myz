@@ -1,11 +1,11 @@
 import { defineComponent, ref, computed, onMounted } from "vue";
 import HighlightItem from "./components/HighlightItem.jsx";
 import {
-  RECORD_KINDS,
-  normalizeRecord,
   normalizeWhitespace,
-  recordToMarkdown
+  recordToMarkdown,
 } from "../shared/highlightUtils.js";
+
+import { RECORD_KINDS, normalizeRecord } from "../dashboard/utils/records.js";
 
 export default defineComponent({
   name: "PopupApp",
@@ -22,7 +22,11 @@ export default defineComponent({
       if (activeTabId.value == null) {
         return;
       }
-      chrome.tabs.sendMessage(activeTabId.value, { type }, () => void chrome.runtime.lastError);
+      chrome.tabs.sendMessage(
+        activeTabId.value,
+        { type },
+        () => void chrome.runtime.lastError,
+      );
     };
 
     const filteredHighlights = computed(() => {
@@ -46,11 +50,15 @@ export default defineComponent({
       try {
         loading.value = true;
         const [records, highlightState] = await Promise.all([
-          sendMessage("myz:getHighlightsForUrl", { url: canonicalPageUrl.value }),
-          getPageHighlightState(activeTabId.value)
+          sendMessage("myz:getHighlightsForUrl", {
+            url: canonicalPageUrl.value,
+          }),
+          getPageHighlightState(activeTabId.value),
         ]);
         const unreachableIds = new Set(
-          Array.isArray(highlightState?.unreachableIds) ? highlightState.unreachableIds : []
+          Array.isArray(highlightState?.unreachableIds)
+            ? highlightState.unreachableIds
+            : [],
         );
         highlights.value = Array.isArray(records)
           ? records.map((record) => {
@@ -58,7 +66,8 @@ export default defineComponent({
               return {
                 ...normalized,
                 unreachable:
-                  normalized.kind === RECORD_KINDS.HIGHLIGHT && unreachableIds.has(normalized.id)
+                  normalized.kind === RECORD_KINDS.HIGHLIGHT &&
+                  unreachableIds.has(normalized.id),
               };
             })
           : [];
@@ -112,7 +121,7 @@ export default defineComponent({
           if (!response?.ok) {
             console.warn("标注不存在", id);
           }
-        }
+        },
       );
     };
 
@@ -145,12 +154,15 @@ export default defineComponent({
           kind: RECORD_KINDS.CLIP,
           range: null,
           color: null,
-          style: null
+          style: null,
         });
         if (updated) {
-          const normalized = normalizeRecord({ ...updated, unreachable: false });
+          const normalized = normalizeRecord({
+            ...updated,
+            unreachable: false,
+          });
           highlights.value = highlights.value.map((item) =>
-            item.id === normalized.id ? normalized : item
+            item.id === normalized.id ? normalized : item,
           );
           notifyContentScript("myz:refreshHighlights");
         }
@@ -166,9 +178,17 @@ export default defineComponent({
           return;
         }
         if (format === "markdown") {
-          downloadFile(result.markdown, "text/markdown", `myz-export-${Date.now()}.md`);
+          downloadFile(
+            result.markdown,
+            "text/markdown",
+            `myz-export-${Date.now()}.md`,
+          );
         } else {
-          downloadFile(result.json, "application/json", `myz-export-${Date.now()}.json`);
+          downloadFile(
+            result.json,
+            "application/json",
+            `myz-export-${Date.now()}.json`,
+          );
         }
       } catch (err) {
         console.error("导出失败", err);
@@ -233,7 +253,11 @@ export default defineComponent({
             <p class="empty-state">加载失败：{error.value}</p>
           ) : filteredHighlights.value.length ? (
             filteredHighlights.value.map((record) => (
-              <HighlightItem key={record.id} record={record} onAction={handleItemAction} />
+              <HighlightItem
+                key={record.id}
+                record={record}
+                onAction={handleItemAction}
+              />
             ))
           ) : (
             <p class="empty-state">当前页面还没有标注或保存的文字。</p>
@@ -241,7 +265,7 @@ export default defineComponent({
         </main>
       </div>
     );
-  }
+  },
 });
 
 function getActiveTab() {
@@ -277,13 +301,17 @@ function getPageHighlightState(tabId) {
     return Promise.resolve(null);
   }
   return new Promise((resolve) => {
-    chrome.tabs.sendMessage(tabId, { type: "myz:getHighlightState" }, (response) => {
-      if (chrome.runtime.lastError || !response) {
-        resolve(null);
-        return;
-      }
-      resolve(response.ok ? response.data || null : null);
-    });
+    chrome.tabs.sendMessage(
+      tabId,
+      { type: "myz:getHighlightState" },
+      (response) => {
+        if (chrome.runtime.lastError || !response) {
+          resolve(null);
+          return;
+        }
+        resolve(response.ok ? response.data || null : null);
+      },
+    );
   });
 }
 

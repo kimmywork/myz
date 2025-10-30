@@ -3,8 +3,9 @@ import {
   DEFAULT_STATE,
   SETTINGS_KEY,
   STORAGE_KEY,
-  normalizeHighlightStyle
 } from "./constants.js";
+
+import { normalizeHighlightStyle } from "../shared/highlightUtils.js";
 
 export async function readState() {
   const { [STORAGE_KEY]: stored } = await chrome.storage.local.get(STORAGE_KEY);
@@ -13,11 +14,13 @@ export async function readState() {
   }
   const safeState = {
     highlights: stored.highlights || {},
-    order: Array.isArray(stored.order) ? stored.order : []
+    order: Array.isArray(stored.order) ? stored.order : [],
   };
   const missing = safeState.order.filter((id) => !safeState.highlights[id]);
   if (missing.length) {
-    safeState.order = safeState.order.filter((id) => !!safeState.highlights[id]);
+    safeState.order = safeState.order.filter(
+      (id) => !!safeState.highlights[id],
+    );
   }
   return safeState;
 }
@@ -27,7 +30,8 @@ export async function writeState(state) {
 }
 
 export async function readSettings() {
-  const { [SETTINGS_KEY]: stored } = await chrome.storage.local.get(SETTINGS_KEY);
+  const { [SETTINGS_KEY]: stored } =
+    await chrome.storage.local.get(SETTINGS_KEY);
   if (!stored) {
     return { ...DEFAULT_SETTINGS };
   }

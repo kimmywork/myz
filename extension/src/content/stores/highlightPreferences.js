@@ -1,57 +1,17 @@
 import { ref } from "vue";
 import { sendMessage } from "../../dashboard/utils/messaging.js";
 
-export const DEFAULT_COLORS = ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"];
-export const HIGHLIGHT_STYLES = {
-  PAINT: "paint",
-  UNDERLINE: "underline",
-  WAVY: "wavy"
-};
-export const DEFAULT_HIGHLIGHT_STYLE = HIGHLIGHT_STYLES.PAINT;
-export const HIGHLIGHT_STYLE_OPTIONS = {
-  [HIGHLIGHT_STYLES.PAINT]: { icon: "🖍️", label: "高亮" },
-  [HIGHLIGHT_STYLES.UNDERLINE]: { icon: "✏️", label: "下划线" },
-  [HIGHLIGHT_STYLES.WAVY]: { icon: "〰️", label: "波浪线" }
-};
-
-
-export function normalizeHighlightStyle(style) {
-  if (!style) {
-    return DEFAULT_HIGHLIGHT_STYLE;
-  }
-  const value = String(style).toLowerCase();
-  if (value === HIGHLIGHT_STYLES.UNDERLINE) {
-    return HIGHLIGHT_STYLES.UNDERLINE;
-  }
-  if (value === HIGHLIGHT_STYLES.WAVY) {
-    return HIGHLIGHT_STYLES.WAVY;
-  }
-  return DEFAULT_HIGHLIGHT_STYLE;
-}
+import {
+  DEFAULT_COLORS,
+  DEFAULT_HIGHLIGHT_STYLE,
+} from "../../shared/highlightUtils.js";
+import {
+  normalizeHighlightStyle,
+  normalizeColor,
+  normalizePalette,
+} from "../../shared/highlightUtils.js";
 
 let storeInstance = null;
-
-function normalizeColor(value, fallback) {
-  if (typeof value !== "string") {
-    return fallback || null;
-  }
-  const trimmed = value.trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
-    return trimmed.toLowerCase();
-  }
-  return fallback || null;
-}
-
-function normalizePalette(defaults, incoming) {
-  const base = Array.isArray(incoming) && incoming.length ? [...incoming] : [...defaults];
-  const filled = [];
-  for (let index = 0; index < 5; index += 1) {
-    const fallback = defaults[index] ?? defaults[0] ?? "#fde68a";
-    const candidate = base[index] ?? fallback;
-    filled.push(normalizeColor(candidate, fallback));
-  }
-  return filled;
-}
 
 function filterUndefined(patch) {
   const payload = {};
@@ -77,11 +37,15 @@ async function persistSettings(patch) {
 }
 
 function createStore(options) {
-  const normalizedDefaults = normalizePalette(DEFAULT_COLORS, DEFAULT_COLORS).map((color) =>
-    normalizeColor(color, "#fde68a")
-  );
+  const normalizedDefaults = normalizePalette(
+    DEFAULT_COLORS,
+    DEFAULT_COLORS,
+  ).map((color) => normalizeColor(color, "#fde68a"));
   const defaultColors = Object.freeze([...normalizedDefaults]);
-  const defaultStyle = typeof DEFAULT_HIGHLIGHT_STYLE === "string" ? DEFAULT_HIGHLIGHT_STYLE : "paint";
+  const defaultStyle =
+    typeof DEFAULT_HIGHLIGHT_STYLE === "string"
+      ? DEFAULT_HIGHLIGHT_STYLE
+      : "paint";
   const normalizeStyle = (style) => normalizeHighlightStyle(style);
 
   const palette = ref(normalizePalette(defaultColors, defaultColors));
@@ -106,7 +70,11 @@ function createStore(options) {
   }
 
   function updatePaletteEntry(index, value, { persist = false } = {}) {
-    if (typeof index !== "number" || index < 0 || index >= palette.value.length) {
+    if (
+      typeof index !== "number" ||
+      index < 0 ||
+      index >= palette.value.length
+    ) {
       return false;
     }
     const normalized = normalizeColor(value, palette.value[index]);
@@ -116,14 +84,17 @@ function createStore(options) {
     if (persist) {
       persistSettings({
         colorPalette: [...palette.value],
-        lastUsedColor: lastUsedColor.value
+        lastUsedColor: lastUsedColor.value,
       });
     }
     return true;
   }
 
   function applySettings(settings = {}) {
-    const normalizedPalette = normalizePalette(defaultColors, settings.colorPalette);
+    const normalizedPalette = normalizePalette(
+      defaultColors,
+      settings.colorPalette,
+    );
     palette.value = normalizedPalette;
     const color = normalizeColor(settings.lastUsedColor, normalizedPalette[0]);
     const style = normalizeStyle(settings.lastUsedStyle);
@@ -136,7 +107,7 @@ function createStore(options) {
     applySettings({
       colorPalette: [...defaultColors],
       lastUsedColor: defaultColors[0],
-      lastUsedStyle: defaultStyle
+      lastUsedStyle: defaultStyle,
     });
   }
 
@@ -152,7 +123,7 @@ function createStore(options) {
     persistColor,
     persistStyle,
     updatePaletteEntry,
-    getPaletteSnapshot: () => [...palette.value]
+    getPaletteSnapshot: () => [...palette.value],
   };
 }
 

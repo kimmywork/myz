@@ -12,7 +12,7 @@ const DEFAULT_STATE = {
   styleIcon: "",
   styleLabel: "",
   color: "",
-  kind: "highlight"
+  kind: "highlight",
 };
 
 export default defineComponent({
@@ -20,36 +20,36 @@ export default defineComponent({
   props: {
     highlightStyleOptions: {
       type: Object,
-      required: true
+      required: true,
     },
     getRecordKind: {
       type: Function,
-      required: true
+      required: true,
     },
     normalizeHighlightStyle: {
       type: Function,
-      required: true
+      required: true,
     },
     resolveHighlightColor: {
       type: Function,
-      required: true
+      required: true,
     },
     onClose: {
       type: Function,
-      default: null
+      default: null,
     },
     onCopy: {
       type: Function,
-      default: null
+      default: null,
     },
     onEdit: {
       type: Function,
-      default: null
+      default: null,
     },
     onDelete: {
       type: Function,
-      default: null
-    }
+      default: null,
+    },
   },
   emits: ["shown", "hidden"],
   setup(props, { emit, expose }) {
@@ -63,24 +63,41 @@ export default defineComponent({
         : [];
       return parts.join(" · ");
     });
-    const tags = computed(() => (Array.isArray(record.value.tags) ? record.value.tags : []));
+    const tags = computed(() =>
+      Array.isArray(record.value.tags) ? record.value.tags : [],
+    );
     const hasTags = computed(() => tags.value.length > 0);
     const noteText = computed(() => {
-      const value = typeof record.value.note === "string" ? record.value.note.trim() : "";
+      const value =
+        typeof record.value.note === "string" ? record.value.note.trim() : "";
       return value || "无批注";
     });
     const kind = computed(() => record.value.kind || "highlight");
     const isHighlight = computed(() => kind.value === "highlight");
-    const styleIcon = computed(() => (isHighlight.value ? record.value.styleIcon || "" : ""));
-    const styleLabel = computed(() => (isHighlight.value ? record.value.styleLabel || "" : ""));
-    const styleValue = computed(() => (isHighlight.value ? record.value.style || "" : ""));
-    const color = computed(() => (isHighlight.value ? record.value.color || "" : ""));
-    const quoteHtml = computed(() => (typeof record.value.html === "string" ? record.value.html : ""));
-    const quoteText = computed(() => (typeof record.value.text === "string" ? record.value.text : ""));
+    const styleIcon = computed(() =>
+      isHighlight.value ? record.value.styleIcon || "" : "",
+    );
+    const styleLabel = computed(() =>
+      isHighlight.value ? record.value.styleLabel || "" : "",
+    );
+    const styleValue = computed(() =>
+      isHighlight.value ? record.value.style || "" : "",
+    );
+    const color = computed(() =>
+      isHighlight.value ? record.value.color || "" : "",
+    );
+    const quoteHtml = computed(() =>
+      typeof record.value.html === "string" ? record.value.html : "",
+    );
+    const quoteText = computed(() =>
+      typeof record.value.text === "string" ? record.value.text : "",
+    );
 
     function showRecord(rawRecord = {}) {
       const computedKind = props.getRecordKind(rawRecord) || "highlight";
-      const createdAt = rawRecord.createdAt ? new Date(rawRecord.createdAt) : null;
+      const createdAt = rawRecord.createdAt
+        ? new Date(rawRecord.createdAt)
+        : null;
       const metaParts = [];
       if (createdAt && !Number.isNaN(createdAt.getTime())) {
         metaParts.push(createdAt.toLocaleString());
@@ -113,7 +130,9 @@ export default defineComponent({
         id: rawRecord.id ?? null,
         title: rawRecord.title || rawRecord.hostname || DEFAULT_STATE.title,
         metaParts,
-        tags: Array.isArray(rawRecord.tags) ? rawRecord.tags.filter(Boolean) : [],
+        tags: Array.isArray(rawRecord.tags)
+          ? rawRecord.tags.filter(Boolean)
+          : [],
         html: rawRecord.html || "",
         text: rawRecord.text || "",
         note: typeof rawRecord.note === "string" ? rawRecord.note : "",
@@ -121,7 +140,7 @@ export default defineComponent({
         styleIcon: styleIconValue,
         styleLabel: styleLabelValue,
         color: resolvedColor,
-        kind: computedKind
+        kind: computedKind,
       };
       visible.value = true;
       emit("shown", record.value.id);
@@ -170,14 +189,18 @@ export default defineComponent({
       showRecord,
       hide,
       isVisible,
-      getCurrentId
+      getCurrentId,
     });
 
     return () => (
       <aside class={["myz-inspector", visible.value ? "" : "myz-hidden"]}>
         <div class="myz-inspector__header">
           <div class="myz-inspector__title">{title.value}</div>
-          <button type="button" class="myz-inspector__close" onClick={handleClose}>
+          <button
+            type="button"
+            class="myz-inspector__close"
+            onClick={handleClose}
+          >
             ×
           </button>
         </div>
@@ -185,7 +208,10 @@ export default defineComponent({
         <div class="myz-inspector__body">
           <div class="myz-inspector__info">
             <span
-              class={["myz-inspector__style", isHighlight.value ? "" : "myz-hidden"]}
+              class={[
+                "myz-inspector__style",
+                isHighlight.value ? "" : "myz-hidden",
+              ]}
               data-style={isHighlight.value ? styleValue.value : null}
               style={
                 isHighlight.value && color.value
@@ -203,7 +229,9 @@ export default defineComponent({
             <div class="myz-inspector__meta">{metaText.value}</div>
           </div>
 
-          <div class={["myz-inspector__tags", hasTags.value ? "" : "myz-hidden"]}>
+          <div
+            class={["myz-inspector__tags", hasTags.value ? "" : "myz-hidden"]}
+          >
             {tags.value.map((tag) => (
               <span class="myz-tag" key={tag}>
                 {tag}
@@ -212,9 +240,14 @@ export default defineComponent({
           </div>
 
           {quoteHtml.value ? (
-            <blockquote class="myz-inspector__quote" innerHTML={quoteHtml.value} />
+            <blockquote
+              class="myz-inspector__quote"
+              innerHTML={quoteHtml.value}
+            />
           ) : (
-            <blockquote class="myz-inspector__quote">{quoteText.value}</blockquote>
+            <blockquote class="myz-inspector__quote">
+              {quoteText.value}
+            </blockquote>
           )}
 
           <div class="myz-inspector__note">{noteText.value}</div>
@@ -233,5 +266,5 @@ export default defineComponent({
         </div>
       </aside>
     );
-  }
+  },
 });

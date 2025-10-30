@@ -7,8 +7,8 @@ export default defineComponent({
   props: {
     active: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
   setup(props) {
     const store = useDashboardStore();
@@ -16,10 +16,9 @@ export default defineComponent({
     return () => (
       <section
         id="highlights-view"
-        class={[
-          "main__section",
-          props.active ? "is-active" : "is-hidden"
-        ].join(" ")}
+        class={["main__section", props.active ? "is-active" : "is-hidden"].join(
+          " ",
+        )}
         aria-labelledby="highlights-title"
       >
         <header class="main__header">
@@ -30,14 +29,19 @@ export default defineComponent({
           <div class="view-toggle" role="group" aria-label="视图切换">
             <button
               type="button"
-              class={"btn-toggle" + (store.view.value === "cards" ? " is-active" : "")}
+              class={
+                "btn-toggle" +
+                (store.view.value === "cards" ? " is-active" : "")
+              }
               onClick={() => store.setView("cards")}
             >
               卡片
             </button>
             <button
               type="button"
-              class={"btn-toggle" + (store.view.value === "list" ? " is-active" : "")}
+              class={
+                "btn-toggle" + (store.view.value === "list" ? " is-active" : "")
+              }
               onClick={() => store.setView("list")}
             >
               列表
@@ -47,5 +51,5 @@ export default defineComponent({
         <HighlightGroups />
       </section>
     );
-  }
+  },
 });

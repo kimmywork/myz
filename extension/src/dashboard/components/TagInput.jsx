@@ -1,4 +1,12 @@
-import { computed, defineComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 
 import "./TagInput.css";
 
@@ -7,24 +15,24 @@ export default defineComponent({
   props: {
     modelValue: {
       type: Array,
-      default: () => []
+      default: () => [],
     },
     options: {
       type: Array,
-      default: () => []
+      default: () => [],
     },
     placeholder: {
       type: String,
-      default: ""
+      default: "",
     },
     allowNew: {
       type: Boolean,
-      default: true
+      default: true,
     },
     disabled: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
   emits: ["update:modelValue", "focus"],
   setup(props, { emit }) {
@@ -56,7 +64,12 @@ export default defineComponent({
     const filteredOptions = computed(() => {
       const term = inputValue.value.trim().toLowerCase();
       return normalizedOptions.value
-        .filter((option) => !internalValue.value.some((tag) => tag.toLowerCase() === option.toLowerCase()))
+        .filter(
+          (option) =>
+            !internalValue.value.some(
+              (tag) => tag.toLowerCase() === option.toLowerCase(),
+            ),
+        )
         .filter((option) => (term ? option.toLowerCase().includes(term) : true))
         .slice(0, 50);
     });
@@ -64,10 +77,14 @@ export default defineComponent({
     watch(
       () => props.modelValue,
       (next) => {
-        const sanitized = Array.isArray(next) ? next.filter((tag) => typeof tag === "string" && tag.trim()).map((tag) => tag.trim()) : [];
+        const sanitized = Array.isArray(next)
+          ? next
+              .filter((tag) => typeof tag === "string" && tag.trim())
+              .map((tag) => tag.trim())
+          : [];
         internalValue.value = [...new Set(sanitized.map((tag) => tag.trim()))];
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     watch(filteredOptions, (options) => {
@@ -86,10 +103,19 @@ export default defineComponent({
       if (!tag) {
         return false;
       }
-      if (!props.allowNew && !normalizedOptions.value.some((option) => option.toLowerCase() === tag.toLowerCase())) {
+      if (
+        !props.allowNew &&
+        !normalizedOptions.value.some(
+          (option) => option.toLowerCase() === tag.toLowerCase(),
+        )
+      ) {
         return false;
       }
-      if (internalValue.value.some((current) => current.toLowerCase() === tag.toLowerCase())) {
+      if (
+        internalValue.value.some(
+          (current) => current.toLowerCase() === tag.toLowerCase(),
+        )
+      ) {
         return false;
       }
       internalValue.value = [...internalValue.value, tag];
@@ -99,7 +125,9 @@ export default defineComponent({
 
     function removeTag(tag) {
       const lower = tag.toLowerCase();
-      const next = internalValue.value.filter((item) => item.toLowerCase() !== lower);
+      const next = internalValue.value.filter(
+        (item) => item.toLowerCase() !== lower,
+      );
       if (next.length === internalValue.value.length) {
         return;
       }
@@ -122,7 +150,8 @@ export default defineComponent({
     }
 
     function commitInput() {
-      const hasOptions = dropdownOpen.value && filteredOptions.value[activeIndex.value];
+      const hasOptions =
+        dropdownOpen.value && filteredOptions.value[activeIndex.value];
       if (hasOptions) {
         const added = addTag(filteredOptions.value[activeIndex.value]);
         if (added) {
@@ -162,7 +191,11 @@ export default defineComponent({
         commitInput();
         return;
       }
-      if (event.key === "Backspace" && !inputValue.value && internalValue.value.length) {
+      if (
+        event.key === "Backspace" &&
+        !inputValue.value &&
+        internalValue.value.length
+      ) {
         event.preventDefault();
         removeTag(internalValue.value[internalValue.value.length - 1]);
         return;
@@ -173,13 +206,19 @@ export default defineComponent({
           openDropdown();
           return;
         }
-        activeIndex.value = activeIndex.value + 1 >= filteredOptions.value.length ? 0 : activeIndex.value + 1;
+        activeIndex.value =
+          activeIndex.value + 1 >= filteredOptions.value.length
+            ? 0
+            : activeIndex.value + 1;
         scrollOptionIntoView();
         return;
       }
       if (event.key === "ArrowUp" && dropdownOpen.value) {
         event.preventDefault();
-        activeIndex.value = activeIndex.value - 1 < 0 ? filteredOptions.value.length - 1 : activeIndex.value - 1;
+        activeIndex.value =
+          activeIndex.value - 1 < 0
+            ? filteredOptions.value.length - 1
+            : activeIndex.value - 1;
         scrollOptionIntoView();
         return;
       }
@@ -208,7 +247,10 @@ export default defineComponent({
       }
       // Delay to allow option click
       setTimeout(() => {
-        if (containerRef.value && containerRef.value.contains(document.activeElement)) {
+        if (
+          containerRef.value &&
+          containerRef.value.contains(document.activeElement)
+        ) {
           return;
         }
         isFocused.value = false;
@@ -284,12 +326,21 @@ export default defineComponent({
         classes.push("is-disabled");
       }
       return (
-        <div ref={containerRef} class={classes.join(" ")} onMousedown={handleContainerMouseDown}>
+        <div
+          ref={containerRef}
+          class={classes.join(" ")}
+          onMousedown={handleContainerMouseDown}
+        >
           {internalValue.value.map((tag) => (
             <span class="tag-input__chip" key={tag}>
               <span>{tag}</span>
               {!props.disabled && (
-                <button type="button" class="tag-input__remove" onClick={() => removeTag(tag)} aria-label={`移除标签 ${tag}`}>
+                <button
+                  type="button"
+                  class="tag-input__remove"
+                  onClick={() => removeTag(tag)}
+                  aria-label={`移除标签 ${tag}`}
+                >
                   ×
                 </button>
               )}
@@ -317,11 +368,13 @@ export default defineComponent({
                   key={option}
                   class={[
                     "tag-input__option",
-                    activeIndex.value === index ? "is-active" : ""
+                    activeIndex.value === index ? "is-active" : "",
                   ]}
                   role="option"
                   aria-selected={activeIndex.value === index ? "true" : "false"}
-                  onMousedown={(event) => handleOptionMouseDown(event, option, index)}
+                  onMousedown={(event) =>
+                    handleOptionMouseDown(event, option, index)
+                  }
                 >
                   {option}
                 </div>
@@ -331,5 +384,5 @@ export default defineComponent({
         </div>
       );
     };
-  }
+  },
 });

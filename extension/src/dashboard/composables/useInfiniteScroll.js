@@ -13,8 +13,8 @@ export function useInfiniteScroll(containerSelector, onIntersect) {
       },
       {
         root: root || null,
-        rootMargin: "0px 0px 200px 0px"
-      }
+        rootMargin: "0px 0px 200px 0px",
+      },
     );
   }
 
@@ -22,7 +22,9 @@ export function useInfiniteScroll(containerSelector, onIntersect) {
     if (!observer) {
       setupObserver();
     }
-    const sentinel = document.querySelector(".scroll-sentinel[data-role='sentinel']");
+    const sentinel = document.querySelector(
+      ".scroll-sentinel[data-role='sentinel']",
+    );
     if (observer && sentinel) {
       observer.observe(sentinel);
     }

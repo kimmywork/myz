@@ -18,11 +18,37 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 - 🗂️ **侧边详情面板**：点击任意高亮即可在页面右侧打开固定位置的详情面板，支持复制 Markdown、编辑、删除。
 - 🔄 **LogSeq 增量同步**：通过官方 HTTP API 在目标页面插入或恢复缺失块，自动追踪 `logseqBlockUuid`，仅同步新增或丢失的标注，并在写入前将 HTML 转换为 Markdown（含 `<pre>` 代码块）。
 
-## 快速开始
+## 快速开始（开发者）
 
-1. 打开 `chrome://extensions/` 并启用「开发者模式」。
-2. 点击「加载已解压的扩展程序」，选择本仓库内的 `extension` 目录。
-3. 安装后，点击工具栏图标即可在当前页采集内容或打开管理中心。
+项目的前端 UI 已从原有的常规 JS/React 架构迁移为 Vue 3 + JSX（使用 Vue 的 Composition API 与 JSX 语法），并且使用 `@crxjs/vite-plugin` 在 Vite 中构建符合 MV3 的扩展包。核心业务逻辑（background/content/shared helpers）保留在 `extension/src` 下。
+
+基本开发步骤：
+
+1. 安装依赖：
+
+   ```bash
+   npm install
+   ```
+
+2. 本地开发：
+
+   - 运行开发服务器（启动 Vite）
+
+     ```bash
+     npm run dev
+     ```
+
+     这会启动 Vite（含 Vue + JSX 支持）。注意：Service Worker（background）不能像普通页面那样实现完整的 HMR；当修改背景脚本或 content script 时，仍需在 `chrome://extensions/` 中手动重新加载扩展或重启 Service Worker。
+
+3. 生成发布构建：
+
+   ```bash
+   npm run build
+   ```
+
+   构建输出位于 `dist/`（或由 `vite`/`@crxjs/vite-plugin` 指定的输出目录），将该目录作为已解压扩展加载到 Chrome（或压缩上传到 Chrome Web Store）。
+
+4. 在 `chrome://extensions/` 中启用「开发者模式」，点击「加载已解压的扩展程序」，选择构建输出目录（`dist/` 或相应产物）。
 
 ### 常用操作
 
@@ -96,11 +122,15 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
    - 确认 Popup、Dashboard、LogSeq 同步在无 Token / 有 Token 场景下均可使用。
    - 检查 `manifest_version`, `service_worker` 中未使用 DOM API（已全部替换）。
 
-## 本地开发提示
+## 架构与本地开发提示
 
-- 修改内容脚本后需在 `chrome://extensions/` 中点击「重新加载」。
-- 若更新后台逻辑，可在开发者工具 → Service Workers 面板查看日志。
-- `knowledges/logseq-http-api.md` 内记录了所有调用细节，可作为开发补充文档。
+- UI（Popup / Dashboard / 小组件）：使用 Vue 3 + JSX，组件位于 `extension/src/popup/` 与 `extension/src/dashboard/` 下。组件通常以 `.jsx` / `.tsx` 或 `.vue`（视情况）存在并使用 Composition API + composables。
+- 共享逻辑和工具函数放在 `extension/src/shared/` 与 `extension/src/common/`。Content script 仍在 `extension/src/content/`，背景脚本在 `extension/src/background/`。
+- 使用 `readState` / `writeState` 等 storage helpers 操作 `chrome.storage.local`（state namespace 仍为 `myz::highlights` 与 `myz::settings`）。
+- 背景脚本运行在 MV3 Service Worker 环境：避免使用 DOM API（例如 `document`、`window` 的 DOM 操作），并确保异步 API 的错误被妥善捕获与记录。
+- 当修改背景脚本或 content script 时，手动在 `chrome://extensions/` 中重新加载扩展或点击 Service Worker 的 "更新"。UI 更改（Popup/Dashboard）在开发模式下可通过 Vite 的 HMR 快速查看。
+
+更多实现细节请参考仓库内的 `knowledges/` 文档（例如 `knowledges/logseq-http-api.md`）。
 
 ## 支持
 

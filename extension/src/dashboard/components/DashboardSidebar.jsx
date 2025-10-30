@@ -83,9 +83,15 @@ export default defineComponent({
                   ref={fromRef}
                   type="date"
                   value={store.filters.from}
-                  onInput={(event) => store.setFilter("from", event.target.value)}
+                  onInput={(event) =>
+                    store.setFilter("from", event.target.value)
+                  }
                 />
-                <button type="button" class="btn-icon" onClick={() => handlePickerClick(fromRef)}>
+                <button
+                  type="button"
+                  class="btn-icon"
+                  onClick={() => handlePickerClick(fromRef)}
+                >
                   📅
                 </button>
               </div>
@@ -99,27 +105,49 @@ export default defineComponent({
                   value={store.filters.to}
                   onInput={(event) => store.setFilter("to", event.target.value)}
                 />
-                <button type="button" class="btn-icon" onClick={() => handlePickerClick(toRef)}>
+                <button
+                  type="button"
+                  class="btn-icon"
+                  onClick={() => handlePickerClick(toRef)}
+                >
                   📅
                 </button>
               </div>
             </label>
           </div>
-          <button class="btn btn-secondary" type="button" onClick={store.resetFilters}>
+          <button
+            class="btn btn-secondary"
+            type="button"
+            onClick={store.resetFilters}
+          >
             重置筛选
           </button>
         </section>
 
         <section class="sidebar__section">
           <h2>导出</h2>
-          <button class="btn" type="button" onClick={() => store.handleExport("markdown")}>
+          <button
+            class="btn"
+            type="button"
+            onClick={() => store.handleExport("markdown")}
+          >
             导出 Markdown
           </button>
-          <button class="btn" type="button" onClick={() => store.handleExport("json")}>
+          <button
+            class="btn"
+            type="button"
+            onClick={() => store.handleExport("json")}
+          >
             导出 JSON
           </button>
           <button
-            class={["btn", "btn-primary", store.settings.logseqSyncEnabled ? "" : "is-hidden"].filter(Boolean).join(" ")}
+            class={[
+              "btn",
+              "btn-primary",
+              store.settings.logseqSyncEnabled ? "" : "is-hidden",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             type="button"
             disabled={store.isSyncInFlight.value}
             onClick={() => store.syncLogseq({})}
@@ -130,5 +158,5 @@ export default defineComponent({
         </section>
       </aside>
     );
-  }
+  },
 });

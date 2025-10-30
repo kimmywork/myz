@@ -1,6 +1,7 @@
 ---
 agent: Copilot
 model: GPT-5-Codex
+date: 2025-10-28
 ---
 
 请在 MyZ Annotator 工具栏添加一个新的按钮，图标为 “📝”。其行为是仅保存选中的内容到 MyZ，不在页面上高亮显示。

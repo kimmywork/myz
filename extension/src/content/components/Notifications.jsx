@@ -14,7 +14,7 @@ function buildToastStyle(visible) {
     opacity: visible ? "1" : "0",
     transform: visible ? "translateY(0)" : "translateY(-6px)",
     transition: "opacity 0.25s ease, transform 0.25s ease",
-    pointerEvents: "auto"
+    pointerEvents: "auto",
   };
 }
 
@@ -55,7 +55,7 @@ export default defineComponent({
         message,
         visible: false,
         hideTimer: null,
-        removeTimer: null
+        removeTimer: null,
       });
       notifications.value.push(entry);
       requestAnimationFrame(() => {
@@ -93,16 +93,20 @@ export default defineComponent({
             flexDirection: "column",
             gap: "10px",
             alignItems: "flex-end",
-            pointerEvents: "none"
+            pointerEvents: "none",
           }}
         >
           {notifications.value.map((toast) => (
-            <div key={toast.id} class="myz-toast" style={buildToastStyle(toast.visible)}>
+            <div
+              key={toast.id}
+              class="myz-toast"
+              style={buildToastStyle(toast.visible)}
+            >
               {toast.message}
             </div>
           ))}
         </div>
       );
     };
-  }
+  },
 });

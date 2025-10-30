@@ -5,16 +5,16 @@ export default defineComponent({
   props: {
     onAnnotate: {
       type: Function,
-      default: null
+      default: null,
     },
     onClip: {
       type: Function,
-      default: null
+      default: null,
     },
     onCapture: {
       type: Function,
-      default: null
-    }
+      default: null,
+    },
   },
   setup(props) {
     const handleAnnotate = (event) => {
@@ -45,5 +45,5 @@ export default defineComponent({
         </button>
       </div>
     );
-  }
+  },
 });

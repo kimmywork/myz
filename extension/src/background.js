@@ -4,8 +4,10 @@ import {
   DEFAULT_LOGSEQ_PAGE,
   SETTINGS_KEY,
   STORAGE_KEY,
-  normalizeHighlightStyle
 } from "./background/constants.js";
+
+import { normalizeHighlightStyle } from "./shared/highlightUtils.js";
+
 import {
   generateId,
   generateUniqueImportId,
@@ -14,7 +16,7 @@ import {
   readState,
   sortedHighlights,
   writeSettings,
-  writeState
+  writeState,
 } from "./background/storage.js";
 import { buildActionTitle, normalizeBadgeCounts } from "./background/badge.js";
 import { buildMarkdownExport } from "./background/markdown.js";
@@ -24,7 +26,7 @@ import {
   resolveImportConflict,
   applyTimestampFallback,
   buildHighlightSignature,
-  dedupeOrder
+  dedupeOrder,
 } from "./background/import.js";
 import {
   buildLogseqEndpointList,
@@ -35,15 +37,17 @@ import {
   buildHighlightBlock,
   extractInsertedBlockEntities,
   matchInsertedHighlights,
-  extractEntityUuid
+  extractEntityUuid,
 } from "./background/logseq.js";
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const { [STORAGE_KEY]: existingHighlights } = await chrome.storage.local.get(STORAGE_KEY);
+  const { [STORAGE_KEY]: existingHighlights } =
+    await chrome.storage.local.get(STORAGE_KEY);
   if (!existingHighlights) {
     await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_STATE });
   }
-  const { [SETTINGS_KEY]: existingSettings } = await chrome.storage.local.get(SETTINGS_KEY);
+  const { [SETTINGS_KEY]: existingSettings } =
+    await chrome.storage.local.get(SETTINGS_KEY);
   if (!existingSettings) {
     await chrome.storage.local.set({ [SETTINGS_KEY]: DEFAULT_SETTINGS });
   }
@@ -93,7 +97,7 @@ const messageHandlers = {
       id,
       kind,
       createdAt: payload.createdAt || now,
-      updatedAt: now
+      updatedAt: now,
     };
 
     if (kind === "clip") {
@@ -110,7 +114,10 @@ const messageHandlers = {
     state.highlights[id] = record;
     await writeState(state);
     if (kind === "highlight") {
-      await persistHighlightPreferences({ color: record.color, style: record.style });
+      await persistHighlightPreferences({
+        color: record.color,
+        style: record.style,
+      });
     }
     return record;
   },
@@ -129,11 +136,16 @@ const messageHandlers = {
       payload.kind === "clip"
         ? "clip"
         : payload.kind === "highlight"
-        ? "highlight"
-        : existing.kind === "clip"
-        ? "clip"
-        : "highlight";
-    const updated = { ...existing, ...payload, kind: requestedKind, updatedAt: now };
+          ? "highlight"
+          : existing.kind === "clip"
+            ? "clip"
+            : "highlight";
+    const updated = {
+      ...existing,
+      ...payload,
+      kind: requestedKind,
+      updatedAt: now,
+    };
     if (updated.kind === "clip") {
       updated.range = null;
       updated.color = null;
@@ -144,7 +156,10 @@ const messageHandlers = {
     state.highlights[payload.id] = updated;
     await writeState(state);
     if (updated.kind === "highlight") {
-      await persistHighlightPreferences({ color: updated.color, style: updated.style });
+      await persistHighlightPreferences({
+        color: updated.color,
+        style: updated.style,
+      });
     }
     return updated;
   },
@@ -194,12 +209,13 @@ const messageHandlers = {
     const highlights = sortedHighlights(state);
     return {
       json: JSON.stringify(highlights, null, 2),
-      markdown: buildMarkdownExport(highlights)
+      markdown: buildMarkdownExport(highlights),
     };
   },
 
   async "myz:updateBadge"(payload, sender) {
-    const tabId = typeof payload?.tabId === "number" ? payload.tabId : sender?.tab?.id;
+    const tabId =
+      typeof payload?.tabId === "number" ? payload.tabId : sender?.tab?.id;
     if (typeof tabId !== "number" || Number.isNaN(tabId)) {
       return { success: false };
     }
@@ -207,9 +223,15 @@ const messageHandlers = {
     const text = total > 0 ? (total > 99 ? "99+" : String(total)) : "";
     await chrome.action.setBadgeText({ tabId, text });
     if (text) {
-      await chrome.action.setBadgeBackgroundColor({ tabId, color: [37, 99, 235, 255] });
+      await chrome.action.setBadgeBackgroundColor({
+        tabId,
+        color: [37, 99, 235, 255],
+      });
       if (typeof chrome.action.setBadgeTextColor === "function") {
-        await chrome.action.setBadgeTextColor({ tabId, color: [255, 255, 255, 255] });
+        await chrome.action.setBadgeTextColor({
+          tabId,
+          color: [255, 255, 255, 255],
+        });
       }
     }
     const title = buildActionTitle({ total, highlightCount, savedCount });
@@ -251,10 +273,15 @@ const messageHandlers = {
         return;
       }
 
-      let identifier = typeof sanitized.id === "string" ? sanitized.id.trim() : "";
+      let identifier =
+        typeof sanitized.id === "string" ? sanitized.id.trim() : "";
 
       // Handle conflicts with existing highlights first.
-      if (identifier && existingHighlights[identifier] && !replacements.has(identifier)) {
+      if (
+        identifier &&
+        existingHighlights[identifier] &&
+        !replacements.has(identifier)
+      ) {
         const existingRecord = existingHighlights[identifier];
         if (!resolveImportConflict(strategy, existingRecord, sanitized)) {
           skipped += 1;
@@ -271,8 +298,12 @@ const messageHandlers = {
       }
 
       // Conflicts with already staged replacements or additions (duplicate IDs within payload).
-      if (identifier && (replacements.has(identifier) || additions.has(identifier))) {
-        const staged = replacements.get(identifier) || additions.get(identifier);
+      if (
+        identifier &&
+        (replacements.has(identifier) || additions.has(identifier))
+      ) {
+        const staged =
+          replacements.get(identifier) || additions.get(identifier);
         if (!resolveImportConflict(strategy, staged, sanitized)) {
           skipped += 1;
           return;
@@ -333,7 +364,7 @@ const messageHandlers = {
     return {
       inserted: additions.size,
       replaced: replacements.size,
-      skipped
+      skipped,
     };
   },
 
@@ -360,10 +391,15 @@ const messageHandlers = {
     const state = await readState();
     const highlights = sortedHighlights(state);
     const pageName = normalizeLogseqPageName(
-      payload?.page || settings.logseqPage || DEFAULT_LOGSEQ_PAGE
+      payload?.page || settings.logseqPage || DEFAULT_LOGSEQ_PAGE,
     );
     if (!highlights.length) {
-      return { success: true, inserted: 0, message: "没有可同步的标注", page: pageName };
+      return {
+        success: true,
+        inserted: 0,
+        message: "没有可同步的标注",
+        page: pageName,
+      };
     }
     const token = (payload?.token || settings.logseqAuthToken || "").trim();
 
@@ -405,7 +441,7 @@ const messageHandlers = {
             endpoint,
             token,
             method: "logseq.Editor.getBlock",
-            args: [uuid]
+            args: [uuid],
           });
           if (!existingBlock) {
             recordsToInsertMap.set(record.id, record);
@@ -416,7 +452,7 @@ const messageHandlers = {
         const payloadEntries = recordsToInsert
           .map((record) => ({
             record,
-            block: buildHighlightBlock(record)
+            block: buildHighlightBlock(record),
           }))
           .filter((entry) => !!entry.block);
 
@@ -429,7 +465,7 @@ const messageHandlers = {
             endpoint,
             token,
             method: "logseq.Editor.insertBatchBlock",
-            args: [pageUuid, blocksPayload, { sibling: false, before: false }]
+            args: [pageUuid, blocksPayload, { sibling: false, before: false }],
           });
 
           const createdBlocks = extractInsertedBlockEntities(result);
@@ -438,7 +474,7 @@ const messageHandlers = {
             candidates: createdBlocks,
             pageName,
             endpoint,
-            token
+            token,
           });
 
           const syncedAt = exportedAt.toISOString();
@@ -451,7 +487,7 @@ const messageHandlers = {
             state.highlights[entry.record.id] = {
               ...current,
               logseqBlockUuid: blockUuid,
-              logseqSyncedAt: syncedAt
+              logseqSyncedAt: syncedAt,
             };
             inserted += 1;
             stateMutated = true;
@@ -462,7 +498,10 @@ const messageHandlers = {
           await writeState(state);
         }
 
-        if (!settings.logseqEndpoint || normalizeLogseqEndpoint(settings.logseqEndpoint) !== endpoint) {
+        if (
+          !settings.logseqEndpoint ||
+          normalizeLogseqEndpoint(settings.logseqEndpoint) !== endpoint
+        ) {
           await writeSettings({ logseqEndpoint: endpoint });
         }
 
@@ -473,7 +512,7 @@ const messageHandlers = {
           pageUuid,
           inserted,
           total: highlights.length,
-          skipped: highlights.length - inserted
+          skipped: highlights.length - inserted,
         };
       } catch (error) {
         lastError = error;
@@ -491,11 +530,12 @@ const messageHandlers = {
       throw new Error("No active tab for capture");
     }
     const format = payload?.format === "jpeg" ? "jpeg" : "png";
-    const quality = typeof payload?.quality === "number" ? payload.quality : undefined;
+    const quality =
+      typeof payload?.quality === "number" ? payload.quality : undefined;
     const dataUrl = await chrome.tabs.captureVisibleTab(sender.tab.windowId, {
       format,
-      quality
+      quality,
     });
     return { dataUrl };
-  }
+  },
 };

@@ -6,8 +6,8 @@ export default defineComponent({
   props: {
     active: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
   setup(props) {
     const store = useDashboardStore();
@@ -15,7 +15,7 @@ export default defineComponent({
       logseqEndpoint: "",
       logseqPage: "",
       logseqAuthToken: "",
-      logseqGraph: ""
+      logseqGraph: "",
     });
     const importFileRef = ref(null);
     const importStrategy = ref("skip");
@@ -31,7 +31,7 @@ export default defineComponent({
         form.logseqAuthToken = settings.logseqAuthToken || "";
         form.logseqGraph = settings.logseqGraph || "";
       },
-      { immediate: true, deep: true }
+      { immediate: true, deep: true },
     );
 
     async function handleSyncToggle(event) {
@@ -51,7 +51,7 @@ export default defineComponent({
           logseqPage: form.logseqPage.trim(),
           logseqAuthToken: form.logseqAuthToken.trim(),
           logseqGraph: form.logseqGraph.trim(),
-          logseqSyncEnabled: store.settings.logseqSyncEnabled
+          logseqSyncEnabled: store.settings.logseqSyncEnabled,
         });
       } catch (error) {
         // status already surfaced
@@ -84,7 +84,7 @@ export default defineComponent({
         class={[
           "main__section",
           "main__section--settings",
-          props.active ? "is-active" : "is-hidden"
+          props.active ? "is-active" : "is-hidden",
         ].join(" ")}
         aria-labelledby="settings-title"
       >
@@ -103,11 +103,19 @@ export default defineComponent({
             <div class="settings__group-header">
               <h3>LogSeq 同步</h3>
               <label class="toggle">
-                <input type="checkbox" checked={syncEnabled.value} onChange={handleSyncToggle} />
+                <input
+                  type="checkbox"
+                  checked={syncEnabled.value}
+                  onChange={handleSyncToggle}
+                />
                 <span>启用同步</span>
               </label>
             </div>
-            <div class={"settings__fields" + (syncEnabled.value ? "" : " is-disabled")}>
+            <div
+              class={
+                "settings__fields" + (syncEnabled.value ? "" : " is-disabled")
+              }
+            >
               <label class="field">
                 <span>服务器地址</span>
                 <input
@@ -115,7 +123,9 @@ export default defineComponent({
                   placeholder="http://127.0.0.1:12315/api"
                   value={form.logseqEndpoint}
                   disabled={!syncEnabled.value}
-                  onInput={(event) => (form.logseqEndpoint = event.target.value)}
+                  onInput={(event) =>
+                    (form.logseqEndpoint = event.target.value)
+                  }
                 />
               </label>
               <label class="field">
@@ -145,11 +155,17 @@ export default defineComponent({
                   placeholder="Bearer ..."
                   value={form.logseqAuthToken}
                   disabled={!syncEnabled.value}
-                  onInput={(event) => (form.logseqAuthToken = event.target.value)}
+                  onInput={(event) =>
+                    (form.logseqAuthToken = event.target.value)
+                  }
                 />
               </label>
               <div class="settings__actions">
-                <button class="btn btn-primary" type="button" onClick={handleSaveSettings}>
+                <button
+                  class="btn btn-primary"
+                  type="button"
+                  onClick={handleSaveSettings}
+                >
                   保存设置
                 </button>
                 <p class="status-line">{store.settingsStatus.value}</p>
@@ -162,24 +178,49 @@ export default defineComponent({
               <h3>导入标注</h3>
             </div>
             <div class="settings__fields">
-              <p class="settings__hint">选择先前导出的 JSON 文件，或导入他人分享的标注。</p>
+              <p class="settings__hint">
+                选择先前导出的 JSON 文件，或导入他人分享的标注。
+              </p>
               <label class="field">
                 <span>JSON 文件</span>
-                <input ref={importFileRef} type="file" accept="application/json" />
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept="application/json"
+                />
               </label>
               <label class="field">
                 <span>冲突处理</span>
-                <select value={importStrategy.value} onChange={(event) => (importStrategy.value = event.target.value)}>
+                <select
+                  value={importStrategy.value}
+                  onChange={(event) =>
+                    (importStrategy.value = event.target.value)
+                  }
+                >
                   <option value="skip">遇到重复时跳过</option>
                   <option value="overwrite">遇到重复时覆盖</option>
                   <option value="latest">保留最近更新</option>
                 </select>
               </label>
               <div class="settings__actions">
-                <button class="btn" type="button" disabled={isImporting.value} onClick={handleImport}>
+                <button
+                  class="btn"
+                  type="button"
+                  disabled={isImporting.value}
+                  onClick={handleImport}
+                >
                   {isImporting.value ? "导入中…" : "导入 JSON"}
                 </button>
-                <p class={"status-line" + (store.importStatus.tone === "error" ? " status-line--error" : store.importStatus.tone === "success" ? " status-line--success" : "")}>
+                <p
+                  class={
+                    "status-line" +
+                    (store.importStatus.tone === "error"
+                      ? " status-line--error"
+                      : store.importStatus.tone === "success"
+                        ? " status-line--success"
+                        : "")
+                  }
+                >
                   {store.importStatus.message}
                 </p>
               </div>
@@ -188,5 +229,5 @@ export default defineComponent({
         </div>
       </section>
     );
-  }
+  },
 });

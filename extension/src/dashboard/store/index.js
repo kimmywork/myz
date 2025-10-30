@@ -1,5 +1,5 @@
 import { computed, reactive, ref, watch } from "vue";
-import { DEFAULT_COLOR, IMPORT_MAX_BYTES, PAGINATION_BATCH, RECORD_KINDS } from "../constants.js";
+import { IMPORT_MAX_BYTES, PAGINATION_BATCH } from "../constants.js";
 import {
   computeRecordStats,
   formatDateTime,
@@ -10,18 +10,26 @@ import {
   groupHighlightsByDate,
   normalizeRecord,
   recordToMarkdown,
-  renderHighlightContent
+  renderHighlightContent,
+  RECORD_KINDS,
 } from "../utils/records.js";
 import { sendMessage } from "../utils/messaging.js";
 import { downloadFile } from "../utils/download.js";
 import { normalizeImportedPayload } from "../utils/import.js";
+import { DEFAULT_COLOR } from "../../shared/highlightUtils.js";
 
 export const DashboardStoreKey = Symbol("DashboardStore");
 
 export function createDashboardStore() {
   const highlights = ref([]);
   const loadingHighlights = ref(true);
-  const filters = reactive({ search: "", site: "", tags: [], from: "", to: "" });
+  const filters = reactive({
+    search: "",
+    site: "",
+    tags: [],
+    from: "",
+    to: "",
+  });
   const view = ref("cards");
   const panel = ref("highlights");
   const renderedCount = ref(0);
@@ -31,7 +39,7 @@ export function createDashboardStore() {
     logseqAuthToken: "",
     logseqGraph: "",
     logseqSyncEnabled: false,
-    dashboardView: "cards"
+    dashboardView: "cards",
   });
   const logseqStatus = ref("");
   const settingsStatus = ref("");
@@ -45,7 +53,7 @@ export function createDashboardStore() {
     tags: [],
     color: DEFAULT_COLOR,
     status: "",
-    saving: false
+    saving: false,
   });
 
   const timers = new Map();
@@ -96,38 +104,46 @@ export function createDashboardStore() {
     });
   });
 
-  const hasMoreHighlights = computed(() => renderedCount.value < filteredHighlights.value.length);
+  const hasMoreHighlights = computed(
+    () => renderedCount.value < filteredHighlights.value.length,
+  );
 
   const visibleHighlights = computed(() => {
     if (!filteredHighlights.value.length) {
       return [];
     }
-    const limit = renderedCount.value || Math.min(PAGINATION_BATCH, filteredHighlights.value.length);
+    const limit =
+      renderedCount.value ||
+      Math.min(PAGINATION_BATCH, filteredHighlights.value.length);
     return filteredHighlights.value.slice(0, limit);
   });
 
   const groupedHighlights = computed(() => {
-    return groupHighlightsByDate(visibleHighlights.value).map(([date, items]) => {
-      const stats = computeRecordStats(items);
-      const detail = [];
-      if (stats.highlightCount) {
-        detail.push(`高亮 ${stats.highlightCount}`);
-      }
-      if (stats.savedCount) {
-        detail.push(`保存 ${stats.savedCount}`);
-      }
-      return {
-        date,
-        items,
-        stats,
-        detailText: detail.length ? `（${detail.join(" · ")}）` : ""
-      };
-    });
+    return groupHighlightsByDate(visibleHighlights.value).map(
+      ([date, items]) => {
+        const stats = computeRecordStats(items);
+        const detail = [];
+        if (stats.highlightCount) {
+          detail.push(`高亮 ${stats.highlightCount}`);
+        }
+        if (stats.savedCount) {
+          detail.push(`保存 ${stats.savedCount}`);
+        }
+        return {
+          date,
+          items,
+          stats,
+          detailText: detail.length ? `（${detail.join(" · ")}）` : "",
+        };
+      },
+    );
   });
 
   const summaryText = computed(() => {
     const stats = computeRecordStats(filteredHighlights.value);
-    const sites = new Set(filteredHighlights.value.map((item) => item.hostname).filter(Boolean));
+    const sites = new Set(
+      filteredHighlights.value.map((item) => item.hostname).filter(Boolean),
+    );
     const parts = [];
     if (stats.highlightCount) {
       parts.push(`高亮 ${stats.highlightCount}`);
@@ -140,9 +156,9 @@ export function createDashboardStore() {
   });
 
   const availableSites = computed(() => {
-    return [...new Set(highlights.value.map((item) => item.hostname).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b)
-    );
+    return [
+      ...new Set(highlights.value.map((item) => item.hostname).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b));
   });
 
   const availableTags = computed(() => {
@@ -185,7 +201,10 @@ export function createDashboardStore() {
 
   function updateRenderedCount({ preserve } = {}) {
     if (preserve) {
-      renderedCount.value = Math.min(renderedCount.value || PAGINATION_BATCH, filteredHighlights.value.length);
+      renderedCount.value = Math.min(
+        renderedCount.value || PAGINATION_BATCH,
+        filteredHighlights.value.length,
+      );
       return;
     }
     renderedCount.value = filteredHighlights.value.length
@@ -235,7 +254,7 @@ export function createDashboardStore() {
         logseqAuthToken: result.logseqAuthToken || "",
         logseqGraph: result.logseqGraph || "",
         logseqSyncEnabled: Boolean(result.logseqSyncEnabled),
-        dashboardView: result.dashboardView || settings.dashboardView
+        dashboardView: result.dashboardView || settings.dashboardView,
       });
       if (settings.dashboardView) {
         view.value = settings.dashboardView;
@@ -329,7 +348,7 @@ export function createDashboardStore() {
         id,
         kind: RECORD_KINDS.CLIP,
         range: null,
-        color: null
+        color: null,
       });
       applyUpdatedRecord(updated, { preserve: true });
       if (modalState.recordId === id) {
@@ -346,9 +365,14 @@ export function createDashboardStore() {
     if (!normalized) {
       return;
     }
-    const index = highlights.value.findIndex((item) => item.id === normalized.id);
+    const index = highlights.value.findIndex(
+      (item) => item.id === normalized.id,
+    );
     if (index !== -1) {
-      highlights.value.splice(index, 1, { ...highlights.value[index], ...normalized });
+      highlights.value.splice(index, 1, {
+        ...highlights.value[index],
+        ...normalized,
+      });
     } else {
       highlights.value.unshift(normalized);
     }
@@ -379,7 +403,9 @@ export function createDashboardStore() {
     if (!modalState.recordId || modalState.saving) {
       return;
     }
-    const record = highlights.value.find((item) => item.id === modalState.recordId);
+    const record = highlights.value.find(
+      (item) => item.id === modalState.recordId,
+    );
     if (!record) {
       return;
     }
@@ -388,7 +414,7 @@ export function createDashboardStore() {
       id: modalState.recordId,
       note: modalState.note.trim(),
       tags: [...modalState.tags],
-      kind
+      kind,
     };
     if (kind === RECORD_KINDS.HIGHLIGHT) {
       payload.color = modalState.color || DEFAULT_COLOR;
@@ -419,9 +445,17 @@ export function createDashboardStore() {
         return;
       }
       if (format === "markdown") {
-        downloadFile(result.markdown, "text/markdown", `myz-export-${Date.now()}.md`);
+        downloadFile(
+          result.markdown,
+          "text/markdown",
+          `myz-export-${Date.now()}.md`,
+        );
       } else {
-        downloadFile(result.json, "application/json", `myz-export-${Date.now()}.json`);
+        downloadFile(
+          result.json,
+          "application/json",
+          `myz-export-${Date.now()}.json`,
+        );
       }
     } catch (error) {
       console.error("导出失败", error);
@@ -442,16 +476,30 @@ export function createDashboardStore() {
     try {
       const payload = {
         title: `MyZ Export ${new Date().toISOString()}`,
-        endpoint: customPayload.endpoint || settings.logseqEndpoint?.trim() || undefined,
-        token: customPayload.token || settings.logseqAuthToken?.trim() || undefined,
-        page: customPayload.page || settings.logseqPage?.trim() || undefined
+        endpoint:
+          customPayload.endpoint ||
+          settings.logseqEndpoint?.trim() ||
+          undefined,
+        token:
+          customPayload.token || settings.logseqAuthToken?.trim() || undefined,
+        page: customPayload.page || settings.logseqPage?.trim() || undefined,
       };
       const result = await sendMessage("myz:syncLogseq", payload);
-      const count = typeof result?.inserted === "number" ? result.inserted : null;
-      const message = typeof result?.message === "string" ? result.message : "同步成功";
-      const pageName = typeof result?.page === "string" && result.page ? result.page : "";
-      const baseText = count !== null && !message.includes("新增") ? `${message}（新增 ${count} 条）` : message;
-      setTimedStatus(logseqStatus, pageName ? `${baseText} → ${pageName}` : baseText, 4000);
+      const count =
+        typeof result?.inserted === "number" ? result.inserted : null;
+      const message =
+        typeof result?.message === "string" ? result.message : "同步成功";
+      const pageName =
+        typeof result?.page === "string" && result.page ? result.page : "";
+      const baseText =
+        count !== null && !message.includes("新增")
+          ? `${message}（新增 ${count} 条）`
+          : message;
+      setTimedStatus(
+        logseqStatus,
+        pageName ? `${baseText} → ${pageName}` : baseText,
+        4000,
+      );
       await refreshHighlights({ preserveProgress: true });
     } catch (error) {
       console.error("同步失败", error);
@@ -479,7 +527,7 @@ export function createDashboardStore() {
       const updated = await sendMessage("myz:updateSettings", payload);
       Object.assign(settings, {
         ...settings,
-        ...updated
+        ...updated,
       });
       settingsStatus.value = "设置已保存";
       setTimeout(() => {
@@ -497,7 +545,10 @@ export function createDashboardStore() {
       return;
     }
     if (file.size > IMPORT_MAX_BYTES) {
-      setTimedImportStatus(`文件体积过大（>${Math.floor(IMPORT_MAX_BYTES / 1024 / 1024)}MB）`, "error");
+      setTimedImportStatus(
+        `文件体积过大（>${Math.floor(IMPORT_MAX_BYTES / 1024 / 1024)}MB）`,
+        "error",
+      );
       return;
     }
     setTimedImportStatus("解析文件…", "info", 0);
@@ -516,10 +567,16 @@ export function createDashboardStore() {
       throw new Error(message);
     }
     setTimedImportStatus("写入中…", "info", 0);
-    const result = await sendMessage("myz:importHighlights", { records, strategy });
+    const result = await sendMessage("myz:importHighlights", {
+      records,
+      strategy,
+    });
     const inserted = typeof result?.inserted === "number" ? result.inserted : 0;
     const replaced = typeof result?.replaced === "number" ? result.replaced : 0;
-    const skipped = typeof result?.skipped === "number" ? result.skipped : Math.max(records.length - inserted - replaced, 0);
+    const skipped =
+      typeof result?.skipped === "number"
+        ? result.skipped
+        : Math.max(records.length - inserted - replaced, 0);
     const parts = [];
     if (inserted) {
       parts.push(`新增 ${inserted}`);
@@ -531,7 +588,11 @@ export function createDashboardStore() {
       parts.push(`跳过 ${skipped}`);
     }
     const summary = parts.length ? parts.join(" · ") : "无可导入的标注";
-    setTimedImportStatus(`导入完成：${summary}`, inserted || replaced ? "success" : "info", 4000);
+    setTimedImportStatus(
+      `导入完成：${summary}`,
+      inserted || replaced ? "success" : "info",
+      4000,
+    );
     await refreshHighlights({ preserveProgress: true });
   }
 
@@ -566,7 +627,10 @@ export function createDashboardStore() {
     showHighlights,
     loadMore: () => {
       if (hasMoreHighlights.value) {
-        renderedCount.value = Math.min(renderedCount.value + PAGINATION_BATCH, filteredHighlights.value.length);
+        renderedCount.value = Math.min(
+          renderedCount.value + PAGINATION_BATCH,
+          filteredHighlights.value.length,
+        );
       }
     },
     copyHighlight,
@@ -580,13 +644,14 @@ export function createDashboardStore() {
     openModal,
     closeModal,
     saveModal,
-    renderHighlight: (record) => renderHighlightContent(record, searchTerms.value),
+    renderHighlight: (record) =>
+      renderHighlightContent(record, searchTerms.value),
     formatNote: (value) => formatNote(value, searchTerms.value),
     formatInline: (value) => formatInline(value, searchTerms.value),
     formatDateTime,
     getRecordKind,
     cleanup,
     isSyncInFlight,
-    loadHighlights: refreshHighlights
+    loadHighlights: refreshHighlights,
   };
 }

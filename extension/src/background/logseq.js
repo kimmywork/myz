@@ -1,12 +1,17 @@
+import { DEFAULT_LOGSEQ_ENDPOINT, DEFAULT_LOGSEQ_PAGE } from "./constants.js";
+import { describeHighlightStyle } from "../shared/highlightUtils.js";
 import {
-  DEFAULT_LOGSEQ_ENDPOINT,
-  DEFAULT_LOGSEQ_PAGE,
-  describeHighlightStyle
-} from "./constants.js";
-import { extractHostname, htmlToMarkdown, cleanLogseqMultiline } from "./markdown.js";
+  extractHostname,
+  htmlToMarkdown,
+  cleanLogseqMultiline,
+} from "./markdown.js";
 
 export function buildLogseqEndpointList(settings, payload) {
-  const rawCandidates = [payload?.endpoint, settings.logseqEndpoint, DEFAULT_LOGSEQ_ENDPOINT];
+  const rawCandidates = [
+    payload?.endpoint,
+    settings.logseqEndpoint,
+    DEFAULT_LOGSEQ_ENDPOINT,
+  ];
   const endpoints = [];
   rawCandidates.forEach((candidate) => {
     const normalized = normalizeLogseqEndpoint(candidate);
@@ -38,12 +43,16 @@ export async function callLogseq({ endpoint, token, method, args }) {
   const headers = createLogseqHeaders(token);
   const payload = {
     method,
-    args: Array.isArray(args) ? args : typeof args === "undefined" ? [] : [args]
+    args: Array.isArray(args)
+      ? args
+      : typeof args === "undefined"
+        ? []
+        : [args],
   };
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
   const text = await response.text().catch(() => "");
   if (!response.ok) {
@@ -57,7 +66,7 @@ export async function ensureLogseqPage({ endpoint, token, pageName }) {
     endpoint,
     token,
     method: "logseq.Editor.getPage",
-    args: [pageName]
+    args: [pageName],
   });
   const existingUuid = extractEntityUuid(existing);
   if (existingUuid) {
@@ -68,7 +77,7 @@ export async function ensureLogseqPage({ endpoint, token, pageName }) {
     endpoint,
     token,
     method: "logseq.Editor.createPage",
-    args: [pageName, null, { createFirstBlock: true, redirect: false }]
+    args: [pageName, null, { createFirstBlock: true, redirect: false }],
   });
   const createdUuid = extractEntityUuid(created);
   if (createdUuid) {
@@ -79,7 +88,7 @@ export async function ensureLogseqPage({ endpoint, token, pageName }) {
     endpoint,
     token,
     method: "logseq.Editor.getPage",
-    args: [pageName]
+    args: [pageName],
   });
   const fallbackUuid = extractEntityUuid(fallback);
   if (fallbackUuid) {
@@ -150,7 +159,8 @@ export function normalizeLogseqPageName(value) {
 }
 
 export function buildLogseqBlocks(highlights, options = {}) {
-  const exportedAt = options.exportedAt instanceof Date ? options.exportedAt : new Date();
+  const exportedAt =
+    options.exportedAt instanceof Date ? options.exportedAt : new Date();
   const formattedTime = exportedAt.toLocaleString();
   const headerContent = (options.title || `MyZ 同步 ${formattedTime}`).trim();
   const highlightBlocks = highlights
@@ -163,10 +173,13 @@ export function buildLogseqBlocks(highlights, options = {}) {
 
   const metadataBlocks = [
     makeBlock(`导出时间: ${formattedTime}`),
-    makeBlock(`条目数: ${highlightBlocks.length}`)
+    makeBlock(`条目数: ${highlightBlocks.length}`),
   ].filter(Boolean);
 
-  const headerBlock = makeBlock(headerContent, [...metadataBlocks, ...highlightBlocks]);
+  const headerBlock = makeBlock(headerContent, [
+    ...metadataBlocks,
+    ...highlightBlocks,
+  ]);
   if (headerBlock) {
     return [headerBlock];
   }
@@ -187,7 +200,9 @@ export function buildHighlightBlock(record) {
 
   const detailBlocks = [];
   if (link) {
-    detailBlocks.push(makeBlock(`页面：[${cleanLogseqInline(domain || link)}](${link})`));
+    detailBlocks.push(
+      makeBlock(`页面：[${cleanLogseqInline(domain || link)}](${link})`),
+    );
   }
   if (record.id) {
     detailBlocks.push(makeBlock(`ID: ${record.id}`));
@@ -208,7 +223,9 @@ export function buildHighlightBlock(record) {
   }
 
   if (record.kind === "highlight") {
-    detailBlocks.push(makeBlock(`样式: ${describeHighlightStyle(record.style)}`));
+    detailBlocks.push(
+      makeBlock(`样式: ${describeHighlightStyle(record.style)}`),
+    );
   }
 
   const noteContent = extractRecordNote(record);
@@ -247,7 +264,12 @@ function cleanLogseqInline(value) {
   if (!value) {
     return "";
   }
-  return String(value).replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim();
+  return (
+    String(value)
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\s\u0000-\u001f\u007f]+/g, " ")
+      .trim()
+  );
 }
 
 function makeMarkdownBlock(content) {
@@ -261,7 +283,7 @@ function makeMarkdownBlock(content) {
     indent: -1,
     type: "root",
     lines: [],
-    children: []
+    children: [],
   };
   const stack = [root];
   let currentParagraph = null;
@@ -294,7 +316,7 @@ function makeMarkdownBlock(content) {
       return;
     }
 
-    if (trimmed.startsWith("```") ) {
+    if (trimmed.startsWith("```")) {
       flushParagraph();
       const parentNode = stack[stack.length - 1];
       const codeNode = {
@@ -302,7 +324,7 @@ function makeMarkdownBlock(content) {
         indent: parentNode.indent,
         type: "code",
         lines: [trimmed],
-        children: []
+        children: [],
       };
       parentNode.children.push(codeNode);
       activeCodeBlock = codeNode;
@@ -323,7 +345,7 @@ function makeMarkdownBlock(content) {
         indent: indentSpaces,
         type: "list",
         lines: [listMatch[2].trim()],
-        children: []
+        children: [],
       };
       parentNode.children.push(node);
       stack.push(node);
@@ -347,7 +369,7 @@ function makeMarkdownBlock(content) {
         indent: 0,
         type: "paragraph",
         lines: [],
-        children: []
+        children: [],
       };
       root.children.push(currentParagraph);
     }
@@ -358,7 +380,9 @@ function makeMarkdownBlock(content) {
     const blocks = [];
     nodes.forEach((node) => {
       const childBlocks = buildBlocks(node.children);
-      const rawContent = node.lines.join(node.type === "code" ? "\n" : " ").trim();
+      const rawContent = node.lines
+        .join(node.type === "code" ? "\n" : " ")
+        .trim();
       if (!rawContent && !childBlocks.length) {
         return;
       }
@@ -468,7 +492,13 @@ function collectBlockEntities(node, bucket) {
   }
 }
 
-export async function matchInsertedHighlights({ entries, candidates, pageName, endpoint, token }) {
+export async function matchInsertedHighlights({
+  entries,
+  candidates,
+  pageName,
+  endpoint,
+  token,
+}) {
   const matches = new Map();
   const usedUuids = new Set();
   const safeEntries = Array.isArray(entries) ? entries : [];
@@ -488,7 +518,7 @@ export async function matchInsertedHighlights({ entries, candidates, pageName, e
         endpoint,
         token,
         method: "logseq.Editor.getPageBlocksTree",
-        args: [pageName]
+        args: [pageName],
       });
       const pageCandidates = extractInsertedBlockEntities(pageTree);
       remaining.forEach((entry) => {
@@ -511,7 +541,9 @@ export async function matchInsertedHighlights({ entries, candidates, pageName, e
 
 function findMatchingBlock(entry, candidates, usedUuids) {
   const targetContent = cleanLogseqInline(entry?.block?.content || "");
-  const idLine = entry?.record?.id ? cleanLogseqInline(`ID: ${entry.record.id}`) : "";
+  const idLine = entry?.record?.id
+    ? cleanLogseqInline(`ID: ${entry.record.id}`)
+    : "";
   if (!targetContent) {
     return null;
   }
@@ -577,9 +609,10 @@ function interpretLogseqResponse(text) {
 
   if (parsed && typeof parsed === "object") {
     if ("error" in parsed && parsed.error) {
-      const message = typeof parsed.error === "string"
-        ? parsed.error
-        : parsed.error.message || JSON.stringify(parsed.error);
+      const message =
+        typeof parsed.error === "string"
+          ? parsed.error
+          : parsed.error.message || JSON.stringify(parsed.error);
       const err = new Error(message);
       if (parsed.error.code) {
         err.code = parsed.error.code;

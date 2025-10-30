@@ -19,5 +19,5 @@ export default defineComponent({
         <RecordModal />
       </div>
     );
-  }
+  },
 });

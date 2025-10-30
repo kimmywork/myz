@@ -1,4 +1,7 @@
-import { RECORD_KINDS } from "../constants.js";
+export const RECORD_KINDS = {
+  HIGHLIGHT: "highlight",
+  CLIP: "clip",
+};
 
 export function getRecordKind(record) {
   if (record && record.kind === RECORD_KINDS.CLIP) {
@@ -30,7 +33,7 @@ export function computeRecordStats(records = []) {
   return {
     total: highlightCount + savedCount,
     highlightCount,
-    savedCount
+    savedCount,
   };
 }
 
@@ -43,7 +46,9 @@ export function groupHighlightsByDate(highlights) {
     }
     map.get(date).push(item);
   });
-  return [...map.entries()].sort((a, b) => (a[0] === b[0] ? 0 : a[0] < b[0] ? 1 : -1));
+  return [...map.entries()].sort((a, b) =>
+    a[0] === b[0] ? 0 : a[0] < b[0] ? 1 : -1,
+  );
 }
 
 export function formatDateTime(value) {
@@ -67,7 +72,7 @@ export function escapeHtml(value) {
 }
 
 export function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|\[\]\\]/g, "\\$&");
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function getSearchTerms(input) {
@@ -116,7 +121,11 @@ export function highlightTermsInHtml(html, terms) {
   }
   const container = document.createElement("div");
   container.innerHTML = html;
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+  );
   const targets = [];
   let current;
   while ((current = walker.nextNode())) {
@@ -137,7 +146,9 @@ export function highlightTermsInHtml(html, terms) {
     let match;
     while ((match = nodeRegex.exec(text))) {
       if (match.index > lastIndex) {
-        fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        fragment.appendChild(
+          document.createTextNode(text.slice(lastIndex, match.index)),
+        );
       }
       const mark = document.createElement("mark");
       mark.className = "search-hit";
@@ -190,7 +201,10 @@ export function parseTags(value) {
 }
 
 export function recordToMarkdown(record) {
-  const tags = Array.isArray(record?.tags) && record.tags.length ? ` #${record.tags.join(" #")}` : "";
+  const tags =
+    Array.isArray(record?.tags) && record.tags.length
+      ? ` #${record.tags.join(" #")}`
+      : "";
   const quote = (record?.text || "")
     .split("\n")
     .map((line) => `> ${line}`)

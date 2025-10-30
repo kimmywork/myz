@@ -2,7 +2,12 @@ export function cleanLogseqInline(value) {
   if (!value) {
     return "";
   }
-  return String(value).replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim();
+  return (
+    String(value)
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\s\u0000-\u001f\u007f]+/g, " ")
+      .trim()
+  );
 }
 
 export function cleanLogseqMultiline(value) {
@@ -11,6 +16,7 @@ export function cleanLogseqMultiline(value) {
   }
   const lines = String(value)
     .replace(/\r\n?/g, "\n")
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
     .split("\n");
 
@@ -22,7 +28,10 @@ export function cleanLogseqMultiline(value) {
   }
 
   const normalized = lines.map((line) =>
-    line.replace(/\t/g, "  ").replace(/[\v\f]/g, " ").replace(/\s+$/g, "")
+    line
+      .replace(/\t/g, "  ")
+      .replace(/[\v\f]/g, " ")
+      .replace(/\s+$/g, ""),
   );
 
   return normalized.join("\n");

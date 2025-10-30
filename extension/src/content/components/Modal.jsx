@@ -1,7 +1,8 @@
 import { defineComponent, ref, computed, watch, nextTick } from "vue";
 import TagInput from "../../dashboard/components/TagInput.jsx";
-import { useHighlightPreferences, HIGHLIGHT_STYLE_OPTIONS } from "../stores/highlightPreferences.js";
-import { RECORD_KINDS } from "../../dashboard/constants.js";
+import { useHighlightPreferences } from "../stores/highlightPreferences.js";
+import { RECORD_KINDS } from "../../dashboard/utils/records.js";
+import { HIGHLIGHT_STYLE_OPTIONS } from "../../shared/highlightUtils.js";
 
 function uniqueNormalizedTags(tags) {
   const seen = new Set();
@@ -49,11 +50,7 @@ function mergeKnownTags(current = [], incoming = []) {
 
 export default defineComponent({
   name: "MyZModal",
-  emits: [
-    "close",
-    "submit",
-    "delete"
-  ],
+  emits: ["close", "submit", "delete"],
   setup({}, { emit, expose }) {
     const visible = ref(false);
     const mode = ref("create");
@@ -89,11 +86,14 @@ export default defineComponent({
       }
       return {
         "--myz-highlight-color": selectedColor.value,
-        backgroundColor: selectedStyle.value === "paint" ? selectedColor.value : "transparent"
+        backgroundColor:
+          selectedStyle.value === "paint" ? selectedColor.value : "transparent",
       };
     });
 
-    const styleOptions = computed(() => Object.entries(HIGHLIGHT_STYLE_OPTIONS));
+    const styleOptions = computed(() =>
+      Object.entries(HIGHLIGHT_STYLE_OPTIONS),
+    );
 
     function syncFilteredOptions(term = tagInputValue.value) {
       const normalized = term.trim().toLowerCase();
@@ -109,7 +109,10 @@ export default defineComponent({
       dropdownOpen.value = filteredOptions.value.length > 0;
       if (!dropdownOpen.value) {
         activeOptionIndex.value = -1;
-      } else if (activeOptionIndex.value >= filteredOptions.value.length || activeOptionIndex.value === -1) {
+      } else if (
+        activeOptionIndex.value >= filteredOptions.value.length ||
+        activeOptionIndex.value === -1
+      ) {
         activeOptionIndex.value = filteredOptions.value.length ? 0 : -1;
       }
     }
@@ -126,7 +129,10 @@ export default defineComponent({
 
     function open(options) {
       mode.value = options?.mode === "edit" ? "edit" : "create";
-      kind.value = options?.kind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+      kind.value =
+        options?.kind === RECORD_KINDS.CLIP
+          ? RECORD_KINDS.CLIP
+          : RECORD_KINDS.HIGHLIGHT;
       previewText.value = options?.preview || "";
       note.value = options?.note || "";
       tags.value = uniqueNormalizedTags(options?.tags || []);
@@ -157,7 +163,10 @@ export default defineComponent({
 
     function addKnownTags(options = []) {
       const merged = mergeKnownTags(knownTags.value, options);
-      if (merged.length !== knownTags.value.length || merged.some((value, index) => value !== knownTags.value[index])) {
+      if (
+        merged.length !== knownTags.value.length ||
+        merged.some((value, index) => value !== knownTags.value[index])
+      ) {
         knownTags.value = merged;
         refreshAvailableTags();
       }
@@ -202,7 +211,7 @@ export default defineComponent({
         note: note.value.trim(),
         tags: [...tags.value],
         color: selectedColor.value,
-        style: selectedStyle.value
+        style: selectedStyle.value,
       });
     }
 
@@ -212,7 +221,7 @@ export default defineComponent({
       isVisible,
       setKnownTags,
       addKnownTags,
-      containerRef
+      containerRef,
     });
 
     return () => (
@@ -223,7 +232,11 @@ export default defineComponent({
         <div class="myz-annotator-modal__body">
           <div class="myz-annotator-modal__header">
             <h3>{titleText.value}</h3>
-            <button type="button" class="myz-annotator-modal__close" onClick={handleCancel}>
+            <button
+              type="button"
+              class="myz-annotator-modal__close"
+              onClick={handleCancel}
+            >
               &times;
             </button>
           </div>
@@ -232,7 +245,11 @@ export default defineComponent({
             {previewText.value ? (
               isHighlight.value ? (
                 <span
-                  class={["myz-highlight", "myz-highlight-preview", `myz-highlight--${selectedStyle.value}`]}
+                  class={[
+                    "myz-highlight",
+                    "myz-highlight-preview",
+                    `myz-highlight--${selectedStyle.value}`,
+                  ]}
                   style={previewStyle.value}
                 >
                   {previewText.value}
@@ -258,7 +275,7 @@ export default defineComponent({
                       type="button"
                       class={[
                         "myz-style-picker__option",
-                        isActive ? "is-active" : ""
+                        isActive ? "is-active" : "",
                       ]}
                       data-style={value}
                       role="radio"
@@ -288,7 +305,9 @@ export default defineComponent({
           <div class="myz-annotator-field">
             <div class="myz-annotator-field__label-row">
               <label>标签</label>
-              <span class="myz-annotator-field__hint">输入后按回车或逗号确认 · Backspace 回删</span>
+              <span class="myz-annotator-field__hint">
+                输入后按回车或逗号确认 · Backspace 回删
+              </span>
             </div>
             <TagInput
               ref={tagInputRef}
@@ -308,18 +327,23 @@ export default defineComponent({
             <div class="myz-annotator-field">
               <div class="myz-annotator-field__label-row">
                 <label>高亮颜色</label>
-                <span class="myz-annotator-field__hint">点击选择 · 调整色块可自定义</span>
+                <span class="myz-annotator-field__hint">
+                  点击选择 · 调整色块可自定义
+                </span>
               </div>
               <div class="myz-color-palette" role="radiogroup">
                 {palette.value.map((color, index) => {
                   const isActive = color === selectedColor.value;
                   return (
-                    <div class="myz-color-swatch-wrapper" key={`${color}-${index}`}>
+                    <div
+                      class="myz-color-swatch-wrapper"
+                      key={`${color}-${index}`}
+                    >
                       <button
                         type="button"
                         class={[
                           "myz-color-swatch",
-                          isActive ? "is-active" : ""
+                          isActive ? "is-active" : "",
                         ]}
                         style={{ "--myz-swatch-color": color }}
                         data-index={index}
@@ -334,7 +358,7 @@ export default defineComponent({
                         aria-label={`编辑颜色 ${color}`}
                         onClick={() => {
                           const input = containerRef.value?.querySelector(
-                            `input[data-color-index="${index}"]`
+                            `input[data-color-index="${index}"]`,
                           );
                           if (input) {
                             if (typeof input.showPicker === "function") {
@@ -363,25 +387,33 @@ export default defineComponent({
           ) : null}
 
           <div class="myz-annotator-actions">
-            <button type="button" class="myz-btn-secondary" onClick={handleCancel}>
+            <button
+              type="button"
+              class="myz-btn-secondary"
+              onClick={handleCancel}
+            >
               取消
             </button>
             <button
               type="button"
               class={[
                 "myz-btn-danger",
-                mode.value === "edit" ? "" : "myz-hidden"
+                mode.value === "edit" ? "" : "myz-hidden",
               ]}
               onClick={handleDelete}
             >
               删除
             </button>
-            <button type="button" class="myz-btn-primary" onClick={handleSubmit}>
+            <button
+              type="button"
+              class="myz-btn-primary"
+              onClick={handleSubmit}
+            >
               保存
             </button>
           </div>
         </div>
       </div>
     );
-  }
+  },
 });

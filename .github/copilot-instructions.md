@@ -1,37 +1,44 @@
 # MyZ Annotator – Copilot Instructions
 
 ## Understand the Architecture First
-- Chrome MV3 extension split across `extension/src/background.js` (service worker), `extension/src/content/content.js` (content script UI/DOM), `extension/popup/*`, and `extension/dashboard/*` (options UI). State lives entirely in `chrome.storage.local` under `myz::highlights` and `myz::settings`.
-- Background worker exposes a message bus (`messageHandlers[...]`) consumed by the content script, popup, and dashboard. Reuse existing handlers instead of inventing new message types when possible.
-- LogSeq sync is orchestrated from `background.js` via `callLogseq`. It already handles endpoint discovery, authentication headers, incremental inserts, and UUID bookkeeping—extend that pipeline, don’t bypass it.
-- The background action badge is controlled exclusively through `messageHandlers["myz:updateBadge"]`; content scripts call it via `syncBadgeWithBackground()` when they are the top-level frame. Do not reintroduce DOM badges on the toolbar itself.
+- The extension is a Chrome MV3 extension built with Vite + `@crxjs/vite-plugin`. The UI (Popup / Dashboard) has been migrated to Vue 3 using the Composition API and JSX (`@vitejs/plugin-vue-jsx`). Core runtime pieces remain in `extension/src`:
+	- Service worker (background) and helpers: `extension/src/background/` (service worker modules such as `badge.js`, `logseq.js`, `storage.js`, etc.).
+	- Content script and page-level helpers: `extension/src/content/` (content script + DOM helpers + CSS).
+	- UI (Vue 3 + JSX) components: `extension/src/popup/` and `extension/src/dashboard/` (components written using Vue Composition API with JSX syntax). `extension/src/shared/` contains composables and shared utilities used by UIs and content scripts.
+- State still lives in `chrome.storage.local` under the existing namespaces (`myz::highlights`, `myz::settings`). Keep using the storage helpers (`readState` / `writeState`) to normalise shape and prune invalid `order` entries.
+- Background service worker continues to expose a message bus (`messageHandlers[...]`) consumed by the content script and UIs. Reuse existing handlers rather than inventing new message types when possible.
+- LogSeq sync is orchestrated from the background service worker (files under `extension/src/background/`) via `callLogseq`. That pipeline already handles endpoint discovery, authentication headers, incremental inserts, and UUID bookkeeping—extend it rather than bypassing it.
+- The background action badge is still controlled through `messageHandlers["myz:updateBadge"]`; content scripts call it via `syncBadgeWithBackground()` when running in the top-level frame. Do not reintroduce DOM badges on the toolbar itself.
 
 ## Patterns to Follow
 - Use `readState`/`writeState` helpers when mutating highlights; they normalise storage shape and prune invalid `order` entries.
 - `sortedHighlights` defines canonical ordering (newest first). Any UI that lists highlights should depend on this sort to keep behaviour consistent.
 - When generating LogSeq payloads, go through `buildHighlightBlock`, `makeBlock`, and the markdown helpers (`htmlToMarkdown`, `cleanLogseqMultiline`, `normalizePreBlock`). They enforce the single-colon metadata rule and strip syntax-highlighting spans in `<pre>` blocks.
 - All LogSeq RPCs must be JSON-RPC calls through `callLogseq({ endpoint, token, method, args })`; it handles response parsing and error surfacing. Service worker cannot rely on DOM APIs—never reintroduce `DOMParser` or similar.
+- UI components now use Vue Composition API with JSX. When editing UI components prefer composables in `extension/src/shared/` over adding logic directly into a component. Keep presentational logic separate from cross-target helpers used by background/content scripts.
 - Toolbar logic in `content.js` keeps the floating actions pinned while scrolling; if you touch selection handling, preserve `state.toolbarRange` updates and the debounce animation frame pattern.
-- Tag pickers (content modal + dashboard) share behaviour: multi-select, comma-to-create, backspace delete, dropdown filtering. Use the existing component utilities when tweaking UI logic.
+- Tag pickers (content modal + dashboard) share behaviour: multi-select, comma-to-create, backspace delete, dropdown filtering. Reuse the existing composable utilities when tweaking UI logic.
 - Highlight styles are enumerated via `HIGHLIGHT_STYLES`; rely on `normalizeHighlightStyle` / `describeHighlightStyle` when persisting or presenting styles. Content CSS must keep underline / wavy modes decoration-only—never change font weight or line height of the original text.
 - Record `kind` distinguishes visual highlights from text-only saves. Use existing downgrade helpers instead of clearing ranges manually; only highlight records should carry `color` / `style` metadata.
 - Highlight restoration relies on `highlightReapplyState` plus the `unreachableHighlights` set. If reworking apply logic, fire `markHighlightForReapply` for failures and maintain the toast notification + deadline behaviour.
-- Popup pulls unreachable metadata through `myz:getHighlightState`; ensure any new state you expose is serialisable and guarded against frames without access.
+- Popup/Dashboard UIs communicate with the background via the same messageHandlers; ensure serialisable payloads (no functions, DOM nodes) and guard access when running inside iframes.
 
 ## Workflows & Testing
-- Manual testing is the primary loop: load the unpacked `extension` folder via `chrome://extensions` and reload after code changes.
+- Manual testing remains the primary loop: generate a build and load the unpacked `dist/` (or equivalent output) via `chrome://extensions` and reload after code changes to background/content scripts. UI components can be previewed faster during development with Vite's dev server and JSX HMR.
 - For LogSeq validation, ensure the desktop app has HTTP API + token enabled (see `knowledges/logseq-http-api.md`) and watch the service worker console for `callLogseq` logs.
-- Screenshot capture uses `chrome.tabs.captureVisibleTab`; we now clear the selection ranges, wait for two `requestAnimationFrame` ticks, capture, then restore the stored ranges. Preserve this sequencing to avoid capturing native highlights.
+- Screenshot capture uses `chrome.tabs.captureVisibleTab`; the sequence still clears selection ranges, waits two `requestAnimationFrame` ticks, captures, then restores ranges—preserve this sequencing to avoid capturing native highlights.
 
 ## Common Pitfalls
 - Never write the `color` property into LogSeq blocks; it creates unwanted pages. Metadata should use single colon separators (`ID:`, `标签:` etc.).
 - Incremental sync expects stored `logseqBlockUuid` values. If you alter highlight persistence, preserve those fields or update the sync reconciliation logic.
 - Markdown export and LogSeq sync both rely on the HTML→Markdown helpers—keep them in sync to avoid divergent output.
-- Background js runs as a module. Avoid introducing globals outside the existing pattern or synchronous APIs that block the event loop.
+- Background service worker runs as a module. Avoid introducing globals outside the existing pattern or synchronous APIs that block the event loop. Also keep in mind service workers lack DOM access—do not introduce DOM-dependent code into background modules.
+- UI (Vue/JSX) components may include browser-only APIs; ensure helper functions that are shared with service worker are environment-agnostic or split into browser-only vs worker-safe helpers.
 
 ## Useful References
 - `knowledges/logseq-http-api.md` summarises the expected LogSeq RPC flow and insert semantics.
 - `extension/README.md` documents user-facing behaviour; keep it updated when introducing new UI or sync flows.
+- `package.json` scripts in `extension/` (`dev`, `build`) and `vite.config.*` (with `@crxjs/vite-plugin`) describe the local dev / build workflow—prefer to follow those scripts rather than inventing new commands.
 
 ## MyZ Sync Service – Copilot Instructions
 - Located in `service/` and built with Next.js App Router + Drizzle (PostgreSQL). Respect the split between API routes under `src/app/api/**` and the management portal under `src/app/**`. Avoid adding pages that bypass existing auth/session helpers.

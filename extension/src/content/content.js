@@ -6,57 +6,25 @@ import InspectorApp from "./components/Inspector.jsx";
 import NotificationsApp from "./components/Notifications.jsx";
 
 import { sendMessage } from "../dashboard/utils/messaging.js";
+import { getRecordKind, RECORD_KINDS } from "../dashboard/utils/records.js";
 import {
-  normalizeHighlightStyle, HIGHLIGHT_STYLE_OPTIONS,
-  DEFAULT_COLORS, HIGHLIGHT_STYLES, DEFAULT_HIGHLIGHT_STYLE
-} from "./stores/highlightPreferences.js";
-import { RECORD_KINDS } from "../dashboard/constants.js";
+  normalizeHighlightStyle,
+  HIGHLIGHT_STYLE_OPTIONS,
+  DEFAULT_COLORS,
+  HIGHLIGHT_STYLES,
+  DEFAULT_HIGHLIGHT_STYLE,
+  normalizeRecord,
+  isClipRecord,
+  isHighlightRecord,
+} from "../shared/highlightUtils.js";
+
+import { serializeRangeToHtml, recordToMarkdown } from "./html.js";
+import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
 
 (() => {
   if (window.__myzAnnotatorInitialized) {
     return;
   }
-
-  const ALLOWED_HTML_TAGS = new Set([
-    "a",
-    "b",
-    "strong",
-    "em",
-    "i",
-    "u",
-    "s",
-    "code",
-    "pre",
-    "blockquote",
-    "mark",
-    "span",
-    "sup",
-    "sub",
-    "p",
-    "div",
-    "ul",
-    "ol",
-    "li",
-    "br",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "table",
-    "thead",
-    "tbody",
-    "tr",
-    "td",
-    "th"
-  ]);
-  const ALLOWED_HTML_ATTRS = {
-    a: new Set(["href", "title"]),
-    td: new Set(["colspan", "rowspan"]),
-    th: new Set(["colspan", "rowspan"])
-  };
-
 
   window.__myzAnnotatorInitialized = true;
 
@@ -64,35 +32,6 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
 
   const highlightCache = new Map();
   const unreachableHighlights = new Set();
-
-  function getRecordKind(record) {
-    if (record && record.kind === RECORD_KINDS.CLIP) {
-      return RECORD_KINDS.CLIP;
-    }
-    return RECORD_KINDS.HIGHLIGHT;
-  }
-
-  function normalizeRecord(record) {
-    if (!record) {
-      return record;
-    }
-    const kind = getRecordKind(record);
-    const normalized = { ...record, kind };
-    if (kind === RECORD_KINDS.HIGHLIGHT) {
-      normalized.style = normalizeHighlightStyle(record.style);
-    } else {
-      normalized.style = null;
-    }
-    return normalized;
-  }
-
-  function isHighlightRecord(record) {
-    return getRecordKind(record) === RECORD_KINDS.HIGHLIGHT;
-  }
-
-  function isClipRecord(record) {
-    return getRecordKind(record) === RECORD_KINDS.CLIP;
-  }
 
   function computeHighlightStats() {
     let highlightCount = 0;
@@ -107,7 +46,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     return {
       highlightCount,
       savedCount,
-      total: highlightCount + savedCount
+      total: highlightCount + savedCount,
     };
   }
 
@@ -132,7 +71,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     tickHandle: null,
     failureNotified: false,
     deadlineListenerAttached: false,
-    deadlineListener: null
+    deadlineListener: null,
   };
 
   const toolbar = createToolbar();
@@ -150,7 +89,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     inspectingId: null,
     toolbarShownAt: 0,
     toolbarRange: null,
-    formKind: RECORD_KINDS.HIGHLIGHT
+    formKind: RECORD_KINDS.HIGHLIGHT,
   };
 
   const TOOLBAR_MIN_VIEWPORT_GAP = 12;
@@ -162,8 +101,13 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     document.addEventListener("mouseup", handleSelectionTrigger);
     document.addEventListener("keyup", handleSelectionTrigger);
     document.addEventListener("scroll", handleScrollWhileSelecting, true);
-    window.addEventListener("scroll", handleScrollWhileSelecting, { capture: true, passive: true });
-    window.addEventListener("resize", handleScrollWhileSelecting, { passive: true });
+    window.addEventListener("scroll", handleScrollWhileSelecting, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", handleScrollWhileSelecting, {
+      passive: true,
+    });
     document.addEventListener("click", handleDocumentClick, true);
     document.addEventListener("selectionchange", () => {
       const selection = window.getSelection();
@@ -212,7 +156,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
         sendMessage("myz:getAllTags").catch((error) => {
           console.warn("Failed to load known tags", error);
           return null;
-        })
+        }),
       ]);
 
       if (Array.isArray(tagList)) {
@@ -220,7 +164,9 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       }
 
       inspector.hide?.();
-      Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) => unwrapNode(node));
+      Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) =>
+        unwrapNode(node),
+      );
       highlightCache.clear();
       unreachableHighlights.clear();
       resetHighlightReapplyState();
@@ -265,7 +211,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     }
     const range = selection.getRangeAt(0);
     const rect = getSelectionBoundingRect(range);
-    if (!rect || rect.width === 0 && rect.height === 0) {
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
       hideToolbar();
       return;
     }
@@ -354,8 +300,10 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
         hideToolbar();
         return;
       }
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      const viewportWidth =
+        window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight =
+        window.innerHeight || document.documentElement.clientHeight || 0;
       const outsideViewport =
         rect.bottom < 0 ||
         rect.top > viewportHeight ||
@@ -375,7 +323,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     const app = createApp(ToolbarApp, {
       onAnnotate: handleAnnotateClick,
       onClip: handleClipClick,
-      onCapture: handleScreenshotClick
+      onCapture: handleScreenshotClick,
     });
     app.mount(host);
     const rendered = host.querySelector(".myz-annotator-toolbar");
@@ -401,8 +349,8 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       count: stats.total,
       total: stats.total,
       highlightCount: stats.highlightCount,
-      savedCount: stats.savedCount
-    }).catch(() => { });
+      savedCount: stats.savedCount,
+    }).catch(() => {});
   }
 
   function handleAnnotateClick() {
@@ -425,7 +373,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       tags: [],
       color: null,
       style: null,
-      kind: RECORD_KINDS.HIGHLIGHT
+      kind: RECORD_KINDS.HIGHLIGHT,
     });
   }
 
@@ -448,7 +396,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       tags: [],
       color: null,
       style: null,
-      kind: RECORD_KINDS.CLIP
+      kind: RECORD_KINDS.CLIP,
     });
   }
 
@@ -459,7 +407,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     const app = createApp(ModalApp, {
       onClose: handleModalClose,
       onSubmit: handleModalSubmit,
-      onDelete: handleModalDelete
+      onDelete: handleModalDelete,
     });
 
     const instance = app.mount(host);
@@ -471,7 +419,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       isVisible: () => instance.isVisible(),
       addKnownTags: (tags) => instance.addKnownTags(tags),
       setKnownTags: (tags) => instance.setKnownTags(tags),
-      contains: (node) => host.contains(node)
+      contains: (node) => host.contains(node),
     };
   }
 
@@ -489,7 +437,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       onEdit: handleInspectorEdit,
       onDelete: handleInspectorDelete,
       onShown: handleInspectorShown,
-      onHidden: handleInspectorHidden
+      onHidden: handleInspectorHidden,
     });
 
     const instance = app.mount(host);
@@ -500,7 +448,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       hide: (options) => instance.hide(options),
       isVisible: () => instance.isVisible(),
       getCurrentId: () => instance.getCurrentId(),
-      contains: (node) => host.contains(node)
+      contains: (node) => host.contains(node),
     };
   }
 
@@ -513,7 +461,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
 
     return {
       host,
-      notify: (options) => instance.notify(options)
+      notify: (options) => instance.notify(options),
     };
   }
 
@@ -556,7 +504,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       tags: record.tags || [],
       color: record.color || DEFAULT_COLORS[0],
       style: record.style,
-      kind: getRecordKind(record)
+      kind: getRecordKind(record),
     });
   }
 
@@ -577,7 +525,10 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
   }
 
   function openModal(options) {
-    const kind = options.kind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    const kind =
+      options.kind === RECORD_KINDS.CLIP
+        ? RECORD_KINDS.CLIP
+        : RECORD_KINDS.HIGHLIGHT;
     const initialTags = Array.isArray(options.tags)
       ? options.tags.filter(Boolean)
       : options.tags
@@ -591,7 +542,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       tags: initialTags,
       color: kind === RECORD_KINDS.HIGHLIGHT ? options?.color : null,
       style: kind === RECORD_KINDS.HIGHLIGHT ? options?.style : null,
-      kind
+      kind,
     });
     modal?.addKnownTags?.(initialTags);
   }
@@ -608,9 +559,14 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
   }
 
   async function handleModalSubmit(payload) {
-    const kind = payload.kind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    const kind =
+      payload.kind === RECORD_KINDS.CLIP
+        ? RECORD_KINDS.CLIP
+        : RECORD_KINDS.HIGHLIGHT;
     const note = typeof payload.note === "string" ? payload.note.trim() : "";
-    const tags = Array.isArray(payload.tags) ? payload.tags.filter(Boolean) : [];
+    const tags = Array.isArray(payload.tags)
+      ? payload.tags.filter(Boolean)
+      : [];
 
     state.formKind = kind;
 
@@ -618,11 +574,12 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
 
     if (kind === RECORD_KINDS.HIGHLIGHT) {
       const fallbackColor = DEFAULT_COLORS[0];
-      style.color = typeof payload.color === "string" && payload.color.trim()
-        ? payload.color.trim()
-        : fallbackColor;
+      style.color =
+        typeof payload.color === "string" && payload.color.trim()
+          ? payload.color.trim()
+          : fallbackColor;
       style.style = normalizeHighlightStyle(
-        payload.style || DEFAULT_HIGHLIGHT_STYLE
+        payload.style || DEFAULT_HIGHLIGHT_STYLE,
       );
     }
 
@@ -631,7 +588,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
         id: state.editingId,
         note,
         tags,
-        kind
+        kind,
       };
       if (kind === RECORD_KINDS.HIGHLIGHT) {
         update.color = style.color;
@@ -660,7 +617,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       note,
       tags,
       hostname: window.location.hostname,
-      kind
+      kind,
     };
 
     const selection = window.getSelection();
@@ -676,7 +633,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
         const payloadToSave = {
           ...basePayload,
           ...style,
-          range: serializedRange
+          range: serializedRange,
         };
         const record = await sendMessage("myz:saveHighlight", payloadToSave);
         if (record) {
@@ -698,7 +655,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
           ...basePayload,
           color: null,
           style: null,
-          range: null
+          range: null,
         };
         const record = await sendMessage("myz:saveHighlight", payloadToSave);
         if (record) {
@@ -743,7 +700,9 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       }
       modal.addKnownTags?.(stored.tags || []);
       if (isHighlightRecord(stored)) {
-        const nodes = document.querySelectorAll(`[data-highlight-id="${stored.id}"]`);
+        const nodes = document.querySelectorAll(
+          `[data-highlight-id="${stored.id}"]`,
+        );
         nodes.forEach((node) => {
           decorateHighlightElement(node, stored);
         });
@@ -880,8 +839,8 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
             return NodeFilter.FILTER_REJECT;
           }
           return NodeFilter.FILTER_ACCEPT;
-        }
-      }
+        },
+      },
     );
     let current;
     while ((current = iterator.nextNode())) {
@@ -947,7 +906,8 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     if (!fragment) {
       return false;
     }
-    const blockSelector = "p,div,section,article,header,footer,main,aside,nav,ul,ol,li,table,tbody,tr,td,th,blockquote,pre";
+    const blockSelector =
+      "p,div,section,article,header,footer,main,aside,nav,ul,ol,li,table,tbody,tr,td,th,blockquote,pre";
     return fragment.querySelector(blockSelector) !== null;
   }
 
@@ -995,7 +955,10 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     if (!id) {
       return;
     }
-    if (highlightReapplyState.pending.delete(id) && !highlightReapplyState.pending.size) {
+    if (
+      highlightReapplyState.pending.delete(id) &&
+      !highlightReapplyState.pending.size
+    ) {
       cleanupHighlightReapply();
     }
   }
@@ -1014,13 +977,21 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     ensureReapplyDeadline();
     queueHighlightReapply();
     if (!highlightReapplyState.timerId) {
-      highlightReapplyState.timerId = setInterval(queueHighlightReapply, HIGHLIGHT_REAPPLY_INTERVAL);
+      highlightReapplyState.timerId = setInterval(
+        queueHighlightReapply,
+        HIGHLIGHT_REAPPLY_INTERVAL,
+      );
     }
     if (!highlightReapplyState.observer) {
       const target = document.body || document.documentElement;
       if (target) {
-        highlightReapplyState.observer = new MutationObserver(() => queueHighlightReapply());
-        highlightReapplyState.observer.observe(target, { childList: true, subtree: true });
+        highlightReapplyState.observer = new MutationObserver(() =>
+          queueHighlightReapply(),
+        );
+        highlightReapplyState.observer.observe(target, {
+          childList: true,
+          subtree: true,
+        });
       }
     }
   }
@@ -1043,7 +1014,10 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       highlightReapplyState.deadline = Date.now() + HIGHLIGHT_REAPPLY_TIMEOUT;
       highlightReapplyState.deadlineListenerAttached = false;
       if (highlightReapplyState.deadlineListener) {
-        document.removeEventListener("readystatechange", highlightReapplyState.deadlineListener);
+        document.removeEventListener(
+          "readystatechange",
+          highlightReapplyState.deadlineListener,
+        );
         highlightReapplyState.deadlineListener = null;
       }
     };
@@ -1060,8 +1034,13 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     if (!highlightReapplyState.observer) {
       const target = document.body || document.documentElement;
       if (target) {
-        highlightReapplyState.observer = new MutationObserver(() => queueHighlightReapply());
-        highlightReapplyState.observer.observe(target, { childList: true, subtree: true });
+        highlightReapplyState.observer = new MutationObserver(() =>
+          queueHighlightReapply(),
+        );
+        highlightReapplyState.observer.observe(target, {
+          childList: true,
+          subtree: true,
+        });
       }
     }
     if (highlightReapplyState.tickHandle) {
@@ -1108,7 +1087,10 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       }
     }
 
-    if (highlightReapplyState.deadline && Date.now() > highlightReapplyState.deadline) {
+    if (
+      highlightReapplyState.deadline &&
+      Date.now() > highlightReapplyState.deadline
+    ) {
       const failedIds = Array.from(highlightReapplyState.pending);
       const remaining = failedIds.length;
       failedIds.forEach((id) => unreachableHighlights.add(id));
@@ -1116,10 +1098,13 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       cleanupHighlightReapply();
       if (!highlightReapplyState.failureNotified && remaining > 0) {
         highlightReapplyState.failureNotified = true;
-        console.warn("MyZ Annotator: failed to reapply highlights", { remaining });
-        const message = remaining === 1
-          ? "部分标注无法定位，可能因为页面内容已改变。"
-          : `有 ${remaining} 条标注无法定位，可能因为页面内容已改变。`;
+        console.warn("MyZ Annotator: failed to reapply highlights", {
+          remaining,
+        });
+        const message =
+          remaining === 1
+            ? "部分标注无法定位，可能因为页面内容已改变。"
+            : `有 ${remaining} 条标注无法定位，可能因为页面内容已改变。`;
         showNotification(message);
       }
     }
@@ -1139,7 +1124,10 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       highlightReapplyState.observer = null;
     }
     if (highlightReapplyState.deadlineListener) {
-      document.removeEventListener("readystatechange", highlightReapplyState.deadlineListener);
+      document.removeEventListener(
+        "readystatechange",
+        highlightReapplyState.deadlineListener,
+      );
       highlightReapplyState.deadlineListener = null;
     }
     highlightReapplyState.deadlineListenerAttached = false;
@@ -1154,7 +1142,9 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
   }
 
   function buildHighlightStateSnapshot() {
-    const unreachable = Array.from(unreachableHighlights).filter((id) => highlightCache.has(id));
+    const unreachable = Array.from(unreachableHighlights).filter((id) =>
+      highlightCache.has(id),
+    );
     if (unreachable.length !== unreachableHighlights.size) {
       unreachableHighlights.clear();
       unreachable.forEach((id) => unreachableHighlights.add(id));
@@ -1166,7 +1156,7 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       highlightCount: stats.highlightCount,
       savedCount: stats.savedCount,
       unreachableIds: unreachable,
-      unreachableCount: unreachable.length
+      unreachableCount: unreachable.length,
     };
   }
 
@@ -1175,12 +1165,12 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       return {
         start: {
           path: buildPath(range.startContainer),
-          offset: range.startOffset
+          offset: range.startOffset,
         },
         end: {
           path: buildPath(range.endContainer),
-          offset: range.endOffset
-        }
+          offset: range.endOffset,
+        },
       };
     } catch (error) {
       console.error("Failed to serialize range", error);
@@ -1218,11 +1208,13 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
       if (!parent) {
         break;
       }
-      const siblings = Array.from(parent.childNodes).filter((child) => sameNodeType(child, current));
+      const siblings = Array.from(parent.childNodes).filter((child) =>
+        sameNodeType(child, current),
+      );
       const index = siblings.indexOf(current);
       path.unshift({
         name: nodeName(current),
-        index
+        index,
       });
       current = parent;
     }
@@ -1236,7 +1228,10 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
         if (segment.name === "#text") {
           return child.nodeType === Node.TEXT_NODE;
         }
-        return child.nodeType === Node.ELEMENT_NODE && child.nodeName.toLowerCase() === segment.name;
+        return (
+          child.nodeType === Node.ELEMENT_NODE &&
+          child.nodeName.toLowerCase() === segment.name
+        );
       });
       current = candidates[segment.index] || null;
       if (!current) {
@@ -1247,7 +1242,9 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
   }
 
   function nodeName(node) {
-    return node.nodeType === Node.TEXT_NODE ? "#text" : node.nodeName.toLowerCase();
+    return node.nodeType === Node.TEXT_NODE
+      ? "#text"
+      : node.nodeName.toLowerCase();
   }
 
   function sameNodeType(a, b) {
@@ -1299,7 +1296,9 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
     await waitForNextPaint();
 
     try {
-      const result = await sendMessage("myz:captureSelection", { format: "png" });
+      const result = await sendMessage("myz:captureSelection", {
+        format: "png",
+      });
       if (!result || !result.dataUrl) {
         return;
       }
@@ -1329,196 +1328,5 @@ import { RECORD_KINDS } from "../dashboard/constants.js";
         requestAnimationFrame(resolve);
       });
     });
-  }
-
-  function getSelectionBoundingRect(range) {
-    const rects = Array.from(range.getClientRects()).filter((rect) => rect.width && rect.height);
-    if (!rects.length) {
-      const fallback = range.getBoundingClientRect();
-      if (!fallback || !fallback.width || !fallback.height) {
-        return null;
-      }
-      return {
-        top: fallback.top,
-        left: fallback.left,
-        right: fallback.right,
-        bottom: fallback.bottom,
-        width: fallback.width,
-        height: fallback.height
-      };
-    }
-    const bounds = rects.reduce(
-      (acc, rect) => ({
-        top: Math.min(acc.top, rect.top),
-        left: Math.min(acc.left, rect.left),
-        right: Math.max(acc.right, rect.right),
-        bottom: Math.max(acc.bottom, rect.bottom)
-      }),
-      {
-        top: rects[0].top,
-        left: rects[0].left,
-        right: rects[0].right,
-        bottom: rects[0].bottom
-      }
-    );
-    return {
-      top: bounds.top,
-      left: bounds.left,
-      right: bounds.right,
-      bottom: bounds.bottom,
-      width: bounds.right - bounds.left,
-      height: bounds.bottom - bounds.top
-    };
-  }
-
-  async function cropAndDownloadSelection(dataUrl, rect) {
-    const image = await loadImage(dataUrl);
-    const viewportWidth = window.innerWidth || image.width;
-    const viewportHeight = window.innerHeight || image.height;
-    const scaleX = image.width / viewportWidth;
-    const scaleY = image.height / viewportHeight;
-    const sx = Math.max(0, Math.floor(rect.left * scaleX));
-    const sy = Math.max(0, Math.floor(rect.top * scaleY));
-    const sw = Math.min(image.width - sx, Math.floor(rect.width * scaleX));
-    const sh = Math.min(image.height - sy, Math.floor(rect.height * scaleY));
-    if (sw <= 0 || sh <= 0) {
-      throw new Error("Selection bounds are outside the captured area");
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = sw;
-    canvas.height = sh;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      throw new Error("Canvas context is unavailable");
-    }
-    context.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
-    const cropped = canvas.toDataURL("image/png");
-    downloadImage(cropped, `myz-selection-${Date.now()}.png`);
-  }
-
-  function loadImage(dataUrl) {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("Failed to load screenshot"));
-      image.src = dataUrl;
-    });
-  }
-
-  function downloadImage(dataUrl, filename) {
-    const anchor = document.createElement("a");
-    anchor.href = dataUrl;
-    anchor.download = filename;
-    anchor.click();
-  }
-
-
-  function serializeRangeToHtml(range) {
-    try {
-      const fragment = range.cloneContents();
-      if (!fragment || !fragment.childNodes.length) {
-        return "";
-      }
-      const container = document.createElement("div");
-      container.appendChild(fragment);
-      sanitizeNode(container);
-      return container.innerHTML.trim();
-    } catch (error) {
-      console.warn("Failed to serialize selection HTML", error);
-      return "";
-    }
-  }
-
-  function sanitizeNode(root) {
-    Array.from(root.childNodes).forEach((child) => {
-      if (child.nodeType === Node.ELEMENT_NODE) {
-        sanitizeElement(child);
-      } else if (child.nodeType === Node.COMMENT_NODE) {
-        root.removeChild(child);
-      }
-    });
-  }
-
-  function sanitizeElement(element) {
-    const tag = element.tagName.toLowerCase();
-    if (!ALLOWED_HTML_TAGS.has(tag)) {
-      const parent = element.parentNode;
-      if (!parent) {
-        return;
-      }
-      const children = Array.from(element.childNodes);
-      children.forEach((child) => parent.insertBefore(child, element));
-      parent.removeChild(element);
-      children.forEach((child) => {
-        if (child.nodeType === Node.ELEMENT_NODE) {
-          sanitizeElement(child);
-        }
-      });
-      return;
-    }
-
-    Array.from(element.attributes).forEach((attr) => {
-      if (!isAllowedAttribute(tag, attr.name)) {
-        element.removeAttribute(attr.name);
-        return;
-      }
-      if (attr.name === "href") {
-        const sanitizedHref = normalizeHref(attr.value);
-        if (sanitizedHref) {
-          element.setAttribute("href", sanitizedHref);
-        } else {
-          element.removeAttribute("href");
-        }
-      }
-    });
-
-    if (tag === "a" && element.hasAttribute("href")) {
-      element.setAttribute("target", "_blank");
-      element.setAttribute("rel", "noopener noreferrer");
-    }
-
-    sanitizeNode(element);
-  }
-
-  function isAllowedAttribute(tag, name) {
-    const whitelist = ALLOWED_HTML_ATTRS[tag];
-    if (!whitelist) {
-      return false;
-    }
-    return whitelist.has(name);
-  }
-
-  function normalizeHref(value) {
-    if (!value || typeof value !== "string") {
-      return null;
-    }
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return null;
-    }
-    try {
-      const parsed = new URL(trimmed, window.location.href);
-      const protocol = parsed.protocol.toLowerCase();
-      if (protocol === "http:" || protocol === "https:" || protocol === "mailto:") {
-        return parsed.toString();
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function isSafeUrl(url) {
-    return Boolean(normalizeHref(url));
-  }
-
-  function recordToMarkdown(record) {
-    const tags = Array.isArray(record.tags) && record.tags.length ? ` #${record.tags.join(" #")}` : "";
-    const quote = (record.text || "")
-      .split("\n")
-      .map((line) => `> ${line}`)
-      .join("\n");
-    const note = record.note ? `\n\n${record.note}` : "";
-    return `- **${record.title || record.hostname || "页面"}**${tags} ([链接](${record.sourceUrl || record.url}))\n${quote}${note}`;
   }
 })();

@@ -14,7 +14,8 @@ export function normalizeBadgeCounts(payload = {}) {
   const totalFromPayload = coerceBadgeCount(payload.total);
   const legacyCount = coerceBadgeCount(payload.count);
 
-  const highlightCount = highlightFromPayload ?? (legacyCount !== null ? legacyCount : 0);
+  const highlightCount =
+    highlightFromPayload ?? (legacyCount !== null ? legacyCount : 0);
   const savedCount = savedFromPayload ?? 0;
 
   let total = totalFromPayload;
@@ -31,7 +32,7 @@ export function normalizeBadgeCounts(payload = {}) {
   return {
     highlightCount: Math.max(0, highlightCount ?? 0),
     savedCount: Math.max(0, savedCount ?? 0),
-    total: Math.max(0, total ?? 0)
+    total: Math.max(0, total ?? 0),
   };
 }
 

@@ -1,5 +1,6 @@
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import { RECORD_KINDS, DEFAULT_COLOR } from "../constants.js";
+import { RECORD_KINDS } from "../utils/records.js";
+import { DEFAULT_COLOR } from "../../shared/highlightUtils.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import TagInput from "./TagInput.jsx";
 
@@ -13,10 +14,16 @@ export default defineComponent({
       if (!modalState.recordId) {
         return null;
       }
-      return store.highlights.value.find((item) => item.id === modalState.recordId) || null;
+      return (
+        store.highlights.value.find(
+          (item) => item.id === modalState.recordId,
+        ) || null
+      );
     });
 
-    const kind = computed(() => (record.value ? store.getRecordKind(record.value) : RECORD_KINDS.HIGHLIGHT));
+    const kind = computed(() =>
+      record.value ? store.getRecordKind(record.value) : RECORD_KINDS.HIGHLIGHT,
+    );
     const isVisible = computed(() => Boolean(modalState.recordId));
     const isEditMode = computed(() => modalState.mode === "edit");
     const hasNote = computed(() => Boolean(record.value?.note));
@@ -59,23 +66,44 @@ export default defineComponent({
       const current = record.value;
       const clip = kind.value === RECORD_KINDS.CLIP;
       return (
-        <div id="record-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" onClick={handleOverlayClick}>
-          <div class="modal__dialog" onClick={(event) => event.stopPropagation()}>
+        <div
+          id="record-modal"
+          class="modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
+          onClick={handleOverlayClick}
+        >
+          <div
+            class="modal__dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
             <header class="modal__header">
               <h3 id="modal-title">
                 {(() => {
-                  const baseTitle = current.title || current.hostname || (clip ? "保存内容" : "标注详情");
+                  const baseTitle =
+                    current.title ||
+                    current.hostname ||
+                    (clip ? "保存内容" : "标注详情");
                   return clip ? `${baseTitle}（保存）` : baseTitle;
                 })()}
               </h3>
-              <button type="button" class="btn-icon" aria-label="关闭" onClick={store.closeModal}>
+              <button
+                type="button"
+                class="btn-icon"
+                aria-label="关闭"
+                onClick={store.closeModal}
+              >
                 ✕
               </button>
             </header>
             <div class="modal__body">
               <section class="modal__section">
                 <h4 id="modal-quote-label">{clip ? "保存文字" : "标注"}</h4>
-                <div class="modal__quote" innerHTML={store.renderHighlight(current)}></div>
+                <div
+                  class="modal__quote"
+                  innerHTML={store.renderHighlight(current)}
+                ></div>
               </section>
               <section class="modal__section">
                 <h4>批注</h4>
@@ -87,7 +115,12 @@ export default defineComponent({
                     onInput={(event) => (modalState.note = event.target.value)}
                   ></textarea>
                 ) : (
-                  <div class={"modal__note" + (hasNote.value ? "" : " is-empty")} innerHTML={hasNote.value ? store.formatNote(current.note) : "无批注"}></div>
+                  <div
+                    class={"modal__note" + (hasNote.value ? "" : " is-empty")}
+                    innerHTML={
+                      hasNote.value ? store.formatNote(current.note) : "无批注"
+                    }
+                  ></div>
                 )}
               </section>
               <section class="modal__section">
@@ -96,18 +129,23 @@ export default defineComponent({
                   <TagInput
                     class="modal__tags-input"
                     modelValue={modalState.tags}
-                    options={[...new Set([...availableTags.value, ...modalState.tags])].sort((a, b) => a.localeCompare(b))}
+                    options={[
+                      ...new Set([...availableTags.value, ...modalState.tags]),
+                    ].sort((a, b) => a.localeCompare(b))}
                     onUpdate:modelValue={(value) => {
                       modalState.tags = value;
                     }}
                     allowNew
                   />
                 ) : (
-                  <div class={"modal__tags" + ((current.tags && current.tags.length) ? "" : " is-empty")}>
+                  <div
+                    class={
+                      "modal__tags" +
+                      (current.tags && current.tags.length ? "" : " is-empty")
+                    }
+                  >
                     {(current.tags || []).length
-                      ? current.tags.map((tag) => (
-                          <span key={tag}>{tag}</span>
-                        ))
+                      ? current.tags.map((tag) => <span key={tag}>{tag}</span>)
                       : "无标签"}
                   </div>
                 )}
@@ -115,7 +153,12 @@ export default defineComponent({
               <section class="modal__section modal__section--inline">
                 <div>
                   <h4>颜色</h4>
-                  <span class={"modal__color" + (clip ? " is-hidden" : "")} style={{ background: clip ? "transparent" : modalState.color }}></span>
+                  <span
+                    class={"modal__color" + (clip ? " is-hidden" : "")}
+                    style={{
+                      background: clip ? "transparent" : modalState.color,
+                    }}
+                  ></span>
                 </div>
                 {!clip && isEditMode.value ? (
                   <label class="modal__color-input">
@@ -133,11 +176,20 @@ export default defineComponent({
               <p class="status-line">{modalState.status}</p>
             </div>
             <footer class="modal__footer">
-              <button type="button" class="btn btn-secondary" onClick={store.closeModal}>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onClick={store.closeModal}
+              >
                 {isEditMode.value ? "取消" : "关闭"}
               </button>
               {isEditMode.value ? (
-                <button type="button" class="btn btn-primary" disabled={modalState.saving} onClick={store.saveModal}>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  disabled={modalState.saving}
+                  onClick={store.saveModal}
+                >
                   {modalState.saving ? "保存中…" : "保存"}
                 </button>
               ) : null}
@@ -146,5 +198,5 @@ export default defineComponent({
         </div>
       );
     };
-  }
+  },
 });
