@@ -6,8 +6,6 @@ import js from "@eslint/js";
 import pluginVue from "eslint-plugin-vue";
 import globals from "globals";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
-import { jsx } from "vue/jsx-runtime";
-
 const gitignorePath = fileURLToPath(new URL(".gitignore", import.meta.url));
 
 export default defineConfig([
