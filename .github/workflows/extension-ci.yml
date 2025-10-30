@@ -15,7 +15,9 @@ jobs:
     strategy:
       matrix:
         node-version: [24]
-
+    defaults:
+      run:
+        working-directory: extension
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,18 +29,14 @@ jobs:
 
       - name: Install extension dependencies
         run: npm ci
-        working-directory: extension
 
       - name: Build extension
         run: npm run build --if-present
-        working-directory: extension
 
       - name: Install Playwright browsers and system deps
         run: npx playwright install --with-deps
-        working-directory: extension
 
       - name: Run Playwright tests
         run: npx playwright test tests --config=tests/playwright.config.ts --reporter=list
-        working-directory: extension
         env:
           CI: true
