@@ -28,6 +28,19 @@
 - For LogSeq validation, ensure the desktop app has HTTP API + token enabled (see `knowledges/logseq-http-api.md`) and watch the service worker console for `callLogseq` logs.
 - Screenshot capture uses `chrome.tabs.captureVisibleTab`; the sequence still clears selection ranges, waits two `requestAnimationFrame` ticks, captures, then restores ranges—preserve this sequencing to avoid capturing native highlights.
 
+### Playwright E2E tests and CI
+
+- We maintain an end-to-end test suite under `extension/tests/` using Playwright Test. These tests launch a headed Chromium with a temporary user data directory and load the built extension from `extension/dist`.
+- Key flows covered: toolbar selection, apply highlight, save-as-clip (保存文字), inspector copy/edit/delete, dashboard list/edit/downgrade/import/export, complex DOM fixture highlights and export, screenshot capture (download verification), bulk import and infinite-scroll.
+
+CI workflow expectations:
+
+- Before running Playwright tests, build the extension (`npm run build`) so the tests load `extension/dist`.
+- Tests must run in headed mode (Playwright `headless: false` set in `tests/playwright.config.ts`). On Linux CI runners use `xvfb-run` or Playwright's Docker image to provide a virtual display.
+- Collect artifacts on CI: HTML report (`playwright-report`), traces and videos when available. The CI workflow should upload these artifacts on success or failure to help triage flaky failures.
+
+If you add or change any content script, toolbar, modal behavior or background message handlers, add or update a Playwright test that covers the end-to-end flow (selection → toolbar → modal → background save → dashboard record). 
+
 ## Common Pitfalls
 - Never write the `color` property into LogSeq blocks; it creates unwanted pages. Metadata should use single colon separators (`ID:`, `标签:` etc.).
 - Incremental sync expects stored `logseqBlockUuid` values. If you alter highlight persistence, preserve those fields or update the sync reconciliation logic.

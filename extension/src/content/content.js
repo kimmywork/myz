@@ -452,6 +452,7 @@ import {
     const liveRange = selection.getRangeAt(0);
     state.currentRange = liveRange.cloneRange();
     state.toolbarRange = liveRange.cloneRange();
+    state.currentText = selection.toString().trim();
     state.currentHtml = serializeRangeToHtml(state.currentRange);
     state.editingId = null;
     state.formKind = RECORD_KINDS.CLIP;

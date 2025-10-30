@@ -7,6 +7,7 @@ let server;
 let serverUrl;
 let context;
 let page;
+let extensionId;
 
 test.beforeAll(async () => {
   const fixtures = path.join(__dirname, "..", "fixtures");
@@ -21,6 +22,7 @@ test.beforeAll(async () => {
   const launched = await launchExtension(extensionPath);
   context = launched.context;
   page = launched.page;
+  extensionId = launched.extensionId;
 });
 
 test.afterAll(async () => {
@@ -89,4 +91,67 @@ test("remove_highlight_updates_dom_and_storage", async () => {
   // Note: verifying chrome.storage from the page context isn't available
   // (content pages don't have access to the extension storage API). The DOM
   // removal above is the primary signal that the highlight was deleted.
+});
+
+test("save_clip_via_toolbar_persists_to_dashboard", async () => {
+  // Ensure extension id is available
+  if (!extensionId) {
+    throw new Error("extensionId not available in test context");
+  }
+
+  await page.goto(`${serverUrl}/myz-test.html`);
+
+  // Select a short piece of text in #para-1 and click 保存文字
+  const para = await page.locator("#para-1");
+  const box = await para.boundingBox();
+  if (!box) throw new Error("Could not determine paragraph bounding box");
+  // choose a small inner region
+  await page.mouse.move(box.x + 10, box.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 120, box.y + 10);
+  await page.mouse.up();
+
+  // record the selection text for later verification
+  const selectionText = await page.evaluate(() => {
+    const s = window.getSelection();
+    return s ? s.toString().trim() : "";
+  });
+
+  await page.waitForSelector('.myz-annotator-toolbar:not(.myz-hidden)', { timeout: 5000 });
+  await page.waitForSelector('.myz-annotator-toolbar button[aria-label="保存文字"]', { timeout: 3000 });
+
+  // Click 保存文字, submit modal, then verify via dashboard that the clip exists
+  await page.click('.myz-annotator-toolbar button[aria-label="保存文字"]');
+  await page.waitForSelector('.myz-annotator-modal:not(.myz-hidden)', { timeout: 5000 });
+  await page.click('.myz-annotator-modal .myz-btn-primary');
+
+  // Open dashboard page and query saved highlights for this URL
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector('.app-shell', { timeout: 5000 });
+
+  const canonical = await page.evaluate((u) => {
+    try {
+      const url = new URL(u);
+      url.hash = "";
+      return url.toString();
+    } catch (e) {
+      return u;
+    }
+  }, `${serverUrl}/myz-test.html`);
+
+  const records = await dash.evaluate(async (url) => {
+    return await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: 'myz:getHighlightsForUrl', payload: { url } }, (resp) => {
+        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+        resolve(resp);
+      });
+    });
+  }, canonical);
+
+  const data = Array.isArray(records?.data) ? records.data : [];
+  // There should be at least one saved clip matching our selection text
+  const found = data.find((r) => typeof r.text === 'string' && r.text.includes(selectionText));
+  expect(found).toBeTruthy();
 });
