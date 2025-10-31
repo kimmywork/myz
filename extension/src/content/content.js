@@ -431,6 +431,24 @@ import {
       return;
     }
     const liveRange = selection.getRangeAt(0);
+    // Client-side guard: if selection intersects an existing highlight wrapper,
+    // notify the user immediately and avoid opening the create modal.
+    try {
+      const existing = Array.from(document.querySelectorAll('.myz-highlight'));
+      for (const el of existing) {
+        try {
+          if (liveRange.intersectsNode(el)) {
+            showNotification('所选文本包含已有标注，无法创建新的标注');
+            hideToolbar();
+            return;
+          }
+        } catch (e) {
+          // ignore intersection errors and continue
+        }
+      }
+    } catch (e) {
+      // ignore DOM query errors
+    }
     state.currentRange = liveRange.cloneRange();
     state.toolbarRange = liveRange.cloneRange();
     state.currentText = selection.toString().trim();
