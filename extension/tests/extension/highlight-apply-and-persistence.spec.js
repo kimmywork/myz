@@ -27,7 +27,9 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context.close();
-  server.close;
+  await new Promise((resolve, reject) =>
+    server.close((err) => (err ? reject(err) : resolve())),
+  );
 });
 
 test("apply_highlight_style_applies_dom_change and highlight_persists_after_reload", async () => {

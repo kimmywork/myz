@@ -29,7 +29,9 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context.close();
-  server.close;
+  await new Promise((resolve, reject) =>
+    server.close((err) => (err ? reject(err) : resolve())),
+  );
 });
 
 test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
