@@ -1,3 +1,5 @@
+import { isHighlightRecord } from "./highlightUtils.js";
+
 export function isMyzWrapper(node) {
   return (
     node &&
@@ -226,40 +228,52 @@ function clampOffset(node, requested) {
   return Math.min(requested, node.childNodes.length);
 }
 
-export function serializeRange(doc, range, highlightCache) {
+export function serializeRange(
+  doc,
+  range,
+  highlightCache,
+  applyHighlight = () => {},
+) {
   try {
-    // If the page already contains MyZ wrapper nodes, temporarily unwrap
-    // them so we compute paths against the original DOM. Afterwards we
-    // reapply existing highlights from cache. This avoids path indexing
-    // shifts caused by wrapper elements.
+    // If the page already contains MyZ wrapper nodes, we'll compute the
+    // path+charOffset against the current DOM (which may include wrappers).
+    // To avoid losing selection anchors when wrappers are temporarily
+    // removed, compute the element+char offsets first. Then unwrap wrappers
+    // before returning the serialized range so callers operate on the
+    // unwrapped DOM when needed.
     const existing = Array.from(doc.querySelectorAll(".myz-highlight"));
     const ids = existing.map((n) => n.dataset?.highlightId).filter(Boolean);
+
+    // More robust serialization: store a path to the nearest element
+    // ancestor plus a character offset within that element. This is
+    // resilient to text-node merging/splitting when wrappers are
+    // removed and prevents indices from becoming invalid.
+    const startElement =
+      range.startContainer.nodeType === doc.defaultView.Node.TEXT_NODE
+        ? range.startContainer.parentNode
+        : range.startContainer;
+    const endElement =
+      range.endContainer.nodeType === doc.defaultView.Node.TEXT_NODE
+        ? range.endContainer.parentNode
+        : range.endContainer;
+
+    const startChar = charOffsetWithinElement(
+      startElement,
+      range.startContainer,
+      range.startOffset,
+    );
+    const endChar = charOffsetWithinElement(
+      endElement,
+      range.endContainer,
+      range.endOffset,
+    );
+
     try {
+      // Now that we've recorded the stable offsets, unwrap any existing
+      // highlight wrappers so callers can operate against the original
+      // DOM (without wrappers). Failures here shouldn't prevent returning
+      // the serialized range.
       existing.forEach((node) => unwrapNode(node));
-
-      // More robust serialization: store a path to the nearest element
-      // ancestor plus a character offset within that element. This is
-      // resilient to text-node merging/splitting when wrappers are
-      // removed and prevents indices from becoming invalid.
-      const startElement =
-        range.startContainer.nodeType === doc.defaultView.Node.TEXT_NODE
-          ? range.startContainer.parentNode
-          : range.startContainer;
-      const endElement =
-        range.endContainer.nodeType === doc.defaultView.Node.TEXT_NODE
-          ? range.endContainer.parentNode
-          : range.endContainer;
-
-      const startChar = charOffsetWithinElement(
-        startElement,
-        range.startContainer,
-        range.startOffset,
-      );
-      const endChar = charOffsetWithinElement(
-        endElement,
-        range.endContainer,
-        range.endOffset,
-      );
 
       return {
         start: {

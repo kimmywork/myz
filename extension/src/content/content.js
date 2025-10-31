@@ -701,7 +701,12 @@ import {
         if (!state.currentRange) {
           return;
         }
-        const serializedRange = serializeRange(document, state.currentRange);
+        const serializedRange = serializeRange(
+          document,
+          state.currentRange,
+          highlightCache,
+          applyHighlight,
+        );
         if (!serializedRange) {
           return;
         }
