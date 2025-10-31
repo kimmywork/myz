@@ -1,11 +1,12 @@
 import { defineComponent, ref, computed, onMounted } from "vue";
 import HighlightItem from "./components/HighlightItem.jsx";
-import {
-  normalizeWhitespace,
-  recordToMarkdown,
-} from "../shared/highlightUtils.js";
+import { normalizeWhitespace } from "../shared/highlightUtils.js";
 
-import { RECORD_KINDS, normalizeRecord } from "../dashboard/utils/records.js";
+import {
+  RECORD_KINDS,
+  normalizeRecord,
+  recordToMarkdown,
+} from "../dashboard/utils/records.js";
 
 export default defineComponent({
   name: "PopupApp",
@@ -61,15 +62,17 @@ export default defineComponent({
             : [],
         );
         highlights.value = Array.isArray(records)
-          ? records.map((record) => {
-              const normalized = normalizeRecord(record);
-              return {
-                ...normalized,
-                unreachable:
-                  normalized.kind === RECORD_KINDS.HIGHLIGHT &&
-                  unreachableIds.has(normalized.id),
-              };
-            })
+          ? records
+              .map(normalizeRecord)
+              .filter(Boolean)
+              .map((normalized) => {
+                return {
+                  ...normalized,
+                  unreachable:
+                    normalized.kind === RECORD_KINDS.HIGHLIGHT &&
+                    unreachableIds.has(normalized.id),
+                };
+              })
           : [];
         error.value = "";
       } catch (err) {

@@ -98,17 +98,7 @@ export function buildPath(node) {
   return path;
 }
 
-export function resolvePath(docOrNodeOrPath, maybePath) {
-  // Flexible signature: resolvePath(path) or resolvePath(documentOrNode, path)
-  let path = maybePath;
-  let root = null;
-  if (Array.isArray(docOrNodeOrPath)) {
-    path = docOrNodeOrPath;
-    root = document;
-  } else {
-    root = docOrNodeOrPath || document;
-  }
-
+export function resolvePath(root, path) {
   // Normalize root to an element to start iteration
   let current = root;
   if (current && current.nodeType === current.DOCUMENT_NODE) {
@@ -125,10 +115,13 @@ export function resolvePath(docOrNodeOrPath, maybePath) {
         path = path.slice(1);
       }
     }
-  } else if (current.ownerDocument) {
-    current = current.documentElement || current.ownerDocument || current;
+  } else if (current && current.ownerDocument) {
+    const viewNode = current.ownerDocument.defaultView?.Node ?? globalThis.Node;
+    const TEXT_NODE = viewNode?.TEXT_NODE ?? 3;
+    if (current.nodeType === TEXT_NODE) {
+      current = current.parentNode || current;
+    }
   }
-
   for (const segment of path) {
     const logicalList = getLogicalChildNodes(current);
     const NodeConst = (current.ownerDocument || current).defaultView.Node;
@@ -212,4 +205,136 @@ export function nodeForCharOffset(element, charOffset) {
     return { node: last, offset: last.textContent.length };
   }
   return null;
+}
+
+export function unwrapNode(node) {
+  const parent = node.parentNode;
+  if (!parent) {
+    return;
+  }
+  while (node.firstChild) {
+    parent.insertBefore(node.firstChild, node);
+  }
+  parent.removeChild(node);
+  parent.normalize();
+}
+
+function clampOffset(node, requested) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return Math.min(requested, node.textContent.length);
+  }
+  return Math.min(requested, node.childNodes.length);
+}
+
+export function serializeRange(doc, range, highlightCache) {
+  try {
+    // If the page already contains MyZ wrapper nodes, temporarily unwrap
+    // them so we compute paths against the original DOM. Afterwards we
+    // reapply existing highlights from cache. This avoids path indexing
+    // shifts caused by wrapper elements.
+    const existing = Array.from(doc.querySelectorAll(".myz-highlight"));
+    const ids = existing.map((n) => n.dataset?.highlightId).filter(Boolean);
+    try {
+      existing.forEach((node) => unwrapNode(node));
+
+      // More robust serialization: store a path to the nearest element
+      // ancestor plus a character offset within that element. This is
+      // resilient to text-node merging/splitting when wrappers are
+      // removed and prevents indices from becoming invalid.
+      const startElement =
+        range.startContainer.nodeType === doc.defaultView.Node.TEXT_NODE
+          ? range.startContainer.parentNode
+          : range.startContainer;
+      const endElement =
+        range.endContainer.nodeType === doc.defaultView.Node.TEXT_NODE
+          ? range.endContainer.parentNode
+          : range.endContainer;
+
+      const startChar = charOffsetWithinElement(
+        startElement,
+        range.startContainer,
+        range.startOffset,
+      );
+      const endChar = charOffsetWithinElement(
+        endElement,
+        range.endContainer,
+        range.endOffset,
+      );
+
+      return {
+        start: {
+          path: buildPath(startElement),
+          charOffset: startChar,
+        },
+        end: {
+          path: buildPath(endElement),
+          charOffset: endChar,
+        },
+      };
+    } finally {
+      // Reapply highlights from cache; ignore failures.
+      ids.forEach((id) => {
+        try {
+          const rec = highlightCache.get(id);
+          if (rec && isHighlightRecord(rec)) {
+            applyHighlight(rec);
+          }
+        } catch (e) {
+          // swallow
+        }
+      });
+    }
+  } catch (error) {
+    console.error("Failed to serialize range", error);
+    return null;
+  }
+}
+
+export function deserializeRange(doc, serialized) {
+  if (!serialized?.start || !serialized?.end) {
+    return null;
+  }
+  const range = doc.createRange();
+  // Prefer the new element+charOffset format. Fall back to the old
+  // node+offset format for backward compatibility.
+  try {
+    // Start
+    let startNode = null;
+    let startOffset = 0;
+    if (serialized.start && typeof serialized.start.charOffset === "number") {
+      const el = resolvePath(doc, serialized.start.path);
+      if (!el) return null;
+      const resolved = nodeForCharOffset(el, serialized.start.charOffset);
+      if (!resolved) return null;
+      startNode = resolved.node;
+      startOffset = resolved.offset;
+    } else {
+      startNode = resolvePath(doc, serialized.start.path);
+      if (!startNode) return null;
+      startOffset = clampOffset(startNode, serialized.start.offset);
+    }
+
+    // End
+    let endNode = null;
+    let endOffset = 0;
+    if (serialized.end && typeof serialized.end.charOffset === "number") {
+      const el = resolvePath(doc, serialized.end.path);
+      if (!el) return null;
+      const resolved = nodeForCharOffset(el, serialized.end.charOffset);
+      if (!resolved) return null;
+      endNode = resolved.node;
+      endOffset = resolved.offset;
+    } else {
+      endNode = resolvePath(doc, serialized.end.path);
+      if (!endNode) return null;
+      endOffset = clampOffset(endNode, serialized.end.offset);
+    }
+
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
+    return range;
+  } catch (error) {
+    console.error("Failed to reconstruct range", error);
+    return null;
+  }
 }

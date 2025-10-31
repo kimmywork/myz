@@ -3,7 +3,7 @@
     "build": "vue-tsc -b && vite build",
     "dev": "vite",
     "lint": "eslint --ext .js,.jsx --fix src",
-    "test:dev": "--experimental-vm-modules jest --runInBand",
+    "test:dev": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
     "test:playwright": "playwright test tests --config=tests/playwright.config.ts",
     "format": "prettier .  --write"
   },
@@ -27,10 +27,10 @@
     "typescript": "^5.9.3",
     "vite": "^7.0.5",
     "vite-plugin-zip-pack": "^1.2.4",
-    "vue-tsc": "^3.1.2"
+    "vue-tsc": "^3.1.2",
+    "jsdom": "^27.0.1"
   },
   "dependencies": {
-    "jsdom": "^27.0.1",
     "vue": "^3.5.22"
   }
 }

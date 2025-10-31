@@ -40,10 +40,11 @@ export function getSelectionBoundingRect(range) {
   };
 }
 
-export async function cropAndDownloadSelection(dataUrl, rect) {
+export async function cropAndDownloadSelection(dataUrl, rect, captureViewport) {
   const image = await loadImage(dataUrl);
-  const viewportWidth = window.innerWidth || image.width;
-  const viewportHeight = window.innerHeight || image.height;
+
+  const viewportWidth = captureViewport?.width ?? image.width;
+  const viewportHeight = captureViewport?.height ?? image.height;
   const scaleX = image.width / viewportWidth;
   const scaleY = image.height / viewportHeight;
   const sx = Math.max(0, Math.floor(rect.left * scaleX));

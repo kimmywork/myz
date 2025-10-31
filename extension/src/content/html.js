@@ -137,16 +137,3 @@ function normalizeHref(value) {
     return null;
   }
 }
-
-export function recordToMarkdown(record) {
-  const tags =
-    Array.isArray(record.tags) && record.tags.length
-      ? ` #${record.tags.join(" #")}`
-      : "";
-  const quote = (record.text || "")
-    .split("\n")
-    .map((line) => `> ${line}`)
-    .join("\n");
-  const note = record.note ? `\n\n${record.note}` : "";
-  return `- **${record.title || record.hostname || "页面"}**${tags} ([链接](${record.sourceUrl || record.url}))\n${quote}${note}`;
-}

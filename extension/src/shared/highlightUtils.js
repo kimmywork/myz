@@ -143,20 +143,6 @@ export function getRecordPlainText(record) {
   return normalizeWhitespace(extractPlainText(record.html));
 }
 
-export function recordToMarkdown(record) {
-  const tags =
-    Array.isArray(record.tags) && record.tags.length
-      ? ` #${record.tags.join(" #")}`
-      : "";
-  const quote = (record.text || "")
-    .split("\n")
-    .map((line) => `> ${line}`)
-    .join("\n");
-  const note = record.note ? `\n\n${record.note}` : "";
-  const link = record.sourceUrl || record.url;
-  return `- **${record.title || record.hostname || "页面"}**${tags} ([链接](${link}))\n${quote}${note}`;
-}
-
 export function buildMeta(record) {
   const created = record.createdAt
     ? new Date(record.createdAt).toLocaleString()

@@ -51,8 +51,8 @@ function mergeKnownTags(current = [], incoming = []) {
 export default defineComponent({
   name: "MyZModal",
   emits: ["close", "submit", "delete"],
-  // eslint-disable-next-line no-empty-pattern
-  setup({}, { emit, expose }) {
+
+  setup(_props, { emit, expose }) {
     const visible = ref(false);
     const mode = ref("create");
     const kind = ref(RECORD_KINDS.HIGHLIGHT);

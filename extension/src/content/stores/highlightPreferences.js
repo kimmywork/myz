@@ -59,7 +59,7 @@ function createStore(options) {
     const normalized = normalizeColor(color, palette.value[0]);
     lastUsedColor.value = normalized;
     persistSettings({
-      lastUsedColor: lastUsedColor.value,
+      lastUsedColor: normalized,
     });
     return normalized;
   }

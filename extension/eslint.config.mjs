@@ -27,7 +27,7 @@ export default defineConfig([
     plugins: {
       js,
     },
-    extends: ["js/recommended"],
+    ...js.configs.recommended,
     rules: {
       "no-unused-vars": "warn",
     },
@@ -50,7 +50,7 @@ export default defineConfig([
     plugins: {
       js,
     },
-    extends: ["js/recommended"],
+    ...js.configs.recommended,
     rules: {
       "no-unused-vars": "warn",
     },

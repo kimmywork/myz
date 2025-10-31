@@ -10,12 +10,12 @@ let isMyzWrapper,
   getDirectChildAndLogical,
   nodeName,
   sameNodeType,
-  buildPath,
-  resolvePath,
   getDescendantTextNodes,
   charOffsetWithinElement,
   nodeForCharOffset,
-  getTextLength;
+  getTextLength,
+  serializeRange,
+  deserializeRange;
 
 // The HTML snippet (a single paragraph) copied from your report.
 const html = `
@@ -123,107 +123,6 @@ function unwrapAll(doc) {
   doc.normalize();
 }
 
-function serializeRange(doc, range) {
-  // unwrap wrappers temporarily
-  const existing = Array.from(doc.querySelectorAll(".myz-highlight"));
-  const ids = existing.map((n) => n.dataset.highlightId).filter(Boolean);
-  try {
-    existing.forEach((n) => {
-      const parent = n.parentNode;
-      while (n.firstChild) parent.insertBefore(n.firstChild, n);
-      parent.removeChild(n);
-    });
-
-    const startElement =
-      range.startContainer.nodeType === doc.TEXT_NODE
-        ? range.startContainer.parentNode
-        : range.startContainer;
-    const endElement =
-      range.endContainer.nodeType === doc.TEXT_NODE
-        ? range.endContainer.parentNode
-        : range.endContainer;
-
-    const startChar = charOffsetWithinElement(
-      startElement,
-      range.startContainer,
-      range.startOffset,
-    );
-    const endChar = charOffsetWithinElement(
-      endElement,
-      range.endContainer,
-      range.endOffset,
-    );
-
-    return {
-      start: { path: buildPath(startElement), charOffset: startChar },
-      end: { path: buildPath(endElement), charOffset: endChar },
-    };
-  } finally {
-    // Reapply wrappers for ids from global cache so the visible DOM is
-    // restored (mimic extension behavior where wrappers are temporarily
-    // removed while computing canonical paths).
-    try {
-      ids.forEach((id) => {
-        const rec = cache.get(id);
-        if (rec && rec.id) {
-          // apply without re-serializing
-          try {
-            // Use deserialize/apply flow to preserve logic
-            const r = deserializeRange(doc, rec.range);
-            if (r) {
-              wrapRangeAcrossNodes(doc, r, rec.id) ||
-                wrapSimpleRange(doc, r, rec.id);
-            }
-          } catch (e) {
-            // swallow
-          }
-        }
-      });
-    } catch (e) {
-      // ignore if cache isn't available in this context
-    }
-  }
-}
-
-function deserializeRange(doc, serialized) {
-  if (!serialized || !serialized.start || !serialized.end) return null;
-  const range = doc.createRange();
-  // Prefer charOffset format
-  if (
-    typeof serialized.start.charOffset === "number" &&
-    typeof serialized.end.charOffset === "number"
-  ) {
-    const startEl = resolvePath(doc, serialized.start.path);
-    const endEl = resolvePath(doc, serialized.end.path);
-    if (!startEl || !endEl) return null;
-    const s = nodeForCharOffset(startEl, serialized.start.charOffset);
-    const e = nodeForCharOffset(endEl, serialized.end.charOffset);
-    if (!s || !e) return null;
-    range.setStart(s.node, s.offset);
-    range.setEnd(e.node, e.offset);
-    return range;
-  }
-  // Fallback to old format
-  const startNode = resolvePath(doc, serialized.start.path);
-  const endNode = resolvePath(doc, serialized.end.path);
-  if (!startNode || !endNode) return null;
-  const startOffset = Math.min(
-    serialized.start.offset,
-    startNode.nodeType === doc.TEXT_NODE
-      ? startNode.textContent.length
-      : startNode.childNodes.length,
-  );
-  const endOffset = Math.min(
-    serialized.end.offset,
-    endNode.nodeType === doc.TEXT_NODE
-      ? endNode.textContent.length
-      : endNode.childNodes.length,
-  );
-  range.setStart(startNode, startOffset);
-  range.setEnd(endNode, endOffset);
-  return range;
-}
-
 function textIndexOf(root, needle, from = 0) {
   // naive: flatten textContent of root and map to text nodes
   let acc = 0;
@@ -249,7 +148,7 @@ function textIndexOf(root, needle, from = 0) {
   return null;
 }
 
-// Char-offset helpers are provided by ./lib/serializer and imported above.
+// Char-offset helpers are provided by ../src/shared/serializer.js and imported dynamically in run().
 
 function dumpLogicalChildren(parent, label) {
   const list = getLogicalChildNodes(parent).map((entry, i) => {
@@ -279,12 +178,12 @@ function dumpLogicalChildren(parent, label) {
     getDirectChildAndLogical,
     nodeName,
     sameNodeType,
-    buildPath,
-    resolvePath,
     getDescendantTextNodes,
     charOffsetWithinElement,
     nodeForCharOffset,
     getTextLength,
+    serializeRange,
+    deserializeRange,
   } = mod);
   const p = doc.querySelector("p");
 

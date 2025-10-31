@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MyZ icon monochrome dark">
+  <defs>
+    <filter id="sd" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+  <g filter="url(#sd)">
+    <circle cx="64" cy="64" r="56" fill="#0B1F2D" />
+  </g>
+
+  <!-- Z glyph filled white for contrast -->
+  <g>
+    <path d="M36 34 L92 34 L48 64 L92 94 L36 94"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="10"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+  </g>
+  <title>MyZ - monochrome dark (128px)</title>
+</svg>

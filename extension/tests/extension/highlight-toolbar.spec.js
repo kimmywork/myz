@@ -24,8 +24,12 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await context.close();
-  server.close;
+  try {
+    await context?.close();
+  } catch (e) {}
+  try {
+    server && server.close();
+  } catch (e) {}
 });
 
 test("highlight_toolbar_shows_on_selection", async () => {

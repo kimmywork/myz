@@ -247,7 +247,7 @@ export function cleanLogseqMultiline(value) {
   }
   const lines = String(value)
     .replace(/\r\n?/g, "\n")
-    // eslint-disable-next-line no-control-regex
+
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
     .split("\n");
 

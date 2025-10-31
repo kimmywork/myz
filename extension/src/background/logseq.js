@@ -264,12 +264,9 @@ function cleanLogseqInline(value) {
   if (!value) {
     return "";
   }
-  return (
-    String(value)
-      // eslint-disable-next-line no-control-regex
-      .replace(/[\s\u0000-\u001f\u007f]+/g, " ")
-      .trim()
-  );
+  return String(value)
+    .replace(/[\s\u0000-\u001f\u007f]+/g, " ")
+    .trim();
 }
 
 function makeMarkdownBlock(content) {

@@ -6,7 +6,11 @@ import InspectorApp from "./components/Inspector.jsx";
 import NotificationsApp from "./components/Notifications.jsx";
 
 import { sendMessage } from "../dashboard/utils/messaging.js";
-import { getRecordKind, RECORD_KINDS } from "../dashboard/utils/records.js";
+import {
+  getRecordKind,
+  RECORD_KINDS,
+  recordToMarkdown,
+} from "../dashboard/utils/records.js";
 import {
   normalizeHighlightStyle,
   HIGHLIGHT_STYLE_OPTIONS,
@@ -18,14 +22,15 @@ import {
   isHighlightRecord,
 } from "../shared/highlightUtils.js";
 
-import { serializeRangeToHtml, recordToMarkdown } from "./html.js";
+import { serializeRangeToHtml } from "./html.js";
 import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
 import {
   isNodeFromMyz,
-  buildPath,
-  resolvePath,
   charOffsetWithinElement,
   nodeForCharOffset,
+  unwrapNode,
+  serializeRange,
+  deserializeRange,
 } from "../shared/serializer.js";
 
 (() => {
@@ -696,7 +701,7 @@ import {
         if (!state.currentRange) {
           return;
         }
-        const serializedRange = serializeRange(state.currentRange);
+        const serializedRange = serializeRange(document, state.currentRange);
         if (!serializedRange) {
           return;
         }
@@ -814,7 +819,7 @@ import {
       return false;
     }
     try {
-      const range = deserializeRange(record.range);
+      const range = deserializeRange(document, record.range);
       if (!range || range.collapsed) {
         return false;
       }
@@ -995,18 +1000,6 @@ import {
   function removeHighlightFromDom(id) {
     const nodes = document.querySelectorAll(`[data-highlight-id="${id}"]`);
     nodes.forEach((node) => unwrapNode(node));
-  }
-
-  function unwrapNode(node) {
-    const parent = node.parentNode;
-    if (!parent) {
-      return;
-    }
-    while (node.firstChild) {
-      parent.insertBefore(node.firstChild, node);
-    }
-    parent.removeChild(node);
-    parent.normalize();
   }
 
   function markHighlightForReapply(id) {
@@ -1227,145 +1220,6 @@ import {
     };
   }
 
-  function serializeRange(range) {
-    try {
-      // If the page already contains MyZ wrapper nodes, temporarily unwrap
-      // them so we compute paths against the original DOM. Afterwards we
-      // reapply existing highlights from cache. This avoids path indexing
-      // shifts caused by wrapper elements.
-      const existingWrappers = Array.from(
-        document.querySelectorAll(".myz-highlight"),
-      );
-      const existingIds = existingWrappers
-        .map((n) => n.dataset?.highlightId)
-        .filter(Boolean);
-      try {
-        existingWrappers.forEach((node) => unwrapNode(node));
-
-        // More robust serialization: store a path to the nearest element
-        // ancestor plus a character offset within that element. This is
-        // resilient to text-node merging/splitting when wrappers are
-        // removed and prevents indices from becoming invalid.
-        const startElement =
-          range.startContainer.nodeType === Node.TEXT_NODE
-            ? range.startContainer.parentNode
-            : range.startContainer;
-        const endElement =
-          range.endContainer.nodeType === Node.TEXT_NODE
-            ? range.endContainer.parentNode
-            : range.endContainer;
-
-        const startChar = charOffsetWithinElement(
-          startElement,
-          range.startContainer,
-          range.startOffset,
-        );
-        const endChar = charOffsetWithinElement(
-          endElement,
-          range.endContainer,
-          range.endOffset,
-        );
-
-        return {
-          start: {
-            path: buildPath(startElement),
-            charOffset: startChar,
-          },
-          end: {
-            path: buildPath(endElement),
-            charOffset: endChar,
-          },
-        };
-      } finally {
-        // Reapply highlights from cache; ignore failures.
-        existingIds.forEach((id) => {
-          try {
-            const rec = highlightCache.get(id);
-            if (rec && isHighlightRecord(rec)) {
-              applyHighlight(rec);
-            }
-          } catch (e) {
-            // swallow
-          }
-        });
-      }
-    } catch (error) {
-      console.error("Failed to serialize range", error);
-      return null;
-    }
-  }
-
-  function deserializeRange(serialized) {
-    if (!serialized?.start || !serialized?.end) {
-      return null;
-    }
-    const range = document.createRange();
-    // Prefer the new element+charOffset format. Fall back to the old
-    // node+offset format for backward compatibility.
-    try {
-      // Start
-      let startNode = null;
-      let startOffset = 0;
-      if (serialized.start && typeof serialized.start.charOffset === "number") {
-        const el = resolvePath(serialized.start.path);
-        if (!el) return null;
-        const resolved = nodeForCharOffset(el, serialized.start.charOffset);
-        if (!resolved) return null;
-        startNode = resolved.node;
-        startOffset = resolved.offset;
-      } else {
-        startNode = resolvePath(serialized.start.path);
-        if (!startNode) return null;
-        startOffset = clampOffset(startNode, serialized.start.offset);
-      }
-
-      // End
-      let endNode = null;
-      let endOffset = 0;
-      if (serialized.end && typeof serialized.end.charOffset === "number") {
-        const el = resolvePath(serialized.end.path);
-        if (!el) return null;
-        const resolved = nodeForCharOffset(el, serialized.end.charOffset);
-        if (!resolved) return null;
-        endNode = resolved.node;
-        endOffset = resolved.offset;
-      } else {
-        endNode = resolvePath(serialized.end.path);
-        if (!endNode) return null;
-        endOffset = clampOffset(endNode, serialized.end.offset);
-      }
-
-      range.setStart(startNode, startOffset);
-      range.setEnd(endNode, endOffset);
-      return range;
-    } catch (error) {
-      console.error("Failed to reconstruct range", error);
-      return null;
-    }
-  }
-
-  function extractTextContext(node, offset) {
-    // No-op: removed snippet/meta support. Keep function stub in case other
-    // modules reference it in the future.
-    return null;
-  }
-
-  // snippet-based lookup removed — we rely on wrapper-transparent path
-  // resolution exclusively.
-
-  // Meta/snippet-based lookup removed: we now rely solely on wrapper-
-  // transparent path serialization and resolution. Helper functions for
-  // meta matching were deleted to reduce complexity.
-
-  // Use shared helper implementations imported from ../shared/serializer.js
-
-  function clampOffset(node, requested) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      return Math.min(requested, node.textContent.length);
-    }
-    return Math.min(requested, node.childNodes.length);
-  }
-
   function canonicalUrl(url) {
     try {
       const u = new URL(url, window.location.origin);
@@ -1404,7 +1258,10 @@ import {
       if (!result || !result.dataUrl) {
         return;
       }
-      await cropAndDownloadSelection(result.dataUrl, rect);
+      await cropAndDownloadSelection(result.dataUrl, rect, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
     } catch (error) {
       console.error("Selection capture failed", error);
     } finally {

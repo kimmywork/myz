@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MyZ icon orange variant">
+  <defs>
+    <linearGradient id="gOrange" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#FFB36B"/>
+      <stop offset="60%" stop-color="#FF7A6B"/>
+      <stop offset="100%" stop-color="#FF6B8A"/>
+    </linearGradient>
+    <radialGradient id="spotO" cx="50%" cy="36%" r="60%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="40%" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="s2" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  <g filter="url(#s2)">
+    <circle cx="64" cy="64" r="56" fill="url(#gOrange)" />
+  </g>
+  <circle cx="64" cy="52" r="38" fill="url(#spotO)" />
+  <circle cx="64" cy="64" r="49" fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="1"/>
+
+  <!-- Z glyph (stylized) -->
+  <g>
+    <path d="M36 34 L92 34 L48 64 L92 94 L36 94"
+          fill="none"
+          stroke="#0B1620"
+          stroke-width="10"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-opacity="0.98"/>
+    <path d="M42 40 L88 40 L52 64 L88 88 L42 88"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-opacity="0.18"/>
+  </g>
+  <title>MyZ - orange variant (128px)</title>
+</svg>

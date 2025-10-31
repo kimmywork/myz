@@ -43,6 +43,12 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
   await page.mouse.move(box.x + box.width - 10, box.y + 10);
   await page.mouse.up();
 
+  // capture the selected text so we can assert the saved highlight contains it
+  const selectionText = await page.evaluate(() => {
+    const s = window.getSelection();
+    return s ? s.toString().trim() : "";
+  });
+
   // Wait for toolbar and click annotate (aria-label in Toolbar.jsx)
   await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
     timeout: 5000,
@@ -60,12 +66,34 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
   const highlights = await page.$$(".myz-highlight");
   expect(highlights.length).toBeGreaterThan(0);
 
+  // At least one highlight element should contain the selected text
+  const highlightTexts = await Promise.all(
+    highlights.map((h) =>
+      h.evaluate((el) => el.innerText || el.textContent || ""),
+    ),
+  );
+  const matched = highlightTexts.some(
+    (t) => typeof t === "string" && t.trim().includes(selectionText),
+  );
+  expect(matched).toBeTruthy();
+
   // Record count then reload and expect highlights to reappear
   await page.reload({ waitUntil: "load" });
   await page.waitForSelector(".myz-highlight", { timeout: 10000 });
 
   const highlightsAfter = await page.$$(".myz-highlight");
   expect(highlightsAfter.length).toBeGreaterThan(0);
+
+  // After reload at least one highlight should still contain our selected text
+  const highlightAfterTexts = await Promise.all(
+    highlightsAfter.map((h) =>
+      h.evaluate((el) => el.innerText || el.textContent || ""),
+    ),
+  );
+  const matchedAfter = highlightAfterTexts.some(
+    (t) => typeof t === "string" && t.trim().includes(selectionText),
+  );
+  expect(matchedAfter).toBeTruthy();
 });
 
 test("remove_highlight_updates_dom_and_storage", async () => {
@@ -117,19 +145,26 @@ test("save_clip_via_toolbar_persists_to_dashboard", async () => {
     return s ? s.toString().trim() : "";
   });
 
-  await page.waitForSelector('.myz-annotator-toolbar:not(.myz-hidden)', { timeout: 5000 });
-  await page.waitForSelector('.myz-annotator-toolbar button[aria-label="保存文字"]', { timeout: 3000 });
+  await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+  await page.waitForSelector(
+    '.myz-annotator-toolbar button[aria-label="保存文字"]',
+    { timeout: 3000 },
+  );
 
   // Click 保存文字, submit modal, then verify via dashboard that the clip exists
   await page.click('.myz-annotator-toolbar button[aria-label="保存文字"]');
-  await page.waitForSelector('.myz-annotator-modal:not(.myz-hidden)', { timeout: 5000 });
-  await page.click('.myz-annotator-modal .myz-btn-primary');
+  await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+  await page.click(".myz-annotator-modal .myz-btn-primary");
 
   // Open dashboard page and query saved highlights for this URL
   const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
   const dash = await context.newPage();
   await dash.goto(dashboardUrl);
-  await dash.waitForSelector('.app-shell', { timeout: 5000 });
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
 
   const canonical = await page.evaluate((u) => {
     try {
@@ -143,15 +178,21 @@ test("save_clip_via_toolbar_persists_to_dashboard", async () => {
 
   const records = await dash.evaluate(async (url) => {
     return await new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type: 'myz:getHighlightsForUrl', payload: { url } }, (resp) => {
-        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-        resolve(resp);
-      });
+      chrome.runtime.sendMessage(
+        { type: "myz:getHighlightsForUrl", payload: { url } },
+        (resp) => {
+          if (chrome.runtime.lastError)
+            return reject(new Error(chrome.runtime.lastError.message));
+          resolve(resp);
+        },
+      );
     });
   }, canonical);
 
   const data = Array.isArray(records?.data) ? records.data : [];
   // There should be at least one saved clip matching our selection text
-  const found = data.find((r) => typeof r.text === 'string' && r.text.includes(selectionText));
+  const found = data.find(
+    (r) => typeof r.text === "string" && r.text.includes(selectionText),
+  );
   expect(found).toBeTruthy();
 });

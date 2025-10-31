@@ -10,6 +10,9 @@ export default defineConfig({
   use: {
     actionTimeout: 10_000,
     navigationTimeout: 20_000,
+    // proxy: {
+    //     server: 'http://127.0.0.1:7890/'
+    // },
     baseURL: undefined,
     headless: false, // extensions require headed mode
   },

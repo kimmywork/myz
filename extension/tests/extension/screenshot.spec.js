@@ -25,7 +25,9 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context.close();
-  server.close;
+  await new Promise((resolve, reject) =>
+    server.close((err) => (err ? reject(err) : resolve())),
+  );
 });
 
 test("capture_selection_creates_download", async () => {

@@ -24,8 +24,12 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await context.close();
-  server.close;
+  try {
+    await context?.close();
+  } catch (e) {}
+  try {
+    server && server.close();
+  } catch (e) {}
 });
 
 async function selectAndAnnotate(page, locator, note = "") {
@@ -41,6 +45,12 @@ async function selectAndAnnotate(page, locator, note = "") {
     box.y + Math.max(10, box.height - 6),
   );
   await page.mouse.up();
+
+  // capture selected text so caller can assert highlight content
+  const selected = await page.evaluate(() => {
+    const s = window.getSelection();
+    return s ? s.toString().trim() : "";
+  });
 
   // Wait for toolbar
   await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
@@ -59,30 +69,39 @@ async function selectAndAnnotate(page, locator, note = "") {
   await page.click(".myz-annotator-modal .myz-btn-primary");
   // Wait for highlight to appear
   await page.waitForSelector(".myz-highlight", { timeout: 8000 });
+  return selected;
 }
 
 test("highlight_and_comment_on_complex_fixture", async () => {
   await page.goto(`${serverUrl}/complex-highlight-test.html`);
 
   // 1) Paragraph with repeated text
-  await selectAndAnnotate(page, 'p:has-text("高亮测试")', "note para");
+  const sel1 = await selectAndAnnotate(
+    page,
+    'p:has-text("高亮测试")',
+    "note para",
+  );
 
   // 2) Table cell text
-  await selectAndAnnotate(page, 'td:has-text("高亮测试")', "note table");
+  const sel2 = await selectAndAnnotate(
+    page,
+    'td:has-text("高亮测试")',
+    "note table",
+  );
 
   // 3) Code block content (select inside pre/code)
-  await selectAndAnnotate(page, ".code-block pre", "note code");
+  const sel3 = await selectAndAnnotate(page, ".code-block pre", "note code");
 
   // 4) Details collapsed content: open then select inside
   await page.click("details summary");
-  await selectAndAnnotate(
+  const sel4 = await selectAndAnnotate(
     page,
     'details p:has-text("这个段落藏在详情里")',
     "note details",
   );
 
   // 5) Repeat line (one of the repeated lines)
-  await selectAndAnnotate(
+  const sel5 = await selectAndAnnotate(
     page,
     '.repeat .line:has-text("第 3 行")',
     "note repeat",
@@ -94,6 +113,34 @@ test("highlight_and_comment_on_complex_fixture", async () => {
   await page.waitForSelector(".myz-highlight", { timeout: 10000 });
   const highlights = await page.$$(".myz-highlight");
   expect(highlights.length).toBeGreaterThanOrEqual(5);
+
+  // Verify at least one highlight contains each of the selected texts (normalize whitespace)
+  const highlightTexts = await Promise.all(
+    highlights.map((h) =>
+      h.evaluate((el) => el.innerText || el.textContent || ""),
+    ),
+  );
+  const normalize = (s) => (s || "").replace(/\s+/g, " ").trim();
+  const normalizedHighlights = highlightTexts.map((t) => normalize(t));
+  const combined = normalizedHighlights.join(" ");
+  [sel1, sel2, sel3, sel4, sel5].forEach((sel) => {
+    const ns = normalize(sel);
+    if (!ns) return; // skip empty selections
+    // Be tolerant: split the selection into meaningful tokens and ensure each
+    // appears somewhere in the combined highlighted text. This handles cases
+    // where the selection is split across multiple highlight elements.
+    const tokens = ns.split(/[\s，,、。]+/).filter(Boolean);
+    tokens.forEach((tok) => {
+      if (tok.length < 2) return; // skip very short tokens
+      const present = combined.includes(tok);
+      if (!present) {
+        const dbg = normalizedHighlights.join(" | ");
+        throw new Error(
+          `Token not found in highlights: "${tok}" (from selection: "${ns}"); highlights: ${dbg}`,
+        );
+      }
+    });
+  });
 
   // Click the first highlight to open inspector and then click 编辑 to open edit modal
   await page.click(".myz-highlight");
