@@ -1,161 +1,49 @@
+import "./content.css";
+import { createApp } from "vue";
+import ToolbarApp from "./components/Toolbar.jsx";
+import ModalApp from "./components/Modal.jsx";
+import InspectorApp from "./components/Inspector.jsx";
+import NotificationsApp from "./components/Notifications.jsx";
+
+import { sendMessage } from "../dashboard/utils/messaging.js";
+import {
+  getRecordKind,
+  RECORD_KINDS,
+  recordToMarkdown,
+} from "../dashboard/utils/records.js";
+import {
+  normalizeHighlightStyle,
+  HIGHLIGHT_STYLE_OPTIONS,
+  DEFAULT_COLORS,
+  HIGHLIGHT_STYLES,
+  DEFAULT_HIGHLIGHT_STYLE,
+  normalizeRecord,
+  isClipRecord,
+  isHighlightRecord,
+} from "../shared/highlightUtils.js";
+
+import { serializeRangeToHtml } from "./html.js";
+import { getSelectionBoundingRect, cropAndDownloadSelection } from "./image.js";
+import {
+  isNodeFromMyz,
+  charOffsetWithinElement,
+  nodeForCharOffset,
+  unwrapNode,
+  serializeRange,
+  deserializeRange,
+} from "../shared/serializer.js";
+
 (() => {
   if (window.__myzAnnotatorInitialized) {
     return;
   }
 
-  function selectColor(index) {
-    const colors = state.settings.colorPalette || [];
-    const color = colors[index] || DEFAULT_COLORS[index] || DEFAULT_COLORS[0];
-    state.selectedColor = color;
-    state.settings.lastUsedColor = color;
-    renderColorPalette();
-    updateModalPreview();
-    persistHighlightSettings({ lastUsedColor: color });
-  }
-
-  function selectStyle(style) {
-    const resolved = normalizeHighlightStyle(style);
-    state.selectedStyle = resolved;
-    state.settings.lastUsedStyle = resolved;
-    renderStylePicker();
-    updateModalPreview();
-    persistHighlightSettings({ lastUsedStyle: resolved });
-  }
-
-  function updatePaletteColor(index, value) {
-    if (!/^#[0-9a-fA-F]{6}$/.test(value)) {
-      return;
-    }
-    const palette = [...(state.settings.colorPalette || [])];
-    while (palette.length < 5) {
-      palette.push(DEFAULT_COLORS[palette.length] || DEFAULT_COLORS[0]);
-    }
-    const previous = palette[index];
-    palette[index] = value;
-    state.settings.colorPalette = palette;
-    if (state.selectedColor === previous) {
-      state.selectedColor = value;
-    }
-    renderColorPalette();
-    updateModalPreview();
-    persistHighlightSettings({ colorPalette: palette, lastUsedColor: state.selectedColor });
-  }
-
-  function persistHighlightSettings(patch) {
-    sendMessage("myz:updateSettings", patch).catch((error) => {
-      console.warn("Failed to persist highlight settings", error);
-    });
-  }
   window.__myzAnnotatorInitialized = true;
 
   const CANONICAL_URL = canonicalUrl(window.location.href);
-  const DEFAULT_COLORS = ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"];
-  const HIGHLIGHT_STYLES = {
-    PAINT: "paint",
-    UNDERLINE: "underline",
-    WAVY: "wavy"
-  };
-  const DEFAULT_HIGHLIGHT_STYLE = HIGHLIGHT_STYLES.PAINT;
-  const HIGHLIGHT_STYLE_OPTIONS = {
-    [HIGHLIGHT_STYLES.PAINT]: { icon: "🖍️", label: "高亮" },
-    [HIGHLIGHT_STYLES.UNDERLINE]: { icon: "✏️", label: "下划线" },
-    [HIGHLIGHT_STYLES.WAVY]: { icon: "〰️", label: "波浪线" }
-  };
-  const ALLOWED_HTML_TAGS = new Set([
-    "a",
-    "b",
-    "strong",
-    "em",
-    "i",
-    "u",
-    "s",
-    "code",
-    "pre",
-    "blockquote",
-    "mark",
-    "span",
-    "sup",
-    "sub",
-    "p",
-    "div",
-    "ul",
-    "ol",
-    "li",
-    "br",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "table",
-    "thead",
-    "tbody",
-    "tr",
-    "td",
-    "th"
-  ]);
-  const ALLOWED_HTML_ATTRS = {
-    a: new Set(["href", "title"]),
-    td: new Set(["colspan", "rowspan"]),
-    th: new Set(["colspan", "rowspan"])
-  };
-  const RECORD_KINDS = {
-    HIGHLIGHT: "highlight",
-    CLIP: "clip"
-  };
 
   const highlightCache = new Map();
   const unreachableHighlights = new Set();
-  const knownTags = new Set();
-
-  function normalizeHighlightStyle(style) {
-    if (!style) {
-      return DEFAULT_HIGHLIGHT_STYLE;
-    }
-    const value = String(style).toLowerCase();
-    if (value === HIGHLIGHT_STYLES.UNDERLINE) {
-      return HIGHLIGHT_STYLES.UNDERLINE;
-    }
-    if (value === HIGHLIGHT_STYLES.WAVY) {
-      return HIGHLIGHT_STYLES.WAVY;
-    }
-    return DEFAULT_HIGHLIGHT_STYLE;
-  }
-
-  function getStyleMeta(style) {
-    const key = normalizeHighlightStyle(style);
-    return HIGHLIGHT_STYLE_OPTIONS[key] || HIGHLIGHT_STYLE_OPTIONS[DEFAULT_HIGHLIGHT_STYLE];
-  }
-
-  function getRecordKind(record) {
-    if (record && record.kind === RECORD_KINDS.CLIP) {
-      return RECORD_KINDS.CLIP;
-    }
-    return RECORD_KINDS.HIGHLIGHT;
-  }
-
-  function normalizeRecord(record) {
-    if (!record) {
-      return record;
-    }
-    const kind = getRecordKind(record);
-    const normalized = { ...record, kind };
-    if (kind === RECORD_KINDS.HIGHLIGHT) {
-      normalized.style = normalizeHighlightStyle(record.style);
-    } else {
-      normalized.style = null;
-    }
-    return normalized;
-  }
-
-  function isHighlightRecord(record) {
-    return getRecordKind(record) === RECORD_KINDS.HIGHLIGHT;
-  }
-
-  function isClipRecord(record) {
-    return getRecordKind(record) === RECORD_KINDS.CLIP;
-  }
 
   function computeHighlightStats() {
     let highlightCount = 0;
@@ -170,7 +58,7 @@
     return {
       highlightCount,
       savedCount,
-      total: highlightCount + savedCount
+      total: highlightCount + savedCount,
     };
   }
 
@@ -195,12 +83,13 @@
     tickHandle: null,
     failureNotified: false,
     deadlineListenerAttached: false,
-    deadlineListener: null
+    deadlineListener: null,
   };
 
   const toolbar = createToolbar();
-  const modal = createModal();
-  const inspector = createInspector();
+  const modal = mountModal();
+  const inspector = mountInspector();
+  const notifications = mountNotifications();
 
   let scrollUpdateHandle = null;
 
@@ -209,16 +98,10 @@
     currentText: "",
     currentHtml: "",
     editingId: null,
+    inspectingId: null,
     toolbarShownAt: 0,
     toolbarRange: null,
-    settings: {
-      colorPalette: [...DEFAULT_COLORS],
-      lastUsedColor: DEFAULT_COLORS[0],
-      lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE
-    },
-    selectedColor: DEFAULT_COLORS[0],
-    selectedStyle: DEFAULT_HIGHLIGHT_STYLE,
-    formKind: RECORD_KINDS.HIGHLIGHT
+    formKind: RECORD_KINDS.HIGHLIGHT,
   };
 
   const TOOLBAR_MIN_VIEWPORT_GAP = 12;
@@ -227,13 +110,16 @@
   init().catch((error) => console.error("MyZ Annotator init failed", error));
 
   async function init() {
-    await loadSettings();
-
     document.addEventListener("mouseup", handleSelectionTrigger);
     document.addEventListener("keyup", handleSelectionTrigger);
     document.addEventListener("scroll", handleScrollWhileSelecting, true);
-    window.addEventListener("scroll", handleScrollWhileSelecting, { capture: true, passive: true });
-    window.addEventListener("resize", handleScrollWhileSelecting, { passive: true });
+    window.addEventListener("scroll", handleScrollWhileSelecting, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", handleScrollWhileSelecting, {
+      passive: true,
+    });
     document.addEventListener("click", handleDocumentClick, true);
     document.addEventListener("selectionchange", () => {
       const selection = window.getSelection();
@@ -272,58 +158,82 @@
       return false;
     });
 
+    // Attach SPA navigation listeners so we can re-run highlight restore when
+    // single-page apps change the visible URL without a full reload.
+    attachSpaNavigationListeners();
+
     await restoreHighlights();
   }
 
-  async function loadSettings() {
-    try {
-      const settings = await sendMessage("myz:getSettings");
-      if (!settings) {
-        renderColorPalette();
-        renderStylePicker();
-        return;
+  // Keep track of the last canonical URL so we only re-run restoreHighlights
+  // when the logical page changes.
+  let lastKnownCanonical = CANONICAL_URL;
+
+  function attachSpaNavigationListeners() {
+    // Debounced handler to avoid thrashing during router transitions.
+    let navTimer = null;
+    function scheduleRestoreIfUrlChanged() {
+      const nowCanonical = canonicalUrl(window.location.href);
+      if (nowCanonical === lastKnownCanonical) return;
+      if (navTimer) {
+        clearTimeout(navTimer);
       }
-      const palette = Array.isArray(settings.colorPalette) && settings.colorPalette.length
-        ? settings.colorPalette.slice(0, 5)
-        : [...DEFAULT_COLORS];
-      while (palette.length < 5) {
-        palette.push(DEFAULT_COLORS[palette.length] || DEFAULT_COLORS[0]);
-      }
-      const lastUsedStyle = normalizeHighlightStyle(settings.lastUsedStyle);
-      state.settings = {
-        ...state.settings,
-        ...settings,
-        colorPalette: palette,
-        lastUsedStyle
-      };
-      state.selectedColor = settings.lastUsedColor || palette[0] || DEFAULT_COLORS[0];
-      state.selectedStyle = lastUsedStyle;
-    } catch (error) {
-      console.warn("Failed to load settings", error);
-      state.selectedColor = DEFAULT_COLORS[0];
-      state.selectedStyle = DEFAULT_HIGHLIGHT_STYLE;
+      navTimer = setTimeout(async () => {
+        navTimer = null;
+        // Re-run highlight restoration for the new route. Only update the
+        // lastKnownCanonical if restore succeeds so we can retry on later
+        // attempts if page content isn't ready yet.
+        try {
+          await restoreHighlights();
+          lastKnownCanonical = nowCanonical;
+        } catch (err) {
+          console.error("Failed to restore highlights after navigation", err);
+        }
+      }, 160);
     }
-    renderColorPalette();
-    renderStylePicker();
+
+    // Patch history methods so we can detect programmatic navigation.
+    try {
+      const rawPush = history.pushState;
+      const rawReplace = history.replaceState;
+      history.pushState = function (...args) {
+        const result = rawPush.apply(this, args);
+        scheduleRestoreIfUrlChanged();
+        return result;
+      };
+      history.replaceState = function (...args) {
+        const result = rawReplace.apply(this, args);
+        scheduleRestoreIfUrlChanged();
+        return result;
+      };
+    } catch (error) {
+      // Ignore if content security or readonly history in some environments.
+    }
+
+    // Also listen to popstate and hashchange
+    window.addEventListener("popstate", scheduleRestoreIfUrlChanged);
+    window.addEventListener("hashchange", scheduleRestoreIfUrlChanged);
   }
 
   async function restoreHighlights() {
     try {
+      const currentCanonical = canonicalUrl(window.location.href);
       const [highlights, tagList] = await Promise.all([
-        sendMessage("myz:getHighlightsForUrl", { url: CANONICAL_URL }),
+        sendMessage("myz:getHighlightsForUrl", { url: currentCanonical }),
         sendMessage("myz:getAllTags").catch((error) => {
           console.warn("Failed to load known tags", error);
           return null;
-        })
+        }),
       ]);
 
       if (Array.isArray(tagList)) {
-        knownTags.clear();
-        addKnownTags(tagList);
+        modal.setKnownTags?.(tagList);
       }
 
-      hideInspector();
-      Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) => unwrapNode(node));
+      inspector.hide?.();
+      Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) =>
+        unwrapNode(node),
+      );
       highlightCache.clear();
       unreachableHighlights.clear();
       resetHighlightReapplyState();
@@ -334,7 +244,7 @@
         if (!stored) {
           return;
         }
-        addKnownTags(stored.tags || []);
+        modal.addKnownTags?.(stored.tags || []);
         if (isHighlightRecord(stored) && stored.range) {
           const applied = applyHighlight(stored);
           if (applied) {
@@ -348,7 +258,7 @@
           removeHighlightFromPending(stored.id);
         }
       });
-      updateTagSuggestions();
+      // Update badge/indicators for the (current) page after restore.
       updateHighlightIndicators();
     } catch (error) {
       console.error("Failed to restore highlights", error);
@@ -359,7 +269,7 @@
   }
 
   function handleSelectionTrigger(event) {
-    if (modal.container && !modal.container.classList.contains("myz-hidden")) {
+    if (modal?.isVisible?.()) {
       return;
     }
     const selection = window.getSelection();
@@ -369,7 +279,7 @@
     }
     const range = selection.getRangeAt(0);
     const rect = getSelectionBoundingRect(range);
-    if (!rect || rect.width === 0 && rect.height === 0) {
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
       hideToolbar();
       return;
     }
@@ -407,13 +317,13 @@
       const highlightId = highlightEl.dataset.highlightId;
       const record = highlightCache.get(highlightId);
       if (record) {
-        showInspector(record);
+        inspector.showRecord?.(record);
         focusHighlight(highlightId);
       }
       return;
     }
 
-    if (inspector.container && inspector.container.contains(event.target)) {
+    if (inspector.contains && inspector.contains(event.target)) {
       return;
     }
 
@@ -421,7 +331,7 @@
       return;
     }
 
-    if (modal.container && modal.container.contains(event.target)) {
+    if (modal.contains(event.target)) {
       return;
     }
 
@@ -441,7 +351,7 @@
       if (toolbar.classList.contains("myz-hidden")) {
         return;
       }
-      if (modal.container && !modal.container.classList.contains("myz-hidden")) {
+      if (modal?.isVisible?.()) {
         return;
       }
       const selection = window.getSelection();
@@ -458,8 +368,10 @@
         hideToolbar();
         return;
       }
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      const viewportWidth =
+        window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight =
+        window.innerHeight || document.documentElement.clientHeight || 0;
       const outsideViewport =
         rect.bottom < 0 ||
         rect.top > viewportHeight ||
@@ -474,29 +386,19 @@
   }
 
   function createToolbar() {
-    const node = document.createElement("div");
-    node.className = "myz-annotator-toolbar myz-hidden";
-    const annotateButton = document.createElement("button");
-    annotateButton.type = "button";
-    annotateButton.textContent = "✍️";
-    annotateButton.setAttribute("aria-label", "添加标注");
-    annotateButton.addEventListener("click", handleAnnotateClick);
-
-  const clipButton = document.createElement("button");
-  clipButton.type = "button";
-  clipButton.textContent = "📝";
-  clipButton.setAttribute("aria-label", "保存文字");
-  clipButton.addEventListener("click", handleClipClick);
-
-    const captureButton = document.createElement("button");
-    captureButton.type = "button";
-    captureButton.textContent = "📸";
-    captureButton.setAttribute("aria-label", "截取选区截图");
-    captureButton.addEventListener("click", handleScreenshotClick);
-
-  node.append(annotateButton, clipButton, captureButton);
-    document.documentElement.appendChild(node);
-    return node;
+    const host = document.createElement("div");
+    // Mark hosts created by the extension so DOM serialization/resolution
+    // can ignore these nodes when building/resolving ranges.
+    host.setAttribute("data-myz-host", "1");
+    document.documentElement.appendChild(host);
+    const app = createApp(ToolbarApp, {
+      onAnnotate: handleAnnotateClick,
+      onClip: handleClipClick,
+      onCapture: handleScreenshotClick,
+    });
+    app.mount(host);
+    const rendered = host.querySelector(".myz-annotator-toolbar");
+    return rendered || host;
   }
 
   function updateHighlightIndicators() {
@@ -518,7 +420,7 @@
       count: stats.total,
       total: stats.total,
       highlightCount: stats.highlightCount,
-      savedCount: stats.savedCount
+      savedCount: stats.savedCount,
     }).catch(() => {});
   }
 
@@ -534,18 +436,15 @@
     state.currentText = selection.toString().trim();
     state.currentHtml = serializeRangeToHtml(state.currentRange);
     state.editingId = null;
-    state.selectedColor = state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
-    state.selectedStyle =
-      state.settings.lastUsedStyle || state.selectedStyle || DEFAULT_HIGHLIGHT_STYLE;
-    state.formKind = RECORD_KINDS.HIGHLIGHT;
     openModal({
       mode: "create",
-      preview: state.currentText,
+      editingId: null,
+      preview: selection.toString().trim(),
       note: "",
       tags: [],
-      color: state.selectedColor,
-      style: state.selectedStyle,
-      kind: RECORD_KINDS.HIGHLIGHT
+      color: null,
+      style: null,
+      kind: RECORD_KINDS.HIGHLIGHT,
     });
   }
 
@@ -564,761 +463,211 @@
     state.formKind = RECORD_KINDS.CLIP;
     openModal({
       mode: "create",
-      preview: state.currentText,
+      preview: selection.toString().trim(),
       note: "",
       tags: [],
       color: null,
       style: null,
-      kind: RECORD_KINDS.CLIP
+      kind: RECORD_KINDS.CLIP,
     });
   }
 
-  function createModal() {
-    const container = document.createElement("div");
-    container.className = "myz-annotator-modal myz-hidden";
+  function mountModal() {
+    const host = document.createElement("div");
+    host.setAttribute("data-myz-host", "1");
+    document.documentElement.appendChild(host);
 
-    const body = document.createElement("div");
-    body.className = "myz-annotator-modal__body";
-
-    const header = document.createElement("div");
-    header.className = "myz-annotator-modal__header";
-    const title = document.createElement("h3");
-    title.textContent = "添加批注";
-    const closeButton = document.createElement("button");
-    closeButton.className = "myz-annotator-modal__close";
-    closeButton.type = "button";
-    closeButton.innerHTML = "&times;";
-    closeButton.addEventListener("click", closeModal);
-    header.append(title, closeButton);
-
-    const preview = document.createElement("div");
-    preview.className = "myz-annotator-preview";
-
-  const styleField = createStylePickerField();
-  const noteField = createField("批注", "textarea");
-  noteField.input.rows = 4;
-
-  const tagsField = createTagSelectorField();
-
-  const colorField = createColorPaletteField();
-
-    const actions = document.createElement("div");
-    actions.className = "myz-annotator-actions";
-    const cancelButton = document.createElement("button");
-    cancelButton.type = "button";
-    cancelButton.className = "myz-btn-secondary";
-    cancelButton.textContent = "取消";
-    cancelButton.addEventListener("click", closeModal);
-
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.className = "myz-btn-danger myz-hidden";
-    deleteButton.textContent = "删除";
-    deleteButton.addEventListener("click", () => {
-      if (!state.editingId) {
-        return;
-      }
-      deleteHighlight(state.editingId);
-      closeModal();
+    const app = createApp(ModalApp, {
+      onClose: handleModalClose,
+      onSubmit: handleModalSubmit,
+      onDelete: handleModalDelete,
     });
 
-    const saveButton = document.createElement("button");
-    saveButton.type = "button";
-    saveButton.className = "myz-btn-primary";
-    saveButton.textContent = "保存";
-    saveButton.addEventListener("click", handleSubmit);
-
-    actions.append(cancelButton, deleteButton, saveButton);
-
-    body.append(
-      header,
-      preview,
-      styleField.wrapper,
-      noteField.wrapper,
-      tagsField.wrapper,
-      colorField.wrapper,
-      actions
-    );
-    container.appendChild(body);
-    document.documentElement.appendChild(container);
+    const instance = app.mount(host);
 
     return {
-      container,
-      body,
-      title,
-      preview,
-      stylePicker: styleField,
-      noteInput: noteField.input,
-      tagsComponent: tagsField.component,
-      colorPalette: colorField,
-      saveButton,
-      deleteButton
+      host,
+      open: (options) => instance.open(options),
+      hide: () => instance.hide(),
+      isVisible: () => instance.isVisible(),
+      addKnownTags: (tags) => instance.addKnownTags(tags),
+      setKnownTags: (tags) => instance.setKnownTags(tags),
+      contains: (node) => host.contains(node),
     };
   }
 
-  function createField(labelText, type) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "myz-annotator-field";
-    const label = document.createElement("label");
-    label.textContent = labelText;
-    const input = document.createElement(type === "textarea" ? "textarea" : "input");
-    wrapper.append(label, input);
-    return { wrapper, input };
-  }
+  function mountInspector() {
+    const host = document.createElement("div");
+    host.setAttribute("data-myz-host", "1");
+    document.documentElement.appendChild(host);
 
-  function createTagSelectorField() {
-    const wrapper = document.createElement("div");
-    wrapper.className = "myz-annotator-field";
-
-    const labelRow = document.createElement("div");
-    labelRow.className = "myz-annotator-field__label-row";
-
-    const label = document.createElement("label");
-    label.textContent = "标签";
-
-    const hint = document.createElement("span");
-    hint.className = "myz-annotator-field__hint";
-    hint.textContent = "输入后按回车或逗号确认 · Backspace 回删";
-
-    labelRow.append(label, hint);
-
-    const container = document.createElement("div");
-    container.className = "myz-tag-input";
-
-    wrapper.append(labelRow, container);
-
-    const component = createTagInputWidget(container, {
-      allowNew: true,
-      placeholder: "添加标签"
-    });
-    component.setOptions(getKnownTagsList());
-
-    return { wrapper, container, component };
-  }
-
-  function createStylePickerField() {
-    const wrapper = document.createElement("div");
-    wrapper.className = "myz-annotator-field";
-
-    const labelRow = document.createElement("div");
-    labelRow.className = "myz-annotator-field__label-row";
-
-    const label = document.createElement("label");
-    label.textContent = "样式";
-
-    const hint = document.createElement("span");
-    hint.className = "myz-annotator-field__hint";
-    hint.textContent = "选择呈现方式";
-
-    labelRow.append(label, hint);
-
-    const container = document.createElement("div");
-    container.className = "myz-style-picker";
-    container.setAttribute("role", "radiogroup");
-
-    const buttons = [];
-    Object.entries(HIGHLIGHT_STYLE_OPTIONS).forEach(([value, meta]) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "myz-style-picker__option";
-      button.dataset.style = value;
-      button.textContent = `${meta.icon} ${meta.label}`;
-      button.setAttribute("role", "radio");
-      button.setAttribute("aria-pressed", "false");
-      button.setAttribute("aria-label", `${meta.icon} ${meta.label}`);
-      button.addEventListener("click", () => selectStyle(value));
-      container.appendChild(button);
-      buttons.push(button);
+    const app = createApp(InspectorApp, {
+      highlightStyleOptions: HIGHLIGHT_STYLE_OPTIONS,
+      getRecordKind,
+      normalizeHighlightStyle,
+      resolveHighlightColor,
+      onClose: handleInspectorClose,
+      onCopy: handleInspectorCopy,
+      onEdit: handleInspectorEdit,
+      onDelete: handleInspectorDelete,
+      onShown: handleInspectorShown,
+      onHidden: handleInspectorHidden,
     });
 
-    wrapper.append(labelRow, container);
+    const instance = app.mount(host);
 
     return {
-      wrapper,
-      container,
-      buttons
+      host,
+      showRecord: (record) => instance.showRecord(record),
+      hide: (options) => instance.hide(options),
+      isVisible: () => instance.isVisible(),
+      getCurrentId: () => instance.getCurrentId(),
+      contains: (node) => host.contains(node),
     };
   }
 
-  // Lightweight multiselect with chip UI and suggestion dropdown for tag editing.
-  function createTagInputWidget(container, config = {}) {
-    if (!container) {
-      return null;
-    }
-    const settings = {
-      placeholder: "",
-      allowNew: false,
-      onChange: null,
-      ...config
-    };
-    const input = document.createElement("input");
-    input.type = "text";
-    input.autocomplete = "off";
-    input.spellcheck = false;
-    input.className = "myz-tag-input__input";
-    input.placeholder = settings.placeholder || "";
+  function mountNotifications() {
+    const host = document.createElement("div");
+    host.setAttribute("data-myz-host", "1");
+    document.documentElement.appendChild(host);
 
-    const list = document.createElement("div");
-    list.className = "myz-tag-input__list myz-hidden";
-    list.setAttribute("role", "listbox");
-    const listId = `${container.id || "myz-tag"}-options-${Math.random().toString(36).slice(2, 8)}`;
-    list.id = listId;
-
-    input.setAttribute("role", "combobox");
-    input.setAttribute("aria-haspopup", "listbox");
-    input.setAttribute("aria-expanded", "false");
-    input.setAttribute("aria-autocomplete", "list");
-    input.setAttribute("aria-controls", listId);
-
-    container.textContent = "";
-    container.appendChild(input);
-    container.appendChild(list);
-
-    const state = {
-      tags: [],
-      options: [],
-      filtered: [],
-      activeIndex: -1,
-      dropdownOpen: false
-    };
-
-    function normalize(tag) {
-      return typeof tag === "string" ? tag.trim() : "";
-    }
-
-    function uniqueList(values) {
-      const seen = new Set();
-      const result = [];
-      values.forEach((value) => {
-        const normalized = normalize(value);
-        if (!normalized) {
-          return;
-        }
-        const key = normalized.toLowerCase();
-        if (seen.has(key)) {
-          return;
-        }
-        seen.add(key);
-        result.push(normalized);
-      });
-      return result;
-    }
-
-    function emitChange() {
-      if (typeof settings.onChange === "function") {
-        settings.onChange([...state.tags]);
-      }
-    }
-
-    function closeDropdown() {
-      state.dropdownOpen = false;
-      state.activeIndex = -1;
-      list.classList.add("myz-hidden");
-      Array.from(list.children).forEach((child) => child.classList.remove("is-active"));
-      input.setAttribute("aria-expanded", "false");
-      input.removeAttribute("aria-activedescendant");
-    }
-
-    function updateActiveOption() {
-      let activeId = "";
-      Array.from(list.children).forEach((child, index) => {
-        const isActive = index === state.activeIndex;
-        child.classList.toggle("is-active", isActive);
-        child.setAttribute("aria-selected", isActive ? "true" : "false");
-        if (isActive) {
-          activeId = child.id || "";
-        }
-      });
-      if (activeId) {
-        input.setAttribute("aria-activedescendant", activeId);
-      } else {
-        input.removeAttribute("aria-activedescendant");
-      }
-    }
-
-    function renderChips() {
-      container.querySelectorAll(".myz-tag-input__chip").forEach((chip) => chip.remove());
-      state.tags.forEach((tag) => {
-        const chip = document.createElement("span");
-        chip.className = "myz-tag-input__chip";
-        const label = document.createElement("span");
-        label.textContent = tag;
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "myz-tag-input__remove";
-        removeBtn.textContent = "x";
-        removeBtn.dataset.tag = tag;
-        removeBtn.setAttribute("aria-label", `移除标签 ${tag}`);
-        removeBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          removeTag(tag);
-        });
-        chip.append(label, removeBtn);
-        container.insertBefore(chip, input);
-      });
-    }
-
-    function addTag(raw, { silent = false } = {}) {
-      const tag = normalize(raw);
-      if (!tag) {
-        return false;
-      }
-      if (!settings.allowNew && !state.options.some((option) => option.toLowerCase() === tag.toLowerCase())) {
-        return false;
-      }
-      if (state.tags.some((current) => current.toLowerCase() === tag.toLowerCase())) {
-        return false;
-      }
-      state.tags.push(tag);
-      if (settings.allowNew && !state.options.some((option) => option.toLowerCase() === tag.toLowerCase())) {
-        state.options.push(tag);
-        state.options.sort((a, b) => a.localeCompare(b));
-      }
-      renderChips();
-      if (!silent) {
-        emitChange();
-      }
-      return true;
-    }
-
-    function removeTag(tag, { silent = false } = {}) {
-      const lower = tag.toLowerCase();
-      const next = state.tags.filter((item) => item.toLowerCase() !== lower);
-      if (next.length === state.tags.length) {
-        return false;
-      }
-      state.tags = next;
-      renderChips();
-      if (!silent) {
-        emitChange();
-      }
-      return true;
-    }
-
-    function renderOptions() {
-      list.innerHTML = "";
-      state.filtered.forEach((option, index) => {
-        const optionEl = document.createElement("div");
-        optionEl.className = "myz-tag-input__option";
-        optionEl.setAttribute("role", "option");
-        const optionId = `${listId}-option-${index}`;
-        optionEl.id = optionId;
-        if (index === state.activeIndex) {
-          optionEl.classList.add("is-active");
-          optionEl.setAttribute("aria-selected", "true");
-          input.setAttribute("aria-activedescendant", optionId);
-        } else {
-          optionEl.setAttribute("aria-selected", "false");
-        }
-        optionEl.textContent = option;
-        optionEl.dataset.value = option;
-        optionEl.addEventListener("mousedown", (event) => {
-          event.preventDefault();
-          if (addTag(option)) {
-            input.value = "";
-          }
-          closeDropdown();
-          input.focus();
-        });
-        list.appendChild(optionEl);
-      });
-    }
-
-    function filterOptions(query) {
-      const term = query.trim().toLowerCase();
-      const available = state.options.filter((option) => {
-        if (state.tags.some((tag) => tag.toLowerCase() === option.toLowerCase())) {
-          return false;
-        }
-        return term ? option.toLowerCase().includes(term) : true;
-      });
-      state.filtered = available.slice(0, 50);
-      if (!state.filtered.length) {
-        closeDropdown();
-        return;
-      }
-      if (!state.dropdownOpen) {
-        state.dropdownOpen = true;
-        list.classList.remove("myz-hidden");
-        input.setAttribute("aria-expanded", "true");
-      }
-      if (state.activeIndex >= state.filtered.length) {
-        state.activeIndex = 0;
-      }
-      if (state.activeIndex === -1) {
-        state.activeIndex = 0;
-      }
-      renderOptions();
-    }
-
-    function commitInput() {
-      const hasOptions = state.dropdownOpen && state.filtered[state.activeIndex];
-      if (hasOptions) {
-        if (addTag(state.filtered[state.activeIndex])) {
-          input.value = "";
-        }
-        closeDropdown();
-        return;
-      }
-      const value = input.value;
-      if (!value.trim()) {
-        return;
-      }
-      if (addTag(value)) {
-        input.value = "";
-      }
-      closeDropdown();
-    }
-
-    function handleInput(event) {
-      const value = event.target.value;
-      if (!value.trim()) {
-        filterOptions("");
-      } else {
-        filterOptions(value);
-      }
-    }
-
-    function handleKeydown(event) {
-      if (event.key === "Enter" || event.key === ",") {
-        event.preventDefault();
-        commitInput();
-        return;
-      }
-      if (event.key === "Backspace" && !input.value && state.tags.length) {
-        event.preventDefault();
-        removeTag(state.tags[state.tags.length - 1]);
-        return;
-      }
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        if (!state.dropdownOpen) {
-          filterOptions(input.value);
-          return;
-        }
-        state.activeIndex = state.activeIndex + 1 >= state.filtered.length ? 0 : state.activeIndex + 1;
-        updateActiveOption();
-        return;
-      }
-      if (event.key === "ArrowUp" && state.dropdownOpen) {
-        event.preventDefault();
-        state.activeIndex = state.activeIndex - 1 < 0 ? state.filtered.length - 1 : state.activeIndex - 1;
-        updateActiveOption();
-        return;
-      }
-      if (event.key === "Escape") {
-        closeDropdown();
-      }
-    }
-
-    function setOptions(options = []) {
-      state.options = uniqueList(options);
-      if (state.dropdownOpen) {
-        filterOptions(input.value);
-      }
-    }
-
-    function setValue(values = [], { silent = false } = {}) {
-      const next = uniqueList(values);
-      const hasChanged = next.length !== state.tags.length || next.some((tag, index) => state.tags[index]?.toLowerCase() !== tag.toLowerCase());
-      state.tags = next;
-      renderChips();
-      if (hasChanged && !silent) {
-        emitChange();
-      }
-    }
-
-    function getValue() {
-      return [...state.tags];
-    }
-
-    function focus() {
-      input.focus();
-    }
-
-    function destroy() {
-      input.removeEventListener("input", handleInput);
-      input.removeEventListener("keydown", handleKeydown);
-      input.removeEventListener("focus", handleFocus);
-      input.removeEventListener("blur", handleBlur);
-      container.removeEventListener("click", handleContainerClick);
-      closeDropdown();
-      container.textContent = "";
-    }
-
-    function handleContainerClick(event) {
-      if (event.target === container || event.target.closest?.(".myz-tag-input__chip")) {
-        input.focus();
-      }
-    }
-
-    function handleFocus() {
-      container.classList.add("is-focused");
-      filterOptions(input.value);
-    }
-
-    function handleBlur() {
-      container.classList.remove("is-focused");
-      setTimeout(() => {
-        if (!container.contains(document.activeElement)) {
-          closeDropdown();
-        }
-      }, 120);
-    }
-
-    input.addEventListener("input", handleInput);
-    input.addEventListener("keydown", handleKeydown);
-    input.addEventListener("focus", handleFocus);
-    input.addEventListener("blur", handleBlur);
-    container.addEventListener("click", handleContainerClick);
+    const app = createApp(NotificationsApp);
+    const instance = app.mount(host);
 
     return {
-      getValue,
-      setValue,
-      setOptions,
-      focus,
-      destroy
+      host,
+      notify: (options) => instance.notify(options),
     };
   }
 
-  function normalizeTagValue(value) {
-    return typeof value === "string" ? value.trim() : "";
+  function handleInspectorClose() {
+    state.inspectingId = null;
   }
 
-  function addKnownTags(tags) {
-    if (!Array.isArray(tags)) {
-      return false;
-    }
-    let changed = false;
-    tags.forEach((tag) => {
-      const normalized = normalizeTagValue(tag);
-      if (!normalized) {
-        return;
-      }
-      if (!knownTags.has(normalized)) {
-        knownTags.add(normalized);
-        changed = true;
-      }
-    });
-    return changed;
-  }
-
-  function getKnownTagsList() {
-    return Array.from(knownTags).sort((a, b) => a.localeCompare(b));
-  }
-
-  function updateTagSuggestions() {
-    if (modal.tagsComponent) {
-      modal.tagsComponent.setOptions(getKnownTagsList());
-    }
-  }
-
-  function createColorPaletteField() {
-    const wrapper = document.createElement("div");
-    wrapper.className = "myz-annotator-field";
-
-    const labelRow = document.createElement("div");
-    labelRow.className = "myz-annotator-field__label-row";
-    const label = document.createElement("label");
-    label.textContent = "高亮颜色";
-    const hint = document.createElement("span");
-    hint.className = "myz-annotator-field__hint";
-    hint.textContent = "点击选择 · 调整色块可自定义";
-    labelRow.append(label, hint);
-
-  const paletteContainer = document.createElement("div");
-  paletteContainer.className = "myz-color-palette";
-  paletteContainer.setAttribute("role", "radiogroup");
-
-    wrapper.append(labelRow, paletteContainer);
-
-    return {
-      wrapper,
-      container: paletteContainer,
-      swatches: []
-    };
-  }
-
-  function renderColorPalette() {
-    if (!modal.colorPalette?.container) {
+  async function handleInspectorCopy() {
+    const id = state.inspectingId || inspector.getCurrentId?.();
+    if (!id) {
       return;
     }
-    const container = modal.colorPalette.container;
-    container.innerHTML = "";
-    const colors = (state.settings.colorPalette || []).slice(0, 5);
-    while (colors.length < 5) {
-      colors.push(DEFAULT_COLORS[colors.length] || DEFAULT_COLORS[0]);
-    }
-
-    colors.forEach((color, index) => {
-      const swatchWrapper = document.createElement("div");
-      swatchWrapper.className = "myz-color-swatch-wrapper";
-
-      const swatchButton = document.createElement("button");
-      swatchButton.type = "button";
-      swatchButton.className = "myz-color-swatch";
-      swatchButton.style.setProperty("--myz-swatch-color", color);
-      swatchButton.dataset.index = String(index);
-      swatchButton.setAttribute("aria-label", `选择颜色 ${color}`);
-      swatchButton.setAttribute("role", "radio");
-      const isActive = color === state.selectedColor;
-      swatchButton.classList.toggle("is-active", isActive);
-      swatchButton.setAttribute("aria-pressed", isActive ? "true" : "false");
-      swatchButton.addEventListener("click", () => selectColor(index));
-
-      const editButton = document.createElement("button");
-      editButton.type = "button";
-      editButton.className = "myz-color-edit";
-      editButton.dataset.index = String(index);
-      editButton.textContent = "✎";
-      editButton.setAttribute("aria-label", `编辑颜色 ${color}`);
-
-      const colorInput = document.createElement("input");
-      colorInput.type = "color";
-      colorInput.value = color;
-      colorInput.className = "myz-color-editor";
-      colorInput.addEventListener("input", (event) => {
-        const value = event.target.value;
-        updatePaletteColor(index, value);
-      });
-
-      editButton.addEventListener("click", () => {
-        if (typeof colorInput.showPicker === "function") {
-          colorInput.showPicker();
-        } else {
-          colorInput.click();
-        }
-      });
-
-      swatchWrapper.append(swatchButton, editButton, colorInput);
-      container.appendChild(swatchWrapper);
-    });
-
-    updateModalPreview();
-  }
-
-  function renderStylePicker() {
-    if (!modal.stylePicker?.buttons?.length) {
+    const record = highlightCache.get(id);
+    if (!record) {
       return;
     }
-    const isHighlight = state.formKind === RECORD_KINDS.HIGHLIGHT;
-    const activeStyle = normalizeHighlightStyle(state.selectedStyle);
-    modal.stylePicker.buttons.forEach((button) => {
-      const value = normalizeHighlightStyle(button.dataset.style);
-      const isActive = isHighlight && value === activeStyle;
-      button.classList.toggle("is-active", isActive);
-      button.setAttribute("aria-pressed", isActive ? "true" : "false");
-      button.disabled = !isHighlight;
-      button.setAttribute("aria-disabled", !isHighlight ? "true" : "false");
+    const markdown = recordToMarkdown(record);
+    try {
+      await navigator.clipboard.writeText(markdown);
+    } catch (error) {
+      console.error("Clipboard copy failed", error);
+    }
+  }
+
+  function handleInspectorEdit() {
+    const id = state.inspectingId || inspector.getCurrentId?.();
+    if (!id) {
+      return;
+    }
+    const record = highlightCache.get(id);
+    if (!record) {
+      return;
+    }
+    state.editingId = record.id;
+    openModal({
+      mode: "edit",
+      editingId: record.id,
+      preview: record.text,
+      note: record.note || "",
+      tags: record.tags || [],
+      color: record.color || DEFAULT_COLORS[0],
+      style: record.style,
+      kind: getRecordKind(record),
     });
   }
 
-  function updateModalPreview() {
-    if (!modal.preview) {
+  function handleInspectorDelete() {
+    const id = state.inspectingId || inspector.getCurrentId?.();
+    if (!id) {
       return;
     }
-    const previewText = modal.preview.dataset.previewText || "";
-    modal.preview.innerHTML = "";
-    if (!previewText) {
-      return;
-    }
-    if (state.formKind !== RECORD_KINDS.HIGHLIGHT) {
-      modal.preview.textContent = previewText;
-      return;
-    }
-    const span = document.createElement("span");
-    span.className = "myz-highlight myz-highlight-preview";
-    span.textContent = previewText;
-    decorateHighlightElement(span, { color: state.selectedColor, style: state.selectedStyle });
-    modal.preview.appendChild(span);
+    deleteHighlight(id);
+  }
+
+  function handleInspectorShown(id) {
+    state.inspectingId = id || null;
+  }
+
+  function handleInspectorHidden() {
+    state.inspectingId = null;
   }
 
   function openModal(options) {
-    const kind = options.kind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
-    state.formKind = kind;
-
-    if (kind === RECORD_KINDS.HIGHLIGHT) {
-      state.selectedColor =
-        options.color || state.settings.lastUsedColor || state.selectedColor || DEFAULT_COLORS[0];
-      state.selectedStyle = normalizeHighlightStyle(
-        options.style || state.settings.lastUsedStyle || state.selectedStyle || DEFAULT_HIGHLIGHT_STYLE
-      );
-    }
-
-    if (kind === RECORD_KINDS.CLIP) {
-      modal.title.textContent = options.mode === "edit" ? "编辑保存内容" : "保存摘录";
-    } else {
-      modal.title.textContent = options.mode === "edit" ? "编辑批注" : "添加批注";
-    }
-    modal.preview.dataset.previewText = options.preview || "";
-    modal.preview.scrollTop = 0;
-    modal.noteInput.value = options.note || "";
-    if (modal.tagsComponent) {
-      const initialTags = Array.isArray(options.tags)
-        ? options.tags.filter(Boolean)
-        : options.tags
+    const kind =
+      options.kind === RECORD_KINDS.CLIP
+        ? RECORD_KINDS.CLIP
+        : RECORD_KINDS.HIGHLIGHT;
+    const initialTags = Array.isArray(options.tags)
+      ? options.tags.filter(Boolean)
+      : options.tags
         ? [options.tags]
         : [];
-      const optionsSet = new Set([...getKnownTagsList(), ...initialTags]);
-      modal.tagsComponent.setOptions(Array.from(optionsSet).sort((a, b) => a.localeCompare(b)));
-      modal.tagsComponent.setValue(initialTags, { silent: true });
-    }
-    if (kind === RECORD_KINDS.HIGHLIGHT) {
-      if (modal.colorPalette?.wrapper) {
-        modal.colorPalette.wrapper.classList.remove("myz-hidden");
-      }
-      if (modal.stylePicker?.wrapper) {
-        modal.stylePicker.wrapper.classList.remove("myz-hidden");
-      }
-      renderStylePicker();
-      renderColorPalette();
-    } else {
-      if (modal.colorPalette?.wrapper) {
-        modal.colorPalette.wrapper.classList.add("myz-hidden");
-      }
-      if (modal.stylePicker?.wrapper) {
-        modal.stylePicker.wrapper.classList.add("myz-hidden");
-      }
-      renderStylePicker();
-      updateModalPreview();
-    }
-    modal.deleteButton.classList.toggle("myz-hidden", options.mode !== "edit");
-    modal.container.classList.remove("myz-hidden");
+
+    modal.open({
+      mode: options.mode,
+      preview: options.preview,
+      note: options.note,
+      tags: initialTags,
+      color: kind === RECORD_KINDS.HIGHLIGHT ? options?.color : null,
+      style: kind === RECORD_KINDS.HIGHLIGHT ? options?.style : null,
+      kind,
+    });
+    modal?.addKnownTags?.(initialTags);
   }
 
-  function closeModal() {
-    modal.container.classList.add("myz-hidden");
-    if (modal.preview) {
-      modal.preview.dataset.previewText = "";
-      modal.preview.textContent = "";
+  function closeModal({ fromComponent = false } = {}) {
+    if (!fromComponent) {
+      modal.hide();
     }
     state.currentRange = null;
     state.currentText = "";
     state.currentHtml = "";
     state.editingId = null;
     state.formKind = RECORD_KINDS.HIGHLIGHT;
-    if (modal.tagsComponent) {
-      modal.tagsComponent.setValue([], { silent: true });
-    }
   }
 
-  async function handleSubmit() {
-    const note = modal.noteInput.value.trim();
-    const tags = modal.tagsComponent ? modal.tagsComponent.getValue() : [];
-    const color = state.selectedColor || state.settings.lastUsedColor || DEFAULT_COLORS[0];
-    const kind = state.formKind === RECORD_KINDS.CLIP ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
-    const style = state.selectedStyle || state.settings.lastUsedStyle || DEFAULT_HIGHLIGHT_STYLE;
+  async function handleModalSubmit(payload) {
+    const kind =
+      payload.kind === RECORD_KINDS.CLIP
+        ? RECORD_KINDS.CLIP
+        : RECORD_KINDS.HIGHLIGHT;
+    const note = typeof payload.note === "string" ? payload.note.trim() : "";
+    const tags = Array.isArray(payload.tags)
+      ? payload.tags.filter(Boolean)
+      : [];
+
+    state.formKind = kind;
+
+    const style = { color: DEFAULT_COLORS[0], style: DEFAULT_HIGHLIGHT_STYLE };
+
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
+      const fallbackColor = DEFAULT_COLORS[0];
+      style.color =
+        typeof payload.color === "string" && payload.color.trim()
+          ? payload.color.trim()
+          : fallbackColor;
+      style.style = normalizeHighlightStyle(
+        payload.style || DEFAULT_HIGHLIGHT_STYLE,
+      );
+    }
 
     if (state.editingId) {
       const update = {
         id: state.editingId,
         note,
         tags,
-        kind
+        kind,
       };
       if (kind === RECORD_KINDS.HIGHLIGHT) {
-        update.color = color;
-        update.style = style;
+        update.color = style.color;
+        update.style = style.style;
       } else {
         update.color = null;
         update.range = null;
@@ -1335,7 +684,7 @@
     }
 
     const basePayload = {
-      url: CANONICAL_URL,
+      url: canonicalUrl(window.location.href),
       sourceUrl: window.location.href,
       title: document.title,
       text: state.currentText,
@@ -1343,7 +692,7 @@
       note,
       tags,
       hostname: window.location.hostname,
-      kind
+      kind,
     };
 
     const selection = window.getSelection();
@@ -1352,17 +701,21 @@
         if (!state.currentRange) {
           return;
         }
-        const serializedRange = serializeRange(state.currentRange);
+        const serializedRange = serializeRange(
+          document,
+          state.currentRange,
+          highlightCache,
+          applyHighlight,
+        );
         if (!serializedRange) {
           return;
         }
-        const payload = {
+        const payloadToSave = {
           ...basePayload,
-          color,
-          style,
-          range: serializedRange
+          ...style,
+          range: serializedRange,
         };
-        const record = await sendMessage("myz:saveHighlight", payload);
+        const record = await sendMessage("myz:saveHighlight", payloadToSave);
         if (record) {
           const stored = storeRecord(record);
           if (stored) {
@@ -1373,29 +726,24 @@
             } else if (isHighlightRecord(stored)) {
               markHighlightForReapply(stored.id);
             }
-            if (addKnownTags(stored.tags || tags)) {
-              updateTagSuggestions();
-            }
+            modal.addKnownTags?.(stored.tags || tags);
             updateHighlightIndicators();
           }
         }
-        persistHighlightSettings({ lastUsedColor: color, lastUsedStyle: style });
       } else {
-        const payload = {
+        const payloadToSave = {
           ...basePayload,
           color: null,
           style: null,
-          range: null
+          range: null,
         };
-        const record = await sendMessage("myz:saveHighlight", payload);
+        const record = await sendMessage("myz:saveHighlight", payloadToSave);
         if (record) {
           const stored = storeRecord(record);
           if (stored) {
             unreachableHighlights.delete(stored.id);
             removeHighlightFromPending(stored.id);
-            if (addKnownTags(stored.tags || tags)) {
-              updateTagSuggestions();
-            }
+            modal.addKnownTags?.(stored.tags || tags);
             updateHighlightIndicators();
           }
         }
@@ -1409,6 +757,17 @@
     }
   }
 
+  function handleModalClose() {
+    closeModal({ fromComponent: true });
+  }
+
+  async function handleModalDelete() {
+    if (state.editingId) {
+      await deleteHighlight(state.editingId);
+    }
+    closeModal();
+  }
+
   async function updateExistingHighlight(update) {
     try {
       const record = await sendMessage("myz:updateHighlight", update);
@@ -1419,11 +778,11 @@
       if (!stored) {
         return;
       }
-      if (addKnownTags(stored.tags || [])) {
-        updateTagSuggestions();
-      }
+      modal.addKnownTags?.(stored.tags || []);
       if (isHighlightRecord(stored)) {
-        const nodes = document.querySelectorAll(`[data-highlight-id="${stored.id}"]`);
+        const nodes = document.querySelectorAll(
+          `[data-highlight-id="${stored.id}"]`,
+        );
         nodes.forEach((node) => {
           decorateHighlightElement(node, stored);
         });
@@ -1432,24 +791,8 @@
         unreachableHighlights.delete(stored.id);
         removeHighlightFromPending(stored.id);
       }
-      if (inspector.currentId === stored.id) {
-        showInspector(stored);
-      }
-      if (isHighlightRecord(stored)) {
-        const resolvedColor = resolveHighlightColor(stored.color);
-        const resolvedStyle = normalizeHighlightStyle(stored.style);
-        state.settings.lastUsedColor = resolvedColor;
-        state.settings.lastUsedStyle = resolvedStyle;
-        state.selectedColor = resolvedColor;
-        state.selectedStyle = resolvedStyle;
-        renderColorPalette();
-        renderStylePicker();
-        updateModalPreview();
-        persistHighlightSettings({ lastUsedColor: resolvedColor, lastUsedStyle: resolvedStyle });
-      } else {
-        renderColorPalette();
-        renderStylePicker();
-        updateModalPreview();
+      if (state.inspectingId === stored.id) {
+        inspector.showRecord?.(stored);
       }
       updateHighlightIndicators();
     } catch (error) {
@@ -1464,192 +807,13 @@
       removeHighlightFromPending(id);
       unreachableHighlights.delete(id);
       removeHighlightFromDom(id);
-      if (inspector.currentId === id) {
-        hideInspector();
+      if (state.inspectingId === id) {
+        inspector.hide?.();
       }
       updateHighlightIndicators();
     } catch (error) {
       console.error("Failed to delete highlight", error);
     }
-  }
-  function createInspector() {
-    const aside = document.createElement("aside");
-    aside.className = "myz-inspector myz-hidden";
-
-    const header = document.createElement("div");
-    header.className = "myz-inspector__header";
-    const title = document.createElement("div");
-    title.className = "myz-inspector__title";
-    const closeButton = document.createElement("button");
-    closeButton.type = "button";
-    closeButton.className = "myz-inspector__close";
-    closeButton.textContent = "×";
-    header.append(title, closeButton);
-
-    const infoRow = document.createElement("div");
-    infoRow.className = "myz-inspector__info";
-
-    const styleIndicator = document.createElement("span");
-    styleIndicator.className = "myz-inspector__style";
-
-    const meta = document.createElement("div");
-    meta.className = "myz-inspector__meta";
-    infoRow.append(styleIndicator, meta);
-
-    const tags = document.createElement("div");
-    tags.className = "myz-inspector__tags";
-
-    const body = document.createElement("div");
-    body.className = "myz-inspector__body";
-
-    const quote = document.createElement("blockquote");
-    quote.className = "myz-inspector__quote";
-
-    const note = document.createElement("div");
-    note.className = "myz-inspector__note";
-
-    const footer = document.createElement("div");
-    footer.className = "myz-inspector__actions";
-
-    const copyButton = document.createElement("button");
-    copyButton.type = "button";
-    copyButton.textContent = "复制";
-    copyButton.className = "myz-btn-secondary";
-
-    const editButton = document.createElement("button");
-    editButton.type = "button";
-    editButton.textContent = "编辑";
-    editButton.className = "myz-btn-primary";
-
-    const deleteButton = document.createElement("button");
-    deleteButton.type = "button";
-    deleteButton.textContent = "删除";
-    deleteButton.className = "myz-btn-danger";
-
-    footer.append(copyButton, editButton, deleteButton);
-    body.append(infoRow, tags, quote, note);
-    aside.append(header, body, footer);
-    document.documentElement.appendChild(aside);
-
-    closeButton.addEventListener("click", hideInspector);
-
-    copyButton.addEventListener("click", async () => {
-      if (!inspector.currentId) {
-        return;
-      }
-      const record = highlightCache.get(inspector.currentId);
-      if (!record) {
-        return;
-      }
-      const markdown = recordToMarkdown(record);
-      try {
-        await navigator.clipboard.writeText(markdown);
-      } catch (error) {
-        console.error("Clipboard copy failed", error);
-      }
-    });
-
-    editButton.addEventListener("click", () => {
-      if (!inspector.currentId) {
-        return;
-      }
-      const record = highlightCache.get(inspector.currentId);
-      if (!record) {
-        return;
-      }
-      state.editingId = record.id;
-      openModal({
-        mode: "edit",
-        preview: record.text,
-        note: record.note || "",
-        tags: record.tags || [],
-        color: record.color || state.selectedColor,
-        style: record.style,
-        kind: getRecordKind(record)
-      });
-    });
-
-    deleteButton.addEventListener("click", () => {
-      if (!inspector.currentId) {
-        return;
-      }
-      deleteHighlight(inspector.currentId);
-    });
-
-    return {
-      container: aside,
-      header,
-      title,
-      styleIndicator,
-      info: infoRow,
-      meta,
-      tags,
-      quote,
-      note,
-      currentId: null
-    };
-  }
-
-  function showInspector(record) {
-    if (!record) {
-      return;
-    }
-    inspector.currentId = record.id;
-    inspector.title.textContent = record.title || record.hostname || "标注详情";
-    const kind = getRecordKind(record);
-    if (kind === RECORD_KINDS.HIGHLIGHT) {
-      const style = normalizeHighlightStyle(record.style);
-      const color = resolveHighlightColor(record.color);
-      const meta = getStyleMeta(style);
-      inspector.styleIndicator.classList.remove("myz-hidden");
-      inspector.styleIndicator.dataset.style = style;
-      inspector.styleIndicator.style.setProperty("--myz-highlight-color", color);
-      inspector.styleIndicator.textContent = meta.icon;
-      inspector.styleIndicator.title = `${meta.label} · ${color}`;
-    } else {
-      inspector.styleIndicator.classList.add("myz-hidden");
-      inspector.styleIndicator.textContent = "";
-      inspector.styleIndicator.removeAttribute("title");
-      inspector.styleIndicator.style.removeProperty("--myz-highlight-color");
-      delete inspector.styleIndicator.dataset.style;
-    }
-
-    const createdAt = record.createdAt ? new Date(record.createdAt) : null;
-    const metaParts = [];
-    if (createdAt) {
-      metaParts.push(createdAt.toLocaleString());
-    }
-    if (record.hostname) {
-      metaParts.push(record.hostname);
-    }
-    inspector.meta.textContent = metaParts.join(" · ") || "";
-
-    inspector.tags.innerHTML = "";
-    if (Array.isArray(record.tags) && record.tags.length) {
-      inspector.tags.classList.remove("myz-hidden");
-      record.tags.forEach((tag) => {
-        const span = document.createElement("span");
-        span.className = "myz-tag";
-        span.textContent = tag;
-        inspector.tags.appendChild(span);
-      });
-    } else {
-      inspector.tags.classList.add("myz-hidden");
-    }
-
-    if (record.html) {
-      inspector.quote.innerHTML = record.html;
-    } else {
-      inspector.quote.textContent = record.text || "";
-    }
-  inspector.note.textContent = record.note || "无批注";
-
-    inspector.container.classList.remove("myz-hidden");
-  }
-
-  function hideInspector() {
-    inspector.container.classList.add("myz-hidden");
-    inspector.currentId = null;
   }
 
   function applyHighlight(record) {
@@ -1660,14 +824,25 @@
       return false;
     }
     try {
-      const range = deserializeRange(record.range);
+      const range = deserializeRange(document, record.range);
       if (!range || range.collapsed) {
         return false;
       }
       removeHighlightFromDom(record.id);
-      const applied = rangeContainsBlockElements(range)
-        ? wrapRangeAcrossNodes(range, record)
-        : wrapSimpleRange(range, record);
+      // Prefer wrapping by collecting and wrapping individual text-node
+      // segments. This avoids cloning the whole fragment which can split
+      // inline elements (links) and leave empty anchors when multiple
+      // highlights are created in the same paragraph. Fall back to the
+      // simple fragment-based wrapper if text-node wrapping doesn't apply.
+      let applied = false;
+      try {
+        applied = wrapRangeAcrossNodes(range, record);
+      } catch (e) {
+        applied = false;
+      }
+      if (!applied) {
+        applied = wrapSimpleRange(range, record);
+      }
       if (applied) {
         return true;
       }
@@ -1684,7 +859,7 @@
         return trimmed;
       }
     }
-    return state.settings.lastUsedColor || DEFAULT_COLORS[0];
+    return DEFAULT_COLORS[0];
   }
 
   function decorateHighlightElement(element, record) {
@@ -1748,6 +923,10 @@
       NodeFilter.SHOW_TEXT,
       {
         acceptNode(node) {
+          // Ignore nodes that belong to the extension UI or highlights
+          if (isNodeFromMyz(node)) {
+            return NodeFilter.FILTER_REJECT;
+          }
           if (!range.intersectsNode(node)) {
             return NodeFilter.FILTER_REJECT;
           }
@@ -1755,8 +934,8 @@
             return NodeFilter.FILTER_REJECT;
           }
           return NodeFilter.FILTER_ACCEPT;
-        }
-      }
+        },
+      },
     );
     let current;
     while ((current = iterator.nextNode())) {
@@ -1772,19 +951,11 @@
     }
     let target = node;
     const length = node.textContent.length;
-    if (offsets.end < length) {
-      target.splitText(offsets.end);
-    }
-    if (offsets.start > 0) {
-      target = target.splitText(offsets.start);
-    }
-    if (!target || !target.textContent.trim()) {
-      return false;
-    }
+    if (offsets.end < length) target.splitText(offsets.end);
+    if (offsets.start > 0) target = target.splitText(offsets.start);
+    if (!target || !target.textContent.trim()) return false;
     const parent = target.parentNode;
-    if (!parent) {
-      return false;
-    }
+    if (!parent) return false;
     const highlight = createHighlightElement(record);
     parent.insertBefore(highlight, target);
     highlight.appendChild(target);
@@ -1817,15 +988,6 @@
     return { start, end };
   }
 
-  function rangeContainsBlockElements(range) {
-    const fragment = range.cloneContents();
-    if (!fragment) {
-      return false;
-    }
-    const blockSelector = "p,div,section,article,header,footer,main,aside,nav,ul,ol,li,table,tbody,tr,td,th,blockquote,pre";
-    return fragment.querySelector(blockSelector) !== null;
-  }
-
   function focusHighlight(id) {
     if (!id) {
       return false;
@@ -1845,18 +1007,6 @@
     nodes.forEach((node) => unwrapNode(node));
   }
 
-  function unwrapNode(node) {
-    const parent = node.parentNode;
-    if (!parent) {
-      return;
-    }
-    while (node.firstChild) {
-      parent.insertBefore(node.firstChild, node);
-    }
-    parent.removeChild(node);
-    parent.normalize();
-  }
-
   function markHighlightForReapply(id) {
     if (!id) {
       return;
@@ -1870,7 +1020,10 @@
     if (!id) {
       return;
     }
-    if (highlightReapplyState.pending.delete(id) && !highlightReapplyState.pending.size) {
+    if (
+      highlightReapplyState.pending.delete(id) &&
+      !highlightReapplyState.pending.size
+    ) {
       cleanupHighlightReapply();
     }
   }
@@ -1889,13 +1042,21 @@
     ensureReapplyDeadline();
     queueHighlightReapply();
     if (!highlightReapplyState.timerId) {
-      highlightReapplyState.timerId = setInterval(queueHighlightReapply, HIGHLIGHT_REAPPLY_INTERVAL);
+      highlightReapplyState.timerId = setInterval(
+        queueHighlightReapply,
+        HIGHLIGHT_REAPPLY_INTERVAL,
+      );
     }
     if (!highlightReapplyState.observer) {
       const target = document.body || document.documentElement;
       if (target) {
-        highlightReapplyState.observer = new MutationObserver(() => queueHighlightReapply());
-        highlightReapplyState.observer.observe(target, { childList: true, subtree: true });
+        highlightReapplyState.observer = new MutationObserver(() =>
+          queueHighlightReapply(),
+        );
+        highlightReapplyState.observer.observe(target, {
+          childList: true,
+          subtree: true,
+        });
       }
     }
   }
@@ -1918,7 +1079,10 @@
       highlightReapplyState.deadline = Date.now() + HIGHLIGHT_REAPPLY_TIMEOUT;
       highlightReapplyState.deadlineListenerAttached = false;
       if (highlightReapplyState.deadlineListener) {
-        document.removeEventListener("readystatechange", highlightReapplyState.deadlineListener);
+        document.removeEventListener(
+          "readystatechange",
+          highlightReapplyState.deadlineListener,
+        );
         highlightReapplyState.deadlineListener = null;
       }
     };
@@ -1935,8 +1099,13 @@
     if (!highlightReapplyState.observer) {
       const target = document.body || document.documentElement;
       if (target) {
-        highlightReapplyState.observer = new MutationObserver(() => queueHighlightReapply());
-        highlightReapplyState.observer.observe(target, { childList: true, subtree: true });
+        highlightReapplyState.observer = new MutationObserver(() =>
+          queueHighlightReapply(),
+        );
+        highlightReapplyState.observer.observe(target, {
+          childList: true,
+          subtree: true,
+        });
       }
     }
     if (highlightReapplyState.tickHandle) {
@@ -1983,7 +1152,10 @@
       }
     }
 
-    if (highlightReapplyState.deadline && Date.now() > highlightReapplyState.deadline) {
+    if (
+      highlightReapplyState.deadline &&
+      Date.now() > highlightReapplyState.deadline
+    ) {
       const failedIds = Array.from(highlightReapplyState.pending);
       const remaining = failedIds.length;
       failedIds.forEach((id) => unreachableHighlights.add(id));
@@ -1991,10 +1163,13 @@
       cleanupHighlightReapply();
       if (!highlightReapplyState.failureNotified && remaining > 0) {
         highlightReapplyState.failureNotified = true;
-        console.warn("MyZ Annotator: failed to reapply highlights", { remaining });
-        const message = remaining === 1
-          ? "部分标注无法定位，可能因为页面内容已改变。"
-          : `有 ${remaining} 条标注无法定位，可能因为页面内容已改变。`;
+        console.warn("MyZ Annotator: failed to reapply highlights", {
+          remaining,
+        });
+        const message =
+          remaining === 1
+            ? "部分标注无法定位，可能因为页面内容已改变。"
+            : `有 ${remaining} 条标注无法定位，可能因为页面内容已改变。`;
         showNotification(message);
       }
     }
@@ -2014,7 +1189,10 @@
       highlightReapplyState.observer = null;
     }
     if (highlightReapplyState.deadlineListener) {
-      document.removeEventListener("readystatechange", highlightReapplyState.deadlineListener);
+      document.removeEventListener(
+        "readystatechange",
+        highlightReapplyState.deadlineListener,
+      );
       highlightReapplyState.deadlineListener = null;
     }
     highlightReapplyState.deadlineListenerAttached = false;
@@ -2025,51 +1203,13 @@
     if (!message) {
       return;
     }
-    const container = ensureNotificationContainer();
-    if (!container) {
-      return;
-    }
-    const toast = document.createElement("div");
-    toast.className = "myz-toast";
-    toast.textContent = message;
-    toast.style.cssText = "max-width: 280px; padding: 12px 14px; border-radius: 12px; background: rgba(15, 23, 42, 0.95); color: #f8fafc; font-size: 13px; box-shadow: 0 18px 32px rgba(15, 23, 42, 0.4); opacity: 0; transform: translateY(-6px); transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: auto;";
-    container.appendChild(toast);
-    requestAnimationFrame(() => {
-      toast.style.opacity = "1";
-      toast.style.transform = "translateY(0)";
-    });
-    setTimeout(() => {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateY(-6px)";
-      setTimeout(() => {
-        if (toast.parentNode) {
-          toast.parentNode.removeChild(toast);
-        }
-        if (!container.childElementCount && container.parentNode) {
-          container.parentNode.removeChild(container);
-        }
-      }, 240);
-    }, duration);
-  }
-
-  function ensureNotificationContainer() {
-    let container = document.querySelector(".myz-toast-container");
-    if (container) {
-      return container;
-    }
-    container = document.createElement("div");
-    container.className = "myz-toast-container";
-    container.style.cssText = "position: fixed; top: 16px; right: 16px; z-index: 2147483646; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: none;";
-    const host = document.documentElement || document.body;
-    if (!host) {
-      return null;
-    }
-    host.appendChild(container);
-    return container;
+    notifications.notify?.({ message, duration });
   }
 
   function buildHighlightStateSnapshot() {
-    const unreachable = Array.from(unreachableHighlights).filter((id) => highlightCache.has(id));
+    const unreachable = Array.from(unreachableHighlights).filter((id) =>
+      highlightCache.has(id),
+    );
     if (unreachable.length !== unreachableHighlights.size) {
       unreachableHighlights.clear();
       unreachable.forEach((id) => unreachableHighlights.add(id));
@@ -2081,105 +1221,8 @@
       highlightCount: stats.highlightCount,
       savedCount: stats.savedCount,
       unreachableIds: unreachable,
-      unreachableCount: unreachable.length
+      unreachableCount: unreachable.length,
     };
-  }
-
-  function serializeRange(range) {
-    try {
-      return {
-        start: {
-          path: buildPath(range.startContainer),
-          offset: range.startOffset
-        },
-        end: {
-          path: buildPath(range.endContainer),
-          offset: range.endOffset
-        }
-      };
-    } catch (error) {
-      console.error("Failed to serialize range", error);
-      return null;
-    }
-  }
-
-  function deserializeRange(serialized) {
-    if (!serialized?.start || !serialized?.end) {
-      return null;
-    }
-    const range = document.createRange();
-    const startNode = resolvePath(serialized.start.path);
-    const endNode = resolvePath(serialized.end.path);
-    if (!startNode || !endNode) {
-      return null;
-    }
-    const startOffset = clampOffset(startNode, serialized.start.offset);
-    const endOffset = clampOffset(endNode, serialized.end.offset);
-    try {
-      range.setStart(startNode, startOffset);
-      range.setEnd(endNode, endOffset);
-    } catch (error) {
-      console.error("Failed to reconstruct range", error);
-      return null;
-    }
-    return range;
-  }
-
-  function buildPath(node) {
-    const path = [];
-    let current = node;
-    while (current && current !== document) {
-      const parent = current.parentNode;
-      if (!parent) {
-        break;
-      }
-      const siblings = Array.from(parent.childNodes).filter((child) => sameNodeType(child, current));
-      const index = siblings.indexOf(current);
-      path.unshift({
-        name: nodeName(current),
-        index
-      });
-      current = parent;
-    }
-    return path;
-  }
-
-  function resolvePath(path) {
-    let current = document;
-    for (const segment of path) {
-      const candidates = Array.from(current.childNodes).filter((child) => {
-        if (segment.name === "#text") {
-          return child.nodeType === Node.TEXT_NODE;
-        }
-        return child.nodeType === Node.ELEMENT_NODE && child.nodeName.toLowerCase() === segment.name;
-      });
-      current = candidates[segment.index] || null;
-      if (!current) {
-        return null;
-      }
-    }
-    return current;
-  }
-
-  function nodeName(node) {
-    return node.nodeType === Node.TEXT_NODE ? "#text" : node.nodeName.toLowerCase();
-  }
-
-  function sameNodeType(a, b) {
-    if (a.nodeType !== b.nodeType) {
-      return false;
-    }
-    if (a.nodeType === Node.TEXT_NODE) {
-      return true;
-    }
-    return a.nodeName === b.nodeName;
-  }
-
-  function clampOffset(node, requested) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      return Math.min(requested, node.textContent.length);
-    }
-    return Math.min(requested, node.childNodes.length);
   }
 
   function canonicalUrl(url) {
@@ -2214,11 +1257,16 @@
     await waitForNextPaint();
 
     try {
-      const result = await sendMessage("myz:captureSelection", { format: "png" });
+      const result = await sendMessage("myz:captureSelection", {
+        format: "png",
+      });
       if (!result || !result.dataUrl) {
         return;
       }
-      await cropAndDownloadSelection(result.dataUrl, rect);
+      await cropAndDownloadSelection(result.dataUrl, rect, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
     } catch (error) {
       console.error("Selection capture failed", error);
     } finally {
@@ -2242,217 +1290,6 @@
     return new Promise((resolve) => {
       requestAnimationFrame(() => {
         requestAnimationFrame(resolve);
-      });
-    });
-  }
-
-  function getSelectionBoundingRect(range) {
-    const rects = Array.from(range.getClientRects()).filter((rect) => rect.width && rect.height);
-    if (!rects.length) {
-      const fallback = range.getBoundingClientRect();
-      if (!fallback || !fallback.width || !fallback.height) {
-        return null;
-      }
-      return {
-        top: fallback.top,
-        left: fallback.left,
-        right: fallback.right,
-        bottom: fallback.bottom,
-        width: fallback.width,
-        height: fallback.height
-      };
-    }
-    const bounds = rects.reduce(
-      (acc, rect) => ({
-        top: Math.min(acc.top, rect.top),
-        left: Math.min(acc.left, rect.left),
-        right: Math.max(acc.right, rect.right),
-        bottom: Math.max(acc.bottom, rect.bottom)
-      }),
-      {
-        top: rects[0].top,
-        left: rects[0].left,
-        right: rects[0].right,
-        bottom: rects[0].bottom
-      }
-    );
-    return {
-      top: bounds.top,
-      left: bounds.left,
-      right: bounds.right,
-      bottom: bounds.bottom,
-      width: bounds.right - bounds.left,
-      height: bounds.bottom - bounds.top
-    };
-  }
-
-  async function cropAndDownloadSelection(dataUrl, rect) {
-    const image = await loadImage(dataUrl);
-    const viewportWidth = window.innerWidth || image.width;
-    const viewportHeight = window.innerHeight || image.height;
-    const scaleX = image.width / viewportWidth;
-    const scaleY = image.height / viewportHeight;
-    const sx = Math.max(0, Math.floor(rect.left * scaleX));
-    const sy = Math.max(0, Math.floor(rect.top * scaleY));
-    const sw = Math.min(image.width - sx, Math.floor(rect.width * scaleX));
-    const sh = Math.min(image.height - sy, Math.floor(rect.height * scaleY));
-    if (sw <= 0 || sh <= 0) {
-      throw new Error("Selection bounds are outside the captured area");
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = sw;
-    canvas.height = sh;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      throw new Error("Canvas context is unavailable");
-    }
-    context.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
-    const cropped = canvas.toDataURL("image/png");
-    downloadImage(cropped, `myz-selection-${Date.now()}.png`);
-  }
-
-  function loadImage(dataUrl) {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("Failed to load screenshot"));
-      image.src = dataUrl;
-    });
-  }
-
-  function downloadImage(dataUrl, filename) {
-    const anchor = document.createElement("a");
-    anchor.href = dataUrl;
-    anchor.download = filename;
-    anchor.click();
-  }
-
-
-  function serializeRangeToHtml(range) {
-    try {
-      const fragment = range.cloneContents();
-      if (!fragment || !fragment.childNodes.length) {
-        return "";
-      }
-      const container = document.createElement("div");
-      container.appendChild(fragment);
-      sanitizeNode(container);
-      return container.innerHTML.trim();
-    } catch (error) {
-      console.warn("Failed to serialize selection HTML", error);
-      return "";
-    }
-  }
-
-  function sanitizeNode(root) {
-    Array.from(root.childNodes).forEach((child) => {
-      if (child.nodeType === Node.ELEMENT_NODE) {
-        sanitizeElement(child);
-      } else if (child.nodeType === Node.COMMENT_NODE) {
-        root.removeChild(child);
-      }
-    });
-  }
-
-  function sanitizeElement(element) {
-    const tag = element.tagName.toLowerCase();
-    if (!ALLOWED_HTML_TAGS.has(tag)) {
-      const parent = element.parentNode;
-      if (!parent) {
-        return;
-      }
-      const children = Array.from(element.childNodes);
-      children.forEach((child) => parent.insertBefore(child, element));
-      parent.removeChild(element);
-      children.forEach((child) => {
-        if (child.nodeType === Node.ELEMENT_NODE) {
-          sanitizeElement(child);
-        }
-      });
-      return;
-    }
-
-    Array.from(element.attributes).forEach((attr) => {
-      if (!isAllowedAttribute(tag, attr.name)) {
-        element.removeAttribute(attr.name);
-        return;
-      }
-      if (attr.name === "href") {
-        const sanitizedHref = normalizeHref(attr.value);
-        if (sanitizedHref) {
-          element.setAttribute("href", sanitizedHref);
-        } else {
-          element.removeAttribute("href");
-        }
-      }
-    });
-
-    if (tag === "a" && element.hasAttribute("href")) {
-      element.setAttribute("target", "_blank");
-      element.setAttribute("rel", "noopener noreferrer");
-    }
-
-    sanitizeNode(element);
-  }
-
-  function isAllowedAttribute(tag, name) {
-    const whitelist = ALLOWED_HTML_ATTRS[tag];
-    if (!whitelist) {
-      return false;
-    }
-    return whitelist.has(name);
-  }
-
-  function normalizeHref(value) {
-    if (!value || typeof value !== "string") {
-      return null;
-    }
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return null;
-    }
-    try {
-      const parsed = new URL(trimmed, window.location.href);
-      const protocol = parsed.protocol.toLowerCase();
-      if (protocol === "http:" || protocol === "https:" || protocol === "mailto:") {
-        return parsed.toString();
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function isSafeUrl(url) {
-    return Boolean(normalizeHref(url));
-  }
-
-  function recordToMarkdown(record) {
-    const tags = Array.isArray(record.tags) && record.tags.length ? ` #${record.tags.join(" #")}` : "";
-    const quote = (record.text || "")
-      .split("\n")
-      .map((line) => `> ${line}`)
-      .join("\n");
-    const note = record.note ? `\n\n${record.note}` : "";
-    return `- **${record.title || record.hostname || "页面"}**${tags} ([链接](${record.sourceUrl || record.url}))\n${quote}${note}`;
-  }
-
-  function sendMessage(type, payload) {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type, payload }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        if (!response) {
-          reject(new Error("空响应"));
-          return;
-        }
-        if (!response.ok) {
-          reject(new Error(response.error || "未知错误"));
-          return;
-        }
-        resolve(response.data);
       });
     });
   }

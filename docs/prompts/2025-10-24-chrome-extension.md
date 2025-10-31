@@ -1,6 +1,7 @@
 ---
 agent: Copilot
 model: GPT-5-Codex
+date: 2025-10-24
 ---
 
 帮我创建一个Chrome插件，用来随时高亮标注网页上的文字并添加批注。这部分内容可以导出成为JSON和Markdown格式，并可以同步给本地的LogSeq服务器。

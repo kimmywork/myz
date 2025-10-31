@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1280" height="1280" viewBox="0 0 1280 1280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MyZ icon large">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGradLg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#2FD0BF"/>
+      <stop offset="60%" stop-color="#6AC3FF"/>
+      <stop offset="100%" stop-color="#8FD1FF"/>
+    </linearGradient>
+
+    <!-- Subtle radial for center brightness -->
+    <radialGradient id="spot" cx="50%" cy="38%" r="60%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="40%" stop-color="#FFFFFF" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Soft outer shadow -->
+    <filter id="outerShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="24" stdDeviation="40" flood-color="#000" flood-opacity="0.22"/>
+    </filter>
+
+    <!-- Inner emboss for subtle bevel -->
+    <filter id="emboss" x="-20%" y="-20%" width="140%" height="140%" primitiveUnits="objectBoundingBox">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur"/>
+      <feSpecularLighting in="blur" surfaceScale="4" specularConstant="0.6" specularExponent="20" lighting-color="#ffffff" result="specOut">
+        <fePointLight x="-500" y="-1000" z="1500"/>
+      </feSpecularLighting>
+      <feComposite in="specOut" in2="SourceAlpha" operator="in" result="specOut2"/>
+      <feMerge>
+        <feMergeNode in="specOut2"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+  </defs>
+
+  <!-- Background circle with outer shadow and gradient -->
+  <g filter="url(#outerShadow)">
+    <circle cx="640" cy="640" r="560" fill="url(#bgGradLg)" />
+  </g>
+
+  <!-- center glossy spot -->
+  <circle cx="640" cy="540" r="420" fill="url(#spot)" />
+
+  <!-- decorative inner ring -->
+  <circle cx="640" cy="640" r="496" fill="none" stroke="#FFFFFF" stroke-opacity="0.06" stroke-width="6"/>
+
+  <!-- stylized 'Z' glyph - scaled coordinates (original concept scaled up) -->
+  <g transform="translate(0,0)">
+    <!-- Main bold stroke -->
+    <path d="M360 340 L920 340 L480 640 L920 940 L360 940"
+          fill="none"
+          stroke="#0B1F2D"
+          stroke-width="100"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-opacity="0.98"/>
+
+    <!-- Inner accent stroke for depth -->
+    <path d="M420 400 L880 400 L520 640 L880 880 L420 880"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="40"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-opacity="0.18"/>
+
+    <!-- subtle mask cut to produce a beveled edge look on top-left -->
+    <path d="M360 340 L920 340 L480 640 L920 940 L360 940 L360 340 Z"
+          fill="none"
+          stroke="#000000"
+          stroke-width="10"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          opacity="0.06"/>
+  </g>
+
+  <!-- small detail: a rounded notch on the bottom-right to create character -->
+  <path d="M900 920 C930 920 960 900 980 880"
+        fill="none"
+        stroke="#0B1F2D"
+        stroke-width="28"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        opacity="0.9"/>
+
+  <!-- apply subtle emboss on the glyph group for tactile feel -->
+  <g filter="url(#emboss)">
+    <path d="M360 340 L920 340 L480 640 L920 940 L360 940"
+          fill="none"
+          stroke="transparent"
+          stroke-width="100"/>
+  </g>
+
+  <title>MyZ - stylized Z icon (1280px)</title>
+</svg>
