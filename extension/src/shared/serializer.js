@@ -235,15 +235,15 @@ export function serializeRange(
   applyHighlight = () => {},
 ) {
   try {
-    // If the page already contains MyZ wrapper nodes, we'll compute the
-    // path+charOffset against the current DOM (which may include wrappers).
-    // To avoid losing selection anchors when wrappers are temporarily
-    // removed, compute the element+char offsets first. Then unwrap wrappers
-    // before returning the serialized range so callers operate on the
-    // unwrapped DOM when needed.
+    // If the page already contains MyZ wrapper nodes, temporarily unwrap
+    // them so we compute paths against the original DOM. Afterwards we
+    // reapply existing highlights from cache. This avoids path indexing
+    // shifts caused by wrapper elements.
     const existing = Array.from(doc.querySelectorAll(".myz-highlight"));
     const ids = existing.map((n) => n.dataset?.highlightId).filter(Boolean);
 
+    try {
+      existing.forEach((node) => unwrapNode(node));
     // More robust serialization: store a path to the nearest element
     // ancestor plus a character offset within that element. This is
     // resilient to text-node merging/splitting when wrappers are
@@ -267,13 +267,6 @@ export function serializeRange(
       range.endContainer,
       range.endOffset,
     );
-
-    try {
-      // Now that we've recorded the stable offsets, unwrap any existing
-      // highlight wrappers so callers can operate against the original
-      // DOM (without wrappers). Failures here shouldn't prevent returning
-      // the serialized range.
-      existing.forEach((node) => unwrapNode(node));
 
       return {
         start: {
