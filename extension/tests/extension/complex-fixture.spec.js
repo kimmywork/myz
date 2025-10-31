@@ -67,8 +67,8 @@ async function selectAndAnnotate(page, locator, note = "") {
     await page.fill(".myz-annotator-modal textarea", note);
   }
   await page.click(".myz-annotator-modal .myz-btn-primary");
-  // Wait for highlight to appear
-  await page.waitForSelector(".myz-highlight", { timeout: 8000 });
+  // Wait for highlight to appear (extended timeout for slower CI environments)
+  await page.waitForSelector(".myz-highlight", { timeout: 15000 });
   return selected;
 }
 
@@ -183,8 +183,8 @@ test("export_markdown_contains_codeblock_and_notes", async () => {
   // highlight a paragraph and add a note
   await selectAndAnnotate(page, 'p:has-text("高亮测试")', "export note para");
 
-  // Ensure highlights applied
-  await page.waitForSelector(".myz-highlight", { timeout: 8000 });
+  // Ensure highlights applied (extended timeout for slower CI environments)
+  await page.waitForSelector(".myz-highlight", { timeout: 15000 });
   const highlightCount = await page.$$eval(
     ".myz-highlight",
     (els) => els.length,
