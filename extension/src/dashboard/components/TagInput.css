@@ -1,0 +1,91 @@
+
+.tag-input input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+}
+
+
+.tag-input {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 42px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  background: rgba(15, 23, 42, 0.6);
+  cursor: text;
+  position: relative;
+}
+
+.tag-input.is-focused {
+  border-color: rgba(59, 130, 246, 0.65);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.tag-input__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.25);
+  color: #93c5fd;
+  font-size: 12px;
+}
+
+.tag-input__remove {
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  line-height: 1;
+}
+
+.tag-input__remove:hover {
+  color: #f87171;
+}
+
+.tag-input__input {
+  flex: 1;
+  min-width: 90px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 13px;
+  padding: 4px;
+  outline: none;
+}
+
+.tag-input__list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  margin-top: 6px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  border-radius: 10px;
+  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.35);
+  max-height: 220px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.tag-input__option {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #cbd5f5;
+}
+
+.tag-input__option:hover,
+.tag-input__option.is-active {
+  background: rgba(37, 99, 235, 0.3);
+}

@@ -3,3 +3,11 @@ dist/
 
 
 storage/
+release/
+*.zip
+
+tsconfig.tsbuildinfo
+
+test-results
+
+playwright-report/

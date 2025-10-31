@@ -3,6 +3,9 @@
     "chat.mcp.gallery.enabled": true,
     "chat.tools.terminal.autoApprove": {
         "npm install": true,
-        "npm test": true
+        "npm test": true,
+        "npx playwright": true,
+        "npm run build": true,
+        "npm run lint": true
     }
 }

@@ -9,3 +9,4 @@
 ## Quality
 
 - [ ] 🔨 Testing using playwright
+- [x] Rewrite use Vue/JSX

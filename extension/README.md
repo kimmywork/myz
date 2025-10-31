@@ -18,11 +18,71 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 - 🗂️ **侧边详情面板**：点击任意高亮即可在页面右侧打开固定位置的详情面板，支持复制 Markdown、编辑、删除。
 - 🔄 **LogSeq 增量同步**：通过官方 HTTP API 在目标页面插入或恢复缺失块，自动追踪 `logseqBlockUuid`，仅同步新增或丢失的标注，并在写入前将 HTML 转换为 Markdown（含 `<pre>` 代码块）。
 
-## 快速开始
+## 快速开始（开发者）
 
-1. 打开 `chrome://extensions/` 并启用「开发者模式」。
-2. 点击「加载已解压的扩展程序」，选择本仓库内的 `extension` 目录。
-3. 安装后，点击工具栏图标即可在当前页采集内容或打开管理中心。
+项目的前端 UI 已从原有的常规 JS/React 架构迁移为 Vue 3 + JSX（使用 Vue 的 Composition API 与 JSX 语法），并且使用 `@crxjs/vite-plugin` 在 Vite 中构建符合 MV3 的扩展包。核心业务逻辑（background/content/shared helpers）保留在 `extension/src` 下。
+
+基本开发步骤：
+
+1. 安装依赖：
+
+   ```bash
+   npm install
+   ```
+
+2. 本地开发：
+
+   - 运行开发服务器（启动 Vite）
+
+     ```bash
+     npm run dev
+     ```
+
+     这会启动 Vite（含 Vue + JSX 支持）。注意：Service Worker（background）不能像普通页面那样实现完整的 HMR；当修改背景脚本或 content script 时，仍需在 `chrome://extensions/` 中手动重新加载扩展或重启 Service Worker。
+
+3. 生成发布构建：
+
+   ```bash
+   npm run build
+   ```
+
+   构建输出位于 `dist/`（或由 `vite`/`@crxjs/vite-plugin` 指定的输出目录），将该目录作为已解压扩展加载到 Chrome（或压缩上传到 Chrome Web Store）。
+
+4. 在 `chrome://extensions/` 中启用「开发者模式」，点击「加载已解压的扩展程序」，选择构建输出目录（`dist/` 或相应产物）。
+
+### 自动化测试（Playwright）
+
+我们使用 Playwright 来做端到端的回归与交互测试（因为扩展需要以 unpacked extension 的形式在 Chromium 中以 headed 模式运行，Playwright 提供了合适的 API 来启动带有用户数据目录的 Chromium 并加载扩展）。
+
+本仓库的 Playwright 测试位于 `extension/tests/`，主要覆盖：
+
+- 浮动工具条出现、应用高亮并持久化（AC-01/AC-02/AC-03）
+- Popup / Dashboard 交互（保存、复制、编辑、降级、导入/导出）
+- 复杂页面高亮与导出格式（代码块、pre 格式化）
+- 截图工具端到端（使用 Playwright 的 download 事件断言）
+
+快速运行（在 `extension/` 目录下）：
+
+```bash
+npm install
+# 构建扩展（Playwright 测试会加载 dist/）
+npm run build
+# 运行 Playwright 测试套件（tests/playwright.config.ts 已将 headless 设为 false）
+npx playwright test tests --config=tests/playwright.config.ts
+```
+
+调试建议：
+- Playwright 需要 headful Chromium（`headless: false`），在 Linux CI 上我们使用 `xvfb-run` 或 Playwright 官方 Docker 镜像来提供虚拟显示。详见仓库 `.github/workflows/extension-ci.yml`。
+- 测试运行将打开带有临时用户数据目录的 Chromium 实例并加载 `dist/` 扩展；若要在本地可视化交互，请不要在 CI 模式中运行 `--headless`。
+- 如果测试失败，请启用 Playwright 报告与 trace（CI 配置已启用 HTML 报告并上传为 artifact），或在本地使用 `npx playwright show-report` 查看失败回放。
+
+新增测试用例与回归检查
+
+在最近的回归中，我们修复了“保存文字（保存 clip）”按钮不会真正保存的问题（原因：toolbar 的 click handler 未把选中文本写入 `state.currentText`，导致 modal submit 的早退保护触发）。为了防止回归，测试套件新增了以下用例：
+
+- `save_clip_via_toolbar_persists_to_dashboard`：在页面选择文本，点击浮动工具条的「保存文字」，提交 modal，然后打开 Dashboard 验证后台存储中包含该 clip（断言匹配选中文本）。
+
+我们推荐在变更内容会影响 content script、toolbar 或 modal 的时候，先运行相关 Playwright 测试，再把变更 push 到 PR，CI 将在 PR 上自动运行整套测试并上传报告。
 
 ### 常用操作
 
@@ -96,11 +156,15 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
    - 确认 Popup、Dashboard、LogSeq 同步在无 Token / 有 Token 场景下均可使用。
    - 检查 `manifest_version`, `service_worker` 中未使用 DOM API（已全部替换）。
 
-## 本地开发提示
+## 架构与本地开发提示
 
-- 修改内容脚本后需在 `chrome://extensions/` 中点击「重新加载」。
-- 若更新后台逻辑，可在开发者工具 → Service Workers 面板查看日志。
-- `knowledges/logseq-http-api.md` 内记录了所有调用细节，可作为开发补充文档。
+- UI（Popup / Dashboard / 小组件）：使用 Vue 3 + JSX，组件位于 `extension/src/popup/` 与 `extension/src/dashboard/` 下。组件通常以 `.jsx` / `.tsx` 或 `.vue`（视情况）存在并使用 Composition API + composables。
+- 共享逻辑和工具函数放在 `extension/src/shared/` 与 `extension/src/common/`。Content script 仍在 `extension/src/content/`，背景脚本在 `extension/src/background/`。
+- 使用 `readState` / `writeState` 等 storage helpers 操作 `chrome.storage.local`（state namespace 仍为 `myz::highlights` 与 `myz::settings`）。
+- 背景脚本运行在 MV3 Service Worker 环境：避免使用 DOM API（例如 `document`、`window` 的 DOM 操作），并确保异步 API 的错误被妥善捕获与记录。
+- 当修改背景脚本或 content script 时，手动在 `chrome://extensions/` 中重新加载扩展或点击 Service Worker 的 "更新"。UI 更改（Popup/Dashboard）在开发模式下可通过 Vite 的 HMR 快速查看。
+
+更多实现细节请参考仓库内的 `knowledges/` 文档（例如 `knowledges/logseq-http-api.md`）。
 
 ## 支持
 
