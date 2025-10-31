@@ -17,6 +17,8 @@
 - All LogSeq RPCs must be JSON-RPC calls through `callLogseq({ endpoint, token, method, args })`; it handles response parsing and error surfacing. Service worker cannot rely on DOM APIs—never reintroduce `DOMParser` or similar.
 - UI components now use Vue Composition API with JSX. When editing UI components prefer composables in `extension/src/shared/` over adding logic directly into a component. Keep presentational logic separate from cross-target helpers used by background/content scripts.
 - Toolbar logic in `content.js` keeps the floating actions pinned while scrolling; if you touch selection handling, preserve `state.toolbarRange` updates and the debounce animation frame pattern.
+- Range serialization lives in `extension/src/shared/serializer.js`. It temporarily unwraps `.myz-highlight` wrappers (`unwrapNode`) and records element + `charOffset` paths before reapplying cached highlights. Always call `serializeRange` / `deserializeRange` instead of reimplementing DOM traversal so restored highlights keep tracking original nodes.
+- `handleAnnotateClick` enforces the non-overlap rule by checking the live selection against existing `.myz-highlight` nodes and calling `showNotification("所选文本包含已有标注，无法创建新的标注")`. Keep this guard in place and update tests if behaviour changes.
 - Tag pickers (content modal + dashboard) share behaviour: multi-select, comma-to-create, backspace delete, dropdown filtering. Reuse the existing composable utilities when tweaking UI logic.
 - Highlight styles are enumerated via `HIGHLIGHT_STYLES`; rely on `normalizeHighlightStyle` / `describeHighlightStyle` when persisting or presenting styles. Content CSS must keep underline / wavy modes decoration-only—never change font weight or line height of the original text.
 - Record `kind` distinguishes visual highlights from text-only saves. Use existing downgrade helpers instead of clearing ranges manually; only highlight records should carry `color` / `style` metadata.
@@ -27,6 +29,8 @@
 - Manual testing remains the primary loop: generate a build and load the unpacked `dist/` (or equivalent output) via `chrome://extensions` and reload after code changes to background/content scripts. UI components can be previewed faster during development with Vite's dev server and JSX HMR.
 - For LogSeq validation, ensure the desktop app has HTTP API + token enabled (see `knowledges/logseq-http-api.md`) and watch the service worker console for `callLogseq` logs.
 - Screenshot capture uses `chrome.tabs.captureVisibleTab`; the sequence still clears selection ranges, waits two `requestAnimationFrame` ticks, captures, then restores ranges—preserve this sequencing to avoid capturing native highlights.
+- When expanding scope or changing behaviours, mirror the user journeys in `docs/acceptance-criteria.md` and add or update Playwright specs under `extension/tests/` alongside code changes.
+- The extension CI workflow (`.github/workflows/extension-ci.yml`) builds via `npm run build` then runs the headed Playwright suite with report uploads. Keep the workflow green when adjusting scripts or dependencies.
 
 ### Playwright E2E tests and CI
 
@@ -36,6 +40,7 @@
 CI workflow expectations:
 
 - Before running Playwright tests, build the extension (`npm run build`) so the tests load `extension/dist`.
+	- IMPORTANT: Always run `npm run build` in the `extension/` folder before running Playwright tests locally or in CI. Make this a required step in any test workflow so Playwright loads the built `extension/dist` output (failure to build first is a common cause of test timeouts/failures).
 - Tests must run in headed mode (Playwright `headless: false` set in `tests/playwright.config.ts`). On Linux CI runners use `xvfb-run` or Playwright's Docker image to provide a virtual display.
 - Collect artifacts on CI: HTML report (`playwright-report`), traces and videos when available. The CI workflow should upload these artifacts on success or failure to help triage flaky failures.
 

@@ -9,6 +9,47 @@ let context;
 let page;
 let extensionId;
 
+async function clearAllHighlights() {
+  if (!context || !extensionId) {
+    return;
+  }
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const extPage = await context.newPage();
+  try {
+    await extPage.goto(dashboardUrl);
+    await extPage.waitForSelector(".app-shell", { timeout: 5000 });
+    await extPage.evaluate(async () => {
+      function sendMessage(type, payload) {
+        return new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ type, payload }, (resp) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!resp || !resp.ok) {
+              reject(new Error(resp?.error || "unknown error"));
+              return;
+            }
+            resolve(resp.data);
+          });
+        });
+      }
+
+      const highlights = await sendMessage("myz:getAllHighlights");
+      for (const record of Array.isArray(highlights) ? highlights : []) {
+        if (!record?.id) continue;
+        try {
+          await sendMessage("myz:removeHighlight", { id: record.id });
+        } catch (error) {
+          console.warn("Failed to remove highlight", record.id, error);
+        }
+      }
+    });
+  } finally {
+    await extPage.close();
+  }
+}
+
 test.beforeAll(async () => {
   const fixtures = path.join(__dirname, "..", "fixtures");
   const s = createStaticServer(fixtures);
@@ -21,6 +62,10 @@ test.beforeAll(async () => {
   context = launched.context;
   page = launched.page;
   extensionId = launched.extensionId;
+});
+
+test.beforeEach(async () => {
+  await clearAllHighlights();
 });
 
 test.afterAll(async () => {
