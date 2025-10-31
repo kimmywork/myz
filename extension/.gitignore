@@ -9,3 +9,5 @@ release/
 tsconfig.tsbuildinfo
 
 test-results
+
+playwright-report/

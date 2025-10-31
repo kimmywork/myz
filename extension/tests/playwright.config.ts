@@ -13,6 +13,7 @@ export default defineConfig({
     // proxy: {
     //     server: 'http://127.0.0.1:7890/'
     // },
+    screenshot: process.env.CI ? 'on' : 'only-on-failure',
     baseURL: undefined,
     headless: false, // extensions require headed mode
   },
