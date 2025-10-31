@@ -9,14 +9,18 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 
 - ✍️ **即时高亮**：选中文本自动出现浮动工具条，可一键添加批注或使用 📸 按钮截取选区图片。
 - 🖊️ **多样标注样式**：支持 🖍️ 高亮、✏️ 下划线、〰️ 波浪线三种样式，记忆最近使用的颜色与样式并在 LogSeq / Markdown 导出中带出描述。
+- 🌙 **暗色友好调色板**：重制 5 色调色板，确保在暗色模式下仍保持足够的对比度，同时保留自定义与最近使用记忆。
 - 📝 **快速保存文本**：浮动工具条新增 📝 按钮可将选中文字存入收集箱而不在页面上呈现标注，Popup 与 Dashboard 会使用独立的样式区分保存项并提供一键降级 / 升级。
 - 🎨 **可定制调色板**：提供 5 色调色板并记忆最近使用的颜色，支持快速编辑颜色值。
 - 🔔 **操作栏角标**：扩展图标会实时显示当前页面的标注数量，方便浏览时掌握进度。
 - 🛡️ **稳健的高亮回放**：所有数据持久化在 `chrome.storage.local`，重新访问同一页面时自动恢复，并且在 DOM 变化时自动轮询重试；若仍无法定位，会通过页面内 toast 与 Popup 异常提示提醒处理。
+- 🚫 **重叠保护**：新建标注时若所选范围与已有标注重叠会即时提示并拒绝创建，避免相互嵌套导致定位错乱。
+- 🔁 **SPA 感知恢复**：监听 History API 与 URL 变更自动触发 `scheduleRestoreIfUrlChanged`，在单页应用内导航后即时重刷高亮与角标。
 - 📑 **富文本保真**：采集时保留链接、列表、引用、代码块等基础结构，展示与导出时按需转换为 Markdown。
 - 🧰 **管理中心**：Dashboard 支持卡片 / 列表视图（记忆上次选择）、标签多选、全文搜索、日期范围与网站筛选，并采用懒加载保障性能；同时提供 JSON 导入，支持「跳过 / 覆盖 / 保留最新」三种冲突策略并显示导入摘要。
 - 🗂️ **侧边详情面板**：点击任意高亮即可在页面右侧打开固定位置的详情面板，支持复制 Markdown、编辑、删除。
 - 🔄 **LogSeq 增量同步**：通过官方 HTTP API 在目标页面插入或恢复缺失块，自动追踪 `logseqBlockUuid`，仅同步新增或丢失的标注，并在写入前将 HTML 转换为 Markdown（含 `<pre>` 代码块）。
+- ℤ **全新图标**：扩展图标与操作栏图标统一为带有「ℤ」符号的新视觉语言，并包含亮/暗色双版本资源。
 
 ## 快速开始（开发者）
 
@@ -52,11 +56,12 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 
 ### 自动化测试（Playwright）
 
-我们使用 Playwright 来做端到端的回归与交互测试（因为扩展需要以 unpacked extension 的形式在 Chromium 中以 headed 模式运行，Playwright 提供了合适的 API 来启动带有用户数据目录的 Chromium 并加载扩展）。
+我们使用 Playwright 来做端到端的回归与交互测试（因为扩展需要以 unpacked extension 的形式在 Chromium 中以 headed 模式运行，Playwright 提供了合适的 API 来启动带有用户数据目录的 Chromium 并加载扩展）。测试覆盖范围会同步维护在 `docs/acceptance-criteria.md` 中。
 
 本仓库的 Playwright 测试位于 `extension/tests/`，主要覆盖：
 
 - 浮动工具条出现、应用高亮并持久化（AC-01/AC-02/AC-03）
+- 阻止与断言重叠标注（`highlight-overlap.spec.js`），并覆盖「保存文字」的交互路径。
 - Popup / Dashboard 交互（保存、复制、编辑、降级、导入/导出）
 - 复杂页面高亮与导出格式（代码块、pre 格式化）
 - 截图工具端到端（使用 Playwright 的 download 事件断言）
@@ -75,6 +80,7 @@ npx playwright test tests --config=tests/playwright.config.ts
 - Playwright 需要 headful Chromium（`headless: false`），在 Linux CI 上我们使用 `xvfb-run` 或 Playwright 官方 Docker 镜像来提供虚拟显示。详见仓库 `.github/workflows/extension-ci.yml`。
 - 测试运行将打开带有临时用户数据目录的 Chromium 实例并加载 `dist/` 扩展；若要在本地可视化交互，请不要在 CI 模式中运行 `--headless`。
 - 如果测试失败，请启用 Playwright 报告与 trace（CI 配置已启用 HTML 报告并上传为 artifact），或在本地使用 `npx playwright show-report` 查看失败回放。
+- 新增的批注重叠防护、SPA 导航恢复、暗色调色板等能力均已有对应测试；新增功能时请为 toolbar、modal、背景消息流补齐断言。
 
 新增测试用例与回归检查
 
@@ -86,7 +92,7 @@ npx playwright test tests --config=tests/playwright.config.ts
 
 ### 常用操作
 
-- **新建高亮**：选中文本 → 点击浮动 ✍️ → 选择想要的颜色 / 样式 → 填写批注 / 标签 → 保存。
+- **新建高亮**：选中文本 → 点击浮动 ✍️ → 选择想要的颜色 / 样式 → 填写批注 / 标签 → 保存；若与现有高亮重叠会提示冲突并取消创建。
 - **保存文本**：选中文本 → 点击 📝 → 直接保存为纯文本记录，可在 Popup / Dashboard 中继续编辑或转换为标注。
 - **截图选区**：选中文本 → 点击 📸 → 自动去除系统选区高亮后保存 PNG。
 - **查看 / 编辑**：点击高亮或在 Popup、Dashboard 中查看详情，支持 Markdown 复制与快速定位。
@@ -125,7 +131,10 @@ npx playwright test tests --config=tests/playwright.config.ts
       "tags": ["research", "todo"],
       "color": "#fde68a",
       "style": "paint",
-      "range": { "start": { "path": [...], "offset": 0 }, "end": { ... } },
+         "range": {
+            "start": { "path": [...], "offset": 0 },
+            "end": { ... }
+         },
       "createdAt": "2025-10-24T08:00:00.000Z",
       "updatedAt": "2025-10-24T08:05:00.000Z",
       "logseqBlockUuid": "5fb4...",
@@ -135,6 +144,12 @@ npx playwright test tests --config=tests/playwright.config.ts
    "order": ["myz_123", "myz_456"]
 }
 ```
+
+### DOM 路径序列化
+
+- `serializeRange` 会在生成 `path` 时跳过 `.myz-highlight` 包裹节点，并记录原生 DOM 节点类型 + 文本偏移；渲染时 `deserializeRange` 会在必要时临时拆除 MyZ 包裹节点，再按原始节点结构重新定位。
+- `resolvePath` 和 `isNodeFromMyz` 会验证路径与当前 DOM 的一致性；若缺失节点或文本变更，则触发 `markHighlightForReapply` 并在 UI 中提示用户。
+- 高亮应用完成后会重新挂载浮动工具条并调用 `updateHighlightIndicators()`，确保角标数量与页面状态同步。
 
 ## 发布到 Chrome Web Store
 

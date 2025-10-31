@@ -5,7 +5,8 @@
         "npm install": true,
         "npm test": true,
         "npx playwright": true,
-        "npm run build": true,
-        "npm run lint": true
+        "npx jest": true,
+        "npm run": true,
+        "node": true
     }
 }

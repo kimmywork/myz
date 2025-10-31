@@ -1,5 +1,15 @@
 # Changelog
 
+# v0.1.3 Vue3 架构与高亮稳健性
+
+- 将扩展整体迁移到 Vite + `@crxjs/vite-plugin` + Vue 3/JSX 架构，重构 Popup、Dashboard、content script 与 background 模块以组件化方式组织代码。
+- 重新设计高亮 Range 序列化逻辑：暂时拆除 `.myz-highlight` 包裹节点，记录元素路径 + 字符偏移，在恢复时按原始 DOM 重新定位，解决删除旧标注导致后续标注错位的问题。
+- 在 `handleAnnotateClick` 中增加重叠检测，遇到已有标注直接弹出提示并终止创建，Playwright 新增覆盖用例防止回归。
+- 更新暗色友好的调色板默认色值，并保持 LogSeq / Markdown 导出描述同步。
+- 为 SPA 导航挂钩 History API 监听，配合 `updateHighlightIndicators()` 保证页面跳转后高亮与扩展角标即时刷新。
+- 修复浮动工具栏「保存文字」流程未写入内容的问题，扩充 Playwright 套件（复杂页面、高亮导出、截图下载）并在 `extension-ci` 工作流中默认执行。
+- 设计全新带有「ℤ」符号的图标资产，统一扩展图标与操作栏视觉语言。
+
 # v0.1.2 多样标注样式与纯文本收藏
 
 - 浮动工具栏新增 📝 按钮，可将选中文本仅作为收藏保存，扩展角标与 Popup 统计中会与标注一并计数。
