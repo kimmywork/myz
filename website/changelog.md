@@ -2,6 +2,12 @@
 
 以下内容摘自扩展的变更记录，便于用户快速了解版本更新。
 
+## v0.1.4 — 图标统一与 SPA 修复
+- 浮动工具条、Popup、Dashboard 的按钮图标全部改为自研 SVG，避免不同系统的 Emoji 渲染差异。
+- 标注样式切换器恢复马克笔高亮图标，新增带下划线的字母 U 图标，三种样式一眼可辨。
+- Dashboard 设置按钮增大字号并添加描边，入口更醒目。
+- 修复 Twitter 等单页应用在站内跳转时高亮不会刷新问题，现在点击推文也会立即重新应用标注。
+
 ## v0.1.3 — Vue3 架构与高亮稳健性
 - 迁移到 Vite + `@crxjs/vite-plugin` + Vue 3/JSX 架构。
 - 重构 Popup、Dashboard、content 与 background 模块。

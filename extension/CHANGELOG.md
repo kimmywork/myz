@@ -1,5 +1,12 @@
 # Changelog
 
+# v0.1.4 图标统一与 SPA 修复
+
+- 将浮动工具条、Popup 与 Dashboard 中沿用的 Emoji 按钮统一替换为自研 SVG 图标，在不同浏览器与操作系统下保持亮度与细节一致。
+- 调整标注样式切换器的视觉：恢复马克笔造型的高亮图标，将下划线样式改为 `U` + 下划线组合，三种样式一眼可分辨。
+- Dashboard 设置入口扩大图标字号并添加外轮廓，让设置按钮在工具栏中更易被发现。
+- 修复 Twitter 等 SPA 内部导航仅在前进/后退时才恢复高亮的问题；现在点击推文直达页面也会监听 History 变更并即时重新应用标注与角标。
+
 # v0.1.3 Vue3 架构与高亮稳健性
 
 - 将扩展整体迁移到 Vite + `@crxjs/vite-plugin` + Vue 3/JSX 架构，重构 Popup、Dashboard、content script 与 background 模块以组件化方式组织代码。
