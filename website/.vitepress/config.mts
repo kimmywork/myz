@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'MyZ Annotator',
   description: '高亮与批注的浏览器扩展 — 安装与使用指南',
+  base: process.env.BASE ?? '/',
   lang: 'zh-CN',
   appearance: true,
   lastUpdated: true,
