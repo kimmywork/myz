@@ -17,8 +17,8 @@ export default defineComponent({
     const error = ref("");
     const pageMeta = ref("");
     const activeTabId = ref(null);
-  const canonicalPageUrl = ref("");
-  const rawPageUrl = ref("");
+    const canonicalPageUrl = ref("");
+    const rawPageUrl = ref("");
 
     const notifyContentScript = (type) => {
       if (activeTabId.value == null) {
@@ -218,7 +218,7 @@ export default defineComponent({
           return;
         }
         activeTabId.value = tab.id ?? null;
-  rawPageUrl.value = tab.url;
+        rawPageUrl.value = tab.url;
         canonicalPageUrl.value = canonicalUrl(tab.url);
         pageMeta.value = `${truncateText(tab.title || "")} · ${extractHostname(tab.url)}`;
         await loadHighlights();

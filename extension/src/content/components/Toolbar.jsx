@@ -1,9 +1,5 @@
 import { defineComponent } from "vue";
-import {
-  IconPencil,
-  IconNotebook,
-  IconCamera,
-} from "../../shared/icons.js";
+import { IconPencil, IconNotebook, IconCamera } from "../../shared/icons.js";
 
 export default defineComponent({
   name: "MyZToolbar",

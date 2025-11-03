@@ -91,9 +91,7 @@ const messageHandlers = {
     if (!urls.size) {
       return [];
     }
-    return Object.values(state.highlights).filter((item) =>
-      urls.has(item.url),
-    );
+    return Object.values(state.highlights).filter((item) => urls.has(item.url));
   },
 
   async "myz:saveHighlight"(payload) {

@@ -174,7 +174,6 @@ import {
     let navTimer = null;
     function scheduleRestoreIfUrlChanged() {
       const nowCanonical = canonicalUrl(window.location.href);
-      if (nowCanonical === lastKnownCanonical) return;
       if (navTimer) {
         clearTimeout(navTimer);
       }
@@ -213,6 +212,8 @@ import {
     // Also listen to popstate and hashchange
     window.addEventListener("popstate", scheduleRestoreIfUrlChanged);
     window.addEventListener("hashchange", scheduleRestoreIfUrlChanged);
+
+    startLocationObserver(scheduleRestoreIfUrlChanged);
   }
 
   async function restoreHighlights() {
@@ -271,6 +272,33 @@ import {
       unreachableHighlights.clear();
       updateHighlightIndicators();
     }
+  }
+
+  function startLocationObserver(callback) {
+    if (typeof callback !== "function") {
+      return;
+    }
+    let rafId = null;
+    let lastHref = window.location.href;
+    const check = () => {
+      const currentHref = window.location.href;
+      if (currentHref !== lastHref) {
+        lastHref = currentHref;
+        callback();
+      }
+      rafId = window.requestAnimationFrame(check);
+    };
+    rafId = window.requestAnimationFrame(check);
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        if (rafId) {
+          window.cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      },
+      { once: true },
+    );
   }
 
   function handleSelectionTrigger(event) {
@@ -439,11 +467,11 @@ import {
     // Client-side guard: if selection intersects an existing highlight wrapper,
     // notify the user immediately and avoid opening the create modal.
     try {
-      const existing = Array.from(document.querySelectorAll('.myz-highlight'));
+      const existing = Array.from(document.querySelectorAll(".myz-highlight"));
       for (const el of existing) {
         try {
           if (liveRange.intersectsNode(el)) {
-            showNotification('所选文本包含已有标注，无法创建新的标注');
+            showNotification("所选文本包含已有标注，无法创建新的标注");
             hideToolbar();
             return;
           }

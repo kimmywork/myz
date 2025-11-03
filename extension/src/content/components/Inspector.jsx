@@ -112,7 +112,7 @@ export default defineComponent({
 
       let style = null;
       let resolvedColor = "";
-  let styleIconKeyValue = "";
+      let styleIconKeyValue = "";
       let styleLabelValue = "";
       if (computedKind === "highlight") {
         style = props.normalizeHighlightStyle(rawRecord.style);
@@ -141,7 +141,7 @@ export default defineComponent({
         text: rawRecord.text || "",
         note: typeof rawRecord.note === "string" ? rawRecord.note : "",
         style,
-  styleIconKey: styleIconKeyValue,
+        styleIconKey: styleIconKeyValue,
         styleLabel: styleLabelValue,
         color: resolvedColor,
         kind: computedKind,
