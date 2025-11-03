@@ -26,9 +26,9 @@ export const HIGHLIGHT_STYLES = {
 };
 export const DEFAULT_HIGHLIGHT_STYLE = HIGHLIGHT_STYLES.PAINT;
 export const HIGHLIGHT_STYLE_OPTIONS = {
-  [HIGHLIGHT_STYLES.PAINT]: { icon: "🖍️", label: "高亮" },
-  [HIGHLIGHT_STYLES.UNDERLINE]: { icon: "✏️", label: "下划线" },
-  [HIGHLIGHT_STYLES.WAVY]: { icon: "〰️", label: "波浪线" },
+  [HIGHLIGHT_STYLES.PAINT]: { icon: "paint", label: "高亮" },
+  [HIGHLIGHT_STYLES.UNDERLINE]: { icon: "underline", label: "下划线" },
+  [HIGHLIGHT_STYLES.WAVY]: { icon: "wavy", label: "波浪线" },
 };
 
 export function normalizeHighlightStyle(style) {

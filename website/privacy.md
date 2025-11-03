@@ -34,5 +34,5 @@ MyZ Annotator 帮助你在浏览器中高亮与批注网页内容。除非你启
 - 随时禁用 LogSeq 同步。
 - 卸载扩展后，浏览器会自动清理存储数据。
 
-如需咨询或反馈，请通过仓库的 Issue 或邮件联系维护者：`kenpusney@gmail.com`。
+如需咨询或反馈，请通过[仓库的 Issue](https://github.com/myz-suite/myz-support/issues) 联系维护者。
 

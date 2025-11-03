@@ -3,6 +3,7 @@ import TagInput from "../../dashboard/components/TagInput.jsx";
 import { useHighlightPreferences } from "../stores/highlightPreferences.js";
 import { RECORD_KINDS } from "../../dashboard/utils/records.js";
 import { HIGHLIGHT_STYLE_OPTIONS } from "../../shared/highlightUtils.js";
+import { IconPencil, highlightStyleIconMap } from "../../shared/icons.js";
 
 function uniqueNormalizedTags(tags) {
   const seen = new Set();
@@ -270,6 +271,9 @@ export default defineComponent({
               <div class="myz-style-picker" role="radiogroup">
                 {styleOptions.value.map(([value, meta]) => {
                   const isActive = value === selectedStyle.value;
+                  const IconComponent =
+                    highlightStyleIconMap[meta.icon] ||
+                    highlightStyleIconMap.paint;
                   return (
                     <button
                       key={value}
@@ -281,10 +285,15 @@ export default defineComponent({
                       data-style={value}
                       role="radio"
                       aria-pressed={isActive ? "true" : "false"}
-                      aria-label={`${meta.icon} ${meta.label}`}
+                      aria-label={meta.label}
                       onClick={() => handleSelectStyle(value)}
                     >
-                      {meta.icon} {meta.label}
+                      <IconComponent
+                        class="myz-style-picker__icon"
+                        size={18}
+                        aria-hidden="true"
+                      />
+                      <span class="myz-style-picker__label">{meta.label}</span>
                     </button>
                   );
                 })}
@@ -371,7 +380,7 @@ export default defineComponent({
                           }
                         }}
                       >
-                        ✎
+                        <IconPencil size={12} aria-hidden="true" />
                       </button>
                       <input
                         type="color"

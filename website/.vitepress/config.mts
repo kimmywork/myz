@@ -23,7 +23,10 @@ export default defineConfig({
         ]
       }
     ],
-    socialLinks: [],
+    socialLinks: [
+      { icon: 'github', link: 'https://github.com/myz-suite' },
+      { icon: 'twitter', link: 'https://x.com/kenpusney' }
+    ],
     footer: {
       message: '<a href="/privacy">隐私政策</a> · 本地优先，私有数据安全',
       copyright: ''

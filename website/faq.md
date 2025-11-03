@@ -10,5 +10,5 @@
 在 Dashboard 顶部菜单中可导出 JSON/Markdown；导入时支持「跳过 / 覆盖 / 保留最新」策略，并显示导入摘要。
 
 ## 如何反馈问题？
-请在仓库提交 Issue，附带浏览器版本、页面链接、复现步骤与截图。
+请在仓库[提交 Issue](https://github.com/myz-suite/myz-support/issues)，附带浏览器版本、页面链接、复现步骤与截图。
 

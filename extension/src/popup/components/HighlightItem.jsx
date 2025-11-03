@@ -7,6 +7,7 @@ import {
 } from "../../shared/highlightUtils.js";
 
 import { RECORD_KINDS } from "../../dashboard/utils/records.js";
+import { IconWarning } from "../../shared/icons.js";
 
 const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";
 
@@ -71,7 +72,7 @@ export default defineComponent({
                 title="标注无法定位"
               >
                 <span class="highlight-item__status-icon" aria-hidden="true">
-                  ⚠️
+                  <IconWarning size={12} aria-hidden="true" />
                 </span>
                 <span class="highlight-item__status-text">
                   标注无法定位，页面可能已改变
