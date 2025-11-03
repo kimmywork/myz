@@ -125,6 +125,12 @@
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
+.myz-annotator-toolbar button svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 .myz-annotator-toolbar button:hover {
   background: var(--myz-accent-hover);
 }
@@ -242,6 +248,10 @@
   color: var(--myz-text);
   cursor: pointer;
   font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
@@ -263,6 +273,17 @@
 .myz-style-picker__option:focus-visible {
   outline: 2px solid rgba(37, 99, 235, 0.5);
   outline-offset: 2px;
+}
+
+.myz-style-picker__icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.myz-style-picker__label {
+  display: inline-flex;
+  align-items: center;
 }
 
 .myz-annotator-field textarea:focus-visible,
@@ -456,10 +477,21 @@
   font-size: 11px;
   color: var(--myz-text);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  line-height: 1;
 }
 
 .myz-color-edit:hover {
   background: rgba(148, 163, 184, 0.38);
+}
+
+.myz-color-edit svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .myz-color-editor {
@@ -543,13 +575,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  font-weight: 600;
   background: rgba(148, 163, 184, 0.18);
   border: 2px solid rgba(248, 250, 252, 0.45);
   color: #f8fafc;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.35);
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.myz-inspector__style-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .myz-inspector__style[data-style="paint"] {

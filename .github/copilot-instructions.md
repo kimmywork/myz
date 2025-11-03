@@ -27,7 +27,7 @@
 
 ## Workflows & Testing
 - Manual testing remains the primary loop: generate a build and load the unpacked `dist/` (or equivalent output) via `chrome://extensions` and reload after code changes to background/content scripts. UI components can be previewed faster during development with Vite's dev server and JSX HMR.
-- For LogSeq validation, ensure the desktop app has HTTP API + token enabled (see `knowledges/logseq-http-api.md`) and watch the service worker console for `callLogseq` logs.
+- For LogSeq validation, ensure the desktop app has HTTP API + token enabled (see `docs/knowledges/logseq-http-api.md`) and watch the service worker console for `callLogseq` logs.
 - Screenshot capture uses `chrome.tabs.captureVisibleTab`; the sequence still clears selection ranges, waits two `requestAnimationFrame` ticks, captures, then restores ranges—preserve this sequencing to avoid capturing native highlights.
 - When expanding scope or changing behaviours, mirror the user journeys in `docs/acceptance-criteria.md` and add or update Playwright specs under `extension/tests/` alongside code changes.
 - The extension CI workflow (`.github/workflows/extension-ci.yml`) builds via `npm run build` then runs the headed Playwright suite with report uploads. Keep the workflow green when adjusting scripts or dependencies.
@@ -54,7 +54,7 @@ If you add or change any content script, toolbar, modal behavior or background m
 - UI (Vue/JSX) components may include browser-only APIs; ensure helper functions that are shared with service worker are environment-agnostic or split into browser-only vs worker-safe helpers.
 
 ## Useful References
-- `knowledges/logseq-http-api.md` summarises the expected LogSeq RPC flow and insert semantics.
+- `docs/knowledges/logseq-http-api.md` summarises the expected LogSeq RPC flow and insert semantics.
 - `extension/README.md` documents user-facing behaviour; keep it updated when introducing new UI or sync flows.
 - `package.json` scripts in `extension/` (`dev`, `build`) and `vite.config.*` (with `@crxjs/vite-plugin`) describe the local dev / build workflow—prefer to follow those scripts rather than inventing new commands.
 
@@ -64,4 +64,4 @@ If you add or change any content script, toolbar, modal behavior or background m
 - Reuse helpers: authentication goes through `requireAuthenticatedUser`, sessions via `lib/auth/session.ts`, captcha through `lib/captcha.ts`, and sync utilities in `lib/sync.ts`. Extend these modules instead of duplicating logic.
 - Tests: Jest integration tests use Testcontainers (requires Docker) and live under `service/__tests__`. Playwright smoke tests in `service/tests/e2e` also start a disposable PostgreSQL container via Testcontainers and run with `NEXT_PUBLIC_DISABLE_AUTO_REDIRECT=1` to keep login flows stable.
 - Environment: see `service/src/lib/env.ts` for required variables. Local dev typically sets `DATABASE_URL`, `STORAGE_ROOT`, and `CAPTCHA_MODE`. CI and Playwright rely on the same schema, so avoid introducing ad-hoc env checks.
-- Documentation: keep `knowledges/service-api.md` aligned with any API changes and update `service/README.md` when setup steps move.
+- Documentation: keep `docs/knowledges/service-api.md` aligned with any API changes and update `service/README.md` when setup steps move.

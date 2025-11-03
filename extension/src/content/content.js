@@ -33,6 +33,8 @@ import {
   deserializeRange,
 } from "../shared/serializer.js";
 
+import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.js";
+
 (() => {
   if (window.__myzAnnotatorInitialized) {
     return;
@@ -129,6 +131,7 @@ import {
       }
       if (selection.toString().trim()) {
         state.toolbarRange = selection.getRangeAt(0).cloneRange();
+        maybeShowToolbarForActiveSelection();
       }
     });
 
@@ -162,6 +165,8 @@ import {
     // single-page apps change the visible URL without a full reload.
     attachSpaNavigationListeners();
 
+    maybeShowToolbarForActiveSelection();
+
     await restoreHighlights();
   }
 
@@ -174,7 +179,6 @@ import {
     let navTimer = null;
     function scheduleRestoreIfUrlChanged() {
       const nowCanonical = canonicalUrl(window.location.href);
-      if (nowCanonical === lastKnownCanonical) return;
       if (navTimer) {
         clearTimeout(navTimer);
       }
@@ -213,13 +217,42 @@ import {
     // Also listen to popstate and hashchange
     window.addEventListener("popstate", scheduleRestoreIfUrlChanged);
     window.addEventListener("hashchange", scheduleRestoreIfUrlChanged);
+
+    startLocationObserver(scheduleRestoreIfUrlChanged);
+  }
+
+  function maybeShowToolbarForActiveSelection() {
+    try {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        return;
+      }
+      const text = selection.toString().trim();
+      if (!text) {
+        return;
+      }
+      const range = selection.getRangeAt(0);
+      const rect = getSelectionBoundingRect(range);
+      if (!rect || (rect.width === 0 && rect.height === 0)) {
+        return;
+      }
+      state.toolbarRange = range.cloneRange();
+      showToolbar(rect);
+    } catch (error) {
+      // Ignore selection errors (e.g. if no range is available).
+    }
   }
 
   async function restoreHighlights() {
     try {
-      const currentCanonical = canonicalUrl(window.location.href);
+      const currentUrl = window.location.href;
+      const currentCanonical = canonicalUrl(currentUrl);
+      const urlAliases = buildUrlAliases(currentUrl, currentCanonical);
       const [highlights, tagList] = await Promise.all([
-        sendMessage("myz:getHighlightsForUrl", { url: currentCanonical }),
+        sendMessage("myz:getHighlightsForUrl", {
+          url: currentCanonical,
+          aliases: urlAliases,
+        }),
         sendMessage("myz:getAllTags").catch((error) => {
           console.warn("Failed to load known tags", error);
           return null;
@@ -266,6 +299,33 @@ import {
       unreachableHighlights.clear();
       updateHighlightIndicators();
     }
+  }
+
+  function startLocationObserver(callback) {
+    if (typeof callback !== "function") {
+      return;
+    }
+    let rafId = null;
+    let lastHref = window.location.href;
+    const check = () => {
+      const currentHref = window.location.href;
+      if (currentHref !== lastHref) {
+        lastHref = currentHref;
+        callback();
+      }
+      rafId = window.requestAnimationFrame(check);
+    };
+    rafId = window.requestAnimationFrame(check);
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        if (rafId) {
+          window.cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      },
+      { once: true },
+    );
   }
 
   function handleSelectionTrigger(event) {
@@ -434,11 +494,11 @@ import {
     // Client-side guard: if selection intersects an existing highlight wrapper,
     // notify the user immediately and avoid opening the create modal.
     try {
-      const existing = Array.from(document.querySelectorAll('.myz-highlight'));
+      const existing = Array.from(document.querySelectorAll(".myz-highlight"));
       for (const el of existing) {
         try {
           if (liveRange.intersectsNode(el)) {
-            showNotification('所选文本包含已有标注，无法创建新的标注');
+            showNotification("所选文本包含已有标注，无法创建新的标注");
             hideToolbar();
             return;
           }
@@ -1243,14 +1303,16 @@ import {
     };
   }
 
-  function canonicalUrl(url) {
+  function readCanonicalLinkHref() {
     try {
-      const u = new URL(url, window.location.origin);
-      u.hash = "";
-      return u.toString();
+      const link = document.querySelector('link[rel="canonical"]');
+      if (link && typeof link.href === "string" && link.href) {
+        return link.href;
+      }
     } catch (error) {
-      return url;
+      // Ignore selector errors (e.g. if document access is restricted).
     }
+    return null;
   }
 
   async function handleScreenshotClick() {

@@ -32,7 +32,12 @@ test.afterAll(async () => {
   } catch (e) {}
 });
 
-async function selectAndAnnotateRange(page, selector, startRatio = 0.1, endRatio = 0.6) {
+async function selectAndAnnotateRange(
+  page,
+  selector,
+  startRatio = 0.1,
+  endRatio = 0.6,
+) {
   // Select a portion of the element by dragging the mouse from startRatio to endRatio
   const el = page.locator(selector).first();
   await el.waitFor({ timeout: 5000 });
@@ -51,37 +56,41 @@ async function selectAndAnnotateRange(page, selector, startRatio = 0.1, endRatio
   await page.waitForTimeout(120);
 
   // Wait for toolbar and click annotate
-  await page.waitForSelector('.myz-annotator-toolbar:not(.myz-hidden)', { timeout: 10000 });
+  await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
+    timeout: 10000,
+  });
   await page.click('.myz-annotator-toolbar button[aria-label="添加标注"]');
-  await page.waitForSelector('.myz-annotator-modal:not(.myz-hidden)', { timeout: 5000 });
-  await page.click('.myz-annotator-modal .myz-btn-primary');
+  await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+  await page.click(".myz-annotator-modal .myz-btn-primary");
   // allow time for DOM update
   await page.waitForTimeout(300);
 }
 
-test('prevent overlapping highlights and notify user', async () => {
+test("prevent overlapping highlights and notify user", async () => {
   await page.goto(`${serverUrl}/myz-test.html`);
 
   // Ensure clean start
   await page.evaluate(() => {
-    document.querySelectorAll('.myz-highlight').forEach((n) => n.remove());
+    document.querySelectorAll(".myz-highlight").forEach((n) => n.remove());
   });
 
   // Create first highlight over a slice of para-1 (characters 10..60)
-  await selectAndAnnotateRange(page, '#para-1', 10, 60);
-  await page.waitForSelector('.myz-highlight', { timeout: 5000 });
+  await selectAndAnnotateRange(page, "#para-1", 10, 60);
+  await page.waitForSelector(".myz-highlight", { timeout: 5000 });
 
   // Attempt to create an overlapping highlight: start inside the first
   // applied highlight and drag further right so it overlaps.
   // Locate the first highlight and drag starting from its center to the right.
-  const firstHl = (await page.$$('.myz-highlight'))[0];
-  if (!firstHl) throw new Error('First highlight missing');
+  const firstHl = (await page.$$(".myz-highlight"))[0];
+  if (!firstHl) throw new Error("First highlight missing");
   const box = await firstHl.boundingBox();
-  if (!box) throw new Error('Could not get bounding box of first highlight');
+  if (!box) throw new Error("Could not get bounding box of first highlight");
   const startX = box.x + box.width / 2;
   const startY = box.y + box.height / 2;
   // drag to a point further right in the paragraph
-  const para = await page.locator('#para-1').first();
+  const para = await page.locator("#para-1").first();
   const paraBox = await para.boundingBox();
   const endX = paraBox.x + Math.max(10, paraBox.width - 6);
   const endY = startY;
@@ -92,10 +101,14 @@ test('prevent overlapping highlights and notify user', async () => {
   // small pause to allow selection handlers
   await page.waitForTimeout(120);
   // open annotate modal
-  await page.waitForSelector('.myz-annotator-toolbar:not(.myz-hidden)', { timeout: 5000 });
+  await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
+    timeout: 5000,
+  });
   await page.click('.myz-annotator-toolbar button[aria-label="添加标注"]');
 
   // Expect a notification toast to appear indicating failure
-  const toast = await page.waitForSelector('.myz-toast', { timeout: 10000 }).catch(() => null);
+  const toast = await page
+    .waitForSelector(".myz-toast", { timeout: 10000 })
+    .catch(() => null);
   expect(await toast.textContent()).toBeTruthy();
 });

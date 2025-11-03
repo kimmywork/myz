@@ -1,6 +1,7 @@
 import { defineComponent, ref } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import TagInput from "./TagInput.jsx";
+import { IconSlider, IconCalendar } from "../../shared/icons.js";
 
 export default defineComponent({
   name: "DashboardSidebar",
@@ -35,7 +36,7 @@ export default defineComponent({
               }
             }}
           >
-            ⚙️
+            <IconSlider size={22} aria-hidden="true" />
           </button>
         </header>
 
@@ -90,9 +91,10 @@ export default defineComponent({
                 <button
                   type="button"
                   class="btn-icon"
+                  aria-label="打开开始日期选择器"
                   onClick={() => handlePickerClick(fromRef)}
                 >
-                  📅
+                  <IconCalendar size={16} aria-hidden="true" />
                 </button>
               </div>
             </label>
@@ -108,9 +110,10 @@ export default defineComponent({
                 <button
                   type="button"
                   class="btn-icon"
+                  aria-label="打开结束日期选择器"
                   onClick={() => handlePickerClick(toRef)}
                 >
-                  📅
+                  <IconCalendar size={16} aria-hidden="true" />
                 </button>
               </div>
             </label>

@@ -1,5 +1,5 @@
 import { normalizeHighlightStyle } from "../shared/highlightUtils.js";
-import { extractHostname } from "./markdown.js";
+import { extractHostname } from "../shared/url.js";
 
 export function normalizeImportStrategy(value) {
   const normalized = typeof value === "string" ? value.toLowerCase() : "";

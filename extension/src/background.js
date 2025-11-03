@@ -77,11 +77,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 const messageHandlers = {
   async "myz:getHighlightsForUrl"(payload) {
     const state = await readState();
-    const url = payload?.url;
-    if (!url) {
+    const urls = new Set();
+    if (typeof payload?.url === "string" && payload.url) {
+      urls.add(payload.url);
+    }
+    if (Array.isArray(payload?.aliases)) {
+      payload.aliases.forEach((candidate) => {
+        if (typeof candidate === "string" && candidate) {
+          urls.add(candidate);
+        }
+      });
+    }
+    if (!urls.size) {
       return [];
     }
-    return Object.values(state.highlights).filter((item) => item.url === url);
+    return Object.values(state.highlights).filter((item) => urls.has(item.url));
   },
 
   async "myz:saveHighlight"(payload) {

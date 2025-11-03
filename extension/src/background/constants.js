@@ -10,8 +10,19 @@ export const DEFAULT_SETTINGS = {
   logseqGraph: "",
   logseqPage: DEFAULT_LOGSEQ_PAGE,
   logseqSyncEnabled: false,
-  colorPalette: ["#fde68a", "#fca5a5", "#c4b5fd", "#93c5fd", "#a7f3d0"],
-  lastUsedColor: "#fde68a",
+  colorPalette: [
+    // amber / warm highlight
+    "#b58900",
+    // pink / coral
+    "#ef476f",
+    // muted purple
+    "#9f7aea",
+    // sky blue
+    "#38bdf8",
+    // teal / mint
+    "#34d399",
+  ],
+  lastUsedColor: "#b58900",
   lastUsedStyle: "paint",
   dashboardView: "cards",
 };

@@ -244,29 +244,29 @@ export function serializeRange(
 
     try {
       existing.forEach((node) => unwrapNode(node));
-    // More robust serialization: store a path to the nearest element
-    // ancestor plus a character offset within that element. This is
-    // resilient to text-node merging/splitting when wrappers are
-    // removed and prevents indices from becoming invalid.
-    const startElement =
-      range.startContainer.nodeType === doc.defaultView.Node.TEXT_NODE
-        ? range.startContainer.parentNode
-        : range.startContainer;
-    const endElement =
-      range.endContainer.nodeType === doc.defaultView.Node.TEXT_NODE
-        ? range.endContainer.parentNode
-        : range.endContainer;
+      // More robust serialization: store a path to the nearest element
+      // ancestor plus a character offset within that element. This is
+      // resilient to text-node merging/splitting when wrappers are
+      // removed and prevents indices from becoming invalid.
+      const startElement =
+        range.startContainer.nodeType === doc.defaultView.Node.TEXT_NODE
+          ? range.startContainer.parentNode
+          : range.startContainer;
+      const endElement =
+        range.endContainer.nodeType === doc.defaultView.Node.TEXT_NODE
+          ? range.endContainer.parentNode
+          : range.endContainer;
 
-    const startChar = charOffsetWithinElement(
-      startElement,
-      range.startContainer,
-      range.startOffset,
-    );
-    const endChar = charOffsetWithinElement(
-      endElement,
-      range.endContainer,
-      range.endOffset,
-    );
+      const startChar = charOffsetWithinElement(
+        startElement,
+        range.startContainer,
+        range.startOffset,
+      );
+      const endChar = charOffsetWithinElement(
+        endElement,
+        range.endContainer,
+        range.endOffset,
+      );
 
       return {
         start: {
