@@ -8,6 +8,13 @@ import {
   recordToMarkdown,
 } from "../dashboard/utils/records.js";
 
+import {
+  canonicalUrl,
+  extractHostname,
+  truncateText,
+  buildUrlAliases,
+} from "../shared/url.js";
+
 export default defineComponent({
   name: "PopupApp",
   setup() {
@@ -18,6 +25,7 @@ export default defineComponent({
     const pageMeta = ref("");
     const activeTabId = ref(null);
     const canonicalPageUrl = ref("");
+    const rawPageUrl = ref("");
 
     const notifyContentScript = (type) => {
       if (activeTabId.value == null) {
@@ -50,9 +58,14 @@ export default defineComponent({
       }
       try {
         loading.value = true;
+        const aliases = buildUrlAliases(
+          rawPageUrl.value,
+          canonicalPageUrl.value,
+        );
         const [records, highlightState] = await Promise.all([
           sendMessage("myz:getHighlightsForUrl", {
             url: canonicalPageUrl.value,
+            aliases,
           }),
           getPageHighlightState(activeTabId.value),
         ]);
@@ -212,6 +225,7 @@ export default defineComponent({
           return;
         }
         activeTabId.value = tab.id ?? null;
+        rawPageUrl.value = tab.url;
         canonicalPageUrl.value = canonicalUrl(tab.url);
         pageMeta.value = `${truncateText(tab.title || "")} · ${extractHostname(tab.url)}`;
         await loadHighlights();
@@ -316,31 +330,6 @@ function getPageHighlightState(tabId) {
       },
     );
   });
-}
-
-function canonicalUrl(url) {
-  try {
-    const instance = new URL(url);
-    instance.hash = "";
-    return instance.toString();
-  } catch (error) {
-    return url;
-  }
-}
-
-function extractHostname(url) {
-  try {
-    return new URL(url).hostname;
-  } catch (error) {
-    return url;
-  }
-}
-
-function truncateText(text, max = 36) {
-  if (!text) {
-    return "";
-  }
-  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 function downloadFile(content, mime, filename) {

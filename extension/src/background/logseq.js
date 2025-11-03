@@ -1,10 +1,8 @@
 import { DEFAULT_LOGSEQ_ENDPOINT, DEFAULT_LOGSEQ_PAGE } from "./constants.js";
 import { describeHighlightStyle } from "../shared/highlightUtils.js";
-import {
-  extractHostname,
-  htmlToMarkdown,
-  cleanLogseqMultiline,
-} from "./markdown.js";
+import { htmlToMarkdown, cleanLogseqMultiline } from "./markdown.js";
+
+import { extractHostname } from "../shared/url.js";
 
 export function buildLogseqEndpointList(settings, payload) {
   const rawCandidates = [

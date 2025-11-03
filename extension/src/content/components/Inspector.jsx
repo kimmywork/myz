@@ -1,4 +1,5 @@
 import { defineComponent, ref, computed } from "vue";
+import { highlightStyleIconMap } from "../../shared/icons.js";
 
 const DEFAULT_STATE = {
   id: null,
@@ -9,7 +10,7 @@ const DEFAULT_STATE = {
   text: "",
   note: "",
   style: null,
-  styleIcon: "",
+  styleIconKey: "",
   styleLabel: "",
   color: "",
   kind: "highlight",
@@ -74,8 +75,11 @@ export default defineComponent({
     });
     const kind = computed(() => record.value.kind || "highlight");
     const isHighlight = computed(() => kind.value === "highlight");
-    const styleIcon = computed(() =>
-      isHighlight.value ? record.value.styleIcon || "" : "",
+    const styleIconKey = computed(() =>
+      isHighlight.value ? record.value.styleIconKey || "" : "",
+    );
+    const StyleIconComponent = computed(() =>
+      isHighlight.value ? highlightStyleIconMap[styleIconKey.value] : null,
     );
     const styleLabel = computed(() =>
       isHighlight.value ? record.value.styleLabel || "" : "",
@@ -108,19 +112,19 @@ export default defineComponent({
 
       let style = null;
       let resolvedColor = "";
-      let styleIconValue = "";
+      let styleIconKeyValue = "";
       let styleLabelValue = "";
       if (computedKind === "highlight") {
         style = props.normalizeHighlightStyle(rawRecord.style);
         resolvedColor = props.resolveHighlightColor(rawRecord.color);
         const meta = props.highlightStyleOptions?.[style] || null;
         if (meta) {
-          styleIconValue = meta.icon || "";
+          styleIconKeyValue = meta.icon || "";
           styleLabelValue = meta.label || "";
         } else {
           const fallback = props.highlightStyleOptions?.paint || null;
           if (fallback) {
-            styleIconValue = fallback.icon || "";
+            styleIconKeyValue = fallback.icon || "";
             styleLabelValue = fallback.label || "";
           }
         }
@@ -137,7 +141,7 @@ export default defineComponent({
         text: rawRecord.text || "",
         note: typeof rawRecord.note === "string" ? rawRecord.note : "",
         style,
-        styleIcon: styleIconValue,
+        styleIconKey: styleIconKeyValue,
         styleLabel: styleLabelValue,
         color: resolvedColor,
         kind: computedKind,
@@ -224,7 +228,16 @@ export default defineComponent({
                   : null
               }
             >
-              {styleIcon.value}
+              {(() => {
+                const IconComponent = StyleIconComponent.value;
+                return IconComponent ? (
+                  <IconComponent
+                    class="myz-inspector__style-icon"
+                    size={18}
+                    aria-hidden="true"
+                  />
+                ) : null;
+              })()}
             </span>
             <div class="myz-inspector__meta">{metaText.value}</div>
           </div>

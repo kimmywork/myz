@@ -2,7 +2,11 @@
 const config = {
   testEnvironment: "node",
   testMatch: ["**/__tests__/**/*.test.js"],
-  testPathIgnorePatterns: ["<rootDir>/dist/", "<rootDir>/node_modules/", "<rootDir>/tests/"],
+  testPathIgnorePatterns: [
+    "<rootDir>/dist/",
+    "<rootDir>/node_modules/",
+    "<rootDir>/tests/",
+  ],
   resetMocks: true,
   restoreMocks: true,
   clearMocks: true,

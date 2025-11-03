@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - "service/**"
-      - "knowledges/service-api.md"
+      - "docs/knowledges/service-api.md"
       - ".github/workflows/service-ci.yml"
 
 jobs:

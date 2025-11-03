@@ -90,7 +90,7 @@ src/content/content.js:1422 (handleScreenshotClick)
 
 ---
 
-context: knowledges/logseq-http-api.md
+context: docs/knowledges/logseq-http-api.md
 
 1. fix bug: 选中文字后，如果滚动网页，则对应的工具栏会消失
 
