@@ -179,7 +179,7 @@ npx playwright test tests --config=tests/playwright.config.ts
 - 背景脚本运行在 MV3 Service Worker 环境：避免使用 DOM API（例如 `document`、`window` 的 DOM 操作），并确保异步 API 的错误被妥善捕获与记录。
 - 当修改背景脚本或 content script 时，手动在 `chrome://extensions/` 中重新加载扩展或点击 Service Worker 的 "更新"。UI 更改（Popup/Dashboard）在开发模式下可通过 Vite 的 HMR 快速查看。
 
-更多实现细节请参考仓库内的 `knowledges/` 文档（例如 `knowledges/logseq-http-api.md`）。
+更多实现细节请参考仓库内的 `docs/knowledges/` 文档（例如 `docs/knowledges/logseq-http-api.md`）。
 
 ## 支持
 

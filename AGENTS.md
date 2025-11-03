@@ -4,7 +4,7 @@
 - `service/`: Next.js web service (TypeScript). Source in `service/src`, routes under `service/src/app/**` (`page.tsx`, `route.ts`). Assets in `service/public/`.
 - `extension/`: Browser extension (currently React JSX, migrating to Vue). Source in `extension/src`, UI in `extension/src/dashboard/**`, content scripts in `extension/src/content/**`, assets in `extension/assets/`.
 - `tests/`: Root docs and URLs for test contexts; project-specific tests live under each package.
-- `docs/` and `knowledges/`: Design notes, prompts, and technical references.
+- `docs/` and `docs/knowledges/`: Design notes, prompts, and technical references.
 
 ## Build, Test, and Development Commands
 Service (`cd service`):

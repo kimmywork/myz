@@ -129,6 +129,7 @@ import {
       }
       if (selection.toString().trim()) {
         state.toolbarRange = selection.getRangeAt(0).cloneRange();
+        maybeShowToolbarForActiveSelection();
       }
     });
 
@@ -161,6 +162,8 @@ import {
     // Attach SPA navigation listeners so we can re-run highlight restore when
     // single-page apps change the visible URL without a full reload.
     attachSpaNavigationListeners();
+
+    maybeShowToolbarForActiveSelection();
 
     await restoreHighlights();
   }
@@ -214,6 +217,28 @@ import {
     window.addEventListener("hashchange", scheduleRestoreIfUrlChanged);
 
     startLocationObserver(scheduleRestoreIfUrlChanged);
+  }
+
+  function maybeShowToolbarForActiveSelection() {
+    try {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        return;
+      }
+      const text = selection.toString().trim();
+      if (!text) {
+        return;
+      }
+      const range = selection.getRangeAt(0);
+      const rect = getSelectionBoundingRect(range);
+      if (!rect || (rect.width === 0 && rect.height === 0)) {
+        return;
+      }
+      state.toolbarRange = range.cloneRange();
+      showToolbar(rect);
+    } catch (error) {
+      // Ignore selection errors (e.g. if no range is available).
+    }
   }
 
   async function restoreHighlights() {
