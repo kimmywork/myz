@@ -33,6 +33,8 @@ import {
   deserializeRange,
 } from "../shared/serializer.js";
 
+import { canonicalUrl, normalizeUrlValue } from "../shared/url.js";
+
 (() => {
   if (window.__myzAnnotatorInitialized) {
     return;
@@ -1301,31 +1303,6 @@ import {
     };
   }
 
-  function canonicalUrl(url) {
-    const canonicalHref = readCanonicalLinkHref();
-    if (canonicalHref) {
-      return normalizeUrlValue(canonicalHref);
-    }
-    return normalizeUrlValue(url);
-  }
-
-  function buildUrlAliases(currentUrl, canonical) {
-    const aliases = new Set();
-    if (typeof currentUrl === "string" && currentUrl) {
-      aliases.add(currentUrl);
-      aliases.add(stripHash(currentUrl));
-      aliases.add(normalizeUrlValue(currentUrl));
-    }
-    if (typeof canonical === "string" && canonical) {
-      aliases.add(canonical);
-    }
-    const canonicalHref = readCanonicalLinkHref();
-    if (canonicalHref) {
-      aliases.add(normalizeUrlValue(canonicalHref));
-    }
-    return Array.from(aliases).filter(Boolean);
-  }
-
   function readCanonicalLinkHref() {
     try {
       const link = document.querySelector('link[rel="canonical"]');
@@ -1336,53 +1313,6 @@ import {
       // Ignore selector errors (e.g. if document access is restricted).
     }
     return null;
-  }
-
-  function normalizeUrlValue(rawUrl) {
-    if (typeof rawUrl !== "string" || !rawUrl) {
-      return "";
-    }
-    try {
-      const parsed = new URL(rawUrl, window.location.origin);
-      parsed.hash = "";
-      stripTrackingSearchParams(parsed);
-      return parsed.toString();
-    } catch (error) {
-      return stripHash(rawUrl);
-    }
-  }
-
-  function stripTrackingSearchParams(urlObject) {
-    if (!urlObject || !urlObject.searchParams) {
-      return;
-    }
-    const removableKeys = [
-      "s",
-      "ref",
-      "ref_src",
-      "t",
-      "fbclid",
-      "gclid",
-      "mc_cid",
-      "mc_eid",
-    ];
-    removableKeys.forEach((key) => urlObject.searchParams.delete(key));
-    Array.from(urlObject.searchParams.keys()).forEach((key) => {
-      if (/^utm_/i.test(key)) {
-        urlObject.searchParams.delete(key);
-      }
-    });
-  }
-
-  function stripHash(rawUrl) {
-    if (typeof rawUrl !== "string") {
-      return "";
-    }
-    const hashIndex = rawUrl.indexOf("#");
-    if (hashIndex === -1) {
-      return rawUrl;
-    }
-    return rawUrl.slice(0, hashIndex);
   }
 
   async function handleScreenshotClick() {

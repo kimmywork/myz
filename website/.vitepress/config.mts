@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitepress'
+import { defineConfig, withBase } from 'vitepress'
 
 export default defineConfig({
   title: 'MyZ Annotator',
@@ -28,7 +28,7 @@ export default defineConfig({
       { icon: 'twitter', link: 'https://x.com/kenpusney' }
     ],
     footer: {
-      message: '<a href="/privacy">隐私政策</a> · 本地优先，私有数据安全',
+      message: `<a href="${withBase('/privacy')}">隐私政策</a> · 本地优先，私有数据安全`,
       copyright: ''
     }
   }

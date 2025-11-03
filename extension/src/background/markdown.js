@@ -1,4 +1,5 @@
 import { describeHighlightStyle } from "../shared/highlightUtils.js";
+import { extractHostname } from "../shared/url.js";
 
 export function buildMarkdownExport(highlights) {
   if (!highlights.length) {
@@ -69,14 +70,6 @@ function groupByDate(highlights) {
 
 function escapeMarkdown(text) {
   return text.replace(/[\\`*_{}[\]()#+\-.!|]/g, (match) => `\\${match}`);
-}
-
-export function extractHostname(url) {
-  try {
-    return new URL(url).hostname;
-  } catch (error) {
-    return url;
-  }
 }
 
 export function htmlToMarkdown(html) {
