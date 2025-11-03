@@ -33,7 +33,7 @@ import {
   deserializeRange,
 } from "../shared/serializer.js";
 
-import { canonicalUrl, normalizeUrlValue } from "../shared/url.js";
+import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.js";
 
 (() => {
   if (window.__myzAnnotatorInitialized) {

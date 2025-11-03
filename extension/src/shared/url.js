@@ -15,7 +15,7 @@ export function buildUrlAliases(rawUrl, canonical) {
   return Array.from(aliases).filter(Boolean);
 }
 
-function normalizeUrlValue(rawUrl) {
+export function normalizeUrlValue(rawUrl) {
   if (typeof rawUrl !== "string" || !rawUrl) {
     return "";
   }
