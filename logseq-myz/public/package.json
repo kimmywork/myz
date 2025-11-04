@@ -1,0 +1,13 @@
+{
+  "name": "logseq-myz",
+  "version": "0.1.0",
+  "author": "kenpusney",
+  "repository": "myz-suite/logseq-myz",
+  "main": "index.html",
+  "logseq": {
+    "id": "logseq-myz",
+    "icon": "./assets/icon-128.png",
+    "title": "MyZ for Logseq",
+    "description": "MyZ Suite integration for Logseq" 
+  }
+}

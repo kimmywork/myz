@@ -1,0 +1,12 @@
+
+.myz-wrap {
+    width: 100%;
+    height: 80%;
+    position: absolute;
+}
+
+.myz-content {
+    top: 50px;
+    position: absolute;
+}
+
