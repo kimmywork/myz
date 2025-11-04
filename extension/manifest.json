@@ -10,7 +10,7 @@
     "128": "assets/icon-128.png"
   },
   "permissions": ["storage", "tabs", "activeTab"],
-  "host_permissions": ["<all_urls>", "http://127.0.0.1/*", "http://localhost/*"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background.js",
     "type": "module"

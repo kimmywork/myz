@@ -271,6 +271,10 @@ body {
   gap: 16px;
 }
 
+.settings__fields--compact {
+  gap: 12px;
+}
+
 .settings__hint {
   margin: 0;
   color: #94a3b8;
@@ -285,6 +289,101 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.settings__group-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings__group-meta {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.settings__empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.settings__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings__list-item {
+  border: 1px solid rgba(51, 65, 85, 0.6);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings__list-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings__list-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #f1f5f9;
+  word-break: break-word;
+}
+
+.settings__list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.settings__list-url {
+  font-size: 12px;
+  color: #64748b;
+  word-break: break-all;
+}
+
+.settings__pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  background: rgba(148, 163, 184, 0.25);
+  color: #cbd5f5;
+  line-height: 1.4;
+}
+
+.settings__pill--info {
+  background: rgba(59, 130, 246, 0.2);
+  color: #bfdbfe;
+}
+
+.settings__pill--success {
+  background: rgba(34, 197, 94, 0.2);
+  color: #bbf7d0;
+}
+
+.settings__pill--error {
+  background: rgba(248, 113, 113, 0.25);
+  color: #fecaca;
+}
+
+.settings__pill--accent {
+  background: rgba(234, 179, 8, 0.25);
+  color: #fde68a;
 }
 
 .toggle {

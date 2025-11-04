@@ -33,15 +33,17 @@ import {
   deserializeRange,
 } from "../shared/serializer.js";
 
-import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.js";
+import {
+  canonicalUrl,
+  buildUrlAliases,
+  extractArchiveInfo,
+} from "../shared/url.js";
 
 (() => {
   if (window.__myzAnnotatorInitialized) {
     return;
   }
-
   window.__myzAnnotatorInitialized = true;
-
   const CANONICAL_URL = canonicalUrl(window.location.href);
 
   const highlightCache = new Map();
@@ -62,6 +64,33 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
       savedCount,
       total: highlightCount + savedCount,
     };
+  }
+
+  function applyArchivePreferences(settings, status) {
+    const hasSettings = settings && typeof settings === "object";
+    const enabled = hasSettings
+      ? Boolean(settings.internetArchiveEnabled)
+      : state.archiveFeatureEnabled;
+    state.archiveFeatureEnabled = enabled;
+    if (status && typeof status === "object") {
+      state.archiveStatus = status;
+    } else if (!enabled) {
+      state.archiveStatus = null;
+    }
+    const saved = Boolean(state.archiveStatus?.saved);
+    state.archiveDefaultOptIn = enabled && !saved;
+    if (hasSettings) {
+      state.archiveSettingsLoaded = true;
+    }
+  }
+
+  function mergeArchiveResult(result) {
+    if (!result || typeof result !== "object") {
+      return;
+    }
+    state.archiveStatus = result;
+    const saved = Boolean(result.saved);
+    state.archiveDefaultOptIn = state.archiveFeatureEnabled && !saved;
   }
 
   function storeRecord(record) {
@@ -104,6 +133,10 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
     toolbarShownAt: 0,
     toolbarRange: null,
     formKind: RECORD_KINDS.HIGHLIGHT,
+    archiveFeatureEnabled: false,
+    archiveDefaultOptIn: false,
+    archiveStatus: null,
+    archiveSettingsLoaded: false,
   };
 
   const TOOLBAR_MIN_VIEWPORT_GAP = 12;
@@ -248,7 +281,7 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
       const currentUrl = window.location.href;
       const currentCanonical = canonicalUrl(currentUrl);
       const urlAliases = buildUrlAliases(currentUrl, currentCanonical);
-      const [highlights, tagList] = await Promise.all([
+      const [highlights, tagList, archiveStatus, settings] = await Promise.all([
         sendMessage("myz:getHighlightsForUrl", {
           url: currentCanonical,
           aliases: urlAliases,
@@ -257,7 +290,19 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
           console.warn("Failed to load known tags", error);
           return null;
         }),
+        sendMessage("myz:getArchiveStatusForUrl", {
+          url: currentCanonical,
+        }).catch((error) => {
+          console.warn("Failed to load archive status", error);
+          return null;
+        }),
+        sendMessage("myz:getSettings").catch((error) => {
+          console.warn("Failed to load settings", error);
+          return null;
+        }),
       ]);
+
+      applyArchivePreferences(settings, archiveStatus);
 
       if (Array.isArray(tagList)) {
         modal.setKnownTags?.(tagList);
@@ -687,6 +732,17 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
       : options.tags
         ? [options.tags]
         : [];
+    const archiveEnabledForModal =
+      kind === RECORD_KINDS.HIGHLIGHT &&
+      state.archiveFeatureEnabled &&
+      options?.mode !== "edit";
+    const saveToArchiveDefault =
+      typeof options?.saveToArchive === "boolean"
+        ? options.saveToArchive
+        : archiveEnabledForModal && state.archiveDefaultOptIn;
+    const archiveStatusPayload = archiveEnabledForModal
+      ? state.archiveStatus
+      : null;
 
     modal.open({
       mode: options.mode,
@@ -696,6 +752,9 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
       color: kind === RECORD_KINDS.HIGHLIGHT ? options?.color : null,
       style: kind === RECORD_KINDS.HIGHLIGHT ? options?.style : null,
       kind,
+      archiveEnabled: archiveEnabledForModal,
+      saveToArchive: saveToArchiveDefault,
+      archiveStatus: archiveStatusPayload,
     });
     modal?.addKnownTags?.(initialTags);
   }
@@ -720,6 +779,7 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
     const tags = Array.isArray(payload.tags)
       ? payload.tags.filter(Boolean)
       : [];
+    const saveToArchive = payload.saveToArchive === true;
 
     state.formKind = kind;
 
@@ -735,6 +795,19 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
         payload.style || DEFAULT_HIGHLIGHT_STYLE,
       );
     }
+
+    const currentUrl = window.location.href;
+    const canonical = canonicalUrl(currentUrl);
+    const archiveInfo = extractArchiveInfo(currentUrl);
+    const originalSourceUrl = archiveInfo?.originalUrl || currentUrl;
+    let hostname = window.location.hostname;
+    try {
+      hostname = new URL(originalSourceUrl).hostname || hostname;
+    } catch (error) {
+      // keep existing hostname fallback
+    }
+    const archiveUrl = archiveInfo ? currentUrl : null;
+    const archiveTimestamp = archiveInfo?.timestamp || null;
 
     if (state.editingId) {
       const update = {
@@ -762,16 +835,24 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
     }
 
     const basePayload = {
-      url: canonicalUrl(window.location.href),
-      sourceUrl: window.location.href,
+      url: canonical,
+      sourceUrl: originalSourceUrl,
       title: document.title,
       text: state.currentText,
       html: state.currentHtml || "",
       note,
       tags,
-      hostname: window.location.hostname,
+      hostname,
       kind,
     };
+
+    if (archiveUrl) {
+      basePayload.archiveUrl = archiveUrl;
+      basePayload.archiveSnapshotUrl = archiveUrl;
+      if (archiveTimestamp) {
+        basePayload.archiveSnapshotTimestamp = archiveTimestamp;
+      }
+    }
 
     const selection = window.getSelection();
     try {
@@ -806,6 +887,9 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
             }
             modal.addKnownTags?.(stored.tags || tags);
             updateHighlightIndicators();
+            if (saveToArchive && state.archiveFeatureEnabled) {
+              ensureArchiveSnapshotForCurrentPage().catch(() => {});
+            }
           }
         }
       } else {
@@ -1301,6 +1385,38 @@ import { canonicalUrl, normalizeUrlValue, buildUrlAliases } from "../shared/url.
       unreachableIds: unreachable,
       unreachableCount: unreachable.length,
     };
+  }
+
+  async function ensureArchiveSnapshotForCurrentPage({ force = false } = {}) {
+    if (!state.archiveFeatureEnabled) {
+      return null;
+    }
+    const canonical = canonicalUrl(window.location.href);
+    if (!canonical) {
+      return null;
+    }
+    try {
+      const result = await sendMessage("myz:ensureArchiveSnapshot", {
+        url: canonical,
+        force,
+      });
+      mergeArchiveResult(result);
+      if (!result) {
+        return null;
+      }
+      if (result.saved && result.status === "saved") {
+        showNotification("页面已保存到 Internet Archive");
+      } else if (result.status === "exists") {
+        showNotification("Internet Archive 已存在该页面的存档");
+      } else if (result.status === "pending") {
+        showNotification("已提交保存请求，存档生成可能需要一些时间");
+      }
+      return result;
+    } catch (error) {
+      console.error("Internet Archive 保存失败", error);
+      showNotification("保存到 Internet Archive 失败，请稍后重试");
+      return null;
+    }
   }
 
   function readCanonicalLinkHref() {

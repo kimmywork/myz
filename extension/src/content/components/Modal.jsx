@@ -72,6 +72,9 @@ export default defineComponent({
     const activeOptionIndex = ref(-1);
     const containerRef = ref(null);
     const tagInputRef = ref(null);
+    const archiveEnabled = ref(false);
+    const saveToArchive = ref(false);
+    const archiveStatus = ref(null);
 
     const titleText = computed(() => {
       if (kind.value === RECORD_KINDS.CLIP) {
@@ -81,6 +84,10 @@ export default defineComponent({
     });
 
     const isHighlight = computed(() => kind.value === RECORD_KINDS.HIGHLIGHT);
+
+    const archiveOptionVisible = computed(
+      () => archiveEnabled.value && isHighlight.value && mode.value !== "edit",
+    );
 
     const previewStyle = computed(() => {
       if (!isHighlight.value) {
@@ -96,6 +103,37 @@ export default defineComponent({
     const styleOptions = computed(() =>
       Object.entries(HIGHLIGHT_STYLE_OPTIONS),
     );
+
+    const archiveStatusText = computed(() => {
+      if (!archiveOptionVisible.value) {
+        return "";
+      }
+      const status = archiveStatus.value?.status;
+      if (
+        archiveStatus.value?.saved ||
+        status === "saved" ||
+        status === "exists"
+      ) {
+        const timestamp = archiveStatus.value?.snapshot?.timestamp;
+        const formatted = formatArchiveTimestamp(timestamp);
+        return formatted ? `已有存档：${formatted}` : "已有存档";
+      }
+      if (status === "pending") {
+        return "保存请求已提交";
+      }
+      if (status === "failed") {
+        return "上次保存失败";
+      }
+      return "";
+    });
+
+    const archiveSnapshotUrl = computed(() => {
+      if (!archiveOptionVisible.value) {
+        return "";
+      }
+      const link = archiveStatus.value?.snapshot?.url;
+      return typeof link === "string" ? link : "";
+    });
 
     function syncFilteredOptions(term = tagInputValue.value) {
       const normalized = term.trim().toLowerCase();
@@ -144,6 +182,16 @@ export default defineComponent({
       tagInputValue.value = "";
       dropdownOpen.value = false;
       activeOptionIndex.value = -1;
+      archiveEnabled.value = Boolean(options?.archiveEnabled);
+      archiveStatus.value =
+        archiveEnabled.value &&
+        options?.archiveStatus &&
+        typeof options.archiveStatus === "object"
+          ? options.archiveStatus
+          : null;
+      saveToArchive.value = archiveEnabled.value
+        ? Boolean(options?.saveToArchive)
+        : false;
       visible.value = true;
       nextTick(() => {
         syncFilteredOptions("");
@@ -204,6 +252,18 @@ export default defineComponent({
       selectedStyle.value = style;
     }
 
+    function formatArchiveTimestamp(timestamp) {
+      if (typeof timestamp !== "string" || timestamp.length < 12) {
+        return "";
+      }
+      const year = timestamp.slice(0, 4);
+      const month = timestamp.slice(4, 6);
+      const day = timestamp.slice(6, 8);
+      const hour = timestamp.slice(8, 10);
+      const minute = timestamp.slice(10, 12);
+      return `${year}-${month}-${day} ${hour}:${minute}`;
+    }
+
     function handleSubmit() {
       preferences.persistColor(selectedColor.value);
       preferences.persistStyle(selectedStyle.value);
@@ -214,6 +274,7 @@ export default defineComponent({
         tags: [...tags.value],
         color: selectedColor.value,
         style: selectedStyle.value,
+        saveToArchive: archiveOptionVisible.value && saveToArchive.value,
       });
     }
 
@@ -332,6 +393,37 @@ export default defineComponent({
               }}
             />
           </div>
+
+          {archiveOptionVisible.value ? (
+            <div class="myz-annotator-field">
+              <div class="myz-annotator-archive">
+                <label class="myz-annotator-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={saveToArchive.value}
+                    onChange={(event) =>
+                      (saveToArchive.value = event.target.checked)
+                    }
+                  />
+                  <span>同时保存到 Internet Archive</span>
+                </label>
+                {archiveStatusText.value ? (
+                  <span class="myz-annotator-archive__status">
+                    {archiveStatusText.value}
+                    {archiveSnapshotUrl.value ? (
+                      <a
+                        href={archiveSnapshotUrl.value}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        查看
+                      </a>
+                    ) : null}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {isHighlight.value ? (
             <div class="myz-annotator-field">
