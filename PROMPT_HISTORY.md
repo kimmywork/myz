@@ -71,3 +71,9 @@ tests/extension/dashboard.spec.js:391:1 › import_by_file_via_settings
 
 ---
 
+请把 Internet Archive 的支持和同步功能涉及到的相关隐私问题更新到 `docs/PRIVACY_POLICY.md` 和 `privacy.md`。指出作为插件我们不收集和利用这些数据，请用户使用时自行承担风险。
+
+请同时生成中文和英文各一份服务协议（Term Of Service），其中也指出我们不收集任何用户数据，请用户自行承担使用时的风险。
+
+---
+
