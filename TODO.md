@@ -3,10 +3,14 @@
 
 - [x] 📝 Clip only mode 
 - [ ] 📎 Special Site Support: Twitter.com
-- [ ] 🗄️ Sync to Internet Archive
+- [x] 🗄️ Sync to Internet Archive
 - [x] 🎨 New annotation styles: line, curly and highlight.
 
 ## Quality
 
-- [ ] 🔨 Testing using playwright
+- [x] 🔨 Testing using playwright
 - [x] Rewrite use Vue/JSX
+
+## Bug
+
+- [ ] 🐞 Vue document page cannot highlight text before codeblocks
