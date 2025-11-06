@@ -39,6 +39,49 @@ import {
   matchInsertedHighlights,
   extractEntityUuid,
 } from "./background/logseq.js";
+import {
+  getArchiveStatusForUrl,
+  ensureArchiveSnapshot,
+  getArchiveHistory,
+  initializeArchiveQueue,
+} from "./background/internetArchive.js";
+
+function enrichRecordWithArchive(record, archives) {
+  if (!record) {
+    return record;
+  }
+  const canonical = record.url;
+  const archiveEntry =
+    canonical && archives && typeof archives === "object"
+      ? archives[canonical]
+      : null;
+  const snapshotUrl = archiveEntry?.snapshot?.url || null;
+  const snapshotTimestamp = archiveEntry?.snapshot?.timestamp || null;
+  const status = archiveEntry?.status || null;
+  const enriched = { ...record };
+  if (snapshotUrl) {
+    enriched.archiveSnapshotUrl = snapshotUrl;
+    if (!enriched.archiveUrl) {
+      enriched.archiveUrl = snapshotUrl;
+    }
+  } else if (enriched.archiveUrl) {
+    enriched.archiveSnapshotUrl = enriched.archiveUrl;
+  }
+  if (snapshotTimestamp) {
+    enriched.archiveSnapshotTimestamp = snapshotTimestamp;
+  }
+  if (status) {
+    enriched.archiveStatus = status;
+  }
+  return enriched;
+}
+
+function enrichRecordsWithArchive(records, archives) {
+  if (!Array.isArray(records)) {
+    return [];
+  }
+  return records.map((record) => enrichRecordWithArchive(record, archives));
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
   const { [STORAGE_KEY]: existingHighlights } =
@@ -91,7 +134,10 @@ const messageHandlers = {
     if (!urls.size) {
       return [];
     }
-    return Object.values(state.highlights).filter((item) => urls.has(item.url));
+    const matches = Object.values(state.highlights).filter((item) =>
+      urls.has(item.url),
+    );
+    return enrichRecordsWithArchive(matches, state.archives);
   },
 
   async "myz:saveHighlight"(payload) {
@@ -190,7 +236,8 @@ const messageHandlers = {
 
   async "myz:getAllHighlights"() {
     const state = await readState();
-    return sortedHighlights(state);
+    const highlights = sortedHighlights(state);
+    return enrichRecordsWithArchive(highlights, state.archives);
   },
 
   async "myz:getAllTags"() {
@@ -548,4 +595,21 @@ const messageHandlers = {
     });
     return { dataUrl };
   },
+
+  async "myz:getArchiveStatusForUrl"(payload) {
+    return getArchiveStatusForUrl(payload?.url || "");
+  },
+
+  async "myz:ensureArchiveSnapshot"(payload) {
+    return ensureArchiveSnapshot({
+      url: payload?.url,
+      force: Boolean(payload?.force),
+    });
+  },
+
+  async "myz:getArchiveHistory"() {
+    return getArchiveHistory();
+  },
 };
+
+initializeArchiveQueue();

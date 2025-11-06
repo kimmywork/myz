@@ -16,12 +16,28 @@ export default defineComponent({
       logseqPage: "",
       logseqAuthToken: "",
       logseqGraph: "",
+      internetArchiveAccessKey: "",
+      internetArchiveAccessSecret: "",
     });
     const importFileRef = ref(null);
     const importStrategy = ref("skip");
     const isImporting = ref(false);
+    const archiveLoaded = ref(false);
+    const archiveLoading = computed(() => store.archiveMetaLoading.value);
+    const archiveStatus = computed(() => store.archiveMetaStatus.value);
+    const archiveQueueEntries = computed(() => {
+      const list = store.archiveQueueWithPosition.value;
+      return Array.isArray(list) ? list : [];
+    });
+    const archiveHistoryEntries = computed(() => {
+      const list = store.archiveHistorySorted.value;
+      return Array.isArray(list) ? list : [];
+    });
 
     const syncEnabled = computed(() => store.settings.logseqSyncEnabled);
+    const archiveEnabled = computed(
+      () => store.settings.internetArchiveEnabled,
+    );
 
     watch(
       () => store.settings,
@@ -30,6 +46,9 @@ export default defineComponent({
         form.logseqPage = settings.logseqPage || "MyZ Inbox";
         form.logseqAuthToken = settings.logseqAuthToken || "";
         form.logseqGraph = settings.logseqGraph || "";
+        form.internetArchiveAccessKey = settings.internetArchiveAccessKey || "";
+        form.internetArchiveAccessSecret =
+          settings.internetArchiveAccessSecret || "";
       },
       { immediate: true, deep: true },
     );
@@ -58,6 +77,101 @@ export default defineComponent({
       }
     }
 
+    async function handleArchiveToggle(event) {
+      const enabled = event.target.checked;
+      try {
+        await store.toggleInternetArchive(enabled);
+      } catch (error) {
+        event.target.checked = store.settings.internetArchiveEnabled;
+      }
+    }
+
+    async function handleSaveArchiveSettings() {
+      try {
+        await store.saveSettings({
+          internetArchiveEnabled: store.settings.internetArchiveEnabled,
+          internetArchiveAccessKey: form.internetArchiveAccessKey.trim(),
+          internetArchiveAccessSecret: form.internetArchiveAccessSecret.trim(),
+        });
+      } catch (error) {
+        // status already surfaced
+      }
+    }
+
+    async function ensureArchiveActivity({ force = false } = {}) {
+      try {
+        if (force) {
+          await store.refreshArchiveActivity();
+        } else {
+          await store.loadArchiveActivity();
+        }
+        archiveLoaded.value = true;
+      } catch (error) {
+        // error state already reflected in archiveStatus
+      }
+    }
+
+    async function handleRefreshArchive() {
+      await ensureArchiveActivity({ force: true });
+    }
+
+    function queueStatusTone(entry) {
+      const status = (entry?.status || "queued").toLowerCase();
+      if (status.includes("error") || status.includes("fail")) {
+        return "error";
+      }
+      if (status.includes("complete") || status.includes("done")) {
+        return "success";
+      }
+      if (status.includes("pending") || status.includes("processing")) {
+        return "info";
+      }
+      return "info";
+    }
+
+    function queueStatusLabel(entry) {
+      const status = (entry?.status || "queued").toLowerCase();
+      if (status.includes("error") || status.includes("fail")) {
+        return "失败";
+      }
+      if (status.includes("complete") || status.includes("done")) {
+        return "完成";
+      }
+      if (status.includes("pending")) {
+        return "等待存档";
+      }
+      if (status.includes("processing")) {
+        return "处理中";
+      }
+      return "排队中";
+    }
+
+    function historyStatusTone(entry) {
+      if (!entry) {
+        return "info";
+      }
+      if (entry.status === "error" || entry.success === false) {
+        return "error";
+      }
+      if (entry.status === "success" || entry.success === true) {
+        return "success";
+      }
+      return "info";
+    }
+
+    function historyStatusLabel(entry) {
+      if (!entry) {
+        return "记录";
+      }
+      if (entry.status === "success" || entry.success === true) {
+        return "成功";
+      }
+      if (entry.status === "error" || entry.success === false) {
+        return "失败";
+      }
+      return "记录";
+    }
+
     async function handleImport() {
       const fileInput = importFileRef.value;
       const file = fileInput?.files?.[0];
@@ -77,6 +191,17 @@ export default defineComponent({
     function handleCloseSettings() {
       store.showHighlights();
     }
+
+    watch(
+      () => props.active,
+      (isActive) => {
+        if (!isActive) {
+          return;
+        }
+        ensureArchiveActivity({ force: archiveLoaded.value });
+      },
+      { immediate: true },
+    );
 
     return () => (
       <section
@@ -224,6 +349,175 @@ export default defineComponent({
                   {store.importStatus.message}
                 </p>
               </div>
+            </div>
+          </section>
+
+          <section class="settings__group">
+            <div class="settings__group-header">
+              <h3>Internet Archive 保存</h3>
+              <label class="toggle">
+                <input
+                  type="checkbox"
+                  checked={archiveEnabled.value}
+                  onChange={handleArchiveToggle}
+                />
+                <span>启用保存</span>
+              </label>
+            </div>
+            <div
+              class={
+                "settings__fields" +
+                (archiveEnabled.value ? "" : " is-disabled")
+              }
+            >
+              <label class="field">
+                <span>Access Key (可选)</span>
+                <input
+                  type="text"
+                  placeholder="Internet Archive Access Key"
+                  value={form.internetArchiveAccessKey}
+                  disabled={!archiveEnabled.value}
+                  onInput={(event) =>
+                    (form.internetArchiveAccessKey = event.target.value)
+                  }
+                />
+              </label>
+              <label class="field">
+                <span>Access Secret (可选)</span>
+                <input
+                  type="password"
+                  placeholder="Internet Archive Access Secret"
+                  value={form.internetArchiveAccessSecret}
+                  disabled={!archiveEnabled.value}
+                  onInput={(event) =>
+                    (form.internetArchiveAccessSecret = event.target.value)
+                  }
+                />
+              </label>
+              <div class="settings__actions">
+                <button
+                  class="btn btn-primary"
+                  type="button"
+                  onClick={handleSaveArchiveSettings}
+                  disabled={!archiveEnabled.value}
+                >
+                  保存 Internet Archive 设置
+                </button>
+                <p class="status-line">{store.settingsStatus.value}</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings__group">
+            <div class="settings__group-header">
+              <h3>保存队列</h3>
+              <div class="settings__group-actions">
+                <button
+                  class="btn btn-secondary"
+                  type="button"
+                  onClick={handleRefreshArchive}
+                  disabled={archiveLoading.value}
+                >
+                  {archiveLoading.value ? "刷新中…" : "刷新数据"}
+                </button>
+              </div>
+            </div>
+            <div class="settings__fields settings__fields--compact">
+              {archiveStatus.value ? (
+                <p class="status-line status-line--error">
+                  {archiveStatus.value}
+                </p>
+              ) : null}
+              {archiveLoading.value ? (
+                <p class="settings__hint">加载中…</p>
+              ) : archiveQueueEntries.value.length ? (
+                <ul class="settings__list">
+                  {archiveQueueEntries.value.map((item) => (
+                    <li class="settings__list-item" key={item.id}>
+                      <div class="settings__list-row">
+                        <span class="settings__list-title" title={item.url}>
+                          {item.url}
+                        </span>
+                        <span
+                          class={[
+                            "settings__pill",
+                            `settings__pill--${queueStatusTone(item)}`,
+                          ].join(" ")}
+                        >
+                          {queueStatusLabel(item)}
+                        </span>
+                      </div>
+                      <div class="settings__list-meta">
+                        <span>排队序号 #{item.position + 1}</span>
+                        {item.requestedAt ? (
+                          <span>
+                            加入时间 {store.formatDateTime(item.requestedAt)}
+                          </span>
+                        ) : null}
+                        <span>尝试 {item.attempts ?? 0} 次</span>
+                        {item.force ? (
+                          <span class="settings__pill settings__pill--accent">
+                            强制
+                          </span>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p class="settings__empty">暂无排队的保存请求</p>
+              )}
+            </div>
+          </section>
+
+          <section class="settings__group">
+            <div class="settings__group-header">
+              <h3>请求历史</h3>
+              {archiveHistoryEntries.value.length ? (
+                <span class="settings__group-meta">
+                  显示最近 {archiveHistoryEntries.value.length} 条记录
+                </span>
+              ) : null}
+            </div>
+            <div class="settings__fields settings__fields--compact">
+              {archiveLoading.value ? (
+                <p class="settings__hint">加载中…</p>
+              ) : archiveHistoryEntries.value.length ? (
+                <ul class="settings__list">
+                  {archiveHistoryEntries.value.map((item) => (
+                    <li class="settings__list-item" key={item.id}>
+                      <div class="settings__list-row">
+                        <span class="settings__list-title">
+                          {item.message ||
+                            store.describeArchiveAction(item.action)}
+                        </span>
+                        <span
+                          class={[
+                            "settings__pill",
+                            `settings__pill--${historyStatusTone(item)}`,
+                          ].join(" ")}
+                        >
+                          {historyStatusLabel(item)}
+                        </span>
+                      </div>
+                      <div class="settings__list-meta">
+                        {item.timestamp ? (
+                          <span>{store.formatDateTime(item.timestamp)}</span>
+                        ) : null}
+                        <span>{store.describeArchiveAction(item.action)}</span>
+                        {typeof item.statusCode === "number" ? (
+                          <span>HTTP {item.statusCode}</span>
+                        ) : null}
+                      </div>
+                      <div class="settings__list-url" title={item.url}>
+                        {item.url}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p class="settings__empty">暂无请求记录</p>
+              )}
             </div>
           </section>
         </div>

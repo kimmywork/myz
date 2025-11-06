@@ -38,6 +38,9 @@ export function findPrimaryDescendant(el) {
 export function getLogicalChildNodes(parent) {
   const out = [];
   Array.from(parent.childNodes).forEach((child) => {
+    if (shouldIgnoreForPath(child)) {
+      return;
+    }
     if (!isMyzWrapper(child) && isNodeFromMyz(child)) return;
     if (isMyzWrapper(child)) {
       Array.from(child.childNodes).forEach((inner) => {
@@ -58,6 +61,9 @@ export function getDirectChildAndLogical(node, parent) {
   }
   if (!child || child.parentNode !== parent)
     return { child: null, logical: null };
+  if (shouldIgnoreForPath(child)) {
+    return { child: null, logical: null };
+  }
   if (isMyzWrapper(child)) {
     if (child !== node) return { child, logical: node };
     return { child, logical: findPrimaryDescendant(child) || child };
@@ -226,6 +232,86 @@ function clampOffset(node, requested) {
     return Math.min(requested, node.textContent.length);
   }
   return Math.min(requested, node.childNodes.length);
+}
+
+function shouldIgnoreForPath(node) {
+  if (!node) {
+    return false;
+  }
+  if (isArchiveInjectedNode(node)) {
+    return true;
+  }
+  return false;
+}
+
+function isArchiveInjectedNode(node) {
+  if (!node || !node.ownerDocument) {
+    return false;
+  }
+  const doc = node.ownerDocument;
+  const win = doc.defaultView;
+  const hostname = win?.location?.hostname || "";
+  if (hostname !== "web.archive.org") {
+    return false;
+  }
+  const NodeConst = win?.Node;
+  const ELEMENT_NODE = NodeConst ? NodeConst.ELEMENT_NODE : 1;
+  const COMMENT_NODE = NodeConst ? NodeConst.COMMENT_NODE : 8;
+
+  if (node.nodeType === COMMENT_NODE) {
+    const value = String(node.textContent || "");
+    const lower = value.toLowerCase();
+    if (
+      lower.includes("wayback machine") ||
+      lower.includes("file archived") ||
+      lower.includes("wayback toolbar insert")
+    ) {
+      return true;
+    }
+  }
+
+  if (node.nodeType !== ELEMENT_NODE) {
+    return false;
+  }
+
+  const id = (node.getAttribute && node.getAttribute("id")) || "";
+  if (id.startsWith("wm-")) {
+    return true;
+  }
+
+  const dataOwner = node.getAttribute && node.getAttribute("data-owner");
+  if (dataOwner && dataOwner.toLowerCase() === "wayback-machine") {
+    return true;
+  }
+
+  const classList = node.classList ? Array.from(node.classList) : [];
+  if (
+    classList.some(
+      (value) => value.startsWith("wb-") || value === "wayback-toolbar",
+    )
+  ) {
+    return true;
+  }
+
+  const tagName = node.nodeName ? node.nodeName.toLowerCase() : "";
+  if (tagName === "script" || tagName === "style" || tagName === "link") {
+    const ref = node.getAttribute("src") || node.getAttribute("href") || "";
+    if (ref.includes("/_static/") || ref.includes("wayback")) {
+      return true;
+    }
+  }
+
+  if (tagName === "div") {
+    const role = node.getAttribute("role") || "";
+    if (role === "navigation" && classList.includes("wb-toolbar")) {
+      return true;
+    }
+    if (id === "donato" || id === "wm-ipp-base") {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function serializeRange(

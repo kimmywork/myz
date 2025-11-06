@@ -221,7 +221,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     if (!card) throw new Error("highlight card not found");
     const btns = Array.from(card.querySelectorAll("button"));
     const down = btns.find(
-      (b) => b.textContent && b.textContent.trim() === "降级为保存",
+      (b) => b.textContent && b.textContent.trim() === "降级",
     );
     if (!down) throw new Error("downgrade button not found");
     down.click();

@@ -20,6 +20,17 @@ import { DEFAULT_COLOR } from "../../shared/highlightUtils.js";
 
 export const DashboardStoreKey = Symbol("DashboardStore");
 
+const ARCHIVE_ACTION_LABELS = {
+  queue: "加入队列",
+  "queue:start": "开始处理",
+  "cdx-check": "查询存档",
+  "save-request": "提交保存请求",
+  "cdx-poll": "轮询存档",
+  "queue:complete": "保存完成",
+  "queue:pending": "等待生成",
+  "queue:error": "处理失败",
+};
+
 export function createDashboardStore() {
   const highlights = ref([]);
   const loadingHighlights = ref(true);
@@ -40,11 +51,19 @@ export function createDashboardStore() {
     logseqGraph: "",
     logseqSyncEnabled: false,
     dashboardView: "cards",
+    internetArchiveEnabled: false,
+    internetArchiveAccessKey: "",
+    internetArchiveAccessSecret: "",
   });
   const logseqStatus = ref("");
   const settingsStatus = ref("");
   const importStatus = reactive({ message: "", tone: "info" });
   const isSyncInFlight = ref(false);
+  const archiveQueue = ref([]);
+  const archiveHistory = ref([]);
+  const archiveMetaLoading = ref(false);
+  const archiveMetaStatus = ref("");
+  const archiveMetaInitialized = ref(false);
 
   const modalState = reactive({
     recordId: "",
@@ -102,6 +121,23 @@ export function createDashboardStore() {
       }
       return true;
     });
+  });
+
+  const archiveQueueWithPosition = computed(() => {
+    return archiveQueue.value.map((entry, index) => ({
+      ...entry,
+      position: index,
+    }));
+  });
+
+  const archiveHistorySorted = computed(() => {
+    return [...archiveHistory.value]
+      .sort((a, b) => {
+        const left = typeof a?.timestamp === "string" ? a.timestamp : "";
+        const right = typeof b?.timestamp === "string" ? b.timestamp : "";
+        return right.localeCompare(left);
+      })
+      .slice(0, 50);
   });
 
   const hasMoreHighlights = computed(
@@ -255,6 +291,9 @@ export function createDashboardStore() {
         logseqGraph: result.logseqGraph || "",
         logseqSyncEnabled: Boolean(result.logseqSyncEnabled),
         dashboardView: result.dashboardView || settings.dashboardView,
+        internetArchiveEnabled: Boolean(result.internetArchiveEnabled),
+        internetArchiveAccessKey: result.internetArchiveAccessKey || "",
+        internetArchiveAccessSecret: result.internetArchiveAccessSecret || "",
       });
       if (settings.dashboardView) {
         view.value = settings.dashboardView;
@@ -262,6 +301,41 @@ export function createDashboardStore() {
     } catch (error) {
       console.error("Failed to load settings", error);
     }
+  }
+
+  async function loadArchiveActivity({ force = false } = {}) {
+    if (archiveMetaLoading.value) {
+      return;
+    }
+    if (!force && archiveMetaInitialized.value) {
+      return;
+    }
+    archiveMetaLoading.value = true;
+    try {
+      const result = await sendMessage("myz:getArchiveHistory");
+      archiveQueue.value = Array.isArray(result?.queue) ? result.queue : [];
+      archiveHistory.value = Array.isArray(result?.history)
+        ? result.history
+        : [];
+      archiveMetaInitialized.value = true;
+      archiveMetaStatus.value = "";
+    } catch (error) {
+      archiveMetaStatus.value = `加载失败：${error.message}`;
+      throw error;
+    } finally {
+      archiveMetaLoading.value = false;
+    }
+  }
+
+  async function refreshArchiveActivity() {
+    await loadArchiveActivity({ force: true });
+  }
+
+  function describeArchiveAction(action) {
+    if (!action) {
+      return "未知操作";
+    }
+    return ARCHIVE_ACTION_LABELS[action] || action;
   }
 
   async function initialize() {
@@ -521,6 +595,20 @@ export function createDashboardStore() {
     }
   }
 
+  async function toggleInternetArchive(enabled) {
+    settings.internetArchiveEnabled = enabled;
+    try {
+      await sendMessage("myz:updateSettings", {
+        internetArchiveEnabled: enabled,
+      });
+    } catch (error) {
+      console.error("Failed to update archive toggle", error);
+      settings.internetArchiveEnabled = !enabled;
+      setTimedStatus(settingsStatus, `更新失败：${error.message}`);
+      throw error;
+    }
+  }
+
   async function saveSettings(payload) {
     settingsStatus.value = "保存中…";
     try {
@@ -639,6 +727,7 @@ export function createDashboardStore() {
     handleExport,
     syncLogseq,
     toggleSync,
+    toggleInternetArchive,
     saveSettings,
     importHighlightsFromFile,
     openModal,
@@ -650,6 +739,15 @@ export function createDashboardStore() {
     formatInline: (value) => formatInline(value, searchTerms.value),
     formatDateTime,
     getRecordKind,
+    archiveQueue,
+    archiveQueueWithPosition,
+    archiveHistory,
+    archiveHistorySorted,
+    archiveMetaLoading,
+    archiveMetaStatus,
+    loadArchiveActivity,
+    refreshArchiveActivity,
+    describeArchiveAction,
     cleanup,
     isSyncInFlight,
     loadHighlights: refreshHighlights,

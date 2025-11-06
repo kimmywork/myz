@@ -1,4 +1,4 @@
-import { defineConfig, withBase } from 'vitepress'
+import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'MyZ Annotator',
@@ -19,7 +19,10 @@ export default defineConfig({
         text: '指南',
         items: [
           { text: '安装指南', link: '/install' },
-          { text: '常见问题', link: '/faq' }
+          { text: '常见问题', link: '/faq' },
+          { text: '更新日志', link: '/changelog' },
+          { text: '隐私政策', link: '/privacy' },
+          { text: '用户协议', link: '/tos' },
         ]
       }
     ],
@@ -28,7 +31,7 @@ export default defineConfig({
       { icon: 'twitter', link: 'https://x.com/kenpusney' }
     ],
     footer: {
-      message: `<a href="${withBase('/privacy')}">隐私政策</a> · 本地优先，私有数据安全`,
+      message: `<a href="/privacy">隐私政策</a> · 本地优先，私有数据安全`,
       copyright: ''
     }
   }

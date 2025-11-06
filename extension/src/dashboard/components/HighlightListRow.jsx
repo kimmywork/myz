@@ -13,6 +13,10 @@ export default defineComponent({
   setup(props) {
     const store = useDashboardStore();
     const kind = computed(() => store.getRecordKind(props.record));
+    const archiveLink = computed(() => {
+      const record = props.record || {};
+      return record.archiveSnapshotUrl || record.archiveUrl || "";
+    });
 
     function handleAction(action) {
       const id = props.record?.id;
@@ -88,6 +92,17 @@ export default defineComponent({
             ></div>
           </div>
           <div class="list-row__actions">
+            {archiveLink.value ? (
+              <a
+                class="btn-link"
+                href={archiveLink.value}
+                target="_blank"
+                rel="noopener"
+                title="存档"
+              >
+                存档
+              </a>
+            ) : null}
             <a
               class="btn-link"
               href={record.sourceUrl || record.url}
@@ -95,7 +110,7 @@ export default defineComponent({
               rel="noopener"
               title={record.title || record.url}
             >
-              打开页面
+              页面
             </a>
             <button
               class="btn-link"
@@ -126,7 +141,7 @@ export default defineComponent({
               type="button"
               onClick={() => handleAction("downgrade")}
             >
-              降级为保存
+              降级
             </button>
             <button
               class="btn-link btn-link--danger"
