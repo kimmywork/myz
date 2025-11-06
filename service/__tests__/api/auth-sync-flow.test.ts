@@ -1,11 +1,12 @@
 import { randomUUID } from "crypto";
 import { mkdtempSync, rmSync, readFileSync } from "fs";
+import { createServer, type Server } from "http";
 import { join } from "path";
 import os from "os";
 
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { NextRequest } from "next/server";
+import { createApp, toNodeListener } from "h3";
 import { Pool } from "pg";
 
 function solveChallenge(question: string): string {
@@ -21,8 +22,13 @@ function solveChallenge(question: string): string {
   return operator === "+" ? String(a + b) : String(a - b);
 }
 
-function buildJsonRequest(url: string, body: unknown, headers?: Record<string, string>): NextRequest {
-  return new NextRequest(url, {
+async function postJson(
+  baseUrl: string,
+  path: string,
+  body: unknown,
+  headers?: Record<string, string>
+): Promise<Response> {
+  return fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -32,8 +38,12 @@ function buildJsonRequest(url: string, body: unknown, headers?: Record<string, s
   });
 }
 
-function buildGetRequest(url: string, headers?: Record<string, string>): NextRequest {
-  return new NextRequest(url, {
+async function getJson(
+  baseUrl: string,
+  path: string,
+  headers?: Record<string, string>
+): Promise<Response> {
+  return fetch(`${baseUrl}${path}`, {
     method: "GET",
     headers,
   });
@@ -42,19 +52,58 @@ function buildGetRequest(url: string, headers?: Record<string, string>): NextReq
 describe("Auth and sync flow", () => {
   let container: StartedPostgreSqlContainer | null = null;
   let storageRoot = "";
-  let token: string;
-  let registerRoute: typeof import("@/app/api/auth/register/route");
-  let verifyRoute: typeof import("@/app/api/auth/verify-email/route");
-  let loginRoute: typeof import("@/app/api/auth/login/route");
-  let captchaRoute: typeof import("@/app/api/captcha/challenge/route");
-  let pushRoute: typeof import("@/app/api/sync/push/route");
-  let pullRoute: typeof import("@/app/api/sync/pull/route");
-  let historyRoute: typeof import("@/app/api/sync/history/route");
+  let server: Server | null = null;
+  let baseUrl = "";
+  let token = "";
   let dbModule: typeof import("@/db") | null = null;
   let shouldSkip = false;
+  let captchaHandler: Awaited<ReturnType<typeof importCaptcha>>["default"] | null = null;
+  let loginHandler: Awaited<ReturnType<typeof importLogin>>["default"] | null = null;
+  let logoutHandler: Awaited<ReturnType<typeof importLogout>>["default"] | null = null;
+  let oauthHandler: Awaited<ReturnType<typeof importOAuth>>["default"] | null = null;
+  let registerHandler: Awaited<ReturnType<typeof importRegister>>["default"] | null = null;
+  let verifyEmailHandler: Awaited<ReturnType<typeof importVerifyEmail>>["default"] | null = null;
+  let pushHandler: Awaited<ReturnType<typeof importPush>>["default"] | null = null;
+  let pullHandler: Awaited<ReturnType<typeof importPull>>["default"] | null = null;
+  let historyHandler: Awaited<ReturnType<typeof importHistory>>["default"] | null = null;
+
+  async function importCaptcha() {
+    return import("@server/api/captcha/challenge.post");
+  }
+
+  async function importLogin() {
+    return import("@server/api/auth/login.post");
+  }
+
+  async function importLogout() {
+    return import("@server/api/auth/logout.post");
+  }
+
+  async function importOAuth() {
+    return import("@server/api/auth/oauth.post");
+  }
+
+  async function importRegister() {
+    return import("@server/api/auth/register.post");
+  }
+
+  async function importVerifyEmail() {
+    return import("@server/api/auth/verify-email.post");
+  }
+
+  async function importPush() {
+    return import("@server/api/sync/push.post");
+  }
+
+  async function importPull() {
+    return import("@server/api/sync/pull.get");
+  }
+
+  async function importHistory() {
+    return import("@server/api/sync/history.get");
+  }
 
   beforeAll(async () => {
-
     try {
       container = await new PostgreSqlContainer("postgres:17.6")
         .withDatabase(`test_${randomUUID().replace(/-/g, "")}`)
@@ -64,7 +113,6 @@ describe("Auth and sync flow", () => {
     } catch (error) {
       shouldSkip = true;
       container = null;
-       
       console.warn(
         "Skipping integration tests: PostgreSQL container could not be started.",
         error
@@ -86,25 +134,65 @@ describe("Auth and sync flow", () => {
 
     const pool = new Pool({ connectionString: container.getConnectionUri() });
     const statements = migrationSql
-      .split(/;\s*\n/) // rudimentary split on semicolons followed by newline
+      .split(/;\s*\n/)
       .map((chunk) => chunk.trim())
       .filter(Boolean);
 
-    for (const statement of statements) {
-      await pool.query(statement);
+    try {
+      for (const statement of statements) {
+        await pool.query(statement);
+      }
+    } finally {
+      await pool.end();
     }
-
-    await pool.end();
 
     dbModule = await import("@/db");
 
-    registerRoute = await import("@/app/api/auth/register/route");
-    verifyRoute = await import("@/app/api/auth/verify-email/route");
-    loginRoute = await import("@/app/api/auth/login/route");
-    captchaRoute = await import("@/app/api/captcha/challenge/route");
-    pushRoute = await import("@/app/api/sync/push/route");
-    pullRoute = await import("@/app/api/sync/pull/route");
-    historyRoute = await import("@/app/api/sync/history/route");
+    const [captchaModule, loginModule, logoutModule, oauthModule, registerModule, verifyEmailModule, pushModule, pullModule, historyModule] =
+      await Promise.all([
+        importCaptcha(),
+        importLogin(),
+        importLogout(),
+        importOAuth(),
+        importRegister(),
+        importVerifyEmail(),
+        importPush(),
+        importPull(),
+        importHistory(),
+      ]);
+
+    captchaHandler = captchaModule.default;
+    loginHandler = loginModule.default;
+    logoutHandler = logoutModule.default;
+    oauthHandler = oauthModule.default;
+    registerHandler = registerModule.default;
+    verifyEmailHandler = verifyEmailModule.default;
+    pushHandler = pushModule.default;
+    pullHandler = pullModule.default;
+    historyHandler = historyModule.default;
+
+    const app = createApp();
+    app.use("/api/auth/register", registerHandler);
+    app.use("/api/auth/verify-email", verifyEmailHandler);
+    app.use("/api/auth/login", loginHandler);
+    app.use("/api/auth/logout", logoutHandler);
+    app.use("/api/auth/oauth", oauthHandler);
+    app.use("/api/captcha/challenge", captchaHandler);
+    app.use("/api/sync/push", pushHandler);
+    app.use("/api/sync/pull", pullHandler);
+    app.use("/api/sync/history", historyHandler);
+
+    server = createServer(toNodeListener(app));
+    await new Promise<void>((resolve) => {
+      server?.listen(0, () => resolve());
+    });
+
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Failed to acquire server address");
+    }
+
+    baseUrl = `http://127.0.0.1:${address.port}`;
   });
 
   afterAll(async () => {
@@ -114,6 +202,7 @@ describe("Auth and sync flow", () => {
 
     await dbModule?.closeDb();
     await container?.stop();
+    server?.close();
     if (storageRoot) {
       rmSync(storageRoot, { recursive: true, force: true });
     }
@@ -121,43 +210,44 @@ describe("Auth and sync flow", () => {
 
   it("allows a full registration, verification, login, and sync cycle", async () => {
     if (shouldSkip) {
-       
       console.warn("Auth and sync flow test skipped because Docker is unavailable.");
       return;
     }
 
-    const captchaResponse = await captchaRoute.POST();
+    const email = "test@example.com";
+
+    const captchaResponse = await postJson(baseUrl, "/api/captcha/challenge", {});
+    expect(captchaResponse.status).toBe(200);
     const captchaBody = await captchaResponse.json();
     const captchaAnswer = solveChallenge(captchaBody.challenge.question);
 
-    const registerRequest = buildJsonRequest("http://localhost/api/auth/register", {
-      email: "test@example.com",
+    const registerResponse = await postJson(baseUrl, "/api/auth/register", {
+      email,
       password: "StrongPass123",
       captchaId: captchaBody.challenge.id,
       captchaAnswer,
     });
-
-    const registerResponse = await registerRoute.POST(registerRequest);
     expect(registerResponse.status).toBe(201);
     const registerBody = await registerResponse.json();
     expect(registerBody.requiresVerification).toBe(true);
     expect(registerBody.verificationToken).toBeDefined();
 
-    const verifyRequest = buildJsonRequest("http://localhost/api/auth/verify-email", {
+    const verifyResponse = await postJson(baseUrl, "/api/auth/verify-email", {
       token: registerBody.verificationToken,
+      email,
     });
-
-    const verifyResponse = await verifyRoute.POST(verifyRequest);
     expect(verifyResponse.status).toBe(200);
 
-    const loginCaptchaResponse = await captchaRoute.POST();
+    const loginCaptchaResponse = await postJson(baseUrl, "/api/captcha/challenge", {});
+    expect(loginCaptchaResponse.status).toBe(200);
     const loginCaptcha = await loginCaptchaResponse.json();
     const loginCaptchaAnswer = solveChallenge(loginCaptcha.challenge.question);
 
-    const loginRequest = buildJsonRequest(
-      "http://localhost/api/auth/login",
+    const loginResponse = await postJson(
+      baseUrl,
+      "/api/auth/login",
       {
-        email: "test@example.com",
+        email,
         password: "StrongPass123",
         captchaId: loginCaptcha.challenge.id,
         captchaAnswer: loginCaptchaAnswer,
@@ -166,18 +256,19 @@ describe("Auth and sync flow", () => {
         "user-agent": "jest-test-suite",
       }
     );
-
-    const loginResponse = await loginRoute.POST(loginRequest);
     expect(loginResponse.status).toBe(200);
-    const loginBody = await loginResponse.json();
+    const loginBody = (await loginResponse.json()) as {
+      token: string;
+    };
     token = loginBody.token;
     expect(typeof token).toBe("string");
     expect(token.length).toBeGreaterThan(10);
 
-    const now = new Date().toString();
+    const now = new Date().toISOString();
 
-    const pushRequest = buildJsonRequest(
-      "http://localhost/api/sync/push",
+    const pushResponse = await postJson(
+      baseUrl,
+      "/api/sync/push",
       {
         cursor: 0,
         changes: [
@@ -194,8 +285,6 @@ describe("Auth and sync flow", () => {
         Authorization: `Bearer ${token}`,
       }
     );
-
-    const pushResponse = await pushRoute.POST(pushRequest);
     expect(pushResponse.status).toBe(200);
     const pushBody = await pushResponse.json();
     expect(pushBody.cursor).toBe(1);
@@ -204,20 +293,27 @@ describe("Auth and sync flow", () => {
       data: { label: "Important", value: 1 },
     });
 
-    const pullRequest = buildGetRequest("http://localhost/api/sync/pull?cursor=0", {
-      Authorization: `Bearer ${token}`,
-    });
-    const pullResponse = await pullRoute.GET(pullRequest);
+    const pullResponse = await getJson(
+      baseUrl,
+      "/api/sync/pull?cursor=0",
+      {
+        Authorization: `Bearer ${token}`,
+      }
+    );
     expect(pullResponse.status).toBe(200);
     const pullBody = await pullResponse.json();
     expect(pullBody.cursor).toBe(1);
     expect(pullBody.snapshot.annotations["annotation-1"].data.value).toBe(1);
+    expect(Array.isArray(pullBody.changes)).toBe(true);
     expect(pullBody.changes).toHaveLength(1);
 
-    const historyRequest = buildGetRequest("http://localhost/api/sync/history", {
-      Authorization: `Bearer ${token}`,
-    });
-    const historyResponse = await historyRoute.GET(historyRequest);
+    const historyResponse = await getJson(
+      baseUrl,
+      "/api/sync/history",
+      {
+        Authorization: `Bearer ${token}`,
+      }
+    );
     expect(historyResponse.status).toBe(200);
     const historyBody = await historyResponse.json();
     expect(historyBody.history).toHaveLength(1);

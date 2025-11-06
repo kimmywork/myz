@@ -1,10 +1,10 @@
 ## MyZ Sync Service
 
-This package hosts the HTTP service that powers the MyZ Annotator browser extension. It provides user registration, email verification, session management, captcha protection, OAuth logins, and an incremental sync API backed by PostgreSQL plus file-based payload storage. The Next.js App Router also exposes a small management portal for end users.
+This package hosts the HTTP service that powers the MyZ Annotator browser extension. It provides user registration, email verification, session management, captcha protection, OAuth logins, and an incremental sync API backed by PostgreSQL plus file-based payload storage. The Nuxt 4.2 application also exposes a small management portal for end users.
 
 ### Tech Stack
 
-- Next.js App Router (Node runtime)
+- Nuxt 4.2 (Vue 3.5 with JSX + Composition API, running on Nitro)
 - Drizzle ORM with PostgreSQL
 - File snapshot storage under `STORAGE_ROOT`
 - Zod validation, bcrypt for passwords, and custom math captcha
@@ -47,13 +47,24 @@ npm run dev
 
 The portal is available at `http://localhost:3000`. Registering or logging in from the UI exercises the same APIs consumed by the browser extension.
 
+Tailwind styles are sourced from `src/assets/globals.pcss` and expanded via the Nuxt + PostCSS pipeline. If you add new utility layers, keep the `@tailwind` directives in that file.
+
+### Email Verification Flow
+
+Visiting `/verify-email` now renders server-side and requires users to submit both the token (from the query string) and their email address. The verification request posts to `/api/auth/verify-email` with `{ token, email }`; only matching pairs succeed. This prevents token guessing from disclosing email addresses and avoids the double-render race that previously caused mismatched states. When updating this flow, keep `definePageMeta({ ssr: true })` in place so the initial render stays deterministic.
+
 ### Testing
 
 - **Integration suite:** `npm test` (pulls a disposable PostgreSQL container).
 - **Watch mode:** `npm run test:watch`.
-- **Playwright smoke tests:** `npx playwright install --with-deps` once, then `npm run test:e2e` (requires Docker; a disposable PostgreSQL container is launched automatically).
+- **Playwright smoke tests:** `npx playwright install --with-deps` once, then `npm run test:e2e` (requires Docker; a disposable PostgreSQL container is launched automatically). Set `TESTCONTAINERS_RYUK_DISABLED=true` when running e2e locally to match the CI environment.
 
-The Playwright configuration boots the Next.js dev server with auto-redirects disabled and relies on network interception to avoid mutating the real database.
+The Playwright configuration boots the Nuxt dev server with auto-redirects disabled and relies on network interception to avoid mutating the real database.
+
+### Development Notes
+
+- Use `useRequestFetch()` or `useFetch()` from Nuxt composables instead of the legacy `$fetch`; the latter is not injected in JSX components.
+- Prefer `navigateTo` for client-side redirects after login so that session establishment happens before rerouting.
 
 ### Linting
 

@@ -28,6 +28,7 @@ export const oauthLoginSchema = z.object({
 
 export const verifyEmailSchema = z.object({
   token: z.string().min(10),
+  email: z.string().email(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

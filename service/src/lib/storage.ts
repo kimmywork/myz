@@ -1,7 +1,10 @@
-import { mkdir, readFile, writeFile, rm, readdir, stat } from "fs/promises";
-import { join } from "path";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 import { env } from "@/lib/env";
+
+const { mkdir, readFile, writeFile, rm, readdir, stat } = fs;
+const { join } = path;
 
 const SNAPSHOT_FILENAME = "latest.json";
 

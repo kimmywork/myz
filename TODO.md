@@ -10,6 +10,7 @@
 
 - [x] 🔨 Testing using playwright
 - [x] Rewrite use Vue/JSX
+  - [x] Rewrite `service/` using Vue/JSX
 
 ## Bug
 

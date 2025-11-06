@@ -24,7 +24,7 @@ export default async function globalSetup() {
   process.env.DATABASE_URL = connectionUri;
   process.env.STORAGE_ROOT = storageRoot;
   process.env.CAPTCHA_MODE = process.env.CAPTCHA_MODE ?? "builtin";
-  process.env.NEXT_PUBLIC_DISABLE_AUTO_REDIRECT = "1";
+  process.env.NUXT_PUBLIC_DISABLE_AUTO_REDIRECT = "1";
   process.env.TESTCONTAINERS_RYUK_DISABLED = process.env.TESTCONTAINERS_RYUK_DISABLED ?? "true";
   process.env.PLAYWRIGHT_ENV_FILE = ENV_FILE_PATH;
 
@@ -48,7 +48,7 @@ export default async function globalSetup() {
     `export DATABASE_URL="${connectionUri}"`,
     `export STORAGE_ROOT="${storageRoot}"`,
     `export CAPTCHA_MODE="${process.env.CAPTCHA_MODE}"`,
-    `export NEXT_PUBLIC_DISABLE_AUTO_REDIRECT="1"`,
+  `export NUXT_PUBLIC_DISABLE_AUTO_REDIRECT="1"`,
   ];
 
   await writeFile(ENV_FILE_PATH, `${envLines.join("\n")}\n`, "utf-8");
