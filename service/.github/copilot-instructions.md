@@ -1,6 +1,0 @@
-- Server is a Next.js App Router project; keep code in `src/app/api` deployed as serverless handlers and avoid introducing traditional Express routers.
-- Always go through `lib/auth/session.ts` and `lib/auth/request.ts` when dealing with authentication. Prefer throwing/handling `AuthenticationError` instead of generic failures.
-- Sync data must flow through `lib/sync.ts` + `lib/storage.ts`. Persisted payloads should stay as JSON objects to keep future E2EE feasible.
-- Integration tests rely on Jest + Testcontainers. When adding new APIs, cover them in `__tests__/` rather than only Playwright.
-- Playwright smoke tests live in `tests/e2e`, boot a disposable PostgreSQL container via Testcontainers, and exercise the real API paths—keep them fast but end-to-end.
-- Update `README.md` and `docs/knowledges/service-api.md` whenever you adjust setup steps or API shapes so other tools stay in sync.

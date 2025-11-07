@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
-import { randomInt } from "crypto";
+import crypto from "node:crypto";
 
 import { db } from "@/db";
 import { captchaChallenges } from "@/db/schema";
 import { env } from "@/lib/env";
 import { hashToken, verifyTokenHash } from "@/lib/crypto";
+
+const { randomInt } = crypto;
 
 const CHALLENGE_TTL_MS = 1000 * 60 * 5; // 5 minutes
 const MAX_ATTEMPTS = 5;

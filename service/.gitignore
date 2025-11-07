@@ -44,3 +44,9 @@ next-env.d.ts
 storage/
 
 test-results/
+
+# nuxt.js
+.nuxt/
+.nuxt-imports/
+.nuxt-storybook/
+.output/

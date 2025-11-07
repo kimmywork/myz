@@ -28,7 +28,7 @@ type LoginResponse = {
 
 const baseUrlEnv =
   process.env.PLAYWRIGHT_BASE_URL ??
-  `http://127.0.0.1:${process.env.PORT ?? "4010"}`;
+  `http://localhost:${process.env.PORT ?? "3000"}`;
 const { hostname: serviceHostname } = new URL(baseUrlEnv);
 
 test.describe("Dashboard", () => {
@@ -63,6 +63,8 @@ test.describe("Dashboard", () => {
     const verificationToken = registerBody.verificationToken as string;
 
     await page.goto(`/verify-email?token=${verificationToken}`);
+    await page.getByLabel("Email address").fill(email);
+    await page.getByRole("button", { name: "Verify email" }).click();
     await expect(
       page.getByText(`Email ${email} verified successfully.`)
     ).toBeVisible();

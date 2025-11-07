@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
-
 import { verifySessionToken } from "@/lib/auth/session";
 import type { User } from "@/db/schema";
+import { getCookie, getHeader } from "h3";
+import type { H3Event } from "h3";
 
 export class AuthenticationError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -13,9 +13,9 @@ export class AuthenticationError extends Error {
 const SESSION_COOKIE_NAME = "myz_session";
 
 export async function requireAuthenticatedUser(
-  request: NextRequest
+  event: H3Event
 ): Promise<{ user: User; sessionToken: string }> {
-  const token = extractToken(request);
+  const token = extractToken(event);
 
   if (!token) {
     throw new AuthenticationError(401, "Missing authentication token");
@@ -37,14 +37,14 @@ export async function requireAuthenticatedUser(
   };
 }
 
-export function extractToken(request: NextRequest): string | null {
-  const header = request.headers.get("authorization");
+export function extractToken(event: H3Event): string | null {
+  const header = getHeader(event, "authorization");
 
   if (header?.startsWith("Bearer ")) {
     return header.slice("Bearer ".length).trim();
   }
 
-  const cookieToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const cookieToken = getCookie(event, SESSION_COOKIE_NAME);
 
   if (cookieToken) {
     return cookieToken;
