@@ -1,4 +1,4 @@
-import { computed, defineComponent, ref } from "vue";
+import { computed, defineComponent, onMounted, ref } from "vue";
 import { useRoute, useRequestFetch, definePageMeta } from "#imports";
 import { NuxtLink } from "#components";
 
@@ -35,6 +35,11 @@ export default defineComponent({
     const error = ref<string | null>(null);
     const submitting = ref(false);
     const verified = ref(false);
+    const interactive = ref(false);
+
+    onMounted(() => {
+      interactive.value = true;
+    });
 
     const verifyEmail = async () => {
       const tokenValue = token.value;
@@ -81,9 +86,9 @@ export default defineComponent({
       }
     };
 
-    const handleSubmit = (event: Event) => {
-      event.preventDefault();
-      if (submitting.value || verified.value) {
+    const handleSubmit = (event?: Event) => {
+      event?.preventDefault();
+      if (!interactive.value || submitting.value || verified.value) {
         return;
       }
       void verifyEmail();
@@ -115,13 +120,14 @@ export default defineComponent({
                 email.value = (event.target as HTMLInputElement).value;
               }}
               required
-              disabled={submitting.value || verified.value}
+              disabled={!interactive.value || submitting.value || verified.value}
             />
           </label>
           <button
-            type="submit"
+            type="button"
             class="w-full rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-gray-900 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-white/30 disabled:text-white/70"
-            disabled={submitting.value || verified.value}
+            disabled={!interactive.value || submitting.value || verified.value}
+            onClick={() => handleSubmit()}
           >
             {verified.value ? "Email verified" : submitting.value ? "Verifying..." : "Verify email"}
           </button>

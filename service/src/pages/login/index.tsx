@@ -89,10 +89,17 @@ export default defineComponent({
               "Content-Type": "application/json",
             },
             credentials: "include",
+            throw: false,
           }
         );
 
-        if ("error" in payload) {
+        if (!payload) {
+          error.value = "Login failed, Please try again.";
+          await loadCaptcha();
+          return;
+        }
+
+        if ("errpr" in payload) {
           error.value = payload.error ?? "Login failed";
           await loadCaptcha();
           return;

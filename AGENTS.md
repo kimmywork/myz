@@ -91,7 +91,7 @@ Extension (`cd extension`):
 
 ### Testing
 - Jest integration tests live in `service/__tests__/` and rely on Testcontainers, so Docker must be available.
-- Playwright smoke tests live in `service/tests/e2e`; run them with Docker, `NEXT_PUBLIC_DISABLE_AUTO_REDIRECT=1`, and `TESTCONTAINERS_RYUK_DISABLED=true` to match CI.
+- Playwright smoke tests live in `service/tests/e2e`; run them with Docker, `NUXT_PUBLIC_DISABLE_AUTO_REDIRECT=1`, and `TESTCONTAINERS_RYUK_DISABLED=true` to match CI.
 
 ### Environment
 - Minimum variables: `DATABASE_URL`, `STORAGE_ROOT`, `CAPTCHA_MODE`; see `src/lib/env.ts` for the full matrix.

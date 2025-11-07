@@ -1,15 +1,13 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
-
 /* Tailwind directives – processed by Tailwind's PostCSS plugin. */
 @import "tailwindcss";
 
 :root {
   --background: #0a0a0a;
   --foreground: #ededed;
-  --font-geist-sans: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
-  --font-geist-mono: "Geist Mono", "JetBrains Mono", "Fira Code", ui-monospace,
-    SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --font-geist-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Fira Code", monospace;
 }
 
 @media (prefers-color-scheme: light) {

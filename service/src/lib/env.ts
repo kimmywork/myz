@@ -1,18 +1,18 @@
-import fs from "node:fs";
-import path from "node:path";
+import {existsSync} from "node:fs";
+import {resolve} from "node:path";
 
 import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 
+const nodeEnv = process.env.NODE_ENV ?? "development";
+
 const candidateEnvFiles = [
   ".env",
   ".env.local",
-  `.env.${process.env.NODE_ENV ?? "development"}`,
-  `.env.${process.env.NODE_ENV ?? "development"}.local`,
+  `.env.${nodeEnv}`,
+  `.env.${nodeEnv}.local`,
 ];
 
-const { existsSync } = fs;
-const { resolve } = path;
 
 for (const fileName of candidateEnvFiles) {
   const absolutePath = resolve(process.cwd(), fileName);
@@ -22,9 +22,9 @@ for (const fileName of candidateEnvFiles) {
 }
 
 const normalizedNodeEnv = ["development", "test", "production"].includes(
-  process.env.NODE_ENV ?? ""
+  nodeEnv ?? ""
 )
-  ? (process.env.NODE_ENV as "development" | "test" | "production")
+  ? (nodeEnv as "development" | "test" | "production")
   : "development";
 
 const envSchema = z.object({
