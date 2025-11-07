@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import crypto from "node:crypto";
 import { eq, and, desc, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -14,6 +14,8 @@ import {
   type SyncRecordInsert,
 } from "@/db/schema";
 import { hashToken } from "@/lib/crypto";
+
+const { randomUUID } = crypto;
 
 const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 
@@ -70,22 +72,20 @@ export async function createEmailVerificationToken(
 }
 
 export async function consumeEmailVerificationToken(
-  token: string
+  token: string,
+  email: string
 ): Promise<User | null> {
   const hashed = hashToken(token);
+  const normalizedEmail = email.trim().toLowerCase();
 
   const [record] = await db
     .select({ token: emailVerificationTokens, user: users })
     .from(emailVerificationTokens)
     .innerJoin(users, eq(emailVerificationTokens.userId, users.id))
-    .where(eq(emailVerificationTokens.tokenHash, hashed))
+    .where(and(eq(emailVerificationTokens.tokenHash, hashed), eq(users.email, normalizedEmail)))
     .limit(1);
 
   if (!record) {
-    return null;
-  }
-
-  if (record.token.consumedAt) {
     return null;
   }
 

@@ -1,4 +1,6 @@
-import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import crypto from "node:crypto";
+
+const { createHash, randomBytes, timingSafeEqual } = crypto;
 
 const DEFAULT_TOKEN_BYTES = 32;
 

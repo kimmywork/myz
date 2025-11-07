@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = Number(process.env.PORT) || 4010;
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
+const port = Number(process.env.PORT ?? "") || 3000;
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${port}`;
 const envFile = process.env.PLAYWRIGHT_ENV_FILE;
 const webServerCommand = envFile
   ? `bash -c 'set -a && source "${envFile}" && npm run dev -- --port ${port}'`
@@ -24,7 +24,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
-      NEXT_PUBLIC_DISABLE_AUTO_REDIRECT: "1",
+      NUXT_PUBLIC_DISABLE_AUTO_REDIRECT: "1",
     },
   },
   projects: [

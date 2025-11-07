@@ -1,9 +1,36 @@
+import {existsSync} from "node:fs";
+import {resolve} from "node:path";
+
+import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
+
+const nodeEnv = process.env.NODE_ENV ?? "development";
+
+const candidateEnvFiles = [
+  ".env",
+  ".env.local",
+  `.env.${nodeEnv}`,
+  `.env.${nodeEnv}.local`,
+];
+
+
+for (const fileName of candidateEnvFiles) {
+  const absolutePath = resolve(process.cwd(), fileName);
+  if (existsSync(absolutePath)) {
+    loadDotenv({ path: absolutePath, override: false });
+  }
+}
+
+const normalizedNodeEnv = ["development", "test", "production"].includes(
+  nodeEnv ?? ""
+)
+  ? (nodeEnv as "development" | "test" | "production")
+  : "development";
 
 const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
-    .default(process.env.NODE_ENV ?? "development"),
+    .default(normalizedNodeEnv),
   DATABASE_URL: z
     .string()
     .min(1, "DATABASE_URL must be provided")

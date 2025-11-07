@@ -9,6 +9,7 @@ const config = {
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
     "^@/(.*)$": "<rootDir>/src/$1",
+    "^@server/(.*)$": "<rootDir>/server/$1",
   },
   transform: {
     "^.+\\.(t|j)sx?$": [
