@@ -94,6 +94,78 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (!existingSettings) {
     await chrome.storage.local.set({ [SETTINGS_KEY]: DEFAULT_SETTINGS });
   }
+  try {
+    // Remove existing if present to avoid duplicate id error
+    await chrome.contextMenus.remove("myz-zen-mode").catch(() => {});
+    chrome.contextMenus.create({
+      id: "myz-zen-mode",
+      title: "禅定模式 (仅显示文章)",
+      contexts: ["page", "selection"]
+    });
+    // Add capture as image when in zen mode
+    await chrome.contextMenus.remove("myz-zen-capture").catch(() => {});
+    chrome.contextMenus.create({
+      id: "myz-zen-capture",
+      title: "保存文章为图片",
+      contexts: ["page", "selection"],
+      visible: false,
+    });
+  } catch (e) {
+    // ignore menu creation failures
+  }
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (!tab || !tab.id) return;
+  try {
+    if (info.menuItemId === "myz-zen-mode") {
+      await chrome.tabs.sendMessage(tab.id, { type: "myz:toggleZenMode" });
+      await refreshZenMenuForTab(tab.id);
+    } else if (info.menuItemId === "myz-zen-capture") {
+      // In Zen mode, capture only the target article element instead of full page
+      await chrome.tabs.sendMessage(tab.id, { type: "myz:captureZenTargetFull" });
+    }
+  } catch (e) {
+    // ignore
+  }
+});
+
+// Dynamically update menu title/visibility per tab
+async function refreshZenMenuForTab(tabId) {
+  if (!tabId) return;
+  try {
+    const canResp = await chrome.tabs.sendMessage(tabId, {
+      type: "myz:canEnterZenMode",
+    });
+    const stateResp = await chrome.tabs.sendMessage(tabId, {
+      type: "myz:getZenModeState",
+    });
+    const canEnter = Boolean(canResp?.data?.canEnter);
+    const enabled = Boolean(stateResp?.data?.enabled);
+    const title = enabled ? "退出禅定模式" : "禅定模式 (仅显示文章)";
+    await chrome.contextMenus.update("myz-zen-mode", { title, visible: canEnter || enabled });
+    await chrome.contextMenus.update("myz-zen-capture", { visible: enabled });
+  } catch (e) {
+    // ignore
+  }
+}
+
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  refreshZenMenuForTab(tabId);
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete") {
+    refreshZenMenuForTab(tabId);
+  }
+});
+
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  // Content notifies when zen mode state changed (e.g., via shortcuts or internal toggles)
+  if (msg && msg.type === "myz:zenModeStateChanged") {
+    const tabId = sender?.tab?.id;
+    if (tabId) refreshZenMenuForTab(tabId);
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

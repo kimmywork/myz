@@ -75,9 +75,27 @@ function loadImage(dataUrl) {
   });
 }
 
-function downloadImage(dataUrl, filename) {
+export function downloadImage(dataUrl, filename) {
   const anchor = document.createElement("a");
   anchor.href = dataUrl;
   anchor.download = filename;
   anchor.click();
+}
+
+export async function cropToCanvas(dataUrl, rect, captureViewport) {
+  const image = await loadImage(dataUrl);
+  const viewportWidth = captureViewport?.width ?? image.width;
+  const viewportHeight = captureViewport?.height ?? image.height;
+  const scaleX = image.width / viewportWidth;
+  const scaleY = image.height / viewportHeight;
+  const sx = Math.max(0, Math.floor(rect.left * scaleX));
+  const sy = Math.max(0, Math.floor(rect.top * scaleY));
+  const sw = Math.min(image.width - sx, Math.floor(rect.width * scaleX));
+  const sh = Math.min(image.height - sy, Math.floor(rect.height * scaleY));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, sw);
+  canvas.height = Math.max(1, sh);
+  const context = canvas.getContext("2d");
+  context?.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
+  return { canvas, scaleX, scaleY, sw, sh };
 }

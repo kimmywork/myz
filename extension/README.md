@@ -21,6 +21,7 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 - 🗂️ **侧边详情面板**：点击任意高亮即可在页面右侧打开固定位置的详情面板，支持复制 Markdown、编辑、删除。
 - 🔄 **LogSeq 增量同步**：通过官方 HTTP API 在目标页面插入或恢复缺失块，自动追踪 `logseqBlockUuid`，仅同步新增或丢失的标注，并在写入前将 HTML 转换为 Markdown（含 `<pre>` 代码块）。
 - ℤ **统一图标集**：扩展图标与操作栏图标统一为带有「ℤ」符号的视觉语言，浮动工具条、Popup、Dashboard 按钮全面改用自研 SVG 图标，跨浏览器保持一致并提供亮/暗色双版本资源。
+- 🧘 **禅定模式（Zen Mode）**：在包含文章主体的页面一键进入沉浸式阅读，仅保留文章区域并优化打印样式；不改变 DOM 结构，确保高亮路径与恢复不受影响。
 
 ## 快速开始（开发者）
 
@@ -184,3 +185,35 @@ npx playwright test tests --config=tests/playwright.config.ts
 ## 支持
 
 遇到问题或希望新增功能，欢迎在仓库提 Issue 说明场景与复现步骤。
+
+## 禅定模式（Zen Mode）
+
+- 使用方式：
+  - 在包含文章主体的页面，右键打开浏览器上下文菜单，选择「禅定模式 (仅显示文章)」。
+  - 进入后菜单项会变为「退出禅定模式」，再次点击即可恢复。
+
+- 兼容范围：
+  - 默认会尝试以下选择器定位文章主体：`article`、`#article`、`#article-content`、`.article`、`.article-content`、`[role="article"]`。
+  - 支持按 URL 自定义规则，优先匹配开发者维护的映射，其次才是默认选择器。
+  - 已内置 gcores 文章页规则（例如 `https://www.gcores.com/articles/206815`），使用 `.articlePage` 作为选择器。
+
+- 可定制映射：
+  - 编辑 `extension/src/content/zen-config.js`，按需追加规则（从上到下，第一个命中生效）：
+
+    ```js
+    export const ZEN_SELECTOR_MAP = [
+      // gcores 文章页
+      { pattern: /:\/\/(?:www\.)?gcores\.com\/articles\/\d+/, selector: ".articlePage" },
+      // 示例：example.com 使用自定义容器
+      { pattern: /example\.com/, selector: "main .article" },
+    ];
+    ```
+
+- 实现要点（不破坏高亮）：
+  - 禅定模式仅通过给目标元素与其祖先节点添加类名，并注入一段 CSS 来隐藏其它元素；不会移动或重排节点。
+  - 这样可保持高亮所依赖的 DOM 路径与文本偏移不变，标注的恢复与定位规则无需变更。
+  - 打印样式（`@media print`）同样只输出文章主体，便于直接打印干净稿件。
+
+- 常见问题：
+  - 若右键菜单未出现，说明当前页面未检测到可识别的文章主体。可在 `zen-config.js` 中添加匹配规则后重载扩展。
+  - 某些站点在 SPA 导航后需要等待内容渲染完成，菜单会在页面完成加载时自动刷新显示/隐藏与标题。
