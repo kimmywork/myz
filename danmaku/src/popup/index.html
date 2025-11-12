@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-Hans">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>MyZ Danmaku</title>
+	</head>
+	<body>
+		<main class="popup" id="app">
+			<header class="popup__header">
+				<h1 class="popup__title">MyZ 弹幕</h1>
+						<button
+							type="button"
+							class="popup__refresh"
+							data-role="refresh"
+							aria-label="刷新弹幕列表"
+						>
+							刷新
+						</button>
+			</header>
+			<p class="popup__status" data-role="status">加载中…</p>
+			<ul class="popup__list" data-role="list" aria-live="polite"></ul>
+			<footer class="popup__footer">
+				<a
+					class="popup__support-link"
+					href="https://github.com/myz-suite/myz-support/issues"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					遇到问题？提交支持请求
+				</a>
+			</footer>
+		</main>
+		<script type="module" src="./main.ts"></script>
+	</body>
+</html>
