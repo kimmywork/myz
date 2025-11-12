@@ -11,10 +11,10 @@ hero:
   actions:
     - theme: brand
       text: Chrome 安装
-      link: "#"
+      link: https://chromewebstore.google.com/detail/ignagkboleblnlgpadmpjpccocgpghpa
     - theme: brand
       text: Edge 安装
-      link: "#"
+      link: https://microsoftedge.microsoft.com/addons/detail/lmeklchkknhmflgjdpemkgdgaceihimk
     - theme: alt
       text: 隐私政策
       link: /privacy
