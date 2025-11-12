@@ -1,21 +1,36 @@
-# MyZ Danmaku
-
-MyZ Danmaku 是一个实验性的 Chrome 扩展，可在 YouTube 视频顶部实时展示带时间码的评论，打造“弹幕”式观看体验。扩展会自动读取当前视频的公开评论，识别时间戳并与播放进度同步——你还能在弹窗中查看完整的弹幕列表。
-
-## 核心特性
-
-![](./assets/myz-danmaku.png)
-
-- **评论转弹幕**：识别评论中的时间码，将内容按时间顺序整理为弹幕轨道。
-- **智能排布**：在视频顶部渲染弹幕，自动处理同一时间点的多条评论，减少遮挡。
-- **弹窗浏览**：工具栏弹窗列出当前视频的所有弹幕，并提供刷新和支持入口。
-- **徽标提醒**：扩展图标徽章显示已解析到的弹幕数量，便于快速了解活跃度。
-- **本地优先**：所有弹幕数据保留在浏览器本地，开发者不收集、不上传任何用户信息。
+---
+layout: home
+title: MyZ Danmaku
+hero:
+  name: MyZ Danmaku
+  text: Youtube 弹幕扩展
+  tagline: 将时间码评论转化为同步弹幕，在 YouTube 中体验实时互动。
+  image:
+    src: /assets/youtube-screenshot.png
+    alt: MyZ Danmaku 扩展示意图
+  actions:
+    - theme: brand
+      text: Chrome 安装
+      link: "#"
+    - theme: brand
+      text: Edge 安装
+      link: "#"
+    - theme: alt
+      text: 隐私政策
+      link: /privacy
+features:
+  - title: 评论转弹幕
+    details: 自动识别带时间码的评论，并跟随视频播放同步显示。
+  - title: 智能排布
+    details: 根据屏幕空间调整弹幕轨道，尽量避免遮挡内容。
+  - title: 本地优先
+    details: 所有弹幕数据仅保留在浏览器本地，不上传任何服务器。
+---
 
 ## 风险提示
 
 - MyZ Danmaku 仅在本地运行，不会向开发者发送任何浏览数据。
-- 扩展依赖 YouTube 的私有接口读取评论。理论上 Google 可能对频繁或异常的请求实施限流或阻断，对此产生的访问或账号限制，开发者不承担责任。
+- 扩展依赖 YouTube 的私有接口读取公开评论。理论上 Google 可能对频繁或异常的请求实施限流或阻断，对此产生的访问或账号限制，开发者不承担责任。
 
 ## 支持与反馈
 

@@ -14,15 +14,14 @@ export default defineConfig({
     nav: [
       { text: 'MyZ Annotator', link: '/' },
       { text: 'MyZ Danmaku', link: '/myz-danmaku' },
-      { text: '更新日志', link: '/changelog' },
-      { text: '隐私政策', link: '/privacy' }
+      { text: '隐私政策', link: '/privacy' },
+      { text: '用户协议', link: '/tos' },
     ],
     sidebar: [
       {
         text: '指南',
         items: [
-          { text: '安装指南', link: '/install' },
-          { text: 'MyZ Danmaku', link: '/myz-danmaku' },
+          { text: 'MyZ Annotator 安装指南', link: '/install' },
           { text: '常见问题', link: '/faq' },
           { text: '更新日志', link: '/changelog' },
           { text: '隐私政策', link: '/privacy' },
