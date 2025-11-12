@@ -3,6 +3,7 @@
 ## Project Structure & Module Organization
 - `service/`: Nuxt 4 web service (Vue 3.5 + JSX, TypeScript). Source in `service/src`, pages under `service/src/pages/**`, layouts in `service/src/layouts/**`, shared logic in `service/src/lib/**`, assets in `service/public/`.
 - `myz-annotator/`: Chrome MV3 extension bundled with Vite + `@crxjs/vite-plugin`. Background modules live in `myz-annotator/src/background/**`, content scripts and DOM helpers in `myz-annotator/src/content/**`, UI components in `myz-annotator/src/popup/**` and `myz-annotator/src/dashboard/**`, shared composables/utilities in `myz-annotator/src/shared/**`.
+- `myz-danmaku/`: Chrome MV3 extension built with Vite + `@crxjs/vite-plugin` and TypeScript. Background worker in `myz-danmaku/src/background.ts`, content script and overlay styles in `myz-danmaku/src/content.ts` / `myz-danmaku/src/content.css`, popup UI in `myz-danmaku/src/popup/**`, manifest in `myz-danmaku/src/manifest.ts`.
 - `tests/`: Root docs and URL helpers; package-specific suites live alongside each project (e.g., `myz-annotator/tests/**`, `service/tests/**`).
 - `docs/` and `docs/knowledges/`: Design notes, prompts, and technical references.
 
@@ -19,6 +20,12 @@ Extension (`cd myz-annotator`):
 - `npm run build` — Type-check (`vue-tsc`) then bundle via Vite.
 - `npm run lint` / `npm run format` — ESLint and Prettier.
 - `npm run test:dev` / `npm run test:playwright` — Jest unit; Playwright e2e.
+
+Danmaku (`cd myz-danmaku`):
+- `npm run dev` — Vite dev server for MyZ Danmaku.
+- `npm run build` — Bundle MV3 extension to `dist/`.
+- `npm run lint` / `npm run typecheck` — ESLint and TypeScript checks.
+- `npm run icons` — Generate multi-size PNG icons from `assets/icons/icon-template.svg`.
 
 ## Coding Style & Naming Conventions
 - Indentation: 2 spaces; avoid semicolons in JS; TypeScript in `service/` and selective areas of `myz-annotator/`.
@@ -49,6 +56,13 @@ Extension (`cd myz-annotator`):
 - When reapplying highlights, call `markHighlightForReapply` on failures and keep the toast notifications plus deadline handling intact for `highlightReapplyState`.
 - Keep popup and dashboard messaging serialisable and route through existing background `messageHandlers` rather than sending DOM nodes or functions.
 
+#### Zen Mode
+- Zen Mode lives in `myz-annotator/src/content/zen.js` with URL→selector mapping in `myz-annotator/src/content/zen-config.js` (`ZEN_SELECTOR_MAP`, first match wins).
+- Toggle via messages `"myz:toggleZenMode"`, `"myz:canEnterZenMode"`, `"myz:getZenModeState"`; content sends `"myz:zenModeStateChanged"` when state flips.
+- Background registers context menus `myz-zen-mode` (toggle) and `myz-zen-capture` (visible only when enabled); titles update per-tab.
+- CSS is injected non-destructively: mark target and ancestors (`.myz-zen-target-keep`, `.myz-zen-ancestor-keep`) and hide others; DOM order and nodes remain unchanged so highlight paths and offsets stay valid.
+- Print media styles and capture target image (via context menu) operate on the kept article element only.
+
 ### Workflows & Testing
 - Manual QA loop: `npm run build` in `myz-annotator/`, load the unpacked `myz-annotator/dist` via `chrome://extensions`, and reload after background or content changes.
 - For LogSeq validation, enable the desktop app's HTTP API + token (see `docs/knowledges/logseq-http-api.md`) and monitor service worker logs from `callLogseq`.
@@ -60,6 +74,7 @@ Extension (`cd myz-annotator`):
 - The suite runs headed (`headless: false` in `tests/playwright.config.ts`); use `xvfb-run` or Playwright's Docker image on Linux CI.
 - Collect HTML reports, traces, and videos as CI artifacts to debug flaky runs.
 - Coverage includes toolbar selection, apply highlight, save-as-clip, inspector copy/edit/delete, dashboard list/edit/downgrade/import/export, complex DOM fixtures, screenshot capture, bulk import, and infinite scroll.
+- Include Zen Mode toggle, selector mapping, and print/capture behaviours under `myz-annotator/tests/extension/`.
 
 ### Common Pitfalls
 - Never write the `color` property into LogSeq blocks; metadata must use single-colon separators (e.g., `ID:`, `标签:`).
@@ -72,6 +87,30 @@ Extension (`cd myz-annotator`):
 - `docs/knowledges/logseq-http-api.md` for RPC expectations.
 - `myz-annotator/README.md` for user-facing behaviour and build steps.
 - `myz-annotator/vite.config.*` and `myz-annotator/package.json` for bundling and script conventions.
+- `myz-danmaku/README.md` for danmaku behaviours, build steps, and overlay patterns.
+
+## myz-danmaku Playbook
+
+### Architecture Overview
+- Chrome MV3 extension built with Vite + `@crxjs/vite-plugin` and TypeScript.
+- Background worker (`src/background.ts`) handles IndexedDB caching, badge updates, and message routing.
+- Content script (`src/content.ts`) detects YouTube video IDs, fetches comments with timecodes, and renders overlay tracks (`src/content.css`).
+- Popup UI (`src/popup/**`) displays parsed danmaku entries and supports manual refresh.
+
+### Patterns to Follow
+- Use background worker to persist danmaku snapshots in IndexedDB; read via runtime messages instead of direct DB access from UI.
+- Keep overlay minimal and avoid interfering with native YouTube controls; prefer appending non-invasive elements and classes.
+- Synchronise entries and badge counts through message passing; degrade gracefully when API calls fail.
+- Maintain MV3 worker constraints: no DOM API in background and handle asynchronous operations defensively.
+
+### Workflows & Testing
+- Manual QA loop: `npm run build` in `myz-danmaku/`, load `myz-danmaku/dist` via `chrome://extensions` and test on YouTube watch pages.
+- Verify overlay rendering, popup list, and badge updates; validate IndexedDB restores on revisit.
+
+### Common Pitfalls
+- Avoid blocking the YouTube player's event loop; schedule overlay updates efficiently.
+- Ensure timecode parsing is robust to various formats; ignore comments without valid timestamps.
+- Respect MV3 lifecycle: reinitialise listeners on worker restart; do not rely on long-lived globals.
 
 ## MyZ Sync Service Playbook
 
