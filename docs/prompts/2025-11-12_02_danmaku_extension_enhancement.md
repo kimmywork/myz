@@ -66,3 +66,11 @@ Provide wording for following fields to submit to webstore:
 
 Single purpose - An extension must have a single purpose that is narrow and easy-to-understand.
 Permission justification - A permission is either one of a list of known strings, such as "activeTab", or a match pattern giving access to one or more hosts. For following items: storage, activeTab, scripting, tabs, Host.
+
+---
+
+请更新 `website` 文件夹，加入一个页面（md文件）来展示 myz-danmaku的特性（参考 danmaku/README.md），并且加入到顶部的导航中，并且更新 privacy policy 和 term of service （中文/英文），加入 myz-danmaku 的内容。强调 myz-danmaku 不收集任何用户信息，并且由于通过 Innertube 接口访问的数据，Google 可能会 block 用户的访问，对此带来的问题开发者不承担任何责任。
+
+---
+
+Wording调整： 因为 website 是面向终端用户的文档，所以尽量隐藏实现细节。比如不要提到 youtubei.js Innertube 等，不要提 IndexedDB 以及插件的底层工作流程等。类似的术语请通过 “Youtube私有接口”，“浏览器本地存储”等技术无关术语。 myz-danmaku 页面上的安装构建细节也请移除。
