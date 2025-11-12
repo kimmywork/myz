@@ -6,7 +6,7 @@ hero:
   text: Youtube 弹幕扩展
   tagline: 将时间码评论转化为同步弹幕，在 YouTube 中体验实时互动。
   image:
-    src: /assets/youtube-screenshot.png
+    src: ./youtube-screenshot.png
     alt: MyZ Danmaku 扩展示意图
   actions:
     - theme: brand

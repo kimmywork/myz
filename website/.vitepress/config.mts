@@ -8,7 +8,7 @@ export default defineConfig({
   appearance: true,
   lastUpdated: true,
   head: [
-    ['link', { rel: 'icon', href: '/assets/favicon.png' }],
+    ['link', { rel: 'icon', href: './favicon.png' }],
   ],
   themeConfig: {
     nav: [
