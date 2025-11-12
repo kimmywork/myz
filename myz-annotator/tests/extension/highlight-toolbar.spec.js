@@ -16,7 +16,7 @@ test.beforeAll(async () => {
   serverUrl = listen.url;
 
   // Load the built extension output. Ensure you've run the extension build
-  // step (`npm run build`) so `extension/dist` exists.
+  // step (`npm run build`) so `myz-annotator/dist` exists.
   const extensionPath = path.join(__dirname, "..", "..", "dist");
   const launched = await launchExtension(extensionPath);
   context = launched.context;

@@ -25,7 +25,7 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 
 ## 快速开始（开发者）
 
-项目的前端 UI 已从原有的常规 JS/React 架构迁移为 Vue 3 + JSX（使用 Vue 的 Composition API 与 JSX 语法），并且使用 `@crxjs/vite-plugin` 在 Vite 中构建符合 MV3 的扩展包。核心业务逻辑（background/content/shared helpers）保留在 `extension/src` 下。
+项目的前端 UI 已从原有的常规 JS/React 架构迁移为 Vue 3 + JSX（使用 Vue 的 Composition API 与 JSX 语法），并且使用 `@crxjs/vite-plugin` 在 Vite 中构建符合 MV3 的扩展包。核心业务逻辑（background/content/shared helpers）保留在 `myz-annotator/src` 下。
 
 基本开发步骤：
 
@@ -59,7 +59,7 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 
 我们使用 Playwright 来做端到端的回归与交互测试（因为扩展需要以 unpacked extension 的形式在 Chromium 中以 headed 模式运行，Playwright 提供了合适的 API 来启动带有用户数据目录的 Chromium 并加载扩展）。测试覆盖范围会同步维护在 `docs/acceptance-criteria.md` 中。
 
-本仓库的 Playwright 测试位于 `extension/tests/`，主要覆盖：
+本仓库的 Playwright 测试位于 `myz-annotator/tests/`，主要覆盖：
 
 - 浮动工具条出现、应用高亮并持久化（AC-01/AC-02/AC-03）
 - 阻止与断言重叠标注（`highlight-overlap.spec.js`），并覆盖「保存文字」的交互路径。
@@ -67,7 +67,7 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 - 复杂页面高亮与导出格式（代码块、pre 格式化）
 - 截图工具端到端（使用 Playwright 的 download 事件断言）
 
-快速运行（在 `extension/` 目录下）：
+快速运行（在 `myz-annotator/` 目录下）：
 
 ```bash
 npm install
@@ -156,13 +156,13 @@ npx playwright test tests --config=tests/playwright.config.ts
 
 1. **准备素材**：
    - `manifest.json`（MV3）已就绪，确认 `version`、`description`、`host_permissions` 等符合政策。
-   - `action` 图标、128×128 应用图标、以及 CWS 要求的 16 / 48 / 128 尺寸资源需准备放入 `extension/assets/`（或自定义目录）。
+   - `action` 图标、128×128 应用图标、以及 CWS 要求的 16 / 48 / 128 尺寸资源需准备放入 `myz-annotator/assets/`（或自定义目录）。
    - 产品截图（最少 1 张，建议多尺寸）与 1024×500 宣传横幅。
 2. **隐私与政策**：
    - 起草隐私政策说明数据仅存储于本地，不与远端共享；在 CWS 提交时提供可访问的链接。
    - 检查扩展是否涉及受限权限（当前仅 `storage`、`tabs`、`activeTab`）。
 3. **打包上传**：
-   - 在仓库根目录运行 `zip -r myz-extension.zip extension/*`（不可包含 `.git` 等多余文件）。
+   - 在仓库根目录运行 `zip -r myz-extension.zip myz-annotator/*`（不可包含 `.git` 等多余文件）。
    - 登录 CWS Dashboard，创建条目并上传压缩包。
 4. **填写商店信息**：
    - 产品名称、简介、详细介绍（可参考本 README）。
@@ -174,8 +174,8 @@ npx playwright test tests --config=tests/playwright.config.ts
 
 ## 架构与本地开发提示
 
-- UI（Popup / Dashboard / 小组件）：使用 Vue 3 + JSX，组件位于 `extension/src/popup/` 与 `extension/src/dashboard/` 下。组件通常以 `.jsx` / `.tsx` 或 `.vue`（视情况）存在并使用 Composition API + composables。
-- 共享逻辑和工具函数放在 `extension/src/shared/` 与 `extension/src/common/`。Content script 仍在 `extension/src/content/`，背景脚本在 `extension/src/background/`。
+- UI（Popup / Dashboard / 小组件）：使用 Vue 3 + JSX，组件位于 `myz-annotator/src/popup/` 与 `myz-annotator/src/dashboard/` 下。组件通常以 `.jsx` / `.tsx` 或 `.vue`（视情况）存在并使用 Composition API + composables。
+- 共享逻辑和工具函数放在 `myz-annotator/src/shared/` 与 `myz-annotator/src/common/`。Content script 仍在 `myz-annotator/src/content/`，背景脚本在 `myz-annotator/src/background/`。
 - 使用 `readState` / `writeState` 等 storage helpers 操作 `chrome.storage.local`（state namespace 仍为 `myz::highlights` 与 `myz::settings`）。
 - 背景脚本运行在 MV3 Service Worker 环境：避免使用 DOM API（例如 `document`、`window` 的 DOM 操作），并确保异步 API 的错误被妥善捕获与记录。
 - 当修改背景脚本或 content script 时，手动在 `chrome://extensions/` 中重新加载扩展或点击 Service Worker 的 "更新"。UI 更改（Popup/Dashboard）在开发模式下可通过 Vite 的 HMR 快速查看。
@@ -198,7 +198,7 @@ npx playwright test tests --config=tests/playwright.config.ts
   - 已内置 gcores 文章页规则（例如 `https://www.gcores.com/articles/206815`），使用 `.articlePage` 作为选择器。
 
 - 可定制映射：
-  - 编辑 `extension/src/content/zen-config.js`，按需追加规则（从上到下，第一个命中生效）：
+  - 编辑 `myz-annotator/src/content/zen-config.js`，按需追加规则（从上到下，第一个命中生效）：
 
     ```js
     export const ZEN_SELECTOR_MAP = [
