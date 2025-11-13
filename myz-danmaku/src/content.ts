@@ -1,6 +1,6 @@
 import Innertube, { ClientType, YT as YTNamespace, YTNodes, Misc, UniversalCache } from "youtubei.js/web";
 import { LANGUAGE_STORAGE_KEY } from "./shared/constants";
-import { t, onLanguageChange, type Language } from "./shared/i18n";
+import { t, onLanguageChange, setLanguage, type Language } from "./shared/i18n";
 
 type CommentNode = YTNodes.CommentView;
 
@@ -169,29 +169,54 @@ async function getStoredLanguage(): Promise<Language> {
 }
 
 function updateContentScriptLanguage(language: Language): void {
+  console.log('MyZ Danmaku: Updating content script language to', language);
+  
   // Update danmaku button text
   if (danmakuButton) {
     updateDanmakuButtonText(danmakuButton);
   }
+  
+  // Update any other UI elements that need language updates
+  // For now, we only have the danmaku button
 }
 
 async function initializeLanguage(): Promise<void> {
-  const storedLanguage = await getStoredLanguage();
-  
-  // Listen for language changes from storage (synced across extension components)
-  chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'sync' && changes[LANGUAGE_STORAGE_KEY]) {
-      const newLanguage = changes[LANGUAGE_STORAGE_KEY].newValue as Language;
-      if (newLanguage) {
-        updateContentScriptLanguage(newLanguage);
+  try {
+    // Get stored language preference
+    const storedLanguage = await getStoredLanguage();
+    console.log('MyZ Danmaku: Initializing content script with language', storedLanguage);
+    
+    // Set the initial language in the I18nManager
+    setLanguage(storedLanguage);
+    
+    // Update UI with initial language
+    updateContentScriptLanguage(storedLanguage);
+    
+    // Listen for language changes from storage (synced across extension components)
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === 'sync' && changes[LANGUAGE_STORAGE_KEY]) {
+        const newLanguage = changes[LANGUAGE_STORAGE_KEY].newValue as Language;
+        console.log('MyZ Danmaku: Language change detected in storage', newLanguage);
+        if (newLanguage) {
+          // Use setLanguage to ensure proper I18nManager update
+          setLanguage(newLanguage);
+        }
       }
-    }
-  });
+    });
 
-  // Also listen for our internal language change events
-  onLanguageChange((language) => {
-    updateContentScriptLanguage(language);
-  });
+    // Also listen for our internal language change events
+    onLanguageChange((language) => {
+      console.log('MyZ Danmaku: Internal language change event', language);
+      updateContentScriptLanguage(language);
+    });
+    
+    console.log('MyZ Danmaku: Language initialization complete');
+  } catch (error) {
+    console.error('MyZ Danmaku: Failed to initialize language', error);
+    // Fallback to default language
+    setLanguage('zh_CN');
+    updateContentScriptLanguage('zh_CN');
+  }
 }
 let danmakuButton: HTMLButtonElement | null = null;
 let isDanmakuButtonBusy = false;

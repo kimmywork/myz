@@ -74,7 +74,7 @@ export const messages: Record<Language, Messages> = {
     cancelButton: 'Cancel',
     
     // Content script
-    danmakuButton: 'Dan',
+    danmakuButton: '弹',
     danmakuButtonTitle: 'Send danmaku (Enter)',
     danmakuButtonAriaLabel: 'Send danmaku',
     sendUnavailableNotice: 'Danmaku sending is not yet implemented. Please send danmaku through timecodes in the comments section.'
