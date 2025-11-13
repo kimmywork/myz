@@ -56,3 +56,21 @@ popup开启的窗口太小了，根本展示不全设置的Modal。请更新下p
 
 ---
 
+我们在修改 `myz-danmaku` 的时候创建了很多备份文件，请检查这些备份文件是否还有存在的必要，另外 _locales 的部分是否可以与 src/shared/i18n.ts 里的内容合并。
+
+---
+
+好像还有个 main-backup-full.ts。另外，_locales/ 和 i18n.ts 都需要保持。_locales 是告诉 Chrome Web Store 我们支持多语言，而 i18n.ts 支持了动态切换语言的功能。
+
+---
+
+popup页面好像有点问题：
+
+```
+Blocked aria-hidden on an element because its descendant retained focus. The focus must not be hidden from assistive technology users. Avoid using aria-hidden on a focused element or its ancestor. Consider using th
+e inert attribute instead, which will also prevent focus. For more details, see the aria-hidden section of the WAI-ARIA specification at https://w3c.github.io/aria/#aria-hidden. Element with focus: <button.modal__b
+utton modal__button--secondary> Ancestor with aria-hidden: <div.modal#languageModal>
+```
+
+---
+

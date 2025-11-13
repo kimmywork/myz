@@ -27,6 +27,9 @@ const saveLanguageButton = document.querySelector<HTMLButtonElement>('[data-role
 const cancelLanguageButton = document.querySelector<HTMLButtonElement>('[data-role="cancel-language"]');
 const languageRadioButtons = document.querySelectorAll<HTMLInputElement>('input[name="language"]');
 
+// Store the element that had focus before opening the modal
+let activeElementBeforeModal: HTMLElement | null = null;
+
 // Hybrid i18n strategy:
 // 1. Use Chrome i18n for initial language detection (for store compatibility)
 // 2. Use our custom i18n for dynamic language switching (for user experience)
@@ -235,9 +238,18 @@ async function fetchDanmakuEntries(videoId?: string | null): Promise<DanmakuEntr
   if (videoId) {
     payload.videoId = videoId;
   }
-  const response = await chrome.runtime.sendMessage(payload);
-  if (response?.ok && Array.isArray(response.danmaku)) {
-    return [...response.danmaku].filter((entry: DanmakuEntry) => entry && typeof entry.id === "string");
+  try {
+    const response = await chrome.runtime.sendMessage(payload);
+    if (response?.ok && Array.isArray(response.danmaku)) {
+      return [...response.danmaku].filter((entry: DanmakuEntry) => entry && typeof entry.id === "string");
+    }
+  } catch (error) {
+    if (error && (error as any).message?.includes('Extension context invalidated')) {
+      console.debug("MyZ Danmaku popup: extension context invalidated");
+      setStatus(t("loadError"), "error");
+      return [];
+    }
+    console.warn("MyZ Danmaku popup: failed to fetch entries", error);
   }
   return [];
 }
@@ -279,6 +291,9 @@ async function loadDanmaku(showSpinner = true): Promise<void> {
 
 // Modal functions
 function openLanguageModal(): void {
+  // Store the element that triggered the modal
+  activeElementBeforeModal = document.activeElement as HTMLElement;
+  
   languageModal.classList.add('is-open');
   languageModal.setAttribute('aria-hidden', 'false');
   
@@ -287,13 +302,21 @@ function openLanguageModal(): void {
     radio.checked = radio.value === getCurrentLanguage();
   });
   
-  // Focus on the modal
+  // Focus on the modal close button
   modalCloseButton?.focus();
 }
 
 function closeLanguageModal(): void {
   languageModal.classList.remove('is-open');
   languageModal.setAttribute('aria-hidden', 'true');
+  
+  // Return focus to the element that opened the modal, or settings button as fallback
+  const elementToFocus = activeElementBeforeModal && document.body.contains(activeElementBeforeModal) 
+    ? activeElementBeforeModal 
+    : settingsButton;
+  
+  elementToFocus?.focus();
+  activeElementBeforeModal = null;
 }
 
 function saveLanguageSelection(): void {

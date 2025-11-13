@@ -1115,6 +1115,12 @@ async function syncDanmakuToBackground(
   try {
     await chrome.runtime.sendMessage(payload);
   } catch (error) {
+    // Handle extension context invalidated (happens after extension reload)
+    if (error && (error as any).message?.includes('Extension context invalidated')) {
+      console.debug("MyZ Danmaku: extension context invalidated, stopping sync");
+      // Optionally stop further operations since extension was reloaded
+      return;
+    }
     console.warn("MyZ Danmaku: failed to sync background", error);
   }
 }
@@ -1643,6 +1649,11 @@ async function refreshOverlayFromCache(videoId: string): Promise<void> {
       await applyDanmakuSnapshot(videoId, response.danmaku, { merge: true, persist: true });
     }
   } catch (error) {
+    // Handle extension context invalidated gracefully
+    if (error && (error as any).message?.includes('Extension context invalidated')) {
+      console.debug("MyZ Danmaku: extension context invalidated during cache restore");
+      return;
+    }
     console.warn("MyZ Danmaku: failed to restore cache", error);
   }
 }
@@ -1653,7 +1664,11 @@ async function handleLocationChange(): Promise<void> {
     if (currentVideoId) {
       currentVideoId = null;
       resetState();
-      chrome.runtime.sendMessage({ type: "danmaku:clear" }).catch(() => {});
+      try {
+        chrome.runtime.sendMessage({ type: "danmaku:clear" }).catch(() => {});
+      } catch {
+        // Ignore errors if extension context is invalidated
+      }
     }
     return;
   }
