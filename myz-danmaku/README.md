@@ -72,7 +72,7 @@ src/
 
 如果在使用过程中遇到问题，请访问支持页面提交 issue：
 
-- GitHub Issues: https://github.com/myz-suite/myz-support/issues
+- GitHub Issues: <https://github.com/myz-suite/myz-support/issues>
 
 ---
 

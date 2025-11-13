@@ -36,7 +36,7 @@ features:
 
 若遇到问题或有改进建议，请访问支持页面提交 Issue：
 
-- GitHub Issues: https://github.com/myz-suite/myz-support/issues
+- GitHub Issues: <https://github.com/myz-suite/myz-support/issues>
 
 ---
 

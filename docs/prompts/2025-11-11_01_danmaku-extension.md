@@ -44,7 +44,7 @@ Executing inline script violates the following Content Security Policy directive
 
 MyZ Danmaku: initial batch empty, requesting fallback data
 loadDanmakuFromApi @ index.js:635
-POST https://www.youtube.com/youtubei/v1/get_comments?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8 net::ERR_ABORTED 404 (Not Found)
+POST https://www.youtube.com/youtubei/v1/get_comments?key=\<REDACTED> net::ERR_ABORTED 404 (Not Found)
 MyZ Danmaku: fallback batch still empty, scheduling retry
 
 
@@ -66,11 +66,11 @@ MyZ Danmaku: fetch failure TypeError: Failed to execute 'fetch' on 'WorkerGlobal
 
 ---
 
-MyZ Danmaku: fetch failure Error: Request to https://www.youtube.com/youtubei/vnull/next?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false&alt=json failed with status 400
+MyZ Danmaku: fetch failure Error: Request to https://www.youtube.com/youtubei/vnull/next?key=\<REDACTED>&prettyPrint=false&alt=json failed with status 400
 
 ---
 
-MyZ Danmaku: fetch failure Error: Request to https://www.youtube.com/youtubei/v1/next?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false&alt=json failed with status 403
+MyZ Danmaku: fetch failure Error: Request to https://www.youtube.com/youtubei/v1/next?key=\<REDACTED>&prettyPrint=false&alt=json failed with status 403
 
 I think we should use InnterTube in content script, that we we can fetch user's credentials to invoke innertube api.
 
@@ -78,7 +78,7 @@ I think we should use InnterTube in content script, that we we can fetch user's 
 
 Error: Failed to extract signature decipher algorithm
 
-MyZ Danmaku: fetch failure Error: Request to https://www.youtube.com/youtubei/vnull/next?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false&alt=json failed with status 400
+MyZ Danmaku: fetch failure Error: Request to https://www.youtube.com/youtubei/vnull/next?key=\<REDACTED>&prettyPrint=false&alt=json failed with status 400
 
 ---
 

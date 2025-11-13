@@ -11,8 +11,10 @@ function resolveSelectorForUrl(url) {
       if (pattern instanceof RegExp && pattern.test(url)) {
         return selector;
       }
-    }
-  } catch {}
+    }  
+  } catch (err) {
+    console.warn('[Zen] Error resolving selector for URL:', err);
+  }
   return null;
 }
 
@@ -32,7 +34,9 @@ function findArticleElement() {
     try {
       const el = document.querySelector(sel);
       if (el) return el;
-    } catch {}
+    } catch (err) {
+      console.warn('[Zen] Error resolving selector for URL:', err);
+    }
   }
   return null;
 }
@@ -92,7 +96,10 @@ export function disableZenMode() {
       : [];
     ancestors.forEach((node) => node.classList.remove("myz-zen-ancestor-keep"));
     document.body.classList.remove("myz-zen-ancestor-keep");
-  } catch {}
+  } catch (err) {
+     console.warn('[Zen] Error during cleanup:', err);
+  }
+
   return true;
 }
 

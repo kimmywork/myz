@@ -124,7 +124,7 @@ async function handleUpdateRequest(
   const preview = Array.isArray(payload.preview) ? payload.preview.slice() : [];
   const count = typeof payload.count === "number" ? payload.count : preview.length;
   const storedAt = payload.storedAt ?? Date.now();
-  void writeDanmakuRecord(payload.videoId, preview, storedAt);
+  await writeDanmakuRecord(payload.videoId, preview, storedAt);
   await updateBadgeText(tabId, pickBadgeText(count));
   return { ok: true as const };
 }

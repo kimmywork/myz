@@ -134,6 +134,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 async function refreshZenMenuForTab(tabId) {
   if (!tabId) return;
   try {
+    await chrome.contextMenus.update("myz-zen-mode", {
+      title: "禅定模式 (仅显示文章)",
+      visible: false,
+    });
+    await chrome.contextMenus.update("myz-zen-capture", { visible: false });
     const canResp = await chrome.tabs.sendMessage(tabId, {
       type: "myz:canEnterZenMode",
     });
@@ -146,7 +151,17 @@ async function refreshZenMenuForTab(tabId) {
     await chrome.contextMenus.update("myz-zen-mode", { title, visible: canEnter || enabled });
     await chrome.contextMenus.update("myz-zen-capture", { visible: enabled });
   } catch (e) {
-    // ignore
+    await Promise.all([
+      chrome.contextMenus
+        .update("myz-zen-mode", {
+          title: "禅定模式 (仅显示文章)",
+          visible: false,
+        })
+        .catch(() => {}),
+      chrome.contextMenus
+        .update("myz-zen-capture", { visible: false })
+        .catch(() => {}),
+    ]);
   }
 }
 
