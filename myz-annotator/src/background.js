@@ -45,6 +45,18 @@ import {
   getArchiveHistory,
   initializeArchiveQueue,
 } from "./background/internetArchive.js";
+import {
+  readAiConversations,
+  writeAiConversations,
+  createConversation,
+  addMessageToConversation,
+  getConversationHistory,
+  saveAiGeneratedHighlight,
+  exportConversation,
+  deleteConversation,
+  listConversations,
+} from "./background/ai.js";
+import { createAiProvider } from "./background/aiProvider.js";
 
 function enrichRecordWithArchive(record, archives) {
   if (!record) {
@@ -100,7 +112,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     chrome.contextMenus.create({
       id: "myz-zen-mode",
       title: "禅定模式 (仅显示文章)",
-      contexts: ["page", "selection"]
+      contexts: ["page", "selection"],
     });
     // Add capture as image when in zen mode
     await chrome.contextMenus.remove("myz-zen-capture").catch(() => {});
@@ -109,6 +121,47 @@ chrome.runtime.onInstalled.addListener(async () => {
       title: "保存文章为图片",
       contexts: ["page", "selection"],
       visible: false,
+    });
+
+    // Add AI Assistant menu
+    await chrome.contextMenus.remove("myz-ai-assistant").catch(() => {});
+    chrome.contextMenus.create({
+      id: "myz-ai-assistant",
+      title: "打开AI助手",
+      contexts: ["page", "selection"],
+    });
+
+    // Add AI Assistant submenu actions
+    await chrome.contextMenus.remove("myz-ai-summarize").catch(() => {});
+    chrome.contextMenus.create({
+      id: "myz-ai-summarize",
+      parentId: "myz-ai-assistant",
+      title: "总结页面内容",
+      contexts: ["page", "selection"],
+    });
+
+    await chrome.contextMenus.remove("myz-ai-keypoints").catch(() => {});
+    chrome.contextMenus.create({
+      id: "myz-ai-keypoints",
+      parentId: "myz-ai-assistant",
+      title: "发现关键要点",
+      contexts: ["page", "selection"],
+    });
+
+    await chrome.contextMenus.remove("myz-ai-logseq").catch(() => {});
+    chrome.contextMenus.create({
+      id: "myz-ai-logseq",
+      parentId: "myz-ai-assistant",
+      title: "查找LogSeq关联笔记",
+      contexts: ["page", "selection"],
+    });
+
+    await chrome.contextMenus.remove("myz-ai-custom").catch(() => {});
+    chrome.contextMenus.create({
+      id: "myz-ai-custom",
+      parentId: "myz-ai-assistant",
+      title: "打开面板",
+      contexts: ["page", "selection"],
     });
   } catch (e) {
     // ignore menu creation failures
@@ -123,7 +176,76 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       await refreshZenMenuForTab(tab.id);
     } else if (info.menuItemId === "myz-zen-capture") {
       // In Zen mode, capture only the target article element instead of full page
-      await chrome.tabs.sendMessage(tab.id, { type: "myz:captureZenTargetFull" });
+      await chrome.tabs.sendMessage(tab.id, {
+        type: "myz:captureZenTargetFull",
+      });
+    } else if (
+      info.menuItemId === "myz-ai-assistant" ||
+      info.menuItemId === "myz-ai-custom"
+    ) {
+      // Open side panel only (no auto-trigger for parent menu and "打开面板")
+      await chrome.sidePanel.open({ windowId: tab.windowId });
+    } else if (
+      info.menuItemId === "myz-ai-summarize" ||
+      info.menuItemId === "myz-ai-keypoints" ||
+      info.menuItemId === "myz-ai-logseq"
+    ) {
+      // Open side panel with AI assistant
+      await chrome.sidePanel.open({ windowId: tab.windowId });
+
+      // Try to extract page content first
+      try {
+        const result = await new Promise((resolve, reject) => {
+          chrome.tabs.sendMessage(
+            tab.id,
+            { type: "myz:extractPageContent" },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+              } else {
+                resolve(response);
+              }
+            },
+          );
+        });
+
+        let hasContent = false;
+        if (
+          result &&
+          result.data &&
+          result.data.text &&
+          result.data.text.length > 100
+        ) {
+          hasContent = true;
+        }
+
+        // Only auto-trigger if we have enough page content
+        if (hasContent) {
+          // Extract action type from menu ID
+          let action = "custom";
+          if (info.menuItemId === "myz-ai-summarize") action = "summarize";
+          else if (info.menuItemId === "myz-ai-keypoints")
+            action = "key_points";
+          else if (info.menuItemId === "myz-ai-logseq")
+            action = "find_related_logseq";
+
+          // Send message to side panel with the selected action
+          setTimeout(async () => {
+            try {
+              await chrome.runtime.sendMessage({
+                type: "myz:openSidePanelWithAction",
+                payload: { action, tabId: tab.id },
+              });
+            } catch (e) {
+              console.warn("Could not send side panel action message:", e);
+            }
+          }, 500);
+        } else {
+          console.log("Not enough page content, skipping auto-trigger");
+        }
+      } catch (e) {
+        console.warn("Could not check page content, skipping auto-trigger:", e);
+      }
     }
   } catch (e) {
     // ignore
@@ -148,7 +270,10 @@ async function refreshZenMenuForTab(tabId) {
     const canEnter = Boolean(canResp?.data?.canEnter);
     const enabled = Boolean(stateResp?.data?.enabled);
     const title = enabled ? "退出禅定模式" : "禅定模式 (仅显示文章)";
-    await chrome.contextMenus.update("myz-zen-mode", { title, visible: canEnter || enabled });
+    await chrome.contextMenus.update("myz-zen-mode", {
+      title,
+      visible: canEnter || enabled,
+    });
     await chrome.contextMenus.update("myz-zen-capture", { visible: enabled });
   } catch (e) {
     await Promise.all([
@@ -696,6 +821,137 @@ const messageHandlers = {
 
   async "myz:getArchiveHistory"() {
     return getArchiveHistory();
+  },
+
+  // AI Assistant handlers
+  async "myz:testAiConnection"() {
+    const settings = await readSettings();
+    if (!settings.aiAssistantEnabled) {
+      return { success: false, error: "AI Assistant is not enabled" };
+    }
+
+    const provider = createAiProvider(settings);
+    return await provider.testConnection();
+  },
+
+  async "myz:createConversation"(payload) {
+    const settings = await readSettings();
+    if (!settings.aiAssistantEnabled) {
+      throw new Error("AI Assistant is not enabled");
+    }
+
+    const { url, title, action } = payload || {};
+    const conversation = await createConversation(url, title);
+
+    // Store conversation
+    const state = await readAiConversations();
+    state.conversations[conversation.id] = conversation;
+    state.activeConversationId = conversation.id;
+    await writeAiConversations(state);
+
+    return conversation;
+  },
+
+  async "myz:processWithAi"(payload) {
+    const settings = await readSettings();
+    if (!settings.aiAssistantEnabled) {
+      throw new Error("AI Assistant is not enabled");
+    }
+
+    const provider = createAiProvider(settings);
+
+    try {
+      await provider.initializeMcpClients();
+      const { conversationId, action, content, options = {} } = payload || {};
+
+      const result = await provider.processConversation(
+        conversationId,
+        action,
+        content,
+        options,
+      );
+
+      const tools = await provider.getAvailableTools();
+      result.availableTools = tools;
+
+      return result;
+    } finally {
+      await provider.disconnectMcpClients();
+    }
+  },
+
+  async "myz:getConversationHistory"(payload) {
+    const { conversationId, limit } = payload || {};
+    return await getConversationHistory(conversationId, limit || 50);
+  },
+
+  async "myz:listConversations"(payload) {
+    const { limit } = payload || {};
+    return await listConversations(limit || 100);
+  },
+
+  async "myz:exportConversation"(payload) {
+    const { conversationId, format } = payload || {};
+    return await exportConversation(conversationId, format || "markdown");
+  },
+
+  async "myz:deleteConversation"(payload) {
+    const { conversationId } = payload || {};
+    await deleteConversation(conversationId);
+    return { success: true };
+  },
+
+  async "myz:saveAiGeneratedHighlight"(payload) {
+    // Ensure we have valid timestamps
+    const now = new Date().toISOString();
+    const highlightData = {
+      ...payload,
+      createdAt: payload.createdAt || now,
+      updatedAt: payload.updatedAt || now,
+    };
+
+    const highlight = await saveAiGeneratedHighlight(highlightData);
+
+    // Save to main highlights storage
+    const id = highlight.id || generateId();
+    const record = {
+      ...highlight,
+      id,
+      kind: "ai-generated",
+      createdAt: highlight.createdAt || now,
+      updatedAt: now,
+    };
+
+    const state = await readState();
+    if (!state.highlights[id]) {
+      state.order.push(id);
+    }
+    state.highlights[id] = record;
+    await writeState(state);
+
+    return record;
+  },
+
+  async "myz:testMcpConnection"(payload) {
+    const { serverConfig } = payload || {};
+    return await testMcpConnection(serverConfig);
+  },
+
+  async "myz:listMcpTools"() {
+    const settings = await readSettings();
+    if (!settings.aiAssistantEnabled) {
+      return { tools: [] };
+    }
+
+    const provider = createAiProvider(settings);
+
+    try {
+      await provider.initializeMcpClients();
+      const tools = await provider.getAvailableTools();
+      return { tools };
+    } finally {
+      await provider.disconnectMcpClients();
+    }
   },
 };
 

@@ -11,9 +11,9 @@ function resolveSelectorForUrl(url) {
       if (pattern instanceof RegExp && pattern.test(url)) {
         return selector;
       }
-    }  
+    }
   } catch (err) {
-    console.warn('[Zen] Error resolving selector for URL:', err);
+    console.warn("[Zen] Error resolving selector for URL:", err);
   }
   return null;
 }
@@ -35,7 +35,7 @@ function findArticleElement() {
       const el = document.querySelector(sel);
       if (el) return el;
     } catch (err) {
-      console.warn('[Zen] Error resolving selector for URL:', err);
+      console.warn("[Zen] Error resolving selector for URL:", err);
     }
   }
   return null;
@@ -97,7 +97,7 @@ export function disableZenMode() {
     ancestors.forEach((node) => node.classList.remove("myz-zen-ancestor-keep"));
     document.body.classList.remove("myz-zen-ancestor-keep");
   } catch (err) {
-     console.warn('[Zen] Error during cleanup:', err);
+    console.warn("[Zen] Error during cleanup:", err);
   }
 
   return true;

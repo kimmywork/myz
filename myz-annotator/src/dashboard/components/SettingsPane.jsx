@@ -1,5 +1,6 @@
 import { computed, defineComponent, reactive, ref, watch } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
+import AiSettings from "./AiSettings.jsx";
 
 export default defineComponent({
   name: "SettingsPane",
@@ -188,6 +189,25 @@ export default defineComponent({
       }
     }
 
+    // AI Settings handlers
+    async function handleAiSaveSettings(payload) {
+      try {
+        store.settingsStatus.value = "保存中...";
+        await store.saveSettings(payload);
+        store.settingsStatus.value = "设置已保存";
+        setTimeout(() => {
+          store.settingsStatus.value = "";
+        }, 3000);
+      } catch (error) {
+        store.settingsStatus.value = `保存失败：${error.message}`;
+        throw error;
+      }
+    }
+
+    async function handleAiTestConnection(settings) {
+      return await store.testAiConnection(settings);
+    }
+
     function handleCloseSettings() {
       store.showHighlights();
     }
@@ -351,6 +371,13 @@ export default defineComponent({
               </div>
             </div>
           </section>
+
+          <AiSettings
+            settings={store.settings}
+            onSave={handleAiSaveSettings}
+            onTestConnection={handleAiTestConnection}
+            statusRef={store.settingsStatus}
+          />
 
           <section class="settings__group">
             <div class="settings__group-header">

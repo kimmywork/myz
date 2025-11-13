@@ -1,0 +1,23 @@
+{
+  "name": "mcp-myz-search",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/mcp-server.js",
+    "dev": "node --watch src/mcp-server.js",
+    "smoke:test": "HEADLESS=true node tests/smoke.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.1",
+    "commander": "^14.0.2",
+    "express": "^5.1.0",
+    "playwright": "^1.56.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "zod": "^3.25.76"
+  }
+}
