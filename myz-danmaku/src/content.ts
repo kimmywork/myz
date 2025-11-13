@@ -1,4 +1,6 @@
 import Innertube, { ClientType, YT as YTNamespace, YTNodes, Misc, UniversalCache } from "youtubei.js/web";
+import { LANGUAGE_STORAGE_KEY } from "./shared/constants";
+import { t, onLanguageChange, type Language } from "./shared/i18n";
 
 type CommentNode = YTNodes.CommentView;
 
@@ -97,7 +99,7 @@ const DISPLAY_LOOKAHEAD = 0.75;
 const LOOKBACK_BUFFER = 0.5;
 const SEEK_DETECTION_THRESHOLD = 1;
 const MAX_FETCH_PAGES = 30;
-const COMMENT_SORT: "TOP_COMMENTS" = "TOP_COMMENTS";
+const COMMENT_SORT_ORDERS = ["TOP_COMMENTS", "NEWEST_FIRST"] as const;
 const REQUEST_LIMIT = 10;
 const REQUEST_INTERVAL_MS = 5_000;
 const MAX_CONCURRENT_REQUESTS = 2;
@@ -155,7 +157,42 @@ const BULLET_WAVE_DELAY_MS = 180;
 const BULLET_LANE_GAP_PX = 48;
 const LANE_RESERVATION_MS = 300;
 const NOTICE_DURATION_MS = 3_000;
-const SEND_UNAVAILABLE_NOTICE = "发送弹幕功能暂未实现，请在评论区通过时间码来发送弹幕。";
+
+// Dynamic language management for content script
+async function getStoredLanguage(): Promise<Language> {
+  try {
+    const result = await chrome.storage.sync.get(LANGUAGE_STORAGE_KEY);
+    return (result[LANGUAGE_STORAGE_KEY] as Language) || 'zh_CN';
+  } catch {
+    return 'zh_CN';
+  }
+}
+
+function updateContentScriptLanguage(language: Language): void {
+  // Update danmaku button text
+  if (danmakuButton) {
+    updateDanmakuButtonText(danmakuButton);
+  }
+}
+
+async function initializeLanguage(): Promise<void> {
+  const storedLanguage = await getStoredLanguage();
+  
+  // Listen for language changes from storage (synced across extension components)
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'sync' && changes[LANGUAGE_STORAGE_KEY]) {
+      const newLanguage = changes[LANGUAGE_STORAGE_KEY].newValue as Language;
+      if (newLanguage) {
+        updateContentScriptLanguage(newLanguage);
+      }
+    }
+  });
+
+  // Also listen for our internal language change events
+  onLanguageChange((language) => {
+    updateContentScriptLanguage(language);
+  });
+}
 let danmakuButton: HTMLButtonElement | null = null;
 let isDanmakuButtonBusy = false;
 let enterKeyHandlerInstalled = false;
@@ -539,6 +576,12 @@ function showDanmakuNotice(message: string): void {
   }, NOTICE_DURATION_MS);
 }
 
+function updateDanmakuButtonText(button: HTMLButtonElement): void {
+  button.textContent = t("danmakuButton");
+  button.title = t("danmakuButtonTitle");
+  button.setAttribute("aria-label", t("danmakuButtonAriaLabel"));
+}
+
 function ensureDanmakuButton(_video: HTMLVideoElement): void {
   const controls = document.querySelector<HTMLElement>('.ytp-right-controls') ??
     document.querySelector<HTMLElement>('.ytp-left-controls');
@@ -551,9 +594,7 @@ function ensureDanmakuButton(_video: HTMLVideoElement): void {
     button.id = DANMAKU_BUTTON_ID;
     button.type = "button";
     button.className = "ytp-button myz-danmaku-send";
-    button.textContent = "弹";
-    button.title = "发送弹幕 (Enter)";
-    button.setAttribute("aria-label", "发送弹幕");
+    updateDanmakuButtonText(button);
     button.addEventListener("click", () => {
       handleDanmakuSubmit();
     });
@@ -569,7 +610,7 @@ function handleDanmakuSubmit(): void {
   if (isDanmakuButtonBusy) {
     return;
   }
-  showDanmakuNotice(SEND_UNAVAILABLE_NOTICE);
+  showDanmakuNotice(t("sendUnavailableNotice"));
   if (danmakuButtonBusyTimer !== undefined) {
     window.clearTimeout(danmakuButtonBusyTimer);
   }
@@ -931,30 +972,41 @@ async function loadDanmakuFromInnertube(
     return commentEntities.get(key) ?? undefined;
   };
 
-  let page = await enqueueRequest(() => client.getComments(videoId, COMMENT_SORT));
-  let pageIndex = 0;
-
-  while (page && pageIndex < MAX_FETCH_PAGES) {
-    indexCommentEntities(page, commentEntities);
-    for (const thread of page.contents ?? []) {
-      if (thread instanceof YTNodes.CommentThread) {
-        const added = await collectEntriesFromThread(videoId, thread, collected, seen, lookup);
-        if (added > 0 && onBatch) {
-          const snapshot = collected.slice().sort((a, b) => a.seconds - b.seconds);
-          await onBatch(snapshot);
+  for (const sortOrder of COMMENT_SORT_ORDERS) {
+      let page: YTNamespace.Comments | null = null;
+      try {
+        page = await enqueueRequest(() => client.getComments(videoId, sortOrder));
+      } catch (error) {
+        console.warn(`MyZ Danmaku: failed to load comments with sort "${sortOrder}"`, error);
+        continue;
+      }
+  
+      let pageIndex = 0;
+      commentEntities.clear();
+  
+      while (page && pageIndex < MAX_FETCH_PAGES) {
+        indexCommentEntities(page, commentEntities);
+        for (const thread of page.contents ?? []) {
+          if (thread instanceof YTNodes.CommentThread) {
+            const added = await collectEntriesFromThread(videoId, thread, collected, seen, lookup);
+            if (added > 0 && onBatch) {
+              const snapshot = collected.slice().sort((a, b) => a.seconds - b.seconds);
+              await onBatch(snapshot);
+            }
+          }
+        }
+        pageIndex += 1;
+        if (!page.has_continuation) {
+          break;
+        }
+    const currentPage = page as YTNamespace.Comments;
+        try {
+          page = await enqueueRequest<YTNamespace.Comments>(() => currentPage.getContinuation());
+        } catch (error) {
+          console.warn("MyZ Danmaku: failed to load continuation", error);
+          break;
         }
       }
-    }
-    pageIndex += 1;
-    if (!page.has_continuation) {
-      break;
-    }
-    try {
-      page = await enqueueRequest(() => page.getContinuation());
-    } catch (error) {
-      console.warn("MyZ Danmaku: failed to load continuation", error);
-      break;
-    }
   }
 
   collected.sort((a, b) => a.seconds - b.seconds);
@@ -1616,10 +1668,12 @@ function installNavigationHooks(): void {
 }
 
 function boot(): void {
-  installNavigationHooks();
-  ensureVideoPolling();
-  startTicker();
-  void handleLocationChange();
+  initializeLanguage().then(() => {
+    installNavigationHooks();
+    ensureVideoPolling();
+    startTicker();
+    void handleLocationChange();
+  });
 }
 
 if (document.readyState === "complete" || document.readyState === "interactive") {
