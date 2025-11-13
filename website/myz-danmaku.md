@@ -3,8 +3,8 @@ layout: home
 title: MyZ Danmaku
 hero:
   name: MyZ Danmaku
-  text: Youtube 弹幕扩展
-  tagline: 将时间码评论转化为同步弹幕，在 YouTube 中体验实时互动。
+  text: Youtube<span class="myz-web-danmaku">弹幕扩展</span>
+  tagline: 将时间码评论转化为<span class="myz-web-danmaku">同步弹幕</span>，在 YouTube 中体验<span class="myz-web-danmaku">实时互动</span>
   image:
     src: ./youtube-screenshot.png
     alt: MyZ Danmaku 扩展示意图
