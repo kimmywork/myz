@@ -1,17 +1,24 @@
-# MyZ Annotator Privacy Policy
+# MyZ Annotator & MyZ Danmaku Privacy Policy
 
 **Effective date:** 2025-11-04
 
-MyZ Annotator is a browser extension that helps you highlight, annotate, optionally archive pages to the Internet Archive, and sync content to your own LogSeq graph. This policy explains what data the extension accesses, how it is used, and the choices you have.
+MyZ Annotator helps you highlight, annotate, optionally archive pages to the Internet Archive, and sync content to your own LogSeq graph. MyZ Danmaku fetches timestamped YouTube comments and renders an on-device floating danmaku layer. This policy explains what data these extensions access, how it is used, and the choices you have.
 
 ## Data We Store Locally
 
 - Highlighted text, associated notes, tags, colors, and capture metadata
-- Extension settings (color palette, view preferences, Internet Archive preferences, LogSeq endpoint/page/token)
+- Extension settings (color palette, view preferences, Internet Archive preferences, LogSeq endpoint/page/token, YouTube caption style)
 - Generated screenshots when you choose to download them (images are saved directly to your device and never leave the browser)
 - Internet Archive queue state and history so the extension can retry or display the status of your own save requests
+- For MyZ Danmaku: parsed comment details (author, timestamp, like count, text) kept locally so the danmaku overlay can work offline
 
-All of the above is kept in `chrome.storage.local`, which is scoped to your browser profile. We do not transmit, back up, or otherwise share this information with any external service. The MyZ Annotator project and maintainers never receive copies of your highlights, queue entries, or settings.
+All of the above is kept in browser-local storage that is scoped to your profile. We do not transmit, back up, or otherwise share this information with any external service. The MyZ Annotator / MyZ Danmaku project and maintainers never receive copies of your highlights, danmaku caches, queue entries, or settings.
+
+### Notes Specific to MyZ Danmaku
+
+- The extension uses YouTube’s private interfaces to read public comments for the current video so it can detect timestamps. Requests are sent directly from your browser; we do not proxy, inspect, or store responses.
+- Parsed danmaku results and related metadata remain inside your browser for offline reuse. They are not uploaded or synced anywhere.
+- We do not collect your viewing history or account information. Danmaku parsing runs entirely on your device.
 
 ## Optional LogSeq Synchronization
 
@@ -29,6 +36,8 @@ You may disable sync at any time from the extension’s settings panel, which im
 
 If you enable Internet Archive support, the extension can submit snapshot requests for the current page to `https://web.archive.org`. The data sent is limited to the page URL plus optional credentials (access key/secret) that you supply. Requests go directly from your browser to the Internet Archive; we do not proxy, inspect, or retain any portion of the payload.
 
+For MyZ Danmaku, calling YouTube’s private interface relies on an unofficial channel. Google may rate-limit or block accounts or IPs that issue these requests frequently. If that happens, you are responsible for any access restrictions or playback issues that arise. We cannot compensate or mediate with Google.
+
 What is stored locally:
 
 - A queue of URLs you asked the extension to archive
@@ -43,10 +52,12 @@ Important limitations and risks:
 
 ## Permissions Explained
 
-- `activeTab` and `tabs`: Used solely when you click the toolbar button to read the current selection, capture the visible area for screenshots, and navigate back to the highlighted section. No browsing history is stored.
-- `<all_urls>` content script: Allows the floating toolbar and highlight rendering to appear on any page you choose to annotate. The script reads only the text you select.
+- `activeTab` and `tabs`: MyZ Annotator reads the current selection and captures screenshots; MyZ Danmaku identifies which YouTube video is playing.
+- `<all_urls>` content script: MyZ Annotator uses this to render the toolbar and highlights; MyZ Danmaku runs only on YouTube pages to display the danmaku overlay.
 - `https://web.archive.org/*`: Required so the extension can submit snapshot requests and query status information from the Internet Archive when you enable that feature.
-- `storage`: Required to keep your highlights and settings on-device.
+- YouTube page access: Lets MyZ Danmaku read public comments for the active video so it can produce danmaku locally.
+- `storage`: Required to keep your highlights, danmaku caches, and settings on-device.
+- `scripting`: Used by MyZ Danmaku to add the overlay UI and styles on the page.
 
 ## No Remote Code Execution
 

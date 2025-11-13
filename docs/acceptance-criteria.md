@@ -1,6 +1,6 @@
 ## 当前自动化测试覆盖（快照：2025-10-30）
 
-在 `extension/tests/extension` 目录下现有的 Playwright 测试文件（已存在并在本地进行了执行）：
+在 `myz-annotator/tests/extension` 目录下现有的 Playwright 测试文件（已存在并在本地进行了执行）：
 - `highlight-toolbar.spec.js`
   - 高亮工具栏在选区出现（AC-01）
 - `highlight-apply-and-persistence.spec.js`
@@ -24,7 +24,7 @@
 
 ## 覆盖缺口 / 推荐新增测试（优先级排序）
 
-下面列出我在对比当前 `extension/tests/extension` 后建议新增或明确化的用例，便于把验收文档（AC）和自动化测试保持一致：
+下面列出我在对比当前 `myz-annotator/tests/extension` 后建议新增或明确化的用例，便于把验收文档（AC）和自动化测试保持一致：
 
 1) iframe 内选择（AC-07） — 状态：未覆盖
   - 为什么：目前没有明确的 iframe 测试。如果扩展计划支持跨 iframe 的选区/高亮，此用例应自动化；否则在文档中标记为 N/A。
@@ -64,7 +64,7 @@
 - CI 必须运行 headful Chromium（或使用 Playwright 官方 Docker 镜像 / Playwright Action）以支持真实扩展 API 和 UI 交互。
   - 推荐：使用 Playwright 官方 action（或 playwright/devcontainers / playwright Docker image）并启用 headed mode +虚拟显示（如果在 Linux runner 上）。
 - 在 CI workflow 中启用 artifact 收集（trace、video、service-worker / background console logs、Playwright trace files），以便定位偶发性失败。
-- 在 CI 中执行测试前确保扩展已构建（`npm run build` 输出到 `extension/dist`），或者调整 `launch-extension` helper 以接受源码目录并在运行时做 minimal transformation。
+- 在 CI 中执行测试前确保扩展已构建（`npm run build` 输出到 `myz-annotator/dist`），或者调整 `launch-extension` helper 以接受源码目录并在运行时做 minimal transformation。
 
 ## 文档变更小结
 
@@ -77,7 +77,7 @@
 
 更新时间：2025-10-30
 
-本文档列出对 `extension/` 下高亮标注 Chrome 插件的用户旅程、明确的验收条件，以及这些验收条件如何映射到 Playwright 自动化测试用例。
+本文档列出对 `myz-annotator/` 下高亮标注 Chrome 插件的用户旅程、明确的验收条件，以及这些验收条件如何映射到 Playwright 自动化测试用例。
 
 目标读者：开发者、测试工程师和产品负责人。
 
@@ -87,7 +87,7 @@
 
 ## 测试环境与准备
 
-- 浏览器：Chrome (通过 Playwright 支持的 Chromium) 并以 unpacked extension 形式加载 `extension/` 构建输出（或源码，取决于测试方式）。
+- 浏览器：Chrome (通过 Playwright 支持的 Chromium) 并以 unpacked extension 形式加载 `myz-annotator/` 构建输出（或源码，取决于测试方式）。
 - 测试页面：默认使用 `https://kimleo.net/blank/myz-test.html`（示例页面），以及可能的本地 fixture 页面 `tests/fixtures/complex-highlight-test.html`。
 - 测试账号/同步：默认不依赖外部服务；若涉及 LogSeq/服务器同步，标记为可选/集成测试。
 
@@ -198,7 +198,7 @@
 
 ## Playwright 实施提示（测试工程师注意事项）
 
-- 启动 Chromium 时加载扩展目录或构建产物（dev: 源码下直接加载 `extension/`；release: 加载 `extension/dist`）。
+- 启动 Chromium 时加载扩展目录或构建产物（dev: 源码下直接加载 `myz-annotator/`；release: 加载 `myz-annotator/dist`）。
 - 使用独立的用户数据目录（userDataDir）启动浏览器，避免已有 storage 干扰。
 - 与扩展背景或 popup 通信：可通过 Chrome extension IDs 与 background 页面交互，或直接通过 `page.evaluate(() => chrome.storage.local.get(...))` 检查持久化结果（Playwright 的浏览器上下文需允许 extension APIs）。
 - 等待点：高亮应用与恢复可能是异步的（message passing、reapply）。测试中添加合理的等待/重试，不要只用固定 sleep，最好轮询 DOM 或 storage 条件直至满足或超时。
@@ -234,5 +234,5 @@
 
 如果你希望我现在继续生成 Playwright 测试代码并在本地运行，请确认或指明：
 
-- 是否使用 `extension/` 源码目录直接加载扩展，还是先运行构建产物（`npm run build`）并加载 `dist/`？
+- 是否使用 `myz-annotator/` 源码目录直接加载扩展，还是先运行构建产物（`npm run build`）并加载 `dist/`？
 - 是否需要我把部分边界用例（如 iframe、LogSeq 同步）标记为手工或集成测试而不自动化？

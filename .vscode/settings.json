@@ -8,5 +8,6 @@
         "npx jest": true,
         "npm run": true,
         "node": true
-    }
+    },
+    "chat.agent.maxRequests": 9999
 }

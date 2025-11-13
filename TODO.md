@@ -1,5 +1,5 @@
 
-## Extension
+## myz-annotator
 
 - [x] 📝 Clip only mode 
 - [ ] 📎 Special Site Support: Twitter.com

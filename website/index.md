@@ -1,10 +1,16 @@
 ---
 layout: home
-title: MyZ Annotator
+title: MyZ Suite
 hero:
   name: MyZ Annotator
-  text: 高亮与批注的浏览器扩展
-  tagline: 在任意网页高亮、批注、截图收集，并可与 LogSeq 增量同步。
+  text: >
+    网页<span class="myz-web-highlight">高亮</span>与<span class="myz-web-underline">批注</span>工具
+  tagline: >
+    在任意网页<span
+    class="myz-web-highlight-sub"
+    >高亮</span>、<span
+    class="myz-web-wavy"
+    >批注</span>、📸截图收集，并可与 📓LogSeq 增量同步
   actions:
     - text: Chrome 安装
       link: https://chromewebstore.google.com/detail/myz-annotator/mhakfcbobhdemicjelhjjpmgibhnnplg
