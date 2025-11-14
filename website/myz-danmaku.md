@@ -18,6 +18,9 @@ hero:
     - theme: alt
       text: 隐私政策
       link: /privacy
+    - theme: alt
+      text: 抢先体验版（crx）
+      link: /release/myz-danmaku/myz-danmaku-0.1.0.crx
 features:
   - title: 评论转弹幕
     details: 自动识别带时间码的评论，并跟随视频播放同步显示。
