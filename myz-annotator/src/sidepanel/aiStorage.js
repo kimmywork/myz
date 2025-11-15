@@ -170,25 +170,21 @@ export async function getMessagesForConversation(
     const store = transaction.objectStore(MESSAGES_STORE);
     const index = store.index("conversationId");
 
-    const request = index.openCursor(IDBKeyRange.only(conversationId), "next");
-    const messages = [];
-    let count = 0;
-    let skipped = 0;
-
+    // Use 'next' to get chronological order (oldest first)
+    // IndexDB messages are stored in insertion order:
+    // system (first), user (second), assistant (third), tool (fourth), assistant (fifth)
+    // Use getAll for reliable timestamp-based sorting
+    const request = index.getAll(IDBKeyRange.only(conversationId));
+    
     request.onsuccess = () => {
-      const cursor = request.result;
-      if (cursor && count < limit) {
-        if (skipped < offset) {
-          skipped++;
-          cursor.continue();
-        } else {
-          messages.push(cursor.value);
-          count++;
-          cursor.continue();
-        }
-      } else {
-        resolve(messages);
-      }
+      let allMessages = request.result || [];
+      
+      // Sort by timestamp to ensure chronological order (oldest first)
+      allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      // Apply offset and limit
+      const messages = allMessages.slice(offset, offset + limit);
+      resolve(messages);
     };
 
     request.onerror = () => reject(request.error);
@@ -243,12 +239,12 @@ export async function compressContext(conversationId, targetTokens) {
 
   if (oldMessages.length === 0) return { compressed: false, messages };
 
-  // Create summary of old messages
+  // Create summary of old messages (use assistant role, not system)
   const summary = {
     id: `summary-${Date.now()}`,
     conversationId,
-    role: "system",
-    content: `[历史对话摘要] 前面有 ${oldMessages.length} 条消息，包括用户问题和AI回复，已被压缩以节省上下文空间。`,
+    role: "assistant",
+    content: `[对话上下文已压缩] 前面有 ${oldMessages.length} 条历史消息被压缩，以节省token空间。`,
     timestamp: new Date().toISOString(),
     metadata: { type: "compression_summary" },
   };

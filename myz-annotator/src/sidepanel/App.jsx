@@ -166,7 +166,7 @@ export default defineComponent({
         // Add initial system message with context only if sendContext is enabled
         if (pageContent.value && sendContext.value) {
           const systemMessage = {
-            id: `sys-${Date.now()}`,
+            id: `msg-${Date.now()}`,
             conversationId: conversationData.id,
             role: "system",
             content: `页面上下文:\n标题: ${pageTitle.value}\nURL: ${currentUrl.value}\n\n内容:\n${pageContent.value.substring(0, 2000)}`,
@@ -276,29 +276,19 @@ export default defineComponent({
         await nextTick();
         scrollToBottom();
 
-        // Send to AI (this will save both user and assistant messages)
+        // Send to AI (this will save user, tool call, tool response, and final assistant messages to IndexedDB)
         const result = await sendMessage("myz:processWithAi", {
           conversationId: conversationId.value,
           action: "custom",
           content: fullInput,
         });
 
-        // Add AI response to UI
-        const aiMessage = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: "assistant",
-          content: result.content,
-          timestamp: result.timestamp || new Date().toISOString(),
-          metadata: {
-            type: "ai_response",
-            model: result.model,
-            availableTools: result.availableTools || [],
-            action: result.action || "custom",
-          },
-          conversationId: conversationId.value,
-        };
-
-        messages.value.push(aiMessage);
+        // Reload all messages from IndexedDB to include tool calls and tool responses
+        const allMessages = await getMessagesForConversation(
+          conversationId.value,
+          1000
+        );
+        messages.value = allMessages;
 
         // Update context info
         await checkContext();
@@ -410,8 +400,9 @@ export default defineComponent({
     onMounted(async () => {
       await initialize();
 
-      // Listen for auto-action messages (e.g., from context menu)
+      // Listen for real-time message updates (tool calls, tool responses)
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        // Handle auto-action messages (e.g., from context menu)
         if (
           message.type === "myz:openSidePanelWithAction" &&
           message.payload?.action
@@ -423,6 +414,22 @@ export default defineComponent({
           setTimeout(async () => {
             await handleAutoAction();
           }, 100);
+        }
+        // Handle real-time new messages (e.g., from tool calls/responses)
+        else if (message.type === "myz:newMessage" && message.data?.message) {
+          // Check if this message belongs to current conversation
+          if (
+            conversationId.value &&
+            message.data.conversationId === conversationId.value
+          ) {
+            // Add to messages array - Vue will handle reactivity
+            messages.value.push(message.data.message);
+
+            // Scroll to show the new message
+            nextTick(() => {
+              scrollToBottom();
+            });
+          }
         }
       });
     });

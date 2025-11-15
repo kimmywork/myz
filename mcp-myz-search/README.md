@@ -1,9 +1,32 @@
-# MCP Server: Streaming HTTP search & extract
+# MCP MyZ Search
+
+Poorman's search mcp.
 
 ## Usage
-- Install deps: `npm install` and browsers: `npx playwright install chromium`
-- Start server: `npm run dev`
-- Visual run: set `HEADLESS=false` (env) for non-headless debugging.
+
+
+```
+npx playwright install chromium
+npx mcp-myz-search
+```
+
+## Command line options
+```
+Usage: program [options]
+
+Options:
+  --default-provider <provider>  default search provider (choices: "bing", "duckduckgo", "google", default: "bing")
+  --port <number>                port number
+  --proxy <proxy>                proxy server
+  --timeout <ms>                 navigation timeout in ms
+  --headed                       headed mode
+  --channel <name>               browser channel (default: "chrome")
+  --profile <dir>                persistent user data directory
+  --human-wait <ms>              wait ms for human to solve challenge
+  --stdio                        use stdio transport instead of HTTP
+  --log-file <path>              log file path (default: stderr)
+  -h, --help                     display help for command
+```
 
 ## Server Parameters (startup only)
 - `--port <number>` or `MYZ_SEARCH_PORT` (fallback `PORT`), default `3000`.
@@ -11,30 +34,22 @@
 - `--timeout <ms>` or `MYZ_SEARCH_TIMEOUT` for navigation/default timeouts.
 - `--profile <dir>` or `MYZ_SEARCH_PROFILE_DIR` to persist session/cookies.
 - `--human-wait <ms>` or `MYZ_SEARCH_HUMAN_WAIT` to allow human challenge solve in non-headless.
-- Global envs: `HEADLESS` (default `true`), `CHANNEL` (default `chrome`).
-- Optional: `MYZ_SEARCH_BING_API_KEY`/`BING_API_KEY` to use Bing API (no CAPTCHA).
 
 ## MCP HTTP Endpoint
 - Streamable HTTP MCP at `POST /mcp` using `@modelcontextprotocol/sdk`.
 - Tools:
-  - `search-links` args `{ q: string; limit?: number<=50; provider?: 'bing'|'duckduckgo'|'yandex'|'baidu'|'google' }` returns `{ results: Array<{link,title,snippet}>, total }`.
-    - Provider defaults to `bing`. With Bing API key set, uses API to avoid verification.
+  - `search-links` args `{ q: string; limit?: number<=50; provider?: 'bing'|'duckduckgo'|'google' }` returns `{ results: Array<{link,title,snippet}>, total }`.
+    - Provider defaults to `bing`, or you can change it via `--default-provider` switch.
   - `extract-page-text` args `{ url: string; selector?: string }` returns `{ text, isContentPage, url, message }`.
 
 ## Providers
-- `bing` (challenge-aware; API fallback if key provided)
+- `bing`
 - `duckduckgo`
-- `yandex`
-- `baidu`
-- `google` (challenge-aware)
+- `google`
 
 ## Examples
-- Custom port + proxy: `node src/mcp-server.js --port 3100 --proxy socks5://127.0.0.1:1080`
-- Persistent profile + human wait: `HEADLESS=false node src/mcp-server.js --profile ~/.myz-bing --human-wait 20000`
-- Call `search-links` (curl):
-  - `curl -X POST http://localhost:3000/mcp -H 'Accept: application/json, text/event-stream' -H 'Content-Type: application/json' -d '{"method":"tools/call","params":{"name":"search-links","arguments":{"q":"Playwright","limit":10,"provider":"duckduckgo"}},"id":"1","jsonrpc":"2.0"}'`
-- Call `extract-page-text` (curl):
-  - `curl -X POST http://localhost:3000/mcp -H 'Accept: application/json, text/event-stream' -H 'Content-Type: application/json' -d '{"method":"tools/call","params":{"name":"extract-page-text","arguments":{"url":"https://playwright.dev/","selector":"main"}},"id":"2","jsonrpc":"2.0"}'`
+- Custom port + proxy: `npx mcp-myz-search --port 3100 --proxy socks5://127.0.0.1:1080`
+- Persistent profile + human wait: `npx mcp-myz-search --headed --profile ~/.myz-bing --human-wait 20000`
 
 Notes
 - The server reuses a single Playwright browser/context/page and serializes access to improve performance.

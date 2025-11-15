@@ -1,12 +1,20 @@
 {
   "name": "mcp-myz-search",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.2",
   "type": "module",
+  "author": {
+    "name": "Kimmy",
+    "email": "kenpusney@gmail.com",
+    "url": "https://kimleo.net"
+  },
   "scripts": {
-    "start": "node src/mcp-server.js",
-    "dev": "node --watch src/mcp-server.js",
+    "start": "node bin/mcp-myz-search.js",
+    "dev": "node --watch bin/mcp-myz-search.js",
     "smoke:test": "HEADLESS=true node tests/smoke.js"
+  },
+  "main": "src/mcp-server.js",
+  "bin": {
+    "myz-mcp-search": "bin/mcp-myz-search.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.21.1",

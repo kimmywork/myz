@@ -150,18 +150,26 @@ export class AiProvider {
       };
       await saveMessage(toolCallMessage);
 
+      // Notify UI immediately to show tool call
+      this.notifyNewMessage(options.conversationId, toolCallMessage);
+
       // Then handle the tool calls
-      return await this.handleToolCalls(
+      // handleToolCalls returns the final AI response with tool results
+      const finalResponse = await this.handleToolCalls(
         message,
         messages,
         options.conversationId,
+        options, // Pass options so handleToolCalls can pass it to generateResponse
       );
+
+      // Return the final response instead of the intermediate response
+      return finalResponse;
     }
 
     return response;
   }
 
-  async handleToolCalls(message, previousMessages, conversationId) {
+  async handleToolCalls(message, previousMessages, conversationId, options = {}) {
     const toolCalls = message.tool_calls;
     const followUpMessages = [
       ...previousMessages,
@@ -189,7 +197,7 @@ export class AiProvider {
         }
 
         // Save tool response to IndexedDB
-        await saveMessage({
+        const toolResponseMessage = {
           id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           conversationId,
           role: "tool",
@@ -200,7 +208,11 @@ export class AiProvider {
             toolName: toolCall.function?.name,
             toolArgs: toolCall.function?.arguments,
           },
-        });
+        };
+        await saveMessage(toolResponseMessage);
+
+        // Notify UI immediately to show tool response
+        this.notifyNewMessage(conversationId, toolResponseMessage);
 
         followUpMessages.push({
           role: "tool",
@@ -211,7 +223,7 @@ export class AiProvider {
         const errorText = `Error: ${error.message}`;
 
         // Save error to IndexedDB
-        await saveMessage({
+        const toolErrorMessage = {
           id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           conversationId,
           role: "tool",
@@ -223,7 +235,11 @@ export class AiProvider {
             toolArgs: toolCall.function?.arguments,
             error: error.message,
           },
-        });
+        };
+        await saveMessage(toolErrorMessage);
+
+        // Notify UI immediately to show tool error
+        this.notifyNewMessage(conversationId, toolErrorMessage);
 
         followUpMessages.push({
           role: "tool",
@@ -233,7 +249,28 @@ export class AiProvider {
       }
     }
 
-    return this.generateResponse(followUpMessages);
+    return this.generateResponse(followUpMessages, options);
+  }
+
+  /**
+   * Notify UI about new message via chrome.runtime messaging
+   * This allows real-time updates for tool calls and responses
+   */
+  notifyNewMessage(conversationId, message) {
+    try {
+      // Send message to all connected clients (including sidepanel)
+      chrome.runtime.sendMessage({
+        type: "myz:newMessage",
+        data: {
+          conversationId,
+          message,
+        },
+      }).catch(() => {
+        // Ignore errors - sidepanel might not be open
+      });
+    } catch (error) {
+      console.warn("Failed to notify UI about new message:", error);
+    }
   }
 
   async executeToolCall(toolCall) {
@@ -334,7 +371,11 @@ export class AiProvider {
     const history = await this.getConversationMessages(conversationId);
 
     // Generate AI response
-    const response = await this.generateResponse(history, options);
+    // IMPORTANT: Pass conversationId to generateResponse
+    const response = await this.generateResponse(history, {
+      ...options,
+      conversationId, // Ensure conversationId is available when saving tool messages
+    });
 
     // Check if response has both tool calls and content
     const message = response.choices?.[0]?.message;
@@ -387,7 +428,7 @@ export class AiProvider {
   }
 
   async getConversationMessages(conversationId) {
-    // Get messages from IndexedDB
+    // Get messages from IndexedDB (which already includes system context from sidepanel)
     const messages = await getMessagesForConversation(conversationId, 1000);
 
     if (messages.length === 0) {
@@ -401,32 +442,29 @@ export class AiProvider {
           content: msg.content,
         }));
       }
-
-      // Return empty array - we'll add system context separately
-      return [];
     }
 
-    // Convert messages and ensure system context is at the beginning
-    const messageList = messages.map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
-
-    // Always check for and add system context at the beginning
-    const convData = await getConversation(conversationId);
-    if (
-      convData &&
-      convData.url &&
-      messageList.length > 0 &&
-      messageList[0].role !== "system"
-    ) {
-      messageList.unshift({
-        role: "system",
-        content: `Page context from ${convData.url}`,
-      });
-    }
-
-    return messageList;
+    // Return messages as-is - sidepanel already adds system context when creating conversation
+    // No need to add system context here to avoid duplication
+    // IMPORTANT: Must include tool_call_id for tool messages
+    return messages.map((msg) => {
+      const baseMessage = {
+        role: msg.role,
+        content: msg.content,
+      };
+      
+      // Include tool_call_id for tool messages (required by LLM API)
+      if (msg.role === "tool" && msg.tool_call_id) {
+        baseMessage.tool_call_id = msg.tool_call_id;
+      }
+      
+      // Include tool_calls for assistant messages with tools
+      if (msg.role === "assistant" && msg.tool_calls) {
+        baseMessage.tool_calls = msg.tool_calls;
+      }
+      
+      return baseMessage;
+    });
   }
 }
 
