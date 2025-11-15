@@ -7,6 +7,9 @@
     "email": "kenpusney@gmail.com",
     "url": "https://kimleo.net"
   },
+  "repository": {
+    "url": "https://github.com/kimmywork/mcp-myz-search"
+  },
   "scripts": {
     "start": "node bin/mcp-myz-search.js",
     "dev": "node --watch bin/mcp-myz-search.js",
@@ -14,7 +17,7 @@
   },
   "main": "src/mcp-server.js",
   "bin": {
-    "myz-mcp-search": "bin/mcp-myz-search.js"
+    "mcp-myz-search": "bin/mcp-myz-search.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.21.1",
@@ -27,5 +30,6 @@
     "@types/node": "^24.10.1",
     "tsx": "^4.20.6",
     "zod": "^3.25.76"
-  }
+  },
+  "license": "MIT"
 }
