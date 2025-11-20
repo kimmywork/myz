@@ -8,10 +8,6 @@ import {
   nextTick,
 } from "vue";
 import { sendMessage } from "../shared/messaging.js";
-import {
-  extractPageContentForAi,
-  extractSelectedTextSafely,
-} from "../content/content-extraction.js";
 import { renderMarkdown } from "../shared/markdownRenderer.js";
 import {
   saveConversation,
@@ -20,13 +16,7 @@ import {
   getMessagesForConversation,
   checkContextSize,
   compressContext,
-  listConversations,
 } from "./aiStorage.js";
-import {
-  AI_ACTIONS,
-  buildSystemPrompt,
-  buildUserPrompt,
-} from "../shared/aiConversation.js";
 import HistoryView from "./HistoryView.jsx";
 import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import "./history.css";
@@ -45,8 +35,15 @@ export default defineComponent({
     const currentUrl = ref("");
     const pageTitle = ref("");
     const pageContent = ref("");
-    const selectedText = ref("");
     const sendContext = ref(true); // Toggle to include/exclude page context
+    const isContextPreferenceUpdating = ref(false);
+    const visibleMessages = computed(() =>
+      sendContext.value
+        ? messages.value
+        : messages.value.filter(
+            (msg) => msg.metadata?.type !== "page_context",
+          ),
+    );
 
     // Auto-action state
     const autoAction = ref(null); // 'summarize', 'key_points', etc.
@@ -72,6 +69,28 @@ export default defineComponent({
     });
 
     const messageListRef = ref(null);
+    let runtimeListener = null;
+
+    function hasPageContextMessage(list = messages.value) {
+      return list.some((msg) => msg.metadata?.type === "page_context");
+    }
+
+    async function persistSendContextPreference(enabled) {
+      if (!conversationId.value) return;
+      try {
+        const conversation = await getConversation(conversationId.value);
+        if (!conversation) return;
+
+        if (conversation.sendContextEnabled === enabled) {
+          return;
+        }
+
+        conversation.sendContextEnabled = enabled;
+        await saveConversation(conversation);
+      } catch (e) {
+        console.warn("Failed to persist sendContext preference:", e);
+      }
+    }
 
     async function initialize() {
       try {
@@ -103,26 +122,24 @@ export default defineComponent({
 
               // If content is too short, prompt user to select text
               if (pageContent.value.length < 200) {
-                pageContent.value =
-                  "页面内容较短，请选中您想要讨论的文本区域，然后在下方输入您的问题...";
                 inputPlaceholder.value =
                   "输入您的问题，或先选中页面上的文本...";
+              } else {
+                inputPlaceholder.value = "输入您的问题...";
               }
             } else {
-              pageContent.value =
-                "无法自动提取页面内容。请选中页面上您想要讨论的文本，然后在下方输入您的问题。";
-              inputPlaceholder.value = "请输入您的问题...";
+              pageContent.value = "";
+              inputPlaceholder.value =
+                "请选中页面上您想要讨论的文本，然后在下方输入您的问题。";
             }
           } catch (e) {
             console.warn("Could not extract page content:", e);
-            pageContent.value =
-              "请选中页面上您想要讨论的文本，然后在下方输入您的问题。";
             inputPlaceholder.value = "请输入您的问题...";
+            pageContent.value = "";
           }
         } else {
-          pageContent.value =
-            "请选中页面上您想要讨论的文本，然后在下方输入您的问题。";
           inputPlaceholder.value = "请输入您的问题...";
+          pageContent.value = "";
         }
 
         // Create new conversation
@@ -155,6 +172,7 @@ export default defineComponent({
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           isAiGenerated: false,
+          sendContextEnabled: sendContext.value,
         };
 
         // Save conversation to IndexedDB
@@ -191,6 +209,9 @@ export default defineComponent({
         const result = await checkContextSize(
           conversationId.value,
           contextInfo.maxSize,
+          {
+            includePageContext: sendContext.value,
+          },
         );
         contextInfo.size = result.estimatedTokens;
         contextInfo.percentage = result.percentage;
@@ -281,6 +302,9 @@ export default defineComponent({
           conversationId: conversationId.value,
           action: "custom",
           content: fullInput,
+          options: {
+            includePageContext: sendContext.value,
+          },
         });
 
         // Reload all messages from IndexedDB to include tool calls and tool responses
@@ -363,6 +387,30 @@ export default defineComponent({
       saveModal.messageId = null;
     }
 
+    async function handleContextToggle(event) {
+      const enabled = Boolean(event?.target?.checked);
+      if (sendContext.value === enabled && conversationId.value) {
+        return;
+      }
+
+      sendContext.value = enabled;
+      if (!conversationId.value) {
+        return;
+      }
+
+      if (isContextPreferenceUpdating.value) {
+        return;
+      }
+
+      isContextPreferenceUpdating.value = true;
+      try {
+        await persistSendContextPreference(enabled);
+        await checkContext();
+      } finally {
+        isContextPreferenceUpdating.value = false;
+      }
+    }
+
     function scrollToBottom() {
       if (messageListRef.value) {
         messageListRef.value.scrollTop = messageListRef.value.scrollHeight;
@@ -380,12 +428,11 @@ export default defineComponent({
         pageTitle.value = selectedConv.title;
         currentUrl.value = selectedConv.url;
         messages.value = selectedConv.messages;
-        // Extract the page content from system message if exists
-        const systemMsg = selectedConv.messages.find(
-          (m) => m.role === "system",
-        );
-        if (systemMsg) {
-          pageContent.value = systemMsg.content;
+        const hasContext = hasPageContextMessage(selectedConv.messages);
+        if (typeof selectedConv.sendContextEnabled === "boolean") {
+          sendContext.value = selectedConv.sendContextEnabled;
+        } else {
+          sendContext.value = hasContext;
         }
       }
     }
@@ -401,37 +448,39 @@ export default defineComponent({
       await initialize();
 
       // Listen for real-time message updates (tool calls, tool responses)
-      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      runtimeListener = (message) => {
         // Handle auto-action messages (e.g., from context menu)
         if (
           message.type === "myz:openSidePanelWithAction" &&
           message.payload?.action
         ) {
-          // Store the auto action and set it in the state
           autoAction.value = message.payload.action;
-
-          // Process the action after initialization
           setTimeout(async () => {
             await handleAutoAction();
           }, 100);
         }
         // Handle real-time new messages (e.g., from tool calls/responses)
         else if (message.type === "myz:newMessage" && message.data?.message) {
-          // Check if this message belongs to current conversation
           if (
             conversationId.value &&
             message.data.conversationId === conversationId.value
           ) {
-            // Add to messages array - Vue will handle reactivity
             messages.value.push(message.data.message);
-
-            // Scroll to show the new message
             nextTick(() => {
               scrollToBottom();
             });
           }
         }
-      });
+      };
+
+      chrome.runtime.onMessage.addListener(runtimeListener);
+    });
+
+    onBeforeUnmount(() => {
+      if (runtimeListener) {
+        chrome.runtime.onMessage.removeListener(runtimeListener);
+        runtimeListener = null;
+      }
     });
 
     async function handleAutoAction() {
@@ -492,20 +541,27 @@ export default defineComponent({
               </div>
 
               <label class="context-toggle">
-                <input type="checkbox" v-model={sendContext.value} />
+                <input
+                  type="checkbox"
+                  checked={sendContext.value}
+                  disabled={
+                    !conversationId.value || isContextPreferenceUpdating.value
+                  }
+                  onChange={handleContextToggle}
+                />
                 <span>发送页面上下文</span>
               </label>
             </div>
 
             <div class="conversation-container" ref={messageListRef}>
-              {messages.value.length === 0 && (
+              {visibleMessages.value.length === 0 && (
                 <div class="empty-state">
                   <p>💬 开始与AI对话</p>
                   <p class="hint">输入您的问题，或选择页面文本进行提问</p>
                 </div>
               )}
 
-              {messages.value.map((msg) => (
+              {visibleMessages.value.map((msg) => (
                 <div
                   key={msg.id}
                   class={`message message-${msg.role}`}

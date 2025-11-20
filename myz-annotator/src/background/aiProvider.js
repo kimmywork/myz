@@ -356,6 +356,12 @@ export class AiProvider {
   }
 
   async processConversation(conversationId, action, content, options = {}) {
+    const {
+      includePageContext = true,
+      metadata = {},
+      ...llmOptions
+    } = options;
+
     // Save user message to IndexedDB
     const userMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -363,17 +369,20 @@ export class AiProvider {
       role: "user",
       content,
       timestamp: new Date().toISOString(),
-      metadata: { action, ...options.metadata },
+      metadata: { action, ...metadata },
     };
     await saveMessage(userMessage);
 
     // Get conversation history from IndexedDB
-    const history = await this.getConversationMessages(conversationId);
+    const history = await this.getConversationMessages(
+      conversationId,
+      includePageContext,
+    );
 
     // Generate AI response
     // IMPORTANT: Pass conversationId to generateResponse
     const response = await this.generateResponse(history, {
-      ...options,
+      ...llmOptions,
       conversationId, // Ensure conversationId is available when saving tool messages
     });
 
@@ -412,7 +421,7 @@ export class AiProvider {
         hasToolCalls: !!message?.tool_calls,
         toolCallCount: message?.tool_calls?.length || 0,
         toolNames: toolCallInfo,
-        ...options.metadata,
+        ...metadata,
       },
     };
     await saveMessage(assistantMessage);
@@ -427,9 +436,15 @@ export class AiProvider {
     };
   }
 
-  async getConversationMessages(conversationId) {
+  async getConversationMessages(conversationId, includePageContext = true) {
     // Get messages from IndexedDB (which already includes system context from sidepanel)
-    const messages = await getMessagesForConversation(conversationId, 1000);
+    let messages = await getMessagesForConversation(conversationId, 1000);
+
+    if (!includePageContext) {
+      messages = messages.filter(
+        (msg) => msg.metadata?.type !== "page_context",
+      );
+    }
 
     if (messages.length === 0) {
       // Fallback to old storage if no messages in IndexedDB
@@ -437,34 +452,40 @@ export class AiProvider {
       const conv = conversation.conversations[conversationId];
 
       if (conv && conv.messages && conv.messages.length > 0) {
-        return conv.messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        }));
+        const legacyMessages = includePageContext
+          ? conv.messages
+          : conv.messages.filter((msg) => msg.role !== "system");
+        return legacyMessages.map((msg) => this.transformMessageForModel(msg));
       }
     }
 
     // Return messages as-is - sidepanel already adds system context when creating conversation
     // No need to add system context here to avoid duplication
     // IMPORTANT: Must include tool_call_id for tool messages
-    return messages.map((msg) => {
-      const baseMessage = {
-        role: msg.role,
-        content: msg.content,
-      };
-      
-      // Include tool_call_id for tool messages (required by LLM API)
-      if (msg.role === "tool" && msg.tool_call_id) {
-        baseMessage.tool_call_id = msg.tool_call_id;
-      }
-      
-      // Include tool_calls for assistant messages with tools
-      if (msg.role === "assistant" && msg.tool_calls) {
-        baseMessage.tool_calls = msg.tool_calls;
-      }
-      
-      return baseMessage;
-    });
+    return messages.map((msg) => this.transformMessageForModel(msg));
+  }
+
+  transformMessageForModel(message) {
+    if (!message) {
+      return { role: "system", content: "" };
+    }
+
+    const formatted = {
+      role: message.role,
+      content: message.content,
+    };
+
+    // Include tool_call_id for tool messages (required by LLM API)
+    if (message.role === "tool" && message.tool_call_id) {
+      formatted.tool_call_id = message.tool_call_id;
+    }
+
+    // Include tool_calls for assistant messages with tools
+    if (message.role === "assistant" && message.tool_calls) {
+      formatted.tool_calls = message.tool_calls;
+    }
+
+    return formatted;
   }
 }
 

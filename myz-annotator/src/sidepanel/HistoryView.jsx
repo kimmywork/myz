@@ -56,7 +56,11 @@ export default defineComponent({
           conversationId: conv.id,
           title: conv.title,
           url: conv.url,
-          messages: messages,
+          messages,
+          sendContextEnabled:
+            typeof conv.sendContextEnabled === "boolean"
+              ? conv.sendContextEnabled
+              : messages.some((m) => m.metadata?.type === "page_context"),
         });
       } catch (e) {
         console.error("Failed to load conversation:", e);

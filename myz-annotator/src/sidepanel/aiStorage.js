@@ -207,8 +207,19 @@ export async function getConversationStats(conversationId) {
   });
 }
 
-export async function checkContextSize(conversationId, maxTokens) {
-  const messages = await getMessagesForConversation(conversationId, 1000);
+export async function checkContextSize(
+  conversationId,
+  maxTokens,
+  options = {},
+) {
+  const { includePageContext = true } = options;
+  let messages = await getMessagesForConversation(conversationId, 1000);
+
+  if (!includePageContext) {
+    messages = messages.filter(
+      (msg) => msg.metadata?.type !== "page_context",
+    );
+  }
 
   // Estimate token count (rough approximation: 1 token ~ 4 chars)
   let totalChars = 0;
