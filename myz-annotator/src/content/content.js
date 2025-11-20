@@ -5,7 +5,7 @@ import ModalApp from "./components/Modal.jsx";
 import InspectorApp from "./components/Inspector.jsx";
 import NotificationsApp from "./components/Notifications.jsx";
 
-import { sendMessage } from "../dashboard/utils/messaging.js";
+import { sendMessage, addMessageListener } from "./messaging.js";
 import {
   getRecordKind,
   RECORD_KINDS,
@@ -43,6 +43,11 @@ import {
   serializeRange,
   deserializeRange,
 } from "../shared/serializer.js";
+
+import {
+  extractPageContentForAi,
+  extractSelectedTextSafely,
+} from "./content-extraction.js";
 
 import {
   canonicalUrl,
@@ -194,9 +199,8 @@ import {
       }
       if (message.type === "myz:getZenModeState") {
         try {
-          const enabled = document.documentElement.classList.contains(
-            "myz-zen-enabled",
-          );
+          const enabled =
+            document.documentElement.classList.contains("myz-zen-enabled");
           sendResponse?.({ ok: true, data: { enabled } });
         } catch (e) {
           sendResponse?.({ ok: false });
@@ -259,7 +263,10 @@ import {
                 width: r.width,
                 height: r.height,
               },
-              viewport: { width: window.innerWidth, height: window.innerHeight },
+              viewport: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+              },
             },
           });
         } catch (e) {
@@ -290,11 +297,26 @@ import {
             const target = getZenTargetElement();
             if (!target) return;
             const rect = target.getBoundingClientRect();
-            const elementAbsLeft = Math.max(0, Math.floor(rect.left + window.scrollX));
-            const elementAbsTop = Math.max(0, Math.floor(rect.top + window.scrollY));
-            const totalWidth = Math.max(Math.ceil(target.scrollWidth || 0), Math.ceil(rect.width));
-            const totalHeight = Math.max(Math.ceil(target.scrollHeight || 0), Math.ceil(rect.height));
-            const viewport = { width: window.innerWidth, height: window.innerHeight };
+            const elementAbsLeft = Math.max(
+              0,
+              Math.floor(rect.left + window.scrollX),
+            );
+            const elementAbsTop = Math.max(
+              0,
+              Math.floor(rect.top + window.scrollY),
+            );
+            const totalWidth = Math.max(
+              Math.ceil(target.scrollWidth || 0),
+              Math.ceil(rect.width),
+            );
+            const totalHeight = Math.max(
+              Math.ceil(target.scrollHeight || 0),
+              Math.ceil(rect.height),
+            );
+            const viewport = {
+              width: window.innerWidth,
+              height: window.innerHeight,
+            };
             const rows = Math.max(1, Math.ceil(totalHeight / viewport.height));
             const cols = Math.max(1, Math.ceil(totalWidth / viewport.width));
             const dpr2 = window.devicePixelRatio || 1;
@@ -309,22 +331,46 @@ import {
                 storedRanges.push(selection.getRangeAt(index).cloneRange());
               }
               selection.removeAllRanges();
-              await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+              await new Promise((res) =>
+                requestAnimationFrame(() => requestAnimationFrame(res)),
+              );
             }
 
             const originalScroll = { x: window.scrollX, y: window.scrollY };
-            const maxColsPerImage = Math.max(1, Math.floor(MAX_DIM / Math.ceil(viewport.width * dpr2)));
-            const maxRowsPerImage = Math.max(1, Math.floor(MAX_DIM / Math.ceil(viewport.height * dpr2)));
+            const maxColsPerImage = Math.max(
+              1,
+              Math.floor(MAX_DIM / Math.ceil(viewport.width * dpr2)),
+            );
+            const maxRowsPerImage = Math.max(
+              1,
+              Math.floor(MAX_DIM / Math.ceil(viewport.height * dpr2)),
+            );
 
-            for (let rowStart = 0; rowStart < rows; rowStart += maxRowsPerImage) {
+            for (
+              let rowStart = 0;
+              rowStart < rows;
+              rowStart += maxRowsPerImage
+            ) {
               const rowsInBatch = Math.min(maxRowsPerImage, rows - rowStart);
-              for (let colStart = 0; colStart < cols; colStart += maxColsPerImage) {
+              for (
+                let colStart = 0;
+                colStart < cols;
+                colStart += maxColsPerImage
+              ) {
                 const colsInBatch = Math.min(maxColsPerImage, cols - colStart);
-                const batchPixelW = Math.ceil(colsInBatch * viewport.width * dpr2);
-                const batchPixelH = Math.ceil(rowsInBatch * viewport.height * dpr2);
+                const batchPixelW = Math.ceil(
+                  colsInBatch * viewport.width * dpr2,
+                );
+                const batchPixelH = Math.ceil(
+                  rowsInBatch * viewport.height * dpr2,
+                );
                 const areaOk = batchPixelW * batchPixelH <= MAX_AREA;
-                const canvasW = areaOk ? batchPixelW : Math.min(batchPixelW, MAX_DIM);
-                const canvasH = areaOk ? batchPixelH : Math.min(batchPixelH, MAX_DIM);
+                const canvasW = areaOk
+                  ? batchPixelW
+                  : Math.min(batchPixelW, MAX_DIM);
+                const canvasH = areaOk
+                  ? batchPixelH
+                  : Math.min(batchPixelH, MAX_DIM);
                 const stitched = document.createElement("canvas");
                 stitched.width = canvasW;
                 stitched.height = canvasH;
@@ -334,10 +380,14 @@ import {
                   for (let c = 0; c < colsInBatch; c++) {
                     const globalRow = rowStart + r;
                     const globalCol = colStart + c;
-                    const tileLeftAbs = elementAbsLeft + globalCol * viewport.width;
-                    const tileTopAbs = elementAbsTop + globalRow * viewport.height;
+                    const tileLeftAbs =
+                      elementAbsLeft + globalCol * viewport.width;
+                    const tileTopAbs =
+                      elementAbsTop + globalRow * viewport.height;
                     window.scrollTo(tileLeftAbs, tileTopAbs);
-                    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+                    await new Promise((res) =>
+                      requestAnimationFrame(() => requestAnimationFrame(res)),
+                    );
                     const dataUrl = await captureVisiblePngWithThrottle();
                     if (!dataUrl) continue;
                     // Account for scroll clamping at edges by using actual offsets
@@ -348,7 +398,8 @@ import {
                     const vx = Math.max(0, expectedLeft - actualLeft);
                     const vy = Math.max(0, expectedTop - actualTop);
                     const remainingW = totalWidth - globalCol * viewport.width;
-                    const remainingH = totalHeight - globalRow * viewport.height;
+                    const remainingH =
+                      totalHeight - globalRow * viewport.height;
                     const tileW = Math.min(viewport.width - vx, remainingW);
                     const tileH = Math.min(viewport.height - vy, remainingH);
                     const { canvas } = await cropToCanvas(
@@ -373,7 +424,10 @@ import {
                     );
                   }
                 }
-                downloadImage(stitched.toDataURL("image/png"), `myz-article-${Date.now()}-${rowStart}-${colStart}.png`);
+                downloadImage(
+                  stitched.toDataURL("image/png"),
+                  `myz-article-${Date.now()}-${rowStart}-${colStart}.png`,
+                );
               }
             }
             window.scrollTo(originalScroll.x, originalScroll.y);
@@ -394,12 +448,55 @@ import {
         })();
         return false;
       }
+      if (message.type === "myz:extractPageContent") {
+        try {
+          const result = extractPageContentForAi();
+          sendResponse?.({ ok: true, data: result });
+        } catch (e) {
+          console.error("Extract page content failed", e);
+          sendResponse?.({ ok: false, error: e.message });
+        }
+        return false;
+      }
+      if (message.type === "myz:getSelection") {
+        try {
+          const selection = window.getSelection();
+          const text = selection ? selection.toString().trim() : "";
+          sendResponse?.({ ok: true, data: { text } });
+        } catch (e) {
+          console.error("Get selection failed", e);
+          sendResponse?.({ ok: false, error: e.message });
+        }
+        return false;
+      }
+      if (message.type === "myz:getSelection") {
+        try {
+          const selection = window.getSelection();
+          const text = selection ? selection.toString().trim() : "";
+          sendResponse?.({ ok: true, data: { text } });
+        } catch (e) {
+          console.error("Get selection failed", e);
+          sendResponse?.({ ok: false });
+        }
+        return false;
+      }
       if (message.type === "myz:capturePageFull") {
         (async () => {
           try {
-            const viewport = { width: window.innerWidth, height: window.innerHeight };
-            const totalWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, viewport.width);
-            const totalHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, viewport.height);
+            const viewport = {
+              width: window.innerWidth,
+              height: window.innerHeight,
+            };
+            const totalWidth = Math.max(
+              document.documentElement.scrollWidth,
+              document.body.scrollWidth,
+              viewport.width,
+            );
+            const totalHeight = Math.max(
+              document.documentElement.scrollHeight,
+              document.body.scrollHeight,
+              viewport.height,
+            );
             const rows = Math.max(1, Math.ceil(totalHeight / viewport.height));
             const cols = Math.max(1, Math.ceil(totalWidth / viewport.width));
             const dpr2 = window.devicePixelRatio || 1;
@@ -407,18 +504,40 @@ import {
             const MAX_AREA = 16384 * 16384;
             const originalScroll = { x: window.scrollX, y: window.scrollY };
 
-            const maxColsPerImage = Math.max(1, Math.floor(MAX_DIM / Math.ceil(viewport.width * dpr2)));
-            const maxRowsPerImage = Math.max(1, Math.floor(MAX_DIM / Math.ceil(viewport.height * dpr2)));
+            const maxColsPerImage = Math.max(
+              1,
+              Math.floor(MAX_DIM / Math.ceil(viewport.width * dpr2)),
+            );
+            const maxRowsPerImage = Math.max(
+              1,
+              Math.floor(MAX_DIM / Math.ceil(viewport.height * dpr2)),
+            );
 
-            for (let rowStart = 0; rowStart < rows; rowStart += maxRowsPerImage) {
+            for (
+              let rowStart = 0;
+              rowStart < rows;
+              rowStart += maxRowsPerImage
+            ) {
               const rowsInBatch = Math.min(maxRowsPerImage, rows - rowStart);
-              for (let colStart = 0; colStart < cols; colStart += maxColsPerImage) {
+              for (
+                let colStart = 0;
+                colStart < cols;
+                colStart += maxColsPerImage
+              ) {
                 const colsInBatch = Math.min(maxColsPerImage, cols - colStart);
-                const batchPixelW = Math.ceil(colsInBatch * viewport.width * dpr2);
-                const batchPixelH = Math.ceil(rowsInBatch * viewport.height * dpr2);
+                const batchPixelW = Math.ceil(
+                  colsInBatch * viewport.width * dpr2,
+                );
+                const batchPixelH = Math.ceil(
+                  rowsInBatch * viewport.height * dpr2,
+                );
                 const areaOk = batchPixelW * batchPixelH <= MAX_AREA;
-                const canvasW = areaOk ? batchPixelW : Math.min(batchPixelW, MAX_DIM);
-                const canvasH = areaOk ? batchPixelH : Math.min(batchPixelH, MAX_DIM);
+                const canvasW = areaOk
+                  ? batchPixelW
+                  : Math.min(batchPixelW, MAX_DIM);
+                const canvasH = areaOk
+                  ? batchPixelH
+                  : Math.min(batchPixelH, MAX_DIM);
                 const stitched = document.createElement("canvas");
                 stitched.width = canvasW;
                 stitched.height = canvasH;
@@ -431,7 +550,9 @@ import {
                     const tileLeftAbs = globalCol * viewport.width;
                     const tileTopAbs = globalRow * viewport.height;
                     window.scrollTo(tileLeftAbs, tileTopAbs);
-                    await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+                    await new Promise((res) =>
+                      requestAnimationFrame(() => requestAnimationFrame(res)),
+                    );
                     const dataUrl = await captureVisiblePngWithThrottle();
                     if (!dataUrl) continue;
                     // Use actual scroll offsets to avoid losing the final portion
@@ -442,8 +563,14 @@ import {
                     const expectedTop = globalRow * viewport.height;
                     const vx = Math.max(0, expectedLeft - actualLeft);
                     const vy = Math.max(0, expectedTop - actualTop);
-                    const tileW = Math.min(viewport.width - vx, totalWidth - expectedLeft);
-                    const tileH = Math.min(viewport.height - vy, totalHeight - expectedTop);
+                    const tileW = Math.min(
+                      viewport.width - vx,
+                      totalWidth - expectedLeft,
+                    );
+                    const tileH = Math.min(
+                      viewport.height - vy,
+                      totalHeight - expectedTop,
+                    );
                     const { canvas } = await cropToCanvas(
                       dataUrl,
                       { left: vx, top: vy, width: tileW, height: tileH },
@@ -467,7 +594,10 @@ import {
                     );
                   }
                 }
-                downloadImage(stitched.toDataURL("image/png"), `myz-page-${Date.now()}-${rowStart}-${colStart}.png`);
+                downloadImage(
+                  stitched.toDataURL("image/png"),
+                  `myz-page-${Date.now()}-${rowStart}-${colStart}.png`,
+                );
               }
             }
             window.scrollTo(originalScroll.x, originalScroll.y);
@@ -493,7 +623,9 @@ import {
         if (since < minGap) {
           await sleep(minGap - since);
         }
-        await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+        await new Promise((res) =>
+          requestAnimationFrame(() => requestAnimationFrame(res)),
+        );
         const resp = await new Promise((resolve) => {
           try {
             chrome.runtime.sendMessage(
@@ -522,14 +654,22 @@ import {
         toggleZenMode();
         try {
           window.postMessage(
-            { __myz_e2e__: true, type: "zenModeState", enabled: isZenModeEnabled() },
+            {
+              __myz_e2e__: true,
+              type: "zenModeState",
+              enabled: isZenModeEnabled(),
+            },
             "*",
           );
         } catch {}
       } else if (data.type === "canEnterZenMode") {
         try {
           window.postMessage(
-            { __myz_e2e__: true, type: "canEnterZenMode", canEnter: hasArticleElement() },
+            {
+              __myz_e2e__: true,
+              type: "canEnterZenMode",
+              canEnter: hasArticleElement(),
+            },
             "*",
           );
         } catch {}
@@ -595,8 +735,6 @@ import {
 
     startLocationObserver(scheduleRestoreIfUrlChanged);
   }
-
-  
 
   function maybeShowToolbarForActiveSelection() {
     try {

@@ -54,6 +54,15 @@ export function createDashboardStore() {
     internetArchiveEnabled: false,
     internetArchiveAccessKey: "",
     internetArchiveAccessSecret: "",
+    // AI Assistant settings
+    aiAssistantEnabled: false,
+    aiApiEndpoint: "",
+    aiApiKey: "",
+    aiModel: "gpt-4",
+    aiCustomModel: "",
+    aiContextSize: "32K",
+    aiMaxTokens: 4000,
+    aiMcpServers: [],
   });
   const logseqStatus = ref("");
   const settingsStatus = ref("");
@@ -294,6 +303,15 @@ export function createDashboardStore() {
         internetArchiveEnabled: Boolean(result.internetArchiveEnabled),
         internetArchiveAccessKey: result.internetArchiveAccessKey || "",
         internetArchiveAccessSecret: result.internetArchiveAccessSecret || "",
+        // AI Assistant settings
+        aiAssistantEnabled: Boolean(result.aiAssistantEnabled),
+        aiApiEndpoint: result.aiApiEndpoint || "",
+        aiApiKey: result.aiApiKey || "",
+        aiModel: result.aiModel || "gpt-4",
+        aiCustomModel: result.aiCustomModel || "",
+        aiContextSize: result.aiContextSize || "32K",
+        aiMaxTokens: result.aiMaxTokens || 4000,
+        aiMcpServers: result.aiMcpServers || [],
       });
       if (settings.dashboardView) {
         view.value = settings.dashboardView;
@@ -684,6 +702,26 @@ export function createDashboardStore() {
     await refreshHighlights({ preserveProgress: true });
   }
 
+  async function testAiConnection(settings) {
+    try {
+      setTimedStatus(settingsStatus, "Testing AI connection...", 0);
+      const result = await sendMessage("myz:testAiConnection", settings);
+      if (result.success) {
+        setTimedStatus(settingsStatus, `✓ AI connection successful!`, 3000);
+      } else {
+        setTimedStatus(
+          settingsStatus,
+          `✗ AI connection failed: ${result.error}`,
+          4000,
+        );
+      }
+      return result;
+    } catch (error) {
+      setTimedStatus(settingsStatus, `✗ Test failed: ${error.message}`, 4000);
+      throw error;
+    }
+  }
+
   function cleanup() {
     timers.forEach((id) => clearTimeout(id));
     timers.clear();
@@ -750,6 +788,7 @@ export function createDashboardStore() {
     describeArchiveAction,
     cleanup,
     isSyncInFlight,
+    testAiConnection,
     loadHighlights: refreshHighlights,
   };
 }

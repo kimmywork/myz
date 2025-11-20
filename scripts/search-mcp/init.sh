@@ -1,0 +1,1 @@
+git remote add -f search-mcp git@github.com:kimmywork/mcp-myz-search.git
