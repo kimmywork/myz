@@ -82,10 +82,176 @@ export class AiProvider {
     return response.json();
   }
 
+  async streamChatCompletion(payload, options = {}) {
+    const { aiApiEndpoint, aiApiKey } = this.settings;
+    if (!aiApiEndpoint || !aiApiKey) {
+      throw new Error("API endpoint or key not configured");
+    }
+
+    const response = await fetch(aiApiEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${aiApiKey}`,
+      },
+      body: JSON.stringify({
+        ...payload,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
+      );
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (
+      !response.body ||
+      !contentType.includes("text/event-stream")
+    ) {
+      // Fallback to regular JSON body
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        throw new Error(`Failed to parse streaming response: ${error.message}`);
+      }
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    let done = false;
+    let fullContent = "";
+    const toolCalls = [];
+
+    const ensureToolCallSlot = (index, partial) => {
+      if (!toolCalls[index]) {
+        toolCalls[index] = {
+          id: partial.id || `tool-${index + 1}`,
+          type: "function",
+          function: {
+            name: partial.function?.name || "",
+            arguments: "",
+          },
+        };
+      }
+      const target = toolCalls[index];
+      if (partial.id) {
+        target.id = partial.id;
+      }
+      if (partial.function?.name) {
+        target.function.name = partial.function.name;
+      }
+      if (partial.function?.arguments) {
+        target.function.arguments =
+          (target.function.arguments || "") + partial.function.arguments;
+      }
+    };
+
+    while (!done) {
+      const { value, done: readerDone } = await reader.read();
+      if (readerDone) {
+        done = true;
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const event of events) {
+        const lines = event.split("\n");
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line.startsWith("data:")) {
+            continue;
+          }
+          const dataStr = line.slice(5).trim();
+          if (!dataStr || dataStr === "[DONE]") {
+            done = dataStr === "[DONE]";
+            continue;
+          }
+          let parsed;
+          try {
+            parsed = JSON.parse(dataStr);
+          } catch {
+            continue;
+          }
+          const delta = parsed.choices?.[0]?.delta;
+          if (!delta) continue;
+
+          let deltaText = "";
+          if (Array.isArray(delta.content)) {
+            deltaText = delta.content
+              .map((part) => {
+                if (typeof part === "string") return part;
+                if (part?.type === "text") return part.text || "";
+                return "";
+              })
+              .join("");
+          } else if (typeof delta.content === "string") {
+            deltaText = delta.content;
+          }
+
+          if (deltaText) {
+            fullContent += deltaText;
+            options.onStreamDelta?.(fullContent);
+          }
+
+          if (Array.isArray(delta.tool_calls)) {
+            delta.tool_calls.forEach((callDelta, idx) => {
+              const targetIndex =
+                typeof callDelta.index === "number"
+                  ? callDelta.index
+                  : idx;
+              ensureToolCallSlot(targetIndex, callDelta);
+            });
+          }
+        }
+        if (done) break;
+      }
+    }
+
+    reader.releaseLock();
+
+    const cleanedToolCalls = toolCalls
+      .filter(Boolean)
+      .map((call, index) => ({
+        id: call.id || `tool-${index + 1}`,
+        type: "function",
+        function: {
+          name: call.function?.name || "",
+          arguments: call.function?.arguments || "",
+        },
+      }));
+
+    const message = {
+      role: "assistant",
+      content: fullContent,
+    };
+
+    if (cleanedToolCalls.length > 0) {
+      message.tool_calls = cleanedToolCalls;
+    }
+
+    return {
+      choices: [{ message }],
+    };
+  }
+
   async generateResponse(messages, options = {}) {
     if (!this.isEnabled) {
       throw new Error("AI Assistant is not enabled");
     }
+
+    const {
+      stream = false,
+      onStreamDelta,
+      conversationId = null,
+      ...restOptions
+    } = options;
 
     // Determine model to use (support custom models)
     let model = this.settings.aiModel || "gpt-4";
@@ -100,8 +266,8 @@ export class AiProvider {
       model,
       messages,
       max_tokens: maxTokens,
-      temperature: options.temperature || 0.7,
-      ...options,
+      temperature: restOptions.temperature ?? 0.7,
+      ...restOptions,
     };
 
     // If MCP tools are available, include them in the request
@@ -129,15 +295,26 @@ export class AiProvider {
       console.log("[MCP Debug] No MCP tools available");
     }
 
-    const response = await this.makeApiRequest(payload);
+    const response = stream
+      ? await this.streamChatCompletion(payload, {
+          onStreamDelta,
+        })
+      : await this.makeApiRequest(payload);
 
     // Handle tool calls if present
     const message = response.choices?.[0]?.message;
     if (message?.tool_calls) {
+      const toolCallDetails = message.tool_calls.map((call, index) => ({
+        id: call.id || `tool-${index + 1}`,
+        name: call.function?.name || "unknown",
+        arguments: call.function?.arguments || "",
+      }));
+      const toolNames = toolCallDetails.map((detail) => detail.name);
+
       // Save tool call message first
       const toolCallMessage = {
         id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        conversationId: options.conversationId,
+        conversationId,
         role: "assistant",
         content: message.content || "", // Preserve content if present
         tool_calls: message.tool_calls,
@@ -146,19 +323,21 @@ export class AiProvider {
           model: this.settings.aiModel,
           hasToolCalls: true,
           toolCallCount: message.tool_calls.length,
+          toolNames,
+          toolCallDetails,
         },
       };
       await saveMessage(toolCallMessage);
 
       // Notify UI immediately to show tool call
-      this.notifyNewMessage(options.conversationId, toolCallMessage);
+      this.notifyNewMessage(conversationId, toolCallMessage);
 
       // Then handle the tool calls
       // handleToolCalls returns the final AI response with tool results
       const finalResponse = await this.handleToolCalls(
         message,
         messages,
-        options.conversationId,
+        conversationId,
         options, // Pass options so handleToolCalls can pass it to generateResponse
       );
 
@@ -273,6 +452,62 @@ export class AiProvider {
     }
   }
 
+  notifyStreamStart(conversationId, message) {
+    try {
+      chrome.runtime.sendMessage({
+        type: "myz:aiStreamStart",
+        data: {
+          conversationId,
+          message,
+        },
+      }).catch(() => {});
+    } catch (error) {
+      console.warn("Failed to notify stream start:", error);
+    }
+  }
+
+  notifyStreamDelta(conversationId, payload) {
+    try {
+      chrome.runtime.sendMessage({
+        type: "myz:aiStreamChunk",
+        data: {
+          conversationId,
+          ...payload,
+        },
+      }).catch(() => {});
+    } catch (error) {
+      console.warn("Failed to notify stream chunk:", error);
+    }
+  }
+
+  notifyStreamComplete(conversationId, payload) {
+    try {
+      chrome.runtime.sendMessage({
+        type: "myz:aiStreamComplete",
+        data: {
+          conversationId,
+          ...payload,
+        },
+      }).catch(() => {});
+    } catch (error) {
+      console.warn("Failed to notify stream completion:", error);
+    }
+  }
+
+  notifyStreamError(conversationId, payload) {
+    try {
+      chrome.runtime.sendMessage({
+        type: "myz:aiStreamError",
+        data: {
+          conversationId,
+          ...payload,
+        },
+      }).catch(() => {});
+    } catch (error) {
+      console.warn("Failed to notify stream error:", error);
+    }
+  }
+
   async executeToolCall(toolCall) {
     const { name, arguments: args } = toolCall.function;
 
@@ -359,6 +594,7 @@ export class AiProvider {
     const {
       includePageContext = true,
       metadata = {},
+      stream = false,
       ...llmOptions
     } = options;
 
@@ -379,11 +615,47 @@ export class AiProvider {
       includePageContext,
     );
 
+    let streamMessageId = null;
+    if (stream) {
+      streamMessageId =
+        llmOptions.streamId ||
+        `stream-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      this.notifyStreamStart(conversationId, {
+        id: streamMessageId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date().toISOString(),
+        metadata: {
+          model: this.settings.aiModel,
+          action,
+          streaming: true,
+        },
+      });
+    }
+
     // Generate AI response
     // IMPORTANT: Pass conversationId to generateResponse
     const response = await this.generateResponse(history, {
       ...llmOptions,
       conversationId, // Ensure conversationId is available when saving tool messages
+      stream,
+      onStreamDelta: stream
+        ? (delta) => {
+            if (!delta) return;
+            this.notifyStreamDelta(conversationId, {
+              streamId: streamMessageId,
+              delta,
+            });
+          }
+        : undefined,
+    }).catch((error) => {
+      if (stream && streamMessageId) {
+        this.notifyStreamError(conversationId, {
+          streamId: streamMessageId,
+          error: error.message,
+        });
+      }
+      throw error;
     });
 
     // Check if response has both tool calls and content
@@ -391,16 +663,22 @@ export class AiProvider {
     let assistantContent = message?.content || "";
     let toolCallInfo = "";
 
+    let toolNamesList = [];
+    let toolCallDetails = [];
+    const assistantHadContent = Boolean(message?.content?.trim());
+
     if (message?.tool_calls && message.tool_calls.length > 0) {
+      toolNamesList = message.tool_calls.map(
+        (call) => call.function?.name || "unknown",
+      );
+      toolCallDetails = message.tool_calls.map((call, index) => ({
+        id: call.id || `tool-${index + 1}`,
+        name: call.function?.name || "unknown",
+        arguments: call.function?.arguments || "",
+      }));
       // Build tool call information to show to user
-      toolCallInfo = message.tool_calls
-        .map((call, i) => {
-          const toolName = call.function?.name || "unknown";
-          const args = call.function?.arguments
-            ? JSON.parse(call.function.arguments)
-            : {};
-          return `[Tool ${i + 1}: ${toolName}]`;
-        })
+      toolCallInfo = toolNamesList
+        .map((toolName, i) => `[Tool ${i + 1}: ${toolName}]`)
         .join(" ");
 
       // Prepend tool call info to content
@@ -420,11 +698,25 @@ export class AiProvider {
         action,
         hasToolCalls: !!message?.tool_calls,
         toolCallCount: message?.tool_calls?.length || 0,
-        toolNames: toolCallInfo,
+        toolNames: toolNamesList,
+        toolCallDetails,
+        toolInvocationOnly: !assistantHadContent && toolNamesList.length > 0,
         ...metadata,
       },
     };
     await saveMessage(assistantMessage);
+
+    if (stream && streamMessageId) {
+      this.notifyStreamComplete(conversationId, {
+        streamId: streamMessageId,
+        content: assistantContent,
+        metadata: {
+          toolNames: toolNamesList,
+          toolCallDetails,
+        },
+        message: assistantMessage,
+      });
+    }
 
     return {
       conversationId,

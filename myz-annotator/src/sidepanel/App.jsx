@@ -37,6 +37,7 @@ export default defineComponent({
     const pageContent = ref("");
     const sendContext = ref(true); // Toggle to include/exclude page context
     const isContextPreferenceUpdating = ref(false);
+    const isComposing = ref(false);
     const visibleMessages = computed(() =>
       sendContext.value
         ? messages.value
@@ -71,8 +72,32 @@ export default defineComponent({
     const messageListRef = ref(null);
     let runtimeListener = null;
 
+    const activeStream = reactive({
+      id: null,
+      content: "",
+      timestamp: "",
+      metadata: {},
+    });
+    const hasActiveStream = computed(() => Boolean(activeStream.id));
+
+    const toolResponseViewer = reactive({
+      visible: false,
+      title: "",
+      content: "",
+      toolName: "",
+      timestamp: "",
+      args: "",
+      invocationDetails: [],
+    });
+
     function hasPageContextMessage(list = messages.value) {
       return list.some((msg) => msg.metadata?.type === "page_context");
+    }
+    function resetActiveStream() {
+      activeStream.id = null;
+      activeStream.content = "";
+      activeStream.timestamp = "";
+      activeStream.metadata = {};
     }
 
     async function persistSendContextPreference(enabled) {
@@ -297,25 +322,19 @@ export default defineComponent({
         await nextTick();
         scrollToBottom();
 
+        // Ensure previous streaming state is cleared
+        resetActiveStream();
+
         // Send to AI (this will save user, tool call, tool response, and final assistant messages to IndexedDB)
-        const result = await sendMessage("myz:processWithAi", {
+        await sendMessage("myz:processWithAi", {
           conversationId: conversationId.value,
           action: "custom",
           content: fullInput,
           options: {
             includePageContext: sendContext.value,
+            stream: true,
           },
         });
-
-        // Reload all messages from IndexedDB to include tool calls and tool responses
-        const allMessages = await getMessagesForConversation(
-          conversationId.value,
-          1000
-        );
-        messages.value = allMessages;
-
-        // Update context info
-        await checkContext();
       } catch (e) {
         console.error("Message processing failed:", e);
         error.value = "处理消息失败: " + e.message;
@@ -411,6 +430,240 @@ export default defineComponent({
       }
     }
 
+    function handleCompositionStart() {
+      isComposing.value = true;
+    }
+
+    function handleCompositionEnd() {
+      isComposing.value = false;
+    }
+
+    function resolveToolNames(metadata) {
+      if (!metadata) return "";
+      if (Array.isArray(metadata.toolNames)) {
+        return metadata.toolNames.filter(Boolean).join("、");
+      }
+      if (typeof metadata.toolNames === "string") {
+        return metadata.toolNames;
+      }
+      if (metadata.toolCallCount) {
+        return `工具 x${metadata.toolCallCount}`;
+      }
+      return "";
+    }
+
+    function isToolInvocationNotice(msg) {
+      if (!msg || msg.role !== "assistant" || !msg.metadata?.hasToolCalls) {
+        return false;
+      }
+      if (msg.metadata?.toolInvocationOnly) return true;
+      const text = (msg.content || "").trim();
+      if (!text) return true;
+      const pattern = /\[Tool\s+\d+:[^\]]+\]/g;
+      const matches = text.match(pattern);
+      if (!matches) return false;
+      return text.replace(pattern, "").trim().length === 0;
+    }
+
+    function getToolInvocationText(msg) {
+      const toolNames = resolveToolNames(msg.metadata) || "处理中...";
+      return `🔧 AI正在通过以下工具检索信息: ${toolNames}`;
+    }
+
+    function hasToolInvocationDetails(msg) {
+      return hasToolInvocationDetailsFromMetadata(msg?.metadata);
+    }
+
+    function hasToolInvocationDetailsFromMetadata(metadata) {
+      return (
+        Array.isArray(metadata?.toolCallDetails) &&
+        metadata.toolCallDetails.length > 0
+      );
+    }
+
+    function getToolPreviewText(content) {
+      if (!content) return "（无输出，点击查看详情）";
+      const singleLine = content.replace(/\s+/g, " ").trim();
+      if (!singleLine) return "（无输出，点击查看详情）";
+      if (singleLine.length <= 80) {
+        return singleLine;
+      }
+      return singleLine.slice(0, 77) + "...";
+    }
+
+    function formatArgumentsForDisplay(value) {
+      if (!value) return "";
+      try {
+        return JSON.stringify(JSON.parse(value), null, 2);
+      } catch {
+        return value;
+      }
+    }
+
+    function openToolResponse(message) {
+      toolResponseViewer.visible = true;
+      toolResponseViewer.title = message.metadata?.toolName || "工具响应详情";
+      toolResponseViewer.content = message.content || "";
+      toolResponseViewer.toolName =
+        message.metadata?.toolName || "工具响应";
+      toolResponseViewer.timestamp = message.timestamp || "";
+      toolResponseViewer.args = formatArgumentsForDisplay(
+        message.metadata?.toolArgs,
+      );
+      toolResponseViewer.invocationDetails = [];
+    }
+
+    function closeToolResponse() {
+      toolResponseViewer.visible = false;
+      toolResponseViewer.title = "";
+      toolResponseViewer.content = "";
+      toolResponseViewer.toolName = "";
+      toolResponseViewer.timestamp = "";
+      toolResponseViewer.args = "";
+      toolResponseViewer.invocationDetails = [];
+    }
+
+    function openToolInvocationDetails(message) {
+      if (!hasToolInvocationDetails(message)) return;
+      const details = message.metadata.toolCallDetails.map((detail, index) => ({
+        id: detail.id || `tool-${index + 1}`,
+        name: detail.name || `工具 ${index + 1}`,
+        arguments:
+          formatArgumentsForDisplay(detail.arguments) || "（无参数）",
+      }));
+      toolResponseViewer.visible = true;
+      toolResponseViewer.toolName = "工具调用参数";
+      toolResponseViewer.title = "工具调用参数";
+      toolResponseViewer.timestamp = message.timestamp || "";
+      toolResponseViewer.content = "";
+      toolResponseViewer.args = "";
+      toolResponseViewer.invocationDetails = details;
+    }
+
+    function handleStreamStartEvent(data) {
+      if (
+        !data ||
+        data.conversationId !== conversationId.value ||
+        !data.message
+      ) {
+        return;
+      }
+      resetActiveStream();
+      const streamId = data.message.id || data.streamId;
+      if (!streamId) {
+        return;
+      }
+      activeStream.id = streamId;
+      activeStream.content = "";
+      activeStream.timestamp =
+        data.message.timestamp || new Date().toISOString();
+      activeStream.metadata = {
+        ...(data.message.metadata || {}),
+        streaming: true,
+      };
+      nextTick(() => {
+        scrollToBottom();
+      });
+    }
+
+    function handleStreamChunkEvent(data) {
+      if (
+        !data ||
+        data.conversationId !== conversationId.value ||
+        !data.streamId ||
+        activeStream.id !== data.streamId
+      ) {
+        return;
+      }
+      activeStream.content = data.delta || "";
+      nextTick(() => {
+        scrollToBottom();
+      });
+    }
+
+    function handleStreamCompleteEvent(data) {
+      if (
+        !data ||
+        data.conversationId !== conversationId.value ||
+        !data.streamId ||
+        activeStream.id !== data.streamId
+      ) {
+        return;
+      }
+
+      let finalMessage = data.message;
+      if (!finalMessage) {
+        finalMessage = {
+          id: data.streamId,
+          conversationId: conversationId.value,
+          role: "assistant",
+          content:
+            data.content ??
+            activeStream.content ??
+            "",
+          timestamp: activeStream.timestamp || new Date().toISOString(),
+          metadata: {
+            ...(activeStream.metadata || {}),
+            streaming: false,
+            ...(data.metadata || {}),
+          },
+        };
+      }
+      finalMessage.metadata = {
+        ...(finalMessage.metadata || {}),
+        streaming: false,
+      };
+
+      if (data.metadata?.toolNames && !finalMessage.metadata?.toolNames) {
+        finalMessage.metadata = {
+          ...(finalMessage.metadata || {}),
+          toolNames: data.metadata.toolNames,
+        };
+      }
+      if (
+        data.metadata?.toolCallDetails &&
+        !finalMessage.metadata?.toolCallDetails
+      ) {
+        finalMessage.metadata = {
+          ...(finalMessage.metadata || {}),
+          toolCallDetails: data.metadata.toolCallDetails,
+          hasToolCalls: data.metadata.toolCallDetails.length > 0,
+        };
+      }
+      if (
+        Array.isArray(finalMessage.metadata?.toolNames) &&
+        finalMessage.metadata.toolNames.length > 0
+      ) {
+        finalMessage.metadata.hasToolCalls = true;
+      }
+
+      const messageToAppend = {
+        ...finalMessage,
+        metadata: { ...(finalMessage.metadata || {}) },
+      };
+      resetActiveStream();
+      messages.value.push(messageToAppend);
+      nextTick(() => {
+        scrollToBottom();
+      });
+      checkContext();
+    }
+
+    function handleStreamErrorEvent(data) {
+      if (
+        !data ||
+        data.conversationId !== conversationId.value ||
+        !data.streamId ||
+        activeStream.id !== data.streamId
+      ) {
+        return;
+      }
+      resetActiveStream();
+      error.value = data.error
+        ? `AI生成失败: ${data.error}`
+        : "AI生成失败";
+    }
+
     function scrollToBottom() {
       if (messageListRef.value) {
         messageListRef.value.scrollTop = messageListRef.value.scrollHeight;
@@ -419,10 +672,12 @@ export default defineComponent({
 
     function showHistory() {
       view.value = "history";
+      resetActiveStream();
     }
 
     function showChat(selectedConv = null) {
       view.value = "chat";
+      resetActiveStream();
       if (selectedConv) {
         conversationId.value = selectedConv.conversationId;
         pageTitle.value = selectedConv.title;
@@ -438,6 +693,9 @@ export default defineComponent({
     }
 
     async function handleKeydown(e) {
+      if (isComposing.value) {
+        return;
+      }
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         await handleSendMessage();
@@ -461,15 +719,55 @@ export default defineComponent({
         }
         // Handle real-time new messages (e.g., from tool calls/responses)
         else if (message.type === "myz:newMessage" && message.data?.message) {
+          const incoming = message.data.message;
+          if (
+            activeStream.id &&
+            incoming.metadata?.hasToolCalls &&
+            incoming.role === "assistant"
+          ) {
+            activeStream.content = "";
+            activeStream.metadata = {
+              ...(activeStream.metadata || {}),
+              hasToolCalls: true,
+              toolNames:
+                incoming.metadata.toolNames ||
+                activeStream.metadata?.toolNames,
+              toolCallDetails:
+                incoming.metadata.toolCallDetails ||
+                activeStream.metadata?.toolCallDetails,
+            };
+          }
           if (
             conversationId.value &&
-            message.data.conversationId === conversationId.value
+            incoming.conversationId === conversationId.value
           ) {
-            messages.value.push(message.data.message);
+            messages.value.push(incoming);
             nextTick(() => {
               scrollToBottom();
             });
           }
+        }
+        // Streaming handlers
+        else if (
+          message.type === "myz:aiStreamStart" &&
+          message.data
+        ) {
+          handleStreamStartEvent(message.data);
+        } else if (
+          message.type === "myz:aiStreamChunk" &&
+          message.data
+        ) {
+          handleStreamChunkEvent(message.data);
+        } else if (
+          message.type === "myz:aiStreamComplete" &&
+          message.data
+        ) {
+          handleStreamCompleteEvent(message.data);
+        } else if (
+          message.type === "myz:aiStreamError" &&
+          message.data
+        ) {
+          handleStreamErrorEvent(message.data);
         }
       };
 
@@ -561,70 +859,168 @@ export default defineComponent({
                 </div>
               )}
 
-              {visibleMessages.value.map((msg) => (
-                <div
-                  key={msg.id}
-                  class={`message message-${msg.role}`}
-                  style={
-                    msg.metadata?.type === "page_context"
-                      ? "opacity: 0.6; font-size: 12px;"
-                      : ""
-                  }
-                >
-                  <div class="message-header">
-                    <span class="message-role">
-                      {msg.role === "user"
-                        ? "用户"
-                        : msg.role === "assistant"
-                          ? "AI助手"
-                          : msg.role === "tool"
-                            ? "工具"
-                            : "系统"}
-                    </span>
-                    <span class="message-time">
-                      {new Date(msg.timestamp).toLocaleString()}
-                    </span>
-                    {msg.role === "assistant" && (
-                      <button
-                        class="btn btn-secondary save-highlight-btn"
-                        onClick={() => handleSaveHighlight(msg.id)}
-                        disabled={isSavingHighlight.value}
-                      >
-                        保存
-                      </button>
-                    )}
-                  </div>
-                  {msg.role === "assistant" ? (
-                    <div class="message-content">
-                      {msg.metadata?.hasToolCalls && (
-                        <div class="tool-calls-info">
-                          <small>🔧 AI正在通过以下工具检索信息:</small>
-                          <div class="tool-names">
-                            {msg.metadata?.toolNames || ""}
-                          </div>
+              {visibleMessages.value
+                .filter((msg) => msg.metadata?.type !== "streaming_preview")
+                .map((msg) => {
+                if (isToolInvocationNotice(msg)) {
+                  const hasDetails = hasToolInvocationDetails(msg);
+                  return (
+                    <div key={msg.id} class="tool-inline tool-inline-info">
+                      <div class="tool-inline-main">
+                        <span>{getToolInvocationText(msg)}</span>
+                        <span class="tool-inline-time">
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      {hasDetails && (
+                        <div class="tool-inline-actions">
+                          <button
+                            class="tool-inline-button"
+                            onClick={() => openToolInvocationDetails(msg)}
+                          >
+                            查看详情
+                          </button>
                         </div>
                       )}
-                      {msg.content && (
-                        <div
-                          class="message-content-markdown"
-                          v-html={renderMarkdown(msg.content)}
-                        />
+                    </div>
+                  );
+                }
+
+                if (msg.role === "tool") {
+                  return (
+                    <div key={msg.id} class="tool-inline tool-inline-response">
+                      <div class="tool-inline-main">
+                        <span class="tool-inline-icon">🔧</span>
+                        <span class="tool-inline-name">
+                          {msg.metadata?.toolName || "工具响应"}
+                        </span>
+                        <span class="tool-inline-preview">
+                          {getToolPreviewText(msg.content)}
+                        </span>
+                        <span class="tool-inline-time">
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div class="tool-inline-actions">
+                        <button
+                          class="tool-inline-button"
+                          onClick={() => openToolResponse(msg)}
+                        >
+                          查看详情
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={msg.id}
+                    class={`message message-${msg.role}`}
+                    style={
+                      msg.metadata?.type === "page_context"
+                        ? "opacity: 0.6; font-size: 12px;"
+                        : ""
+                    }
+                  >
+                    <div class="message-header">
+                      <span class="message-role">
+                        {msg.role === "user"
+                          ? "用户"
+                          : msg.role === "assistant"
+                            ? "AI助手"
+                            : msg.role === "tool"
+                              ? "工具"
+                              : "系统"}
+                      </span>
+                      <span class="message-time">
+                        {new Date(msg.timestamp).toLocaleString()}
+                      </span>
+                      {msg.metadata?.streaming && (
+                        <span class="message-streaming">生成中...</span>
+                      )}
+                      {msg.metadata?.streamingError && (
+                        <span class="message-error-indicator">
+                          ⚠️ {msg.metadata.streamingError}
+                        </span>
+                      )}
+                      {msg.role === "assistant" && (
+                        <button
+                          class="btn btn-secondary save-highlight-btn"
+                          onClick={() => handleSaveHighlight(msg.id)}
+                          disabled={
+                            isSavingHighlight.value || msg.metadata?.streaming
+                          }
+                        >
+                          保存
+                        </button>
                       )}
                     </div>
-                  ) : msg.role === "tool" ? (
-                    <div class="message-content message-content-tool">
-                      <div class="tool-info">
-                        <small>🔧 工具响应</small>
+                    {msg.role === "assistant" ? (
+                      <div class="message-content">
+                        {msg.metadata?.hasToolCalls &&
+                          resolveToolNames(msg.metadata) && (
+                            <div class="tool-inline tool-inline-info tool-inline-inset">
+                              <div class="tool-inline-main">
+                                <span>
+                                  {`🔧 AI正在通过以下工具检索信息: ${resolveToolNames(msg.metadata)}`}
+                                </span>
+                              </div>
+                              {hasToolInvocationDetails(msg) && (
+                                <div class="tool-inline-actions">
+                                  <button
+                                    class="tool-inline-button"
+                                    onClick={() =>
+                                      openToolInvocationDetails(msg)
+                                    }
+                                  >
+                                    查看详情
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        {msg.content && (
+                          <div
+                            class="message-content-markdown"
+                            v-html={renderMarkdown(msg.content)}
+                          />
+                        )}
                       </div>
-                      <div class="message-content-text">{msg.content}</div>
-                    </div>
-                  ) : (
-                    <div class="message-content message-content-text">
-                      {msg.content}
-                    </div>
-                  )}
+                    ) : (
+                      <div class="message-content message-content-text">
+                        {msg.content}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {hasActiveStream.value && (
+                <div class="message message-assistant streaming-message">
+                  <div class="message-header">
+                    <span class="message-role">AI助手</span>
+                    <span class="message-time">
+                      {activeStream.timestamp
+                        ? new Date(activeStream.timestamp).toLocaleString()
+                        : new Date().toLocaleString()}
+                    </span>
+                    <span class="message-streaming">AI 正在思考...</span>
+                  </div>
+                  <div class="message-content">
+                    {activeStream.content ? (
+                      <div
+                        class="message-content-markdown"
+                        v-html={renderMarkdown(activeStream.content)}
+                      />
+                    ) : (
+                      <div class="streaming-placeholder-text">
+                        AI 正在生成回答...
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ))}
+              )}
 
               {isLoading.value && (
                 <div class="message message-loading">
@@ -640,6 +1036,8 @@ export default defineComponent({
                 placeholder={inputPlaceholder.value}
                 rows={3}
                 onKeydown={handleKeydown}
+                onCompositionstart={handleCompositionStart}
+                onCompositionend={handleCompositionEnd}
                 disabled={isLoading.value}
               />
               <button
@@ -661,6 +1059,57 @@ export default defineComponent({
             />
           </>
         )}
+      {toolResponseViewer.visible && (
+        <div class="tool-response-overlay" onClick={closeToolResponse}>
+          <div
+            class="tool-response-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header class="tool-response-header">
+              <div>
+                <div class="tool-response-title">
+                  🔧 {toolResponseViewer.toolName}
+                </div>
+                {toolResponseViewer.timestamp && (
+                  <div class="tool-response-timestamp">
+                    {new Date(toolResponseViewer.timestamp).toLocaleString()}
+                  </div>
+                )}
+              </div>
+              <button class="tool-response-close" onClick={closeToolResponse}>
+                ✕
+              </button>
+            </header>
+            <div class="tool-response-body">
+              {toolResponseViewer.invocationDetails.length > 0 ? (
+                <div class="tool-response-section">
+                  {toolResponseViewer.invocationDetails.map((detail) => (
+                    <div key={detail.id} class="tool-response-entry">
+                      <div class="tool-response-entry-title">
+                        {detail.name}
+                      </div>
+                      <pre>{detail.arguments}</pre>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {toolResponseViewer.args && (
+                    <div class="tool-response-subsection">
+                      <div class="tool-response-subtitle">调用参数</div>
+                      <pre>{toolResponseViewer.args}</pre>
+                    </div>
+                  )}
+                  <div class="tool-response-subsection">
+                    <div class="tool-response-subtitle">工具输出</div>
+                    <pre>{toolResponseViewer.content || "（无内容）"}</pre>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     );
   },
