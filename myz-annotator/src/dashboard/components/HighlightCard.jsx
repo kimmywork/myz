@@ -19,6 +19,18 @@ export default defineComponent({
       return record.archiveSnapshotUrl || record.archiveUrl || "";
     });
 
+    const kindLabel = computed(() => {
+      const kind = store.getRecordKind(props.record);
+      switch (kind) {
+        case RECORD_KINDS.CLIP:
+          return "保存文字";
+        case RECORD_KINDS.AI_GENERATED:
+          return "AI摘录";
+        default:
+          return "划线标注";
+      }
+    });
+
     function handleAction(action) {
       const id = props.record?.id;
       if (!id) {
@@ -54,6 +66,9 @@ export default defineComponent({
       if (kind.value === RECORD_KINDS.CLIP) {
         cardClasses.push("card--clip");
       }
+      if (kind.value === RECORD_KINDS.AI_GENERATED) {
+        cardClasses.push("card--ai");
+      }
       if (!hasNote.value) {
         cardClasses.push("card--single");
       }
@@ -64,8 +79,15 @@ export default defineComponent({
           data-kind={kind.value}
         >
           <div class="card__header">
-            <div class="card__badge">
-              {kind.value === RECORD_KINDS.CLIP ? "保存文字" : "划线标注"}
+            <div
+              class="card__badge"
+              style={
+                kind.value === RECORD_KINDS.AI_GENERATED
+                  ? "background: #7c3aed; color: white;"
+                  : ""
+              }
+            >
+              {kindLabel.value}
             </div>
             <div class="card__meta">
               <span
@@ -86,9 +108,7 @@ export default defineComponent({
                 (kind.value === RECORD_KINDS.CLIP ? " card__segment--clip" : "")
               }
             >
-              <h4 class="card__segment-title">
-                {kind.value === RECORD_KINDS.CLIP ? "保存文字" : "标注"}
-              </h4>
+              <h4 class="card__segment-title">{kindLabel.value}</h4>
               <blockquote
                 class="card__quote"
                 innerHTML={store.renderHighlight(record)}

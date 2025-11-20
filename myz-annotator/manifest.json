@@ -9,7 +9,7 @@
     "48": "assets/icon-128.png",
     "128": "assets/icon-128.png"
   },
-  "permissions": ["storage", "tabs", "activeTab", "contextMenus"],
+  "permissions": ["storage", "tabs", "activeTab", "contextMenus", "sidePanel"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background.js",
@@ -31,5 +31,8 @@
     "default_popup": "src/popup/popup.html",
     "default_title": "MyZ Annotator"
   },
-  "options_page": "src/dashboard/index.html"
+  "options_page": "src/dashboard/index.html",
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  }
 }

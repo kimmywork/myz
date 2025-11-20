@@ -1,13 +1,31 @@
 export const RECORD_KINDS = {
   HIGHLIGHT: "highlight",
   CLIP: "clip",
+  AI_GENERATED: "ai-generated",
 };
 
 export function getRecordKind(record) {
+  if (record && record.kind === RECORD_KINDS.AI_GENERATED) {
+    return RECORD_KINDS.AI_GENERATED;
+  }
   if (record && record.kind === RECORD_KINDS.CLIP) {
     return RECORD_KINDS.CLIP;
   }
   return RECORD_KINDS.HIGHLIGHT;
+}
+
+export function getRecordKindLabel(record) {
+  const kind = getRecordKind(record);
+  switch (kind) {
+    case RECORD_KINDS.HIGHLIGHT:
+      return "划线标注";
+    case RECORD_KINDS.CLIP:
+      return "保存文字";
+    case RECORD_KINDS.AI_GENERATED:
+      return "AI摘录";
+    default:
+      return "标注";
+  }
 }
 
 export function normalizeRecord(record) {

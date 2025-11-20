@@ -5,7 +5,10 @@ export const ZEN_SELECTOR_MAP = [
   // Example: our test fixture
   { pattern: /article-mapped\.html$/, selector: "#special-article" },
   // Gcores article pages
-  { pattern: /:\/\/(?:www\.)?gcores\.com\/articles\/\d+/, selector: ".articlePage" },
+  {
+    pattern: /:\/\/(?:www\.)?gcores\.com\/articles\/\d+/,
+    selector: ".articlePage",
+  },
   // Add more rules as needed, e.g.
   // { pattern: /example\.com/, selector: "main .article" },
 ];

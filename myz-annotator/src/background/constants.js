@@ -34,4 +34,13 @@ export const DEFAULT_SETTINGS = {
   internetArchiveEnabled: false,
   internetArchiveAccessKey: "",
   internetArchiveAccessSecret: "",
+  // AI Assistant settings
+  aiAssistantEnabled: false,
+  aiApiEndpoint: "",
+  aiApiKey: "",
+  aiModel: "gpt-4",
+  aiCustomModel: "",
+  aiContextSize: "32K",
+  aiMaxTokens: 32768,
+  aiMcpServers: [],
 };
