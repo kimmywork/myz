@@ -108,10 +108,7 @@ export class AiProvider {
     }
 
     const contentType = response.headers.get("content-type") || "";
-    if (
-      !response.body ||
-      !contentType.includes("text/event-stream")
-    ) {
+    if (!response.body || !contentType.includes("text/event-stream")) {
       // Fallback to regular JSON body
       const text = await response.text();
       try {
@@ -203,9 +200,7 @@ export class AiProvider {
           if (Array.isArray(delta.tool_calls)) {
             delta.tool_calls.forEach((callDelta, idx) => {
               const targetIndex =
-                typeof callDelta.index === "number"
-                  ? callDelta.index
-                  : idx;
+                typeof callDelta.index === "number" ? callDelta.index : idx;
               ensureToolCallSlot(targetIndex, callDelta);
             });
           }
@@ -216,16 +211,14 @@ export class AiProvider {
 
     reader.releaseLock();
 
-    const cleanedToolCalls = toolCalls
-      .filter(Boolean)
-      .map((call, index) => ({
-        id: call.id || `tool-${index + 1}`,
-        type: "function",
-        function: {
-          name: call.function?.name || "",
-          arguments: call.function?.arguments || "",
-        },
-      }));
+    const cleanedToolCalls = toolCalls.filter(Boolean).map((call, index) => ({
+      id: call.id || `tool-${index + 1}`,
+      type: "function",
+      function: {
+        name: call.function?.name || "",
+        arguments: call.function?.arguments || "",
+      },
+    }));
 
     const message = {
       role: "assistant",
@@ -348,7 +341,12 @@ export class AiProvider {
     return response;
   }
 
-  async handleToolCalls(message, previousMessages, conversationId, options = {}) {
+  async handleToolCalls(
+    message,
+    previousMessages,
+    conversationId,
+    options = {},
+  ) {
     const toolCalls = message.tool_calls;
     const followUpMessages = [
       ...previousMessages,
@@ -438,15 +436,17 @@ export class AiProvider {
   notifyNewMessage(conversationId, message) {
     try {
       // Send message to all connected clients (including sidepanel)
-      chrome.runtime.sendMessage({
-        type: "myz:newMessage",
-        data: {
-          conversationId,
-          message,
-        },
-      }).catch(() => {
-        // Ignore errors - sidepanel might not be open
-      });
+      chrome.runtime
+        .sendMessage({
+          type: "myz:newMessage",
+          data: {
+            conversationId,
+            message,
+          },
+        })
+        .catch(() => {
+          // Ignore errors - sidepanel might not be open
+        });
     } catch (error) {
       console.warn("Failed to notify UI about new message:", error);
     }
@@ -454,13 +454,15 @@ export class AiProvider {
 
   notifyStreamStart(conversationId, message) {
     try {
-      chrome.runtime.sendMessage({
-        type: "myz:aiStreamStart",
-        data: {
-          conversationId,
-          message,
-        },
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: "myz:aiStreamStart",
+          data: {
+            conversationId,
+            message,
+          },
+        })
+        .catch(() => {});
     } catch (error) {
       console.warn("Failed to notify stream start:", error);
     }
@@ -468,13 +470,15 @@ export class AiProvider {
 
   notifyStreamDelta(conversationId, payload) {
     try {
-      chrome.runtime.sendMessage({
-        type: "myz:aiStreamChunk",
-        data: {
-          conversationId,
-          ...payload,
-        },
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: "myz:aiStreamChunk",
+          data: {
+            conversationId,
+            ...payload,
+          },
+        })
+        .catch(() => {});
     } catch (error) {
       console.warn("Failed to notify stream chunk:", error);
     }
@@ -482,13 +486,15 @@ export class AiProvider {
 
   notifyStreamComplete(conversationId, payload) {
     try {
-      chrome.runtime.sendMessage({
-        type: "myz:aiStreamComplete",
-        data: {
-          conversationId,
-          ...payload,
-        },
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: "myz:aiStreamComplete",
+          data: {
+            conversationId,
+            ...payload,
+          },
+        })
+        .catch(() => {});
     } catch (error) {
       console.warn("Failed to notify stream completion:", error);
     }
@@ -496,13 +502,15 @@ export class AiProvider {
 
   notifyStreamError(conversationId, payload) {
     try {
-      chrome.runtime.sendMessage({
-        type: "myz:aiStreamError",
-        data: {
-          conversationId,
-          ...payload,
-        },
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: "myz:aiStreamError",
+          data: {
+            conversationId,
+            ...payload,
+          },
+        })
+        .catch(() => {});
     } catch (error) {
       console.warn("Failed to notify stream error:", error);
     }
@@ -734,7 +742,7 @@ export class AiProvider {
 
     if (!includePageContext) {
       messages = messages.filter(
-        (msg) => msg.metadata?.type !== "page_context",
+        (msg) => msg.metadata?.type !== "page_context" && msg.role !== "system",
       );
     }
 

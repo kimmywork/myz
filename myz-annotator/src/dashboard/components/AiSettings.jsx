@@ -22,9 +22,13 @@ export default defineComponent({
       type: Function,
       required: true,
     },
-    statusRef: {
-      type: Object,
-      required: true,
+    status: {
+      type: String,
+      default: "",
+    },
+    onUpdateStatus: {
+      type: Function,
+      default: null,
     },
   },
   setup(props) {
@@ -74,16 +78,6 @@ export default defineComponent({
       { value: "1M", label: "1M (约 1000000 tokens)", tokens: 1000000 },
     ];
 
-    const hasMcpServers = computed(() => {
-      return (
-        props.settings.aiMcpServers && props.settings.aiMcpServers.length > 0
-      );
-    });
-
-    const mcpServerCount = computed(() => {
-      return props.settings.aiMcpServers?.filter((s) => s.enabled).length || 0;
-    });
-
     function setFormFromSettings() {
       aiForm.aiAssistantEnabled = props.settings.aiAssistantEnabled || false;
       aiForm.aiApiEndpoint = props.settings.aiApiEndpoint || "";
@@ -111,37 +105,32 @@ export default defineComponent({
       return mapping[size] || 32000;
     }
 
+    function updateStatus(message, { autoClear = false } = {}) {
+      if (typeof props.onUpdateStatus === "function") {
+        props.onUpdateStatus(message);
+        if (autoClear) {
+          setTimeout(() => props.onUpdateStatus?.(""), 3000);
+        }
+      }
+    }
+
     async function handleToggle(event) {
       const enabled = event.target.checked;
       aiForm.aiAssistantEnabled = enabled;
 
-      // Check if statusRef is properly passed
-      if (!props.statusRef) {
-        console.error("statusRef is not provided to AiSettings component");
-      }
-
       // Save immediately when toggling
       try {
-        if (props.statusRef) {
-          props.statusRef.value = "保存中...";
-        }
+        updateStatus("保存中...");
         await props.onSave(aiForm);
         setFormFromSettings();
-        if (props.statusRef) {
-          props.statusRef.value = "设置已保存";
-          setTimeout(() => {
-            if (props.statusRef) props.statusRef.value = "";
-          }, 3000);
-        }
+        updateStatus("设置已保存", { autoClear: true });
       } catch (error) {
         // Revert toggle on error
         event.target.checked = !enabled;
         aiForm.aiAssistantEnabled = !enabled;
-        if (props.statusRef) {
-          props.statusRef.value = `保存失败: ${error.message}`;
-        }
         // Also log to console for debugging
         console.error("Toggle save failed:", error);
+        updateStatus(`保存失败: ${error.message}`);
       }
     }
 
@@ -159,22 +148,13 @@ export default defineComponent({
 
     async function handleSave() {
       try {
-        if (props.statusRef) {
-          props.statusRef.value = "保存中...";
-        }
+        updateStatus("保存中...");
         await props.onSave(aiForm);
         setFormFromSettings();
-        if (props.statusRef) {
-          props.statusRef.value = "设置已保存";
-          setTimeout(() => {
-            if (props.statusRef) props.statusRef.value = "";
-          }, 3000);
-        }
+        updateStatus("设置已保存", { autoClear: true });
       } catch (error) {
-        if (props.statusRef) {
-          props.statusRef.value = `保存失败: ${error.message}`;
-        }
         console.error("Save failed:", error);
+        updateStatus(`保存失败: ${error.message}`);
       }
     }
 
@@ -647,7 +627,7 @@ export default defineComponent({
               {isTesting.value ? "测试中..." : "测试连接"}
             </button>
 
-            <p class="status-line">{props.statusRef.value}</p>
+            <p class="status-line">{props.status}</p>
           </div>
 
           {testResult.value && (

@@ -88,7 +88,7 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
   expect(card).toBeTruthy();
 
   // Delete the highlight via the card delete button
-  const deleteBtn = await card.$(".btn-link.btn-link--danger");
+  const deleteBtn = await card.$('button[data-action="delete"]');
   expect(deleteBtn).toBeTruthy();
   await deleteBtn.click();
 
@@ -166,8 +166,8 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
 
   // Wait for modal and edit note
   await dash.waitForSelector("#record-modal", { timeout: 5000 });
-  await dash.fill(".modal__note-input", "edited note via test");
-  await dash.click(".modal__footer .btn-primary");
+  await dash.fill('[data-testid="modal-note-input"]', "edited note via test");
+  await dash.click('[data-testid="modal-save-button"]');
   // Wait for modal to close
   await dash.waitForSelector("#record-modal", {
     state: "detached",
@@ -178,7 +178,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
   await dash.reload();
   await dash.waitForSelector(clipSelector, { timeout: 5000 });
   const noteText = await dash.$eval(
-    `${clipSelector} .card__note`,
+    `${clipSelector} [data-testid="card-note"]`,
     (el) => el.textContent || "",
   );
   expect(noteText).toContain("edited note via test");
@@ -333,7 +333,7 @@ test("modal_tag_and_color_edit_checks", async () => {
   await dash.waitForSelector("#record-modal", { timeout: 5000 });
 
   // Add a new tag via TagInput inside modal
-  const tagInputSel = "#record-modal .modal__tags-input .tag-input__input";
+  const tagInputSel = '#record-modal [data-testid="tag-input-field"]';
   await dash.waitForSelector(tagInputSel, { timeout: 3000 });
   await dash.focus(tagInputSel);
   await dash.type(tagInputSel, "from-test");
@@ -342,13 +342,13 @@ test("modal_tag_and_color_edit_checks", async () => {
 
   // Verify the new tag chip appears inside the modal
   const hasChip = await dash.$eval(
-    "#record-modal .tag-input__chip",
+    "#record-modal [data-role='tag-chip']",
     (el) => !!el && el.textContent && el.textContent.trim().length > 0,
   );
   expect(hasChip).toBeTruthy();
 
   // Change color via color input
-  const colorInputSel = "#record-modal .modal__color-input input";
+  const colorInputSel = '#record-modal [data-testid="modal-color-input"]';
   await dash.waitForSelector(colorInputSel, { timeout: 3000 });
   // Use evaluate to set value and dispatch input event to ensure reactivity
   await dash.evaluate((sel) => {
@@ -359,7 +359,7 @@ test("modal_tag_and_color_edit_checks", async () => {
   }, colorInputSel);
 
   // Save modal
-  await dash.click("#record-modal .modal__footer .btn-primary");
+  await dash.click('[data-testid="modal-save-button"]');
   await dash.waitForSelector("#record-modal", {
     state: "detached",
     timeout: 5000,
@@ -395,7 +395,7 @@ test("import_by_file_via_settings", async () => {
   await dash.waitForSelector(".app-shell", { timeout: 5000 });
 
   // open settings via sidebar button
-  await dash.click(".sidebar__settings");
+  await dash.click('button[aria-label="打开设置"]');
   await dash.waitForSelector("#settings-view.is-active, #settings-view", {
     timeout: 5000,
   });
@@ -532,8 +532,8 @@ test("bulk_import_and_search_filters", async () => {
   // Clear search and set hostname filter to one of the hosts and assert results exist
   await dash.fill(searchInput, "");
   await dash.waitForTimeout(200);
-  // select hostname via the sidebar select (first select in aside)
-  await dash.selectOption("aside select", hosts[1]);
+  // select hostname via the toolbar dropdown
+  await dash.selectOption('select[data-testid="site-filter"]', hosts[1]);
   await dash.waitForTimeout(500);
   const hostFiltered = await dash.$$eval(
     "article[data-id]",

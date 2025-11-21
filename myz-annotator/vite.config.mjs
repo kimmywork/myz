@@ -6,11 +6,13 @@ import zip from "vite-plugin-zip-pack";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import manifest from "./manifest.json" with { type: "json" };
+import tailwindcss from "@tailwindcss/vite";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   plugins: [
+    tailwindcss(),
     vue(),
     vueJsx(),
     crx({ manifest }),

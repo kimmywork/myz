@@ -1,0 +1,86 @@
+import { defineComponent } from "vue";
+
+export default defineComponent({
+  name: "ImportHighlightsSection",
+  props: {
+    importFileRef: {
+      type: Object,
+      required: true,
+    },
+    importStrategy: {
+      type: String,
+      default: "skip",
+    },
+    onStrategyChange: {
+      type: Function,
+      required: true,
+    },
+    onImport: {
+      type: Function,
+      required: true,
+    },
+    isImporting: {
+      type: Boolean,
+      default: false,
+    },
+    status: {
+      type: Object,
+      required: true,
+    },
+  },
+  setup(props) {
+    return () => (
+      <section class="settings__group">
+        <div class="settings__group-header">
+          <h3>导入标注</h3>
+        </div>
+        <div class="settings__fields">
+          <p class="settings__hint">
+            选择先前导出的 JSON 文件，或导入他人分享的标注。
+          </p>
+          <label class="field">
+            <span>JSON 文件</span>
+            <input
+              ref={props.importFileRef}
+              type="file"
+              accept="application/json"
+            />
+          </label>
+          <label class="field">
+            <span>冲突处理</span>
+            <select
+              value={props.importStrategy}
+              onChange={(event) => props.onStrategyChange(event.target.value)}
+            >
+              <option value="skip">遇到重复时跳过</option>
+              <option value="overwrite">遇到重复时覆盖</option>
+              <option value="latest">保留最近更新</option>
+            </select>
+          </label>
+          <div class="settings__actions">
+            <button
+              class="btn"
+              type="button"
+              disabled={props.isImporting}
+              onClick={props.onImport}
+            >
+              {props.isImporting ? "导入中…" : "导入 JSON"}
+            </button>
+            <p
+              class={[
+                "status-line",
+                props.status.tone === "error"
+                  ? " status-line--error"
+                  : props.status.tone === "success"
+                    ? " status-line--success"
+                    : "",
+              ].join(" ")}
+            >
+              {props.status.message}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  },
+});

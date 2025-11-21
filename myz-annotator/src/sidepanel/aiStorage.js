@@ -158,6 +158,39 @@ export async function saveMessage(message) {
   });
 }
 
+export async function deleteMessagesByConversationAndType(
+  conversationId,
+  metadataType,
+) {
+  if (!conversationId || !metadataType) {
+    return;
+  }
+  const db = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([MESSAGES_STORE], "readwrite");
+    const store = transaction.objectStore(MESSAGES_STORE);
+    const index = store.index("conversationId");
+    const request = index.openCursor(IDBKeyRange.only(conversationId));
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor) {
+        const record = cursor.value;
+        const matchesLegacySystem =
+          metadataType === "page_context" && record?.role === "system";
+        if (record?.metadata?.type === metadataType || matchesLegacySystem) {
+          cursor.delete();
+        }
+        cursor.continue();
+      }
+    };
+
+    transaction.oncomplete = () => resolve(true);
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
 export async function getMessagesForConversation(
   conversationId,
   limit = 100,
@@ -175,13 +208,16 @@ export async function getMessagesForConversation(
     // system (first), user (second), assistant (third), tool (fourth), assistant (fifth)
     // Use getAll for reliable timestamp-based sorting
     const request = index.getAll(IDBKeyRange.only(conversationId));
-    
+
     request.onsuccess = () => {
       let allMessages = request.result || [];
-      
+
       // Sort by timestamp to ensure chronological order (oldest first)
-      allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      
+      allMessages.sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
+
       // Apply offset and limit
       const messages = allMessages.slice(offset, offset + limit);
       resolve(messages);
@@ -216,9 +252,7 @@ export async function checkContextSize(
   let messages = await getMessagesForConversation(conversationId, 1000);
 
   if (!includePageContext) {
-    messages = messages.filter(
-      (msg) => msg.metadata?.type !== "page_context",
-    );
+    messages = messages.filter((msg) => msg.metadata?.type !== "page_context");
   }
 
   // Estimate token count (rough approximation: 1 token ~ 4 chars)

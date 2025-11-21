@@ -8,8 +8,6 @@ import {
   watch,
 } from "vue";
 
-import "./TagInput.css";
-
 export default defineComponent({
   name: "TagInput",
   props: {
@@ -282,7 +280,9 @@ export default defineComponent({
 
     function scrollOptionIntoView() {
       nextTick(() => {
-        const list = containerRef.value?.querySelector(".tag-input__list");
+        const list = containerRef.value?.querySelector(
+          "[data-role='tag-options']",
+        );
         if (!list) {
           return;
         }
@@ -318,58 +318,72 @@ export default defineComponent({
     });
 
     return () => {
-      const classes = ["tag-input"];
-      if (isFocused.value) {
-        classes.push("is-focused");
-      }
-      if (props.disabled) {
-        classes.push("is-disabled");
-      }
+      const containerClasses = [
+        "relative flex w-full flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition",
+        props.disabled ? "cursor-not-allowed opacity-60" : "cursor-text",
+        isFocused.value
+          ? "border-indigo-400 bg-white shadow-lg dark:bg-slate-950/60"
+          : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950/60",
+      ].join(" ");
+
       return (
-        <div
-          ref={containerRef}
-          class={classes.join(" ")}
-          onMousedown={handleContainerMouseDown}
-        >
-          {internalValue.value.map((tag) => (
-            <span class="tag-input__chip" key={tag}>
-              <span>{tag}</span>
-              {!props.disabled && (
-                <button
-                  type="button"
-                  class="tag-input__remove"
-                  onClick={() => removeTag(tag)}
-                  aria-label={`移除标签 ${tag}`}
-                >
-                  ×
-                </button>
-              )}
-            </span>
-          ))}
-          {!props.disabled && (
-            <input
-              ref={inputRef}
-              class="tag-input__input"
-              type="text"
-              value={inputValue.value}
-              placeholder={props.placeholder}
-              onInput={handleInput}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              onKeydown={handleKeydown}
-              autocomplete="off"
-              spellcheck="false"
-            />
-          )}
+        <div class="relative w-full">
+          <div
+            ref={containerRef}
+            class={containerClasses}
+            onMousedown={handleContainerMouseDown}
+          >
+            {internalValue.value.map((tag) => (
+              <span
+                class="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-100"
+                key={tag}
+                data-role="tag-chip"
+              >
+                <span>{tag}</span>
+                {!props.disabled && (
+                  <button
+                    type="button"
+                    class="text-slate-500 hover:text-rose-500 dark:text-slate-200 dark:hover:text-rose-400"
+                    onClick={() => removeTag(tag)}
+                    aria-label={`移除标签 ${tag}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+            {!props.disabled && (
+              <input
+                data-testid="tag-input-field"
+                ref={inputRef}
+                class="min-w-[80px] flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-500"
+                type="text"
+                value={inputValue.value}
+                placeholder={props.placeholder}
+                onInput={handleInput}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                onKeydown={handleKeydown}
+                autocomplete="off"
+                spellcheck="false"
+              />
+            )}
+          </div>
           {dropdownOpen.value && filteredOptions.value.length ? (
-            <div class="tag-input__list" role="listbox">
+            <div
+              class="absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95"
+              role="listbox"
+              data-role="tag-options"
+            >
               {filteredOptions.value.map((option, index) => (
                 <div
                   key={option}
                   class={[
-                    "tag-input__option",
-                    activeIndex.value === index ? "is-active" : "",
-                  ]}
+                    "cursor-pointer rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-indigo-50 dark:text-slate-200 dark:hover:bg-indigo-500/30",
+                    activeIndex.value === index
+                      ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-white"
+                      : "",
+                  ].join(" ")}
                   role="option"
                   aria-selected={activeIndex.value === index ? "true" : "false"}
                   onMousedown={(event) =>

@@ -8,7 +8,6 @@ import {
   nextTick,
 } from "vue";
 import { sendMessage } from "../shared/messaging.js";
-import { renderMarkdown } from "../shared/markdownRenderer.js";
 import {
   saveConversation,
   saveMessage,
@@ -16,10 +15,15 @@ import {
   getMessagesForConversation,
   checkContextSize,
   compressContext,
+  deleteMessagesByConversationAndType,
 } from "./aiStorage.js";
 import HistoryView from "./HistoryView.jsx";
 import SaveHighlightModal from "./SaveHighlightModal.jsx";
-import "./history.css";
+import ConversationList from "./components/ConversationList.jsx";
+import PageContextCard from "./components/PageContextCard.jsx";
+import InputComposer from "./components/InputComposer.jsx";
+import ToolResponseModal from "./components/ToolResponseModal.jsx";
+import ThemeToggle from "../shared/components/ThemeToggle.jsx";
 
 export default defineComponent({
   name: "SidePanelApp",
@@ -38,13 +42,14 @@ export default defineComponent({
     const sendContext = ref(true); // Toggle to include/exclude page context
     const isContextPreferenceUpdating = ref(false);
     const isComposing = ref(false);
-    const visibleMessages = computed(() =>
-      sendContext.value
-        ? messages.value
-        : messages.value.filter(
-            (msg) => msg.metadata?.type !== "page_context",
-          ),
-    );
+    const visibleMessages = computed(() => {
+      if (sendContext.value) {
+        return messages.value;
+      }
+      return messages.value.filter(
+        (msg) => msg.metadata?.type !== "page_context" && msg.role !== "system",
+      );
+    });
 
     // Auto-action state
     const autoAction = ref(null); // 'summarize', 'key_points', etc.
@@ -91,8 +96,27 @@ export default defineComponent({
     });
 
     function hasPageContextMessage(list = messages.value) {
-      return list.some((msg) => msg.metadata?.type === "page_context");
+      return list.some(
+        (msg) =>
+          msg.metadata?.type === "page_context" ||
+          (msg.role === "system" && !msg.metadata?.type),
+      );
     }
+
+    function buildPageContextMessage(conversationId) {
+      if (!pageContent.value) {
+        return null;
+      }
+      return {
+        id: `msg-${Date.now()}`,
+        conversationId,
+        role: "system",
+        content: `页面上下文:\n标题: ${pageTitle.value}\nURL: ${currentUrl.value}\n\n内容:\n${pageContent.value.substring(0, 2000)}`,
+        timestamp: new Date().toISOString(),
+        metadata: { type: "page_context", url: currentUrl.value },
+      };
+    }
+
     function resetActiveStream() {
       activeStream.id = null;
       activeStream.content = "";
@@ -207,19 +231,12 @@ export default defineComponent({
         messages.value = [];
 
         // Add initial system message with context only if sendContext is enabled
-        if (pageContent.value && sendContext.value) {
-          const systemMessage = {
-            id: `msg-${Date.now()}`,
-            conversationId: conversationData.id,
-            role: "system",
-            content: `页面上下文:\n标题: ${pageTitle.value}\nURL: ${currentUrl.value}\n\n内容:\n${pageContent.value.substring(0, 2000)}`,
-            timestamp: new Date().toISOString(),
-            metadata: { type: "page_context", url: currentUrl.value },
-          };
-
-          await saveMessage(systemMessage);
-
-          messages.value.push(systemMessage);
+        if (sendContext.value) {
+          const systemMessage = buildPageContextMessage(conversationData.id);
+          if (systemMessage) {
+            await saveMessage(systemMessage);
+            messages.value.push(systemMessage);
+          }
         }
       } catch (e) {
         console.error("Failed to create conversation:", e);
@@ -407,22 +424,35 @@ export default defineComponent({
     }
 
     async function handleContextToggle(event) {
-      const enabled = Boolean(event?.target?.checked);
-      if (sendContext.value === enabled && conversationId.value) {
+      const enabled = Boolean(event?.target?.checked ?? event);
+      if (sendContext.value === enabled) {
         return;
       }
 
       sendContext.value = enabled;
-      if (!conversationId.value) {
-        return;
-      }
-
-      if (isContextPreferenceUpdating.value) {
+      if (!conversationId.value || isContextPreferenceUpdating.value) {
         return;
       }
 
       isContextPreferenceUpdating.value = true;
       try {
+        if (!enabled) {
+          await deleteMessagesByConversationAndType(
+            conversationId.value,
+            "page_context",
+          );
+          messages.value = messages.value.filter(
+            (msg) =>
+              msg.metadata?.type !== "page_context" && msg.role !== "system",
+          );
+        } else if (!hasPageContextMessage() && pageContent.value) {
+          const contextMessage = buildPageContextMessage(conversationId.value);
+          if (contextMessage) {
+            await saveMessage(contextMessage);
+            messages.value = [...messages.value, contextMessage];
+          }
+        }
+
         await persistSendContextPreference(enabled);
         await checkContext();
       } finally {
@@ -438,57 +468,11 @@ export default defineComponent({
       isComposing.value = false;
     }
 
-    function resolveToolNames(metadata) {
-      if (!metadata) return "";
-      if (Array.isArray(metadata.toolNames)) {
-        return metadata.toolNames.filter(Boolean).join("、");
-      }
-      if (typeof metadata.toolNames === "string") {
-        return metadata.toolNames;
-      }
-      if (metadata.toolCallCount) {
-        return `工具 x${metadata.toolCallCount}`;
-      }
-      return "";
-    }
-
-    function isToolInvocationNotice(msg) {
-      if (!msg || msg.role !== "assistant" || !msg.metadata?.hasToolCalls) {
-        return false;
-      }
-      if (msg.metadata?.toolInvocationOnly) return true;
-      const text = (msg.content || "").trim();
-      if (!text) return true;
-      const pattern = /\[Tool\s+\d+:[^\]]+\]/g;
-      const matches = text.match(pattern);
-      if (!matches) return false;
-      return text.replace(pattern, "").trim().length === 0;
-    }
-
-    function getToolInvocationText(msg) {
-      const toolNames = resolveToolNames(msg.metadata) || "处理中...";
-      return `🔧 AI正在通过以下工具检索信息: ${toolNames}`;
-    }
-
-    function hasToolInvocationDetails(msg) {
-      return hasToolInvocationDetailsFromMetadata(msg?.metadata);
-    }
-
-    function hasToolInvocationDetailsFromMetadata(metadata) {
+    function hasToolInvocationDetails(metadata) {
       return (
         Array.isArray(metadata?.toolCallDetails) &&
         metadata.toolCallDetails.length > 0
       );
-    }
-
-    function getToolPreviewText(content) {
-      if (!content) return "（无输出，点击查看详情）";
-      const singleLine = content.replace(/\s+/g, " ").trim();
-      if (!singleLine) return "（无输出，点击查看详情）";
-      if (singleLine.length <= 80) {
-        return singleLine;
-      }
-      return singleLine.slice(0, 77) + "...";
     }
 
     function formatArgumentsForDisplay(value) {
@@ -504,8 +488,7 @@ export default defineComponent({
       toolResponseViewer.visible = true;
       toolResponseViewer.title = message.metadata?.toolName || "工具响应详情";
       toolResponseViewer.content = message.content || "";
-      toolResponseViewer.toolName =
-        message.metadata?.toolName || "工具响应";
+      toolResponseViewer.toolName = message.metadata?.toolName || "工具响应";
       toolResponseViewer.timestamp = message.timestamp || "";
       toolResponseViewer.args = formatArgumentsForDisplay(
         message.metadata?.toolArgs,
@@ -524,12 +507,11 @@ export default defineComponent({
     }
 
     function openToolInvocationDetails(message) {
-      if (!hasToolInvocationDetails(message)) return;
+      if (!hasToolInvocationDetails(message?.metadata)) return;
       const details = message.metadata.toolCallDetails.map((detail, index) => ({
         id: detail.id || `tool-${index + 1}`,
         name: detail.name || `工具 ${index + 1}`,
-        arguments:
-          formatArgumentsForDisplay(detail.arguments) || "（无参数）",
+        arguments: formatArgumentsForDisplay(detail.arguments) || "（无参数）",
       }));
       toolResponseViewer.visible = true;
       toolResponseViewer.toolName = "工具调用参数";
@@ -597,10 +579,7 @@ export default defineComponent({
           id: data.streamId,
           conversationId: conversationId.value,
           role: "assistant",
-          content:
-            data.content ??
-            activeStream.content ??
-            "",
+          content: data.content ?? activeStream.content ?? "",
           timestamp: activeStream.timestamp || new Date().toISOString(),
           metadata: {
             ...(activeStream.metadata || {}),
@@ -659,9 +638,7 @@ export default defineComponent({
         return;
       }
       resetActiveStream();
-      error.value = data.error
-        ? `AI生成失败: ${data.error}`
-        : "AI生成失败";
+      error.value = data.error ? `AI生成失败: ${data.error}` : "AI生成失败";
     }
 
     function scrollToBottom() {
@@ -702,6 +679,10 @@ export default defineComponent({
       }
     }
 
+    function handleInputChange(event) {
+      userInput.value = event.target.value;
+    }
+
     onMounted(async () => {
       await initialize();
 
@@ -721,23 +702,6 @@ export default defineComponent({
         else if (message.type === "myz:newMessage" && message.data?.message) {
           const incoming = message.data.message;
           if (
-            activeStream.id &&
-            incoming.metadata?.hasToolCalls &&
-            incoming.role === "assistant"
-          ) {
-            activeStream.content = "";
-            activeStream.metadata = {
-              ...(activeStream.metadata || {}),
-              hasToolCalls: true,
-              toolNames:
-                incoming.metadata.toolNames ||
-                activeStream.metadata?.toolNames,
-              toolCallDetails:
-                incoming.metadata.toolCallDetails ||
-                activeStream.metadata?.toolCallDetails,
-            };
-          }
-          if (
             conversationId.value &&
             incoming.conversationId === conversationId.value
           ) {
@@ -748,25 +712,13 @@ export default defineComponent({
           }
         }
         // Streaming handlers
-        else if (
-          message.type === "myz:aiStreamStart" &&
-          message.data
-        ) {
+        else if (message.type === "myz:aiStreamStart" && message.data) {
           handleStreamStartEvent(message.data);
-        } else if (
-          message.type === "myz:aiStreamChunk" &&
-          message.data
-        ) {
+        } else if (message.type === "myz:aiStreamChunk" && message.data) {
           handleStreamChunkEvent(message.data);
-        } else if (
-          message.type === "myz:aiStreamComplete" &&
-          message.data
-        ) {
+        } else if (message.type === "myz:aiStreamComplete" && message.data) {
           handleStreamCompleteEvent(message.data);
-        } else if (
-          message.type === "myz:aiStreamError" &&
-          message.data
-        ) {
+        } else if (message.type === "myz:aiStreamError" && message.data) {
           handleStreamErrorEvent(message.data);
         }
       };
@@ -805,7 +757,7 @@ export default defineComponent({
     }
 
     return () => (
-      <div class="side-panel">
+      <div class="flex h-screen flex-col bg-slate-50 px-4 py-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         {view.value === "history" ? (
           <HistoryView
             onSelectConversation={showChat}
@@ -813,243 +765,61 @@ export default defineComponent({
           />
         ) : (
           <>
-            <header class="panel-header">
-              <h1>AI 智能助理</h1>
-              {contextInfo.needsCompression && (
-                <span
-                  class="context-warning"
-                  title={`Context ${Math.round(contextInfo.percentage)}% full`}
+            <header class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
+              <div class="flex items-center gap-2">
+                <h1 class="text-lg font-semibold">AI 智能助理</h1>
+                {contextInfo.needsCompression && (
+                  <span class="inline-flex items-center gap-1 rounded-full border border-amber-300/70 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200">
+                    ⚠️ {Math.round(contextInfo.percentage)}%
+                  </span>
+                )}
+              </div>
+              <div class="flex items-center gap-2">
+                <ThemeToggle size="sm" />
+                <button
+                  class="inline-flex items-center rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+                  onClick={showHistory}
+                  title="查看对话历史"
                 >
-                  ⚠️ {Math.round(contextInfo.percentage)}%
-                </span>
-              )}
-              <button
-                class="btn btn-secondary"
-                onClick={showHistory}
-                title="查看对话历史"
-              >
-                历史
-              </button>
+                  历史
+                </button>
+              </div>
             </header>
 
-            <div class="url-info">
-              <div class="url-title">{pageTitle.value || "当前页面"}</div>
-              <div class="url-address">
-                {currentUrl.value || "未获取页面地址"}
-              </div>
+            <PageContextCard
+              title={pageTitle.value}
+              url={currentUrl.value}
+              sendContext={sendContext.value}
+              disabled={
+                !conversationId.value || isContextPreferenceUpdating.value
+              }
+              onToggle={handleContextToggle}
+            />
 
-              <label class="context-toggle">
-                <input
-                  type="checkbox"
-                  checked={sendContext.value}
-                  disabled={
-                    !conversationId.value || isContextPreferenceUpdating.value
-                  }
-                  onChange={handleContextToggle}
-                />
-                <span>发送页面上下文</span>
-              </label>
-            </div>
-
-            <div class="conversation-container" ref={messageListRef}>
-              {visibleMessages.value.length === 0 && (
-                <div class="empty-state">
-                  <p>💬 开始与AI对话</p>
-                  <p class="hint">输入您的问题，或选择页面文本进行提问</p>
-                </div>
-              )}
-
-              {visibleMessages.value
-                .filter((msg) => msg.metadata?.type !== "streaming_preview")
-                .map((msg) => {
-                if (isToolInvocationNotice(msg)) {
-                  const hasDetails = hasToolInvocationDetails(msg);
-                  return (
-                    <div key={msg.id} class="tool-inline tool-inline-info">
-                      <div class="tool-inline-main">
-                        <span>{getToolInvocationText(msg)}</span>
-                        <span class="tool-inline-time">
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      {hasDetails && (
-                        <div class="tool-inline-actions">
-                          <button
-                            class="tool-inline-button"
-                            onClick={() => openToolInvocationDetails(msg)}
-                          >
-                            查看详情
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-
-                if (msg.role === "tool") {
-                  return (
-                    <div key={msg.id} class="tool-inline tool-inline-response">
-                      <div class="tool-inline-main">
-                        <span class="tool-inline-icon">🔧</span>
-                        <span class="tool-inline-name">
-                          {msg.metadata?.toolName || "工具响应"}
-                        </span>
-                        <span class="tool-inline-preview">
-                          {getToolPreviewText(msg.content)}
-                        </span>
-                        <span class="tool-inline-time">
-                          {new Date(msg.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div class="tool-inline-actions">
-                        <button
-                          class="tool-inline-button"
-                          onClick={() => openToolResponse(msg)}
-                        >
-                          查看详情
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div
-                    key={msg.id}
-                    class={`message message-${msg.role}`}
-                    style={
-                      msg.metadata?.type === "page_context"
-                        ? "opacity: 0.6; font-size: 12px;"
-                        : ""
-                    }
-                  >
-                    <div class="message-header">
-                      <span class="message-role">
-                        {msg.role === "user"
-                          ? "用户"
-                          : msg.role === "assistant"
-                            ? "AI助手"
-                            : msg.role === "tool"
-                              ? "工具"
-                              : "系统"}
-                      </span>
-                      <span class="message-time">
-                        {new Date(msg.timestamp).toLocaleString()}
-                      </span>
-                      {msg.metadata?.streaming && (
-                        <span class="message-streaming">生成中...</span>
-                      )}
-                      {msg.metadata?.streamingError && (
-                        <span class="message-error-indicator">
-                          ⚠️ {msg.metadata.streamingError}
-                        </span>
-                      )}
-                      {msg.role === "assistant" && (
-                        <button
-                          class="btn btn-secondary save-highlight-btn"
-                          onClick={() => handleSaveHighlight(msg.id)}
-                          disabled={
-                            isSavingHighlight.value || msg.metadata?.streaming
-                          }
-                        >
-                          保存
-                        </button>
-                      )}
-                    </div>
-                    {msg.role === "assistant" ? (
-                      <div class="message-content">
-                        {msg.metadata?.hasToolCalls &&
-                          resolveToolNames(msg.metadata) && (
-                            <div class="tool-inline tool-inline-info tool-inline-inset">
-                              <div class="tool-inline-main">
-                                <span>
-                                  {`🔧 AI正在通过以下工具检索信息: ${resolveToolNames(msg.metadata)}`}
-                                </span>
-                              </div>
-                              {hasToolInvocationDetails(msg) && (
-                                <div class="tool-inline-actions">
-                                  <button
-                                    class="tool-inline-button"
-                                    onClick={() =>
-                                      openToolInvocationDetails(msg)
-                                    }
-                                  >
-                                    查看详情
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        {msg.content && (
-                          <div
-                            class="message-content-markdown"
-                            v-html={renderMarkdown(msg.content)}
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      <div class="message-content message-content-text">
-                        {msg.content}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {hasActiveStream.value && (
-                <div class="message message-assistant streaming-message">
-                  <div class="message-header">
-                    <span class="message-role">AI助手</span>
-                    <span class="message-time">
-                      {activeStream.timestamp
-                        ? new Date(activeStream.timestamp).toLocaleString()
-                        : new Date().toLocaleString()}
-                    </span>
-                    <span class="message-streaming">AI 正在思考...</span>
-                  </div>
-                  <div class="message-content">
-                    {activeStream.content ? (
-                      <div
-                        class="message-content-markdown"
-                        v-html={renderMarkdown(activeStream.content)}
-                      />
-                    ) : (
-                      <div class="streaming-placeholder-text">
-                        AI 正在生成回答...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {isLoading.value && (
-                <div class="message message-loading">
-                  <span class="loading-spinner">⏳</span>
-                  AI正在思考...
-                </div>
-              )}
-            </div>
-
-            <div class="input-container">
-              <textarea
-                v-model={userInput.value}
+            <section class="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+              <ConversationList
+                messages={visibleMessages.value}
+                listRef={messageListRef}
+                onToolDetails={openToolInvocationDetails}
+                onToolResponse={openToolResponse}
+                onSaveAssistant={handleSaveHighlight}
+                isSavingHighlight={isSavingHighlight.value}
+                streaming={activeStream}
+                hasActiveStream={hasActiveStream.value}
+                isLoading={isLoading.value}
+              />
+              <InputComposer
+                value={userInput.value}
                 placeholder={inputPlaceholder.value}
-                rows={3}
+                disabled={isLoading.value}
+                error={error.value}
+                onInput={handleInputChange}
                 onKeydown={handleKeydown}
                 onCompositionstart={handleCompositionStart}
                 onCompositionend={handleCompositionEnd}
-                disabled={isLoading.value}
+                onSend={handleSendMessage}
               />
-              <button
-                class="send-btn"
-                onClick={handleSendMessage}
-                disabled={!userInput.value.trim() || isLoading.value}
-              >
-                发送
-              </button>
-            </div>
-
-            {error.value && <div class="error-message">{error.value}</div>}
+            </section>
 
             <SaveHighlightModal
               visible={saveModal.visible}
@@ -1059,57 +829,10 @@ export default defineComponent({
             />
           </>
         )}
-      {toolResponseViewer.visible && (
-        <div class="tool-response-overlay" onClick={closeToolResponse}>
-          <div
-            class="tool-response-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header class="tool-response-header">
-              <div>
-                <div class="tool-response-title">
-                  🔧 {toolResponseViewer.toolName}
-                </div>
-                {toolResponseViewer.timestamp && (
-                  <div class="tool-response-timestamp">
-                    {new Date(toolResponseViewer.timestamp).toLocaleString()}
-                  </div>
-                )}
-              </div>
-              <button class="tool-response-close" onClick={closeToolResponse}>
-                ✕
-              </button>
-            </header>
-            <div class="tool-response-body">
-              {toolResponseViewer.invocationDetails.length > 0 ? (
-                <div class="tool-response-section">
-                  {toolResponseViewer.invocationDetails.map((detail) => (
-                    <div key={detail.id} class="tool-response-entry">
-                      <div class="tool-response-entry-title">
-                        {detail.name}
-                      </div>
-                      <pre>{detail.arguments}</pre>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {toolResponseViewer.args && (
-                    <div class="tool-response-subsection">
-                      <div class="tool-response-subtitle">调用参数</div>
-                      <pre>{toolResponseViewer.args}</pre>
-                    </div>
-                  )}
-                  <div class="tool-response-subsection">
-                    <div class="tool-response-subtitle">工具输出</div>
-                    <pre>{toolResponseViewer.content || "（无内容）"}</pre>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+        <ToolResponseModal
+          viewer={toolResponseViewer}
+          onClose={closeToolResponse}
+        />
       </div>
     );
   },

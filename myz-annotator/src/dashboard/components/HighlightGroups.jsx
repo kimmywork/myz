@@ -1,12 +1,6 @@
-import {
-  defineComponent,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from "vue";
+import { defineComponent, nextTick, watch } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
+import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
 import HighlightCard from "./HighlightCard.jsx";
 import HighlightListRow from "./HighlightListRow.jsx";
 
@@ -14,45 +8,9 @@ export default defineComponent({
   name: "HighlightGroups",
   setup() {
     const store = useDashboardStore();
-    const sentinelRef = ref(null);
-    let observer = null;
 
-    function observeSentinel() {
-      if (!observer || !sentinelRef.value) {
-        return;
-      }
-      observer.observe(sentinelRef.value);
-    }
-
-    function disconnectObserver() {
-      if (observer) {
-        observer.disconnect();
-      }
-    }
-
-    function setupObserver() {
-      disconnectObserver();
-      observer = new IntersectionObserver(
-        (entries) => {
-          if (entries.some((entry) => entry.isIntersecting)) {
-            store.loadMore();
-          }
-        },
-        {
-          root: document.querySelector(".main") || null,
-          rootMargin: "0px 0px 200px 0px",
-        },
-      );
-      observeSentinel();
-    }
-
-    onMounted(() => {
-      setupObserver();
-    });
-
-    onBeforeUnmount(() => {
-      disconnectObserver();
-      observer = null;
+    const { sentinelRef, start, stop, restart } = useInfiniteScroll({
+      onIntersect: () => store.loadMore(),
     });
 
     watch(
@@ -60,14 +18,10 @@ export default defineComponent({
       async (hasMore) => {
         await nextTick();
         if (!hasMore) {
-          disconnectObserver();
+          stop();
           return;
         }
-        if (!observer) {
-          setupObserver();
-        } else {
-          observeSentinel();
-        }
+        restart();
       },
     );
 
@@ -75,7 +29,7 @@ export default defineComponent({
       () => store.view.value,
       async () => {
         await nextTick();
-        setupObserver();
+        restart();
       },
     );
 
@@ -83,35 +37,44 @@ export default defineComponent({
       () => store.visibleHighlights.value.length,
       async () => {
         await nextTick();
-        setupObserver();
+        restart();
       },
     );
 
     return () => {
       if (store.loadingHighlights.value) {
         return (
-          <section class="highlight-groups">
-            <p class="empty-state">正在加载…</p>
+          <section class="rounded-3xl border border-slate-200 bg-white/80 p-8 text-center text-sm text-slate-500 dark:border-white/5 dark:bg-slate-900/40 dark:text-slate-400">
+            正在加载…
           </section>
         );
       }
 
       if (!store.visibleHighlights.value.length) {
         return (
-          <section class="highlight-groups">
-            <p class="empty-state">没有符合条件的记录。</p>
+          <section class="rounded-3xl border border-slate-200 bg-white/80 p-8 text-center text-sm text-slate-500 dark:border-white/5 dark:bg-slate-900/40 dark:text-slate-400">
+            没有符合条件的记录。
           </section>
         );
       }
 
       return (
-        <section class="highlight-groups" data-view={store.view.value}>
+        <section class="space-y-6" data-view={store.view.value}>
           {store.groupedHighlights.value.map((group) => (
-            <section key={group.date} class="group">
-              <h3 class="group__title">
+            <section
+              key={group.date}
+              class="space-y-4 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-inner dark:border-white/5 dark:bg-slate-900/40"
+            >
+              <h3 class="text-sm font-semibold text-slate-600 dark:text-slate-300">
                 {group.date} · 共 {group.stats.total} 条{group.detailText}
               </h3>
-              <div class="group__list">
+              <div
+                class={[
+                  store.view.value === "cards"
+                    ? "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+                    : "space-y-4",
+                ].join(" ")}
+              >
                 {group.items.map((item) =>
                   store.view.value === "cards" ? (
                     <HighlightCard key={item.id} record={item} />
@@ -123,11 +86,7 @@ export default defineComponent({
             </section>
           ))}
           {store.hasMoreHighlights.value ? (
-            <div
-              ref={sentinelRef}
-              class="scroll-sentinel"
-              data-role="sentinel"
-            />
+            <div ref={sentinelRef} class="h-8 w-full" data-role="sentinel" />
           ) : null}
         </section>
       );
