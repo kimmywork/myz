@@ -9,6 +9,7 @@ export default defineConfig({
   lastUpdated: true,
   head: [
     ['link', { rel: 'icon', href: './favicon.png' }],
+    ['link', { rel: 'me', href: 'https://mastodon.social/@kenpusney'}]
   ],
   themeConfig: {
     nav: [
