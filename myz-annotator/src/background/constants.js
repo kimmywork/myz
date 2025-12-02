@@ -42,5 +42,6 @@ export const DEFAULT_SETTINGS = {
   aiCustomModel: "",
   aiContextSize: "32K",
   aiMaxTokens: 32768,
+  aiRequestHeaders: "",
   aiMcpServers: [],
 };

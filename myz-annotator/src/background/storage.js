@@ -6,6 +6,7 @@ import {
 } from "./constants.js";
 
 import { normalizeHighlightStyle } from "../shared/highlightUtils.js";
+import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 
 export async function readState() {
   const { [STORAGE_KEY]: stored } = await chrome.storage.local.get(STORAGE_KEY);
@@ -54,6 +55,11 @@ export async function writeSettings(patch) {
   const updated = { ...current, ...patch };
   updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
   await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
+  try {
+    await syncAiRequestHeaderRules(updated);
+  } catch (error) {
+    console.warn("Failed to sync AI header rules", error);
+  }
   return updated;
 }
 

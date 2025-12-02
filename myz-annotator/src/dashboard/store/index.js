@@ -62,6 +62,7 @@ export function createDashboardStore() {
     aiCustomModel: "",
     aiContextSize: "32K",
     aiMaxTokens: 4000,
+    aiRequestHeaders: "",
     aiMcpServers: [],
   });
   const logseqStatus = ref("");
@@ -311,6 +312,7 @@ export function createDashboardStore() {
         aiCustomModel: result.aiCustomModel || "",
         aiContextSize: result.aiContextSize || "32K",
         aiMaxTokens: result.aiMaxTokens || 4000,
+        aiRequestHeaders: result.aiRequestHeaders || "",
         aiMcpServers: result.aiMcpServers || [],
       });
       if (settings.dashboardView) {

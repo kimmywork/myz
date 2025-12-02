@@ -5,6 +5,7 @@ import {
   getMessagesForConversation,
   getConversation,
 } from "../sidepanel/aiStorage.js";
+import { parseAiRequestHeaders } from "../shared/aiHeaderUtils.js";
 
 export class AiProvider {
   constructor(settings) {
@@ -14,6 +15,27 @@ export class AiProvider {
       settings.aiAssistantEnabled &&
       settings.aiApiEndpoint &&
       settings.aiApiKey;
+  }
+
+  buildRequestHeaders() {
+    const customHeaders = parseAiRequestHeaders(this.settings.aiRequestHeaders);
+    const headerNamesLower = new Set(
+      Object.keys(customHeaders).map((key) => key.toLowerCase()),
+    );
+    const headers = {};
+
+    if (!headerNamesLower.has("content-type")) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    if (this.settings.aiApiKey && !headerNamesLower.has("authorization")) {
+      headers.Authorization = `Bearer ${this.settings.aiApiKey}`;
+    }
+
+    return {
+      ...headers,
+      ...customHeaders,
+    };
   }
 
   async testConnection() {
@@ -62,10 +84,7 @@ export class AiProvider {
 
     const response = await fetch(aiApiEndpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${aiApiKey}`,
-      },
+      headers: this.buildRequestHeaders(),
       body: JSON.stringify({
         ...payload,
         stream: false, // We'll handle streaming separately if needed
@@ -90,10 +109,7 @@ export class AiProvider {
 
     const response = await fetch(aiApiEndpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${aiApiKey}`,
-      },
+      headers: this.buildRequestHeaders(),
       body: JSON.stringify({
         ...payload,
         stream: true,

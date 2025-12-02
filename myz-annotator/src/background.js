@@ -57,6 +57,7 @@ import {
   listConversations,
 } from "./background/ai.js";
 import { createAiProvider } from "./background/aiProvider.js";
+import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
 
 function enrichRecordWithArchive(record, archives) {
   if (!record) {
@@ -94,6 +95,15 @@ function enrichRecordsWithArchive(records, archives) {
   }
   return records.map((record) => enrichRecordWithArchive(record, archives));
 }
+
+(async function initializeAiHeaderRules() {
+  try {
+    const settings = await readSettings();
+    await syncAiRequestHeaderRules(settings);
+  } catch (error) {
+    console.warn("Failed to initialize AI header rules", error);
+  }
+})();
 
 chrome.runtime.onInstalled.addListener(async () => {
   const { [STORAGE_KEY]: existingHighlights } =

@@ -40,6 +40,7 @@ export default defineComponent({
       aiCustomModel: "",
       aiContextSize: "32K",
       aiMaxTokens: 4000,
+      aiRequestHeaders: "",
       aiMcpServers: [],
     });
 
@@ -86,6 +87,7 @@ export default defineComponent({
       aiForm.aiCustomModel = props.settings.aiCustomModel || "";
       aiForm.aiContextSize = props.settings.aiContextSize || "32K";
       aiForm.aiMaxTokens = props.settings.aiMaxTokens || 4000;
+      aiForm.aiRequestHeaders = props.settings.aiRequestHeaders || "";
       aiForm.aiMcpServers = Array.isArray(props.settings.aiMcpServers)
         ? [...props.settings.aiMcpServers]
         : [];
@@ -331,6 +333,27 @@ export default defineComponent({
                 {showApiKey.value ? "👁️" : "👁️‍🗨️"}
               </button>
             </div>
+          </label>
+
+          <label class="field">
+            <span>自定义 Headers</span>
+            <textarea
+              placeholder={"X-Api-Key: xxx\napi-key: yyy"}
+              disabled={!aiForm.aiAssistantEnabled}
+              value={aiForm.aiRequestHeaders}
+              rows="4"
+              onInput={(e) => (aiForm.aiRequestHeaders = e.target.value)}
+              style={{
+                width: "100%",
+                resize: "vertical",
+                minHeight: "70px",
+                fontFamily: "var(--font-sans)",
+              }}
+            ></textarea>
+            <small class="help-text">
+              每行一个 Header，格式为 <code>Header-Name: 值</code>，例如
+              <code>api-key: ...</code>
+            </small>
           </label>
 
           <label class="field">
