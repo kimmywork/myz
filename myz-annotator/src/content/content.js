@@ -48,6 +48,11 @@ import {
   extractPageContentForAi,
   extractSelectedTextSafely,
 } from "./content-extraction.js";
+import {
+  captureAiPageContext,
+  scrollToAiChunk,
+  clearAiPageChunkAnchors,
+} from "./ai-page-context.js";
 
 import {
   canonicalUrl,
@@ -231,6 +236,28 @@ import {
         const id = message.payload?.id;
         const success = focusHighlight(id);
         sendResponse?.({ ok: success });
+        return false;
+      }
+      if (message.type === "myz:captureAiPageContext") {
+        try {
+          const data = captureAiPageContext(message.payload || {});
+          sendResponse?.({ ok: true, data });
+        } catch (error) {
+          console.error("Failed to capture AI context", error);
+          sendResponse?.({ ok: false, error: error.message });
+        }
+        return false;
+      }
+      if (message.type === "myz:scrollToAiChunk") {
+        const chunkId = message.payload?.chunkId;
+        const snippet = message.payload?.snippet || "";
+        const success = scrollToAiChunk(chunkId, snippet);
+        sendResponse?.({ ok: success, data: { success } });
+        return false;
+      }
+      if (message.type === "myz:clearAiPageChunks") {
+        clearAiPageChunkAnchors();
+        sendResponse?.({ ok: true });
         return false;
       }
       if (message.type === "myz:refreshHighlights") {

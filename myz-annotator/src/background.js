@@ -890,6 +890,16 @@ const messageHandlers = {
     }
   },
 
+  async "myz:generatePageInsights"(payload) {
+    const settings = await readSettings();
+    if (!settings.aiAssistantEnabled) {
+      throw new Error("AI Assistant is not enabled");
+    }
+
+    const provider = createAiProvider(settings);
+    return await provider.generatePageInsights(payload || {});
+  },
+
   async "myz:getConversationHistory"(payload) {
     const { conversationId, limit } = payload || {};
     return await getConversationHistory(conversationId, limit || 50);

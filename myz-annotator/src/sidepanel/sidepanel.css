@@ -19,3 +19,13 @@ body.dark {
   background-color: #020617;
   color: #e2e8f0;
 }
+
+a[href^="myz-chunk://"] {
+  border-bottom: 1px dashed currentColor;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a[href^="myz-chunk://"]:hover {
+  color: #4f46e5;
+}

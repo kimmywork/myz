@@ -24,6 +24,7 @@ import PageContextCard from "./components/PageContextCard.jsx";
 import InputComposer from "./components/InputComposer.jsx";
 import ToolResponseModal from "./components/ToolResponseModal.jsx";
 import ThemeToggle from "../shared/components/ThemeToggle.jsx";
+import AutoInsightsPanel from "./components/AutoInsightsPanel.jsx";
 
 export default defineComponent({
   name: "SidePanelApp",
@@ -37,6 +38,7 @@ export default defineComponent({
     const isLoading = ref(false);
     const error = ref("");
     const currentUrl = ref("");
+    const currentTabId = ref(null);
     const pageTitle = ref("");
     const pageContent = ref("");
     const sendContext = ref(true); // Toggle to include/exclude page context
@@ -53,6 +55,16 @@ export default defineComponent({
 
     // Auto-action state
     const autoAction = ref(null); // 'summarize', 'key_points', etc.
+    const autoInsights = reactive({
+      active: false,
+      action: "",
+      loading: false,
+      error: "",
+      markdown: "",
+      chunkGroups: 0,
+      context: null,
+      generatedAt: "",
+    });
 
     // Input state
     const userInput = ref("");
@@ -94,6 +106,33 @@ export default defineComponent({
       args: "",
       invocationDetails: [],
     });
+
+    function resetAutoInsights() {
+      autoInsights.active = false;
+      autoInsights.action = "";
+      autoInsights.loading = false;
+      autoInsights.error = "";
+      autoInsights.markdown = "";
+      autoInsights.chunkGroups = 0;
+      autoInsights.context = null;
+      autoInsights.generatedAt = "";
+    }
+
+    async function clearPageChunkAnchors() {
+      if (!currentTabId.value) return;
+      try {
+        await chrome.tabs.sendMessage(currentTabId.value, {
+          type: "myz:clearAiPageChunks",
+        });
+      } catch {
+        // ignore - tab might not accept messages
+      }
+    }
+
+    function closeAutoInsights() {
+      clearPageChunkAnchors();
+      resetAutoInsights();
+    }
 
     function hasPageContextMessage(list = messages.value) {
       return list.some(
@@ -149,6 +188,7 @@ export default defineComponent({
           currentWindow: true,
         });
         if (tab) {
+          currentTabId.value = tab.id || null;
           currentUrl.value = tab.url || "";
           pageTitle.value = tab.title || "";
 
@@ -362,6 +402,76 @@ export default defineComponent({
       }
     }
 
+    async function runAutoInsights(action) {
+      autoInsights.active = true;
+      autoInsights.action = action;
+      autoInsights.loading = true;
+      autoInsights.error = "";
+      autoInsights.markdown = "";
+      autoInsights.generatedAt = "";
+      await clearPageChunkAnchors();
+
+      if (!currentTabId.value) {
+        autoInsights.error = "无法获取当前标签页";
+        autoInsights.loading = false;
+        return;
+      }
+
+      try {
+        const response = await chrome.tabs.sendMessage(currentTabId.value, {
+          type: "myz:captureAiPageContext",
+          payload: {
+            chunkCharLimit: 2000,
+            maxChunks: 120,
+            maxTotalChars: null,
+          },
+        });
+
+        const contextData = response?.data || response;
+        if (
+          !contextData ||
+          !Array.isArray(contextData.chunks) ||
+          !contextData.chunks.length
+        ) {
+          throw new Error("未能解析页面主体内容");
+        }
+
+        autoInsights.context = contextData;
+
+        const chunkPayload = contextData.chunks.map((chunk) => ({
+          id: chunk.id,
+          text: chunk.text,
+          prefix: chunk.prefix,
+        }));
+
+        const aiResult = await sendMessage("myz:generatePageInsights", {
+          action,
+          title: pageTitle.value,
+          url: currentUrl.value,
+          chunks: chunkPayload,
+        });
+
+        if (!aiResult || aiResult.success === false) {
+          throw new Error(aiResult?.error || "生成失败");
+        }
+
+        autoInsights.chunkGroups = aiResult.chunkGroups || 1;
+        autoInsights.generatedAt =
+          aiResult.generatedAt || new Date().toISOString();
+        autoInsights.markdown =
+          (aiResult.markdown || "").trim() ||
+          (Array.isArray(aiResult.raw) ? aiResult.raw.join("\n\n") : "");
+        if (!autoInsights.markdown) {
+          throw new Error("未生成可显示的 Markdown");
+        }
+      } catch (err) {
+        console.error("Auto insights failed:", err);
+        autoInsights.error = err?.message || "生成失败";
+      } finally {
+        autoInsights.loading = false;
+      }
+    }
+
     async function handleSaveHighlight(messageId) {
       const message = messages.value.find((m) => m.id === messageId);
       if (!message || message.role !== "assistant") return;
@@ -421,6 +531,20 @@ export default defineComponent({
       saveModal.visible = false;
       saveModal.aiResponse = "";
       saveModal.messageId = null;
+    }
+
+    async function handleScrollToCitation(chunkId, snippet = "") {
+      if (!chunkId || !currentTabId.value) {
+        return;
+      }
+      try {
+        await chrome.tabs.sendMessage(currentTabId.value, {
+          type: "myz:scrollToAiChunk",
+          payload: { chunkId, snippet },
+        });
+      } catch (error) {
+        console.warn("Failed to scroll to chunk", error);
+      }
     }
 
     async function handleContextToggle(event) {
@@ -650,6 +774,7 @@ export default defineComponent({
     function showHistory() {
       view.value = "history";
       resetActiveStream();
+      closeAutoInsights();
     }
 
     function showChat(selectedConv = null) {
@@ -681,6 +806,21 @@ export default defineComponent({
 
     function handleInputChange(event) {
       userInput.value = event.target.value;
+    }
+
+    function handleMessageClick(event) {
+      const anchor = event.target.closest("a");
+      if (!anchor) {
+        return;
+      }
+      const href = anchor.getAttribute("href") || "";
+      if (!href.startsWith("myz-chunk://")) {
+        return;
+      }
+      event.preventDefault();
+      const chunkId = href.replace("myz-chunk://", "");
+      const snippet = anchor.getAttribute("title") || anchor.textContent || "";
+      handleScrollToCitation(chunkId, snippet);
     }
 
     onMounted(async () => {
@@ -731,6 +871,7 @@ export default defineComponent({
         chrome.runtime.onMessage.removeListener(runtimeListener);
         runtimeListener = null;
       }
+      clearPageChunkAnchors();
     });
 
     async function handleAutoAction() {
@@ -739,12 +880,13 @@ export default defineComponent({
       const action = autoAction.value;
       autoAction.value = null; // Clear after processing
 
+      if (action === "summarize" || action === "key_points") {
+        await runAutoInsights(action);
+        return;
+      }
+
       // Set input based on action type
-      if (action === "summarize") {
-        userInput.value = "请总结当前页面的内容";
-      } else if (action === "key_points") {
-        userInput.value = "请提取当前页面的要点";
-      } else if (action === "find_related_logseq") {
+      if (action === "find_related_logseq") {
         userInput.value = "请查找与当前页面相关的LogSeq笔记";
       } else if (action === "custom") {
         userInput.value = "请问关于当前页面的问题";
@@ -785,6 +927,19 @@ export default defineComponent({
                 </button>
               </div>
             </header>
+            {autoInsights.active && autoInsights.loading && (
+              <p class="mt-2 text-xs text-indigo-600 dark:text-indigo-300">
+                正在生成
+                {autoInsights.action === "key_points" ? "要点" : "摘要"}...
+              </p>
+            )}
+            {autoInsights.active &&
+              !autoInsights.loading &&
+              autoInsights.error && (
+                <p class="mt-2 text-xs text-rose-600 dark:text-rose-400">
+                  {autoInsights.error}
+                </p>
+              )}
 
             <PageContextCard
               title={pageTitle.value}
@@ -797,28 +952,41 @@ export default defineComponent({
             />
 
             <section class="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
-              <ConversationList
-                messages={visibleMessages.value}
-                listRef={messageListRef}
-                onToolDetails={openToolInvocationDetails}
-                onToolResponse={openToolResponse}
-                onSaveAssistant={handleSaveHighlight}
-                isSavingHighlight={isSavingHighlight.value}
-                streaming={activeStream}
-                hasActiveStream={hasActiveStream.value}
-                isLoading={isLoading.value}
-              />
-              <InputComposer
-                value={userInput.value}
-                placeholder={inputPlaceholder.value}
-                disabled={isLoading.value}
-                error={error.value}
-                onInput={handleInputChange}
-                onKeydown={handleKeydown}
-                onCompositionstart={handleCompositionStart}
-                onCompositionend={handleCompositionEnd}
-                onSend={handleSendMessage}
-              />
+              {autoInsights.active &&
+              (autoInsights.action === "summarize" ||
+                autoInsights.action === "key_points") ? (
+                <AutoInsightsPanel
+                  state={autoInsights}
+                  onClose={closeAutoInsights}
+                  onRetry={() => runAutoInsights(autoInsights.action)}
+                  onScrollToCitation={handleScrollToCitation}
+                />
+              ) : (
+                <div onClick={handleMessageClick} class="flex h-full flex-col">
+                  <ConversationList
+                    messages={visibleMessages.value}
+                    listRef={messageListRef}
+                    onToolDetails={openToolInvocationDetails}
+                    onToolResponse={openToolResponse}
+                    onSaveAssistant={handleSaveHighlight}
+                    isSavingHighlight={isSavingHighlight.value}
+                    streaming={activeStream}
+                    hasActiveStream={hasActiveStream.value}
+                    isLoading={isLoading.value}
+                  />
+                  <InputComposer
+                    value={userInput.value}
+                    placeholder={inputPlaceholder.value}
+                    disabled={isLoading.value}
+                    error={error.value}
+                    onInput={handleInputChange}
+                    onKeydown={handleKeydown}
+                    onCompositionstart={handleCompositionStart}
+                    onCompositionend={handleCompositionEnd}
+                    onSend={handleSendMessage}
+                  />
+                </div>
+              )}
             </section>
 
             <SaveHighlightModal

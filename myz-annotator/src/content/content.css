@@ -730,3 +730,28 @@
   box-shadow: 0 18px 32px rgba(15, 23, 42, 0.4);
   pointer-events: auto;
 }
+
+.myz-ai-chunk-anchor {
+  position: relative;
+}
+
+.myz-ai-chunk-flash {
+  animation: myz-ai-chunk-pulse 1.4s ease-out;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.35),
+    0 0 12px rgba(79, 70, 229, 0.25);
+  border-radius: 4px;
+}
+
+@keyframes myz-ai-chunk-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.5),
+      0 0 0 rgba(79, 70, 229, 0.2);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(99, 102, 241, 0),
+      0 0 16px rgba(79, 70, 229, 0.15);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
