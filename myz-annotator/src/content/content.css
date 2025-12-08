@@ -1,7 +1,5 @@
 /* Theme Tokens */
-
-@import "tailwindcss";
-@plugin "@tailwindcss/typography";
+/* Keep content styles self-contained to avoid altering host page defaults. */
 
 :root {
   --myz-accent: #2563eb;
