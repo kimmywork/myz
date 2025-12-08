@@ -7,6 +7,104 @@ import {
 } from "../sidepanel/aiStorage.js";
 import { parseAiRequestHeaders } from "../shared/aiHeaderUtils.js";
 
+const REASONING_TYPES = new Set([
+  "reasoning",
+  "reasoning_content",
+  "analysis",
+  "think",
+  "thinking",
+  "thought",
+]);
+
+function splitContentAndReasoning(content) {
+  const result = { text: "", reasoning: "" };
+  if (typeof content === "undefined" || content === null) {
+    return result;
+  }
+
+  const append = (value, target) => {
+    if (typeof value === "undefined" || value === null) return;
+    result[target] += String(value);
+  };
+
+  const handlePart = (part) => {
+    if (typeof part === "undefined" || part === null) return;
+    if (typeof part === "string" || typeof part === "number") {
+      append(part, "text");
+      return;
+    }
+
+    if (Array.isArray(part)) {
+      part.forEach(handlePart);
+      return;
+    }
+
+    if (typeof part !== "object") {
+      return;
+    }
+
+    const type = typeof part.type === "string" ? part.type.toLowerCase() : "";
+    const textValue =
+      typeof part.text === "string"
+        ? part.text
+        : typeof part.content === "string"
+          ? part.content
+          : "";
+    const explicitReasoningText =
+      typeof part.reasoning === "string"
+        ? part.reasoning
+        : typeof part.thought === "string"
+          ? part.thought
+          : "";
+    const isReasoning =
+      REASONING_TYPES.has(type) ||
+      part.reasoning === true ||
+      part.thought ||
+      Boolean(explicitReasoningText);
+
+    if (isReasoning && (textValue || explicitReasoningText)) {
+      append(explicitReasoningText || textValue, "reasoning");
+    } else if (textValue) {
+      append(textValue, "text");
+    }
+  };
+
+  handlePart(content);
+  return result;
+}
+
+function normalizeReasoningChunk(value) {
+  if (typeof value === "undefined" || value === null) return "";
+  const { text, reasoning } = splitContentAndReasoning(value);
+  return (reasoning || text || "").toString();
+}
+
+function normalizeMessagePayload(message) {
+  if (!message) {
+    return { content: "", reasoning: "" };
+  }
+
+  const { text, reasoning } = splitContentAndReasoning(message.content);
+  const reasoningCandidates = [
+    message.reasoning_content,
+    message.reasoning,
+    message.analysis,
+  ];
+  const explicitReasoning =
+    reasoningCandidates
+      .map((item) => normalizeReasoningChunk(item).trim())
+      .find((item) => item) || "";
+
+  return {
+    content:
+      text ||
+      (typeof message.content === "string"
+        ? message.content
+        : normalizeReasoningChunk(message.content)),
+    reasoning: explicitReasoning || reasoning || "",
+  };
+}
+
 export class AiProvider {
   constructor(settings) {
     this.settings = settings;
@@ -139,6 +237,7 @@ export class AiProvider {
     let buffer = "";
     let done = false;
     let fullContent = "";
+    let fullReasoning = "";
     const toolCalls = [];
 
     const ensureToolCallSlot = (index, partial) => {
@@ -195,22 +294,37 @@ export class AiProvider {
           const delta = parsed.choices?.[0]?.delta;
           if (!delta) continue;
 
-          let deltaText = "";
-          if (Array.isArray(delta.content)) {
-            deltaText = delta.content
-              .map((part) => {
-                if (typeof part === "string") return part;
-                if (part?.type === "text") return part.text || "";
-                return "";
-              })
-              .join("");
-          } else if (typeof delta.content === "string") {
-            deltaText = delta.content;
+          const { text: deltaText, reasoning: reasoningFromContent } =
+            splitContentAndReasoning(delta.content);
+          const reasoningDeltaParts = [];
+          if (reasoningFromContent) {
+            reasoningDeltaParts.push(reasoningFromContent);
           }
+          [delta.reasoning_content, delta.reasoning].forEach((field) => {
+            const explicitReasoning = normalizeReasoningChunk(field);
+            if (explicitReasoning) {
+              reasoningDeltaParts.push(explicitReasoning);
+            }
+          });
+
+          const reasoningDelta = reasoningDeltaParts.join("");
+          let hasDeltaUpdate = false;
 
           if (deltaText) {
             fullContent += deltaText;
-            options.onStreamDelta?.(fullContent);
+            hasDeltaUpdate = true;
+          }
+
+          if (reasoningDelta) {
+            fullReasoning += reasoningDelta;
+            hasDeltaUpdate = true;
+          }
+
+          if (hasDeltaUpdate) {
+            options.onStreamDelta?.({
+              content: fullContent,
+              reasoning: fullReasoning,
+            });
           }
 
           if (Array.isArray(delta.tool_calls)) {
@@ -240,6 +354,10 @@ export class AiProvider {
       role: "assistant",
       content: fullContent,
     };
+
+    if (fullReasoning.trim()) {
+      message.reasoning_content = fullReasoning;
+    }
 
     if (cleanedToolCalls.length > 0) {
       message.tool_calls = cleanedToolCalls;
@@ -666,9 +784,19 @@ export class AiProvider {
       onStreamDelta: stream
         ? (delta) => {
             if (!delta) return;
+            const payload =
+              typeof delta === "string"
+                ? { delta }
+                : {
+                    delta: delta?.content ?? delta?.delta ?? "",
+                    reasoning: delta?.reasoning ?? "",
+                  };
+            if (!payload.delta && !payload.reasoning) {
+              return;
+            }
             this.notifyStreamDelta(conversationId, {
               streamId: streamMessageId,
-              delta,
+              ...payload,
             });
           }
         : undefined,
@@ -684,12 +812,14 @@ export class AiProvider {
 
     // Check if response has both tool calls and content
     const message = response.choices?.[0]?.message;
-    let assistantContent = message?.content || "";
+    const { content: normalizedContent, reasoning: reasoningContent } =
+      normalizeMessagePayload(message);
+    let assistantContent = normalizedContent || "";
     let toolCallInfo = "";
 
     let toolNamesList = [];
     let toolCallDetails = [];
-    const assistantHadContent = Boolean(message?.content?.trim());
+    const assistantHadContent = Boolean((normalizedContent || "").trim());
 
     if (message?.tool_calls && message.tool_calls.length > 0) {
       toolNamesList = message.tool_calls.map(
@@ -725,18 +855,24 @@ export class AiProvider {
         toolNames: toolNamesList,
         toolCallDetails,
         toolInvocationOnly: !assistantHadContent && toolNamesList.length > 0,
+        reasoning: reasoningContent || undefined,
         ...metadata,
       },
     };
+    if (reasoningContent) {
+      assistantMessage.reasoning_content = reasoningContent;
+    }
     await saveMessage(assistantMessage);
 
     if (stream && streamMessageId) {
       this.notifyStreamComplete(conversationId, {
         streamId: streamMessageId,
         content: assistantContent,
+        reasoning: reasoningContent || "",
         metadata: {
           toolNames: toolNamesList,
           toolCallDetails,
+          reasoning: reasoningContent || "",
         },
         message: assistantMessage,
       });
@@ -745,6 +881,7 @@ export class AiProvider {
     return {
       conversationId,
       content: assistantContent,
+      reasoning: reasoningContent || "",
       model: this.settings.aiModel,
       timestamp: assistantMessage.timestamp,
       hasToolCalls: !!message?.tool_calls,
@@ -957,7 +1094,10 @@ export class AiProvider {
         temperature: payload.temperature ?? 0.2,
       });
 
-      let content = response.choices?.[0]?.message?.content?.trim() || "";
+      const normalizedResponse = normalizeMessagePayload(
+        response.choices?.[0]?.message,
+      );
+      let content = (normalizedResponse.content || "").trim();
       const done = content.endsWith("[[END]]");
       if (done) {
         content = content.slice(0, -5).trimEnd();

@@ -93,6 +93,7 @@ export default defineComponent({
       id: null,
       content: "",
       timestamp: "",
+      reasoning: "",
       metadata: {},
     });
     const hasActiveStream = computed(() => Boolean(activeStream.id));
@@ -160,6 +161,7 @@ export default defineComponent({
       activeStream.id = null;
       activeStream.content = "";
       activeStream.timestamp = "";
+      activeStream.reasoning = "";
       activeStream.metadata = {};
     }
 
@@ -661,6 +663,7 @@ export default defineComponent({
       }
       activeStream.id = streamId;
       activeStream.content = "";
+      activeStream.reasoning = "";
       activeStream.timestamp =
         data.message.timestamp || new Date().toISOString();
       activeStream.metadata = {
@@ -681,7 +684,12 @@ export default defineComponent({
       ) {
         return;
       }
-      activeStream.content = data.delta || "";
+      if (typeof data.delta === "string") {
+        activeStream.content = data.delta;
+      }
+      if (typeof data.reasoning === "string") {
+        activeStream.reasoning = data.reasoning;
+      }
       nextTick(() => {
         scrollToBottom();
       });
@@ -712,10 +720,22 @@ export default defineComponent({
           },
         };
       }
-      finalMessage.metadata = {
+      const mergedMetadata = {
         ...(finalMessage.metadata || {}),
         streaming: false,
       };
+      const reasoningText =
+        data.reasoning ||
+        data.metadata?.reasoning ||
+        mergedMetadata.reasoning ||
+        activeStream.reasoning ||
+        "";
+      if (reasoningText) {
+        mergedMetadata.reasoning = reasoningText;
+        finalMessage.reasoning_content =
+          finalMessage.reasoning_content || reasoningText;
+      }
+      finalMessage.metadata = mergedMetadata;
 
       if (data.metadata?.toolNames && !finalMessage.metadata?.toolNames) {
         finalMessage.metadata = {
