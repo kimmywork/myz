@@ -6,6 +6,7 @@ import {
   getConversation,
 } from "../sidepanel/aiStorage.js";
 import { parseAiRequestHeaders } from "../shared/aiHeaderUtils.js";
+import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 
 const REASONING_TYPES = new Set([
   "reasoning",
@@ -120,6 +121,12 @@ export class AiProvider {
       (this.allowUntested || this.provider.lastTestStatus?.ok === true) &&
       (this.settings.apiEndpoint || this.settings.aiApiEndpoint) &&
       (this.settings.apiKey || this.settings.aiApiKey);
+
+    // Keep dynamic request header rules (e.g., custom User-Agent) in sync with the
+    // provider being used, even before settings are persisted.
+    this.syncRequestHeaderRules().catch((error) => {
+      console.warn("Failed to sync AI header rules", error);
+    });
   }
 
   buildRequestHeaders() {
@@ -144,6 +151,45 @@ export class AiProvider {
       ...headers,
       ...customHeaders,
     };
+  }
+
+  async syncRequestHeaderRules() {
+    const providerId =
+      this.provider?.id ||
+      this.settings.aiActiveProviderId ||
+      "active-provider";
+    const apiEndpoint =
+      this.provider?.apiEndpoint ||
+      this.settings.apiEndpoint ||
+      this.settings.aiApiEndpoint ||
+      "";
+    const requestHeaders =
+      this.provider?.requestHeaders ||
+      this.settings.requestHeaders ||
+      this.settings.aiRequestHeaders ||
+      "";
+
+    const payload = {
+      ...this.settings,
+      aiActiveProviderId: providerId,
+      aiApiEndpoint: apiEndpoint,
+      aiRequestHeaders: requestHeaders,
+      aiProviders: [
+        {
+          id: providerId,
+          apiEndpoint,
+          requestHeaders,
+          lastTestStatus:
+            this.provider?.lastTestStatus || { ok: true, message: "" },
+        },
+      ],
+    };
+
+    try {
+      await syncAiRequestHeaderRules(payload);
+    } catch (error) {
+      console.warn("Failed to update AI header rules", error);
+    }
   }
 
   async testConnection() {
@@ -192,6 +238,7 @@ export class AiProvider {
   }
 
   async makeApiRequest(payload) {
+    await this.syncRequestHeaderRules();
     const aiApiEndpoint =
       this.settings.apiEndpoint || this.settings.aiApiEndpoint;
     const aiApiKey = this.settings.apiKey || this.settings.aiApiKey;
@@ -220,6 +267,7 @@ export class AiProvider {
   }
 
   async streamChatCompletion(payload, options = {}) {
+    await this.syncRequestHeaderRules();
     const aiApiEndpoint =
       this.settings.apiEndpoint || this.settings.aiApiEndpoint;
     const aiApiKey = this.settings.apiKey || this.settings.aiApiKey;
