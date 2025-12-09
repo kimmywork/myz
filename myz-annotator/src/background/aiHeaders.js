@@ -23,15 +23,28 @@ function buildRegexFilterForEndpoint(endpoint) {
   }
 }
 
+function resolveActiveHeaderConfig(settings = {}) {
+  const providers = Array.isArray(settings.aiProviders)
+    ? settings.aiProviders
+    : [];
+  let target =
+    providers.find((p) => p?.id === settings.aiActiveProviderId) ||
+    providers[0] ||
+    null;
+  // Fallback to legacy fields
+  const endpoint = target?.apiEndpoint || settings.aiApiEndpoint || "";
+  const headers = target?.requestHeaders || settings.aiRequestHeaders || "";
+  return { endpoint, headers };
+}
+
 export async function syncAiRequestHeaderRules(settings = {}) {
   if (!chrome?.declarativeNetRequest?.updateDynamicRules) {
     return;
   }
 
-  const userAgent = getAiHeaderValue(settings.aiRequestHeaders, "user-agent");
-  const regexFilter = userAgent
-    ? buildRegexFilterForEndpoint(settings.aiApiEndpoint)
-    : null;
+  const { endpoint, headers } = resolveActiveHeaderConfig(settings);
+  const userAgent = getAiHeaderValue(headers, "user-agent");
+  const regexFilter = userAgent ? buildRegexFilterForEndpoint(endpoint) : null;
 
   const addRules = [];
   if (userAgent && regexFilter) {

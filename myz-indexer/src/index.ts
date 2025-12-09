@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { VectorStore } from './lib/db';
 import { TransformersEmbedder } from './lib/transformers-embedder';
 import { HNSWIndex } from './lib/hnsw';
+import { cosineSimilarity } from './lib/vector';
 import { IndexerConfig, EmbeddingModel, VectorDocument, SearchResult } from './types';
 
 export * from './types';
@@ -111,28 +112,53 @@ export class MyZIndexer {
     return docs;
   }
 
-  async search(query: string, topK: number = 5): Promise<SearchResult[]> {
+  async search(query: string, topK: number = 5, useBruteForce: boolean = false): Promise<SearchResult[]> {
     await this.init();
     const queryEmbedding = await this.embedder.embed(query);
     
-    // 1. Search HNSW Index
-    const results = this.index.search(queryEmbedding, topK);
+    let results: { id: string; score: number }[] = [];
+
+    if (useBruteForce) {
+      // Brute-force search for verification
+      const allDocs = await this.db.getAll();
+      results = allDocs
+        .filter(doc => doc.embedding && doc.embedding.length > 0)
+        .map(doc => ({
+          id: doc.id,
+          score: cosineSimilarity(queryEmbedding, doc.embedding!)
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, topK);
+    } else {
+      // HNSW Index Search
+      results = this.index.search(queryEmbedding, topK);
+    }
     
-    // 2. Fetch Metadata from IDB
+    // Fetch Metadata from IDB (if not already fetched in brute force)
+    // For brute force we already have docs, but to keep logic unified we re-fetch or optimize
+    // Optimization: if brute force, we have docs. But let's keep it simple.
     const ids = results.map(r => r.id);
     const docs = await this.db.getMany(ids);
     
-    // 3. Merge
-    return results.map((r, i) => {
+    const finalResults = results.map((r, i) => {
       const doc = docs[i];
-      if (!doc) return null;
+      if (!doc) {
+        console.warn(`Document not found in IDB for ID: ${r.id} (Score: ${r.score})`);
+        return null;
+      }
       return {
         ...doc,
         score: r.score
       };
     }).filter(Boolean) as SearchResult[];
+
+    if (finalResults.length === 0 && results.length > 0) {
+      console.error('Search returned results from Index but they were filtered out because they are missing in IDB. Ghost nodes?');
+    }
+
+    return finalResults;
   }
-  
+
   async getAllDocuments(): Promise<VectorDocument[]> {
     return this.db.getAll();
   }

@@ -34,7 +34,7 @@ self.addEventListener('message', async (event) => {
         result = await indexer.addDocuments(payload.items);
         break;
       case 'SEARCH':
-        result = await indexer.search(payload.query);
+        result = await indexer.search(payload.query, 5, payload.useBruteForce);
         break;
       case 'GET_ALL':
         result = await indexer.getAllDocuments();

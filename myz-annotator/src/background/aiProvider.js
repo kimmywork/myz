@@ -106,17 +106,26 @@ function normalizeMessagePayload(message) {
 }
 
 export class AiProvider {
-  constructor(settings) {
-    this.settings = settings;
+  constructor(settings, options = {}) {
+    this.allowUntested = Boolean(options.allowUntested);
+    const { provider, fallbackSettings } = resolveActiveProvider(settings, {
+      allowUntested: this.allowUntested,
+    });
+    this.provider = provider;
+    this.settings = { ...fallbackSettings, ...(provider || {}) };
     this.mcpClients = new Map();
     this.isEnabled =
-      settings.aiAssistantEnabled &&
-      settings.aiApiEndpoint &&
-      settings.aiApiKey;
+      this.settings.aiAssistantEnabled &&
+      this.provider &&
+      (this.allowUntested || this.provider.lastTestStatus?.ok === true) &&
+      (this.settings.apiEndpoint || this.settings.aiApiEndpoint) &&
+      (this.settings.apiKey || this.settings.aiApiKey);
   }
 
   buildRequestHeaders() {
-    const customHeaders = parseAiRequestHeaders(this.settings.aiRequestHeaders);
+    const customHeaders = parseAiRequestHeaders(
+      this.settings.requestHeaders || this.settings.aiRequestHeaders,
+    );
     const headerNamesLower = new Set(
       Object.keys(customHeaders).map((key) => key.toLowerCase()),
     );
@@ -126,8 +135,9 @@ export class AiProvider {
       headers["Content-Type"] = "application/json";
     }
 
-    if (this.settings.aiApiKey && !headerNamesLower.has("authorization")) {
-      headers.Authorization = `Bearer ${this.settings.aiApiKey}`;
+    const apiKey = this.settings.apiKey || this.settings.aiApiKey;
+    if (apiKey && !headerNamesLower.has("authorization")) {
+      headers.Authorization = `Bearer ${apiKey}`;
     }
 
     return {
@@ -137,14 +147,22 @@ export class AiProvider {
   }
 
   async testConnection() {
-    if (!this.isEnabled) {
+    const aiApiEndpoint =
+      this.settings.apiEndpoint || this.settings.aiApiEndpoint;
+    const aiApiKey = this.settings.apiKey || this.settings.aiApiKey;
+
+    if (!this.settings.aiAssistantEnabled) {
       throw new Error("AI Assistant is not enabled or configured");
     }
 
+    if (!aiApiEndpoint || !aiApiKey) {
+      throw new Error("API endpoint or key not configured");
+    }
+
     // Determine model to use (support custom models)
-    let model = this.settings.aiModel || "gpt-4";
-    if (model === "custom" && this.settings.aiCustomModel) {
-      model = this.settings.aiCustomModel;
+    let model = this.settings.model || this.settings.aiModel || "gpt-4";
+    if (model === "custom" && this.settings.customModel) {
+      model = this.settings.customModel;
     }
 
     try {
@@ -174,7 +192,9 @@ export class AiProvider {
   }
 
   async makeApiRequest(payload) {
-    const { aiApiEndpoint, aiApiKey } = this.settings;
+    const aiApiEndpoint =
+      this.settings.apiEndpoint || this.settings.aiApiEndpoint;
+    const aiApiKey = this.settings.apiKey || this.settings.aiApiKey;
 
     if (!aiApiEndpoint || !aiApiKey) {
       throw new Error("API endpoint or key not configured");
@@ -200,7 +220,9 @@ export class AiProvider {
   }
 
   async streamChatCompletion(payload, options = {}) {
-    const { aiApiEndpoint, aiApiKey } = this.settings;
+    const aiApiEndpoint =
+      this.settings.apiEndpoint || this.settings.aiApiEndpoint;
+    const aiApiKey = this.settings.apiKey || this.settings.aiApiKey;
     if (!aiApiEndpoint || !aiApiKey) {
       throw new Error("API endpoint or key not configured");
     }
@@ -381,9 +403,9 @@ export class AiProvider {
     } = options;
 
     // Determine model to use (support custom models)
-    let model = this.settings.aiModel || "gpt-4";
-    if (model === "custom" && this.settings.aiCustomModel) {
-      model = this.settings.aiCustomModel;
+    let model = this.settings.model || this.settings.aiModel || "gpt-4";
+    if (model === "custom" && this.settings.customModel) {
+      model = this.settings.customModel;
     }
 
     // Determine max tokens based on context size setting
@@ -958,7 +980,7 @@ export class AiProvider {
       "4. 所有关键要点必须给出原文引用。",
       `5. 当前任务：${actionLabel}。`,
       "6. 当且仅当所有内容完全输出完毕时，以 [[END]] 结尾；若尚未完成，请不要输出该终止符。",
-`
+      `
 生成摘要的方式如下：
 对于原文：
 
@@ -969,7 +991,7 @@ CHUNK 1: myz-chunk-miy0603t-000
 生成的摘要可以是：
 
 [古典自由主义](myz-chunk://myz-chunk-miy0603t-000 "古典自由主义（英语：classical liberalism）是一种支持个人先于国家存在的政治哲学")是一种[源于17至18世纪](myz-chunk://myz-chunk-miy0603t-000 "古典自由主义发源于17世纪和18世纪")、强调个人权利、私有财产和自由市场，并主张政府仅限于保护个体自由的政治哲学，[对美国和法国大革命产生了重要影响](myz-chunk://myz-chunk-miy0603t-000 "美国革命和法国大革命都受到古典自由主义的影响")。
-`
+`,
     ].join("\n");
   }
 
@@ -1150,6 +1172,77 @@ CHUNK 1: myz-chunk-miy0603t-000
   }
 }
 
-export function createAiProvider(settings) {
-  return new AiProvider(settings);
+export function createAiProvider(settings, options = {}) {
+  return new AiProvider(settings, options);
+}
+
+function resolveActiveProvider(settings = {}, options = {}) {
+  const allowUntested = Boolean(options.allowUntested);
+  const providers = Array.isArray(settings.aiProviders)
+    ? settings.aiProviders
+    : [];
+  const eligibleProviders = providers.filter((p) => p && typeof p === "object");
+  const hasProviders = eligibleProviders.length > 0;
+  let provider = null;
+
+  if (allowUntested) {
+    provider =
+      eligibleProviders.find((p) => p.id === settings.aiActiveProviderId) ||
+      eligibleProviders[0] ||
+      null;
+  } else {
+    provider =
+      eligibleProviders.find(
+        (p) => p.id === settings.aiActiveProviderId && p.lastTestStatus?.ok,
+      ) || null;
+    if (!provider && eligibleProviders.length) {
+      provider = eligibleProviders.find((p) => p.lastTestStatus?.ok) || null;
+    }
+  }
+
+  if (
+    !provider &&
+    !hasProviders &&
+    (settings.aiApiEndpoint || settings.aiApiKey || settings.aiModel)
+  ) {
+    provider = {
+      id: "provider-default",
+      name: "默认 Provider",
+      apiEndpoint: settings.aiApiEndpoint,
+      apiKey: settings.aiApiKey,
+      model: settings.aiModel || "gpt-4",
+      customModel: settings.aiCustomModel || "",
+      contextSize: settings.aiContextSize || "32K",
+      maxTokens:
+        typeof settings.aiMaxTokens === "number" ? settings.aiMaxTokens : 32768,
+      requestHeaders: settings.aiRequestHeaders || "",
+      lastTestStatus: { ok: true, message: "legacy" },
+    };
+  }
+
+  const fallbackSettings = {
+    ...settings,
+  };
+  if (provider) {
+    fallbackSettings.aiActiveProviderId =
+      settings.aiActiveProviderId || provider.id;
+    fallbackSettings.aiApiEndpoint = provider.apiEndpoint || "";
+    fallbackSettings.aiApiKey = provider.apiKey || "";
+    fallbackSettings.aiModel = provider.model || "gpt-4";
+    fallbackSettings.aiCustomModel = provider.customModel || "";
+    fallbackSettings.aiContextSize = provider.contextSize || "32K";
+    fallbackSettings.aiMaxTokens =
+      typeof provider.maxTokens === "number" ? provider.maxTokens : 32768;
+    fallbackSettings.aiRequestHeaders = provider.requestHeaders || "";
+    fallbackSettings.apiEndpoint = provider.apiEndpoint || "";
+    fallbackSettings.apiKey = provider.apiKey || "";
+    fallbackSettings.model = provider.model || "gpt-4";
+    fallbackSettings.customModel = provider.customModel || "";
+    fallbackSettings.contextSize = provider.contextSize || "32K";
+    fallbackSettings.maxTokens =
+      typeof provider.maxTokens === "number" ? provider.maxTokens : 32768;
+    fallbackSettings.requestHeaders = provider.requestHeaders || "";
+  }
+
+  return { provider, fallbackSettings };
 }

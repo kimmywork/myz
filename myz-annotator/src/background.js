@@ -834,13 +834,18 @@ const messageHandlers = {
   },
 
   // AI Assistant handlers
-  async "myz:testAiConnection"() {
+  async "myz:testAiConnection"(payload) {
     const settings = await readSettings();
-    if (!settings.aiAssistantEnabled) {
+    const merged = { ...settings, ...(payload || {}) };
+    if (!merged.aiAssistantEnabled) {
       return { success: false, error: "AI Assistant is not enabled" };
     }
 
-    const provider = createAiProvider(settings);
+    const provider = createAiProvider(merged, { allowUntested: true });
+    if (!provider.provider) {
+      return { success: false, error: "请先配置 Provider" };
+    }
+
     return await provider.testConnection();
   },
 

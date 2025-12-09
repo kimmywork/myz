@@ -395,7 +395,7 @@ export default defineComponent({
                 class={
                   useContentVariant
                     ? "myz-tag-input__input"
-                    : "min-w-[80px] flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-500"
+                    : "min-w-20 flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-500"
                 }
                 type="text"
                 value={inputValue.value}

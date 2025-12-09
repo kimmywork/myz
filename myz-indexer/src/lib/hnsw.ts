@@ -134,14 +134,23 @@ export class HNSWIndex {
       while (changed) {
         changed = false;
         const neighbors = currObj.neighbors[l];
+        
+        let bestNeighbor: Node | null = null;
+        let bestDist = currDist;
+
         for (const neighborId of neighbors) {
           const neighbor = this.nodes.get(neighborId)!;
           const d = this.dist(queryVector, neighbor.vector);
-          if (d > currDist) {
-            currDist = d;
-            currObj = neighbor;
-            changed = true;
+          if (d > bestDist) {
+            bestDist = d;
+            bestNeighbor = neighbor;
           }
+        }
+
+        if (bestNeighbor) {
+          currDist = bestDist;
+          currObj = bestNeighbor;
+          changed = true;
         }
       }
     }

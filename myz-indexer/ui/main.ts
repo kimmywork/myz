@@ -83,10 +83,11 @@ document.getElementById('btnAdd')?.addEventListener('click', async () => {
 
 document.getElementById('btnSearch')?.addEventListener('click', async () => {
   const query = queryInputEl.value;
+  const useBruteForce = (document.getElementById('useBruteForce') as HTMLInputElement).checked;
   if (!query) return;
   statusEl.textContent = 'Searching...';
   try {
-    const results: any = await sendMessage('SEARCH', { query });
+    const results: any = await sendMessage('SEARCH', { query, useBruteForce });
     statusEl.textContent = `Found ${results.length} results.`;
     resultsEl.innerHTML = results.map((r: any) => `
       <div style="margin-top: 10px; padding: 5px; background: #e9ecef;">
