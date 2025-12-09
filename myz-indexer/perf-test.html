@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyZ Indexer Performance Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+    .card { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+    button { cursor: pointer; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; margin-right: 5px; }
+    button:disabled { background: #ccc; }
+    .log { background: #f4f4f4; padding: 10px; height: 300px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
+    .stat-box { background: #e9ecef; padding: 10px; border-radius: 4px; text-align: center; }
+    .stat-value { font-size: 1.2em; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>MyZ Indexer Performance Test Suite</h1>
+  
+  <div class="card">
+    <h3>Status</h3>
+    <div id="status">Initializing...</div>
+  </div>
+
+  <div class="card">
+    <h3>Test Controls</h3>
+    <div class="stats">
+      <div class="stat-box">
+        <div>Documents</div>
+        <div id="docCount" class="stat-value">0</div>
+      </div>
+      <div class="stat-box">
+        <div>Index Time</div>
+        <div id="indexTime" class="stat-value">-</div>
+      </div>
+      <div class="stat-box">
+        <div>Search Time</div>
+        <div id="searchTime" class="stat-value">-</div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 10px;">
+      <label>Batch Size: <input type="number" id="batchSize" value="5" style="width: 60px;"></label>
+      <label>Max Docs: <input type="number" id="maxDocs" value="50" style="width: 80px;"></label>
+    </div>
+
+    <button id="btnLoadData">1. Load & Parse Data</button>
+    <button id="btnRunIndex" disabled>2. Run Indexing Test</button>
+    <button id="btnRunSearch" disabled>3. Run Search Test</button>
+    <button id="btnClear" style="background: #dc3545;">Clear DB</button>
+  </div>
+
+  <div class="card">
+    <h3>Logs</h3>
+    <div id="log" class="log"></div>
+  </div>
+
+  <script type="module" src="/ui/perf-test.ts"></script>
+</body>
+</html>

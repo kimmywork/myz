@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyZ Indexer Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    .card { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+    button { cursor: pointer; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; }
+    button:disabled { background: #ccc; }
+    input, textarea { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
+    pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>MyZ Indexer (Service Worker Mode)</h1>
+  
+  <div class="card">
+    <h3>Status</h3>
+    <div id="status">Initializing...</div>
+  </div>
+
+  <div class="card">
+    <h3>Add Document</h3>
+    <textarea id="docText" rows="3" placeholder="Enter text to index..."></textarea>
+    <button id="btnAdd">Index Text</button>
+  </div>
+
+  <div class="card">
+    <h3>Search</h3>
+    <input type="text" id="queryInput" placeholder="Search query...">
+    <button id="btnSearch">Search</button>
+    <div id="results"></div>
+  </div>
+  
+  <div class="card">
+    <h3>All Documents</h3>
+    <button id="btnList">Refresh List</button>
+    <button id="btnClear" style="background: #dc3545;">Clear DB</button>
+    <pre id="docList"></pre>
+  </div>
+
+  <script type="module" src="/ui/main.ts"></script>
+</body>
+</html>
