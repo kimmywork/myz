@@ -2,6 +2,19 @@
   "name": "myz-indexer",
   "version": "0.0.1",
   "type": "module",
+  "main": "./dist/myz-indexer.umd.cjs",
+  "module": "./dist/myz-indexer.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/myz-indexer.js",
+      "require": "./dist/myz-indexer.umd.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -17,6 +30,7 @@
     "@types/web": "^0.0.148",
     "typescript": "^5.4.2",
     "vite": "^5.2.0",
+    "vite-plugin-dts": "^4.5.4",
     "vite-plugin-static-copy": "^3.1.4"
   }
 }
