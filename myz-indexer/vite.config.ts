@@ -13,6 +13,9 @@ export default defineConfig({
       external: [], 
     },
   },
+  optimizeDeps: {
+    exclude: ["@huggingface/transformers"],
+  },
   server: {
     headers: {
       // 移除 COOP/COEP headers 以禁用 SharedArrayBuffer

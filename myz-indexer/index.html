@@ -17,6 +17,30 @@
   <h1>MyZ Indexer (Service Worker Mode)</h1>
   
   <div class="card">
+    <h3>Configuration</h3>
+    <div style="margin-bottom: 10px;">
+      <label>Embedder: 
+        <select id="embedderType">
+          <option value="local">Local (Transformers.js)</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </label>
+    </div>
+    <div id="openaiConfig" style="display: none; border-top: 1px solid #eee; padding-top: 10px;">
+      <label>API Key: <input type="password" id="openaiKey" placeholder="sk-..."></label>
+      <label>Endpoint: <input type="text" id="openaiEndpoint" value="https://api.openai.com/v1"></label>
+      <label>Model: <input type="text" id="openaiModel" value="text-embedding-3-small"></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Migration</h3>
+    <button id="btnMigrate">Migrate to Selected Embedder</button>
+    <button id="btnStopMigrate" disabled>Stop</button>
+    <div id="migrationStatus" style="margin-top: 10px; font-family: monospace;"></div>
+  </div>
+
+  <div class="card">
     <h3>Status</h3>
     <div id="status">Initializing...</div>
   </div>

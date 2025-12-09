@@ -1,3 +1,5 @@
+import { IndexerClient } from './client';
+
 const statusEl = document.getElementById('status')!;
 const logEl = document.getElementById('log')!;
 const docCountEl = document.getElementById('docCount')!;
@@ -10,10 +12,8 @@ const btnRunIndex = document.getElementById('btnRunIndex') as HTMLButtonElement;
 const btnRunSearch = document.getElementById('btnRunSearch') as HTMLButtonElement;
 const btnClear = document.getElementById('btnClear') as HTMLButtonElement;
 const batchSizeInput = document.getElementById('batchSize') as HTMLInputElement;
-const maxDocsInput = document.getElementById('maxDocs') as HTMLInputElement;
 const useBruteForceInput = document.getElementById('useBruteForce') as HTMLInputElement;
 
-let serviceWorker: ServiceWorker | null = null;
 let parsedDocs: { text: string; source: string }[] = [];
 
 function log(msg: string) {
@@ -23,50 +23,14 @@ function log(msg: string) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-async function init() {
-  if ('serviceWorker' in navigator) {
-    try {
-      const registration = await navigator.serviceWorker.register('/ui/sw.ts', {
-        type: 'module',
-        scope: '/'
-      });
-      
-      await navigator.serviceWorker.ready;
-      serviceWorker = registration.active;
-      statusEl.textContent = 'Service Worker Ready';
-      log('Service Worker registered and ready.');
-      
-      // Check current DB state
-      refreshStats();
-      
-      // Enable search button if docs exist
-      const docs: any = await sendMessage('GET_ALL');
-      if (docs.length > 0) {
-        btnRunSearch.disabled = false;
-        log(`Found ${docs.length} existing documents. Search enabled.`);
-      }
-    } catch (error) {
-      statusEl.textContent = `SW Error: ${error}`;
-      log(`Error: ${error}`);
-    }
-  }
-}
-
-function sendMessage(type: string, payload: any = {}) {
-  return new Promise((resolve, reject) => {
-    if (!serviceWorker) return reject('No SW');
-    const channel = new MessageChannel();
-    channel.port1.onmessage = (event) => {
-      if (event.data.error) reject(event.data.error);
-      else resolve(event.data.result);
-    };
-    serviceWorker.postMessage({ type, payload }, [channel.port2]);
-  });
-}
+const client = new IndexerClient((msg) => {
+  statusEl.textContent = msg;
+  log(msg);
+});
 
 async function refreshStats() {
   try {
-    const docs: any = await sendMessage('GET_ALL');
+    const docs: any = await client.sendMessage('GET_ALL');
     docCountEl.textContent = docs.length;
   } catch (e) {
     console.error(e);
@@ -90,7 +54,7 @@ btnLoadQA.addEventListener('click', async () => {
     log(`Loaded ${parsedDocs.length} QA documents.`);
     
     // Auto-clear for clean test
-    await sendMessage('CLEAR');
+    await client.sendMessage('CLEAR');
     log('Database cleared for QA test.');
     refreshStats();
 
@@ -122,7 +86,7 @@ btnLoadHF.addEventListener('click', async () => {
     log(`Loaded ${parsedDocs.length} HF documents.`);
     
     // Auto-clear
-    await sendMessage('CLEAR');
+    await client.sendMessage('CLEAR');
     log('Database cleared for HF test.');
     refreshStats();
 
@@ -154,7 +118,7 @@ btnRunIndex.addEventListener('click', async () => {
         metadata: { source: d.source }
       }));
       
-      await sendMessage('BATCH_ADD', { items: batch });
+      await client.sendMessage('BATCH_ADD', { items: batch });
       processed += batch.length;
       log(`Indexed ${processed}/${total}...`);
     }
@@ -206,7 +170,7 @@ btnRunSearch.addEventListener('click', async () => {
     // Fallback: If parsedDocs is empty (e.g. page reload), try to fetch a sample from DB to generate queries
     // This assumes the DB might contain cc100 data or similar
     try {
-      const docs: any = await sendMessage('GET_ALL');
+      const docs: any = await client.sendMessage('GET_ALL');
       if (docs.length > 0) {
         // Pick 10 random docs
         const sampleDocs = docs.sort(() => 0.5 - Math.random()).slice(0, 10);
@@ -227,7 +191,7 @@ btnRunSearch.addEventListener('click', async () => {
   
   for (const q of queries) {
     const startQ = performance.now();
-    const results: any = await sendMessage('SEARCH', { query: q, useBruteForce: useBruteForceInput.checked });
+    const results: any = await client.sendMessage('SEARCH', { query: q, useBruteForce: useBruteForceInput.checked });
     const endQ = performance.now();
     
     log(`Query: "${q}" took ${(endQ - startQ).toFixed(2)}ms`);
@@ -246,10 +210,24 @@ btnRunSearch.addEventListener('click', async () => {
 
 btnClear.addEventListener('click', async () => {
   if (confirm('Clear DB?')) {
-    await sendMessage('CLEAR');
+    await client.sendMessage('CLEAR');
     log('Database cleared.');
     refreshStats();
   }
 });
 
-init();
+client.init().then(async () => {
+  // Check current DB state
+  refreshStats();
+  
+  // Enable search button if docs exist
+  try {
+    const docs: any = await client.sendMessage('GET_ALL');
+    if (docs.length > 0) {
+      btnRunSearch.disabled = false;
+      log(`Found ${docs.length} existing documents. Search enabled.`);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}).catch(e => log(`Init Error: ${e}`));

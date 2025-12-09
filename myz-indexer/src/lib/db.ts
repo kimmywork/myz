@@ -106,6 +106,12 @@ export class VectorStore {
     await db.clear('hnsw_nodes');
   }
 
+  async clearIndex(): Promise<void> {
+    const db = await this.dbPromise;
+    await db.clear('meta');
+    await db.clear('hnsw_nodes');
+  }
+
   async saveIndexMeta(data: any): Promise<void> {
     const db = await this.dbPromise;
     await db.put('meta', data, 'hnsw-meta');
@@ -114,16 +120,5 @@ export class VectorStore {
   async loadIndexMeta(): Promise<any> {
     const db = await this.dbPromise;
     return db.get('meta', 'hnsw-meta');
-  }
-
-  // Deprecated: kept for compatibility if needed, but we use granular storage now
-  async saveIndex(data: any): Promise<void> {
-    const db = await this.dbPromise;
-    await db.put('meta', data, 'hnsw-index');
-  }
-
-  async loadIndex(): Promise<any> {
-    const db = await this.dbPromise;
-    return db.get('meta', 'hnsw-index');
   }
 }

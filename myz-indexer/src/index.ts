@@ -47,15 +47,7 @@ export class MyZIndexer {
       };
       this.index = HNSWIndex.fromJSON(indexData);
     } else {
-      // Fallback: check for legacy single-blob index
-      const legacyIndex = await this.db.loadIndex();
-      if (legacyIndex) {
-        console.log('Migrating legacy index...');
-        this.index = HNSWIndex.fromJSON(legacyIndex);
-        await this.saveIndex(); // Save in new format
-      } else {
-        console.log('No existing index found.');
-      }
+      console.log('No existing index found.');
     }
     this.initialized = true;
   }
@@ -113,6 +105,30 @@ export class MyZIndexer {
     await this.saveIndex(allTouchedIds);
 
     return docs;
+  }
+
+  // Low-level method to index fully formed documents (used for migration/restoration)
+  async indexDocuments(docs: VectorDocument[]): Promise<void> {
+    await this.init();
+    
+    const allTouchedIds = new Set<string>();
+    for (const doc of docs) {
+      if (doc.embedding) {
+        const touched = this.index.addPoint(doc.id, doc.embedding);
+        touched.forEach(id => allTouchedIds.add(id));
+      }
+    }
+
+    // Save to IDB
+    await this.db.addMany(docs);
+
+    // Persist Index
+    await this.saveIndex(allTouchedIds);
+  }
+
+  async resetIndex(): Promise<void> {
+    this.index = new HNSWIndex();
+    await this.db.clearIndex(); // We need to add this to DB
   }
 
   async search(query: string, topK: number = 5, useBruteForce: boolean = false): Promise<SearchResult[]> {
