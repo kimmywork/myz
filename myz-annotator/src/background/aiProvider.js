@@ -20,7 +20,7 @@ const REASONING_TYPES = new Set([
 
 const LOCAL_TOOL_DEFINITIONS = [
   {
-    name: "myz.list_hosts",
+    name: "myz-list-hosts",
     description: "列出所有保存过的站点 host 以及对应的标注数量，按数量降序排序。",
     parameters: {
       type: "object",
@@ -28,7 +28,7 @@ const LOCAL_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "myz.popular_tags",
+    name: "myz-popular-tags",
     description: "列出最常用的标签及其出现次数，按次数降序排序。",
     parameters: {
       type: "object",
@@ -44,7 +44,7 @@ const LOCAL_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "myz.search_highlights",
+    name: "myz-search-highlights",
     description:
       "按关键词搜索已保存的标注，匹配文本、笔记或标签，返回最近的匹配项。",
     parameters: {
@@ -66,7 +66,7 @@ const LOCAL_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "myz.filter_by_date",
+    name: "myz-filter-by-date",
     description:
       "按日期范围筛选标注，返回最近的标注，日期格式 YYYY-MM-DD。",
     parameters: {
@@ -91,7 +91,7 @@ const LOCAL_TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "myz.filter_by_tag_or_host",
+    name: "myz-filter-by-tag-or-host",
     description:
       "按标签或站点 host 筛选标注，可同时指定多个标签，返回最近的标注。",
     parameters: {
@@ -1381,7 +1381,7 @@ function buildHighlightSummary(record) {
 }
 
 const LOCAL_TOOL_HANDLERS = {
-  "myz.list_hosts": async () => {
+  "myz-list-hosts": async () => {
     const highlights = await readAllHighlights();
     const counts = new Map();
     highlights.forEach((h) => {
@@ -1399,7 +1399,7 @@ const LOCAL_TOOL_HANDLERS = {
         : "没有找到保存的站点。";
     return { content: [{ type: "text", text }], data: sorted };
   },
-  "myz.popular_tags": async (args = {}) => {
+  "myz-popular-tags": async (args = {}) => {
     const limit = normalizeLimit(args.limit, 20, 50);
     const highlights = await readAllHighlights();
     const counts = new Map();
@@ -1421,7 +1421,7 @@ const LOCAL_TOOL_HANDLERS = {
         : "没有找到标签。";
     return { content: [{ type: "text", text }], data: sorted };
   },
-  "myz.search_highlights": async (args = {}) => {
+  "myz-search-highlights": async (args = {}) => {
     const query = typeof args.query === "string" ? args.query.trim() : "";
     const limit = normalizeLimit(args.limit, 10, 50);
     if (!query) {
@@ -1452,7 +1452,7 @@ const LOCAL_TOOL_HANDLERS = {
         : "未找到匹配的标注。";
     return { content: [{ type: "text", text }], data: matches };
   },
-  "myz.filter_by_date": async (args = {}) => {
+  "myz-filter-by-date": async (args = {}) => {
     const fromDate = toDateOnly(args.from);
     const toDate = toDateOnly(args.to);
     const limit = normalizeLimit(args.limit, 20, 50);
@@ -1474,7 +1474,7 @@ const LOCAL_TOOL_HANDLERS = {
         : "未找到符合日期范围的标注。";
     return { content: [{ type: "text", text }], data: matches };
   },
-  "myz.filter_by_tag_or_host": async (args = {}) => {
+  "myz-filter-by-tag-or-host": async (args = {}) => {
     const limit = normalizeLimit(args.limit, 20, 50);
     const tags = Array.isArray(args.tags)
       ? args.tags
