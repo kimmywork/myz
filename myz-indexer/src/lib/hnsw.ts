@@ -24,7 +24,7 @@ export class HNSWIndex {
   constructor(config: HNSWConfig = {}) {
     this.M = config.M || 16;
     this.efConstruction = config.efConstruction || 200;
-    this.efSearch = config.efSearch || 50;
+    this.efSearch = config.efSearch || 200; // Increased default efSearch for better recall
     this.levelMultiplier = config.levelMultiplier || (1 / Math.log(this.M));
   }
 
@@ -62,14 +62,23 @@ export class HNSWIndex {
       while (changed) {
         changed = false;
         const neighbors = currObj.neighbors[l];
+        
+        let bestNeighbor: Node | null = null;
+        let bestDist = currDist;
+
         for (const neighborId of neighbors) {
           const neighbor = this.nodes.get(neighborId)!;
           const d = this.dist(floatVector, neighbor.vector);
-          if (d > currDist) { // Cosine similarity: higher is better (closer)
-            currDist = d;
-            currObj = neighbor;
-            changed = true;
+          if (d > bestDist) {
+            bestDist = d;
+            bestNeighbor = neighbor;
           }
+        }
+
+        if (bestNeighbor) {
+          currDist = bestDist;
+          currObj = bestNeighbor;
+          changed = true;
         }
       }
     }

@@ -1,11 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
 import { VectorStore } from './lib/db';
 import { TransformersEmbedder } from './lib/transformers-embedder';
+import { OpenAIEmbedder, OpenAIConfig } from './lib/openai-embedder';
 import { HNSWIndex } from './lib/hnsw';
 import { cosineSimilarity } from './lib/vector';
 import { IndexerConfig, EmbeddingModel, VectorDocument, SearchResult } from './types';
 
 export * from './types';
+export { OpenAIEmbedder };
+export type { OpenAIConfig };
 
 export class MyZIndexer {
   private db: VectorStore;
@@ -131,6 +134,8 @@ export class MyZIndexer {
         .slice(0, topK);
     } else {
       // HNSW Index Search
+      // Increase efSearch dynamically if needed, or rely on constructor default
+      // For now, let's trust the default (which we bumped to 200)
       results = this.index.search(queryEmbedding, topK);
     }
     

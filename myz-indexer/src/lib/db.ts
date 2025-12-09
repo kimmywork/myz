@@ -56,10 +56,20 @@ export class VectorStore {
     const db = await this.dbPromise;
     const tx = db.transaction('hnsw_nodes', 'readwrite');
     const store = tx.objectStore('hnsw_nodes');
-    await Promise.all([
-      ...nodes.map(node => store.put(node)),
-      tx.done
-    ]);
+    
+    // Optimization: Use Promise.all for parallel writes is good, 
+    // but for very large batches, it might be better to just await them sequentially 
+    // to avoid memory pressure or browser limits, OR use a bulk put if the library supported it.
+    // Since 'idb' wrapper doesn't have a bulkPut, we stick to Promise.all but we could chunk it.
+    
+    // Chunking for safety (e.g. 500 items per chunk)
+    const chunkSize = 500;
+    for (let i = 0; i < nodes.length; i += chunkSize) {
+      const chunk = nodes.slice(i, i + chunkSize);
+      await Promise.all(chunk.map(node => store.put(node)));
+    }
+    
+    await tx.done;
   }
 
   async getAllNodes(): Promise<any[]> {

@@ -3,8 +3,9 @@ const logEl = document.getElementById('log')!;
 const docCountEl = document.getElementById('docCount')!;
 const indexTimeEl = document.getElementById('indexTime')!;
 const searchTimeEl = document.getElementById('searchTime')!;
-const btnLoadData = document.getElementById('btnLoadData') as HTMLButtonElement;
+// const btnLoadData = document.getElementById('btnLoadData') as HTMLButtonElement; // Removed
 const btnLoadQA = document.getElementById('btnLoadQA') as HTMLButtonElement;
+const btnLoadHF = document.getElementById('btnLoadHF') as HTMLButtonElement;
 const btnRunIndex = document.getElementById('btnRunIndex') as HTMLButtonElement;
 const btnRunSearch = document.getElementById('btnRunSearch') as HTMLButtonElement;
 const btnClear = document.getElementById('btnClear') as HTMLButtonElement;
@@ -37,6 +38,13 @@ async function init() {
       
       // Check current DB state
       refreshStats();
+      
+      // Enable search button if docs exist
+      const docs: any = await sendMessage('GET_ALL');
+      if (docs.length > 0) {
+        btnRunSearch.disabled = false;
+        log(`Found ${docs.length} existing documents. Search enabled.`);
+      }
     } catch (error) {
       statusEl.textContent = `SW Error: ${error}`;
       log(`Error: ${error}`);
@@ -63,33 +71,6 @@ async function refreshStats() {
   } catch (e) {
     console.error(e);
   }
-}
-
-async function fetchAndParse(url: string, sourceName: string): Promise<{ text: string; source: string }[]> {
-  log(`Fetching ${sourceName}...`);
-  const res = await fetch(url);
-  const text = await res.text();
-  
-  // Robust splitting: try double newline first, if too few chunks, try single newline
-  let rawChunks = text.split(/\n\s*\n/);
-  if (rawChunks.length < 50) {
-    rawChunks = text.split(/\n/);
-  }
-
-  const chunks = rawChunks
-    .map(t => t.trim())
-    .filter(t => {
-      // Filter out very short lines
-      if (t.length <= 20) return false;
-      // Filter out lines composed mostly of punctuation/separators (e.g. "-------")
-      const nonPunct = t.replace(/[-=_\s\p{P}]/gu, '');
-      if (nonPunct.length < 5) return false;
-      return true;
-    }) 
-    .map(t => t.slice(0, 300)); // Truncate to 300 chars (safe for embedding)
-    
-  log(`Parsed ${chunks.length} chunks from ${sourceName}`);
-  return chunks.map(c => ({ text: c, source: sourceName }));
 }
 
 btnLoadQA.addEventListener('click', async () => {
@@ -121,46 +102,39 @@ btnLoadQA.addEventListener('click', async () => {
   }
 });
 
-btnLoadData.addEventListener('click', async () => {
-  btnLoadData.disabled = true;
+btnLoadHF.addEventListener('click', async () => {
+  btnLoadHF.disabled = true;
   parsedDocs = [];
   
   try {
-    const files = [
-      { url: '/data/紅樓夢.txt', name: 'Red Chamber' }
-    ];
-
-    for (const file of files) {
-      const docs = await fetchAndParse(file.url, file.name);
-      parsedDocs.push(...docs);
-    }
-
-    // Shuffle
-    // parsedDocs.sort(() => Math.random() - 0.5);
+    log('Fetching HuggingFace Dataset (data/hf_dataset.json)...');
+    const res = await fetch('/data/hf_dataset.json');
+    if (!res.ok) throw new Error('File not found. Please run "python3 download_hf_data.py" first.');
     
-    // Limit
-    const max = parseInt(maxDocsInput.value);
-    if (parsedDocs.length > max) {
-      // parsedDocs = parsedDocs.slice(0, max);
-      // log(`Limited to ${max} documents.`);
-      
-      // Filter strategy: prioritize chunks containing key characters to ensure test relevance
-      const keyChars = ['黛玉', '寶玉', '寶釵', '鳳姐', '賈母'];
-      const relevantDocs = parsedDocs.filter(d => keyChars.some(k => d.text.includes(k)));
-      const otherDocs = parsedDocs.filter(d => !keyChars.some(k => d.text.includes(k)));
-      
-      // Fill up to max, prioritizing relevant docs
-      parsedDocs = [...relevantDocs, ...otherDocs].slice(0, max);
-      log(`Limited to ${max} documents (Prioritized ${Math.min(relevantDocs.length, max)} relevant chunks).`);
-    }
+    const data = await res.json();
+    
+    parsedDocs = data.map((item: any) => ({
+      text: item.text,
+      source: item.metadata?.source || 'HF',
+      metadata: item.metadata
+    }));
+    
+    log(`Loaded ${parsedDocs.length} HF documents.`);
+    
+    // Auto-clear
+    await sendMessage('CLEAR');
+    log('Database cleared for HF test.');
+    refreshStats();
 
-    log(`Total documents prepared: ${parsedDocs.length}`);
+    docCountEl.textContent = parsedDocs.length.toString();
     btnRunIndex.disabled = false;
   } catch (e) {
-    log(`Error loading data: ${e}`);
-    btnLoadData.disabled = false;
+    log(`Error loading HF data: ${e}`);
+    btnLoadHF.disabled = false;
   }
 });
+
+/* Removed Red Chamber Load Logic */
 
 btnRunIndex.addEventListener('click', async () => {
   if (parsedDocs.length === 0) return;
@@ -221,16 +195,31 @@ btnRunSearch.addEventListener('click', async () => {
       "Who discovered gravity?",
       "What is 5G technology?"
     ];
+  } else if (parsedDocs.length > 0 && (parsedDocs[0].source.startsWith('cc100-'))) {
+    // Pick some random questions from the loaded dataset itself to ensure hits
+    // And some random ones to test misses
+    const sampleDocs = parsedDocs.slice(0, 10);
+    // Use a longer substring (up to 100 chars) to ensure better semantic overlap with the full document
+    queries = sampleDocs.map(d => d.text.substring(0, Math.min(d.text.length, 100))); 
+    log(`Selected ${queries.length} queries from the dataset itself for verification.`);
   } else {
-    queries = [
-      "林黛玉",
-      "賈寶玉",
-      "薛寶釵",
-      "王熙鳳",
-      "大觀園",
-      "榮國府",
-      "葬花吟"
-    ];
+    // Fallback: If parsedDocs is empty (e.g. page reload), try to fetch a sample from DB to generate queries
+    // This assumes the DB might contain cc100 data or similar
+    try {
+      const docs: any = await sendMessage('GET_ALL');
+      if (docs.length > 0) {
+        // Pick 10 random docs
+        const sampleDocs = docs.sort(() => 0.5 - Math.random()).slice(0, 10);
+        queries = sampleDocs.map((d: any) => d.text.substring(0, Math.min(d.text.length, 100)));
+        log(`Generated ${queries.length} queries from existing DB documents.`);
+      } else {
+        queries = ["test query"];
+        log("No documents found to generate queries from. Using dummy query.");
+      }
+    } catch (e) {
+      log(`Error fetching docs for query generation: ${e}`);
+      queries = ["test"];
+    }
   }
   
   log(`Starting search test with ${queries.length} queries... (Brute Force: ${useBruteForceInput.checked})`);
