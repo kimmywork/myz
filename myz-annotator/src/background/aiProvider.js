@@ -1086,9 +1086,14 @@ export class AiProvider {
     let attempts = 0;
     const maxAttempts = 6;
 
+    let model = this.settings.aiModel || "gpt-4";
+    if (model === "custom" && this.settings.aiCustomModel) {
+      model = this.settings.aiCustomModel;
+    }
+
     while (attempts < maxAttempts) {
       const response = await this.makeApiRequest({
-        model: this.settings.aiModel || "gpt-4",
+        model: model,
         messages: conversationMessages,
         max_tokens: maxTokens,
         temperature: payload.temperature ?? 0.2,

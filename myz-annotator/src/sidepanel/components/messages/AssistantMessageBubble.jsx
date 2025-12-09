@@ -26,8 +26,8 @@ export default defineComponent({
   setup(props) {
     const hasToolCalls = (message) => Boolean(message?.metadata?.hasToolCalls);
     const showReasoning = ref(false);
-    const reasoningText = computed(
-      () => (props.message.metadata?.reasoning || "").trim(),
+    const reasoningText = computed(() =>
+      (props.message.metadata?.reasoning || "").trim(),
     );
     const hasReasoning = computed(() => Boolean(reasoningText.value));
 

@@ -11,9 +11,7 @@ export default defineComponent({
   },
   setup(props) {
     const showReasoning = ref(false);
-    const reasoningText = computed(
-      () => (props.stream.reasoning || "").trim(),
-    );
+    const reasoningText = computed(() => (props.stream.reasoning || "").trim());
     const hasReasoning = computed(() => Boolean(reasoningText.value));
 
     return () => (
