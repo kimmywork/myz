@@ -1,7 +1,7 @@
-const path = require("path");
-const os = require("os");
-const fs = require("fs");
-const { chromium } = require("playwright");
+import path from "node:path";
+import os from "node:os";
+import fs from "node:fs";
+import { chromium } from "playwright";
 
 async function launchExtension(extensionPath, options = {}) {
   // Prefer loading from the dist/ build output if a directory isn't passed.
@@ -118,4 +118,4 @@ async function launchExtension(extensionPath, options = {}) {
   return { context, page, userDataDir, extensionId, openPopupViaServiceWorker };
 }
 
-module.exports = { launchExtension };
+export { launchExtension };

@@ -1,4 +1,4 @@
-import "./content.css";
+import contentStyles from "./content.css?raw";
 import { createApp } from "vue";
 import ToolbarApp from "./components/Toolbar.jsx";
 import ModalApp from "./components/Modal.jsx";
@@ -67,8 +67,37 @@ import {
   window.__myzAnnotatorInitialized = true;
   const CANONICAL_URL = canonicalUrl(window.location.href);
 
+  ensureContentStyles();
+
   const highlightCache = new Map();
   const unreachableHighlights = new Set();
+
+  function ensureContentStyles() {
+    const existing = document.querySelector(
+      'style[data-myz-annotator-style="1"]',
+    );
+    if (existing) {
+      return existing;
+    }
+    const style = document.createElement("style");
+    style.setAttribute("data-myz-annotator-style", "1");
+    style.textContent = contentStyles;
+    (document.head || document.documentElement).appendChild(style);
+    return style;
+  }
+
+  function createShadowHost(tag = "div") {
+    const host = document.createElement(tag);
+    host.setAttribute("data-myz-host", "1");
+    const shadow = host.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = contentStyles;
+    shadow.appendChild(style);
+    const mountPoint = document.createElement("div");
+    shadow.appendChild(mountPoint);
+    document.documentElement.appendChild(host);
+    return { host, shadow, mountPoint };
+  }
 
   function computeHighlightStats() {
     let highlightCount = 0;
@@ -138,7 +167,7 @@ import {
     deadlineListener: null,
   };
 
-  const toolbar = createToolbar();
+  const { element: toolbar } = createToolbar();
   const modal = mountModal();
   const inspector = mountInspector();
   const notifications = mountNotifications();
@@ -937,15 +966,13 @@ import {
       return;
     }
 
-    if (inspector.contains && inspector.contains(event.target)) {
-      return;
-    }
-
-    if (toolbar.contains(event.target)) {
-      return;
-    }
-
-    if (modal.contains(event.target)) {
+    const targetNode = event.target;
+    const insideMyzHost =
+      (targetNode?.closest && targetNode.closest("[data-myz-host]")) ||
+      (targetNode?.getRootNode &&
+        targetNode.getRootNode().host &&
+        targetNode.getRootNode().host.matches?.("[data-myz-host]"));
+    if (insideMyzHost) {
       return;
     }
 
@@ -1000,19 +1027,15 @@ import {
   }
 
   function createToolbar() {
-    const host = document.createElement("div");
-    // Mark hosts created by the extension so DOM serialization/resolution
-    // can ignore these nodes when building/resolving ranges.
-    host.setAttribute("data-myz-host", "1");
-    document.documentElement.appendChild(host);
+    const { host, shadow, mountPoint } = createShadowHost();
     const app = createApp(ToolbarApp, {
       onAnnotate: handleAnnotateClick,
       onClip: handleClipClick,
       onCapture: handleScreenshotClick,
     });
-    app.mount(host);
-    const rendered = host.querySelector(".myz-annotator-toolbar");
-    return rendered || host;
+    app.mount(mountPoint);
+    const rendered = shadow.querySelector(".myz-annotator-toolbar");
+    return { host, element: rendered || mountPoint };
   }
 
   function updateHighlightIndicators() {
@@ -1105,9 +1128,7 @@ import {
   }
 
   function mountModal() {
-    const host = document.createElement("div");
-    host.setAttribute("data-myz-host", "1");
-    document.documentElement.appendChild(host);
+    const { host, mountPoint } = createShadowHost();
 
     const app = createApp(ModalApp, {
       onClose: handleModalClose,
@@ -1115,7 +1136,7 @@ import {
       onDelete: handleModalDelete,
     });
 
-    const instance = app.mount(host);
+    const instance = app.mount(mountPoint);
 
     return {
       host,
@@ -1129,9 +1150,7 @@ import {
   }
 
   function mountInspector() {
-    const host = document.createElement("div");
-    host.setAttribute("data-myz-host", "1");
-    document.documentElement.appendChild(host);
+    const { host, mountPoint } = createShadowHost();
 
     const app = createApp(InspectorApp, {
       highlightStyleOptions: HIGHLIGHT_STYLE_OPTIONS,
@@ -1146,7 +1165,7 @@ import {
       onHidden: handleInspectorHidden,
     });
 
-    const instance = app.mount(host);
+    const instance = app.mount(mountPoint);
 
     return {
       host,
@@ -1159,12 +1178,10 @@ import {
   }
 
   function mountNotifications() {
-    const host = document.createElement("div");
-    host.setAttribute("data-myz-host", "1");
-    document.documentElement.appendChild(host);
+    const { host, mountPoint } = createShadowHost();
 
     const app = createApp(NotificationsApp);
-    const instance = app.mount(host);
+    const instance = app.mount(mountPoint);
 
     return {
       host,
