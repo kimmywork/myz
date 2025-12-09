@@ -386,6 +386,7 @@ export default defineComponent({
               options={availableTags.value}
               placeholder="添加标签"
               allowNew={true}
+              variant="content"
               onUpdate:modelValue={(val) => {
                 tags.value = Array.isArray(val) ? val : [];
                 // keep available tags in sync after external change

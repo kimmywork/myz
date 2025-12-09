@@ -31,6 +31,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    variant: {
+      type: String,
+      default: "dashboard", // "dashboard" | "content"
+    },
   },
   emits: ["update:modelValue", "focus"],
   setup(props, { emit }) {
@@ -184,6 +188,7 @@ export default defineComponent({
     }
 
     function handleKeydown(event) {
+      event.stopPropagation();
       if (event.key === "Enter" || event.key === ",") {
         event.preventDefault();
         commitInput();
@@ -225,6 +230,11 @@ export default defineComponent({
       }
     }
 
+    function handleKeyup(event) {
+      // Prevent bubbling to page-level shortcuts on host sites (e.g. GitHub).
+      event.stopPropagation();
+    }
+
     function handleFocus() {
       if (props.disabled) {
         return;
@@ -245,10 +255,11 @@ export default defineComponent({
       }
       // Delay to allow option click
       setTimeout(() => {
-        if (
-          containerRef.value &&
-          containerRef.value.contains(document.activeElement)
-        ) {
+        const path = event?.composedPath ? event.composedPath() : [];
+        const inside =
+          (containerRef.value && path.includes(containerRef.value)) ||
+          containerRef.value?.contains(document.activeElement);
+        if (inside) {
           return;
         }
         isFocused.value = false;
@@ -257,7 +268,11 @@ export default defineComponent({
     }
 
     function handleContainerMouseDown(event) {
-      if (event.target.closest(".tag-input__remove")) {
+      const removeSelector =
+        props.variant === "content"
+          ? ".myz-tag-input__remove"
+          : ".tag-input__remove";
+      if (event.target.closest(removeSelector)) {
         return;
       }
       focusInput();
@@ -303,7 +318,11 @@ export default defineComponent({
       if (!containerRef.value) {
         return;
       }
-      if (!containerRef.value.contains(event.target)) {
+      const path = event.composedPath ? event.composedPath() : [];
+      const inside =
+        (containerRef.value && path.includes(containerRef.value)) ||
+        containerRef.value.contains(event.target);
+      if (!inside) {
         isFocused.value = false;
         closeDropdown();
       }
@@ -318,13 +337,22 @@ export default defineComponent({
     });
 
     return () => {
-      const containerClasses = [
-        "relative flex w-full flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition",
-        props.disabled ? "cursor-not-allowed opacity-60" : "cursor-text",
-        isFocused.value
-          ? "border-indigo-400 bg-white shadow-lg dark:bg-slate-950/60"
-          : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950/60",
-      ].join(" ");
+      const useContentVariant = props.variant === "content";
+      const containerClasses = useContentVariant
+        ? [
+            "myz-tag-input",
+            isFocused.value ? "is-focused" : "",
+            props.disabled ? "is-disabled" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : [
+            "relative flex w-full flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition",
+            props.disabled ? "cursor-not-allowed opacity-60" : "cursor-text",
+            isFocused.value
+              ? "border-indigo-400 bg-white shadow-lg dark:bg-slate-950/60"
+              : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950/60",
+          ].join(" ");
 
       return (
         <div class="relative w-full">
@@ -335,7 +363,11 @@ export default defineComponent({
           >
             {internalValue.value.map((tag) => (
               <span
-                class="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-100"
+                class={
+                  useContentVariant
+                    ? "myz-tag-input__chip"
+                    : "inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-100"
+                }
                 key={tag}
                 data-role="tag-chip"
               >
@@ -343,7 +375,11 @@ export default defineComponent({
                 {!props.disabled && (
                   <button
                     type="button"
-                    class="text-slate-500 hover:text-rose-500 dark:text-slate-200 dark:hover:text-rose-400"
+                    class={
+                      useContentVariant
+                        ? "myz-tag-input__remove"
+                        : "text-slate-500 hover:text-rose-500 dark:text-slate-200 dark:hover:text-rose-400"
+                    }
                     onClick={() => removeTag(tag)}
                     aria-label={`移除标签 ${tag}`}
                   >
@@ -356,7 +392,11 @@ export default defineComponent({
               <input
                 data-testid="tag-input-field"
                 ref={inputRef}
-                class="min-w-[80px] flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-500"
+                class={
+                  useContentVariant
+                    ? "myz-tag-input__input"
+                    : "min-w-[80px] flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-500"
+                }
                 type="text"
                 value={inputValue.value}
                 placeholder={props.placeholder}
@@ -364,6 +404,7 @@ export default defineComponent({
                 onFocus={handleFocus}
                 onBlur={handleBlur}
                 onKeydown={handleKeydown}
+                onKeyup={handleKeyup}
                 autocomplete="off"
                 spellcheck="false"
               />
@@ -371,19 +412,32 @@ export default defineComponent({
           </div>
           {dropdownOpen.value && filteredOptions.value.length ? (
             <div
-              class="absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95"
+              class={
+                useContentVariant
+                  ? "myz-tag-input__list"
+                  : "absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95"
+              }
               role="listbox"
               data-role="tag-options"
             >
               {filteredOptions.value.map((option, index) => (
                 <div
                   key={option}
-                  class={[
-                    "cursor-pointer rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-indigo-50 dark:text-slate-200 dark:hover:bg-indigo-500/30",
-                    activeIndex.value === index
-                      ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-white"
-                      : "",
-                  ].join(" ")}
+                  class={
+                    useContentVariant
+                      ? [
+                          "myz-tag-input__option",
+                          activeIndex.value === index ? "is-active" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")
+                      : [
+                          "cursor-pointer rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-indigo-50 dark:text-slate-200 dark:hover:bg-indigo-500/30",
+                          activeIndex.value === index
+                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-white"
+                            : "",
+                        ].join(" ")
+                  }
                   role="option"
                   aria-selected={activeIndex.value === index ? "true" : "false"}
                   onMousedown={(event) =>
