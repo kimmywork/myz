@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vectoria - Client-side Vector Search</title>
+  <link rel="stylesheet" href="ui/style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="active">Home</a>
+    <a href="demo.html">Demo</a>
+    <a href="perf-test.html">Performance Test</a>
+  </nav>
+
+  <h1>Vectoria</h1>
+  <div class="subtitle">A lightweight, client-side vector search engine for the browser.</div>
+
+  <p>
+    Vectoria brings powerful vector search capabilities directly to the client side. 
+    Built with <strong>HNSW</strong> and <strong>IndexedDB</strong>, it allows you to build semantic search, 
+    RAG, and recommendation systems that run entirely in the user's browser.
+  </p>
+
+  <div class="cta-container">
+    <a href="demo.html" class="btn">Try the Demo</a>
+    <a href="perf-test.html" class="btn secondary">Performance Test</a>
+    <a href="http://github.com/myz-suite/vectoria" class="btn secondary" target="_blank">View on GitHub</a>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <h3>Client-Side Search</h3>
+      <p>Runs entirely in the browser using the HNSW algorithm. No server-side vector database required.</p>
+    </div>
+    <div class="feature">
+      <h3>Local & Private</h3>
+      <p>Run transformer models locally using <code>@huggingface/transformers</code> (ONNX/WASM) for complete privacy.</p>
+    </div>
+    <div class="feature">
+      <h3>Persistent</h3>
+      <p>Automatically saves your index and documents to IndexedDB, ensuring data persists between sessions.</p>
+    </div>
+  </div>
+
+  <h2>Installation</h2>
+  <pre><code>npm install vectoria</code></pre>
+
+</body>
+</html>
+
+</body>
+</html>

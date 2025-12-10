@@ -19,9 +19,9 @@ hero:
       link: https://microsoftedge.microsoft.com/addons/detail/myz-annotator/fepakkoggnancnpcclldodfbpgobkabj
       theme: alt
     - text: 使用说明
-      link: /install
+      link: /annotator/install
     - text: 更新日志
-      link: /changelog
+      link: /annotator/changelog
 features:
   - title: 即时高亮与批注
     details: 选中文本出现浮动工具条，一键添加批注或截图。

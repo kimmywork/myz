@@ -1,7 +1,11 @@
-const path = require("path");
-const { test, expect } = require("@playwright/test");
-const { createStaticServer } = require("../helpers/static-server");
-const { launchExtension } = require("../helpers/launch-extension");
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { test, expect } from "@playwright/test";
+import { createStaticServer } from "../helpers/static-server.js";
+import { launchExtension } from "../helpers/launch-extension.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let server;
 let serverUrl;
@@ -45,6 +49,8 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
   await page.mouse.move(box.x + box.width - 10, box.y + 10);
   await page.mouse.up();
 
+  await page.waitForTimeout(300); // wait a bit for selection to register
+
   // capture the selected text so we can assert the saved highlight contains it
   const selectionText = await page.evaluate(() => {
     const s = window.getSelection();
@@ -64,7 +70,7 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
   await page.click(".myz-annotator-modal .myz-btn-primary");
 
   // After saving, a .myz-highlight element should appear
-  await page.waitForSelector(".myz-highlight", { timeout: 8000 });
+  await page.waitForSelector(".myz-highlight", { timeout: 2000 });
   const highlights = await page.$$(".myz-highlight");
   expect(highlights.length).toBeGreaterThan(0);
 
@@ -74,14 +80,19 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
       h.evaluate((el) => el.innerText || el.textContent || ""),
     ),
   );
+
   const matched = highlightTexts.some(
     (t) => typeof t === "string" && t.trim().includes(selectionText),
   );
   expect(matched).toBeTruthy();
 
+  await page.waitForTimeout(300); // wait a bit for highlight to be applied
+
   // Record count then reload and expect highlights to reappear
   await page.reload({ waitUntil: "load" });
   await page.waitForSelector(".myz-highlight", { timeout: 10000 });
+
+  await page.waitForTimeout(300); // wait a bit for highlight to be applied
 
   const highlightsAfter = await page.$$(".myz-highlight");
   expect(highlightsAfter.length).toBeGreaterThan(0);
@@ -141,6 +152,8 @@ test("save_clip_via_toolbar_persists_to_dashboard", async () => {
   await page.mouse.move(box.x + 120, box.y + 10);
   await page.mouse.up();
 
+
+  await page.waitForTimeout(300); // wait a bit for selection to register
   // record the selection text for later verification
   const selectionText = await page.evaluate(() => {
     const s = window.getSelection();

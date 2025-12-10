@@ -1,0 +1,11 @@
+src/
+ui/
+*.html
+vite.config.ts
+tsconfig.json
+*.py
+data/
+node_modules/
+.DS_Store
+.git
+*.tgz

@@ -1,6 +1,11 @@
 import { computed, defineComponent, reactive, ref, watch } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import AiSettings from "./AiSettings.jsx";
+import LogseqSyncSection from "./settings/LogseqSyncSection.jsx";
+import ImportHighlightsSection from "./settings/ImportHighlightsSection.jsx";
+import InternetArchiveSection from "./settings/InternetArchiveSection.jsx";
+import ArchiveQueueSection from "./settings/ArchiveQueueSection.jsx";
+import ArchiveHistorySection from "./settings/ArchiveHistorySection.jsx";
 
 export default defineComponent({
   name: "SettingsPane",
@@ -227,326 +232,87 @@ export default defineComponent({
       <section
         id="settings-view"
         class={[
-          "main__section",
-          "main__section--settings",
-          props.active ? "is-active" : "is-hidden",
+          "rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl transition dark:border-white/10 dark:bg-slate-900/60",
+          props.active ? "block" : "hidden",
         ].join(" ")}
         aria-labelledby="settings-title"
       >
-        <header class="settings__header">
+        <header class="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/5">
           <div>
-            <h2 id="settings-title">设置</h2>
-            <p class="settings__subtitle">配置 LogSeq 同步与默认选项</p>
+            <h2
+              id="settings-title"
+              class="text-xl font-semibold text-slate-900 dark:text-white"
+            >
+              设置
+            </h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              配置 LogSeq 同步与默认选项
+            </p>
           </div>
           <button class="btn-link" type="button" onClick={handleCloseSettings}>
             返回标注
           </button>
         </header>
 
-        <div class="settings__content">
-          <section class="settings__group">
-            <div class="settings__group-header">
-              <h3>LogSeq 同步</h3>
-              <label class="toggle">
-                <input
-                  type="checkbox"
-                  checked={syncEnabled.value}
-                  onChange={handleSyncToggle}
-                />
-                <span>启用同步</span>
-              </label>
-            </div>
-            <div
-              class={
-                "settings__fields" + (syncEnabled.value ? "" : " is-disabled")
-              }
-            >
-              <label class="field">
-                <span>服务器地址</span>
-                <input
-                  type="url"
-                  placeholder="http://127.0.0.1:12315/api"
-                  value={form.logseqEndpoint}
-                  disabled={!syncEnabled.value}
-                  onInput={(event) =>
-                    (form.logseqEndpoint = event.target.value)
-                  }
-                />
-              </label>
-              <label class="field">
-                <span>目标页面</span>
-                <input
-                  type="text"
-                  placeholder="MyZ Inbox"
-                  value={form.logseqPage}
-                  disabled={!syncEnabled.value}
-                  onInput={(event) => (form.logseqPage = event.target.value)}
-                />
-              </label>
-              <label class="field">
-                <span>Graph 名称 (可选)</span>
-                <input
-                  type="text"
-                  placeholder="默认 graph"
-                  value={form.logseqGraph}
-                  disabled={!syncEnabled.value}
-                  onInput={(event) => (form.logseqGraph = event.target.value)}
-                />
-              </label>
-              <label class="field">
-                <span>认证 Token (可选)</span>
-                <input
-                  type="text"
-                  placeholder="Bearer ..."
-                  value={form.logseqAuthToken}
-                  disabled={!syncEnabled.value}
-                  onInput={(event) =>
-                    (form.logseqAuthToken = event.target.value)
-                  }
-                />
-              </label>
-              <div class="settings__actions">
-                <button
-                  class="btn btn-primary"
-                  type="button"
-                  onClick={handleSaveSettings}
-                >
-                  保存设置
-                </button>
-                <p class="status-line">{store.settingsStatus.value}</p>
-              </div>
-            </div>
-          </section>
+        <div class="mt-4 space-y-4">
+          <LogseqSyncSection
+            syncEnabled={syncEnabled.value}
+            form={form}
+            onToggle={handleSyncToggle}
+            onUpdateField={(key, value) => (form[key] = value)}
+            onSave={handleSaveSettings}
+            status={store.settingsStatus.value}
+          />
 
-          <section class="settings__group">
-            <div class="settings__group-header">
-              <h3>导入标注</h3>
-            </div>
-            <div class="settings__fields">
-              <p class="settings__hint">
-                选择先前导出的 JSON 文件，或导入他人分享的标注。
-              </p>
-              <label class="field">
-                <span>JSON 文件</span>
-                <input
-                  ref={importFileRef}
-                  type="file"
-                  accept="application/json"
-                />
-              </label>
-              <label class="field">
-                <span>冲突处理</span>
-                <select
-                  value={importStrategy.value}
-                  onChange={(event) =>
-                    (importStrategy.value = event.target.value)
-                  }
-                >
-                  <option value="skip">遇到重复时跳过</option>
-                  <option value="overwrite">遇到重复时覆盖</option>
-                  <option value="latest">保留最近更新</option>
-                </select>
-              </label>
-              <div class="settings__actions">
-                <button
-                  class="btn"
-                  type="button"
-                  disabled={isImporting.value}
-                  onClick={handleImport}
-                >
-                  {isImporting.value ? "导入中…" : "导入 JSON"}
-                </button>
-                <p
-                  class={
-                    "status-line" +
-                    (store.importStatus.tone === "error"
-                      ? " status-line--error"
-                      : store.importStatus.tone === "success"
-                        ? " status-line--success"
-                        : "")
-                  }
-                >
-                  {store.importStatus.message}
-                </p>
-              </div>
-            </div>
-          </section>
+          <ImportHighlightsSection
+            importFileRef={importFileRef}
+            importStrategy={importStrategy.value}
+            onStrategyChange={(value) => (importStrategy.value = value)}
+            onImport={handleImport}
+            isImporting={isImporting.value}
+            status={store.importStatus}
+          />
 
           <AiSettings
             settings={store.settings}
             onSave={handleAiSaveSettings}
             onTestConnection={handleAiTestConnection}
-            statusRef={store.settingsStatus}
+            status={store.settingsStatus.value}
+            onUpdateStatus={(value) => (store.settingsStatus.value = value)}
           />
 
-          <section class="settings__group">
-            <div class="settings__group-header">
-              <h3>Internet Archive 保存</h3>
-              <label class="toggle">
-                <input
-                  type="checkbox"
-                  checked={archiveEnabled.value}
-                  onChange={handleArchiveToggle}
-                />
-                <span>启用保存</span>
-              </label>
-            </div>
-            <div
-              class={
-                "settings__fields" +
-                (archiveEnabled.value ? "" : " is-disabled")
-              }
-            >
-              <label class="field">
-                <span>Access Key (可选)</span>
-                <input
-                  type="text"
-                  placeholder="Internet Archive Access Key"
-                  value={form.internetArchiveAccessKey}
-                  disabled={!archiveEnabled.value}
-                  onInput={(event) =>
-                    (form.internetArchiveAccessKey = event.target.value)
-                  }
-                />
-              </label>
-              <label class="field">
-                <span>Access Secret (可选)</span>
-                <input
-                  type="password"
-                  placeholder="Internet Archive Access Secret"
-                  value={form.internetArchiveAccessSecret}
-                  disabled={!archiveEnabled.value}
-                  onInput={(event) =>
-                    (form.internetArchiveAccessSecret = event.target.value)
-                  }
-                />
-              </label>
-              <div class="settings__actions">
-                <button
-                  class="btn btn-primary"
-                  type="button"
-                  onClick={handleSaveArchiveSettings}
-                  disabled={!archiveEnabled.value}
-                >
-                  保存 Internet Archive 设置
-                </button>
-                <p class="status-line">{store.settingsStatus.value}</p>
-              </div>
-            </div>
-          </section>
+          <InternetArchiveSection
+            archiveEnabled={archiveEnabled.value}
+            form={form}
+            onToggle={handleArchiveToggle}
+            onUpdateField={(key, value) => (form[key] = value)}
+            onSave={handleSaveArchiveSettings}
+            status={store.settingsStatus.value}
+          />
 
-          <section class="settings__group">
-            <div class="settings__group-header">
-              <h3>保存队列</h3>
-              <div class="settings__group-actions">
-                <button
-                  class="btn btn-secondary"
-                  type="button"
-                  onClick={handleRefreshArchive}
-                  disabled={archiveLoading.value}
-                >
-                  {archiveLoading.value ? "刷新中…" : "刷新数据"}
-                </button>
-              </div>
-            </div>
-            <div class="settings__fields settings__fields--compact">
-              {archiveStatus.value ? (
-                <p class="status-line status-line--error">
-                  {archiveStatus.value}
-                </p>
-              ) : null}
-              {archiveLoading.value ? (
-                <p class="settings__hint">加载中…</p>
-              ) : archiveQueueEntries.value.length ? (
-                <ul class="settings__list">
-                  {archiveQueueEntries.value.map((item) => (
-                    <li class="settings__list-item" key={item.id}>
-                      <div class="settings__list-row">
-                        <span class="settings__list-title" title={item.url}>
-                          {item.url}
-                        </span>
-                        <span
-                          class={[
-                            "settings__pill",
-                            `settings__pill--${queueStatusTone(item)}`,
-                          ].join(" ")}
-                        >
-                          {queueStatusLabel(item)}
-                        </span>
-                      </div>
-                      <div class="settings__list-meta">
-                        <span>排队序号 #{item.position + 1}</span>
-                        {item.requestedAt ? (
-                          <span>
-                            加入时间 {store.formatDateTime(item.requestedAt)}
-                          </span>
-                        ) : null}
-                        <span>尝试 {item.attempts ?? 0} 次</span>
-                        {item.force ? (
-                          <span class="settings__pill settings__pill--accent">
-                            强制
-                          </span>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p class="settings__empty">暂无排队的保存请求</p>
-              )}
-            </div>
-          </section>
+          <ArchiveQueueSection
+            entries={archiveQueueEntries.value}
+            loading={archiveLoading.value}
+            status={archiveStatus.value}
+            onRefresh={handleRefreshArchive}
+            queueStatusTone={queueStatusTone}
+            queueStatusLabel={queueStatusLabel}
+            formatDateTime={store.formatDateTime}
+          />
 
-          <section class="settings__group">
-            <div class="settings__group-header">
-              <h3>请求历史</h3>
-              {archiveHistoryEntries.value.length ? (
-                <span class="settings__group-meta">
-                  显示最近 {archiveHistoryEntries.value.length} 条记录
-                </span>
-              ) : null}
-            </div>
-            <div class="settings__fields settings__fields--compact">
-              {archiveLoading.value ? (
-                <p class="settings__hint">加载中…</p>
-              ) : archiveHistoryEntries.value.length ? (
-                <ul class="settings__list">
-                  {archiveHistoryEntries.value.map((item) => (
-                    <li class="settings__list-item" key={item.id}>
-                      <div class="settings__list-row">
-                        <span class="settings__list-title">
-                          {item.message ||
-                            store.describeArchiveAction(item.action)}
-                        </span>
-                        <span
-                          class={[
-                            "settings__pill",
-                            `settings__pill--${historyStatusTone(item)}`,
-                          ].join(" ")}
-                        >
-                          {historyStatusLabel(item)}
-                        </span>
-                      </div>
-                      <div class="settings__list-meta">
-                        {item.timestamp ? (
-                          <span>{store.formatDateTime(item.timestamp)}</span>
-                        ) : null}
-                        <span>{store.describeArchiveAction(item.action)}</span>
-                        {typeof item.statusCode === "number" ? (
-                          <span>HTTP {item.statusCode}</span>
-                        ) : null}
-                      </div>
-                      <div class="settings__list-url" title={item.url}>
-                        {item.url}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p class="settings__empty">暂无请求记录</p>
-              )}
-            </div>
-          </section>
+          <ArchiveHistorySection
+            entries={archiveHistoryEntries.value}
+            loading={archiveLoading.value}
+            metaLabel={
+              archiveHistoryEntries.value.length
+                ? `显示最近 ${archiveHistoryEntries.value.length} 条记录`
+                : ""
+            }
+            describeAction={store.describeArchiveAction}
+            historyStatusTone={historyStatusTone}
+            historyStatusLabel={historyStatusLabel}
+            formatDateTime={store.formatDateTime}
+          />
         </div>
       </section>
     );

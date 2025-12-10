@@ -68,18 +68,18 @@ export default defineComponent({
       return (
         <div
           id="record-modal"
-          class="modal"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur"
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
           onClick={handleOverlayClick}
         >
           <div
-            class="modal__dialog"
+            class="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
             onClick={(event) => event.stopPropagation()}
           >
-            <header class="modal__header">
-              <h3 id="modal-title">
+            <header class="flex items-center justify-between border-b border-slate-200 pb-4 dark:border-white/5">
+              <h3 class="text-xl font-semibold" id="modal-title">
                 {(() => {
                   const baseTitle =
                     current.title ||
@@ -90,80 +90,106 @@ export default defineComponent({
               </h3>
               <button
                 type="button"
-                class="btn-icon"
+                class="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-500 hover:text-slate-800 dark:border-white/20 dark:text-slate-300 dark:hover:text-white"
                 aria-label="关闭"
                 onClick={store.closeModal}
               >
                 ✕
               </button>
             </header>
-            <div class="modal__body">
-              <section class="modal__section">
-                <h4 id="modal-quote-label">{clip ? "保存文字" : "标注"}</h4>
+            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+              <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/60">
+                <h4
+                  id="modal-quote-label"
+                  class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+                >
+                  {clip ? "保存文字" : "标注"}
+                </h4>
                 <div
-                  class="modal__quote"
+                  class="mt-2 text-sm text-slate-800 dark:text-slate-100"
                   innerHTML={store.renderHighlight(current)}
                 ></div>
               </section>
-              <section class="modal__section">
-                <h4>批注</h4>
+              <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/60">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  批注
+                </h4>
                 {isEditMode.value ? (
                   <textarea
-                    class="modal__note-input"
+                    data-testid="modal-note-input"
+                    class="mt-2 min-h-[130px] w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
                     rows="4"
                     value={modalState.note}
                     onInput={(event) => (modalState.note = event.target.value)}
                   ></textarea>
                 ) : (
                   <div
-                    class={"modal__note" + (hasNote.value ? "" : " is-empty")}
+                    class="mt-2 min-h-[130px] rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-300"
                     innerHTML={
                       hasNote.value ? store.formatNote(current.note) : "无批注"
                     }
                   ></div>
                 )}
               </section>
-              <section class="modal__section">
-                <h4>标签</h4>
+
+              <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/60">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  标签
+                </h4>
                 {isEditMode.value ? (
-                  <TagInput
-                    class="modal__tags-input"
-                    modelValue={modalState.tags}
-                    options={[
-                      ...new Set([...availableTags.value, ...modalState.tags]),
-                    ].sort((a, b) => a.localeCompare(b))}
-                    onUpdate:modelValue={(value) => {
-                      modalState.tags = value;
-                    }}
-                    allowNew
-                  />
+                  <div class="mt-2">
+                    <TagInput
+                      modelValue={modalState.tags}
+                      options={[
+                        ...new Set([
+                          ...availableTags.value,
+                          ...modalState.tags,
+                        ]),
+                      ].sort((a, b) => a.localeCompare(b))}
+                      onUpdate:modelValue={(value) => {
+                        modalState.tags = value;
+                      }}
+                      allowNew
+                    />
+                  </div>
                 ) : (
-                  <div
-                    class={
-                      "modal__tags" +
-                      (current.tags && current.tags.length ? "" : " is-empty")
-                    }
-                  >
+                  <div class="mt-2 flex flex-wrap gap-2 text-sm text-slate-600 dark:text-slate-300">
                     {(current.tags || []).length
-                      ? current.tags.map((tag) => <span key={tag}>{tag}</span>)
+                      ? current.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            class="rounded-full border border-slate-200 px-3 py-1 text-xs dark:border-white/10"
+                          >
+                            {tag}
+                          </span>
+                        ))
                       : "无标签"}
                   </div>
                 )}
               </section>
-              <section class="modal__section modal__section--inline">
+
+              <section class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/60">
                 <div>
-                  <h4>颜色</h4>
-                  <span
-                    class={"modal__color" + (clip ? " is-hidden" : "")}
-                    style={{
-                      background: clip ? "transparent" : modalState.color,
-                    }}
-                  ></span>
+                  <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    颜色
+                  </h4>
+                  {!clip ? (
+                    <span
+                      class="mt-2 inline-block h-3 w-16 rounded-full"
+                      style={{ background: modalState.color }}
+                    ></span>
+                  ) : (
+                    <span class="mt-2 inline-block text-xs text-slate-500 dark:text-slate-400">
+                      保存文字无高亮颜色
+                    </span>
+                  )}
                 </div>
                 {!clip && isEditMode.value ? (
-                  <label class="modal__color-input">
-                    <span class="sr-only">选择颜色</span>
+                  <label class="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <span>选择颜色</span>
                     <input
+                      data-testid="modal-color-input"
+                      class="h-10 w-16 rounded-xl border border-slate-200 bg-transparent dark:border-white/10"
                       type="color"
                       value={modalState.color}
                       onInput={(event) => {
@@ -173,20 +199,23 @@ export default defineComponent({
                   </label>
                 ) : null}
               </section>
-              <p class="status-line">{modalState.status}</p>
             </div>
-            <footer class="modal__footer">
+            <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">
+              {modalState.status}
+            </p>
+            <footer class="mt-4 flex justify-end gap-3 border-t border-slate-200 pt-4 dark:border-white/5">
               <button
                 type="button"
-                class="btn btn-secondary"
+                class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400 dark:border-white/20 dark:text-slate-200"
                 onClick={store.closeModal}
               >
                 {isEditMode.value ? "取消" : "关闭"}
               </button>
               {isEditMode.value ? (
                 <button
+                  data-testid="modal-save-button"
                   type="button"
-                  class="btn btn-primary"
+                  class="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-indigo-500 disabled:opacity-60"
                   disabled={modalState.saving}
                   onClick={store.saveModal}
                 >

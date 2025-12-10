@@ -1,5 +1,6 @@
 import { defineComponent, ref, computed, onMounted } from "vue";
 import HighlightItem from "./components/HighlightItem.jsx";
+import ThemeToggle from "../shared/components/ThemeToggle.jsx";
 import { normalizeWhitespace } from "../shared/highlightUtils.js";
 
 import {
@@ -187,30 +188,6 @@ export default defineComponent({
       }
     };
 
-    const handleExport = async (format) => {
-      try {
-        const result = await sendMessage("myz:export");
-        if (!result) {
-          return;
-        }
-        if (format === "markdown") {
-          downloadFile(
-            result.markdown,
-            "text/markdown",
-            `myz-export-${Date.now()}.md`,
-          );
-        } else {
-          downloadFile(
-            result.json,
-            "application/json",
-            `myz-export-${Date.now()}.json`,
-          );
-        }
-      } catch (err) {
-        console.error("导出失败", err);
-      }
-    };
-
     const openDashboard = () => {
       chrome.runtime.openOptionsPage();
     };
@@ -237,37 +214,63 @@ export default defineComponent({
     });
 
     return () => (
-      <div>
-        <header class="popup-header">
-          <div class="popup-header__info">
-            <h1>MyZ 标注助手</h1>
-            <p class="popup-header__meta">{pageMeta.value}</p>
+      <div class="flex flex-col gap-4">
+        <header class="popup-header rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <h1 class="text-base font-semibold text-slate-900 dark:text-white">
+                MyZ 标注助手
+              </h1>
+              <ThemeToggle size="sm" />
+            </div>
+            <button
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+              aria-label="打开 Dashboard"
+              type="button"
+              onClick={openDashboard}
+            >
+              <svg
+                class="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M3 13h8V3H3z" />
+                <path d="M13 21h8V11h-8z" />
+                <path d="M13 3h8v5h-8z" />
+                <path d="M3 21h8v-5H3z" />
+              </svg>
+            </button>
           </div>
-          <div class="popup-header__actions">
-            <button class="btn btn-primary" onClick={openDashboard}>
-              管理中心
-            </button>
-            <button class="btn" onClick={() => handleExport("markdown")}>
-              导出 Markdown
-            </button>
-            <button class="btn" onClick={() => handleExport("json")}>
-              导出 JSON
-            </button>
-          </div>
+          <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            {pageMeta.value}
+          </p>
         </header>
-        <section class="popup-controls">
+        <section class="popup-controls rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
+          <label class="sr-only" for="popup-search">
+            搜索标注
+          </label>
           <input
+            id="popup-search"
+            class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-100 dark:placeholder:text-slate-500"
             type="search"
             placeholder="搜索当前页面的高亮、批注或保存的文字"
             value={query.value}
             onInput={handleSearch}
           />
         </section>
-        <main class="highlight-list">
+        <main class="highlight-list flex max-h-[420px] flex-col gap-3 overflow-y-auto pr-1">
           {loading.value ? (
-            <p class="empty-state">加载中…</p>
+            <p class="empty-state text-center text-sm text-slate-500 dark:text-slate-400">
+              加载中…
+            </p>
           ) : error.value ? (
-            <p class="empty-state">加载失败：{error.value}</p>
+            <p class="empty-state text-center text-sm text-rose-500">
+              加载失败：{error.value}
+            </p>
           ) : filteredHighlights.value.length ? (
             filteredHighlights.value.map((record) => (
               <HighlightItem
@@ -277,7 +280,9 @@ export default defineComponent({
               />
             ))
           ) : (
-            <p class="empty-state">当前页面还没有标注或保存的文字。</p>
+            <p class="empty-state text-center text-sm text-slate-500 dark:text-slate-400">
+              当前页面还没有标注或保存的文字。
+            </p>
           )}
         </main>
       </div>
@@ -330,14 +335,4 @@ function getPageHighlightState(tabId) {
       },
     );
   });
-}
-
-function downloadFile(content, mime, filename) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

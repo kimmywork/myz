@@ -1,0 +1,37 @@
+{
+  "name": "vectoria",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/vectoria.umd.cjs",
+  "module": "./dist/vectoria.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/vectoria.js",
+      "require": "./dist/vectoria.umd.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:docs": "tsc && vite build --mode docs && cp -r data docs/",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "idb": "^8.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.8",
+    "@types/web": "^0.0.148",
+    "typescript": "^5.4.2",
+    "vite": "^5.2.0",
+    "vite-plugin-dts": "^4.5.4",
+    "vite-plugin-static-copy": "^3.1.4"
+  }
+}

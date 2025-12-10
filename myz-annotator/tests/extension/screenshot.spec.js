@@ -1,7 +1,12 @@
-const path = require("path");
-const { test, expect } = require("@playwright/test");
-const { createStaticServer } = require("../helpers/static-server");
-const { launchExtension } = require("../helpers/launch-extension");
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { test, expect } from "@playwright/test";
+import { createStaticServer } from "../helpers/static-server.js";
+import { launchExtension } from "../helpers/launch-extension.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let server;
 let serverUrl;
@@ -64,7 +69,6 @@ test("capture_selection_creates_download", async () => {
   // If the driver provides a file path, ensure it exists on disk
   const saved = await download.path();
   if (saved) {
-    const fs = require("fs");
     expect(fs.existsSync(saved)).toBeTruthy();
   }
 });

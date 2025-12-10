@@ -1,61 +1,97 @@
-import { onBeforeUnmount, onMounted } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-export function useInfiniteScroll(containerSelector, onIntersect) {
+export function useInfiniteScroll(options = {}) {
+  const {
+    rootSelector = "main",
+    sentinelSelector = '.scroll-sentinel[data-role="sentinel"]',
+    rootMargin = "0px 0px 200px 0px",
+    onIntersect,
+    watchTargetSelector = ".highlight-groups",
+    watchTarget = null,
+  } = options;
+
+  const sentinelRef = ref(null);
   let observer = null;
+  let mutationObserver = null;
 
-  function setupObserver() {
-    const root = document.querySelector(containerSelector);
-    observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          onIntersect();
-        }
-      },
-      {
-        root: root || null,
-        rootMargin: "0px 0px 200px 0px",
-      },
-    );
+  function observeSentinel() {
+    if (!observer || !sentinelRef.value) {
+      return;
+    }
+    observer.observe(sentinelRef.value);
   }
 
-  function observe() {
-    if (!observer) {
-      setupObserver();
-    }
-    const sentinel = document.querySelector(
-      ".scroll-sentinel[data-role='sentinel']",
-    );
-    if (observer && sentinel) {
-      observer.observe(sentinel);
-    }
-  }
-
-  function disconnect() {
+  function disconnectObserver() {
     if (observer) {
       observer.disconnect();
       observer = null;
     }
   }
 
-  onMounted(() => {
-    setupObserver();
-    observe();
-    const observerConfig = { childList: true, subtree: true };
-    const target = document.querySelector(".highlight-groups");
-    const mutationObserver = new MutationObserver(() => {
-      disconnect();
-      setupObserver();
-      observe();
-    });
-    if (target) {
-      mutationObserver.observe(target, observerConfig);
+  function setupObserver() {
+    disconnectObserver();
+    observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onIntersect?.();
+        }
+      },
+      {
+        root: document.querySelector(rootSelector) || null,
+        rootMargin,
+      },
+    );
+    observeSentinel();
+  }
+
+  function setupMutationObserver() {
+    if (mutationObserver) {
+      mutationObserver.disconnect();
     }
-    window.__myzMutationObserver = mutationObserver;
+
+    const target = watchTarget || document.querySelector(watchTargetSelector);
+    if (target) {
+      mutationObserver = new MutationObserver(() => {
+        disconnectObserver();
+        setupObserver();
+        observeSentinel();
+      });
+      mutationObserver.observe(target, { childList: true, subtree: true });
+    }
+  }
+
+  function start() {
+    setupObserver();
+    setupMutationObserver();
+  }
+
+  function stop() {
+    disconnectObserver();
+    if (mutationObserver) {
+      mutationObserver.disconnect();
+      mutationObserver = null;
+    }
+  }
+
+  function restart() {
+    stop();
+    start();
+  }
+
+  onMounted(() => {
+    start();
   });
 
   onBeforeUnmount(() => {
-    disconnect();
-    window.__myzMutationObserver?.disconnect();
-    delete window.__myzMutationObserver;
+    stop();
   });
+
+  return {
+    sentinelRef,
+    start,
+    stop,
+    restart,
+    setupObserver,
+    disconnectObserver,
+  };
 }

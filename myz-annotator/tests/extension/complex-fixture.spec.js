@@ -1,7 +1,13 @@
-const path = require("path");
-const { test, expect } = require("@playwright/test");
-const { createStaticServer } = require("../helpers/static-server");
-const { launchExtension } = require("../helpers/launch-extension");
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { test, expect } from "@playwright/test";
+import { createStaticServer } from "../helpers/static-server.js";
+import { launchExtension } from "../helpers/launch-extension.js";
+
+import { time } from "node:console";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let server;
 let serverUrl;
@@ -77,9 +83,10 @@ test.afterAll(async () => {
   } catch (e) {}
 });
 
-async function selectAndAnnotate(page, locator, note = "") {
-  const el = page.locator(locator).first();
+async function selectAndAnnotate(page, locator, note = "", text=undefined) {
+  const el = text ? page.locator(locator, { hasText: text }).first() : page.locator(locator).first();
   await el.waitFor({ timeout: 5000 });
+  await el.scrollIntoViewIfNeeded({ timeout: 5000 });
   const box = await el.boundingBox();
   if (!box) throw new Error(`Could not determine box for ${locator}`);
   // Drag across the element
@@ -90,7 +97,7 @@ async function selectAndAnnotate(page, locator, note = "") {
     box.y + Math.max(10, box.height - 6),
   );
   await page.mouse.up();
-
+  await page.waitForTimeout(300); // wait a bit for selection to register
   // capture selected text so caller can assert highlight content
   const selected = await page.evaluate(() => {
     const s = window.getSelection();
@@ -123,15 +130,17 @@ test("highlight_and_comment_on_complex_fixture", async () => {
   // 1) Paragraph with repeated text
   const sel1 = await selectAndAnnotate(
     page,
-    'p:has-text("高亮测试")',
+    'p',
     "note para",
+    '高亮测试'
   );
 
   // 2) Table cell text
   const sel2 = await selectAndAnnotate(
     page,
-    'td:has-text("高亮测试")',
+    'td',
     "note table",
+    '高亮测试'
   );
 
   // 3) Code block content (select inside pre/code)
@@ -141,15 +150,17 @@ test("highlight_and_comment_on_complex_fixture", async () => {
   await page.click("details summary");
   const sel4 = await selectAndAnnotate(
     page,
-    'details p:has-text("这个段落藏在详情里")',
+    'details p',
     "note details",
+    '这个段落藏在详情里'
   );
 
   // 5) Repeat line (one of the repeated lines)
   const sel5 = await selectAndAnnotate(
     page,
-    '.repeat .line:has-text("第 3 行")',
+    '.repeat .line',
     "note repeat",
+    "第 3 行"
   );
 
   // After creating several highlights, reload to verify persistence
@@ -226,7 +237,7 @@ test("export_markdown_contains_codeblock_and_notes", async () => {
   await selectAndAnnotate(page, ".code-block pre", "export note code");
 
   // highlight a paragraph and add a note
-  await selectAndAnnotate(page, 'p:has-text("高亮测试")', "export note para");
+  await selectAndAnnotate(page, 'p', "export note para", "高亮测试");
 
   // Ensure highlights applied (extended timeout for slower CI environments)
   await page.waitForSelector(".myz-highlight", { timeout: 15000 });

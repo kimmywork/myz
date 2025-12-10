@@ -61,7 +61,10 @@ export function createDashboardStore() {
     aiModel: "gpt-4",
     aiCustomModel: "",
     aiContextSize: "32K",
-    aiMaxTokens: 4000,
+    aiMaxTokens: 32768,
+    aiRequestHeaders: "",
+    aiProviders: [],
+    aiActiveProviderId: null,
     aiMcpServers: [],
   });
   const logseqStatus = ref("");
@@ -310,8 +313,22 @@ export function createDashboardStore() {
         aiModel: result.aiModel || "gpt-4",
         aiCustomModel: result.aiCustomModel || "",
         aiContextSize: result.aiContextSize || "32K",
-        aiMaxTokens: result.aiMaxTokens || 4000,
-        aiMcpServers: result.aiMcpServers || [],
+        aiMaxTokens:
+          typeof result.aiMaxTokens === "number"
+            ? result.aiMaxTokens
+            : settings.aiMaxTokens,
+        aiRequestHeaders: result.aiRequestHeaders || "",
+        aiProviders: Array.isArray(result.aiProviders)
+          ? result.aiProviders.map((p) => ({ ...p }))
+          : [],
+        aiActiveProviderId:
+          typeof result.aiActiveProviderId === "string" ||
+          result.aiActiveProviderId === null
+            ? result.aiActiveProviderId
+            : null,
+        aiMcpServers: Array.isArray(result.aiMcpServers)
+          ? result.aiMcpServers.map((s) => ({ ...s }))
+          : [],
       });
       if (settings.dashboardView) {
         view.value = settings.dashboardView;
@@ -631,10 +648,25 @@ export function createDashboardStore() {
     settingsStatus.value = "保存中…";
     try {
       const updated = await sendMessage("myz:updateSettings", payload);
-      Object.assign(settings, {
-        ...settings,
-        ...updated,
-      });
+      if (updated) {
+        Object.assign(settings, {
+          ...settings,
+          ...updated,
+        });
+        if ("aiActiveProviderId" in updated) {
+          settings.aiActiveProviderId =
+            typeof updated.aiActiveProviderId === "string" ||
+            updated.aiActiveProviderId === null
+              ? updated.aiActiveProviderId
+              : settings.aiActiveProviderId;
+        }
+        if (Array.isArray(updated.aiProviders)) {
+          settings.aiProviders = updated.aiProviders.map((p) => ({ ...p }));
+        }
+        if (Array.isArray(updated.aiMcpServers)) {
+          settings.aiMcpServers = updated.aiMcpServers.map((s) => ({ ...s }));
+        }
+      }
       settingsStatus.value = "设置已保存";
       setTimeout(() => {
         settingsStatus.value = "";
@@ -704,20 +736,20 @@ export function createDashboardStore() {
 
   async function testAiConnection(settings) {
     try {
-      setTimedStatus(settingsStatus, "Testing AI connection...", 0);
+      setTimedStatus(settingsStatus, "测试 AI 连接中…", 0);
       const result = await sendMessage("myz:testAiConnection", settings);
       if (result.success) {
-        setTimedStatus(settingsStatus, `✓ AI connection successful!`, 3000);
+        setTimedStatus(settingsStatus, "✓ AI 连接成功", 3000);
       } else {
         setTimedStatus(
           settingsStatus,
-          `✗ AI connection failed: ${result.error}`,
+          `✗ AI 连接失败：${result.error || "未知错误"}`,
           4000,
         );
       }
       return result;
     } catch (error) {
-      setTimedStatus(settingsStatus, `✗ Test failed: ${error.message}`, 4000);
+      setTimedStatus(settingsStatus, `✗ 测试失败：${error.message}`, 4000);
       throw error;
     }
   }

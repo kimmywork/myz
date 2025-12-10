@@ -7,6 +7,61 @@ import {
   onMounted,
 } from "vue";
 
+function newProviderTemplate() {
+  return {
+    id: crypto.randomUUID ? crypto.randomUUID() : `prov_${Date.now()}`,
+    name: "自定义 Provider",
+    apiEndpoint: "",
+    apiKey: "",
+    model: "gpt-4",
+    customModel: "",
+    contextSize: "32K",
+    maxTokens: getTokensForContextSize("32K"),
+    requestHeaders: "",
+    lastTestStatus: { ok: false, message: "" },
+  };
+}
+
+function legacyProviderFromSettings(settings = {}) {
+  if (
+    !settings ||
+    (!settings.aiApiEndpoint && !settings.aiApiKey && !settings.aiModel)
+  ) {
+    return null;
+  }
+  return {
+    ...newProviderTemplate(),
+    id: "provider-default",
+    name: "默认 Provider",
+    apiEndpoint: settings.aiApiEndpoint || "",
+    apiKey: settings.aiApiKey || "",
+    model: settings.aiModel || "gpt-4",
+    customModel: settings.aiCustomModel || "",
+    contextSize: settings.aiContextSize || "32K",
+    maxTokens:
+      typeof settings.aiMaxTokens === "number"
+        ? settings.aiMaxTokens
+        : getTokensForContextSize(settings.aiContextSize || "32K"),
+    requestHeaders: settings.aiRequestHeaders || "",
+    lastTestStatus: { ok: true, message: "已迁移" },
+  };
+}
+
+function getTokensForContextSize(size) {
+  const mapping = {
+    "8K": 8000,
+    "32K": 32000,
+    "128K": 128000,
+    "256K": 256000,
+    "1M": 1000000,
+  };
+  return mapping[size] || 32000;
+}
+
+function cloneProvider(provider) {
+  return JSON.parse(JSON.stringify(provider));
+}
+
 export default defineComponent({
   name: "AiSettings",
   props: {
@@ -22,30 +77,29 @@ export default defineComponent({
       type: Function,
       required: true,
     },
-    statusRef: {
-      type: Object,
-      required: true,
+    status: {
+      type: String,
+      default: "",
+    },
+    onUpdateStatus: {
+      type: Function,
+      default: null,
     },
   },
   setup(props) {
-    const aiForm = reactive({
-      aiAssistantEnabled: false,
-      aiApiEndpoint: "",
-      aiApiKey: "",
-      aiModel: "gpt-4",
-      aiCustomModel: "",
-      aiContextSize: "32K",
-      aiMaxTokens: 4000,
-      aiMcpServers: [],
-    });
-
-    const isTesting = ref(false);
-    const testResult = ref("");
-    const testSuccess = ref(false);
+    const aiAssistantEnabled = ref(false);
+    const providers = ref([]);
+    const activeProviderId = ref(null);
+    const selectedProviderId = ref(null);
+    const isTestingId = ref(null);
+    const testMessage = ref("");
     const showApiKey = ref(false);
     const showCustomModel = ref(false);
+
+    const mcpServers = ref([]);
     const showMcpForm = ref(false);
     const mcpForm = reactive({
+      id: "",
       name: "",
       url: "",
       enabled: true,
@@ -67,153 +121,215 @@ export default defineComponent({
     ];
 
     const contextSizes = [
-      { value: "8K", label: "8K (约 8000 tokens)", tokens: 8000 },
-      { value: "32K", label: "32K (约 32000 tokens)", tokens: 32000 },
-      { value: "128K", label: "128K (约 128000 tokens)", tokens: 128000 },
-      { value: "256K", label: "256K (约 256000 tokens)", tokens: 256000 },
-      { value: "1M", label: "1M (约 1000000 tokens)", tokens: 1000000 },
+      { value: "8K", label: "8K (约 8000 tokens)" },
+      { value: "32K", label: "32K (约 32000 tokens)" },
+      { value: "128K", label: "128K (约 128000 tokens)" },
+      { value: "256K", label: "256K (约 256000 tokens)" },
+      { value: "1M", label: "1M (约 1000000 tokens)" },
     ];
 
-    const hasMcpServers = computed(() => {
-      return (
-        props.settings.aiMcpServers && props.settings.aiMcpServers.length > 0
-      );
-    });
+    const selectedProvider = computed(() =>
+      providers.value.find((p) => p.id === selectedProviderId.value),
+    );
 
-    const mcpServerCount = computed(() => {
-      return props.settings.aiMcpServers?.filter((s) => s.enabled).length || 0;
-    });
-
-    function setFormFromSettings() {
-      aiForm.aiAssistantEnabled = props.settings.aiAssistantEnabled || false;
-      aiForm.aiApiEndpoint = props.settings.aiApiEndpoint || "";
-      aiForm.aiApiKey = props.settings.aiApiKey || "";
-      aiForm.aiModel = props.settings.aiModel || "gpt-4";
-      aiForm.aiCustomModel = props.settings.aiCustomModel || "";
-      aiForm.aiContextSize = props.settings.aiContextSize || "32K";
-      aiForm.aiMaxTokens = props.settings.aiMaxTokens || 4000;
-      aiForm.aiMcpServers = Array.isArray(props.settings.aiMcpServers)
-        ? [...props.settings.aiMcpServers]
-        : [];
-
-      // Check if current model is custom
-      showCustomModel.value = aiForm.aiModel === "custom";
+    function updateStatus(message, { autoClear = false } = {}) {
+      if (typeof props.onUpdateStatus === "function") {
+        props.onUpdateStatus(message);
+        if (autoClear) {
+          setTimeout(() => props.onUpdateStatus?.(""), 3000);
+        }
+      }
     }
 
-    function getTokensForContextSize(size) {
-      const mapping = {
-        "8K": 8000,
-        "32K": 32000,
-        "128K": 128000,
-        "256K": 256000,
-        "1M": 1000000,
+    function ensureSelection() {
+      if (!selectedProvider.value && providers.value.length) {
+        selectedProviderId.value =
+          providers.value.find((p) => p.id === activeProviderId.value)?.id ||
+          providers.value[0].id;
+      }
+    }
+
+    function setFormFromSettings() {
+      aiAssistantEnabled.value = Boolean(props.settings.aiAssistantEnabled);
+      const incomingProviders = Array.isArray(props.settings.aiProviders)
+        ? props.settings.aiProviders.map(cloneProvider)
+        : [];
+      const legacy = legacyProviderFromSettings(props.settings);
+      const previousSelectedId = selectedProviderId.value;
+      providers.value =
+        incomingProviders.length > 0
+          ? incomingProviders
+          : legacy
+            ? [legacy]
+            : [];
+      const requestedActive = providers.value.find(
+        (p) =>
+          p.id === props.settings.aiActiveProviderId && p.lastTestStatus?.ok,
+      );
+      activeProviderId.value =
+        requestedActive?.id ||
+        providers.value.find((p) => p.lastTestStatus?.ok)?.id ||
+        null;
+      const stillExists = providers.value.find(
+        (p) => p.id === previousSelectedId,
+      );
+      selectedProviderId.value =
+        stillExists?.id ||
+        activeProviderId.value ||
+        providers.value[0]?.id ||
+        null;
+      ensureSelection();
+      showCustomModel.value =
+        selectedProvider.value?.model === "custom" ||
+        selectedProvider.value?.aiModel === "custom";
+
+      mcpServers.value = Array.isArray(props.settings.aiMcpServers)
+        ? props.settings.aiMcpServers.map((s) => ({ ...s }))
+        : [];
+
+      testMessage.value = "";
+      isTestingId.value = null;
+      ensureSelection();
+    }
+
+    function addProvider() {
+      const created = newProviderTemplate();
+      providers.value = [...providers.value, created];
+      selectedProviderId.value = created.id;
+      showCustomModel.value = false;
+    }
+
+    function removeProvider(id) {
+      providers.value = providers.value.filter((p) => p.id !== id);
+      if (activeProviderId.value === id) {
+        const nextActive =
+          providers.value.find((p) => p.lastTestStatus?.ok)?.id || null;
+        activeProviderId.value = nextActive;
+      }
+      if (selectedProviderId.value === id) {
+        selectedProviderId.value = providers.value[0]?.id || null;
+      }
+      ensureSelection();
+      showCustomModel.value =
+        selectedProvider.value?.model === "custom" ||
+        selectedProvider.value?.aiModel === "custom";
+    }
+
+    function updateProviderField(key, value) {
+      const provider = selectedProvider.value;
+      if (!provider) return;
+      provider[key] = value;
+      if (key === "contextSize") {
+        provider.maxTokens = getTokensForContextSize(value);
+      }
+      if (key === "model") {
+        showCustomModel.value = value === "custom";
+      }
+    }
+
+    async function persistSettings(messagePrefix = "保存中...") {
+      updateStatus(messagePrefix);
+      const activeProvider =
+        providers.value.find(
+          (p) => p.id === activeProviderId.value && p.lastTestStatus?.ok,
+        ) || null;
+      const fallbackActive = providers.value.find((p) => p.lastTestStatus?.ok);
+      const resolvedActiveId = activeProvider?.id || fallbackActive?.id || null;
+      activeProviderId.value = resolvedActiveId;
+      const payload = {
+        aiAssistantEnabled: aiAssistantEnabled.value,
+        aiProviders: providers.value.map(cloneProvider),
+        aiActiveProviderId: resolvedActiveId,
+        aiMcpServers: mcpServers.value.map((s) => ({ ...s })),
       };
-      return mapping[size] || 32000;
+      await props.onSave(payload);
+      updateStatus("设置已保存", { autoClear: true });
     }
 
     async function handleToggle(event) {
       const enabled = event.target.checked;
-      aiForm.aiAssistantEnabled = enabled;
-
-      // Check if statusRef is properly passed
-      if (!props.statusRef) {
-        console.error("statusRef is not provided to AiSettings component");
-      }
-
-      // Save immediately when toggling
+      aiAssistantEnabled.value = enabled;
       try {
-        if (props.statusRef) {
-          props.statusRef.value = "保存中...";
-        }
-        await props.onSave(aiForm);
-        setFormFromSettings();
-        if (props.statusRef) {
-          props.statusRef.value = "设置已保存";
-          setTimeout(() => {
-            if (props.statusRef) props.statusRef.value = "";
-          }, 3000);
-        }
+        await persistSettings("保存中...");
       } catch (error) {
-        // Revert toggle on error
-        event.target.checked = !enabled;
-        aiForm.aiAssistantEnabled = !enabled;
-        if (props.statusRef) {
-          props.statusRef.value = `保存失败: ${error.message}`;
-        }
-        // Also log to console for debugging
-        console.error("Toggle save failed:", error);
+        aiAssistantEnabled.value = !enabled;
+        updateStatus(`保存失败：${error.message}`);
       }
     }
 
-    async function handleModelChange(event) {
-      const model = event.target.value;
-      aiForm.aiModel = model;
-      showCustomModel.value = model === "custom";
-    }
-
-    async function handleContextSizeChange(event) {
-      const size = event.target.value;
-      aiForm.aiContextSize = size;
-      aiForm.aiMaxTokens = getTokensForContextSize(size);
-    }
-
-    async function handleSave() {
-      try {
-        if (props.statusRef) {
-          props.statusRef.value = "保存中...";
-        }
-        await props.onSave(aiForm);
-        setFormFromSettings();
-        if (props.statusRef) {
-          props.statusRef.value = "设置已保存";
-          setTimeout(() => {
-            if (props.statusRef) props.statusRef.value = "";
-          }, 3000);
-        }
-      } catch (error) {
-        if (props.statusRef) {
-          props.statusRef.value = `保存失败: ${error.message}`;
-        }
-        console.error("Save failed:", error);
-      }
-    }
-
-    async function handleTestConnection() {
-      if (!aiForm.aiAssistantEnabled) {
-        testResult.value = "请先启用 AI Assistant";
-        testSuccess.value = false;
+    async function handleTestProvider() {
+      const provider = selectedProvider.value;
+      if (!provider) return;
+      if (!provider.apiEndpoint || !provider.apiKey) {
+        testMessage.value = "请输入 API 地址和密钥";
         return;
       }
-
-      if (!aiForm.aiApiEndpoint || !aiForm.aiApiKey) {
-        testResult.value = "请输入 API 地址和密钥";
-        testSuccess.value = false;
-        return;
-      }
-
-      isTesting.value = true;
-      testResult.value = "";
-
+      isTestingId.value = provider.id;
+      testMessage.value = "";
       try {
-        const result = await props.onTestConnection(aiForm);
-
+        const result = await props.onTestConnection({
+          aiAssistantEnabled: true,
+          aiProviders: [provider],
+          aiActiveProviderId: provider.id,
+        });
+        provider.lastTestStatus = {
+          ok: Boolean(result.success),
+          message: result.success
+            ? result.response || "连接成功"
+            : result.error || "连接失败",
+        };
+        testMessage.value = provider.lastTestStatus.message;
         if (result.success) {
-          testResult.value = `✓ 连接成功! 响应: "${result.response || "OK"}"`;
-          testSuccess.value = true;
-        } else {
-          testResult.value = `✗ 连接失败: ${result.error || "未知错误"}`;
-          testSuccess.value = false;
+          const hasActive =
+            providers.value.find(
+              (p) => p.id === activeProviderId.value && p.lastTestStatus?.ok,
+            ) || null;
+          if (!hasActive) {
+            activeProviderId.value = provider.id;
+          }
         }
       } catch (error) {
-        testResult.value = `✗ 测试失败: ${error.message}`;
-        testSuccess.value = false;
+        provider.lastTestStatus = {
+          ok: false,
+          message: error.message,
+        };
+        testMessage.value = `测试失败：${error.message}`;
       } finally {
-        isTesting.value = false;
+        isTestingId.value = null;
+      }
+    }
+
+    async function handleSaveProvider() {
+      if (!selectedProvider.value) {
+        updateStatus("请先添加 Provider");
+        return;
+      }
+      try {
+        await persistSettings();
+      } catch (error) {
+        updateStatus(`保存失败：${error.message}`);
+      }
+    }
+
+    async function handleSelectActive(id) {
+      const provider = providers.value.find((p) => p.id === id);
+      if (!provider) return;
+      if (!provider.lastTestStatus?.ok) {
+        updateStatus("请先通过测试再设为正在使用");
+        return;
+      }
+      activeProviderId.value = id;
+      selectedProviderId.value = id;
+      try {
+        await persistSettings();
+      } catch (error) {
+        updateStatus(`保存失败：${error.message}`);
       }
     }
 
     function handleAddMcpServer() {
       editingMcpServerId.value = null;
+      mcpForm.id = "";
       mcpForm.name = "";
       mcpForm.url = "";
       mcpForm.enabled = true;
@@ -222,49 +338,42 @@ export default defineComponent({
 
     function handleEditMcpServer(server) {
       editingMcpServerId.value = server.id;
+      mcpForm.id = server.id;
       mcpForm.name = server.name;
       mcpForm.url = server.url;
       mcpForm.enabled = server.enabled;
       showMcpForm.value = true;
     }
 
-    function handleRemoveMcpServer(serverId) {
-      const index = aiForm.aiMcpServers.findIndex((s) => s.id === serverId);
-      if (index >= 0) {
-        aiForm.aiMcpServers.splice(index, 1);
-      }
+    function handleRemoveMcpServer(id) {
+      mcpServers.value = mcpServers.value.filter((s) => s.id !== id);
     }
 
-    function handleSaveMcpServer() {
-      if (!mcpForm.name || !mcpForm.url) {
-        alert("请填写完整的服务器信息");
+    async function handleSaveMcpServer() {
+      if (!mcpForm.name.trim() || !mcpForm.url.trim()) {
+        updateStatus("请填写服务器名称和URL");
         return;
       }
-
+      const record = {
+        id:
+          editingMcpServerId.value ||
+          mcpForm.id ||
+          (crypto.randomUUID ? crypto.randomUUID() : `mcp_${Date.now()}`),
+        name: mcpForm.name.trim(),
+        url: mcpForm.url.trim(),
+        enabled: mcpForm.enabled,
+        headers: {},
+      };
       if (editingMcpServerId.value) {
-        // Update existing server
-        const server = aiForm.aiMcpServers.find(
-          (s) => s.id === editingMcpServerId.value,
+        mcpServers.value = mcpServers.value.map((s) =>
+          s.id === editingMcpServerId.value ? record : s,
         );
-        if (server) {
-          server.name = mcpForm.name;
-          server.url = mcpForm.url;
-          server.enabled = mcpForm.enabled;
-        }
       } else {
-        // Add new server
-        const newServer = {
-          id: `mcp-${Date.now()}`,
-          name: mcpForm.name,
-          url: mcpForm.url,
-          enabled: mcpForm.enabled,
-          headers: {},
-        };
-        aiForm.aiMcpServers.push(newServer);
+        mcpServers.value = [...mcpServers.value, record];
       }
-
       showMcpForm.value = false;
       editingMcpServerId.value = null;
+      await persistSettings();
     }
 
     function handleCancelMcpForm() {
@@ -273,392 +382,437 @@ export default defineComponent({
     }
 
     onMounted(() => {
-      // Initial load
       setFormFromSettings();
     });
 
-    // Watch for settings changes (e.g., when loaded asynchronously)
     watch(
       () => props.settings,
-      () => {
-        setFormFromSettings();
-      },
+      () => setFormFromSettings(),
       { deep: true },
     );
 
-    return () => (
-      <section class="settings__group">
-        <div class="settings__group-header">
-          <h3>AI Assistant 智能助理</h3>
-          <label class="toggle">
-            <input
-              type="checkbox"
-              checked={aiForm.aiAssistantEnabled}
-              onChange={handleToggle}
-            />
-            <span>启用智能助理</span>
-          </label>
-        </div>
+    watch(
+      selectedProvider,
+      (next) => {
+        showCustomModel.value =
+          next?.model === "custom" || next?.aiModel === "custom";
+      },
+      { immediate: true },
+    );
 
-        <div
-          class={
-            "settings__fields" +
-            (aiForm.aiAssistantEnabled ? "" : " is-disabled")
-          }
-        >
-          <p class="settings__hint">
-            配置 AI 智能助理，通过右键菜单快速分析网页内容。
-          </p>
+    return () => {
+      const provider = selectedProvider.value;
+      const statusState = (p) => {
+        if (!p) return "idle";
+        if (p.lastTestStatus?.ok === true) return "success";
+        if (p.lastTestStatus?.ok === false && p.lastTestStatus?.message) {
+          return "error";
+        }
+        return "idle";
+      };
+      const statusLabel = (p) => {
+        const state = statusState(p);
+        if (state === "success") return "已通过测试";
+        if (state === "error") return p.lastTestStatus?.message || "测试失败";
+        return "未测试";
+      };
+      const statusTone = (p) => {
+        const state = statusState(p);
+        if (state === "success") return "text-emerald-600";
+        if (state === "error") return "text-rose-600";
+        return "text-slate-500";
+      };
+      const statusDot = (p) => {
+        const state = statusState(p);
+        if (state === "success") return "bg-emerald-500";
+        if (state === "error") return "bg-rose-500";
+        return "bg-slate-400";
+      };
+      const cardAccent = (p) => {
+        const state = statusState(p);
+        if (state === "success") {
+          return "border-emerald-200 hover:border-emerald-300 dark:border-emerald-500/40 dark:hover:border-emerald-400/60";
+        }
+        if (state === "error") {
+          return "border-rose-200 hover:border-rose-300 dark:border-rose-500/40 dark:hover:border-rose-400/60";
+        }
+        return "border-slate-200 hover:border-indigo-300 dark:border-white/10 dark:hover:border-indigo-400/40";
+      };
 
-          <label class="field">
-            <span>API 地址</span>
-            <input
-              type="url"
-              placeholder="https://api.openai.com/v1/chat/completions"
-              disabled={!aiForm.aiAssistantEnabled}
-              value={aiForm.aiApiEndpoint}
-              onInput={(e) => (aiForm.aiApiEndpoint = e.target.value)}
-            />
-          </label>
-
-          <label class="field">
-            <span>API 密钥</span>
-            <div style="position: relative;">
-              <input
-                type={showApiKey.value ? "text" : "password"}
-                placeholder="sk-..."
-                disabled={!aiForm.aiAssistantEnabled}
-                value={aiForm.aiApiKey}
-                onInput={(e) => (aiForm.aiApiKey = e.target.value)}
-                style="padding-right: 40px;"
-              />
-              <button
-                type="button"
-                onClick={() => (showApiKey.value = !showApiKey.value)}
-                style={{
-                  position: "absolute",
-                  right: "8px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "4px",
-                  fontSize: "16px",
-                }}
-                disabled={!aiForm.aiAssistantEnabled}
-              >
-                {showApiKey.value ? "👁️" : "👁️‍🗨️"}
-              </button>
+      return (
+        <>
+          <section class="settings__group">
+            <div class="settings__group-header">
+              <h3>AI Assistant 智能助理</h3>
+              <label class="toggle">
+                <input
+                  type="checkbox"
+                  checked={aiAssistantEnabled.value}
+                  onChange={handleToggle}
+                />
+                <span>启用智能助理</span>
+              </label>
             </div>
-          </label>
 
-          <label class="field">
-            <span>AI 模型</span>
-            <select
-              disabled={!aiForm.aiAssistantEnabled}
-              value={aiForm.aiModel}
-              onChange={handleModelChange}
-            >
-              {aiModels.map((model) => (
-                <option key={model.value} value={model.value}>
-                  {model.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {showCustomModel.value && (
-            <label class="field">
-              <span>自定义模型名称</span>
-              <input
-                type="text"
-                placeholder="输入自定义模型名称"
-                disabled={!aiForm.aiAssistantEnabled}
-                value={aiForm.aiCustomModel}
-                onInput={(e) => (aiForm.aiCustomModel = e.target.value)}
-              />
-              <small class="help-text">
-                当选择"自定义模型"时，请在此输入完整的模型名称
-              </small>
-            </label>
-          )}
-
-          <label class="field">
-            <span>Context 大小</span>
-            <select
-              disabled={!aiForm.aiAssistantEnabled}
-              value={aiForm.aiContextSize}
-              onChange={handleContextSizeChange}
-            >
-              {contextSizes.map((size) => (
-                <option key={size.value} value={size.value}>
-                  {size.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div class="field">
-            <span>MCP 服务器</span>
-            {aiForm.aiMcpServers.length === 0 ? (
-              <p
-                style={{
-                  fontSize: "12px",
-                  color: "var(--text-secondary)",
-                  margin: "0 0 8px 0",
-                }}
-              >
-                未配置MCP服务器
+            <div class="settings__fields">
+              <p class="settings__hint">
+                为智能助理配置多个 Provider，只有通过测试的 Provider
+                才能设为正在使用。
               </p>
-            ) : (
-              aiForm.aiMcpServers.map((server) => (
-                <div
-                  key={server.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 12px",
-                    marginBottom: "6px",
-                    backgroundColor: "var(--bg-secondary)",
-                    borderRadius: "6px",
-                    border: "1px solid var(--border-color)",
-                  }}
-                >
-                  <div style={{ flex: 1, overflow: "hidden" }}>
-                    <div
-                      style={{
-                        fontWeight: 500,
-                        fontSize: "13px",
-                        marginBottom: "2px",
-                      }}
-                    >
-                      {server.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-secondary)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {server.url}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      marginLeft: "12px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        padding: "2px 6px",
-                        backgroundColor: server.enabled ? "#10b981" : "#6b7280",
-                        color: "white",
-                        borderRadius: "10px",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {server.enabled ? "启用" : "禁用"}
+              <div class="grid gap-4 md:grid-cols-3">
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-200">
+                      Provider 列表
                     </span>
                     <button
                       type="button"
-                      class="btn btn-small"
-                      disabled={!aiForm.aiAssistantEnabled}
-                      onClick={() => handleEditMcpServer(server)}
-                      style={{ padding: "2px 8px", fontSize: "11px" }}
+                      class="btn-small btn-primary text-white"
+                      onClick={addProvider}
                     >
-                      编辑
+                      添加
+                    </button>
+                  </div>
+                  <div class="space-y-2">
+                    {providers.value.length === 0 ? (
+                      <p class="text-xs text-slate-500">
+                        暂无 Provider，点击添加
+                      </p>
+                    ) : (
+                      providers.value.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          class={[
+                            "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
+                            item.id === selectedProviderId.value
+                              ? "border-indigo-400 bg-indigo-50 dark:border-indigo-400/60 dark:bg-indigo-500/10"
+                              : cardAccent(item),
+                          ].join(" ")}
+                          onClick={() => (selectedProviderId.value = item.id)}
+                        >
+                          <div class="flex items-center justify-between gap-2">
+                            <div class="flex min-w-0 items-center gap-2">
+                              <span
+                                class={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${statusDot(item)}`}
+                                aria-hidden="true"
+                              ></span>
+                              <div class="min-w-0">
+                                <div class="truncate font-semibold">
+                                  {item.name || "未命名"}
+                                </div>
+                                <div class={`text-xs ${statusTone(item)}`}>
+                                  {statusLabel(item)}
+                                </div>
+                              </div>
+                            </div>
+                            {activeProviderId.value === item.id ? (
+                              <span class="rounded-full bg-indigo-100 px-2 py-1 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-100">
+                                正在使用
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div class="md:col-span-2 space-y-3 rounded-2xl border border-slate-200 p-4 shadow-sm dark:border-white/10">
+                  {provider ? (
+                    <>
+                      <div class="grid gap-3 md:grid-cols-2">
+                        <label class="field">
+                          <span>名称</span>
+                          <input
+                            type="text"
+                            value={provider.name}
+                            onInput={(e) =>
+                              updateProviderField("name", e.target.value)
+                            }
+                          />
+                        </label>
+                        <label class="field">
+                          <span>模型</span>
+                          <select
+                            value={provider.model}
+                            onChange={(e) =>
+                              updateProviderField("model", e.target.value)
+                            }
+                          >
+                            {aiModels.map((model) => (
+                              <option value={model.value}>{model.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      {showCustomModel.value && (
+                        <label class="field">
+                          <span>自定义模型名称</span>
+                          <input
+                            type="text"
+                            value={provider.customModel}
+                            onInput={(e) =>
+                              updateProviderField("customModel", e.target.value)
+                            }
+                          />
+                        </label>
+                      )}
+
+                      <label class="field">
+                        <span>API 地址</span>
+                        <input
+                          type="url"
+                          value={provider.apiEndpoint}
+                          placeholder="https://api.openai.com/v1/chat/completions"
+                          onInput={(e) =>
+                            updateProviderField("apiEndpoint", e.target.value)
+                          }
+                        />
+                      </label>
+
+                      <label class="field">
+                        <span>API 密钥</span>
+                        <div class="relative">
+                          <input
+                            type={showApiKey.value ? "text" : "password"}
+                            value={provider.apiKey}
+                            placeholder="sk-..."
+                            onInput={(e) =>
+                              updateProviderField("apiKey", e.target.value)
+                            }
+                            style="padding-right: 40px;"
+                          />
+                          <button
+                            type="button"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-slate-500"
+                            onClick={() =>
+                              (showApiKey.value = !showApiKey.value)
+                            }
+                          >
+                            {showApiKey.value ? "隐藏" : "显示"}
+                          </button>
+                        </div>
+                      </label>
+
+                      <div class="grid gap-3 md:grid-cols-2">
+                        <label class="field">
+                          <span>Context 大小</span>
+                          <select
+                            value={provider.contextSize}
+                            onChange={(e) =>
+                              updateProviderField("contextSize", e.target.value)
+                            }
+                          >
+                            {contextSizes.map((size) => (
+                              <option value={size.value}>{size.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label class="field">
+                          <span>最大 tokens (自动根据 context 估算)</span>
+                          <input
+                            type="number"
+                            value={provider.maxTokens}
+                            onInput={(e) =>
+                              updateProviderField(
+                                "maxTokens",
+                                Number(e.target.value),
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <label class="field">
+                        <span>自定义 Headers</span>
+                        <textarea
+                          rows="3"
+                          value={provider.requestHeaders}
+                          placeholder={"X-Api-Key: xxx\napi-key: yyy"}
+                          onInput={(e) =>
+                            updateProviderField(
+                              "requestHeaders",
+                              e.target.value,
+                            )
+                          }
+                        ></textarea>
+                        <small class="help-text">
+                          每行一个 Header，格式为 <code>Header-Name: 值</code>
+                        </small>
+                      </label>
+
+                      <div class="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          class="btn btn-primary"
+                          onClick={handleSaveProvider}
+                        >
+                          保存设置
+                        </button>
+                        <button
+                          type="button"
+                          class="btn"
+                          onClick={handleTestProvider}
+                          disabled={isTestingId.value === provider.id}
+                        >
+                          {isTestingId.value === provider.id
+                            ? "测试中..."
+                            : "测试连接"}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary"
+                          disabled={!provider.lastTestStatus?.ok}
+                          onClick={() => handleSelectActive(provider.id)}
+                        >
+                          设为正在使用
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-danger"
+                          onClick={() => removeProvider(provider.id)}
+                        >
+                          删除 Provider
+                        </button>
+                        <span class="text-sm text-slate-600 dark:text-slate-300">
+                          当前状态：{statusLabel(provider)}{" "}
+                          {provider.lastTestStatus?.message
+                            ? `(${provider.lastTestStatus.message})`
+                            : ""}
+                        </span>
+                      </div>
+
+                      {testMessage.value && (
+                        <p class="status-line">{testMessage.value}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p class="text-sm text-slate-500">
+                      请选择或添加一个 Provider
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings__group">
+            <div class="settings__group-header">
+              <h3>MCP 服务器</h3>
+              <p class="settings__subtitle">
+                与 Provider 独立配置，可供工具调用
+              </p>
+            </div>
+            <div class="settings__fields">
+              {mcpServers.value.length === 0 ? (
+                <p class="text-sm text-slate-500">未配置 MCP 服务器</p>
+              ) : (
+                mcpServers.value.map((server) => (
+                  <div class="flex items-start justify-between rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900/60">
+                    <div class="min-w-0">
+                      <div class="font-semibold">{server.name}</div>
+                      <div class="text-xs text-slate-500">{server.url}</div>
+                      <div class="mt-1 text-[11px] text-slate-500 flex items-center gap-2">
+                        <span
+                          class={[
+                            "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                            server.enabled
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-100"
+                              : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+                          ].join(" ")}
+                        >
+                          {server.enabled ? "已启用" : "已禁用"}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="btn btn-small"
+                        onClick={() => handleEditMcpServer(server)}
+                      >
+                        编辑
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-small"
+                        onClick={() => handleRemoveMcpServer(server.id)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {showMcpForm.value && (
+                <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+                  <h4 class="text-sm font-semibold">
+                    {editingMcpServerId.value
+                      ? "编辑 MCP 服务器"
+                      : "添加 MCP 服务器"}
+                  </h4>
+                  <div class="mt-2 grid gap-3 md:grid-cols-2">
+                    <label class="field">
+                      <span>服务器名称</span>
+                      <input
+                        type="text"
+                        value={mcpForm.name}
+                        onInput={(e) => (mcpForm.name = e.target.value)}
+                      />
+                    </label>
+                    <label class="field">
+                      <span>服务器 URL</span>
+                      <input
+                        type="url"
+                        value={mcpForm.url}
+                        onInput={(e) => (mcpForm.url = e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <label class="mt-2 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={mcpForm.enabled}
+                      onChange={(e) => (mcpForm.enabled = e.target.checked)}
+                    />
+                    <span>启用此服务器</span>
+                  </label>
+                  <div class="mt-3 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      onClick={handleCancelMcpForm}
+                    >
+                      取消
                     </button>
                     <button
                       type="button"
-                      class="btn btn-small"
-                      disabled={!aiForm.aiAssistantEnabled}
-                      onClick={() => handleRemoveMcpServer(server.id)}
-                      style={{ padding: "2px 8px", fontSize: "11px" }}
+                      class="btn btn-primary"
+                      onClick={handleSaveMcpServer}
                     >
-                      删除
+                      {editingMcpServerId.value ? "保存" : "添加"}
                     </button>
                   </div>
                 </div>
-              ))
-            )}
-            {showMcpForm.value && (
-              <div
-                style={{
-                  padding: "12px",
-                  backgroundColor: "var(--bg-secondary)",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border-color)",
-                  marginBottom: "12px",
-                }}
+              )}
+
+              <button
+                type="button"
+                class="btn btn-small"
+                onClick={handleAddMcpServer}
               >
-                <h4 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
-                  {editingMcpServerId.value ? "编辑MCP服务器" : "添加MCP服务器"}
-                </h4>
-                <div style={{ marginBottom: "12px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      marginBottom: "4px",
-                      fontWeight: 500,
-                    }}
-                  >
-                    服务器名称
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="例如: LogSeq服务器"
-                    value={mcpForm.name}
-                    onInput={(e) => (mcpForm.name = e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "6px 8px",
-                      fontSize: "13px",
-                    }}
-                    disabled={!aiForm.aiAssistantEnabled}
-                  />
-                </div>
-                <div style={{ marginBottom: "12px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "12px",
-                      marginBottom: "4px",
-                      fontWeight: 500,
-                    }}
-                  >
-                    服务器URL
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="例如: http://127.0.0.1:61775"
-                    value={mcpForm.url}
-                    onInput={(e) => (mcpForm.url = e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "6px 8px",
-                      fontSize: "13px",
-                    }}
-                    disabled={!aiForm.aiAssistantEnabled}
-                  />
-                </div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={mcpForm.enabled}
-                    onChange={(e) => (mcpForm.enabled = e.target.checked)}
-                    disabled={!aiForm.aiAssistantEnabled}
-                    id="mcp-enabled"
-                  />
-                  <label
-                    for="mcp-enabled"
-                    style={{ marginLeft: "6px", fontSize: "13px" }}
-                  >
-                    启用此服务器
-                  </label>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    onClick={handleCancelMcpForm}
-                    disabled={!aiForm.aiAssistantEnabled}
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-primary"
-                    onClick={handleSaveMcpServer}
-                    disabled={!aiForm.aiAssistantEnabled}
-                  >
-                    {editingMcpServerId.value ? "保存" : "添加"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <button
-              type="button"
-              class="btn btn-small"
-              disabled={!aiForm.aiAssistantEnabled}
-              onClick={handleAddMcpServer}
-              style={{ width: "100%" }}
-            >
-              添加MCP服务器
-            </button>
-            <p
-              style={{
-                fontSize: "11px",
-                color: "var(--text-secondary)",
-                marginTop: "4px",
-              }}
-            >
-              MCP服务器允许AI调用外部工具（如LogSeq搜索）
-            </p>
-          </div>
-
-          <div class="settings__actions">
-            <button
-              class="btn btn-primary"
-              type="button"
-              disabled={
-                !aiForm.aiAssistantEnabled ||
-                !aiForm.aiApiEndpoint ||
-                !aiForm.aiApiKey
-              }
-              onClick={handleSave}
-            >
-              保存设置
-            </button>
-
-            <button
-              class="btn"
-              type="button"
-              disabled={
-                !aiForm.aiAssistantEnabled ||
-                !aiForm.aiApiEndpoint ||
-                !aiForm.aiApiKey ||
-                isTesting.value
-              }
-              onClick={handleTestConnection}
-              style={{ marginLeft: "8px" }}
-            >
-              {isTesting.value ? "测试中..." : "测试连接"}
-            </button>
-
-            <p class="status-line">{props.statusRef.value}</p>
-          </div>
-
-          {testResult.value && (
-            <p
-              class={`test-result status-line ${testSuccess.value ? "status-line--success" : "status-line--error"}`}
-            >
-              {testResult.value}
-            </p>
-          )}
-        </div>
-      </section>
-    );
+                添加 MCP 服务器
+              </button>
+              <p class="help-text">
+                MCP 服务器用于智能助理调用外部工具，与 AI Provider 配置独立。
+              </p>
+            </div>
+          </section>
+        </>
+      );
+    };
   },
 });

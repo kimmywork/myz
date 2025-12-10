@@ -9,5 +9,8 @@
         "npm run": true,
         "node": true
     },
-    "chat.agent.maxRequests": 9999
+    "chat.agent.maxRequests": 9999,
+    "rust-analyzer.linkedProjects": [
+        "myz-suite-tool/src-tauri/Cargo.toml"
+    ]
 }
