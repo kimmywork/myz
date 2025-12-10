@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           input: {
             main: resolve(__dirname, 'index.html'),
+            demo: resolve(__dirname, 'demo.html'),
             perf: resolve(__dirname, 'perf-test.html'),
             sw: resolve(__dirname, 'ui/sw.ts')
           },

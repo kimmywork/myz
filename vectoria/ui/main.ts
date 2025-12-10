@@ -5,7 +5,8 @@ const statusEl = document.getElementById('status')!;
 const docTextEl = document.getElementById('docText') as HTMLTextAreaElement;
 const queryInputEl = document.getElementById('queryInput') as HTMLInputElement;
 const resultsEl = document.getElementById('results')!;
-const docListEl = document.getElementById('docList')!;
+const totalDocsEl = document.getElementById('totalDocs')!;
+// const indexSizeEl = document.getElementById('indexSize')!;
 
 // Config Elements
 const embedderTypeEl = document.getElementById('embedderType') as HTMLSelectElement;
@@ -229,10 +230,18 @@ function stopMigrationPolling() {
 document.getElementById('btnAdd')?.addEventListener('click', async () => {
   const text = docTextEl.value;
   if (!text) return;
-  statusEl.textContent = 'Indexing... (Model might be downloading)';
+  
+  const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  if (lines.length === 0) return;
+
+  statusEl.textContent = `Indexing ${lines.length} documents... (Model might be downloading)`;
   try {
-    await client.sendMessage('ADD_DOC', { text });
-    statusEl.textContent = 'Document indexed.';
+    // Add documents sequentially or in parallel depending on needs. 
+    // Here we just loop for simplicity, or we could add a batch API later.
+    for (const line of lines) {
+        await client.sendMessage('ADD_DOC', { text: line });
+    }
+    statusEl.textContent = `${lines.length} documents indexed.`;
     docTextEl.value = '';
     refreshList();
   } catch (e) {
@@ -270,7 +279,8 @@ document.getElementById('btnClear')?.addEventListener('click', async () => {
 async function refreshList() {
   try {
     const docs: any = await client.sendMessage('GET_ALL');
-    docListEl.textContent = JSON.stringify(docs, null, 2);
+    totalDocsEl.textContent = docs.length.toString();
+    // indexSizeEl.textContent = 'Calculated on save'; // Placeholder
   } catch (e) {
     console.error(e);
   }

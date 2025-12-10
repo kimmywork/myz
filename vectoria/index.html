@@ -3,107 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vectoria Test</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-    .card { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
-    button { cursor: pointer; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; }
-    button:disabled { background: #ccc; }
-    input, textarea { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
-    pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
-  </style>
+  <title>Vectoria - Client-side Vector Search</title>
+  <link rel="stylesheet" href="ui/style.css">
 </head>
 <body>
-  <nav style="margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
-    <a href="index.html" style="margin-right: 15px; font-weight: bold; text-decoration: none; color: #007bff;">Main Demo</a>
-    <a href="perf-test.html" style="text-decoration: none; color: #333;">Performance Test</a>
+  <nav>
+    <a href="index.html" class="active">Home</a>
+    <a href="demo.html">Demo</a>
+    <a href="perf-test.html">Performance Test</a>
   </nav>
 
-  <h1>Vectoria (Service Worker Mode)</h1>
-  
-  <div class="card">
-    <h3>Configuration</h3>
-    <div style="margin-bottom: 10px;">
-      <label>Embedder: 
-        <select id="embedderType">
-          <option value="local">Local (Transformers.js)</option>
-          <option value="openai">OpenAI</option>
-        </select>
-      </label>
-    </div>
-    
-    <div id="localConfig" style="display: block; border-top: 1px solid #eee; padding-top: 10px;">
-      <label>Model: 
-        <select id="localModelSelect">
-          <option value="Xenova/paraphrase-multilingual-MiniLM-L12-v2">Xenova/paraphrase-multilingual-MiniLM-L12-v2 (Default)</option>
-          <option value="Xenova/all-MiniLM-L6-v2">Xenova/all-MiniLM-L6-v2</option>
-          <option value="Xenova/gte-small">Xenova/gte-small</option>
-          <option value="onnx-community/embeddinggemma-300m-ONNX">onnx-community/embeddinggemma-300m-ONNX</option>
-          <option value="Xenova/bge-m3">Xenova/bge-m3</option>
-          <option value="Xenova/jina-embeddings-v2-base-en">Xenova/jina-embeddings-v2-base-en</option>
-          <option value="Xenova/multilingual-e5-large">Xenova/multilingual-e5-large</option>
-          <option value="Xenova/nomic-embed-text-v1">Xenova/nomic-embed-text-v1</option>
-          <option value="Xenova/GIST-small-Embedding-v0">Xenova/GIST-small-Embedding-v0</option>
-          <option value="Xenova/colbertv2.0">Xenova/colbertv2.0</option>
-          <option value="Xenova/UAE-Large-V1">Xenova/UAE-Large-V1</option>
-          <option value="Xenova/ernie-gram-zh">Xenova/ernie-gram-zh</option>
-          <option value="Xenova/ernie-2.0-large-en">Xenova/ernie-2.0-large-en</option>
-          <option value="Xenova/w2v-bert-2.0">Xenova/w2v-bert-2.0</option>
-          <option value="Xenova/dit-large">Xenova/dit-large</option>
-          <option value="Xenova/electra-base-discriminator">Xenova/electra-base-discriminator</option>
-          <option value="Xenova/conv-bert-base">Xenova/conv-bert-base</option>
-          <option value="custom">Custom...</option>
-        </select>
-      </label>
-      <div id="customLocalModelContainer" style="display: none; margin-top: 5px;">
-        <label>Custom Model ID: <input type="text" id="customLocalModel" placeholder="e.g. user/repo"></label>
-      </div>
-    </div>
+  <h1>Vectoria</h1>
+  <div class="subtitle">A lightweight, client-side vector search engine for the browser.</div>
 
-    <div id="openaiConfig" style="display: none; border-top: 1px solid #eee; padding-top: 10px;">
-      <label>API Key: <input type="password" id="openaiKey" placeholder="sk-..."></label>
-      <label>Endpoint: <input type="text" id="openaiEndpoint" value="https://api.openai.com/v1"></label>
-      <label>Model: <input type="text" id="openaiModel" value="text-embedding-3-small"></label>
+  <p>
+    Vectoria brings powerful vector search capabilities directly to the client side. 
+    Built with <strong>HNSW</strong> and <strong>IndexedDB</strong>, it allows you to build semantic search, 
+    RAG, and recommendation systems that run entirely in the user's browser.
+  </p>
+
+  <div class="cta-container">
+    <a href="demo.html" class="btn">Try the Demo</a>
+    <a href="perf-test.html" class="btn secondary">Performance Test</a>
+    <a href="http://github.com/myz-suite/vectoria" class="btn secondary" target="_blank">View on GitHub</a>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <h3>Client-Side Search</h3>
+      <p>Runs entirely in the browser using the HNSW algorithm. No server-side vector database required.</p>
     </div>
-    
-    <div style="margin-top: 15px; text-align: right;">
-      <button id="btnSaveConfig" style="background: #28a745;">Save Configuration</button>
+    <div class="feature">
+      <h3>Local & Private</h3>
+      <p>Run transformer models locally using <code>@huggingface/transformers</code> (ONNX/WASM) for complete privacy.</p>
+    </div>
+    <div class="feature">
+      <h3>Persistent</h3>
+      <p>Automatically saves your index and documents to IndexedDB, ensuring data persists between sessions.</p>
     </div>
   </div>
 
-  <div class="card">
-    <h3>Migration</h3>
-    <button id="btnMigrate">Migrate to Selected Embedder</button>
-    <button id="btnStopMigrate" disabled>Stop</button>
-    <div id="migrationStatus" style="margin-top: 10px; font-family: monospace;"></div>
-  </div>
+  <h2>Installation</h2>
+  <pre><code>npm install vectoria</code></pre>
 
-  <div class="card">
-    <h3>Status</h3>
-    <div id="status">Initializing...</div>
-  </div>
+</body>
+</html>
 
-  <div class="card">
-    <h3>Add Document</h3>
-    <textarea id="docText" rows="3" placeholder="Enter text to index..."></textarea>
-    <button id="btnAdd">Index Text</button>
-  </div>
-
-  <div class="card">
-    <h3>Search</h3>
-    <input type="text" id="queryInput" placeholder="Search query...">
-    <label><input type="checkbox" id="useBruteForce"> Use Brute Force</label>
-    <button id="btnSearch">Search</button>
-    <div id="results"></div>
-  </div>
-  
-  <div class="card">
-    <h3>All Documents</h3>
-    <button id="btnList">Refresh List</button>
-    <button id="btnClear" style="background: #dc3545;">Clear DB</button>
-    <pre id="docList"></pre>
-  </div>
-
-  <script type="module" src="/ui/main.ts"></script>
 </body>
 </html>
