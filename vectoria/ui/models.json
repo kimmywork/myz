@@ -1,0 +1,38 @@
+[
+  {
+    "id": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+    "label": "Xenova/paraphrase-multilingual-MiniLM-L12-v2 (~120MB, Multilingual, 117M)"
+  },
+  {
+    "id": "Xenova/all-MiniLM-L6-v2",
+    "label": "Xenova/all-MiniLM-L6-v2 (~23MB, English, 22M)"
+  },
+  {
+    "id": "onnx-community/embeddinggemma-300m-ONNX",
+    "label": "onnx-community/embeddinggemma-300m-ONNX (~300MB, English, 300M)"
+  },
+  {
+    "id": "Xenova/bge-m3",
+    "label": "Xenova/bge-m3 (~560MB, Multilingual, 567M)"
+  },
+  {
+    "id": "Xenova/multilingual-e5-large",
+    "label": "Xenova/multilingual-e5-large (~550MB, Multilingual, 560M)"
+  },
+  {
+    "id": "Xenova/nomic-embed-text-v1",
+    "label": "Xenova/nomic-embed-text-v1 (~130MB, English, 137M)"
+  },
+  {
+    "id": "Xenova/ernie-gram-zh",
+    "label": "Xenova/ernie-gram-zh (~105MB, Chinese, 110M)"
+  },
+  {
+    "id": "onnx-community/Qwen3-Embedding-0.6B-ONNX",
+    "label": "onnx-community/Qwen3-Embedding-0.6B-ONNX (~600MB, Multilingual, 0.6B)"
+  },
+  {
+    "id": "mixedbread-ai/mxbai-embed-large-v1",
+    "label": "mixedbread-ai/mxbai-embed-large-v1 (~330MB, English, 335M)"
+  }
+]
