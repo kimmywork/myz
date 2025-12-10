@@ -1,4 +1,4 @@
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, ref } from "vue";
 import { RECORD_KINDS } from "../utils/records.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 
@@ -14,6 +14,25 @@ export default defineComponent({
     const store = useDashboardStore();
     const kind = computed(() => store.getRecordKind(props.record));
     const hasNote = computed(() => Boolean(props.record?.note));
+    const shouldSplitLayout = computed(() => hasNote.value);
+    const tags = computed(() => props.record?.tags || []);
+    const MAX_VISIBLE_TAGS = 5;
+    const showAllTags = ref(false);
+
+    const visibleTags = computed(() => {
+      if (showAllTags.value) {
+        return tags.value;
+      }
+      return tags.value.slice(0, MAX_VISIBLE_TAGS);
+    });
+
+    const hiddenTagsCount = computed(() => {
+      return Math.max(0, tags.value.length - MAX_VISIBLE_TAGS);
+    });
+
+    function toggleTags() {
+      showAllTags.value = !showAllTags.value;
+    }
     const archiveLink = computed(() => {
       const record = props.record || {};
       return record.archiveSnapshotUrl || record.archiveUrl || "";
@@ -62,85 +81,111 @@ export default defineComponent({
       if (!record) {
         return null;
       }
-      const cardClasses = ["card"];
+      const cardClasses = [
+        "space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-5 text-sm text-slate-800 shadow-xl transition dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100",
+      ];
       if (kind.value === RECORD_KINDS.CLIP) {
-        cardClasses.push("card--clip");
+        cardClasses.push("border-teal-200 dark:border-cyan-500/30");
       }
       if (kind.value === RECORD_KINDS.AI_GENERATED) {
-        cardClasses.push("card--ai");
+        cardClasses.push("border-fuchsia-200 dark:border-fuchsia-500/40");
       }
-      if (!hasNote.value) {
-        cardClasses.push("card--single");
-      }
+
       return (
         <article
           class={cardClasses.join(" ")}
           data-id={record.id}
           data-kind={kind.value}
         >
-          <div class="card__header">
-            <div
-              class="card__badge"
-              style={
+          <div class="flex items-center justify-between">
+            <span
+              class={[
+                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide",
                 kind.value === RECORD_KINDS.AI_GENERATED
-                  ? "background: #7c3aed; color: white;"
-                  : ""
-              }
+                  ? "bg-fuchsia-500 text-white"
+                  : kind.value === RECORD_KINDS.CLIP
+                    ? "bg-teal-500 text-white"
+                    : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+              ].join(" ")}
             >
               {kindLabel.value}
-            </div>
-            <div class="card__meta">
+            </span>
+            <div class="flex flex-col items-end text-xs text-slate-400">
               <span
-                class="card__site"
+                class="max-w-[120px] truncate text-slate-500 dark:text-slate-300"
+                title={record.hostname || record.url || ""}
                 innerHTML={store.formatInline(
-                  record.hostname || record.url || "",
+                  (record.hostname || record.url || "").substring(0, 20) +
+                    ((record.hostname || record.url || "").length > 20
+                      ? "..."
+                      : ""),
                 )}
               ></span>
-              <span class="card__date">
+              <span class="text-slate-400 dark:text-slate-500">
                 {store.formatDateTime(record.createdAt)}
               </span>
             </div>
           </div>
-          <div class="card__content">
-            <section
-              class={
-                "card__segment card__segment--quote" +
-                (kind.value === RECORD_KINDS.CLIP ? " card__segment--clip" : "")
-              }
-            >
-              <h4 class="card__segment-title">{kindLabel.value}</h4>
+
+          {shouldSplitLayout.value ? (
+            <div class="grid gap-4 sm:grid-cols-2">
+              <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {kindLabel.value}
+                </h4>
+                <blockquote
+                  class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
+                  innerHTML={store.renderHighlight(record)}
+                ></blockquote>
+              </section>
+              <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  批注
+                </h4>
+                <p
+                  data-testid="card-note"
+                  class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
+                  innerHTML={store.formatNote(record.note)}
+                ></p>
+              </section>
+            </div>
+          ) : (
+            <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
+              <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {kindLabel.value}
+              </h4>
               <blockquote
-                class="card__quote"
+                class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
                 innerHTML={store.renderHighlight(record)}
               ></blockquote>
             </section>
-            <section
-              class={
-                "card__segment card__segment--note" +
-                (hasNote.value ? "" : " is-empty")
-              }
-            >
-              <h4>批注</h4>
-              <p
-                class="card__note"
-                innerHTML={hasNote.value ? store.formatNote(record.note) : ""}
-              ></p>
-            </section>
+          )}
+
+          <div class="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+            {visibleTags.value.length
+              ? visibleTags.value.map((tag) => (
+                  <span
+                    key={tag}
+                    class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 dark:border-white/10 dark:text-slate-100"
+                    innerHTML={store.formatInline(tag)}
+                  ></span>
+                ))
+              : "无标签"}
+            {hiddenTagsCount.value > 0 && (
+              <button
+                type="button"
+                class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:text-slate-700 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
+                onClick={toggleTags}
+              >
+                +{hiddenTagsCount.value} 个标签
+              </button>
+            )}
           </div>
-          <div
-            class={
-              "card__tags" +
-              (record.tags && record.tags.length ? "" : " is-empty")
-            }
-          >
-            {(record.tags || []).map((tag) => (
-              <span key={tag} innerHTML={store.formatInline(tag)}></span>
-            ))}
-          </div>
-          <div class="card__footer">
+
+          <div class="mt-4 flex flex-wrap gap-3 border-t border-slate-200 pt-3 text-xs font-semibold dark:border-white/5">
             {archiveLink.value ? (
               <a
-                class="btn-link"
+                class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
                 href={archiveLink.value}
                 target="_blank"
                 rel="noopener"
@@ -150,7 +195,7 @@ export default defineComponent({
               </a>
             ) : null}
             <a
-              class="btn-link"
+              class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
               href={record.sourceUrl || record.url}
               target="_blank"
               rel="noopener"
@@ -159,38 +204,42 @@ export default defineComponent({
               页面
             </a>
             <button
-              class="btn-link"
+              data-action="view"
+              class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               type="button"
               onClick={() => handleAction("view")}
             >
               查看
             </button>
             <button
-              class="btn-link"
+              data-action="edit"
+              class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               type="button"
               onClick={() => handleAction("edit")}
             >
               编辑
             </button>
             <button
-              class="btn-link"
+              data-action="copy"
+              class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               type="button"
               onClick={() => handleAction("copy")}
             >
               复制
             </button>
+            {kind.value === RECORD_KINDS.HIGHLIGHT && (
+              <button
+                data-action="downgrade"
+                class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                type="button"
+                onClick={() => handleAction("downgrade")}
+              >
+                降级
+              </button>
+            )}
             <button
-              class={
-                "btn-link btn-link--muted" +
-                (kind.value === RECORD_KINDS.HIGHLIGHT ? "" : " is-hidden")
-              }
-              type="button"
-              onClick={() => handleAction("downgrade")}
-            >
-              降级
-            </button>
-            <button
-              class="btn-link btn-link--danger"
+              data-action="delete"
+              class="text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
               type="button"
               onClick={() => handleAction("delete")}
             >

@@ -57,6 +57,7 @@ import {
   listConversations,
 } from "./background/ai.js";
 import { createAiProvider } from "./background/aiProvider.js";
+import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
 
 function enrichRecordWithArchive(record, archives) {
   if (!record) {
@@ -94,6 +95,15 @@ function enrichRecordsWithArchive(records, archives) {
   }
   return records.map((record) => enrichRecordWithArchive(record, archives));
 }
+
+(async function initializeAiHeaderRules() {
+  try {
+    const settings = await readSettings();
+    await syncAiRequestHeaderRules(settings);
+  } catch (error) {
+    console.warn("Failed to initialize AI header rules", error);
+  }
+})();
 
 chrome.runtime.onInstalled.addListener(async () => {
   const { [STORAGE_KEY]: existingHighlights } =
@@ -824,13 +834,18 @@ const messageHandlers = {
   },
 
   // AI Assistant handlers
-  async "myz:testAiConnection"() {
+  async "myz:testAiConnection"(payload) {
     const settings = await readSettings();
-    if (!settings.aiAssistantEnabled) {
+    const merged = { ...settings, ...(payload || {}) };
+    if (!merged.aiAssistantEnabled) {
       return { success: false, error: "AI Assistant is not enabled" };
     }
 
-    const provider = createAiProvider(settings);
+    const provider = createAiProvider(merged, { allowUntested: true });
+    if (!provider.provider) {
+      return { success: false, error: "请先配置 Provider" };
+    }
+
     return await provider.testConnection();
   },
 
@@ -878,6 +893,16 @@ const messageHandlers = {
     } finally {
       await provider.disconnectMcpClients();
     }
+  },
+
+  async "myz:generatePageInsights"(payload) {
+    const settings = await readSettings();
+    if (!settings.aiAssistantEnabled) {
+      throw new Error("AI Assistant is not enabled");
+    }
+
+    const provider = createAiProvider(settings);
+    return await provider.generatePageInsights(payload || {});
   },
 
   async "myz:getConversationHistory"(payload) {

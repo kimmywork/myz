@@ -1,0 +1,32 @@
+{
+  "servers": {
+    "logseq": {
+      "title": "logseq",
+      "enabled": true,
+      "prefix": "logseq",
+      "aliases": {},
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--with",
+        "mcp-logseq",
+        "mcp-logseq"
+      ],
+      "env": {
+        "LOGSEQ_API_TOKEN": "test",
+        "LOGSEQ_API_URL": "http://localhost:12315"
+      }
+    },
+    "search": {
+      "title": "Search Server",
+      "enabled": true,
+      "prefix": "search",
+      "aliases": {},
+      "type": "http",
+      "url": "http://localhost:12306/mcp",
+      "headers": {
+        "Request-Token": "myz-search-token"
+      }
+    }
+  }
+}

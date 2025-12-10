@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyZ Indexer Performance Test</title>
+  <link rel="stylesheet" href="ui/style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="demo.html">Demo</a>
+    <a href="perf-test.html" class="active">Performance Test</a>
+  </nav>
+
+  <h1>MyZ Indexer Performance Test Suite</h1>
+  
+  <div class="card">
+    <h3>Configuration</h3>
+    <div style="margin-bottom: 10px;">
+      <label>Embedder: 
+        <select id="embedderType">
+          <option value="local">Local (Transformers.js)</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </label>
+    </div>
+    
+    <div id="localConfig" style="display: block; border-top: 1px solid #eee; padding-top: 10px;">
+      <label>Model: 
+        <select id="localModelSelect">
+          <option value="Xenova/paraphrase-multilingual-MiniLM-L12-v2">Xenova/paraphrase-multilingual-MiniLM-L12-v2 (~120MB, Multilingual, 117M)</option>
+          <option value="Xenova/all-MiniLM-L6-v2">Xenova/all-MiniLM-L6-v2 (~23MB, English, 22M)</option>
+          <option value="Xenova/gte-small">Xenova/gte-small (~33MB, English, 33M)</option>
+          <option value="onnx-community/embeddinggemma-300m-ONNX">onnx-community/embeddinggemma-300m-ONNX (~300MB, English, 300M)</option>
+          <option value="Xenova/bge-m3">Xenova/bge-m3 (~560MB, Multilingual, 567M)</option>
+          <option value="Xenova/jina-embeddings-v2-base-en">Xenova/jina-embeddings-v2-base-en (~130MB, English, 137M)</option>
+          <option value="Xenova/multilingual-e5-large">Xenova/multilingual-e5-large (~550MB, Multilingual, 560M)</option>
+          <option value="Xenova/nomic-embed-text-v1">Xenova/nomic-embed-text-v1 (~130MB, English, 137M)</option>
+          <option value="Xenova/GIST-small-Embedding-v0">Xenova/GIST-small-Embedding-v0 (~33MB, English, 33M)</option>
+          <option value="Xenova/colbertv2.0">Xenova/colbertv2.0 (~105MB, English, 110M)</option>
+          <option value="Xenova/UAE-Large-V1">Xenova/UAE-Large-V1 (~330MB, English, 335M)</option>
+          <option value="Xenova/ernie-gram-zh">Xenova/ernie-gram-zh (~105MB, Chinese, 110M)</option>
+          <option value="Xenova/ernie-2.0-large-en">Xenova/ernie-2.0-large-en (~330MB, English, 340M)</option>
+          <option value="Xenova/w2v-bert-2.0">Xenova/w2v-bert-2.0 (~600MB, Multilingual, 600M)</option>
+          <option value="Xenova/electra-base-discriminator">Xenova/electra-base-discriminator (~105MB, English, 110M)</option>
+          <option value="Xenova/conv-bert-base">Xenova/conv-bert-base (~105MB, English, 110M)</option>
+          <option value="onnx-community/Qwen3-Embedding-0.6B-ONNX">onnx-community/Qwen3-Embedding-0.6B-ONNX (~600MB, Multilingual, 0.6B)</option>
+          <option value="mixedbread-ai/mxbai-embed-large-v1">mixedbread-ai/mxbai-embed-large-v1 (~330MB, English, 335M)</option>
+          <option value="custom">Custom...</option>
+        </select>
+      </label>
+      <div id="customLocalModelContainer" style="display: none; margin-top: 5px;">
+        <label>Custom Model ID: <input type="text" id="customLocalModel" placeholder="e.g. user/repo"></label>
+      </div>
+    </div>
+
+    <div id="openaiConfig" style="display: none; border-top: 1px solid #eee; padding-top: 10px;">
+      <label>API Key: <input type="password" id="openaiKey" placeholder="sk-..."></label>
+      <label>Endpoint: <input type="text" id="openaiEndpoint" value="https://api.openai.com/v1"></label>
+      <label>Model: <input type="text" id="openaiModel" value="text-embedding-3-small"></label>
+    </div>
+    
+    <div style="margin-top: 15px; text-align: right;">
+      <button id="btnSaveConfig" style="background: #28a745;">Save Configuration</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Status</h3>
+    <div id="status">Initializing...</div>
+  </div>
+
+  <div class="card">
+    <h3>Test Controls</h3>
+    <div class="stats">
+      <div class="stat-box">
+        <div>Documents</div>
+        <div id="docCount" class="stat-value">0</div>
+      </div>
+      <div class="stat-box">
+        <div>Index Time</div>
+        <div id="indexTime" class="stat-value">-</div>
+      </div>
+      <div class="stat-box">
+        <div>Search Time</div>
+        <div id="searchTime" class="stat-value">-</div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+      <label style="margin-bottom: 0;">Batch Size: <input type="number" id="batchSize" value="10" style="width: 60px; margin-bottom: 0;"></label>
+      <label style="margin-bottom: 0;">Max Docs: <input type="number" id="maxDocs" value="200" style="width: 80px; margin-bottom: 0;"></label>
+      <label style="margin-bottom: 0; display: flex; align-items: center;"><input type="checkbox" id="useBruteForce" style="width: auto; margin-bottom: 0; margin-right: 5px;"> Use Brute Force Search</label>
+    </div>
+
+    <button id="btnLoadQA">1b. Load QA Dataset (Small)</button>
+    <button id="btnLoadHF">1c. Load HF Dataset (Large)</button>
+    <button id="btnRunIndex" disabled>2. Run Indexing Test</button>
+    <button id="btnRunSearch" disabled>3. Run Search Test</button>
+    <button id="btnClear" style="background: #dc3545;">Clear DB</button>
+  </div>
+
+  <div class="card">
+    <h3>Logs</h3>
+    <div id="log" class="log"></div>
+  </div>
+
+  <script type="module" src="/ui/perf-test.ts"></script>
+</body>
+</html>

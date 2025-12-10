@@ -1,0 +1,652 @@
+[
+  {
+    "id": "geo_01",
+    "text": "法国的首都是巴黎，它以埃菲尔铁塔和卢浮宫博物馆而闻名。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_02",
+    "text": "日本的首都是东京。东京是世界上人口最多的都会区之一。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_03",
+    "text": "中国的首都是北京，拥有故宫、长城等著名历史遗迹。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_04",
+    "text": "美国的首都华盛顿特区，是白宫和国会大厦的所在地。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_05",
+    "text": "英国的首都是伦敦，泰晤士河穿城而过，大本钟是其标志。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_06",
+    "text": "Canberra is the capital city of Australia.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_07",
+    "text": "Ottawa is the capital of Canada, located in Ontario.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_08",
+    "text": "Brasilia is the federal capital of Brazil and seat of government.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_09",
+    "text": "Moscow is the capital and largest city of Russia.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_10",
+    "text": "New Delhi is the capital of India and an administrative district of NCT Delhi.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_11",
+    "text": "埃及的首都是开罗，尼罗河三角洲的顶端，金字塔就在附近。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_12",
+    "text": "柏林是德国的首都，也是德国最大的城市。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_13",
+    "text": "罗马是意大利的首都，曾是古罗马帝国的中心。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_14",
+    "text": "马德里是西班牙的首都及最大城市。",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_15",
+    "text": "Bangkok is the capital and most populous city of Thailand.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_16",
+    "text": "Seoul is the capital and largest metropolis of South Korea.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_17",
+    "text": "Hanoi is the capital city of Vietnam.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_18",
+    "text": "Buenos Aires is the capital and largest city of Argentina.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_19",
+    "text": "Mexico City is the capital and largest city of Mexico.",
+    "category": "Geography"
+  },
+  {
+    "id": "geo_20",
+    "text": "Cape Town is one of the three capital cities of South Africa.",
+    "category": "Geography"
+  },
+  {
+    "id": "sci_01",
+    "text": "光合作用是植物利用阳光、水和二氧化碳产生氧气和葡萄糖的过程。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_02",
+    "text": "牛顿第一运动定律指出，除非受到外力作用，否则物体将保持静止或匀速直线运动。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_03",
+    "text": "DNA（脱氧核糖核酸）是生物体发育和正常运作必不可少的生物大分子。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_04",
+    "text": "The Big Bang theory is the prevailing cosmological model for the universe from the earliest known periods.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_05",
+    "text": "Evolution is the change in the heritable characteristics of biological populations over successive generations.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_06",
+    "text": "原子是构成普通物质的最小单位，由质子、中子和电子组成。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_07",
+    "text": "水循环是指水在地球表面、大气和地下之间连续运动的过程。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_08",
+    "text": "Gravity is a natural phenomenon by which all things with mass or energy are brought toward one another.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_09",
+    "text": "Black holes are regions of spacetime where gravity is so strong that nothing can escape from it.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_10",
+    "text": "The periodic table is a tabular display of the chemical elements.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_11",
+    "text": "细胞是生物体结构和功能的基本单位。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_12",
+    "text": "爱因斯坦提出了相对论，彻底改变了我们对时间、空间和引力的理解。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_13",
+    "text": "Mitochondria are known as the powerhouses of the cell.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_14",
+    "text": "The speed of light in vacuum is approximately 299,792,458 meters per second.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_15",
+    "text": "Plate tectonics is a scientific theory describing the large-scale motion of seven large plates of Earth's lithosphere.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_16",
+    "text": "量子力学是描述微观物质（如原子和亚原子粒子）行为的物理学理论。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_17",
+    "text": "热力学第一定律是能量守恒定律在热现象领域的推广。",
+    "category": "Science"
+  },
+  {
+    "id": "sci_18",
+    "text": "Antibiotics are medicines that fight bacterial infections in people and animals.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_19",
+    "text": "Vaccines train the immune system to recognize and combat pathogens.",
+    "category": "Science"
+  },
+  {
+    "id": "sci_20",
+    "text": "Climate change refers to long-term shifts in temperatures and weather patterns.",
+    "category": "Science"
+  },
+  {
+    "id": "tech_01",
+    "text": "Python是一种广泛使用的高级编程语言，以其清晰的语法和代码可读性而闻名。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_02",
+    "text": "JavaScript是Web开发的三大核心技术之一，主要用于浏览器端的脚本编写。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_03",
+    "text": "Artificial Intelligence (AI) refers to the simulation of human intelligence in machines.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_04",
+    "text": "Blockchain is a distributed ledger technology that maintains a growing list of records, called blocks.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_05",
+    "text": "Linux是一种自由和开放源代码的类Unix操作系统。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_06",
+    "text": "Docker是一个开源的应用容器引擎，让开发者可以打包他们的应用以及依赖包到一个可移植的容器中。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_07",
+    "text": "Kubernetes is an open-source container orchestration system for automating software deployment, scaling, and management.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_08",
+    "text": "React is a free and open-source front-end JavaScript library for building user interfaces based on components.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_09",
+    "text": "Vue.js是一个用于构建用户界面的渐进式JavaScript框架。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_10",
+    "text": "Git是一个免费的开源分布式版本控制系统。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_11",
+    "text": "SQL (Structured Query Language) is a domain-specific language used in programming and designed for managing data held in a relational database management system.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_12",
+    "text": "HTTP (Hypertext Transfer Protocol) is an application layer protocol for distributed, collaborative, hypermedia information systems.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_13",
+    "text": "云计算通过互联网提供服务器、存储、数据库、网络、软件等计算服务。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_14",
+    "text": "5G是第五代移动通信技术，具有高速度、低时延和大连接的特点。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_15",
+    "text": "Machine Learning is a field of inquiry devoted to understanding and building methods that 'learn'.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_16",
+    "text": "Rust is a multi-paradigm, general-purpose programming language that emphasizes performance, type safety, and concurrency.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_17",
+    "text": "TypeScript是JavaScript的超集，添加了可选的静态类型。",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_18",
+    "text": "Node.js is a cross-platform, open-source server environment that can run JavaScript code outside a web browser.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_19",
+    "text": "Virtual Reality (VR) is a simulated experience that can be similar to or completely different from the real world.",
+    "category": "Technology"
+  },
+  {
+    "id": "tech_20",
+    "text": "物联网（IoT）是指通过互联网连接的物理设备网络，这些设备可以收集和共享数据。",
+    "category": "Technology"
+  },
+  {
+    "id": "hist_01",
+    "text": "第二次世界大战于1939年爆发，1945年结束，是人类历史上规模最大的全球性冲突。",
+    "category": "History"
+  },
+  {
+    "id": "hist_02",
+    "text": "秦始皇是中国历史上第一位皇帝，他统一了六国，建立了秦朝。",
+    "category": "History"
+  },
+  {
+    "id": "hist_03",
+    "text": "The Industrial Revolution was the transition to new manufacturing processes in Great Britain, continental Europe, and the United States.",
+    "category": "History"
+  },
+  {
+    "id": "hist_04",
+    "text": "The Renaissance was a fervent period of European cultural, artistic, political and economic 'rebirth' following the Middle Ages.",
+    "category": "History"
+  },
+  {
+    "id": "hist_05",
+    "text": "唐朝是中国历史上最强盛的朝代之一，以其开放的文化和繁荣的经济著称。",
+    "category": "History"
+  },
+  {
+    "id": "hist_06",
+    "text": "古埃及文明以金字塔、木乃伊和象形文字闻名于世。",
+    "category": "History"
+  },
+  {
+    "id": "hist_07",
+    "text": "Alexander the Great was a king of the ancient Greek kingdom of Macedon.",
+    "category": "History"
+  },
+  {
+    "id": "hist_08",
+    "text": "Julius Caesar was a Roman general and statesman who played a critical role in the events that led to the demise of the Roman Republic and the rise of the Roman Empire.",
+    "category": "History"
+  },
+  {
+    "id": "hist_09",
+    "text": "法国大革命是1789年爆发的一场深刻的政治和社会革命。",
+    "category": "History"
+  },
+  {
+    "id": "hist_10",
+    "text": "美国南北战争（1861-1865）是美国历史上关于奴隶制和国家统一的内战。",
+    "category": "History"
+  },
+  {
+    "id": "hist_11",
+    "text": "The Cold War was a period of geopolitical tension between the United States and the Soviet Union and their respective allies.",
+    "category": "History"
+  },
+  {
+    "id": "hist_12",
+    "text": "Apollo 11 was the spaceflight that first landed humans on the Moon.",
+    "category": "History"
+  },
+  {
+    "id": "hist_13",
+    "text": "成吉思汗是蒙古帝国的奠基者，他统一了蒙古各部。",
+    "category": "History"
+  },
+  {
+    "id": "hist_14",
+    "text": "孔子是中国古代著名的思想家、教育家，儒家学派的创始人。",
+    "category": "History"
+  },
+  {
+    "id": "hist_15",
+    "text": "Christopher Columbus was an Italian explorer and navigator who completed four voyages across the Atlantic Ocean.",
+    "category": "History"
+  },
+  {
+    "id": "hist_16",
+    "text": "Leonardo da Vinci was an Italian polymath of the High Renaissance who is active as a painter, draughtsman, engineer, scientist, theorist, sculptor, and architect.",
+    "category": "History"
+  },
+  {
+    "id": "hist_17",
+    "text": "明治维新是日本在19世纪后半叶进行的一场政治、经济和社会改革，使其迅速现代化。",
+    "category": "History"
+  },
+  {
+    "id": "hist_18",
+    "text": "The Berlin Wall was a guarded concrete barrier that physically and ideologically divided Berlin from 1961 to 1989.",
+    "category": "History"
+  },
+  {
+    "id": "hist_19",
+    "text": "Mahatma Gandhi was an Indian lawyer, anti-colonial nationalist and political ethicist.",
+    "category": "History"
+  },
+  {
+    "id": "hist_20",
+    "text": "丝绸之路是连接中国和西方的重要贸易路线。",
+    "category": "History"
+  },
+  {
+    "id": "lit_01",
+    "text": "William Shakespeare was an English playwright, poet, and actor, widely regarded as the greatest writer in the English language.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_02",
+    "text": "《红楼梦》是中国古典四大名著之一，作者是曹雪芹。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_03",
+    "text": "《西游记》讲述了唐僧师徒四人去西天取经的故事。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_04",
+    "text": "Harry Potter is a series of seven fantasy novels written by British author J. K. Rowling.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_05",
+    "text": "The Lord of the Rings is an epic high-fantasy novel by English author and scholar J. R. R. Tolkien.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_06",
+    "text": "李白是唐代伟大的浪漫主义诗人，被后人誉为“诗仙”。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_07",
+    "text": "杜甫是唐代伟大的现实主义诗人，被后人誉为“诗圣”。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_08",
+    "text": "To Kill a Mockingbird is a novel by the American author Harper Lee.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_09",
+    "text": "1984 is a dystopian social science fiction novel and cautionary tale by the English writer George Orwell.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_10",
+    "text": "《三国演义》描写了东汉末年到西晋初年之间近百年的历史风云。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_11",
+    "text": "Hamlet is a tragedy written by William Shakespeare.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_12",
+    "text": "Pride and Prejudice is an 1813 novel of manners by Jane Austen.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_13",
+    "text": "《水浒传》是中国历史上第一部用白话文写成的章回小说。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_14",
+    "text": "Don Quixote is a Spanish novel by Miguel de Cervantes.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_15",
+    "text": "鲁迅是中国现代文学的奠基人之一，代表作有《狂人日记》、《阿Q正传》。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_16",
+    "text": "The Great Gatsby is a 1925 novel by American writer F. Scott Fitzgerald.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_17",
+    "text": "《百年孤独》是哥伦比亚作家加西亚·马尔克斯的代表作，魔幻现实主义文学的经典。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_18",
+    "text": "Sherlock Holmes is a fictional private detective created by British author Sir Arthur Conan Doyle.",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_19",
+    "text": "海明威是美国著名作家，代表作有《老人与海》。",
+    "category": "Literature"
+  },
+  {
+    "id": "lit_20",
+    "text": "Les Misérables is a French historical novel by Victor Hugo.",
+    "category": "Literature"
+  },
+  {
+    "id": "art_01",
+    "text": "Vincent van Gogh was a Dutch Post-Impressionist painter who is among the most famous and influential figures in the history of Western art.",
+    "category": "Art"
+  },
+  {
+    "id": "art_02",
+    "text": "Pablo Picasso was a Spanish painter, sculptor, printmaker, ceramicist and theatre designer.",
+    "category": "Art"
+  },
+  {
+    "id": "art_03",
+    "text": "《蒙娜丽莎》是列奥纳多·达·芬奇创作的油画，现藏于卢浮宫。",
+    "category": "Art"
+  },
+  {
+    "id": "art_04",
+    "text": "Impressionism is a 19th-century art movement characterized by relatively small, thin, yet visible brush strokes.",
+    "category": "Art"
+  },
+  {
+    "id": "art_05",
+    "text": "Michelangelo was an Italian sculptor, painter, architect and poet of the High Renaissance.",
+    "category": "Art"
+  },
+  {
+    "id": "art_06",
+    "text": "《清明上河图》是北宋画家张择端的风俗画作品。",
+    "category": "Art"
+  },
+  {
+    "id": "art_07",
+    "text": "Beethoven was a German composer and pianist.",
+    "category": "Art"
+  },
+  {
+    "id": "art_08",
+    "text": "Mozart was a prolific and influential composer of the Classical period.",
+    "category": "Art"
+  },
+  {
+    "id": "art_09",
+    "text": "京剧是中国影响最大的戏曲剧种。",
+    "category": "Art"
+  },
+  {
+    "id": "art_10",
+    "text": "The Starry Night is an oil on canvas painting by Dutch Post-Impressionist painter Vincent van Gogh.",
+    "category": "Art"
+  },
+  {
+    "id": "sport_01",
+    "text": "Football (Soccer) is a team sport played with a spherical ball between two teams of 11 players.",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_02",
+    "text": "Basketball is a team sport in which two teams, most commonly of five players each, opposing one another on a rectangular court.",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_03",
+    "text": "The Olympic Games are leading international sporting events featuring summer and winter sports competitions.",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_04",
+    "text": "迈克尔·乔丹被广泛认为是有史以来最伟大的篮球运动员。",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_05",
+    "text": "Lionel Messi is an Argentine professional footballer.",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_06",
+    "text": "乒乓球是中国的国球。",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_07",
+    "text": "Tennis is a racket sport that can be played individually against a single opponent or between two teams of two players each.",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_08",
+    "text": "Usain Bolt is a Jamaican retired sprinter, widely considered to be the greatest sprinter of all time.",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_09",
+    "text": "Cricket is a bat-and-ball game played between two teams of eleven players.",
+    "category": "Sports"
+  },
+  {
+    "id": "sport_10",
+    "text": "Super Bowl is the annual league championship game of the National Football League (NFL) of the United States.",
+    "category": "Sports"
+  },
+  {
+    "id": "food_01",
+    "text": "Sushi is a traditional Japanese dish of prepared vinegared rice.",
+    "category": "Food"
+  },
+  {
+    "id": "food_02",
+    "text": "Pizza is a dish of Italian origin consisting of a usually round, flat base of leavened wheat-based dough topped with tomatoes, cheese, and often various other ingredients.",
+    "category": "Food"
+  },
+  {
+    "id": "food_03",
+    "text": "饺子是中国北方的传统食物，通常在春节食用。",
+    "category": "Food"
+  },
+  {
+    "id": "food_04",
+    "text": "Chocolate is a food made from roasted and ground cacao seeds.",
+    "category": "Food"
+  },
+  {
+    "id": "food_05",
+    "text": "Coffee is a brewed drink prepared from roasted coffee beans.",
+    "category": "Food"
+  },
+  {
+    "id": "food_06",
+    "text": "Tea is an aromatic beverage prepared by pouring hot or boiling water over cured or fresh leaves of Camellia sinensis.",
+    "category": "Food"
+  },
+  {
+    "id": "food_07",
+    "text": "火锅是一种中国烹饪方法，在餐桌上放一个煮着汤底的锅，食客自己涮煮食物。",
+    "category": "Food"
+  },
+  {
+    "id": "food_08",
+    "text": "Pasta is a type of food typically made from an unleavened dough of wheat flour mixed with water or eggs.",
+    "category": "Food"
+  },
+  {
+    "id": "food_09",
+    "text": "Kimchi is a traditional Korean side dish of salted and fermented vegetables.",
+    "category": "Food"
+  },
+  {
+    "id": "food_10",
+    "text": "Tacos are a traditional Mexican dish consisting of a small hand-sized corn or wheat tortilla topped with a filling.",
+    "category": "Food"
+  }
+]

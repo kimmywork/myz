@@ -56,7 +56,11 @@ export default defineComponent({
           conversationId: conv.id,
           title: conv.title,
           url: conv.url,
-          messages: messages,
+          messages,
+          sendContextEnabled:
+            typeof conv.sendContextEnabled === "boolean"
+              ? conv.sendContextEnabled
+              : messages.some((m) => m.metadata?.type === "page_context"),
         });
       } catch (e) {
         console.error("Failed to load conversation:", e);
@@ -92,50 +96,58 @@ export default defineComponent({
     });
 
     return () => (
-      <div class="history-view">
-        <header class="history-header">
-          <h2>对话历史</h2>
-          <button class="btn btn-secondary" onClick={props.onBack}>
+      <div class="flex h-full flex-col gap-4">
+        <header class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
+          <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            对话历史
+          </h2>
+          <button
+            class="inline-flex items-center rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+            onClick={props.onBack}
+          >
             返回
           </button>
         </header>
 
         {isLoading.value ? (
-          <div class="loading">加载中...</div>
+          <div class="flex flex-1 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+            加载中...
+          </div>
         ) : conversations.value.length === 0 ? (
-          <div class="empty-state">
-            <p>暂无对话历史</p>
-            <p class="hint">与AI助理的对话将自动保存到这里</p>
+          <div class="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/70 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
+            <p class="text-base font-medium">暂无对话历史</p>
+            <p class="mt-1 text-xs">与AI助理的对话将自动保存到这里</p>
           </div>
         ) : (
-          <ul class="conversation-list">
+          <ul class="flex-1 space-y-3 overflow-y-auto pr-1">
             {conversations.value.map((conv) => (
-              <li key={conv.id} class="conversation-item">
+              <li
+                key={conv.id}
+                class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-4 shadow-sm transition hover:border-indigo-400 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-800/80"
+              >
                 <div
-                  class="conversation-info"
+                  class="flex-1 cursor-pointer overflow-hidden"
                   onClick={() => selectConversation(conv)}
                 >
-                  <div class="conversation-title">
+                  <div class="truncate text-base font-semibold text-slate-900 dark:text-white">
                     {conv.title || "未命名对话"}
                   </div>
-                  <div class="conversation-url" title={conv.url}>
+                  <div class="truncate text-xs text-slate-500 dark:text-slate-400">
                     {truncate(conv.url)}
                   </div>
-                  <div class="conversation-meta">
-                    <span class="conversation-date">
-                      {formatDate(conv.updatedAt)}
-                    </span>
+                  <div class="mt-2 text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    {formatDate(conv.updatedAt)}
                   </div>
                 </div>
                 <button
-                  class="delete-btn"
+                  class="rounded-full border border-rose-200 px-3 py-1 text-xs font-medium text-rose-500 transition hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
                   onClick={(e) => {
                     e.stopPropagation();
                     deleteConv(conv.id);
                   }}
                   title="删除对话"
                 >
-                  🗑️
+                  删除
                 </button>
               </li>
             ))}

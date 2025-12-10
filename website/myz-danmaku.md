@@ -18,6 +18,9 @@ hero:
     - theme: alt
       text: 隐私政策
       link: /privacy
+    - theme: alt
+      text: 用户指南
+      link: /danmaku/guide
 features:
   - title: 评论转弹幕
     details: 自动识别带时间码的评论，并跟随视频播放同步显示。

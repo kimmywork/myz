@@ -9,7 +9,14 @@
     "48": "assets/icon-128.png",
     "128": "assets/icon-128.png"
   },
-  "permissions": ["storage", "tabs", "activeTab", "contextMenus", "sidePanel"],
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "contextMenus",
+    "sidePanel",
+    "declarativeNetRequest"
+  ],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background.js",
