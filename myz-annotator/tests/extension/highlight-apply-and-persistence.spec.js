@@ -152,7 +152,6 @@ test("save_clip_via_toolbar_persists_to_dashboard", async () => {
   await page.mouse.move(box.x + 120, box.y + 10);
   await page.mouse.up();
 
-
   await page.waitForTimeout(300); // wait a bit for selection to register
   // record the selection text for later verification
   const selectionText = await page.evaluate(() => {

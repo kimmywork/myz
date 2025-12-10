@@ -67,22 +67,26 @@ import {
   window.__myzAnnotatorInitialized = true;
   const CANONICAL_URL = canonicalUrl(window.location.href);
 
+  // Keep a handle to our injected style.
+  let contentStyleElement = null;
+
   ensureContentStyles();
 
   const highlightCache = new Map();
   const unreachableHighlights = new Set();
 
   function ensureContentStyles() {
-    const existing = document.querySelector(
-      'style[data-myz-annotator-style="1"]',
-    );
+    const doc = document;
+    const existing = doc.querySelector('style[data-myz-annotator-style="1"]');
     if (existing) {
+      contentStyleElement = existing;
       return existing;
     }
-    const style = document.createElement("style");
+    const style = doc.createElement("style");
     style.setAttribute("data-myz-annotator-style", "1");
     style.textContent = contentStyles;
-    (document.head || document.documentElement).appendChild(style);
+    (doc.head || doc.documentElement).appendChild(style);
+    contentStyleElement = style;
     return style;
   }
 
@@ -387,9 +391,7 @@ import {
                 storedRanges.push(selection.getRangeAt(index).cloneRange());
               }
               selection.removeAllRanges();
-              await new Promise((res) =>
-                requestAnimationFrame(() => requestAnimationFrame(res)),
-              );
+              await waitForNextPaint();
             }
 
             const originalScroll = { x: window.scrollX, y: window.scrollY };
@@ -441,9 +443,7 @@ import {
                     const tileTopAbs =
                       elementAbsTop + globalRow * viewport.height;
                     window.scrollTo(tileLeftAbs, tileTopAbs);
-                    await new Promise((res) =>
-                      requestAnimationFrame(() => requestAnimationFrame(res)),
-                    );
+                    await waitForNextPaint();
                     const dataUrl = await captureVisiblePngWithThrottle();
                     if (!dataUrl) continue;
                     // Account for scroll clamping at edges by using actual offsets
@@ -606,9 +606,7 @@ import {
                     const tileLeftAbs = globalCol * viewport.width;
                     const tileTopAbs = globalRow * viewport.height;
                     window.scrollTo(tileLeftAbs, tileTopAbs);
-                    await new Promise((res) =>
-                      requestAnimationFrame(() => requestAnimationFrame(res)),
-                    );
+                    await waitForNextPaint();
                     const dataUrl = await captureVisiblePngWithThrottle();
                     if (!dataUrl) continue;
                     // Use actual scroll offsets to avoid losing the final portion
@@ -679,9 +677,7 @@ import {
         if (since < minGap) {
           await sleep(minGap - since);
         }
-        await new Promise((res) =>
-          requestAnimationFrame(() => requestAnimationFrame(res)),
-        );
+        await waitForNextPaint();
         const resp = await new Promise((resolve) => {
           try {
             chrome.runtime.sendMessage(
@@ -816,6 +812,7 @@ import {
 
   async function restoreHighlights() {
     try {
+      ensureContentStyles();
       const currentUrl = window.location.href;
       const currentCanonical = canonicalUrl(currentUrl);
       const urlAliases = buildUrlAliases(currentUrl, currentCanonical);
@@ -1565,10 +1562,22 @@ import {
     }
     element.dataset.highlightStyle = style;
     element.style.setProperty("--myz-highlight-color", color);
+
+    // Inline fallbacks so highlights remain visible even if the stylesheet is removed.
+    element.style.backgroundColor = "transparent";
+    element.style.textDecoration = "";
+    element.style.textDecorationColor = "";
+    element.style.textDecorationThickness = "";
     if (style === HIGHLIGHT_STYLES.PAINT) {
       element.style.backgroundColor = color;
-    } else {
-      element.style.backgroundColor = "transparent";
+    } else if (style === HIGHLIGHT_STYLES.UNDERLINE) {
+      element.style.textDecoration = "underline";
+      element.style.textDecorationColor = color;
+      element.style.textDecorationThickness = "2px";
+    } else if (style === HIGHLIGHT_STYLES.WAVY) {
+      element.style.textDecoration = "underline wavy";
+      element.style.textDecorationColor = color;
+      element.style.textDecorationThickness = "2px";
     }
   }
 

@@ -21,7 +21,8 @@ const REASONING_TYPES = new Set([
 const LOCAL_TOOL_DEFINITIONS = [
   {
     name: "myz-list-hosts",
-    description: "列出所有保存过的站点 host 以及对应的标注数量，按数量降序排序。",
+    description:
+      "列出所有保存过的站点 host 以及对应的标注数量，按数量降序排序。",
     parameters: {
       type: "object",
       properties: {},
@@ -67,8 +68,7 @@ const LOCAL_TOOL_DEFINITIONS = [
   },
   {
     name: "myz-filter-by-date",
-    description:
-      "按日期范围筛选标注，返回最近的标注，日期格式 YYYY-MM-DD。",
+    description: "按日期范围筛选标注，返回最近的标注，日期格式 YYYY-MM-DD。",
     parameters: {
       type: "object",
       properties: {
@@ -280,8 +280,10 @@ export class AiProvider {
           id: providerId,
           apiEndpoint,
           requestHeaders,
-          lastTestStatus:
-            this.provider?.lastTestStatus || { ok: true, message: "" },
+          lastTestStatus: this.provider?.lastTestStatus || {
+            ok: true,
+            message: "",
+          },
         },
       ],
     };

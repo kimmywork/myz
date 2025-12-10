@@ -83,8 +83,10 @@ test.afterAll(async () => {
   } catch (e) {}
 });
 
-async function selectAndAnnotate(page, locator, note = "", text=undefined) {
-  const el = text ? page.locator(locator, { hasText: text }).first() : page.locator(locator).first();
+async function selectAndAnnotate(page, locator, note = "", text = undefined) {
+  const el = text
+    ? page.locator(locator, { hasText: text }).first()
+    : page.locator(locator).first();
   await el.waitFor({ timeout: 5000 });
   await el.scrollIntoViewIfNeeded({ timeout: 5000 });
   const box = await el.boundingBox();
@@ -128,20 +130,10 @@ test("highlight_and_comment_on_complex_fixture", async () => {
   await page.goto(`${serverUrl}/complex-highlight-test.html`);
 
   // 1) Paragraph with repeated text
-  const sel1 = await selectAndAnnotate(
-    page,
-    'p',
-    "note para",
-    '高亮测试'
-  );
+  const sel1 = await selectAndAnnotate(page, "p", "note para", "高亮测试");
 
   // 2) Table cell text
-  const sel2 = await selectAndAnnotate(
-    page,
-    'td',
-    "note table",
-    '高亮测试'
-  );
+  const sel2 = await selectAndAnnotate(page, "td", "note table", "高亮测试");
 
   // 3) Code block content (select inside pre/code)
   const sel3 = await selectAndAnnotate(page, ".code-block pre", "note code");
@@ -150,17 +142,17 @@ test("highlight_and_comment_on_complex_fixture", async () => {
   await page.click("details summary");
   const sel4 = await selectAndAnnotate(
     page,
-    'details p',
+    "details p",
     "note details",
-    '这个段落藏在详情里'
+    "这个段落藏在详情里",
   );
 
   // 5) Repeat line (one of the repeated lines)
   const sel5 = await selectAndAnnotate(
     page,
-    '.repeat .line',
+    ".repeat .line",
     "note repeat",
-    "第 3 行"
+    "第 3 行",
   );
 
   // After creating several highlights, reload to verify persistence
@@ -237,7 +229,7 @@ test("export_markdown_contains_codeblock_and_notes", async () => {
   await selectAndAnnotate(page, ".code-block pre", "export note code");
 
   // highlight a paragraph and add a note
-  await selectAndAnnotate(page, 'p', "export note para", "高亮测试");
+  await selectAndAnnotate(page, "p", "export note para", "高亮测试");
 
   // Ensure highlights applied (extended timeout for slower CI environments)
   await page.waitForSelector(".myz-highlight", { timeout: 15000 });

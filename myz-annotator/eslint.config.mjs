@@ -55,9 +55,8 @@ export default defineConfig([
       "no-unused-vars": "warn",
     },
     languageOptions: {
-      sourceType: "commonjs",
+      sourceType: "module",
       globals: {
-        ...globals.commonjs,
         ...globals.node,
         ...globals.jest,
       },
