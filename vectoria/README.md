@@ -1,4 +1,4 @@
-# MyZ Indexer
+# Vectoria
 
 A lightweight, client-side vector search engine for the browser, built with HNSW and IndexedDB.
 
@@ -15,19 +15,19 @@ A lightweight, client-side vector search engine for the browser, built with HNSW
 ## Installation
 
 ```bash
-npm install myz-indexer
+npm install vectoria
 ```
 
 ## Usage
 
 ### 1. Basic Usage (Local Embeddings)
 
-By default, `MyZIndexer` uses a local transformer model (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`).
+By default, `Vectoria` uses a local transformer model (`Xenova/paraphrase-multilingual-MiniLM-L12-v2`).
 
 ```typescript
-import { MyZIndexer } from 'myz-indexer';
+import { Vectoria } from 'vectoria';
 
-const indexer = new MyZIndexer({
+const indexer = new Vectoria({
   useLocalModel: true, // Default
 });
 
@@ -50,9 +50,9 @@ console.log(results);
 You can use OpenAI or any OpenAI-compatible endpoint (like LocalAI, Ollama, etc.).
 
 ```typescript
-import { MyZIndexer, OpenAIEmbedder } from 'myz-indexer';
+import { Vectoria, OpenAIEmbedder } from 'vectoria';
 
-const indexer = new MyZIndexer({
+const indexer = new Vectoria({
   useLocalModel: false,
   customEmbedder: new OpenAIEmbedder({
     apiKey: 'sk-your-api-key',
@@ -69,7 +69,7 @@ await indexer.init();
 Implement the `EmbeddingModel` interface to use any embedding provider.
 
 ```typescript
-import { MyZIndexer, EmbeddingModel } from 'myz-indexer';
+import { Vectoria, EmbeddingModel } from 'vectoria';
 
 class MyCustomEmbedder implements EmbeddingModel {
   async embed(text: string): Promise<number[]> {
@@ -82,19 +82,19 @@ class MyCustomEmbedder implements EmbeddingModel {
   }
 }
 
-const indexer = new MyZIndexer({
+const indexer = new Vectoria({
   customEmbedder: new MyCustomEmbedder()
 });
 ```
 
 ## API Reference
 
-### `MyZIndexer`
+### `Vectoria`
 
 #### Constructor
-`new MyZIndexer(config?: IndexerConfig)`
+`new Vectoria(config?: IndexerConfig)`
 
-- `dbName`: IndexedDB database name (default: 'myz-indexer-db').
+- `dbName`: IndexedDB database name (default: 'vectoria-db').
 - `storeName`: Object store name (default: 'documents').
 - `useLocalModel`: Boolean to enable local transformers (default: true).
 - `modelName`: HuggingFace model ID for local model (default: 'Xenova/paraphrase-multilingual-MiniLM-L12-v2').

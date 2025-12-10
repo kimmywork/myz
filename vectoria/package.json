@@ -1,23 +1,24 @@
 {
-  "name": "myz-indexer",
+  "name": "vectoria",
   "version": "0.0.1",
   "type": "module",
-  "main": "./dist/myz-indexer.umd.cjs",
-  "module": "./dist/myz-indexer.js",
+  "main": "./dist/vectoria.umd.cjs",
+  "module": "./dist/vectoria.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
   "exports": {
     ".": {
-      "import": "./dist/myz-indexer.js",
-      "require": "./dist/myz-indexer.umd.cjs",
+      "import": "./dist/vectoria.js",
+      "require": "./dist/vectoria.umd.cjs",
       "types": "./dist/index.d.ts"
     }
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:docs": "tsc && vite build --mode docs && cp -r data docs/",
     "preview": "vite preview"
   },
   "dependencies": {

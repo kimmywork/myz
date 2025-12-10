@@ -43,7 +43,7 @@ btnLoadQA.addEventListener('click', async () => {
   
   try {
     log('Fetching QA Dataset...');
-    const res = await fetch('/data/qa_dataset.json');
+    const res = await fetch('data/qa_dataset.json');
     const data = await res.json();
     
     parsedDocs = data.map((item: any) => ({
@@ -72,7 +72,7 @@ btnLoadHF.addEventListener('click', async () => {
   
   try {
     log('Fetching HuggingFace Dataset (data/hf_dataset.json)...');
-    const res = await fetch('/data/hf_dataset.json');
+    const res = await fetch('data/hf_dataset.json');
     if (!res.ok) throw new Error('File not found. Please run "python3 download_hf_data.py" first.');
     
     const data = await res.json();

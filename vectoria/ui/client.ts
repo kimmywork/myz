@@ -12,9 +12,10 @@ export class IndexerClient {
     }
 
     try {
-      const registration = await navigator.serviceWorker.register('/ui/sw.ts', {
+      const swUrl = import.meta.env.PROD ? 'sw.js' : '/ui/sw.ts';
+      const registration = await navigator.serviceWorker.register(swUrl, {
         type: 'module',
-        scope: '/'
+        scope: './'
       });
 
       if (registration.installing) {

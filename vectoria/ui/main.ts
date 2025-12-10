@@ -9,10 +9,19 @@ const docListEl = document.getElementById('docList')!;
 
 // Config Elements
 const embedderTypeEl = document.getElementById('embedderType') as HTMLSelectElement;
+
+// Local Config Elements
+const localConfigEl = document.getElementById('localConfig') as HTMLDivElement;
+const localModelSelectEl = document.getElementById('localModelSelect') as HTMLSelectElement;
+const customLocalModelContainerEl = document.getElementById('customLocalModelContainer') as HTMLDivElement;
+const customLocalModelEl = document.getElementById('customLocalModel') as HTMLInputElement;
+
+// OpenAI Config Elements
 const openaiConfigEl = document.getElementById('openaiConfig') as HTMLDivElement;
 const openaiKeyEl = document.getElementById('openaiKey') as HTMLInputElement;
 const openaiEndpointEl = document.getElementById('openaiEndpoint') as HTMLInputElement;
 const openaiModelEl = document.getElementById('openaiModel') as HTMLInputElement;
+const btnSaveConfig = document.getElementById('btnSaveConfig') as HTMLButtonElement;
 
 // Migration Elements
 const btnMigrate = document.getElementById('btnMigrate') as HTMLButtonElement;
@@ -26,15 +35,16 @@ const client = new IndexerClient((msg) => {
 let migrationPollInterval: any = null;
 
 // Load saved config
-const savedOpenAIConfig = localStorage.getItem('myz_indexer_openai_config');
-const savedType = localStorage.getItem('myz_indexer_type');
+const savedOpenAIConfig = localStorage.getItem('vectoria_openai_config');
+const savedLocalConfig = localStorage.getItem('vectoria_local_config');
+const savedType = localStorage.getItem('vectoria_type');
 
 if (savedType) {
   embedderTypeEl.value = savedType;
 }
 
 // Set initial visibility based on loaded type (or default)
-openaiConfigEl.style.display = embedderTypeEl.value === 'openai' ? 'block' : 'none';
+updateVisibility();
 
 if (savedOpenAIConfig) {
   try {
@@ -43,23 +53,62 @@ if (savedOpenAIConfig) {
     if (config.endpoint) openaiEndpointEl.value = config.endpoint;
     if (config.modelName) openaiModelEl.value = config.modelName;
   } catch (e) {
-    console.error('Failed to parse saved config', e);
+    console.error('Failed to parse saved OpenAI config', e);
+  }
+}
+
+if (savedLocalConfig) {
+  try {
+    const config = JSON.parse(savedLocalConfig);
+    if (config.modelName) {
+      // Check if model is in select options
+      const optionExists = Array.from(localModelSelectEl.options).some(opt => opt.value === config.modelName);
+      if (optionExists) {
+        localModelSelectEl.value = config.modelName;
+      } else {
+        localModelSelectEl.value = 'custom';
+        customLocalModelEl.value = config.modelName;
+        customLocalModelContainerEl.style.display = 'block';
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse saved Local config', e);
   }
 }
 
 // Config Logic
 embedderTypeEl.addEventListener('change', () => {
-  openaiConfigEl.style.display = embedderTypeEl.value === 'openai' ? 'block' : 'none';
-  updateConfig();
+  updateVisibility();
 });
 
-[openaiKeyEl, openaiEndpointEl, openaiModelEl].forEach(el => {
-  el.addEventListener('change', () => updateConfig());
+localModelSelectEl.addEventListener('change', () => {
+  if (localModelSelectEl.value === 'custom') {
+    customLocalModelContainerEl.style.display = 'block';
+  } else {
+    customLocalModelContainerEl.style.display = 'none';
+  }
 });
 
-function updateConfig() {
+btnSaveConfig.addEventListener('click', () => {
+  updateConfig(true);
+});
+
+function updateVisibility() {
+  const isOpenAI = embedderTypeEl.value === 'openai';
+  openaiConfigEl.style.display = isOpenAI ? 'block' : 'none';
+  localConfigEl.style.display = isOpenAI ? 'none' : 'block';
+}
+
+function updateConfig(showFeedback = false) {
+  const localModelName = localModelSelectEl.value === 'custom' 
+    ? customLocalModelEl.value 
+    : localModelSelectEl.value;
+
   const config = {
     type: embedderTypeEl.value,
+    local: {
+      modelName: localModelName
+    },
     openai: {
       apiKey: openaiKeyEl.value,
       endpoint: openaiEndpointEl.value,
@@ -67,15 +116,38 @@ function updateConfig() {
     }
   };
 
-  localStorage.setItem('myz_indexer_type', config.type);
-  localStorage.setItem('myz_indexer_openai_config', JSON.stringify(config.openai));
+  localStorage.setItem('vectoria_type', config.type);
+  localStorage.setItem('vectoria_openai_config', JSON.stringify(config.openai));
+  localStorage.setItem('vectoria_local_config', JSON.stringify(config.local));
   
   // Only send if client is ready, otherwise just return config
   if (client) {
+     const originalText = btnSaveConfig.textContent;
+     if (showFeedback) {
+       btnSaveConfig.textContent = 'Saving...';
+       btnSaveConfig.disabled = true;
+     }
+
      client.sendMessage('CONFIGURE', config).then(() => {
        console.log('Configuration updated');
+       if (showFeedback) {
+         statusEl.textContent = 'Configuration saved and applied.';
+         btnSaveConfig.textContent = 'Saved!';
+         setTimeout(() => {
+           btnSaveConfig.textContent = originalText;
+           btnSaveConfig.disabled = false;
+         }, 2000);
+       }
      }).catch(err => {
        console.error('Config update failed', err);
+       if (showFeedback) {
+         statusEl.textContent = 'Error saving configuration: ' + err.message;
+         btnSaveConfig.textContent = 'Error';
+         setTimeout(() => {
+           btnSaveConfig.textContent = originalText;
+           btnSaveConfig.disabled = false;
+         }, 2000);
+       }
      });
   }
   

@@ -10,14 +10,14 @@ export * from './types';
 export { OpenAIEmbedder };
 export type { OpenAIConfig };
 
-export class MyZIndexer {
+export class Vectoria {
   private db: VectorStore;
   private embedder: EmbeddingModel;
   private index: HNSWIndex;
   private initialized: boolean = false;
 
   constructor(config: IndexerConfig = {}) {
-    this.db = new VectorStore(config.dbName, config.storeName);
+    this.db = new VectorStore(config.dbName || 'vectoria-db', config.storeName);
     this.index = new HNSWIndex(); // Default config
     
     if (config.customEmbedder) {

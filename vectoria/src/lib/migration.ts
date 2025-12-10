@@ -1,4 +1,4 @@
-import { MyZIndexer } from '../index';
+import { Vectoria } from '../index';
 import { EmbeddingModel } from '../types';
 import { VectorDocument } from '../types';
 
@@ -11,7 +11,7 @@ export interface MigrationStatus {
 }
 
 export class MigrationManager {
-  private indexer: MyZIndexer;
+  private indexer: Vectoria;
   private targetEmbedder: EmbeddingModel;
   private status: MigrationStatus = {
     total: 0,
@@ -22,7 +22,7 @@ export class MigrationManager {
   private isRunning: boolean = false;
   private shouldStop: boolean = false;
 
-  constructor(indexer: MyZIndexer, targetEmbedder: EmbeddingModel) {
+  constructor(indexer: Vectoria, targetEmbedder: EmbeddingModel) {
     this.indexer = indexer;
     this.targetEmbedder = targetEmbedder;
   }
@@ -78,13 +78,13 @@ export class MigrationManager {
         if (this.shouldStop) break;
 
         const batch = allDocs.slice(i, i + batchSize);
-        const texts = batch.map(d => d.text);
+        const texts = batch.map((d: VectorDocument) => d.text);
         
         // Generate new embeddings
         const newEmbeddings = await this.targetEmbedder.embedBatch(texts);
         
         // Update docs and add to index
-        const updatedDocs: VectorDocument[] = batch.map((doc, idx) => ({
+        const updatedDocs: VectorDocument[] = batch.map((doc: VectorDocument, idx: number) => ({
           ...doc,
           embedding: newEmbeddings[idx]
         }));

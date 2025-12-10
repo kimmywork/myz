@@ -1,12 +1,12 @@
 /// <reference lib="webworker" />
-import { MyZIndexer, OpenAIEmbedder } from '../src/index';
+import { Vectoria, OpenAIEmbedder } from '../src/index';
 import { MigrationManager } from '../src/lib/migration';
 
 declare const self: ServiceWorkerGlobalScope;
 
 // Initialize the indexer inside the Service Worker
 // Note: transformers.js will cache models in Cache API automatically
-let indexer = new MyZIndexer({
+let indexer = new Vectoria({
   useLocalModel: true,
   modelName: 'Xenova/paraphrase-multilingual-MiniLM-L12-v2' // Multilingual support (ZH/EN/JP)
 });
@@ -48,7 +48,7 @@ self.addEventListener('message', async (event) => {
       case 'CONFIGURE':
         // Re-initialize indexer with new config
         if (payload.type === 'openai') {
-          indexer = new MyZIndexer({
+          indexer = new Vectoria({
             customEmbedder: new OpenAIEmbedder({
               apiKey: payload.openai.apiKey,
               endpoint: payload.openai.endpoint,
@@ -56,9 +56,9 @@ self.addEventListener('message', async (event) => {
             })
           });
         } else {
-          indexer = new MyZIndexer({
+          indexer = new Vectoria({
             useLocalModel: true,
-            modelName: 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
+            modelName: payload.local?.modelName || 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
           });
         }
         result = { success: true };
