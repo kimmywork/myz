@@ -2,8 +2,6 @@
  * Content extraction utilities for AI and other features
  */
 
-import { isNodeFromMyz } from "../shared/serializer.js";
-
 const MAX_CONTENT_LENGTH = 15000;
 const CONTENT_STRATEGIES = [
   // Strategy 1: Main content areas
@@ -50,11 +48,11 @@ export function extractPageContentForAi() {
   try {
     const contentElement = findPrimaryContentElement() || document.body;
 
-    const clone = contentElement.cloneNode(true);
+    const clone = contentElement.cloneNode(true) as Element;
 
     // Remove MyZ wrapper elements to avoid duplication
     clone.querySelectorAll(".myz-highlight").forEach((el) => {
-      const parent = el.parentNode;
+      const parent = el.parentNode as Element;
       while (el.firstChild) parent.insertBefore(el.firstChild, el);
       parent.removeChild(el);
     });

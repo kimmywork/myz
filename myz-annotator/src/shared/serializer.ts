@@ -1,18 +1,21 @@
 import { isHighlightRecord } from "./highlightUtils.js";
 
-export function isMyzWrapper(node) {
-  return (
-    node &&
-    node.nodeType === node.ELEMENT_NODE &&
-    node.classList &&
-    node.classList.contains("myz-highlight")
-  );
+export function isMyzWrapper(node: Node): boolean {
+  if (node &&
+    node.nodeType === node.ELEMENT_NODE) {
+    const element = node as Element;
+    return (
+      element.classList &&
+      element.classList.contains("myz-highlight")
+    );
+  }
+  return false;
 }
 
-export function isNodeFromMyz(node) {
+export function isNodeFromMyz(node: Node) : boolean {
   if (!node) return false;
   if (node.nodeType === node.ELEMENT_NODE) {
-    const el = node;
+    const el = node as Element;
     if (el.classList && el.classList.contains("myz-highlight")) return true;
     if (el.closest && el.closest("[data-myz-host]")) return true;
     return false;
@@ -23,11 +26,11 @@ export function isNodeFromMyz(node) {
   return false;
 }
 
-export function findPrimaryDescendant(el) {
+export function findPrimaryDescendant(el: Element): Element | null {
   if (!el) return null;
   const queue = Array.from(el.childNodes || []);
   while (queue.length) {
-    const n = queue.shift();
+    const n = queue.shift() as Element;
     if (!isNodeFromMyz(n) && !isMyzWrapper(n)) return n;
     if (n.childNodes && n.childNodes.length)
       queue.push(...Array.from(n.childNodes));
@@ -35,8 +38,8 @@ export function findPrimaryDescendant(el) {
   return null;
 }
 
-export function getLogicalChildNodes(parent) {
-  const out = [];
+export function getLogicalChildNodes(parent: Node): { dom: Node; logical: Node }[] {
+  const out: { dom: Node; logical: Node }[] = [];
   Array.from(parent.childNodes).forEach((child) => {
     if (shouldIgnoreForPath(child)) {
       return;
@@ -54,7 +57,17 @@ export function getLogicalChildNodes(parent) {
   return out;
 }
 
-export function getDirectChildAndLogical(node, parent) {
+export interface ChildAndLogical {
+  child: Node | null;
+  logical: Node | null;
+}
+
+export interface PathSegment {
+  name: string;
+  index: number;
+}
+
+export function getDirectChildAndLogical(node: Node, parent: ParentNode): ChildAndLogical {
   let child = node;
   while (child && child.parentNode && child.parentNode !== parent) {
     child = child.parentNode;
@@ -66,12 +79,13 @@ export function getDirectChildAndLogical(node, parent) {
   }
   if (isMyzWrapper(child)) {
     if (child !== node) return { child, logical: node };
-    return { child, logical: findPrimaryDescendant(child) || child };
+    const el = child as Element;
+    return { child, logical: findPrimaryDescendant(el) || child };
   }
   return { child, logical: child };
 }
 
-export function nodeName(node) {
+export function nodeName(node: Node | null): string {
   return node && node.nodeType === node.TEXT_NODE
     ? "#text"
     : node && node.nodeName
@@ -79,38 +93,39 @@ export function nodeName(node) {
       : "";
 }
 
-export function sameNodeType(a, b) {
+export function sameNodeType(a: Node, b: Node | null) {
   if (!a || !b) return false;
   if (a.nodeType !== b.nodeType) return false;
-  if (a.nodeType === a.ownerDocument.defaultView.Node.TEXT_NODE) return true;
+  if (a.nodeType === a.ownerDocument?.defaultView?.Node.TEXT_NODE) return true;
   return a.nodeName === b.nodeName;
 }
 
-export function buildPath(node) {
-  const path = [];
+export function buildPath(node: Node): PathSegment[] {
+  const path: PathSegment[] = [];
   let current = node;
   while (current && current !== current.ownerDocument) {
     const parent = current.parentNode;
     if (!parent) break;
-    const { child: directChild, logical: directLogical } =
+    const { child: _, logical: directLogical } =
       getDirectChildAndLogical(current, parent);
     const logicalChildren = getLogicalChildNodes(parent).map((o) => o.logical);
     const siblings = logicalChildren.filter((childNode) =>
       sameNodeType(childNode, directLogical),
     );
-    const index = siblings.indexOf(directLogical);
-    const seg = { name: nodeName(directLogical), index };
+    const index = siblings.indexOf(directLogical!!);
+    const seg: PathSegment = { name: nodeName(directLogical), index };
     path.unshift(seg);
     current = parent;
   }
   return path;
 }
 
-export function resolvePath(root, path) {
+export function resolvePath(root: Node, path: PathSegment[]): Node | null {
   // Normalize root to an element to start iteration
   let current = root;
   if (current && current.nodeType === current.DOCUMENT_NODE) {
-    current = current.documentElement || current;
+
+    current = (current as Document).documentElement || current;
     // If the path begins with the documentElement (html) and we already
     // started iteration at documentElement, drop that leading segment so the
     // remaining path resolves correctly to children under <html>.
@@ -132,7 +147,7 @@ export function resolvePath(root, path) {
   }
   for (const segment of path) {
     const logicalList = getLogicalChildNodes(current);
-    const NodeConst = (current.ownerDocument || current).defaultView.Node;
+    const NodeConst = (current.ownerDocument!! || (current as Document))?.defaultView?.Node!!;
     const pairs = logicalList.filter((entry) => {
       const logical = entry.logical;
       if (segment.name === "#text")
@@ -149,24 +164,24 @@ export function resolvePath(root, path) {
   return current;
 }
 
-export function getDescendantTextNodes(el) {
-  const out = [];
-  const NF = el.ownerDocument.defaultView.NodeFilter;
-  const it = el.ownerDocument.createNodeIterator(el, NF.SHOW_TEXT, {
+export function getDescendantTextNodes(el: Node): Text[] {
+  const out: Text[] = [];
+  const NF = el?.ownerDocument?.defaultView?.NodeFilter!!;
+  const it = el?.ownerDocument?.createNodeIterator(el, NF.SHOW_TEXT, {
     acceptNode(node) {
       if (isNodeFromMyz(node)) return NF.FILTER_REJECT;
       if (!node.textContent) return NF.FILTER_REJECT;
       return NF.FILTER_ACCEPT;
     },
-  });
+  })!;
   let cur;
-  while ((cur = it.nextNode())) out.push(cur);
+  while ((cur = it.nextNode() as Text)) out.push(cur);
   return out;
 }
 
-export function getTextLength(node) {
+export function getTextLength(node?: Node): number {
   if (!node) return 0;
-  if (node.nodeType === node.TEXT_NODE) return node.textContent.length;
+  if (node.nodeType === node.TEXT_NODE) return (node as Text).textContent.length;
   let sum = 0;
   node.childNodes.forEach((c) => {
     if (isNodeFromMyz(c)) return;
@@ -175,13 +190,13 @@ export function getTextLength(node) {
   return sum;
 }
 
-export function charOffsetWithinElement(element, container, offset) {
+export function charOffsetWithinElement(element: Node, container: Node, offset: number): number {
   if (!element) return 0;
   const texts = getDescendantTextNodes(element);
-  const NodeConst = element.ownerDocument.defaultView.Node;
+  const NodeConst = element?.ownerDocument?.defaultView?.Node!!;
   if (container.nodeType === NodeConst.TEXT_NODE) {
     let acc = 0;
-    for (const tn of texts) {
+    for (const tn of (texts as Text[])) {
       if (tn === container)
         return acc + Math.min(offset, tn.textContent.length);
       acc += tn.textContent.length;
@@ -198,7 +213,7 @@ export function charOffsetWithinElement(element, container, offset) {
   return sum;
 }
 
-export function nodeForCharOffset(element, charOffset) {
+export function nodeForCharOffset(element: Node, charOffset: number): { node: Node; offset: number } | null {
   const texts = getDescendantTextNodes(element);
   let acc = 0;
   for (const tn of texts) {
@@ -215,7 +230,7 @@ export function nodeForCharOffset(element, charOffset) {
   return null;
 }
 
-export function unwrapNode(node) {
+export function unwrapNode(node: Node) {
   const parent = node.parentNode;
   if (!parent) {
     return;
@@ -227,14 +242,15 @@ export function unwrapNode(node) {
   parent.normalize();
 }
 
-function clampOffset(node, requested) {
+function clampOffset(node: Node, requested: number) {
   if (node.nodeType === Node.TEXT_NODE) {
-    return Math.min(requested, node.textContent.length);
+    const textNode = node as Text;
+    return Math.min(requested, textNode.textContent.length);
   }
   return Math.min(requested, node.childNodes.length);
 }
 
-function shouldIgnoreForPath(node) {
+function shouldIgnoreForPath(node?: Node): boolean {
   if (!node) {
     return false;
   }
@@ -244,7 +260,7 @@ function shouldIgnoreForPath(node) {
   return false;
 }
 
-function isArchiveInjectedNode(node) {
+function isArchiveInjectedNode(node?: Node): boolean {
   if (!node || !node.ownerDocument) {
     return false;
   }
@@ -274,17 +290,19 @@ function isArchiveInjectedNode(node) {
     return false;
   }
 
-  const id = (node.getAttribute && node.getAttribute("id")) || "";
+  const el = node as Element;
+
+  const id = (el.getAttribute && el.getAttribute("id")) || "";
   if (id.startsWith("wm-")) {
     return true;
   }
 
-  const dataOwner = node.getAttribute && node.getAttribute("data-owner");
+  const dataOwner = el.getAttribute && el.getAttribute("data-owner");
   if (dataOwner && dataOwner.toLowerCase() === "wayback-machine") {
     return true;
   }
 
-  const classList = node.classList ? Array.from(node.classList) : [];
+  const classList = el.classList ? Array.from(el.classList) : [];
   if (
     classList.some(
       (value) => value.startsWith("wb-") || value === "wayback-toolbar",
@@ -295,14 +313,14 @@ function isArchiveInjectedNode(node) {
 
   const tagName = node.nodeName ? node.nodeName.toLowerCase() : "";
   if (tagName === "script" || tagName === "style" || tagName === "link") {
-    const ref = node.getAttribute("src") || node.getAttribute("href") || "";
+    const ref = el.getAttribute("src") || el.getAttribute("href") || "";
     if (ref.includes("/_static/") || ref.includes("wayback")) {
       return true;
     }
   }
 
   if (tagName === "div") {
-    const role = node.getAttribute("role") || "";
+    const role = el.getAttribute("role") || "";
     if (role === "navigation" && classList.includes("wb-toolbar")) {
       return true;
     }
@@ -315,10 +333,10 @@ function isArchiveInjectedNode(node) {
 }
 
 export function serializeRange(
-  doc,
-  range,
-  highlightCache,
-  applyHighlight = () => {},
+  doc: Document,
+  range: Range,
+  highlightCache: Map<string, any>,
+  applyHighlight: (rec: any) => void = () => {},
 ) {
   try {
     // If the page already contains MyZ wrapper nodes, temporarily unwrap
@@ -326,7 +344,7 @@ export function serializeRange(
     // reapply existing highlights from cache. This avoids path indexing
     // shifts caused by wrapper elements.
     const existing = Array.from(doc.querySelectorAll(".myz-highlight"));
-    const ids = existing.map((n) => n.dataset?.highlightId).filter(Boolean);
+    const ids: string[] = existing.map((n) => (n as HTMLElement).dataset?.highlightId).filter(Boolean) as string[];
 
     try {
       existing.forEach((node) => unwrapNode(node));
@@ -335,12 +353,12 @@ export function serializeRange(
       // resilient to text-node merging/splitting when wrappers are
       // removed and prevents indices from becoming invalid.
       const startElement =
-        range.startContainer.nodeType === doc.defaultView.Node.TEXT_NODE
-          ? range.startContainer.parentNode
+        range.startContainer.nodeType === doc?.defaultView?.Node.TEXT_NODE
+          ? range.startContainer.parentNode!
           : range.startContainer;
       const endElement =
-        range.endContainer.nodeType === doc.defaultView.Node.TEXT_NODE
-          ? range.endContainer.parentNode
+        range.endContainer.nodeType === doc?.defaultView?.Node.TEXT_NODE
+          ? range.endContainer.parentNode!
           : range.endContainer;
 
       const startChar = charOffsetWithinElement(
@@ -383,7 +401,21 @@ export function serializeRange(
   }
 }
 
-export function deserializeRange(doc, serialized) {
+
+export interface SerializedRange {
+  start?: {
+    charOffset: number;
+    path: PathSegment[];
+    offset: number;
+  }
+  end?: {
+    charOffset: number;
+    path: PathSegment[];
+    offset: number;
+  }
+}
+
+export function deserializeRange(doc: Document, serialized?: SerializedRange) {
   if (!serialized?.start || !serialized?.end) {
     return null;
   }
@@ -395,7 +427,7 @@ export function deserializeRange(doc, serialized) {
     let startNode = null;
     let startOffset = 0;
     if (serialized.start && typeof serialized.start.charOffset === "number") {
-      const el = resolvePath(doc, serialized.start.path);
+      const el = resolvePath(doc, serialized.start.path) as Element | null;
       if (!el) return null;
       const resolved = nodeForCharOffset(el, serialized.start.charOffset);
       if (!resolved) return null;

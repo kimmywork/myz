@@ -1,21 +1,46 @@
+import type { MyZRecord } from "../dashboard/utils/records.js";
+
 export const AI_CONVERSATION_KEY = "myz::ai-conversations";
 export const AI_MCP_SERVERS_KEY = "myz::ai-mcp-servers";
 
-export const DEFAULT_AI_CONVERSATION_STATE = {
+export const DEFAULT_AI_CONVERSATION_STATE: AiConversationState = {
   conversations: {},
   activeConversationId: null,
 };
+
+export interface ConversationMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: string;
+  metadata: Record<string, any>;
+}
+
+export interface AiConversation {
+  id: string;
+  url: string;
+  title: string;
+  messages: ConversationMessage[];
+  createdAt: string;
+  updatedAt: string;
+  isAiGenerated: boolean;
+}
+
+export interface AiConversationState {
+  conversations: Record<string, AiConversation>;
+  activeConversationId: string | null;
+}
 
 export function generateConversationId() {
   return `ai-conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export async function readAiConversations() {
+export async function readAiConversations(): Promise<AiConversationState> {
   const result = await chrome.storage.local.get(AI_CONVERSATION_KEY);
   return result[AI_CONVERSATION_KEY] || { ...DEFAULT_AI_CONVERSATION_STATE };
 }
 
-export async function writeAiConversations(state) {
+export async function writeAiConversations(state: AiConversationState) {
   if (!state || typeof state !== "object") {
     throw new Error("Invalid AI conversation state");
   }
@@ -23,7 +48,7 @@ export async function writeAiConversations(state) {
   return state;
 }
 
-export function createConversation(url, title) {
+export function createConversation(url: string, title: string): AiConversation {
   const id = generateConversationId();
   const now = new Date().toISOString();
   return {
@@ -38,17 +63,17 @@ export function createConversation(url, title) {
 }
 
 export async function addMessageToConversation(
-  conversationId,
-  role,
-  content,
-  metadata = {},
-) {
+  conversationId: string,
+  role: "user" | "assistant" | "system",
+  content: string,
+  metadata: Record<string, any> = {},
+): Promise<ConversationMessage> {
   const state = await readAiConversations();
   const conversation = state.conversations[conversationId];
   if (!conversation) {
     throw new Error("Conversation not found");
   }
-  const message = {
+  const message: ConversationMessage = {
     id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     role,
     content,
@@ -61,7 +86,7 @@ export async function addMessageToConversation(
   return message;
 }
 
-export async function getConversationHistory(conversationId, limit = 50) {
+export async function getConversationHistory(conversationId: string, limit = 50) {
   const state = await readAiConversations();
   const conversation = state.conversations[conversationId];
   if (!conversation) {
@@ -70,7 +95,7 @@ export async function getConversationHistory(conversationId, limit = 50) {
   return conversation.messages.slice(-limit);
 }
 
-export async function saveAiGeneratedHighlight(highlightData) {
+export async function saveAiGeneratedHighlight(highlightData: Partial<MyZRecord>) {
   const state = await readAiConversations();
   const conversation = state.conversations[highlightData.conversationId];
   if (conversation) {
@@ -102,7 +127,7 @@ export async function saveAiGeneratedHighlight(highlightData) {
   return aiHighlight;
 }
 
-export async function exportConversation(conversationId, format = "markdown") {
+export async function exportConversation(conversationId: string, format = "markdown") {
   const state = await readAiConversations();
   const conversation = state.conversations[conversationId];
   if (!conversation) {
@@ -118,7 +143,7 @@ export async function exportConversation(conversationId, format = "markdown") {
   markdown += `**Created**: ${conversation.createdAt}\n\n`;
   markdown += `---\n\n`;
 
-  conversation.messages.forEach((msg) => {
+  conversation.messages.forEach((msg: ConversationMessage) => {
     const role = msg.role === "user" ? "**User**" : "**Assistant**";
     const time = new Date(msg.timestamp).toLocaleString();
     markdown += `${role} (${time}):\n\n`;
@@ -129,7 +154,7 @@ export async function exportConversation(conversationId, format = "markdown") {
   return markdown;
 }
 
-export async function deleteConversation(conversationId) {
+export async function deleteConversation(conversationId: string) {
   const state = await readAiConversations();
   if (state.conversations[conversationId]) {
     delete state.conversations[conversationId];

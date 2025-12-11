@@ -1,7 +1,13 @@
 // Developers can extend this mapping to target the correct article element
 // on non-standard sites. The first matching rule wins.
 // pattern: string substring match or RegExp; selector: CSS selector string.
-export const ZEN_SELECTOR_MAP = [
+
+export interface ZenSelectorRule {
+  pattern: string | RegExp;
+  selector: string;
+}
+
+export const ZEN_SELECTOR_MAP : ZenSelectorRule[] = [
   // Example: our test fixture
   { pattern: /article-mapped\.html$/, selector: "#special-article" },
   // Gcores article pages

@@ -1,10 +1,28 @@
-export const RECORD_KINDS = {
-  HIGHLIGHT: "highlight",
-  CLIP: "clip",
-  AI_GENERATED: "ai-generated",
+
+export interface MyZRecord {
+  id: string;
+  kind: RECORD_KINDS;
+  text: string;
+  html?: string;
+  note?: string;
+  tags?: string[];
+  color?: string;
+  style?: string;
+  createdAt: string;
+  updatedAt: string;
+  sourceUrl?: string;
+  title?: string;
+  hostname?: string;
+  [key: string]: any;
+}
+
+export enum RECORD_KINDS {
+  HIGHLIGHT = "highlight",
+  CLIP = "clip",
+  AI_GENERATED = "ai-generated",
 };
 
-export function getRecordKind(record) {
+export function getRecordKind(record: MyZRecord): RECORD_KINDS {
   if (record && record.kind === RECORD_KINDS.AI_GENERATED) {
     return RECORD_KINDS.AI_GENERATED;
   }
@@ -14,7 +32,7 @@ export function getRecordKind(record) {
   return RECORD_KINDS.HIGHLIGHT;
 }
 
-export function getRecordKindLabel(record) {
+export function getRecordKindLabel(record: MyZRecord) {
   const kind = getRecordKind(record);
   switch (kind) {
     case RECORD_KINDS.HIGHLIGHT:
@@ -28,14 +46,14 @@ export function getRecordKindLabel(record) {
   }
 }
 
-export function normalizeRecord(record) {
+export function normalizeRecord(record: MyZRecord): MyZRecord | null {
   if (!record || typeof record !== "object") {
     return null;
   }
   return { ...record, kind: getRecordKind(record) };
 }
 
-export function computeRecordStats(records = []) {
+export function computeRecordStats(records: MyZRecord[] = []) {
   let highlightCount = 0;
   let savedCount = 0;
   records.forEach((item) => {
@@ -55,21 +73,21 @@ export function computeRecordStats(records = []) {
   };
 }
 
-export function groupHighlightsByDate(highlights) {
-  const map = new Map();
+export function groupHighlightsByDate(highlights: MyZRecord[]) {
+  const map = new Map<string, MyZRecord[]>();
   highlights.forEach((item) => {
     const date = item?.createdAt ? item.createdAt.slice(0, 10) : "未知日期";
     if (!map.has(date)) {
       map.set(date, []);
     }
-    map.get(date).push(item);
+    map.get(date)?.push(item);
   });
   return [...map.entries()].sort((a, b) =>
     a[0] === b[0] ? 0 : a[0] < b[0] ? 1 : -1,
   );
 }
 
-export function formatDateTime(value) {
+export function formatDateTime(value: string | number | Date) {
   if (!value) {
     return "";
   }
@@ -80,7 +98,7 @@ export function formatDateTime(value) {
   }
 }
 
-export function escapeHtml(value) {
+export function escapeHtml(value: string) {
   return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -89,20 +107,20 @@ export function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-export function escapeRegExp(value) {
+export function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function getSearchTerms(input) {
+export function getSearchTerms(input: string): string[] {
   if (!input) {
     return [];
   }
   const seen = new Set();
-  const terms = [];
+  const terms: string[] = [];
   input
     .split(/\s+/)
     .filter(Boolean)
-    .forEach((term) => {
+    .forEach((term: string) => {
       const key = term.toLowerCase();
       if (!seen.has(key)) {
         seen.add(key);
@@ -112,7 +130,7 @@ export function getSearchTerms(input) {
   return terms;
 }
 
-export function applySearchHighlights(html, terms) {
+export function applySearchHighlights(html: string, terms: string[]) {
   if (!terms.length || !html) {
     return html;
   }
@@ -126,7 +144,7 @@ export function applySearchHighlights(html, terms) {
   }, html);
 }
 
-export function highlightTermsInHtml(html, terms) {
+export function highlightTermsInHtml(html: string, terms: string[]): string {
   if (!html || !terms.length) {
     return html;
   }
@@ -144,16 +162,16 @@ export function highlightTermsInHtml(html, terms) {
     NodeFilter.SHOW_TEXT,
     null,
   );
-  const targets = [];
+  const targets: Node[] = [];
   let current;
   while ((current = walker.nextNode())) {
-    if (current.parentNode && current.parentNode.closest("mark.search-hit")) {
+    if (current.parentNode && (current.parentNode as Element).closest("mark.search-hit")) {
       continue;
     }
     targets.push(current);
   }
   targets.forEach((node) => {
-    const text = node.nodeValue;
+    const text = node.nodeValue ?? "";
     const nodeRegex = new RegExp(pattern, "gi");
     if (!nodeRegex.test(text)) {
       return;
@@ -182,7 +200,7 @@ export function highlightTermsInHtml(html, terms) {
   return container.innerHTML;
 }
 
-export function renderHighlightContent(record, terms) {
+export function renderHighlightContent(record: MyZRecord, terms: string[]): string {
   if (record?.html) {
     return highlightTermsInHtml(record.html, terms);
   }
@@ -191,7 +209,7 @@ export function renderHighlightContent(record, terms) {
   return applySearchHighlights(withBreaks, terms);
 }
 
-export function formatNote(value, terms) {
+export function formatNote(value: string, terms: string[]): string {
   if (!value) {
     return "";
   }
@@ -200,14 +218,14 @@ export function formatNote(value, terms) {
   return applySearchHighlights(withBreaks, terms);
 }
 
-export function formatInline(value, terms) {
+export function formatInline(value: string, terms: string[]): string {
   if (!value) {
     return "";
   }
   return applySearchHighlights(escapeHtml(String(value)), terms);
 }
 
-export function parseTags(value) {
+export function parseTags(value: string): string[] {
   if (!value) {
     return [];
   }
@@ -218,7 +236,7 @@ export function parseTags(value) {
     .map((tag) => (tag.startsWith("#") ? tag.slice(1) : tag));
 }
 
-export function recordToMarkdown(record) {
+export function recordToMarkdown(record: MyZRecord): string {
   const tags =
     Array.isArray(record?.tags) && record.tags.length
       ? ` #${record.tags.join(" #")}`

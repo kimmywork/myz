@@ -1,6 +1,6 @@
-function coerceBadgeCount(value) {
+function coerceBadgeCount(value?: number): number {
   if (typeof value !== "number") {
-    return null;
+    return 0;
   }
   if (!Number.isFinite(value) || value < 0) {
     return 0;
@@ -8,35 +8,38 @@ function coerceBadgeCount(value) {
   return Math.floor(value);
 }
 
-export function normalizeBadgeCounts(payload = {}) {
+export interface BadgeCount {
+  highlightCount: number;
+  savedCount: number;
+  total: number;
+}
+
+export interface LegacyBadgeCount {
+  count: number;
+}
+
+export function normalizeBadgeCounts(payload: Partial<BadgeCount & LegacyBadgeCount> = {}): BadgeCount {
   const highlightFromPayload = coerceBadgeCount(payload.highlightCount);
   const savedFromPayload = coerceBadgeCount(payload.savedCount);
   const totalFromPayload = coerceBadgeCount(payload.total);
   const legacyCount = coerceBadgeCount(payload.count);
 
-  const highlightCount =
-    highlightFromPayload ?? (legacyCount !== null ? legacyCount : 0);
-  const savedCount = savedFromPayload ?? 0;
+  const highlightCount = Math.max(highlightFromPayload, legacyCount);
+  const savedCount = savedFromPayload;
 
   let total = totalFromPayload;
-  if (total === null) {
-    if (highlightFromPayload !== null || savedFromPayload !== null) {
-      total = (highlightFromPayload ?? 0) + (savedFromPayload ?? 0);
-    } else if (legacyCount !== null) {
-      total = legacyCount;
-    } else {
-      total = 0;
-    }
+  if (total === 0) {
+    total = highlightCount + savedCount;
   }
 
   return {
-    highlightCount: Math.max(0, highlightCount ?? 0),
-    savedCount: Math.max(0, savedCount ?? 0),
-    total: Math.max(0, total ?? 0),
+    highlightCount,
+    savedCount,
+    total,
   };
 }
 
-export function buildActionTitle({ total, highlightCount, savedCount }) {
+export function buildActionTitle({ total, highlightCount, savedCount }: BadgeCount): string {
   const base = "MyZ Annotator";
   if (!total) {
     return `${base} · 暂无条目`;

@@ -1,8 +1,8 @@
-export function parseAiRequestHeaders(rawHeaders) {
+export function parseAiRequestHeaders(rawHeaders?: string): Record<string, string> {
   if (!rawHeaders || typeof rawHeaders !== "string") {
     return {};
   }
-
+  let headers: Record<string, string> = {}
   return rawHeaders
     .split("\n")
     .map((line) => line.trim())
@@ -19,10 +19,10 @@ export function parseAiRequestHeaders(rawHeaders) {
       const value = line.slice(separatorIndex + 1).trim();
       headers[key] = value;
       return headers;
-    }, {});
+    }, headers);
 }
 
-export function getAiHeaderValue(rawHeaders, targetName) {
+export function getAiHeaderValue(rawHeaders?: string, targetName?: string): string | undefined {
   if (!targetName) {
     return undefined;
   }

@@ -1,0 +1,43 @@
+export async function sendMessage<Type, Payload, Result=any>(type: Type, payload: Payload): Promise<Result> {
+  return new Promise((resolve, reject) => {
+    if (!chrome || !chrome.runtime) {
+      reject(new Error("Chrome runtime not available"));
+      return;
+    }
+
+    chrome.runtime.sendMessage({ type, payload }, (response: { data?: Result, error?: string, ok?: boolean }) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response) {
+        reject(new Error("无响应"));
+        return;
+      }
+      if (!response.ok) {
+        reject(new Error(response.error || "未知错误"));
+        return;
+      }
+      
+      resolve(response.data || response as Result);
+    });
+  });
+}
+
+export async function sendMessageToTab<Type, Payload, Response = any>(tabId: number, type: Type, payload: Payload) : Promise<Response> {
+  return new Promise((resolve, reject) => {
+    if (!chrome || !chrome.tabs) {
+      reject(new Error("Chrome tabs API not available"));
+      return;
+    }
+
+    chrome.tabs.sendMessage(tabId, { type, payload }, (response: Response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+
+      resolve(response);
+    });
+  });
+}

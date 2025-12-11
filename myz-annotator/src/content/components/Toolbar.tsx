@@ -18,17 +18,17 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const handleAnnotate = (event) => {
+    const handleAnnotate = (event: Event) => {
       event.preventDefault();
       props.onAnnotate?.(event);
     };
 
-    const handleClip = (event) => {
+    const handleClip = (event: Event) => {
       event.preventDefault();
       props.onClip?.(event);
     };
 
-    const handleCapture = (event) => {
+    const handleCapture = (event: Event) => {
       event.preventDefault();
       props.onCapture?.(event);
     };

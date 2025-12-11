@@ -13,7 +13,7 @@ import {
   renderHighlightContent,
   RECORD_KINDS,
 } from "../utils/records.js";
-import { sendMessage } from "../utils/messaging.js";
+import { sendMessage } from "../../shared/messaging.js";
 import { downloadFile } from "../utils/download.js";
 import { normalizeImportedPayload } from "../utils/import.js";
 import { DEFAULT_COLOR } from "../../shared/highlightUtils.js";

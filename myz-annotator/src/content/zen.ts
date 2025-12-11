@@ -1,6 +1,11 @@
 import { ZEN_SELECTOR_MAP } from "./zen-config.js";
 
-function resolveSelectorForUrl(url) {
+declare global {
+  interface Window {
+    __myzZenAncestors: HTMLElement[];
+  }
+}
+function resolveSelectorForUrl(url: string): string | null {
   try {
     for (const rule of ZEN_SELECTOR_MAP) {
       const { pattern, selector } = rule || {};
@@ -29,7 +34,7 @@ function findArticleElement() {
     ".article",
     ".article-content",
     '[role="article"]',
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
   for (const sel of candidates) {
     try {
       const el = document.querySelector(sel);
@@ -41,21 +46,21 @@ function findArticleElement() {
   return null;
 }
 
-export function hasArticleElement() {
+export function hasArticleElement(): boolean {
   return Boolean(findArticleElement());
 }
 
-export function isZenModeEnabled() {
+export function isZenModeEnabled(): boolean {
   return document.documentElement.classList.contains("myz-zen-enabled");
 }
 
-export function getZenTargetElement() {
+export function getZenTargetElement(): Element | null {
   const current = document.querySelector(".myz-zen-target-keep");
   if (current) return current;
   return findArticleElement();
 }
-
-export function enableZenMode() {
+  
+export function enableZenMode(): boolean {
   if (isZenModeEnabled()) return true;
   const article = findArticleElement();
   if (!article) return false;
@@ -103,7 +108,7 @@ export function disableZenMode() {
   return true;
 }
 
-export function toggleZenMode() {
+export function toggleZenMode(): "on" | "off" | "error" {
   if (isZenModeEnabled()) {
     disableZenMode();
     return "off";
@@ -112,7 +117,7 @@ export function toggleZenMode() {
   return ok ? "on" : "error";
 }
 
-function buildZenCss() {
+function buildZenCss(): string {
   // Pure CSS approach: hide everything except the marked target, its descendants,
   // and explicitly marked ancestors. Avoid :has() for broader compatibility.
   return `

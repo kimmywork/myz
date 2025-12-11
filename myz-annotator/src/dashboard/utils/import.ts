@@ -1,4 +1,6 @@
-export function normalizeImportedPayload(payload) {
+import type { MyZRecord } from "./records.js";
+
+export function normalizeImportedPayload(payload: MyZRecord[] | { highlights?: MyZRecord[]; data?: MyZRecord[] } | any): MyZRecord[] {
   if (Array.isArray(payload)) {
     return payload;
   }

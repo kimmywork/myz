@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { sendMessage } from "../../dashboard/utils/messaging.js";
+import { sendMessage } from "../../shared/messaging.js";
 
 import {
   DEFAULT_COLORS,

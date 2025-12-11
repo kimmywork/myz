@@ -1,6 +1,7 @@
-import { defineComponent } from "vue";
+import { defineComponent, SVGAttributes } from "vue";
+import { JSX } from "vue/jsx-runtime";
 
-function normalizeSize(value) {
+function normalizeSize(value: number | string): string {
   if (value === null || value === undefined) {
     return "20";
   }
@@ -15,8 +16,8 @@ function normalizeSize(value) {
 }
 
 function makeIcon(
-  name,
-  renderPaths,
+  name: string,
+  renderPaths: () => JSX.Element,
   { strokeWidth = 1.5, filled = false } = {},
 ) {
   return defineComponent({
@@ -33,7 +34,7 @@ function makeIcon(
         const size = normalizeSize(props.size);
         const hasLabel =
           typeof attrs["aria-label"] === "string" && attrs["aria-label"].trim();
-        const baseAttrs = filled
+        const baseAttrs: SVGAttributes = filled
           ? {
               xmlns: "http://www.w3.org/2000/svg",
               width: size,
@@ -58,7 +59,7 @@ function makeIcon(
             };
 
         return (
-          <svg {...baseAttrs} {...attrs} aria-hidden={hasLabel ? null : "true"}>
+          <svg {...baseAttrs} {...attrs} aria-hidden={hasLabel ? undefined : "true"}>
             {renderPaths()}
           </svg>
         );

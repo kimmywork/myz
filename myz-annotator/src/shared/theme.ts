@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 const THEME_STORAGE_KEY = "myz:theme";
 const themeRef = ref("dark");
 const readyRef = ref(false);
-let initPromise = null;
+let initPromise: Promise<string> | null = null;
 let listenerRegistered = false;
 let bodyReady = false;
 
@@ -19,7 +19,7 @@ function detectSystemTheme() {
     : "dark";
 }
 
-function applyThemeClasses(value) {
+function applyThemeClasses(value: string) {
   if (typeof document === "undefined") {
     return;
   }
@@ -64,7 +64,7 @@ function readStoredTheme() {
   });
 }
 
-function persistTheme(value) {
+function persistTheme(value: string) {
   if (typeof chrome !== "undefined" && chrome.storage?.local) {
     try {
       chrome.storage.local.set({ [THEME_STORAGE_KEY]: value });
@@ -82,7 +82,7 @@ function persistTheme(value) {
   }
 }
 
-async function initTheme() {
+async function initTheme(): Promise<string> {
   const stored = await readStoredTheme();
   const next =
     stored === "light" || stored === "dark" ? stored : detectSystemTheme();
@@ -130,7 +130,7 @@ export function useThemePreference() {
     ensureInitialized();
   }
   const isDark = computed(() => themeRef.value === "dark");
-  function setTheme(next) {
+  function setTheme(next: string) {
     const normalized = next === "light" ? "light" : "dark";
     themeRef.value = normalized;
     applyThemeClasses(normalized);

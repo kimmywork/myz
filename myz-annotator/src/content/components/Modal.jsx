@@ -8,7 +8,7 @@ import { IconPencil, highlightStyleIconMap } from "../../shared/icons.js";
 function uniqueNormalizedTags(tags) {
   const seen = new Set();
   const result = [];
-  tags.forEach((tag) => {
+  tags?.forEach((tag) => {
     if (typeof tag !== "string") {
       return;
     }

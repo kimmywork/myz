@@ -1,6 +1,6 @@
 const WAYBACK_HOSTNAME = "web.archive.org";
 
-export function canonicalUrl(url) {
+export function canonicalUrl(url: string): string {
   const archive = extractArchiveInfo(url);
   if (archive?.originalUrl) {
     return normalizeUrlValue(archive.originalUrl);
@@ -8,8 +8,8 @@ export function canonicalUrl(url) {
   return normalizeUrlValue(url);
 }
 
-export function buildUrlAliases(rawUrl, canonical) {
-  const aliases = new Set();
+export function buildUrlAliases(rawUrl: string, canonical: string): string[] {
+  const aliases = new Set<string>();
   if (typeof rawUrl === "string" && rawUrl) {
     aliases.add(rawUrl);
     aliases.add(stripHash(rawUrl));
@@ -35,7 +35,7 @@ export function buildUrlAliases(rawUrl, canonical) {
   return Array.from(aliases).filter(Boolean);
 }
 
-export function normalizeUrlValue(rawUrl) {
+export function normalizeUrlValue(rawUrl: any) {
   if (typeof rawUrl !== "string" || !rawUrl) {
     return "";
   }
@@ -49,7 +49,7 @@ export function normalizeUrlValue(rawUrl) {
   }
 }
 
-function stripTrackingSearchParams(urlObject) {
+function stripTrackingSearchParams(urlObject: URL | null) {
   if (!urlObject || !urlObject.searchParams) {
     return;
   }
@@ -70,7 +70,7 @@ function stripTrackingSearchParams(urlObject) {
   });
 }
 
-function stripHash(url) {
+function stripHash(url: string) {
   if (typeof url !== "string") {
     return "";
   }
@@ -81,7 +81,7 @@ function stripHash(url) {
   return url.slice(0, hashIndex);
 }
 
-export function extractHostname(url) {
+export function extractHostname(url: string) {
   try {
     return new URL(url).hostname;
   } catch (error) {
@@ -89,19 +89,19 @@ export function extractHostname(url) {
   }
 }
 
-export function truncateText(text, max = 36) {
+export function truncateText(text: string, max = 36) {
   if (!text) {
     return "";
   }
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
-export function isArchiveUrl(url) {
+export function isArchiveUrl(url: string) {
   const info = extractArchiveInfo(url);
   return Boolean(info?.originalUrl);
 }
 
-export function buildArchiveSnapshotUrl(timestamp, originalUrl) {
+export function buildArchiveSnapshotUrl(timestamp: string | number, originalUrl: string) {
   if (!timestamp || !originalUrl) {
     return "";
   }
@@ -114,7 +114,13 @@ export function buildArchiveSnapshotUrl(timestamp, originalUrl) {
   return `https://${WAYBACK_HOSTNAME}/web/${safeTimestamp}/${originalUrl}`;
 }
 
-export function extractArchiveInfo(url) {
+type ArchiveInfo = {
+  timestamp: string | null;
+  originalUrl: string;
+  rawTimestamp: string;
+};
+
+export function extractArchiveInfo(url: any): ArchiveInfo | null {
   if (typeof url !== "string" || !url) {
     return null;
   }

@@ -8,13 +8,13 @@ const IGNORED_CLASS_PATTERN =
 const CHUNK_CHAR_LIMIT = 1800;
 const DEFAULT_MAX_TOTAL_CHARS = Number.POSITIVE_INFINITY;
 const DEFAULT_MAX_CHUNKS = 80;
-const activeAnchors = new Set();
+const activeAnchors: Set<Element> = new Set();
 
-function normalizeText(input) {
+function normalizeText(input: string): string {
   return (input || "").replace(/\s+/g, " ").trim();
 }
 
-function isVisible(node) {
+function isVisible(node: Element): boolean {
   if (!node || node.nodeType !== Node.ELEMENT_NODE) {
     return false;
   }
@@ -26,7 +26,7 @@ function isVisible(node) {
   return rect.width > 0 && rect.height > 0;
 }
 
-function isEligibleBlock(node) {
+function isEligibleBlock(node: Element): boolean {
   if (!node || node.nodeType !== Node.ELEMENT_NODE) {
     return false;
   }
@@ -41,7 +41,7 @@ function isEligibleBlock(node) {
   if (!isVisible(node)) {
     return false;
   }
-  const text = normalizeText(node.innerText || node.textContent || "");
+  const text = normalizeText((node as HTMLElement).innerText || node.textContent || "");
   if (!text) {
     return false;
   }
@@ -54,17 +54,18 @@ function isEligibleBlock(node) {
   return true;
 }
 
-function collectBlocks(root) {
+function collectBlocks(root: Element | Document): Element[] {
   const nodes = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(
     (node) => isEligibleBlock(node),
   );
   if (!nodes.length && root && root.nodeType === Node.ELEMENT_NODE) {
-    return isEligibleBlock(root) ? [root] : [];
+    const el = root as Element;
+    return isEligibleBlock(el) ? [el] : [];
   }
   return nodes;
 }
 
-function registerAnchor(node, chunkId) {
+function registerAnchor(node: Element, chunkId: string) {
   if (!node) {
     return;
   }
@@ -85,11 +86,17 @@ export function clearAiPageChunkAnchors() {
   activeAnchors.clear();
 }
 
-function clampNumber(value, min, max) {
+function clampNumber(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-export function captureAiPageContext(options = {}) {
+export interface AIContextOptions {
+  chunkCharLimit?: number;
+  maxTotalChars?: number;
+  maxChunks?: number;
+}
+
+export function captureAiPageContext(options: AIContextOptions = {}) {
   clearAiPageChunkAnchors();
 
   const chunkCharLimit = clampNumber(
@@ -98,7 +105,7 @@ export function captureAiPageContext(options = {}) {
     4000,
   );
   const maxTotalChars =
-    Number.isFinite(Number(options.maxTotalChars)) && options.maxTotalChars > 0
+    Number.isFinite(Number(options.maxTotalChars)) && options.maxTotalChars! > 0
       ? Number(options.maxTotalChars)
       : DEFAULT_MAX_TOTAL_CHARS;
   const maxChunks = clampNumber(
@@ -109,13 +116,20 @@ export function captureAiPageContext(options = {}) {
 
   const root = findPrimaryContentElement() || document.body;
   const blocks = collectBlocks(root);
-  const chunks = [];
-  let chunkParts = [];
+  const chunks: Array<{
+    id: string;
+    order: number;
+    text: string;
+    prefix: string;
+    anchorId: string;
+    wordCount: number;
+  }> = [];
+  let chunkParts: string[] = [];
   let chunkLength = 0;
   let chunkIndex = 0;
   let totalChars = 0;
   let wordCount = 0;
-  let anchorNode = null;
+  let anchorNode: Element | null = null;
   let truncated = false;
 
   function flushChunk() {
@@ -156,7 +170,7 @@ export function captureAiPageContext(options = {}) {
       truncated = true;
       break;
     }
-    const text = normalizeText(node.innerText || node.textContent || "");
+    const text = normalizeText((node as HTMLElement).innerText || node.textContent || "");
     if (!text) {
       continue;
     }
@@ -181,7 +195,7 @@ export function captureAiPageContext(options = {}) {
 
   if (!chunks.length && root) {
     const fallbackText = normalizeText(
-      root.innerText || root.textContent || "",
+      (root as HTMLElement).innerText || root.textContent || "",
     );
     if (fallbackText) {
       let offset = 0;
@@ -230,10 +244,7 @@ export function captureAiPageContext(options = {}) {
   };
 }
 
-function getChunkSelector(chunkId) {
-  if (!chunkId) {
-    return null;
-  }
+function getChunkSelector(chunkId: string): string {
   const escaped =
     typeof CSS !== "undefined" && CSS.escape
       ? CSS.escape(chunkId)
@@ -241,7 +252,7 @@ function getChunkSelector(chunkId) {
   return `[data-myz-ai-chunk="${escaped}"]`;
 }
 
-function unwrapHighlight(node) {
+function unwrapHighlight(node: Element) {
   if (!node || !node.parentNode) {
     return;
   }
@@ -252,7 +263,7 @@ function unwrapHighlight(node) {
   parent.removeChild(node);
 }
 
-function createFlashRange(range) {
+function createFlashRange(range: Range) {
   const highlight = document.createElement("span");
   highlight.className = "myz-ai-chunk-flash";
   try {
@@ -266,7 +277,7 @@ function createFlashRange(range) {
   }, 1600);
 }
 
-function findTextInChunk(root, snippet) {
+function findTextInChunk(root: Element, snippet: string): { node: Node; start: number; end: number } | null {
   const target = (snippet || "").trim();
   if (!target) {
     return null;
@@ -283,7 +294,7 @@ function findTextInChunk(root, snippet) {
   return null;
 }
 
-function focusSnippet(target, snippet) {
+function focusSnippet(target: Element, snippet: string) {
   const match = findTextInChunk(target, snippet);
   if (!match) {
     return false;
@@ -295,7 +306,7 @@ function focusSnippet(target, snippet) {
   return true;
 }
 
-export function scrollToAiChunk(chunkId, snippet = "") {
+export function scrollToAiChunk(chunkId: string, snippet = ""): boolean {
   const selector = getChunkSelector(chunkId);
   if (!selector) {
     return false;

@@ -1,8 +1,9 @@
 import { defineComponent, ref, reactive, onBeforeUnmount } from "vue";
+import type { HTMLAttributes, Ref } from "vue";
 
 const HIDE_ANIMATION_DURATION = 240;
 
-function buildToastStyle(visible) {
+function buildToastStyle(visible: boolean): HTMLAttributes["style"] {
   return {
     maxWidth: "280px",
     padding: "12px 14px",
@@ -18,12 +19,25 @@ function buildToastStyle(visible) {
   };
 }
 
+export interface Notification {
+  id: string;
+  message: string;
+  visible: boolean;
+  hideTimer: ReturnType<typeof setTimeout> | null;
+  removeTimer: ReturnType<typeof setTimeout> | null;
+}
+
+export interface NotifyOptions {
+  message: string;
+  duration?: number;
+}
+
 export default defineComponent({
   name: "MyZNotifications",
   setup(_, { expose }) {
-    const notifications = ref([]);
+    const notifications: Ref<Notification[]> = ref([]);
 
-    function removeNotification(id) {
+    function removeNotification(id: string) {
       const index = notifications.value.findIndex((item) => item.id === id);
       if (index === -1) {
         return;
@@ -37,7 +51,7 @@ export default defineComponent({
       }
     }
 
-    function scheduleRemoval(entry, duration) {
+    function scheduleRemoval(entry: Notification, duration: number) {
       entry.hideTimer = setTimeout(() => {
         entry.visible = false;
       }, duration);
@@ -46,7 +60,7 @@ export default defineComponent({
       }, duration + HIDE_ANIMATION_DURATION);
     }
 
-    function notify({ message, duration = 6000 } = {}) {
+    function notify({ message, duration = 6000 }: Partial<NotifyOptions> = {}) {
       if (!message) {
         return;
       }

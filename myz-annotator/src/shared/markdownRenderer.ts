@@ -28,7 +28,7 @@ md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
  * @param {string} text - The markdown text to render
  * @returns {string} - Rendered HTML string
  */
-export function renderMarkdown(text) {
+export function renderMarkdown(text: string): string {
   if (!text) return "";
   return md.render(text);
 }
@@ -38,7 +38,7 @@ export function renderMarkdown(text) {
  * @param {string} text - The text to check
  * @returns {boolean} - True if text contains markdown syntax
  */
-export function hasMarkdown(text) {
+export function hasMarkdown(text: string): boolean {
   if (!text) return false;
   // Simple check for common markdown patterns
   const patterns = [
