@@ -66,6 +66,8 @@ export function createDashboardStore() {
     aiProviders: [],
     aiActiveProviderId: null,
     aiMcpServers: [],
+    vectorSearchEnabled: false,
+    vectorModelReady: false,
   });
   const logseqStatus = ref("");
   const settingsStatus = ref("");
@@ -76,6 +78,8 @@ export function createDashboardStore() {
   const archiveMetaLoading = ref(false);
   const archiveMetaStatus = ref("");
   const archiveMetaInitialized = ref(false);
+  const vectorModelLoading = ref(false);
+  const vectorModelStatus = ref("");
 
   const modalState = reactive({
     recordId: "",
@@ -329,6 +333,10 @@ export function createDashboardStore() {
         aiMcpServers: Array.isArray(result.aiMcpServers)
           ? result.aiMcpServers.map((s) => ({ ...s }))
           : [],
+        vectorSearchEnabled: Boolean(result.vectorSearchEnabled),
+        vectorModelReady: result.vectorSearchEnabled
+          ? Boolean(result.vectorModelReady)
+          : false,
       });
       if (settings.dashboardView) {
         view.value = settings.dashboardView;
@@ -666,6 +674,12 @@ export function createDashboardStore() {
         if (Array.isArray(updated.aiMcpServers)) {
           settings.aiMcpServers = updated.aiMcpServers.map((s) => ({ ...s }));
         }
+        if ("vectorSearchEnabled" in updated) {
+          settings.vectorSearchEnabled = Boolean(updated.vectorSearchEnabled);
+        }
+        if ("vectorModelReady" in updated) {
+          settings.vectorModelReady = Boolean(updated.vectorModelReady);
+        }
       }
       settingsStatus.value = "设置已保存";
       setTimeout(() => {
@@ -754,6 +768,55 @@ export function createDashboardStore() {
     }
   }
 
+  async function toggleVectorSearch(enabled) {
+    settings.vectorSearchEnabled = enabled;
+    if (!enabled) {
+      settings.vectorModelReady = false;
+    }
+    const payload = {
+      vectorSearchEnabled: enabled,
+      vectorModelReady: enabled ? settings.vectorModelReady : false,
+    };
+    try {
+      setTimedStatus(settingsStatus, "保存中…", 0);
+      const updated = await sendMessage("myz:updateSettings", payload);
+      if (updated) {
+        settings.vectorSearchEnabled = Boolean(updated.vectorSearchEnabled);
+        settings.vectorModelReady = Boolean(updated.vectorModelReady);
+      }
+      setTimedStatus(settingsStatus, "设置已保存", 2000);
+    } catch (error) {
+      settings.vectorSearchEnabled = !enabled;
+      setTimedStatus(settingsStatus, `更新失败：${error.message}`, 4000);
+      throw error;
+    }
+  }
+
+  async function loadVectorModel() {
+    if (!settings.vectorSearchEnabled) {
+      setTimedStatus(vectorModelStatus, "请先启用向量检索", 3000);
+      return { success: false };
+    }
+    vectorModelLoading.value = true;
+    try {
+      setTimedStatus(vectorModelStatus, "加载模型中…", 0);
+      const result = await sendMessage("myz:loadVectorModel");
+      if (result?.vectorModelReady) {
+        settings.vectorModelReady = true;
+        setTimedStatus(vectorModelStatus, "模型加载完成", 4000);
+      } else {
+        setTimedStatus(vectorModelStatus, "模型未完成加载", 3000);
+      }
+      return result;
+    } catch (error) {
+      settings.vectorModelReady = false;
+      setTimedStatus(vectorModelStatus, `加载失败：${error.message}`, 4000);
+      throw error;
+    } finally {
+      vectorModelLoading.value = false;
+    }
+  }
+
   function cleanup() {
     timers.forEach((id) => clearTimeout(id));
     timers.clear();
@@ -815,12 +878,16 @@ export function createDashboardStore() {
     archiveHistorySorted,
     archiveMetaLoading,
     archiveMetaStatus,
+    vectorModelLoading,
+    vectorModelStatus,
     loadArchiveActivity,
     refreshArchiveActivity,
     describeArchiveAction,
     cleanup,
     isSyncInFlight,
     testAiConnection,
+    toggleVectorSearch,
+    loadVectorModel,
     loadHighlights: refreshHighlights,
   };
 }

@@ -175,6 +175,10 @@ import {
   const modal = mountModal();
   const inspector = mountInspector();
   const notifications = mountNotifications();
+  const interestState = new Map();
+  let interestObserver = null;
+  let interestPopupHost = null;
+  const interestMatchesByRecord = new Map();
 
   let scrollUpdateHandle = null;
 
@@ -735,6 +739,7 @@ import {
     maybeShowToolbarForActiveSelection();
 
     await restoreHighlights();
+    startInterestMonitoring();
   }
 
   // Keep track of the last canonical URL so we only re-run restoreHighlights
@@ -2023,5 +2028,321 @@ import {
         requestAnimationFrame(resolve);
       });
     });
+  }
+
+  // -------- Vectoria interest surface --------
+  const INTEREST_MIN_LENGTH = 80;
+  const INTEREST_STAY_MS = 2000;
+  const INTEREST_COOLDOWN_MS = 60_000;
+  const INTEREST_SCORE_THRESHOLD = 0.32;
+  const INTEREST_SELECTOR = "p, li, blockquote, article, section";
+
+  function normalizeParagraphText(node) {
+    if (!node) return "";
+    return (node.innerText || node.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function startInterestMonitoring() {
+    if (interestObserver) return;
+    const targets = Array.from(document.querySelectorAll(INTEREST_SELECTOR))
+      .filter((el) => normalizeParagraphText(el).length >= INTEREST_MIN_LENGTH)
+      .slice(0, 300); // avoid excessive observers
+
+    interestObserver = new IntersectionObserver(handleInterestEntries, {
+      threshold: 0.6,
+    });
+    targets.forEach((el) => {
+      const text = normalizeParagraphText(el);
+      if (text.length < INTEREST_MIN_LENGTH) return;
+      interestState.set(el, {
+        text,
+        timer: null,
+        lastSearchAt: 0,
+        searching: false,
+      });
+      interestObserver.observe(el);
+    });
+  }
+
+  function handleInterestEntries(entries) {
+    entries.forEach((entry) => {
+      const el = entry.target;
+      const state = interestState.get(el);
+      if (!state) return;
+      if (!entry.isIntersecting) {
+        if (state.timer) {
+          clearTimeout(state.timer);
+          state.timer = null;
+        }
+        return;
+      }
+      if (state.timer || state.searching) {
+        return;
+      }
+      state.timer = setTimeout(() => {
+        state.timer = null;
+        runSemanticLookup(el, state);
+      }, INTEREST_STAY_MS);
+    });
+  }
+
+  async function runSemanticLookup(element, state) {
+    const now = Date.now();
+    if (now - state.lastSearchAt < INTEREST_COOLDOWN_MS) {
+      return;
+    }
+    const text = normalizeParagraphText(element);
+    if (!text || text.length < INTEREST_MIN_LENGTH) {
+      return;
+    }
+    state.lastSearchAt = now;
+    state.searching = true;
+    try {
+      const trimmed =
+        text.length > 800 ? `${text.slice(0, 800)}…` : text;
+      const response = await sendMessage("myz:vectoriaSearch", {
+        text: trimmed,
+        topK: 3,
+      });
+      const results = Array.isArray(response?.results)
+        ? response.results
+        : [];
+      const currentCanonical = canonicalUrl(window.location.href);
+      const filtered = results.filter((item) => {
+        const targetUrl = item?.metadata?.url || "";
+        const targetCanonical = canonicalUrl(targetUrl);
+        // Exclude same-page matches
+        if (targetCanonical && targetCanonical === currentCanonical) {
+          return false;
+        }
+        return typeof item?.score === "number";
+      });
+      const hits = filtered.filter(
+        (item) =>
+          typeof item?.score === "number" &&
+          item.score >= INTEREST_SCORE_THRESHOLD,
+      );
+      if (hits.length) {
+        updateInterestAggregates(hits);
+        showInterestPopup(element, hits.slice(0, 3));
+      }
+    } catch (error) {
+      console.warn("Vectoria lookup failed", error);
+    } finally {
+      state.searching = false;
+    }
+  }
+
+  function ensureInterestPopupHost() {
+    if (
+      interestPopupHost &&
+      document.contains(interestPopupHost) &&
+      interestPopupHost.shadowRoot?.querySelector("#myz-interest-popup")
+    ) {
+      return interestPopupHost;
+    }
+    const host = document.createElement("div");
+    host.setAttribute("data-myz-interest", "1");
+    const shadow = host.attachShadow({ mode: "open" });
+    const wrapper = document.createElement("div");
+    wrapper.id = "myz-interest-popup";
+    const style = document.createElement("style");
+    style.textContent = `
+      :host {
+        all: initial;
+      }
+      #myz-interest-popup, #myz-interest-popup * {
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      }
+      #myz-interest-popup {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        max-width: 340px;
+        background: rgba(15,23,42,0.95);
+        color: #f8fafc;
+        border-radius: 14px;
+        box-shadow: 0 18px 32px rgba(15,23,42,0.4);
+        padding: 14px;
+        font-size: 13px;
+        z-index: 2147483645;
+        pointer-events: auto;
+      }
+      .myz-interest-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+      .myz-interest-title { font-weight: 700; font-size: 14px; flex: 1; }
+      .myz-interest-badge {
+        min-width: 24px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.12);
+        color: #e0e7ff;
+        font-weight: 600;
+        font-size: 12px;
+        text-align: center;
+      }
+      .myz-interest-item { border-top: 1px solid rgba(255,255,255,0.08); padding: 8px 0; }
+      .myz-interest-item:first-of-type { border-top: none; padding-top: 0; }
+      .myz-interest-meta { font-size: 11px; color: #cbd5e1; margin-bottom: 4px; }
+      .myz-interest-text { color: #e2e8f0; line-height: 1.4; margin-bottom: 6px; }
+      .myz-interest-actions { display: flex; gap: 8px; }
+      .myz-interest-btn {
+        background: #4f46e5;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .myz-interest-btn.secondary {
+        background: rgba(255,255,255,0.12);
+      }
+      .myz-interest-close {
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        background: transparent;
+        border: none;
+        color: #cbd5e1;
+        cursor: pointer;
+        font-size: 16px;
+      }
+    `;
+    shadow.appendChild(style);
+    shadow.appendChild(wrapper);
+    document.documentElement.appendChild(host);
+    interestPopupHost = host;
+    return host;
+  }
+
+  function showInterestPopup(element, matches) {
+    const host = ensureInterestPopupHost();
+    const shadow = host.shadowRoot;
+    if (!shadow) return;
+    const container = shadow.querySelector("#myz-interest-popup");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "myz-interest-close";
+    closeBtn.textContent = "×";
+    closeBtn.onclick = () => {
+      if (interestPopupHost) {
+        interestPopupHost.remove();
+        interestPopupHost = null;
+      }
+    };
+    container.appendChild(closeBtn);
+
+    const header = document.createElement("div");
+    header.className = "myz-interest-header";
+    const title = document.createElement("div");
+    title.className = "myz-interest-title";
+    title.textContent = "发现与你标注相关的内容";
+    header.appendChild(title);
+    const badgeCount = interestMatchesByRecord.size;
+    if (badgeCount > 0) {
+      const badge = document.createElement("div");
+      badge.className = "myz-interest-badge";
+      badge.textContent = badgeCount;
+      header.appendChild(badge);
+    }
+    container.appendChild(header);
+
+    matches.forEach((match) => {
+      const item = document.createElement("div");
+      item.className = "myz-interest-item";
+      const meta = document.createElement("div");
+      meta.className = "myz-interest-meta";
+      const hostLabel =
+        match.metadata?.host || match.metadata?.url || "已保存的标注";
+      meta.textContent = `${hostLabel} · 相似度 ${(match.score * 100).toFixed(1)}%`;
+      const text = document.createElement("div");
+      text.className = "myz-interest-text";
+      const snippet = (match.text || "").slice(0, 140);
+      text.textContent = snippet;
+      const actions = document.createElement("div");
+      actions.className = "myz-interest-actions";
+      const viewBtn = document.createElement("button");
+      viewBtn.className = "myz-interest-btn";
+      viewBtn.textContent = "定位当前段落";
+      viewBtn.onclick = () => handleInterestClick(match, element);
+      const openBtn = document.createElement("button");
+      openBtn.className = "myz-interest-btn secondary";
+      openBtn.textContent = "侧边栏查看";
+      openBtn.onclick = () => openMatchesInSidepanel(matches);
+      actions.appendChild(viewBtn);
+      actions.appendChild(openBtn);
+      item.appendChild(meta);
+      item.appendChild(text);
+      item.appendChild(actions);
+      container.appendChild(item);
+    });
+  }
+
+  function handleInterestClick(match, element) {
+    const recordId = match.metadata?.recordId;
+    const targetUrl = match.metadata?.url || "";
+    const currentCanonical = canonicalUrl(window.location.href);
+    const targetCanonical = canonicalUrl(targetUrl);
+
+    // If same page match is filtered, rely on current element for positioning.
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      flashElement(element);
+    } else if (recordId && targetCanonical === currentCanonical) {
+      if (highlightCache.has(recordId)) {
+        focusHighlight(recordId);
+      } else {
+        markHighlightForReapply(recordId);
+        setTimeout(() => focusHighlight(recordId), 800);
+      }
+    }
+  }
+
+  function openMatchesInSidepanel(matches) {
+    const aggregated = Array.from(interestMatchesByRecord.values());
+    const payloadMatches =
+      aggregated.length && Array.isArray(matches)
+        ? aggregated
+        : Array.isArray(matches)
+          ? matches
+          : [];
+    if (!payloadMatches.length) return;
+    sendMessage("myz:showRelatedHighlights", {
+      matches: payloadMatches.map((item) => ({
+        id: item.id,
+        text: item.text,
+        score: item.score,
+        metadata: item.metadata,
+      })),
+      url: window.location.href,
+    }).catch((error) => console.warn("open sidepanel failed", error));
+  }
+
+  function updateInterestAggregates(matches = []) {
+    matches.forEach((match) => {
+      const key =
+        match?.metadata?.recordId ||
+        match?.id ||
+        match?.metadata?.url ||
+        match?.text;
+      if (!key) return;
+      const existing = interestMatchesByRecord.get(key);
+      if (!existing || (match.score || 0) > (existing.score || 0)) {
+        interestMatchesByRecord.set(key, {
+          ...match,
+        });
+      }
+    });
+  }
+
+  function flashElement(el) {
+    if (!el || typeof el.classList?.add !== "function") return;
+    el.classList.add("myz-ai-chunk-flash");
+    setTimeout(() => el.classList.remove("myz-ai-chunk-flash"), 1200);
   }
 })();

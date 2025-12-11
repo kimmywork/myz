@@ -40,6 +40,14 @@ import {
   extractEntityUuid,
 } from "./background/logseq.js";
 import {
+  indexRecord as indexVectorRecord,
+  indexRecords as indexVectorRecords,
+  removeRecordFromIndex,
+  searchSimilar,
+  applyVectoriaSettings,
+  warmVectoriaModel,
+} from "./background/vectoria-index.js";
+import {
   getArchiveStatusForUrl,
   ensureArchiveSnapshot,
   getArchiveHistory,
@@ -397,6 +405,7 @@ const messageHandlers = {
         style: record.style,
       });
     }
+    await indexVectorRecord(record);
     return record;
   },
 
@@ -439,6 +448,7 @@ const messageHandlers = {
         style: updated.style,
       });
     }
+    await indexVectorRecord(updated);
     return updated;
   },
 
@@ -453,6 +463,7 @@ const messageHandlers = {
     delete state.highlights[payload.id];
     state.order = state.order.filter((item) => item !== payload.id);
     await writeState(state);
+    await removeRecordFromIndex(payload.id);
     return { success: true };
   },
 
@@ -640,6 +651,13 @@ const messageHandlers = {
     state.order = dedupeOrder(state.order, state.highlights);
 
     await writeState(state);
+    const toIndex = [
+      ...Array.from(additions.values()),
+      ...Array.from(replacements.values()),
+    ];
+    if (toIndex.length) {
+      await indexVectorRecords(toIndex);
+    }
     return {
       inserted: additions.size,
       replaced: replacements.size,
@@ -652,7 +670,37 @@ const messageHandlers = {
   },
 
   async "myz:updateSettings"(payload) {
-    return writeSettings(payload || {});
+    const patch = payload ? { ...payload } : {};
+    if (patch.vectorSearchEnabled === false) {
+      patch.vectorModelReady = false;
+    }
+    const updated = await writeSettings(patch);
+    applyVectoriaSettings(updated);
+    return updated;
+  },
+
+  async "myz:loadVectorModel"() {
+    const settings = await readSettings();
+    if (!settings.vectorSearchEnabled) {
+      throw new Error("向量检索未启用");
+    }
+    applyVectoriaSettings({
+      vectorSearchEnabled: true,
+      vectorModelReady: false,
+    });
+    try {
+      await warmVectoriaModel();
+      const updated = await writeSettings({ vectorModelReady: true });
+      applyVectoriaSettings(updated);
+      return { success: true, vectorModelReady: true };
+    } catch (error) {
+      await writeSettings({ vectorModelReady: false });
+      applyVectoriaSettings({
+        vectorSearchEnabled: settings.vectorSearchEnabled,
+        vectorModelReady: false,
+      });
+      throw error;
+    }
   },
 
   async "myz:updatePalette"(payload) {
@@ -831,6 +879,51 @@ const messageHandlers = {
 
   async "myz:getArchiveHistory"() {
     return getArchiveHistory();
+  },
+
+  async "myz:vectoriaSearch"(payload) {
+    const query =
+      typeof payload?.text === "string"
+        ? payload.text.trim().slice(0, 2000)
+        : "";
+    const topK =
+      typeof payload?.topK === "number" && payload.topK > 0
+        ? Math.min(10, Math.floor(payload.topK))
+        : 3;
+    if (!query) {
+      return { results: [] };
+    }
+    const results = await searchSimilar(query, { topK });
+    return {
+      results: results.map((item) => ({
+        id: item.id,
+        text: item.text,
+        score: item.score,
+        metadata: item.metadata || {},
+      })),
+    };
+  },
+
+  async "myz:showRelatedHighlights"(payload, sender) {
+    try {
+      const tabId = sender?.tab?.id;
+      if (typeof tabId === "number") {
+        await chrome.sidePanel.open({ tabId });
+      } else {
+        await chrome.sidePanel.open({});
+      }
+    } catch (error) {
+      console.warn("Failed to open sidepanel", error);
+    }
+    try {
+      await chrome.runtime.sendMessage({
+        type: "myz:showRelatedHighlights",
+        payload,
+      });
+    } catch (error) {
+      console.warn("Forward related highlights failed", error);
+    }
+    return { ok: true };
   },
 
   // AI Assistant handlers

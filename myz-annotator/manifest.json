@@ -41,5 +41,8 @@
   "options_page": "src/dashboard/index.html",
   "side_panel": {
     "default_path": "src/sidepanel/sidepanel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }
 }

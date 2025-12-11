@@ -113,6 +113,8 @@ function normalizeAiSettings(settings) {
   settings.aiMaxTokens =
     typeof selected?.maxTokens === "number" ? selected.maxTokens : 32768;
   settings.aiRequestHeaders = selected?.requestHeaders || "";
+  settings.vectorSearchEnabled = Boolean(settings.vectorSearchEnabled);
+  settings.vectorModelReady = Boolean(settings.vectorModelReady);
 
   return settings;
 }

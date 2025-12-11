@@ -46,4 +46,7 @@ export const DEFAULT_SETTINGS = {
   aiProviders: [],
   aiActiveProviderId: null,
   aiMcpServers: [],
+  // Vector search / Vectoria
+  vectorSearchEnabled: false,
+  vectorModelReady: false,
 };

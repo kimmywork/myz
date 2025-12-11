@@ -6,6 +6,7 @@ import ImportHighlightsSection from "./settings/ImportHighlightsSection.jsx";
 import InternetArchiveSection from "./settings/InternetArchiveSection.jsx";
 import ArchiveQueueSection from "./settings/ArchiveQueueSection.jsx";
 import ArchiveHistorySection from "./settings/ArchiveHistorySection.jsx";
+import VectorSearchSection from "./settings/VectorSearchSection.jsx";
 
 export default defineComponent({
   name: "SettingsPane",
@@ -279,6 +280,15 @@ export default defineComponent({
             onTestConnection={handleAiTestConnection}
             status={store.settingsStatus.value}
             onUpdateStatus={(value) => (store.settingsStatus.value = value)}
+          />
+
+          <VectorSearchSection
+            enabled={store.settings.vectorSearchEnabled}
+            modelReady={store.settings.vectorModelReady}
+            loading={store.vectorModelLoading.value}
+            status={store.vectorModelStatus.value}
+            onToggle={store.toggleVectorSearch}
+            onLoad={store.loadVectorModel}
           />
 
           <InternetArchiveSection
