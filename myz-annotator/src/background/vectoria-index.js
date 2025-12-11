@@ -281,7 +281,6 @@ export async function indexRecords(records = []) {
     return;
   }
   for (const record of records) {
-    // eslint-disable-next-line no-await-in-loop
     await indexRecord(record);
   }
 }

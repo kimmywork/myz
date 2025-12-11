@@ -177,8 +177,16 @@ import {
   const notifications = mountNotifications();
   const interestState = new Map();
   let interestObserver = null;
+  let interestMutationObserver = null;
+  let interestRescanTimer = null;
   let interestPopupHost = null;
+  let interestIndicatorsHost = null;
   const interestMatchesByRecord = new Map();
+  const interestElementIndicators = new Map();
+  let interestPopupCollapsed = false;
+  let interestDockPosition = { top: 0.75, left: null, right: 0.05 };
+  let indicatorUpdateScheduled = false;
+  let interestTempRectKeyId = 0;
 
   let scrollUpdateHandle = null;
 
@@ -211,6 +219,12 @@ import {
       passive: true,
     });
     window.addEventListener("resize", handleScrollWhileSelecting, {
+      passive: true,
+    });
+    window.addEventListener("scroll", scheduleIndicatorUpdate, {
+      passive: true,
+    });
+    window.addEventListener("resize", scheduleIndicatorUpdate, {
       passive: true,
     });
     document.addEventListener("click", handleDocumentClick, true);
@@ -760,6 +774,9 @@ import {
         // lastKnownCanonical if restore succeeds so we can retry on later
         // attempts if page content isn't ready yet.
         try {
+          if (nowCanonical !== lastKnownCanonical) {
+            resetInterestStateForNavigation();
+          }
           await restoreHighlights();
           lastKnownCanonical = nowCanonical;
         } catch (err) {
@@ -2035,8 +2052,24 @@ import {
   const INTEREST_STAY_MS = 2000;
   const INTEREST_COOLDOWN_MS = 60_000;
   const INTEREST_SCORE_THRESHOLD = 0.32;
-  const INTEREST_SELECTOR =
-    'p, li, blockquote, article, section, article[data-testid="tweet"] div[data-testid="tweetText"]';
+  const BLOCK_DISPLAY_SET = new Set([
+    "block",
+    "list-item",
+    "flex",
+    "grid",
+    "table",
+    "inline-block",
+  ]);
+  const BLOCK_TAG_SET = new Set([
+    "P",
+    "LI",
+    "BLOCKQUOTE",
+    "SECTION",
+    "ARTICLE",
+    "DIV",
+    "UL",
+    "OL",
+  ]);
 
   function normalizeParagraphText(node) {
     if (!node) return "";
@@ -2045,26 +2078,193 @@ import {
       .trim();
   }
 
-  function startInterestMonitoring() {
-    if (interestObserver) return;
-    const targets = Array.from(document.querySelectorAll(INTEREST_SELECTOR))
-      .filter((el) => normalizeParagraphText(el).length >= INTEREST_MIN_LENGTH)
-      .slice(0, 300); // avoid excessive observers
+  function getElementPageRect(el) {
+    const rect = el?.getBoundingClientRect?.();
+    if (!rect) return null;
+    return {
+      left: rect.left + window.scrollX,
+      top: rect.top + window.scrollY,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
 
-    interestObserver = new IntersectionObserver(handleInterestEntries, {
-      threshold: 0.6,
+  function isRectValid(rect) {
+    return (
+      rect &&
+      Number.isFinite(rect.left) &&
+      Number.isFinite(rect.top) &&
+      Number.isFinite(rect.width) &&
+      Number.isFinite(rect.height) &&
+      rect.width > 0 &&
+      rect.height > 0
+    );
+  }
+
+  function isElementVisible(el) {
+    if (!el || !(el instanceof Element)) return false;
+    const rects = el.getClientRects();
+    if (!rects || rects.length === 0) return false;
+    const style = getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden") {
+      return false;
+    }
+    return rects[0].width > 0 && rects[0].height > 0;
+  }
+
+  function isBlockElement(el) {
+    if (!el || !(el instanceof Element)) return false;
+    if (BLOCK_TAG_SET.has(el.tagName)) return true;
+    const display = getComputedStyle(el).display;
+    return BLOCK_DISPLAY_SET.has(display);
+  }
+
+  function isElementInViewport(el) {
+    if (!el || !(el instanceof Element)) return false;
+    const rect = el.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return false;
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    return rect.bottom > 0 && rect.right > 0 && rect.top < vh && rect.left < vw;
+  }
+
+  function extractInlineText(el) {
+    const parts = [];
+    el.childNodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        parts.push(node.textContent || "");
+        return;
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const child = node;
+        if (isBlockElement(child)) {
+          return;
+        }
+        parts.push(normalizeParagraphText(child));
+      }
     });
-    targets.forEach((el) => {
-      const text = normalizeParagraphText(el);
-      if (text.length < INTEREST_MIN_LENGTH) return;
-      interestState.set(el, {
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  function collectLeafBlocks(maxCount = 300) {
+    const results = [];
+    const selected = new WeakSet();
+    const walker = document.createTreeWalker(
+      document.body || document.documentElement,
+      NodeFilter.SHOW_ELEMENT,
+    );
+    const start = performance.now();
+    let node;
+    while ((node = walker.nextNode()) && results.length < maxCount) {
+      if (!(node instanceof HTMLElement)) continue;
+      if (!isElementVisible(node)) continue;
+      if (!isBlockElement(node)) continue;
+      if (hasSelectedAncestor(node, selected)) continue;
+
+      const children = Array.from(node.children);
+      const hasBlockChild = children.some((child) => isBlockElement(child));
+
+      let text = "";
+      if (hasBlockChild) {
+        text = extractInlineText(node);
+      } else {
+        text = normalizeParagraphText(node);
+      }
+
+      if (text && text.length >= INTEREST_MIN_LENGTH) {
+        results.push({ element: node, text });
+        if (!hasBlockChild) {
+          selected.add(node);
+        }
+      }
+    }
+    const duration = Math.round(performance.now() - start);
+    console.log(
+      "[MyZ Vectoria] collected candidates",
+      results.length,
+      "in",
+      duration,
+      "ms",
+    );
+    return results;
+  }
+
+  function hasSelectedAncestor(node, selected) {
+    let current = node?.parentElement;
+    while (current) {
+      if (selected.has(current)) return true;
+      current = current.parentElement;
+    }
+    return false;
+  }
+
+  function startInterestMonitoring() {
+    if (!interestObserver) {
+      interestObserver = new IntersectionObserver(handleInterestEntries, {
+        threshold: 0.6,
+      });
+    }
+
+    const targets = collectLeafBlocks();
+    targets.forEach(({ element, text }) => {
+      interestState.set(element, {
         text,
         timer: null,
         lastSearchAt: 0,
         searching: false,
       });
-      interestObserver.observe(el);
+      interestObserver.observe(element);
     });
+
+    if (!interestMutationObserver) {
+      interestMutationObserver = new MutationObserver(scheduleInterestRescan);
+      interestMutationObserver.observe(
+        document.body || document.documentElement,
+        {
+          childList: true,
+          subtree: true,
+        },
+      );
+    }
+  }
+
+  function scheduleInterestRescan() {
+    if (interestRescanTimer) return;
+    interestRescanTimer = setTimeout(() => {
+      interestRescanTimer = null;
+      rescanInterestTargets();
+    }, 600);
+  }
+
+  function rescanInterestTargets() {
+    if (!interestObserver) return;
+    // Clean up removed nodes
+    Array.from(interestState.keys()).forEach((el) => {
+      if (!document.contains(el)) {
+        interestState.delete(el);
+        try {
+          interestObserver.unobserve(el);
+        } catch {}
+      }
+    });
+    const targets = collectLeafBlocks();
+    let added = 0;
+    targets.forEach(({ element, text }) => {
+      if (interestState.has(element)) {
+        return;
+      }
+      interestState.set(element, {
+        text,
+        timer: null,
+        lastSearchAt: 0,
+        searching: false,
+      });
+      interestObserver.observe(element);
+      added += 1;
+    });
+    if (added > 0) {
+      console.log("[MyZ Vectoria] rescan added", added, "new candidates");
+    }
   }
 
   function handleInterestEntries(entries) {
@@ -2095,7 +2295,9 @@ import {
       return;
     }
     const text = normalizeParagraphText(element);
-    if (!text || text.length < INTEREST_MIN_LENGTH) {
+    const finalText =
+      (state?.text && state.text.trim().length ? state.text : text) || "";
+    if (!finalText || finalText.length < INTEREST_MIN_LENGTH) {
       return;
     }
     state.lastSearchAt = now;
@@ -2105,14 +2307,12 @@ import {
     let hits = [];
     try {
       const trimmed =
-        text.length > 800 ? `${text.slice(0, 800)}…` : text;
+        finalText.length > 800 ? `${finalText.slice(0, 800)}…` : finalText;
       const response = await sendMessage("myz:vectoriaSearch", {
         text: trimmed,
         topK: 3,
       });
-      const results = Array.isArray(response?.results)
-        ? response.results
-        : [];
+      const results = Array.isArray(response?.results) ? response.results : [];
       const currentCanonical = canonicalUrl(window.location.href);
       filtered = results.filter((item) => {
         const targetUrl = item?.metadata?.url || "";
@@ -2138,11 +2338,11 @@ import {
       console.warn("Vectoria lookup failed", error);
     } finally {
       const duration = Math.round(performance.now() - startedAt);
-      const topScore = hits.length ? (hits[0].score || 0) : 0;
+      const topScore = hits.length ? hits[0].score || 0 : 0;
       console.log(
         "[MyZ Vectoria]",
         "queryLength=",
-        text.length,
+        finalText.length,
         "matches=",
         filtered.length,
         "topScore=",
@@ -2190,6 +2390,29 @@ import {
         z-index: 2147483645;
         pointer-events: auto;
       }
+      #myz-interest-popup.collapsed {
+        width: auto;
+        height: auto;
+        max-width: none;
+        max-height: none;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+        border-radius: 0;
+      }
+      #myz-interest-popup.collapsed .dock-button {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        background: #4f46e5;
+        color: #fff;
+        box-shadow: 0 12px 22px rgba(79,70,229,0.38);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: move;
+        user-select: none;
+      }
       .myz-interest-header { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; margin-bottom: 6px; }
       .myz-interest-title { font-weight: 700; font-size: 14px; }
       .myz-interest-badge {
@@ -2229,6 +2452,20 @@ import {
         line-height: 1;
         justify-self: end;
       }
+      .myz-interest-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: #cbd5e1;
+      }
+      .myz-interest-link {
+        color: #a5b4fc;
+        text-decoration: underline;
+        cursor: pointer;
+      }
     `;
     shadow.appendChild(style);
     shadow.appendChild(wrapper);
@@ -2244,6 +2481,19 @@ import {
     const container = shadow.querySelector("#myz-interest-popup");
     if (!container) return;
     container.innerHTML = "";
+
+    if (interestPopupCollapsed) {
+      container.classList.add("collapsed");
+      applyDockPosition(container);
+      renderDock(container);
+      return;
+    }
+
+    container.classList.remove("collapsed");
+    container.style.top = "auto";
+    container.style.left = "auto";
+    container.style.right = "20px";
+    container.style.bottom = "20px";
 
     const header = document.createElement("div");
     header.className = "myz-interest-header";
@@ -2261,19 +2511,19 @@ import {
     const closeBtn = document.createElement("button");
     closeBtn.className = "myz-interest-close";
     closeBtn.textContent = "×";
-    closeBtn.onclick = () => {
-      interestMatchesByRecord.clear();
-      if (interestPopupHost) {
-        interestPopupHost.remove();
-        interestPopupHost = null;
-      }
+    closeBtn.onclick = (e) => {
+      e?.stopPropagation?.();
+      collapseInterestPopup();
     };
     header.appendChild(closeBtn);
 
     const sorted = Array.from(interestMatchesByRecord.values()).sort(
       (a, b) => (b.match.score || 0) - (a.match.score || 0),
     );
-    const topMatches = sorted.slice(0, 5);
+    const visibleMatches = sorted.filter(({ element }) =>
+      isElementInViewport(element),
+    );
+    const topMatches = visibleMatches.slice(0, 5);
     const remaining = Math.max(sorted.length - topMatches.length, 0);
 
     topMatches.forEach(({ match, element }) => {
@@ -2294,12 +2544,16 @@ import {
       viewBtn.className = "myz-interest-btn";
       viewBtn.textContent = "定位当前段落";
       viewBtn.onclick = () => handleInterestClick(match, element);
-      const openBtn = document.createElement("button");
-      openBtn.className = "myz-interest-btn secondary";
-      openBtn.textContent = "侧边栏查看";
-      openBtn.onclick = () => openMatchesInSidepanel(sorted.map((m) => m.match));
+      const openPageBtn = document.createElement("button");
+      openPageBtn.className = "myz-interest-btn secondary";
+      openPageBtn.textContent = "打开页面";
+      openPageBtn.onclick = () => {
+        if (match.metadata?.url) {
+          window.open(match.metadata.url, "_blank", "noopener");
+        }
+      };
       actions.appendChild(viewBtn);
-      actions.appendChild(openBtn);
+      actions.appendChild(openPageBtn);
       item.appendChild(meta);
       item.appendChild(text);
       item.appendChild(actions);
@@ -2308,8 +2562,16 @@ import {
 
     if (remaining > 0) {
       const footer = document.createElement("div");
-      footer.className = "myz-interest-meta";
-      footer.textContent = `还有 ${remaining} 条相关标注已统计`;
+      footer.className = "myz-interest-footer";
+      const footerText = document.createElement("div");
+      footerText.textContent = `还有 ${remaining} 条相关标注已统计`;
+      const sideLink = document.createElement("span");
+      sideLink.className = "myz-interest-link";
+      sideLink.textContent = "侧边栏查看全部";
+      sideLink.onclick = () =>
+        openMatchesInSidepanel(sorted.map((m) => m.match));
+      footer.appendChild(footerText);
+      footer.appendChild(sideLink);
       container.appendChild(footer);
     }
   }
@@ -2324,6 +2586,9 @@ import {
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
       flashElement(element);
+    } else if (match.rect && isRectValid(match.rect)) {
+      const targetTop = Math.max(0, match.rect.top - 120);
+      window.scrollTo({ top: targetTop, behavior: "smooth" });
     } else if (recordId && targetCanonical === currentCanonical) {
       if (highlightCache.has(recordId)) {
         focusHighlight(recordId);
@@ -2340,9 +2605,9 @@ import {
     );
     const payloadMatches =
       aggregated.length && Array.isArray(matches)
-        ? aggregated
+        ? aggregated.slice().sort((a, b) => (b.score || 0) - (a.score || 0))
         : Array.isArray(matches)
-          ? matches
+          ? matches.slice().sort((a, b) => (b.score || 0) - (a.score || 0))
           : [];
     if (!payloadMatches.length) return;
     sendMessage("myz:showRelatedHighlights", {
@@ -2366,17 +2631,246 @@ import {
       if (!key) return;
       const existing = interestMatchesByRecord.get(key);
       if (!existing || (match.score || 0) > (existing.match.score || 0)) {
+        const rect = element ? getElementPageRect(element) : existing?.rect;
+        const rectKey =
+          element || existing?.rectKey
+            ? existing?.rectKey
+            : `rect-${++interestTempRectKeyId}`;
         interestMatchesByRecord.set(key, {
           match: { ...match },
           element,
+          rect,
+          rectKey,
         });
       }
     });
+    updateInterestIndicators();
   }
 
   function flashElement(el) {
     if (!el || typeof el.classList?.add !== "function") return;
     el.classList.add("myz-ai-chunk-flash");
     setTimeout(() => el.classList.remove("myz-ai-chunk-flash"), 1200);
+  }
+
+  function ensureInterestIndicatorsHost() {
+    if (
+      interestIndicatorsHost &&
+      document.contains(interestIndicatorsHost) &&
+      interestIndicatorsHost.shadowRoot?.firstChild
+    ) {
+      return interestIndicatorsHost;
+    }
+    const host = document.createElement("div");
+    host.setAttribute("data-myz-interest-indicators", "1");
+    const shadow = host.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = `
+      :host { all: initial; }
+      .indicator {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #f59e0b;
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
+        pointer-events: none;
+        z-index: 2147483644;
+        opacity: 0.95;
+      }
+    `;
+    const layer = document.createElement("div");
+    layer.style.position = "fixed";
+    layer.style.top = "0";
+    layer.style.left = "0";
+    layer.style.width = "100%";
+    layer.style.height = "100%";
+    layer.style.pointerEvents = "none";
+    shadow.appendChild(style);
+    shadow.appendChild(layer);
+    document.documentElement.appendChild(host);
+    interestIndicatorsHost = host;
+    return host;
+  }
+
+  function updateInterestIndicators() {
+    const host = ensureInterestIndicatorsHost();
+    const layer = host.shadowRoot?.lastChild;
+    if (!layer) return;
+    // Cleanup removed elements and stale indicators
+    Array.from(interestElementIndicators.entries()).forEach(
+      ([key, indicator]) => {
+        if (key instanceof Element && !document.contains(key)) {
+          if (indicator.el?.parentNode) {
+            indicator.el.parentNode.removeChild(indicator.el);
+          }
+          interestElementIndicators.delete(key);
+        }
+      },
+    );
+
+    let removedInvalid = false;
+
+    Array.from(interestMatchesByRecord.entries()).forEach(
+      ([mapKey, { element, rect, rectKey }]) => {
+        let targetRect = null;
+        if (element && document.contains(element)) {
+          targetRect = element.getBoundingClientRect();
+        } else if (isRectValid(rect)) {
+          targetRect = {
+            left: rect.left - window.scrollX,
+            top: rect.top - window.scrollY,
+            width: rect.width,
+            height: rect.height,
+          };
+        }
+        if (!targetRect) {
+          interestMatchesByRecord.delete(mapKey);
+          removedInvalid = true;
+          return;
+        }
+        const indicatorKey = element || rectKey || mapKey;
+        let indicator = interestElementIndicators.get(indicatorKey);
+        if (!indicator) {
+          const dot = document.createElement("div");
+          dot.className = "indicator";
+          layer.appendChild(dot);
+          indicator = { el: dot };
+          interestElementIndicators.set(indicatorKey, indicator);
+        }
+        const x = targetRect.left - 6;
+        const y = targetRect.top - 6;
+        indicator.el.style.transform = `translate(${x}px, ${y}px)`;
+      },
+    );
+  }
+
+  function scheduleIndicatorUpdate() {
+    if (indicatorUpdateScheduled) return;
+    indicatorUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      indicatorUpdateScheduled = false;
+      updateInterestIndicators();
+      if (!interestPopupCollapsed) {
+        showInterestPopup();
+      }
+    });
+  }
+
+  function resetInterestStateForNavigation() {
+    interestMatchesByRecord.clear();
+    interestElementIndicators.forEach(({ el }) => {
+      if (el?.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+    });
+    interestElementIndicators.clear();
+    if (interestIndicatorsHost?.parentNode) {
+      interestIndicatorsHost.parentNode.removeChild(interestIndicatorsHost);
+    }
+    interestIndicatorsHost = null;
+    if (interestPopupHost?.parentNode) {
+      interestPopupHost.parentNode.removeChild(interestPopupHost);
+    }
+    interestPopupHost = null;
+    interestPopupCollapsed = false;
+    if (interestObserver) {
+      try {
+        interestObserver.disconnect();
+      } catch {}
+    }
+    interestObserver = null;
+    if (interestMutationObserver) {
+      try {
+        interestMutationObserver.disconnect();
+      } catch {}
+    }
+    interestMutationObserver = null;
+    interestState.clear();
+    startInterestMonitoring();
+  }
+
+  function applyDockPosition(container) {
+    if (!container) return;
+    const topPercent =
+      typeof interestDockPosition.top === "number"
+        ? interestDockPosition.top
+        : 0.75;
+    container.style.top = `${Math.min(0.9, Math.max(0.05, topPercent)) * 100}%`;
+    container.style.bottom = "auto";
+    if (interestDockPosition.left !== null) {
+      container.style.left = `${Math.max(0, interestDockPosition.left * 100)}%`;
+      container.style.right = "auto";
+    } else {
+      container.style.right = `${Math.max(
+        0,
+        (interestDockPosition.right ?? 0.05) * 100,
+      )}%`;
+      container.style.left = "auto";
+    }
+  }
+
+  function renderDock(container) {
+    container.innerHTML = "";
+    const dock = document.createElement("button");
+    dock.className = "dock-button";
+    dock.textContent = Math.max(interestMatchesByRecord.size, 0);
+    container.appendChild(dock);
+    let dragging = false;
+    let moved = false;
+    let startY = 0;
+    let startX = 0;
+    let startTop = 0;
+    let startLeft = 0;
+    const onMouseMove = (e) => {
+      if (!dragging) return;
+      moved = true;
+      const deltaY = e.clientY - startY;
+      const deltaX = e.clientX - startX;
+      const viewHeight = window.innerHeight || 1;
+      const viewWidth = window.innerWidth || 1;
+      const newTop = Math.min(viewHeight - 24, Math.max(24, startTop + deltaY));
+      const newLeft = Math.min(viewWidth - 24, Math.max(0, startLeft + deltaX));
+      interestDockPosition.top = newTop / viewHeight;
+      interestDockPosition.left = newLeft / viewWidth;
+      interestDockPosition.right = null;
+      applyDockPosition(container);
+    };
+    const endDrag = () => {
+      dragging = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", endDrag);
+    };
+    dock.onmousedown = (e) => {
+      e.preventDefault();
+      dragging = true;
+      startY = e.clientY;
+      startX = e.clientX;
+      startTop = (window.innerHeight || 1) * (interestDockPosition.top || 0.75);
+      startLeft =
+        interestDockPosition.left !== null
+          ? (window.innerWidth || 1) * interestDockPosition.left
+          : (window.innerWidth || 1) *
+            (1 - (interestDockPosition.right ?? 0.05));
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", endDrag);
+    };
+    dock.onclick = (e) => {
+      if (e && typeof e.stopPropagation === "function") {
+        e.stopPropagation();
+      }
+      if (dragging || moved) {
+        moved = false;
+        return;
+      }
+      interestPopupCollapsed = false;
+      showInterestPopup();
+    };
+  }
+
+  function collapseInterestPopup() {
+    interestPopupCollapsed = true;
+    showInterestPopup();
+    scheduleIndicatorUpdate();
   }
 })();

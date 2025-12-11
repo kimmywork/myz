@@ -115,6 +115,22 @@ function enrichRecordsWithArchive(records, archives) {
   }
 })();
 
+(async function initializeVectoriaSettings() {
+  try {
+    const settings = await readSettings();
+    applyVectoriaSettings(settings);
+    if (settings.vectorSearchEnabled) {
+      try {
+        await warmVectoriaModel();
+      } catch (error) {
+        console.warn("Vectoria warm-up on startup failed", error);
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to initialize vector settings", error);
+  }
+})();
+
 chrome.runtime.onInstalled.addListener(async () => {
   const { [STORAGE_KEY]: existingHighlights } =
     await chrome.storage.local.get(STORAGE_KEY);
