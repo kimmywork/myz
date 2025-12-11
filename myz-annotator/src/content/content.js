@@ -2035,7 +2035,8 @@ import {
   const INTEREST_STAY_MS = 2000;
   const INTEREST_COOLDOWN_MS = 60_000;
   const INTEREST_SCORE_THRESHOLD = 0.32;
-  const INTEREST_SELECTOR = "p, li, blockquote, article, section";
+  const INTEREST_SELECTOR =
+    'p, li, blockquote, article, section, article[data-testid="tweet"] div[data-testid="tweetText"]';
 
   function normalizeParagraphText(node) {
     if (!node) return "";
@@ -2099,6 +2100,9 @@ import {
     }
     state.lastSearchAt = now;
     state.searching = true;
+    const startedAt = performance.now();
+    let filtered = [];
+    let hits = [];
     try {
       const trimmed =
         text.length > 800 ? `${text.slice(0, 800)}…` : text;
@@ -2110,7 +2114,7 @@ import {
         ? response.results
         : [];
       const currentCanonical = canonicalUrl(window.location.href);
-      const filtered = results.filter((item) => {
+      filtered = results.filter((item) => {
         const targetUrl = item?.metadata?.url || "";
         const targetCanonical = canonicalUrl(targetUrl);
         // Exclude same-page matches
@@ -2119,18 +2123,33 @@ import {
         }
         return typeof item?.score === "number";
       });
-      const hits = filtered.filter(
-        (item) =>
-          typeof item?.score === "number" &&
-          item.score >= INTEREST_SCORE_THRESHOLD,
-      );
+      hits = filtered
+        .filter(
+          (item) =>
+            typeof item?.score === "number" &&
+            item.score >= INTEREST_SCORE_THRESHOLD,
+        )
+        .sort((a, b) => (b.score || 0) - (a.score || 0));
       if (hits.length) {
-        updateInterestAggregates(hits);
-        showInterestPopup(element, hits.slice(0, 3));
+        updateInterestAggregates(hits, element);
+        showInterestPopup();
       }
     } catch (error) {
       console.warn("Vectoria lookup failed", error);
     } finally {
+      const duration = Math.round(performance.now() - startedAt);
+      const topScore = hits.length ? (hits[0].score || 0) : 0;
+      console.log(
+        "[MyZ Vectoria]",
+        "queryLength=",
+        text.length,
+        "matches=",
+        filtered.length,
+        "topScore=",
+        topScore.toFixed ? topScore.toFixed(3) : topScore,
+        "timeMs=",
+        duration,
+      );
       state.searching = false;
     }
   }
@@ -2171,8 +2190,8 @@ import {
         z-index: 2147483645;
         pointer-events: auto;
       }
-      .myz-interest-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-      .myz-interest-title { font-weight: 700; font-size: 14px; flex: 1; }
+      .myz-interest-header { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; margin-bottom: 6px; }
+      .myz-interest-title { font-weight: 700; font-size: 14px; }
       .myz-interest-badge {
         min-width: 24px;
         padding: 2px 8px;
@@ -2182,6 +2201,7 @@ import {
         font-weight: 600;
         font-size: 12px;
         text-align: center;
+        justify-self: start;
       }
       .myz-interest-item { border-top: 1px solid rgba(255,255,255,0.08); padding: 8px 0; }
       .myz-interest-item:first-of-type { border-top: none; padding-top: 0; }
@@ -2201,14 +2221,13 @@ import {
         background: rgba(255,255,255,0.12);
       }
       .myz-interest-close {
-        position: absolute;
-        top: 8px;
-        right: 10px;
         background: transparent;
         border: none;
         color: #cbd5e1;
         cursor: pointer;
         font-size: 16px;
+        line-height: 1;
+        justify-self: end;
       }
     `;
     shadow.appendChild(style);
@@ -2226,17 +2245,6 @@ import {
     if (!container) return;
     container.innerHTML = "";
 
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "myz-interest-close";
-    closeBtn.textContent = "×";
-    closeBtn.onclick = () => {
-      if (interestPopupHost) {
-        interestPopupHost.remove();
-        interestPopupHost = null;
-      }
-    };
-    container.appendChild(closeBtn);
-
     const header = document.createElement("div");
     header.className = "myz-interest-header";
     const title = document.createElement("div");
@@ -2244,15 +2252,31 @@ import {
     title.textContent = "发现与你标注相关的内容";
     header.appendChild(title);
     const badgeCount = interestMatchesByRecord.size;
-    if (badgeCount > 0) {
-      const badge = document.createElement("div");
-      badge.className = "myz-interest-badge";
-      badge.textContent = badgeCount;
-      header.appendChild(badge);
-    }
+    const badge = document.createElement("div");
+    badge.className = "myz-interest-badge";
+    badge.textContent = badgeCount;
+    header.appendChild(badge);
     container.appendChild(header);
 
-    matches.forEach((match) => {
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "myz-interest-close";
+    closeBtn.textContent = "×";
+    closeBtn.onclick = () => {
+      interestMatchesByRecord.clear();
+      if (interestPopupHost) {
+        interestPopupHost.remove();
+        interestPopupHost = null;
+      }
+    };
+    header.appendChild(closeBtn);
+
+    const sorted = Array.from(interestMatchesByRecord.values()).sort(
+      (a, b) => (b.match.score || 0) - (a.match.score || 0),
+    );
+    const topMatches = sorted.slice(0, 5);
+    const remaining = Math.max(sorted.length - topMatches.length, 0);
+
+    topMatches.forEach(({ match, element }) => {
       const item = document.createElement("div");
       item.className = "myz-interest-item";
       const meta = document.createElement("div");
@@ -2273,7 +2297,7 @@ import {
       const openBtn = document.createElement("button");
       openBtn.className = "myz-interest-btn secondary";
       openBtn.textContent = "侧边栏查看";
-      openBtn.onclick = () => openMatchesInSidepanel(matches);
+      openBtn.onclick = () => openMatchesInSidepanel(sorted.map((m) => m.match));
       actions.appendChild(viewBtn);
       actions.appendChild(openBtn);
       item.appendChild(meta);
@@ -2281,6 +2305,13 @@ import {
       item.appendChild(actions);
       container.appendChild(item);
     });
+
+    if (remaining > 0) {
+      const footer = document.createElement("div");
+      footer.className = "myz-interest-meta";
+      footer.textContent = `还有 ${remaining} 条相关标注已统计`;
+      container.appendChild(footer);
+    }
   }
 
   function handleInterestClick(match, element) {
@@ -2304,7 +2335,9 @@ import {
   }
 
   function openMatchesInSidepanel(matches) {
-    const aggregated = Array.from(interestMatchesByRecord.values());
+    const aggregated = Array.from(interestMatchesByRecord.values()).map(
+      (item) => item.match,
+    );
     const payloadMatches =
       aggregated.length && Array.isArray(matches)
         ? aggregated
@@ -2323,7 +2356,7 @@ import {
     }).catch((error) => console.warn("open sidepanel failed", error));
   }
 
-  function updateInterestAggregates(matches = []) {
+  function updateInterestAggregates(matches = [], element) {
     matches.forEach((match) => {
       const key =
         match?.metadata?.recordId ||
@@ -2332,9 +2365,10 @@ import {
         match?.text;
       if (!key) return;
       const existing = interestMatchesByRecord.get(key);
-      if (!existing || (match.score || 0) > (existing.score || 0)) {
+      if (!existing || (match.score || 0) > (existing.match.score || 0)) {
         interestMatchesByRecord.set(key, {
-          ...match,
+          match: { ...match },
+          element,
         });
       }
     });

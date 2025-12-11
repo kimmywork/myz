@@ -218,6 +218,30 @@ export default defineComponent({
       store.showHighlights();
     }
 
+    async function handleVectorToggle(enabled) {
+      await store.toggleVectorSearch(enabled);
+    }
+
+    async function handleVectorLoad() {
+      await store.loadVectorModel();
+    }
+
+    async function handleVectorRebuild() {
+      await store.rebuildVectorIndex();
+    }
+
+    async function handleVectorTest(payload) {
+      await store.testVectorProvider(payload);
+    }
+
+    async function handleVectorSave(payload) {
+      await store.saveSettings(payload);
+    }
+
+    async function handleVectorSwitch(payload) {
+      await store.switchVectorProvider(payload);
+    }
+
     watch(
       () => props.active,
       (isActive) => {
@@ -283,12 +307,15 @@ export default defineComponent({
           />
 
           <VectorSearchSection
-            enabled={store.settings.vectorSearchEnabled}
-            modelReady={store.settings.vectorModelReady}
+            settings={store.settings}
             loading={store.vectorModelLoading.value}
             status={store.vectorModelStatus.value}
-            onToggle={store.toggleVectorSearch}
-            onLoad={store.loadVectorModel}
+            onToggleEnable={handleVectorToggle}
+            onLoadLocal={handleVectorLoad}
+            onRebuild={handleVectorRebuild}
+            onTestOpenAi={handleVectorTest}
+            onSave={handleVectorSave}
+            onSwitchProvider={handleVectorSwitch}
           />
 
           <InternetArchiveSection

@@ -114,7 +114,28 @@ function normalizeAiSettings(settings) {
     typeof selected?.maxTokens === "number" ? selected.maxTokens : 32768;
   settings.aiRequestHeaders = selected?.requestHeaders || "";
   settings.vectorSearchEnabled = Boolean(settings.vectorSearchEnabled);
-  settings.vectorModelReady = Boolean(settings.vectorModelReady);
+  settings.vectorModelReady = Boolean(
+    settings.vectorSearchEnabled && settings.vectorModelReady,
+  );
+  settings.vectorUseLocalModel =
+    settings.vectorUseLocalModel !== false &&
+    settings.vectorUseLocalModel !== "remote";
+  settings.vectorOpenAiEndpoint =
+    typeof settings.vectorOpenAiEndpoint === "string"
+      ? settings.vectorOpenAiEndpoint
+      : "";
+  settings.vectorOpenAiApiKey =
+    typeof settings.vectorOpenAiApiKey === "string"
+      ? settings.vectorOpenAiApiKey
+      : "";
+  settings.vectorOpenAiModel =
+    typeof settings.vectorOpenAiModel === "string"
+      ? settings.vectorOpenAiModel
+      : "text-embedding-3-small";
+  settings.vectorMaxChars =
+    typeof settings.vectorMaxChars === "number" && settings.vectorMaxChars > 0
+      ? Math.floor(settings.vectorMaxChars)
+      : 500;
 
   return settings;
 }

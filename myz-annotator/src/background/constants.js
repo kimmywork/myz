@@ -49,4 +49,9 @@ export const DEFAULT_SETTINGS = {
   // Vector search / Vectoria
   vectorSearchEnabled: false,
   vectorModelReady: false,
+  vectorUseLocalModel: true,
+  vectorOpenAiEndpoint: "",
+  vectorOpenAiApiKey: "",
+  vectorOpenAiModel: "text-embedding-3-small",
+  vectorMaxChars: 500,
 };

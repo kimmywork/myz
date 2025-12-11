@@ -46,6 +46,8 @@ import {
   searchSimilar,
   applyVectoriaSettings,
   warmVectoriaModel,
+  resetVectorIndex,
+  testVectorProvider,
 } from "./background/vectoria-index.js";
 import {
   getArchiveStatusForUrl,
@@ -670,8 +672,19 @@ const messageHandlers = {
   },
 
   async "myz:updateSettings"(payload) {
+    const current = await readSettings();
     const patch = payload ? { ...payload } : {};
-    if (patch.vectorSearchEnabled === false) {
+    const configKeys = [
+      "vectorUseLocalModel",
+      "vectorOpenAiEndpoint",
+      "vectorOpenAiApiKey",
+      "vectorOpenAiModel",
+      "vectorMaxChars",
+    ];
+    const configChanged = configKeys.some(
+      (key) => key in patch && patch[key] !== current[key],
+    );
+    if (patch.vectorSearchEnabled === false || configChanged) {
       patch.vectorModelReady = false;
     }
     const updated = await writeSettings(patch);
@@ -684,10 +697,7 @@ const messageHandlers = {
     if (!settings.vectorSearchEnabled) {
       throw new Error("向量检索未启用");
     }
-    applyVectoriaSettings({
-      vectorSearchEnabled: true,
-      vectorModelReady: false,
-    });
+    applyVectoriaSettings(settings);
     try {
       await warmVectoriaModel();
       const updated = await writeSettings({ vectorModelReady: true });
@@ -701,6 +711,32 @@ const messageHandlers = {
       });
       throw error;
     }
+  },
+
+  async "myz:testVectorProvider"(payload) {
+    const config = {
+      useLocalModel:
+        payload?.useLocalModel !== false && payload?.useLocalModel !== "remote",
+      openAiEndpoint: payload?.openAiEndpoint || "",
+      openAiApiKey: payload?.openAiApiKey || "",
+      openAiModel: payload?.openAiModel || "text-embedding-3-small",
+    };
+    await testVectorProvider(config);
+    return { success: true };
+  },
+
+  async "myz:rebuildVectorIndex"() {
+    const settings = await readSettings();
+    if (!settings.vectorSearchEnabled || !settings.vectorModelReady) {
+      throw new Error("请先启用并加载向量模型");
+    }
+    applyVectoriaSettings(settings);
+    await warmVectoriaModel();
+    await resetVectorIndex();
+    const state = await readState();
+    const highlights = sortedHighlights(state);
+    await indexVectorRecords(highlights);
+    return { success: true, count: highlights.length };
   },
 
   async "myz:updatePalette"(payload) {

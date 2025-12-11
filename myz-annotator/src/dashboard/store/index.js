@@ -68,6 +68,11 @@ export function createDashboardStore() {
     aiMcpServers: [],
     vectorSearchEnabled: false,
     vectorModelReady: false,
+    vectorUseLocalModel: true,
+    vectorOpenAiEndpoint: "",
+    vectorOpenAiApiKey: "",
+    vectorOpenAiModel: "text-embedding-3-small",
+    vectorMaxChars: 500,
   });
   const logseqStatus = ref("");
   const settingsStatus = ref("");
@@ -337,6 +342,17 @@ export function createDashboardStore() {
         vectorModelReady: result.vectorSearchEnabled
           ? Boolean(result.vectorModelReady)
           : false,
+        vectorUseLocalModel:
+          result.vectorUseLocalModel !== false &&
+          result.vectorUseLocalModel !== "remote",
+        vectorOpenAiEndpoint: result.vectorOpenAiEndpoint || "",
+        vectorOpenAiApiKey: result.vectorOpenAiApiKey || "",
+        vectorOpenAiModel:
+          result.vectorOpenAiModel || settings.vectorOpenAiModel,
+        vectorMaxChars:
+          typeof result.vectorMaxChars === "number" && result.vectorMaxChars > 0
+            ? Math.floor(result.vectorMaxChars)
+            : settings.vectorMaxChars,
       });
       if (settings.dashboardView) {
         view.value = settings.dashboardView;
@@ -680,6 +696,28 @@ export function createDashboardStore() {
         if ("vectorModelReady" in updated) {
           settings.vectorModelReady = Boolean(updated.vectorModelReady);
         }
+        if ("vectorUseLocalModel" in updated) {
+          settings.vectorUseLocalModel =
+            updated.vectorUseLocalModel !== false &&
+            updated.vectorUseLocalModel !== "remote";
+        }
+        if ("vectorOpenAiEndpoint" in updated) {
+          settings.vectorOpenAiEndpoint = updated.vectorOpenAiEndpoint || "";
+        }
+        if ("vectorOpenAiApiKey" in updated) {
+          settings.vectorOpenAiApiKey = updated.vectorOpenAiApiKey || "";
+        }
+        if ("vectorOpenAiModel" in updated) {
+          settings.vectorOpenAiModel =
+            updated.vectorOpenAiModel || settings.vectorOpenAiModel;
+        }
+        if ("vectorMaxChars" in updated) {
+          settings.vectorMaxChars =
+            typeof updated.vectorMaxChars === "number" &&
+            updated.vectorMaxChars > 0
+              ? Math.floor(updated.vectorMaxChars)
+              : settings.vectorMaxChars;
+        }
       }
       settingsStatus.value = "设置已保存";
       setTimeout(() => {
@@ -817,6 +855,33 @@ export function createDashboardStore() {
     }
   }
 
+  async function testVectorProvider(config) {
+    try {
+      setTimedStatus(vectorModelStatus, "测试中…", 0);
+      const result = await sendMessage("myz:testVectorProvider", config);
+      if (result?.success) {
+        setTimedStatus(vectorModelStatus, "测试通过", 3000);
+      } else {
+        setTimedStatus(vectorModelStatus, "测试失败", 3000);
+      }
+      return result;
+    } catch (error) {
+      setTimedStatus(vectorModelStatus, `测试失败：${error.message}`, 4000);
+      throw error;
+    }
+  }
+
+  async function rebuildVectorIndex() {
+    try {
+      setTimedStatus(vectorModelStatus, "重建索引中…", 0);
+      await sendMessage("myz:rebuildVectorIndex");
+      setTimedStatus(vectorModelStatus, "索引已重建", 4000);
+    } catch (error) {
+      setTimedStatus(vectorModelStatus, `重建失败：${error.message}`, 4000);
+      throw error;
+    }
+  }
+
   function cleanup() {
     timers.forEach((id) => clearTimeout(id));
     timers.clear();
@@ -886,8 +951,23 @@ export function createDashboardStore() {
     cleanup,
     isSyncInFlight,
     testAiConnection,
+    testVectorProvider,
+    rebuildVectorIndex,
     toggleVectorSearch,
     loadVectorModel,
+    switchVectorProvider: async (payload) => {
+      // Save config first
+      await saveSettings(payload);
+      if (payload.vectorUseLocalModel) {
+        if (settings.vectorSearchEnabled) {
+          await loadVectorModel().catch(() => {});
+        }
+      } else if (payload.vectorOpenAiApiKey) {
+        await testVectorProvider(payload);
+        await saveSettings({ ...payload, vectorModelReady: true });
+        setTimedStatus(settingsStatus, "已切换到 OpenAI 模型", 3000);
+      }
+    },
     loadHighlights: refreshHighlights,
   };
 }
