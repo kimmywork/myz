@@ -1,13 +1,12 @@
 export function parseAiRequestHeaders(rawHeaders?: string): Record<string, string> {
-  if (!rawHeaders || typeof rawHeaders !== "string") {
+  if (typeof rawHeaders !== "string") {
     return {};
   }
-  let headers: Record<string, string> = {}
   return rawHeaders
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
-    .reduce((headers, line) => {
+    .reduce<Record<string, string>>((headers, line) => {
       const separatorIndex = line.indexOf(":");
       if (separatorIndex === -1) {
         return headers;
@@ -16,22 +15,17 @@ export function parseAiRequestHeaders(rawHeaders?: string): Record<string, strin
       if (!key) {
         return headers;
       }
-      const value = line.slice(separatorIndex + 1).trim();
-      headers[key] = value;
+      headers[key] = line.slice(separatorIndex + 1).trim();
       return headers;
-    }, headers);
+    }, {});
 }
 
 export function getAiHeaderValue(rawHeaders?: string, targetName?: string): string | undefined {
   if (!targetName) {
     return undefined;
   }
-  const headers = parseAiRequestHeaders(rawHeaders);
   const lowerTarget = targetName.toLowerCase();
-  for (const [name, value] of Object.entries(headers)) {
-    if (name.toLowerCase() === lowerTarget) {
-      return value;
-    }
-  }
-  return undefined;
+  return Object.entries(parseAiRequestHeaders(rawHeaders)).find(
+    ([name]) => name.toLowerCase() === lowerTarget,
+  )?.[1];
 }

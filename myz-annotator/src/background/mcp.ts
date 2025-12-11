@@ -1,22 +1,27 @@
 
-import type { 
-  JSONRPCMessage, JSONRPCRequest, JSONRPCResponse, 
-  InitializeRequest, InitializeResult, 
-  CallToolRequest, CallToolResult,
-  ListToolsRequest,
-  ListToolsResult,
-  ListResourcesRequest,
-  ListResourcesResult,
-  ClientRequest,
-  ClientNotification,
-  ServerNotification,
-  JSONRPCNotification,
-  JSONRPCError,
-  ReadResourceRequest,
-  ReadResourceResult,
-  Resource,
-  Tool,
- } from "./mcp_schema";
+import {
+  JSONRPC_VERSION,
+  LATEST_PROTOCOL_VERSION,
+  type JSONRPCMessage,
+  type JSONRPCRequest,
+  type JSONRPCResponse,
+  type InitializeRequest,
+  type InitializeResult,
+  type CallToolRequest,
+  type CallToolResult,
+  type ListToolsRequest,
+  type ListToolsResult,
+  type ListResourcesRequest,
+  type ListResourcesResult,
+  type ClientRequest,
+  type ClientNotification,
+  type ServerNotification,
+  type JSONRPCNotification,
+  type ReadResourceRequest,
+  type ReadResourceResult,
+  type Resource,
+  type Tool,
+} from "./mcp_schema";
 
 export const MCP_MESSAGE_TYPES = {
   REQUEST: "request",
@@ -25,20 +30,18 @@ export const MCP_MESSAGE_TYPES = {
   ERROR: "error",
 };
 
-
 export interface ServerConfig {
   url: string;
   headers?: Record<string, string>;
 }
 
 export class McpClient {
-
   private serverConfig: ServerConfig;
-  private sessionId: string | null
+  private sessionId: string | null;
   private protocolVersion: string;
-  private isConnected: boolean
+  private isConnected: boolean;
   private tools: Tool[];
-  private resources: any[]
+  private resources: Resource[];
   private requestId: number;
   private pendingRequests: Map<
     number,
@@ -52,7 +55,7 @@ export class McpClient {
   constructor(serverConfig: ServerConfig) {
     this.serverConfig = serverConfig;
     this.sessionId = null;
-    this.protocolVersion = "2025-06-18";
+    this.protocolVersion = LATEST_PROTOCOL_VERSION;
     this.isConnected = false;
     this.tools = [];
     this.resources = [];
@@ -181,7 +184,7 @@ export class McpClient {
 
     const requestId = ++this.requestId;
     const message: JSONRPCRequest = {
-      jsonrpc: "2.0",
+      jsonrpc: JSONRPC_VERSION,
       id: requestId,
       method,
       params: params,
@@ -215,7 +218,7 @@ export class McpClient {
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
       "User-Agent": "myz-annotator/0.1.4",
-      "MCP-Protocol-Version": "2025-06-18",
+      "MCP-Protocol-Version": this.protocolVersion,
       ...headers,
     };
 
@@ -252,7 +255,7 @@ export class McpClient {
         return;
       }
 
-      const result: JSONRPCResponse = await response.json();
+      const result = (await response.json()) as JSONRPCMessage;
 
       // Extract session ID from response header if present (e.g., LogSeq mcp-logseq)
       // This happens for initialize requests where the server creates the session
@@ -284,24 +287,29 @@ export class McpClient {
   }
 
   handleResponse(message: JSONRPCMessage) {
-    if ((message as JSONRPCResponse).result !== undefined && typeof (message as JSONRPCResponse).id === "number") {
-      let response = message as JSONRPCResponse;
-      let error = message as JSONRPCError;
-      const pending = this.pendingRequests.get(response.id as number);
-      if (pending) {
-        this.pendingRequests.delete(response.id as number);
-        clearTimeout(pending.timeoutId);
-
-        if (error.error) {
-          pending.reject(
-            new Error(error.error.message || "MCP request failed"),
-          );
-        } else {
-          pending.resolve(response.result);
-        }
+    if ("id" in message) {
+      const requestId =
+        typeof message.id === "number" ? message.id : Number(message.id);
+      const pending = this.pendingRequests.get(requestId);
+      if (!pending) {
+        return;
       }
-    } else if ((message as JSONRPCNotification).method) {
-      // Handle server notifications (e.g., resource updates)
+
+      this.pendingRequests.delete(requestId);
+      clearTimeout(pending.timeoutId);
+
+      if ("error" in message) {
+        pending.reject(
+          new Error(message.error?.message || "MCP request failed"),
+        );
+        return;
+      }
+
+      pending.resolve((message as JSONRPCResponse).result);
+      return;
+    }
+
+    if (!("id" in message) && (message as JSONRPCNotification).method) {
       this.handleNotification(message as ServerNotification);
     }
   }
@@ -338,7 +346,7 @@ export class McpClient {
 
     // Notifications must NOT have an id field per JSON-RPC spec 6.0
     const message: JSONRPCNotification = {
-      jsonrpc: "2.0",
+      jsonrpc: JSONRPC_VERSION,
       method,
     };
 

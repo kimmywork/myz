@@ -1,3 +1,4 @@
+import { normalizeWhitespace } from "../shared/highlightUtils.js";
 import { isNodeFromMyz } from "../shared/serializer.js";
 import { findPrimaryContentElement } from "./content-extraction.js";
 
@@ -10,14 +11,7 @@ const DEFAULT_MAX_TOTAL_CHARS = Number.POSITIVE_INFINITY;
 const DEFAULT_MAX_CHUNKS = 80;
 const activeAnchors: Set<Element> = new Set();
 
-function normalizeText(input: string): string {
-  return (input || "").replace(/\s+/g, " ").trim();
-}
-
 function isVisible(node: Element): boolean {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
-    return false;
-  }
   const style = window.getComputedStyle(node);
   if (style.display === "none" || style.visibility === "hidden") {
     return false;
@@ -27,9 +21,6 @@ function isVisible(node: Element): boolean {
 }
 
 function isEligibleBlock(node: Element): boolean {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
-    return false;
-  }
   if (isNodeFromMyz(node)) {
     return false;
   }
@@ -41,7 +32,9 @@ function isEligibleBlock(node: Element): boolean {
   if (!isVisible(node)) {
     return false;
   }
-  const text = normalizeText((node as HTMLElement).innerText || node.textContent || "");
+  const text = normalizeWhitespace(
+    (node as HTMLElement).innerText ?? node.textContent ?? "",
+  );
   if (!text) {
     return false;
   }
@@ -56,7 +49,7 @@ function isEligibleBlock(node: Element): boolean {
 
 function collectBlocks(root: Element | Document): Element[] {
   const nodes = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(
-    (node) => isEligibleBlock(node),
+    isEligibleBlock,
   );
   if (!nodes.length && root && root.nodeType === Node.ELEMENT_NODE) {
     const el = root as Element;
@@ -104,9 +97,10 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
     800,
     4000,
   );
+  const requestedTotal = Number(options.maxTotalChars);
   const maxTotalChars =
-    Number.isFinite(Number(options.maxTotalChars)) && options.maxTotalChars! > 0
-      ? Number(options.maxTotalChars)
+    Number.isFinite(requestedTotal) && requestedTotal > 0
+      ? requestedTotal
       : DEFAULT_MAX_TOTAL_CHARS;
   const maxChunks = clampNumber(
     Number(options.maxChunks) || DEFAULT_MAX_CHUNKS,
@@ -131,19 +125,20 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
   let wordCount = 0;
   let anchorNode: Element | null = null;
   let truncated = false;
+  const resetChunkState = () => {
+    chunkParts = [];
+    chunkLength = 0;
+    anchorNode = null;
+  };
 
   function flushChunk() {
     if (!chunkParts.length || !anchorNode) {
-      chunkParts = [];
-      chunkLength = 0;
-      anchorNode = null;
+      resetChunkState();
       return;
     }
-    const text = chunkParts.join("\n").trim();
+    const text = normalizeWhitespace(chunkParts.join("\n"));
     if (!text) {
-      chunkParts = [];
-      chunkLength = 0;
-      anchorNode = null;
+      resetChunkState();
       return;
     }
     const chunkId = `myz-chunk-${Date.now().toString(36)}-${chunkIndex.toString().padStart(3, "0")}`;
@@ -159,9 +154,7 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
     });
     totalChars += text.length;
     wordCount += words;
-    chunkParts = [];
-    chunkLength = 0;
-    anchorNode = null;
+    resetChunkState();
     chunkIndex += 1;
   }
 
@@ -170,7 +163,9 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
       truncated = true;
       break;
     }
-    const text = normalizeText((node as HTMLElement).innerText || node.textContent || "");
+    const text = normalizeWhitespace(
+      (node as HTMLElement).innerText ?? node.textContent ?? "",
+    );
     if (!text) {
       continue;
     }
@@ -188,14 +183,12 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
   if (chunks.length < maxChunks && totalChars < maxTotalChars) {
     flushChunk();
   } else {
-    chunkParts = [];
-    chunkLength = 0;
-    anchorNode = null;
+    resetChunkState();
   }
 
   if (!chunks.length && root) {
-    const fallbackText = normalizeText(
-      (root as HTMLElement).innerText || root.textContent || "",
+    const fallbackText = normalizeWhitespace(
+      (root as HTMLElement).innerText ?? root.textContent ?? "",
     );
     if (fallbackText) {
       let offset = 0;
@@ -278,14 +271,14 @@ function createFlashRange(range: Range) {
 }
 
 function findTextInChunk(root: Element, snippet: string): { node: Node; start: number; end: number } | null {
-  const target = (snippet || "").trim();
+  const target = normalizeWhitespace(snippet);
   if (!target) {
     return null;
   }
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) {
     const node = walker.currentNode;
-    const text = node.textContent || "";
+    const text = node.textContent ?? "";
     const index = text.indexOf(target);
     if (index !== -1) {
       return { node, start: index, end: index + target.length };
@@ -307,11 +300,7 @@ function focusSnippet(target: Element, snippet: string) {
 }
 
 export function scrollToAiChunk(chunkId: string, snippet = ""): boolean {
-  const selector = getChunkSelector(chunkId);
-  if (!selector) {
-    return false;
-  }
-  const target = document.querySelector(selector);
+  const target = document.querySelector(getChunkSelector(chunkId));
   if (!target) {
     return false;
   }

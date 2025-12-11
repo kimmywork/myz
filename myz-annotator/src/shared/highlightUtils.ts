@@ -1,4 +1,8 @@
-import { getRecordKind, RECORD_KINDS } from "../dashboard/utils/records.js";
+import {
+  getRecordKind,
+  normalizeRecord as normalizeBaseRecord,
+  RECORD_KINDS,
+} from "../dashboard/utils/records.js";
 
 import type { MyZRecord } from "../dashboard/utils/records.js";
 
@@ -67,18 +71,18 @@ export function describeHighlightStyle(style: HIGHLIGHT_STYLES): string {
   return "高亮";
 }
 
-export function normalizeRecord(record: MyZRecord): MyZRecord | null {
+export function normalizeRecord(record: MyZRecord | null | undefined): MyZRecord | null {
   if (!record) {
-    return record;
+    return null;
   }
-  const kind = getRecordKind(record);
-  const normalized = { ...record, kind };
-  if (kind === RECORD_KINDS.HIGHLIGHT) {
-    normalized.style = normalizeHighlightStyle(record.style);
-  } else {
-    normalized.style = undefined;
+  const base = normalizeBaseRecord(record);
+  if (!base) {
+    return base;
   }
-  return normalized;
+  if (base.kind === RECORD_KINDS.HIGHLIGHT) {
+    return { ...base, style: normalizeHighlightStyle(base.style) };
+  }
+  return { ...base, style: undefined };
 }
 
 export function isHighlightRecord(record: MyZRecord) {

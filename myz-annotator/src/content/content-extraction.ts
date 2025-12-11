@@ -1,6 +1,7 @@
 /**
  * Content extraction utilities for AI and other features
  */
+import { normalizeWhitespace } from "../shared/highlightUtils.js";
 
 const MAX_CONTENT_LENGTH = 15000;
 const CONTENT_STRATEGIES = [
@@ -95,8 +96,7 @@ export function extractPageContentForAi() {
     });
 
     // Extract clean text
-    let text = clone.textContent || "";
-    text = text.replace(/\s+/g, " ").trim();
+    let text = normalizeWhitespace(clone.textContent || "");
 
     // Truncate if needed
     if (text.length > MAX_CONTENT_LENGTH) {
@@ -111,7 +111,7 @@ export function extractPageContentForAi() {
   } catch (error) {
     console.error("Content extraction failed:", error);
     return {
-      text: document.body.textContent?.replace(/\s+/g, " ").trim() || "",
+      text: normalizeWhitespace(document.body.textContent || ""),
       title: document.title || "",
       url: window.location.href,
     };
@@ -121,9 +121,9 @@ export function extractPageContentForAi() {
 // Also export a simplified version
 export function extractSelectedTextSafely() {
   const selection = window.getSelection();
-  if (selection && selection.toString().trim()) {
+  if (selection && normalizeWhitespace(selection.toString())) {
     return {
-      text: selection.toString().trim(),
+      text: normalizeWhitespace(selection.toString()),
       title: document.title || "",
       url: window.location.href,
     };

@@ -96,14 +96,14 @@ export function nodeName(node: Node | null): string {
 export function sameNodeType(a: Node, b: Node | null) {
   if (!a || !b) return false;
   if (a.nodeType !== b.nodeType) return false;
-  if (a.nodeType === a.ownerDocument?.defaultView?.Node.TEXT_NODE) return true;
+  if (a.nodeType === Node.TEXT_NODE) return true;
   return a.nodeName === b.nodeName;
 }
 
 export function buildPath(node: Node): PathSegment[] {
   const path: PathSegment[] = [];
   let current = node;
-  while (current && current !== current.ownerDocument) {
+  while (current && current !== document) {
     const parent = current.parentNode;
     if (!parent) break;
     const { child: _, logical: directLogical } =
@@ -120,40 +120,26 @@ export function buildPath(node: Node): PathSegment[] {
   return path;
 }
 
-export function resolvePath(root: Node, path: PathSegment[]): Node | null {
+function resolvePath(path: PathSegment[]): Node | null {
   // Normalize root to an element to start iteration
-  let current = root;
-  if (current && current.nodeType === current.DOCUMENT_NODE) {
-
-    current = (current as Document).documentElement || current;
-    // If the path begins with the documentElement (html) and we already
-    // started iteration at documentElement, drop that leading segment so the
-    // remaining path resolves correctly to children under <html>.
-    if (Array.isArray(path) && path.length && current && current.nodeName) {
-      const firstName = path[0] && path[0].name;
-      if (
-        typeof firstName === "string" &&
-        firstName.toLowerCase() === (current.nodeName || "").toLowerCase()
-      ) {
-        path = path.slice(1);
-      }
-    }
-  } else if (current && current.ownerDocument) {
-    const viewNode = current.ownerDocument.defaultView?.Node ?? globalThis.Node;
-    const TEXT_NODE = viewNode?.TEXT_NODE ?? 3;
-    if (current.nodeType === TEXT_NODE) {
-      current = current.parentNode || current;
+  let current: Node = document;
+  if (Array.isArray(path) && path.length && current && current.nodeName) {
+    const firstName = path[0] && path[0].name;
+    if (
+      typeof firstName === "string" &&
+      firstName.toLowerCase() === (current.nodeName || "").toLowerCase()
+    ) {
+      path = path.slice(1);
     }
   }
   for (const segment of path) {
     const logicalList = getLogicalChildNodes(current);
-    const NodeConst = (current.ownerDocument!! || (current as Document))?.defaultView?.Node!!;
     const pairs = logicalList.filter((entry) => {
       const logical = entry.logical;
       if (segment.name === "#text")
-        return logical.nodeType === NodeConst.TEXT_NODE;
+        return logical.nodeType === Node.TEXT_NODE;
       return (
-        logical.nodeType === NodeConst.ELEMENT_NODE &&
+        logical.nodeType === Node.ELEMENT_NODE &&
         logical.nodeName.toLowerCase() === segment.name
       );
     });
@@ -166,14 +152,13 @@ export function resolvePath(root: Node, path: PathSegment[]): Node | null {
 
 export function getDescendantTextNodes(el: Node): Text[] {
   const out: Text[] = [];
-  const NF = el?.ownerDocument?.defaultView?.NodeFilter!!;
-  const it = el?.ownerDocument?.createNodeIterator(el, NF.SHOW_TEXT, {
+  const it = document.createNodeIterator(el, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      if (isNodeFromMyz(node)) return NF.FILTER_REJECT;
-      if (!node.textContent) return NF.FILTER_REJECT;
-      return NF.FILTER_ACCEPT;
+      if (isNodeFromMyz(node)) return NodeFilter.FILTER_REJECT;
+      if (!node.textContent) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
     },
-  })!;
+  });
   let cur;
   while ((cur = it.nextNode() as Text)) out.push(cur);
   return out;
@@ -181,7 +166,7 @@ export function getDescendantTextNodes(el: Node): Text[] {
 
 export function getTextLength(node?: Node): number {
   if (!node) return 0;
-  if (node.nodeType === node.TEXT_NODE) return (node as Text).textContent.length;
+  if (node.nodeType === Node.TEXT_NODE) return (node as Text).textContent.length;
   let sum = 0;
   node.childNodes.forEach((c) => {
     if (isNodeFromMyz(c)) return;
@@ -193,8 +178,7 @@ export function getTextLength(node?: Node): number {
 export function charOffsetWithinElement(element: Node, container: Node, offset: number): number {
   if (!element) return 0;
   const texts = getDescendantTextNodes(element);
-  const NodeConst = element?.ownerDocument?.defaultView?.Node!!;
-  if (container.nodeType === NodeConst.TEXT_NODE) {
+  if (container.nodeType === Node.TEXT_NODE) {
     let acc = 0;
     for (const tn of (texts as Text[])) {
       if (tn === container)
@@ -260,21 +244,13 @@ function shouldIgnoreForPath(node?: Node): boolean {
   return false;
 }
 
-function isArchiveInjectedNode(node?: Node): boolean {
-  if (!node || !node.ownerDocument) {
-    return false;
-  }
-  const doc = node.ownerDocument;
-  const win = doc.defaultView;
-  const hostname = win?.location?.hostname || "";
+function isArchiveInjectedNode(node: Node): boolean {
+  const hostname = window.location.hostname || "";
   if (hostname !== "web.archive.org") {
     return false;
   }
-  const NodeConst = win?.Node;
-  const ELEMENT_NODE = NodeConst ? NodeConst.ELEMENT_NODE : 1;
-  const COMMENT_NODE = NodeConst ? NodeConst.COMMENT_NODE : 8;
 
-  if (node.nodeType === COMMENT_NODE) {
+  if (node.nodeType === Node.COMMENT_NODE) {
     const value = String(node.textContent || "");
     const lower = value.toLowerCase();
     if (
@@ -286,7 +262,7 @@ function isArchiveInjectedNode(node?: Node): boolean {
     }
   }
 
-  if (node.nodeType !== ELEMENT_NODE) {
+  if (node.nodeType !== Node.ELEMENT_NODE) {
     return false;
   }
 
@@ -333,17 +309,16 @@ function isArchiveInjectedNode(node?: Node): boolean {
 }
 
 export function serializeRange(
-  doc: Document,
   range: Range,
   highlightCache: Map<string, any>,
   applyHighlight: (rec: any) => void = () => {},
-) {
+): SerializedRange | null {
   try {
     // If the page already contains MyZ wrapper nodes, temporarily unwrap
     // them so we compute paths against the original DOM. Afterwards we
     // reapply existing highlights from cache. This avoids path indexing
     // shifts caused by wrapper elements.
-    const existing = Array.from(doc.querySelectorAll(".myz-highlight"));
+    const existing = Array.from(document.querySelectorAll(".myz-highlight"));
     const ids: string[] = existing.map((n) => (n as HTMLElement).dataset?.highlightId).filter(Boolean) as string[];
 
     try {
@@ -353,11 +328,11 @@ export function serializeRange(
       // resilient to text-node merging/splitting when wrappers are
       // removed and prevents indices from becoming invalid.
       const startElement =
-        range.startContainer.nodeType === doc?.defaultView?.Node.TEXT_NODE
+        range.startContainer.nodeType === Node.TEXT_NODE
           ? range.startContainer.parentNode!
           : range.startContainer;
       const endElement =
-        range.endContainer.nodeType === doc?.defaultView?.Node.TEXT_NODE
+        range.endContainer.nodeType === Node.TEXT_NODE
           ? range.endContainer.parentNode!
           : range.endContainer;
 
@@ -406,20 +381,20 @@ export interface SerializedRange {
   start?: {
     charOffset: number;
     path: PathSegment[];
-    offset: number;
+    offset?: number;
   }
   end?: {
     charOffset: number;
     path: PathSegment[];
-    offset: number;
+    offset?: number;
   }
 }
 
-export function deserializeRange(doc: Document, serialized?: SerializedRange) {
+export function deserializeRange(serialized?: SerializedRange) {
   if (!serialized?.start || !serialized?.end) {
     return null;
   }
-  const range = doc.createRange();
+  const range = document.createRange();
   // Prefer the new element+charOffset format. Fall back to the old
   // node+offset format for backward compatibility.
   try {
@@ -427,32 +402,32 @@ export function deserializeRange(doc: Document, serialized?: SerializedRange) {
     let startNode = null;
     let startOffset = 0;
     if (serialized.start && typeof serialized.start.charOffset === "number") {
-      const el = resolvePath(doc, serialized.start.path) as Element | null;
+      const el = resolvePath(serialized.start.path) as Element | null;
       if (!el) return null;
       const resolved = nodeForCharOffset(el, serialized.start.charOffset);
       if (!resolved) return null;
       startNode = resolved.node;
       startOffset = resolved.offset;
     } else {
-      startNode = resolvePath(doc, serialized.start.path);
+      startNode = resolvePath(serialized.start.path);
       if (!startNode) return null;
-      startOffset = clampOffset(startNode, serialized.start.offset);
+      startOffset = clampOffset(startNode, serialized.start.offset!);
     }
 
     // End
     let endNode = null;
     let endOffset = 0;
     if (serialized.end && typeof serialized.end.charOffset === "number") {
-      const el = resolvePath(doc, serialized.end.path);
+      const el = resolvePath(serialized.end.path);
       if (!el) return null;
       const resolved = nodeForCharOffset(el, serialized.end.charOffset);
       if (!resolved) return null;
       endNode = resolved.node;
       endOffset = resolved.offset;
     } else {
-      endNode = resolvePath(doc, serialized.end.path);
+      endNode = resolvePath(serialized.end.path);
       if (!endNode) return null;
-      endOffset = clampOffset(endNode, serialized.end.offset);
+      endOffset = clampOffset(endNode, serialized.end.offset!);
     }
 
     range.setStart(startNode, startOffset);

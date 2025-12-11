@@ -1406,7 +1406,6 @@ import {
           return;
         }
         const serializedRange = serializeRange(
-          document,
           state.currentRange,
           highlightCache,
           applyHighlight,
@@ -1531,7 +1530,7 @@ import {
       return false;
     }
     try {
-      const range = deserializeRange(document, record.range);
+      const range = deserializeRange(record.range);
       if (!range || range.collapsed) {
         return false;
       }
