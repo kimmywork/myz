@@ -1,6 +1,5 @@
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import { RECORD_KINDS } from "../utils/records.js";
-import { DEFAULT_COLOR } from "../../shared/highlightUtils.js";
+import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "../../shared/types.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import TagInput from "./TagInput.jsx";
 
@@ -22,7 +21,7 @@ export default defineComponent({
     });
 
     const kind = computed(() =>
-      record.value ? store.getRecordKind(record.value) : RECORD_KINDS.HIGHLIGHT,
+      record.value ? getRecordKind(record.value) : RECORD_KINDS.HIGHLIGHT,
     );
     const isVisible = computed(() => Boolean(modalState.recordId));
     const isEditMode = computed(() => modalState.mode === "edit");

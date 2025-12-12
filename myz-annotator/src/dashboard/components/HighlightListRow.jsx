@@ -1,5 +1,5 @@
 import { computed, defineComponent, ref } from "vue";
-import { RECORD_KINDS } from "../utils/records.js";
+import { RECORD_KINDS, getRecordKind } from "../../shared/types.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 
 export default defineComponent({
@@ -12,7 +12,7 @@ export default defineComponent({
   },
   setup(props) {
     const store = useDashboardStore();
-    const kind = computed(() => store.getRecordKind(props.record));
+    const kind = computed(() => getRecordKind(props.record));
     const hasNote = computed(() => Boolean(props.record?.note));
     const shouldSplitLayout = computed(() => hasNote.value);
     const tags = computed(() => props.record?.tags || []);

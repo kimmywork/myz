@@ -33,13 +33,13 @@ const ALLOWED_HTML_TAGS = new Set([
   "th",
 ]);
 
-const ALLOWED_HTML_ATTRS = {
-  a: new Set(["href", "title"]),
-  td: new Set(["colspan", "rowspan"]),
-  th: new Set(["colspan", "rowspan"]),
+const ALLOWED_HTML_ATTRS: { [key: string]: Set<string> } = {
+  a: new Set<string>(["href", "title"]),
+  td: new Set<string>(["colspan", "rowspan"]),
+  th: new Set<string>(["colspan", "rowspan"]),
 };
 
-export function serializeRangeToHtml(range) {
+export function serializeRangeToHtml(range: Range): string {
   try {
     const fragment = range.cloneContents();
     if (!fragment || !fragment.childNodes.length) {
@@ -55,17 +55,17 @@ export function serializeRangeToHtml(range) {
   }
 }
 
-function sanitizeNode(root) {
+function sanitizeNode(root: Element) {
   Array.from(root.childNodes).forEach((child) => {
     if (child.nodeType === Node.ELEMENT_NODE) {
-      sanitizeElement(child);
+      sanitizeElement(child as Element);
     } else if (child.nodeType === Node.COMMENT_NODE) {
       root.removeChild(child);
     }
   });
 }
 
-function sanitizeElement(element) {
+function sanitizeElement(element: Element) {
   const tag = element.tagName.toLowerCase();
   if (!ALLOWED_HTML_TAGS.has(tag)) {
     const parent = element.parentNode;
@@ -77,7 +77,7 @@ function sanitizeElement(element) {
     parent.removeChild(element);
     children.forEach((child) => {
       if (child.nodeType === Node.ELEMENT_NODE) {
-        sanitizeElement(child);
+        sanitizeElement(child as Element);
       }
     });
     return;
@@ -106,7 +106,7 @@ function sanitizeElement(element) {
   sanitizeNode(element);
 }
 
-function isAllowedAttribute(tag, name) {
+function isAllowedAttribute(tag: string, name: string): boolean {
   const whitelist = ALLOWED_HTML_ATTRS[tag];
   if (!whitelist) {
     return false;
@@ -114,7 +114,7 @@ function isAllowedAttribute(tag, name) {
   return whitelist.has(name);
 }
 
-function normalizeHref(value) {
+function normalizeHref(value: string): string | null {
   if (!value || typeof value !== "string") {
     return null;
   }

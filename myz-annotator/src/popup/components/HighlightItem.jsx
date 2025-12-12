@@ -6,7 +6,7 @@ import {
   normalizeWhitespace,
 } from "../../shared/highlightUtils.js";
 
-import { RECORD_KINDS } from "../../dashboard/utils/records.js";
+import { RECORD_KINDS } from "../../shared/types.js";
 import { IconWarning } from "../../shared/icons.js";
 
 const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";

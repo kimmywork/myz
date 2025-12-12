@@ -1,18 +1,14 @@
 import { isHighlightRecord } from "./highlightUtils.js";
 
 export function isMyzWrapper(node: Node): boolean {
-  if (node &&
-    node.nodeType === node.ELEMENT_NODE) {
+  if (node && node.nodeType === node.ELEMENT_NODE) {
     const element = node as Element;
-    return (
-      element.classList &&
-      element.classList.contains("myz-highlight")
-    );
+    return element.classList && element.classList.contains("myz-highlight");
   }
   return false;
 }
 
-export function isNodeFromMyz(node: Node) : boolean {
+export function isNodeFromMyz(node: Node): boolean {
   if (!node) return false;
   if (node.nodeType === node.ELEMENT_NODE) {
     const el = node as Element;
@@ -38,7 +34,9 @@ export function findPrimaryDescendant(el: Element): Element | null {
   return null;
 }
 
-export function getLogicalChildNodes(parent: Node): { dom: Node; logical: Node }[] {
+export function getLogicalChildNodes(
+  parent: Node,
+): { dom: Node; logical: Node }[] {
   const out: { dom: Node; logical: Node }[] = [];
   Array.from(parent.childNodes).forEach((child) => {
     if (shouldIgnoreForPath(child)) {
@@ -67,7 +65,10 @@ export interface PathSegment {
   index: number;
 }
 
-export function getDirectChildAndLogical(node: Node, parent: ParentNode): ChildAndLogical {
+export function getDirectChildAndLogical(
+  node: Node,
+  parent: ParentNode,
+): ChildAndLogical {
   let child = node;
   while (child && child.parentNode && child.parentNode !== parent) {
     child = child.parentNode;
@@ -106,8 +107,10 @@ export function buildPath(node: Node): PathSegment[] {
   while (current && current !== document) {
     const parent = current.parentNode;
     if (!parent) break;
-    const { child: _, logical: directLogical } =
-      getDirectChildAndLogical(current, parent);
+    const { child: _, logical: directLogical } = getDirectChildAndLogical(
+      current,
+      parent,
+    );
     const logicalChildren = getLogicalChildNodes(parent).map((o) => o.logical);
     const siblings = logicalChildren.filter((childNode) =>
       sameNodeType(childNode, directLogical),
@@ -136,8 +139,7 @@ function resolvePath(path: PathSegment[]): Node | null {
     const logicalList = getLogicalChildNodes(current);
     const pairs = logicalList.filter((entry) => {
       const logical = entry.logical;
-      if (segment.name === "#text")
-        return logical.nodeType === Node.TEXT_NODE;
+      if (segment.name === "#text") return logical.nodeType === Node.TEXT_NODE;
       return (
         logical.nodeType === Node.ELEMENT_NODE &&
         logical.nodeName.toLowerCase() === segment.name
@@ -166,7 +168,8 @@ export function getDescendantTextNodes(el: Node): Text[] {
 
 export function getTextLength(node?: Node): number {
   if (!node) return 0;
-  if (node.nodeType === Node.TEXT_NODE) return (node as Text).textContent.length;
+  if (node.nodeType === Node.TEXT_NODE)
+    return (node as Text).textContent.length;
   let sum = 0;
   node.childNodes.forEach((c) => {
     if (isNodeFromMyz(c)) return;
@@ -175,12 +178,16 @@ export function getTextLength(node?: Node): number {
   return sum;
 }
 
-export function charOffsetWithinElement(element: Node, container: Node, offset: number): number {
+export function charOffsetWithinElement(
+  element: Node,
+  container: Node,
+  offset: number,
+): number {
   if (!element) return 0;
   const texts = getDescendantTextNodes(element);
   if (container.nodeType === Node.TEXT_NODE) {
     let acc = 0;
-    for (const tn of (texts as Text[])) {
+    for (const tn of texts as Text[]) {
       if (tn === container)
         return acc + Math.min(offset, tn.textContent.length);
       acc += tn.textContent.length;
@@ -197,7 +204,10 @@ export function charOffsetWithinElement(element: Node, container: Node, offset: 
   return sum;
 }
 
-export function nodeForCharOffset(element: Node, charOffset: number): { node: Node; offset: number } | null {
+export function nodeForCharOffset(
+  element: Node,
+  charOffset: number,
+): { node: Node; offset: number } | null {
   const texts = getDescendantTextNodes(element);
   let acc = 0;
   for (const tn of texts) {
@@ -319,7 +329,9 @@ export function serializeRange(
     // reapply existing highlights from cache. This avoids path indexing
     // shifts caused by wrapper elements.
     const existing = Array.from(document.querySelectorAll(".myz-highlight"));
-    const ids: string[] = existing.map((n) => (n as HTMLElement).dataset?.highlightId).filter(Boolean) as string[];
+    const ids: string[] = existing
+      .map((n) => (n as HTMLElement).dataset?.highlightId)
+      .filter(Boolean) as string[];
 
     try {
       existing.forEach((node) => unwrapNode(node));
@@ -376,18 +388,17 @@ export function serializeRange(
   }
 }
 
-
 export interface SerializedRange {
   start?: {
     charOffset: number;
     path: PathSegment[];
     offset?: number;
-  }
+  };
   end?: {
     charOffset: number;
     path: PathSegment[];
     offset?: number;
-  }
+  };
 }
 
 export function deserializeRange(serialized?: SerializedRange) {

@@ -1,36 +1,4 @@
-
-export interface MyZRecord {
-  id: string;
-  kind: RECORD_KINDS;
-  text: string;
-  html?: string;
-  note?: string;
-  tags?: string[];
-  color?: string;
-  style?: string;
-  createdAt: string;
-  updatedAt: string;
-  sourceUrl?: string;
-  title?: string;
-  hostname?: string;
-  [key: string]: any;
-}
-
-export enum RECORD_KINDS {
-  HIGHLIGHT = "highlight",
-  CLIP = "clip",
-  AI_GENERATED = "ai-generated",
-};
-
-export function getRecordKind(record: MyZRecord): RECORD_KINDS {
-  if (record && record.kind === RECORD_KINDS.AI_GENERATED) {
-    return RECORD_KINDS.AI_GENERATED;
-  }
-  if (record && record.kind === RECORD_KINDS.CLIP) {
-    return RECORD_KINDS.CLIP;
-  }
-  return RECORD_KINDS.HIGHLIGHT;
-}
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "../../shared/types.ts";
 
 export function getRecordKindLabel(record: MyZRecord) {
   const kind = getRecordKind(record);
@@ -46,10 +14,7 @@ export function getRecordKindLabel(record: MyZRecord) {
   }
 }
 
-export function normalizeRecord(record: MyZRecord): MyZRecord | null {
-  if (!record || typeof record !== "object") {
-    return null;
-  }
+export function normalizeRecord(record: MyZRecord): MyZRecord {
   return { ...record, kind: getRecordKind(record) };
 }
 
@@ -165,7 +130,10 @@ export function highlightTermsInHtml(html: string, terms: string[]): string {
   const targets: Node[] = [];
   let current;
   while ((current = walker.nextNode())) {
-    if (current.parentNode && (current.parentNode as Element).closest("mark.search-hit")) {
+    if (
+      current.parentNode &&
+      (current.parentNode as Element).closest("mark.search-hit")
+    ) {
       continue;
     }
     targets.push(current);
@@ -200,7 +168,10 @@ export function highlightTermsInHtml(html: string, terms: string[]): string {
   return container.innerHTML;
 }
 
-export function renderHighlightContent(record: MyZRecord, terms: string[]): string {
+export function renderHighlightContent(
+  record: MyZRecord,
+  terms: string[],
+): string {
   if (record?.html) {
     return highlightTermsInHtml(record.html, terms);
   }

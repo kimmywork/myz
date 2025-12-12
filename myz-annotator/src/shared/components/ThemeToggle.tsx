@@ -1,6 +1,6 @@
 import { computed, defineComponent } from "vue";
-import { useThemePreference } from "../theme.js";
 import { IconMoon, IconSun } from "../icons.js";
+import { useThemePreference } from "../theme.js";
 
 export default defineComponent({
   name: "ThemeToggle",

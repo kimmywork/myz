@@ -4,10 +4,11 @@ import ThemeToggle from "../shared/components/ThemeToggle.jsx";
 import { normalizeWhitespace } from "../shared/highlightUtils.js";
 
 import {
-  RECORD_KINDS,
   normalizeRecord,
   recordToMarkdown,
 } from "../dashboard/utils/records.js";
+
+import { RECORD_KINDS } from "../shared/types.js";
 
 import {
   canonicalUrl,

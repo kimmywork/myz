@@ -1,5 +1,5 @@
 import { defineComponent, ref, reactive, onBeforeUnmount } from "vue";
-import type { HTMLAttributes, Ref } from "vue";
+import type { HTMLAttributes, Ref, DefineComponent } from "vue";
 
 const HIDE_ANIMATION_DURATION = 240;
 
@@ -30,6 +30,10 @@ export interface Notification {
 export interface NotifyOptions {
   message: string;
   duration?: number;
+}
+
+export interface NotificationsExposed {
+  notify: (options?: Partial<NotifyOptions>) => void;
 }
 
 export default defineComponent({
@@ -89,7 +93,7 @@ export default defineComponent({
       });
     });
 
-    expose({ notify });
+    expose<NotificationsExposed>({ notify });
 
     return () => {
       if (!notifications.value.length) {
@@ -123,4 +127,4 @@ export default defineComponent({
       );
     };
   },
-});
+}) as DefineComponent<{}, NotificationsExposed>;

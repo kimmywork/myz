@@ -7,7 +7,7 @@ export interface ZenSelectorRule {
   selector: string;
 }
 
-export const ZEN_SELECTOR_MAP : ZenSelectorRule[] = [
+export const ZEN_SELECTOR_MAP: ZenSelectorRule[] = [
   // Example: our test fixture
   { pattern: /article-mapped\.html$/, selector: "#special-article" },
   // Gcores article pages

@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useThemePreference } from '../../../src/shared/theme';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useThemePreference } from "../../../src/shared/theme";
 
-describe('theme', () => {
+describe("theme", () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'matchMedia', {
+    Object.defineProperty(window, "matchMedia", {
       writable: true,
-      value: vi.fn().mockImplementation(query => ({
+      value: vi.fn().mockImplementation((query) => ({
         matches: false,
         media: query,
         onchange: null,
@@ -18,13 +18,13 @@ describe('theme', () => {
     });
   });
 
-  it('should initialize with default theme', () => {
+  it("should initialize with default theme", () => {
     const { theme, isDark } = useThemePreference();
-    expect(theme.value).toBe('dark');
+    expect(theme.value).toBe("dark");
     expect(isDark.value).toBe(true);
   });
 
-  it('should toggle theme', () => {
+  it("should toggle theme", () => {
     const { toggleTheme, theme } = useThemePreference();
     const initial = theme.value;
     toggleTheme();

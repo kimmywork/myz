@@ -1,4 +1,6 @@
-export function parseAiRequestHeaders(rawHeaders?: string): Record<string, string> {
+export function parseAiRequestHeaders(
+  rawHeaders?: string,
+): Record<string, string> {
   if (typeof rawHeaders !== "string") {
     return {};
   }
@@ -20,7 +22,10 @@ export function parseAiRequestHeaders(rawHeaders?: string): Record<string, strin
     }, {});
 }
 
-export function getAiHeaderValue(rawHeaders?: string, targetName?: string): string | undefined {
+export function getAiHeaderValue(
+  rawHeaders?: string,
+  targetName?: string,
+): string | undefined {
   if (!targetName) {
     return undefined;
   }

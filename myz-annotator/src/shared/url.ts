@@ -1,6 +1,6 @@
 const WAYBACK_HOSTNAME = "web.archive.org";
 
-export function canonicalUrl(url: string): string {
+export function canonicalUrl(url?: string): string {
   const archive = extractArchiveInfo(url);
   if (archive?.originalUrl) {
     return normalizeUrlValue(archive.originalUrl);
@@ -101,7 +101,10 @@ export function isArchiveUrl(url: string) {
   return Boolean(info?.originalUrl);
 }
 
-export function buildArchiveSnapshotUrl(timestamp: string | number, originalUrl: string) {
+export function buildArchiveSnapshotUrl(
+  timestamp: string | number,
+  originalUrl: string,
+) {
   if (!timestamp || !originalUrl) {
     return "";
   }
@@ -120,7 +123,7 @@ type ArchiveInfo = {
   rawTimestamp: string;
 };
 
-export function extractArchiveInfo(url: any): ArchiveInfo | null {
+export function extractArchiveInfo(url?: any): ArchiveInfo | null {
   if (typeof url !== "string" || !url) {
     return null;
   }

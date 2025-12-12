@@ -1,5 +1,6 @@
 import { defineComponent, SVGAttributes } from "vue";
 import { JSX } from "vue/jsx-runtime";
+import { HIGHLIGHT_STYLES } from "./types";
 
 function normalizeSize(value: number | string): string {
   if (value === null || value === undefined) {
@@ -15,7 +16,7 @@ function normalizeSize(value: number | string): string {
   return text;
 }
 
-function makeIcon(
+export function makeIcon(
   name: string,
   renderPaths: () => JSX.Element,
   { strokeWidth = 1.5, filled = false } = {},
@@ -59,7 +60,11 @@ function makeIcon(
             };
 
         return (
-          <svg {...baseAttrs} {...attrs} aria-hidden={hasLabel ? undefined : "true"}>
+          <svg
+            {...baseAttrs}
+            {...attrs}
+            aria-hidden={hasLabel ? undefined : "true"}
+          >
             {renderPaths()}
           </svg>
         );
@@ -185,7 +190,10 @@ export const IconHighlightWavy = makeIcon("IconHighlightWavy", () => (
   </g>
 ));
 
-export const highlightStyleIconMap = {
+export const highlightStyleIconMap: Record<
+  HIGHLIGHT_STYLES,
+  ReturnType<typeof makeIcon>
+> = {
   paint: IconHighlightPaint,
   underline: IconHighlightUnderline,
   wavy: IconHighlightWavy,

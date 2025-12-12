@@ -1,7 +1,7 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
-  testDir: './',
+  testDir: "./",
   timeout: 30_000,
   expect: { timeout: 5000 },
   fullyParallel: false,
@@ -13,14 +13,14 @@ export default defineConfig({
     // proxy: {
     //     server: 'http://127.0.0.1:7890/'
     // },
-    screenshot: process.env.CI ? 'only-on-failure' : 'off',
+    screenshot: process.env.CI ? "only-on-failure" : "off",
     baseURL: undefined,
     headless: false, // extensions require headed mode
   },
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
 });

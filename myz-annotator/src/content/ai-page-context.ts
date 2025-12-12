@@ -270,7 +270,10 @@ function createFlashRange(range: Range) {
   }, 1600);
 }
 
-function findTextInChunk(root: Element, snippet: string): { node: Node; start: number; end: number } | null {
+function findTextInChunk(
+  root: Element,
+  snippet: string,
+): { node: Node; start: number; end: number } | null {
   const target = normalizeWhitespace(snippet);
   if (!target) {
     return null;

@@ -1,4 +1,3 @@
-
 import {
   JSONRPC_VERSION,
   LATEST_PROTOCOL_VERSION,
@@ -94,7 +93,10 @@ export class McpClient {
       console.log("[MCP Debug] Starting MCP initialization...");
 
       // Step 1: Send initialize request as per MCP spec
-      const initResult = await this.request<InitializeRequest, InitializeResult>("initialize", {
+      const initResult = await this.request<
+        InitializeRequest,
+        InitializeResult
+      >("initialize", {
         protocolVersion: this.protocolVersion,
         capabilities: {
           roots: { listChanged: false },
@@ -140,12 +142,18 @@ export class McpClient {
 
       // Step 3: Get tools and resources
       console.log("[MCP Debug] Requesting tools list...");
-      const toolsResult = await this.request<ListToolsRequest, ListToolsResult>("tools/list", {});
+      const toolsResult = await this.request<ListToolsRequest, ListToolsResult>(
+        "tools/list",
+        {},
+      );
       this.tools = Array.isArray(toolsResult?.tools) ? toolsResult.tools : [];
 
       console.log("[MCP Debug] Requesting resources list...");
       try {
-        const resourcesResult = await this.request<ListResourcesRequest, ListResourcesResult>("resources/list", {});
+        const resourcesResult = await this.request<
+          ListResourcesRequest,
+          ListResourcesResult
+        >("resources/list", {});
         this.resources = Array.isArray(resourcesResult?.resources)
           ? resourcesResult.resources
           : [];
@@ -177,7 +185,10 @@ export class McpClient {
     }
   }
 
-  async request<ParamRequest extends ClientRequest, Result>(method: string, params: ParamRequest['params']): Promise<Result> {
+  async request<ParamRequest extends ClientRequest, Result>(
+    method: string,
+    params: ParamRequest["params"],
+  ): Promise<Result> {
     if (!this.isConnected) {
       throw new Error("MCP client not connected");
     }
@@ -259,7 +270,10 @@ export class McpClient {
 
       // Extract session ID from response header if present (e.g., LogSeq mcp-logseq)
       // This happens for initialize requests where the server creates the session
-      if ((message as JSONRPCRequest).method === "initialize" && !this.sessionId) {
+      if (
+        (message as JSONRPCRequest).method === "initialize" &&
+        !this.sessionId
+      ) {
         const sessionIdHeader = response.headers.get("mcp-session-id");
         if (sessionIdHeader) {
           this.sessionId = sessionIdHeader;
@@ -327,7 +341,10 @@ export class McpClient {
     }
   }
 
-  async callTool(name: string, arguments_: Record<string, any> = {}): Promise<CallToolResult> {
+  async callTool(
+    name: string,
+    arguments_: Record<string, any> = {},
+  ): Promise<CallToolResult> {
     const tool = this.tools.find((t) => t.name === name);
     if (!tool) {
       throw new Error(`Tool not found: ${name}`);
@@ -339,7 +356,10 @@ export class McpClient {
     });
   }
 
-  async notification<Notification extends ClientNotification>(method: Notification["method"], params: Notification["params"] | null = null): Promise<void> {
+  async notification<Notification extends ClientNotification>(
+    method: Notification["method"],
+    params: Notification["params"] | null = null,
+  ): Promise<void> {
     if (!this.isConnected) {
       throw new Error("Not connected to MCP server");
     }
@@ -374,9 +394,12 @@ export class McpClient {
       throw new Error(`Resource not found: ${uri}`);
     }
 
-    return this.request<ReadResourceRequest, ReadResourceResult>("resources/read", {
-      uri,
-    });
+    return this.request<ReadResourceRequest, ReadResourceResult>(
+      "resources/read",
+      {
+        uri,
+      },
+    );
   }
 
   async disconnect(): Promise<void> {

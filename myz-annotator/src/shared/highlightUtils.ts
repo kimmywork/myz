@@ -1,50 +1,17 @@
+import { normalizeRecord as normalizeBaseRecord } from "../dashboard/utils/records.ts";
+
 import {
-  getRecordKind,
-  normalizeRecord as normalizeBaseRecord,
+  type MyZRecord,
+  HIGHLIGHT_STYLES,
   RECORD_KINDS,
-} from "../dashboard/utils/records.js";
-
-import type { MyZRecord } from "../dashboard/utils/records.js";
-
+  DEFAULT_HIGHLIGHT_STYLE,
+  getRecordKind,
+} from "./types.ts";
 
 // Default single color and palette tuned for better visibility on dark
 // backgrounds. These are slightly more saturated / deeper than the old
 // pastel values so highlights remain readable when the page uses a dark
 // color scheme.
-export const DEFAULT_COLOR = "#b58900";
-
-export const DEFAULT_COLORS = [
-  // amber / warm highlight
-  "#b58900",
-  // pink / coral
-  "#ef476f",
-  // muted purple
-  "#9f7aea",
-  // sky blue
-  "#38bdf8",
-  // teal / mint
-  "#34d399",
-];
-
-
-export enum HIGHLIGHT_STYLES {
-  PAINT = "paint",
-  UNDERLINE = "underline",
-  WAVY = "wavy",
-};
-
-export interface HighlightStyleOption {
-  icon: HIGHLIGHT_STYLES[keyof HIGHLIGHT_STYLES];
-  label: string;
-}
-
-
-export const DEFAULT_HIGHLIGHT_STYLE: HIGHLIGHT_STYLES = HIGHLIGHT_STYLES.PAINT;
-export const HIGHLIGHT_STYLE_OPTIONS: Record<HIGHLIGHT_STYLES, HighlightStyleOption> = {
-  [HIGHLIGHT_STYLES.PAINT]: { icon: "paint", label: "高亮" },
-  [HIGHLIGHT_STYLES.UNDERLINE]: { icon: "underline", label: "下划线" },
-  [HIGHLIGHT_STYLES.WAVY]: { icon: "wavy", label: "波浪线" },
-};
 
 export function normalizeHighlightStyle(style: any): HIGHLIGHT_STYLES {
   if (!style) {
@@ -71,7 +38,9 @@ export function describeHighlightStyle(style: HIGHLIGHT_STYLES): string {
   return "高亮";
 }
 
-export function normalizeRecord(record: MyZRecord | null | undefined): MyZRecord | null {
+export function normalizeRecord(
+  record: MyZRecord | null | undefined,
+): MyZRecord | null {
   if (!record) {
     return null;
   }
@@ -93,7 +62,10 @@ export function isClipRecord(record: MyZRecord) {
   return getRecordKind(record) === RECORD_KINDS.CLIP;
 }
 
-export function normalizeColor(value: string, fallback: string): string {
+export function normalizeColor(
+  value: string | undefined,
+  fallback: string,
+): string {
   if (typeof value !== "string") {
     return fallback;
   }
@@ -104,7 +76,10 @@ export function normalizeColor(value: string, fallback: string): string {
   return fallback;
 }
 
-export function normalizePalette(defaults: string[], incoming: string[]): string[] {
+export function normalizePalette(
+  defaults: readonly string[],
+  incoming: readonly string[] | undefined,
+): string[] {
   const base =
     Array.isArray(incoming) && incoming.length ? [...incoming] : [...defaults];
   const filled: string[] = [];

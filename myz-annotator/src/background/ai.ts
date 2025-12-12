@@ -1,4 +1,4 @@
-import type { MyZRecord } from "../dashboard/utils/records.js";
+import type { MyZRecord } from "../shared/types.ts";
 
 export const AI_CONVERSATION_KEY = "myz::ai-conversations";
 export const AI_MCP_SERVERS_KEY = "myz::ai-mcp-servers";
@@ -86,7 +86,10 @@ export async function addMessageToConversation(
   return message;
 }
 
-export async function getConversationHistory(conversationId: string, limit = 50) {
+export async function getConversationHistory(
+  conversationId: string,
+  limit = 50,
+) {
   const state = await readAiConversations();
   const conversation = state.conversations[conversationId];
   if (!conversation) {
@@ -95,7 +98,9 @@ export async function getConversationHistory(conversationId: string, limit = 50)
   return conversation.messages.slice(-limit);
 }
 
-export async function saveAiGeneratedHighlight(highlightData: Partial<MyZRecord>) {
+export async function saveAiGeneratedHighlight(
+  highlightData: Partial<MyZRecord>,
+) {
   const state = await readAiConversations();
   const conversation = state.conversations[highlightData.conversationId];
   if (conversation) {
@@ -127,7 +132,10 @@ export async function saveAiGeneratedHighlight(highlightData: Partial<MyZRecord>
   return aiHighlight;
 }
 
-export async function exportConversation(conversationId: string, format = "markdown") {
+export async function exportConversation(
+  conversationId: string,
+  format = "markdown",
+) {
   const state = await readAiConversations();
   const conversation = state.conversations[conversationId];
   if (!conversation) {

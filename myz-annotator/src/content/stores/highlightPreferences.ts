@@ -1,20 +1,51 @@
-import { ref } from "vue";
-import { sendMessage } from "../../shared/messaging.js";
-
-import {
-  DEFAULT_COLORS,
-  DEFAULT_HIGHLIGHT_STYLE,
-} from "../../shared/highlightUtils.js";
+import { type Ref, ref } from "vue";
 import {
   normalizeHighlightStyle,
   normalizeColor,
   normalizePalette,
 } from "../../shared/highlightUtils.js";
+import { sendMessage } from "../../shared/messaging.js";
 
-let storeInstance = null;
+import {
+  DEFAULT_COLORS,
+  DEFAULT_HIGHLIGHT_STYLE,
+  HIGHLIGHT_STYLES,
+} from "../../shared/types.js";
 
-function filterUndefined(patch) {
-  const payload = {};
+let storeInstance: HightlightPreferencesStore | null = null;
+
+interface HightlightPreferencesStore {
+  defaultColors: readonly string[];
+  defaultStyle: HIGHLIGHT_STYLES;
+  palette: Ref<string[]>;
+  lastUsedColor: Ref<string>;
+  lastUsedStyle: Ref<HIGHLIGHT_STYLES>;
+  isLoaded: Ref<boolean>;
+  applySettings: (settings: any) => void;
+  resetToDefaults: () => void;
+  persistColor: (color: string) => string;
+  persistStyle: (style: string) => string;
+  updatePaletteEntry: (
+    index: number,
+    value: string,
+    options?: { persist?: boolean },
+  ) => boolean;
+  getPaletteSnapshot: () => string[];
+  ensureLoaded: () => Promise<void>;
+}
+
+interface HightlightPreference {
+  colorPalette?: string[];
+  lastUsedColor?: string;
+  lastUsedStyle?: HIGHLIGHT_STYLES;
+}
+
+interface HightlightStoreOptions {}
+
+function filterUndefined(
+  patch: Partial<HightlightPreference>,
+): Partial<HightlightPreference> | null {
+  const payload = {} as Record<string, unknown>;
   Object.entries(patch || {}).forEach(([key, value]) => {
     if (value === undefined) {
       return;
@@ -24,7 +55,7 @@ function filterUndefined(patch) {
   return Object.keys(payload).length ? payload : null;
 }
 
-async function persistSettings(patch) {
+async function persistSettings(patch: Partial<HightlightPreference>) {
   const payload = filterUndefined(patch);
   if (!payload) {
     return;
@@ -36,7 +67,9 @@ async function persistSettings(patch) {
   }
 }
 
-function createStore(options) {
+function createStore(
+  _options?: HightlightStoreOptions,
+): HightlightPreferencesStore {
   const normalizedDefaults = normalizePalette(
     DEFAULT_COLORS,
     DEFAULT_COLORS,
@@ -45,17 +78,17 @@ function createStore(options) {
   const defaultStyle =
     typeof DEFAULT_HIGHLIGHT_STYLE === "string"
       ? DEFAULT_HIGHLIGHT_STYLE
-      : "paint";
-  const normalizeStyle = (style) => normalizeHighlightStyle(style);
+      : HIGHLIGHT_STYLES.PAINT;
+  const normalizeStyle = (style: any) => normalizeHighlightStyle(style);
 
   const palette = ref(normalizePalette(defaultColors, defaultColors));
   const lastUsedColor = ref(palette.value[0]);
   const lastUsedStyle = ref(defaultStyle);
   const isLoaded = ref(false);
   // Promise that resolves when initial settings load completes
-  let _loadPromise = null;
+  let _loadPromise: Promise<void> | null = null;
 
-  function persistColor(color) {
+  function persistColor(color: string) {
     const normalized = normalizeColor(color, palette.value[0]);
     lastUsedColor.value = normalized;
     persistSettings({
@@ -64,7 +97,7 @@ function createStore(options) {
     return normalized;
   }
 
-  function persistStyle(style) {
+  function persistStyle(style: any) {
     const normalized = normalizeStyle(style);
     lastUsedStyle.value = normalized;
     persistSettings({ lastUsedStyle: lastUsedStyle.value });
@@ -90,12 +123,15 @@ function createStore(options) {
         // Mark loaded even on error to avoid blocking callers
         isLoaded.value = true;
       }
-      return null;
     })();
     return _loadPromise;
   }
 
-  function updatePaletteEntry(index, value, { persist = false } = {}) {
+  function updatePaletteEntry(
+    index: number,
+    value: string,
+    { persist = false } = {},
+  ) {
     if (
       typeof index !== "number" ||
       index < 0 ||
@@ -116,10 +152,10 @@ function createStore(options) {
     return true;
   }
 
-  function applySettings(settings = {}) {
+  function applySettings(settings: HightlightPreference) {
     const normalizedPalette = normalizePalette(
       defaultColors,
-      settings.colorPalette,
+      settings.colorPalette ?? Array.from(defaultColors),
     );
     palette.value = normalizedPalette;
     const color = normalizeColor(settings.lastUsedColor, normalizedPalette[0]);
@@ -163,7 +199,9 @@ function createStore(options) {
   };
 }
 
-export function useHighlightPreferences(options) {
+export function useHighlightPreferences(
+  options: HightlightStoreOptions = {},
+): HightlightPreferencesStore {
   if (!storeInstance) {
     storeInstance = createStore(options || {});
   }

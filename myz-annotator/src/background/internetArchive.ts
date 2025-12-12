@@ -13,7 +13,82 @@ const MAX_HISTORY_ITEMS = 200;
 let queueProcessing = false;
 let queueScheduled = false;
 
-export async function getArchiveStatusForUrl(url) {
+type ArchiveStatusType =
+  | "unknown"
+  | "pending"
+  | "queued"
+  | "saved"
+  | "exists"
+  | "already-saved"
+  | "failed";
+
+type ArchiveSnapshot = { timestamp: string; url: string };
+
+export interface ArchiveEntry {
+  url: string;
+  status: ArchiveStatusType;
+  saved: boolean;
+  snapshot: ArchiveSnapshot | null;
+  lastCheckedAt: string | null;
+  lastAttemptAt: string | null;
+  lastError?: string | null;
+  queue: {
+    status: string;
+    requestedAt: string | null;
+    position: number | null;
+  } | null;
+}
+
+interface ArchiveState {
+  archives: Record<string, ArchiveEntry>;
+  archiveQueue: ArchiveQueueEntry[];
+  archiveHistory: ArchiveHistoryEntry[];
+}
+
+interface ArchiveQueueEntry {
+  id: string;
+  url: string;
+  requestedAt: string;
+  status: string;
+  attempts: number;
+  force: boolean;
+}
+
+interface ArchiveHistoryEntry {
+  id: string;
+  url: string;
+  action: string;
+  timestamp: string;
+  success: boolean;
+  status: string;
+  statusCode: number | null;
+  message: string;
+}
+
+interface ArchiveRequest {
+  url: string;
+  force: boolean;
+}
+
+interface CDXSnapshot {
+  timestamp: string;
+  originalUrl: string;
+}
+
+interface CDXResult {
+  snapshot: CDXSnapshot | null;
+  statusCode: number | null;
+}
+
+interface SaveSubmissionResult {
+  url: string;
+  accessKey: string;
+  accessSecret: string;
+}
+
+export async function getArchiveStatusForUrl(
+  url: string,
+): Promise<ArchiveEntry> {
   const canonical = canonicalUrl(url);
   if (!canonical) {
     return {
@@ -26,28 +101,43 @@ export async function getArchiveStatusForUrl(url) {
       queue: null,
     };
   }
-  const state = await readState();
+  const state: ArchiveState = await readState();
   ensureArchiveContainers(state);
   const entry = normalizeArchiveEntry(state.archives[canonical]);
   const queueEntry = findQueueEntry(state.archiveQueue, canonical);
   const position = computeQueuePosition(state.archiveQueue, canonical);
-  return formatArchiveEntry(canonical, entry, undefined, queueEntry, position);
+  return formatArchiveEntry(
+    canonical,
+    entry,
+    undefined,
+    queueEntry ?? undefined,
+    position ?? undefined,
+  );
 }
 
-export async function ensureArchiveSnapshot({ url, force = false } = {}) {
+export async function ensureArchiveSnapshot({
+  url,
+  force = false,
+}: Partial<ArchiveRequest> = {}) {
   const canonical = canonicalUrl(url);
   if (!canonical) {
     throw new Error("无法识别页面地址");
   }
 
-  const state = await readState();
+  const state: ArchiveState = await readState();
   ensureArchiveContainers(state);
 
   const queueEntry = findQueueEntry(state.archiveQueue, canonical);
   if (queueEntry && !force) {
     const entry = normalizeArchiveEntry(state.archives[canonical]);
     const position = computeQueuePosition(state.archiveQueue, canonical);
-    return formatArchiveEntry(canonical, entry, "queued", queueEntry, position);
+    return formatArchiveEntry(
+      canonical,
+      entry,
+      "queued",
+      queueEntry,
+      position ?? undefined,
+    );
   }
 
   const archiveEntry = normalizeArchiveEntry(state.archives[canonical]);
@@ -78,7 +168,7 @@ export async function ensureArchiveSnapshot({ url, force = false } = {}) {
     ...archiveEntry,
     status: "pending",
     lastError: null,
-  };
+  } as ArchiveEntry;
 
   appendArchiveHistory(state, {
     url: canonical,
@@ -97,11 +187,11 @@ export async function ensureArchiveSnapshot({ url, force = false } = {}) {
     state.archives[canonical],
     "queued",
     newQueueEntry,
-    position,
+    position ?? undefined,
   );
 }
 
-function normalizeArchiveEntry(entry) {
+function normalizeArchiveEntry(entry: ArchiveEntry): Partial<ArchiveEntry> {
   if (!entry || typeof entry !== "object") {
     return {
       status: "unknown",
@@ -123,7 +213,9 @@ function normalizeArchiveEntry(entry) {
   return normalized;
 }
 
-function normalizeSnapshot(snapshot) {
+function normalizeSnapshot(
+  snapshot: ArchiveEntry["snapshot"],
+): ArchiveEntry["snapshot"] {
   if (!snapshot || typeof snapshot !== "object") {
     return null;
   }
@@ -137,19 +229,18 @@ function normalizeSnapshot(snapshot) {
 }
 
 function formatArchiveEntry(
-  canonical,
-  entry,
-  statusOverride,
-  queueEntry,
-  queuePosition,
-) {
+  canonical: string,
+  entry: Partial<ArchiveEntry>,
+  statusOverride?: ArchiveStatusType,
+  queueEntry?: ArchiveQueueEntry,
+  queuePosition?: number,
+): ArchiveEntry {
   const status = statusOverride || entry.status || "unknown";
   const queue = queueEntry
     ? {
-        status: queueEntry.status || "queued",
-        requestedAt: queueEntry.requestedAt || null,
-        position:
-          typeof queuePosition === "number" ? queuePosition : queuePosition,
+        status: queueEntry!.status,
+        requestedAt: queueEntry!.requestedAt,
+        position: queuePosition ?? null,
       }
     : null;
   return {
@@ -157,15 +248,15 @@ function formatArchiveEntry(
     status,
     saved:
       status === "saved" || status === "exists" || status === "already-saved",
-    snapshot: entry.snapshot,
-    lastCheckedAt: entry.lastCheckedAt,
-    lastAttemptAt: entry.lastAttemptAt,
+    snapshot: entry.snapshot ?? null,
+    lastCheckedAt: entry.lastCheckedAt ?? null,
+    lastAttemptAt: entry.lastAttemptAt ?? null,
     lastError: entry.lastError,
     queue,
   };
 }
 
-function ensureArchiveContainers(state) {
+function ensureArchiveContainers(state: ArchiveState): ArchiveState {
   if (!state.archives || typeof state.archives !== "object") {
     state.archives = {};
   }
@@ -178,13 +269,19 @@ function ensureArchiveContainers(state) {
   return state;
 }
 
-function findQueueEntry(queue, url) {
+function findQueueEntry(
+  queue: ArchiveQueueEntry[],
+  url: string,
+): ArchiveQueueEntry | null {
   return Array.isArray(queue)
     ? queue.find((entry) => entry?.url === url) || null
     : null;
 }
 
-function computeQueuePosition(queue, url) {
+function computeQueuePosition(
+  queue: ArchiveQueueEntry[],
+  url: string,
+): number | null {
   if (!Array.isArray(queue)) {
     return null;
   }
@@ -192,7 +289,10 @@ function computeQueuePosition(queue, url) {
   return index === -1 ? null : index;
 }
 
-function findLatestHistoryForUrl(history, url) {
+function findLatestHistoryForUrl(
+  history: ArchiveHistoryEntry[],
+  url: string,
+): ArchiveHistoryEntry | null {
   if (!Array.isArray(history) || !history.length) {
     return null;
   }
@@ -205,13 +305,16 @@ function findLatestHistoryForUrl(history, url) {
   return null;
 }
 
-function appendArchiveHistory(state, entry) {
+function appendArchiveHistory(
+  state: ArchiveState,
+  entry: Partial<ArchiveHistoryEntry>,
+) {
   if (!state.archiveHistory) {
     state.archiveHistory = [];
   }
   state.archiveHistory.push({
     id: entry.id || generateId(),
-    url: entry.url,
+    url: entry.url!,
     action: entry.action || "unknown",
     timestamp: entry.timestamp || new Date().toISOString(),
     success: Boolean(entry.success),
@@ -257,7 +360,10 @@ async function processArchiveQueue() {
   }
 }
 
-async function handleQueueEntry(state, queueEntry) {
+async function handleQueueEntry(
+  state: ArchiveState,
+  queueEntry: ArchiveQueueEntry,
+) {
   ensureArchiveContainers(state);
   const canonical = queueEntry.url;
   const archives = state.archives;
@@ -294,7 +400,7 @@ async function handleQueueEntry(state, queueEntry) {
         snapshot: buildSnapshot(cdxResult.snapshot),
         lastCheckedAt: nowIso,
         lastError: null,
-      };
+      } as ArchiveEntry;
       removeQueueEntry(state, queueEntry.id);
       appendArchiveHistory(state, {
         url: canonical,
@@ -314,7 +420,7 @@ async function handleQueueEntry(state, queueEntry) {
     const trimmedKey = (settings.internetArchiveAccessKey || "").trim();
     const trimmedSecret = (settings.internetArchiveAccessSecret || "").trim();
 
-    const submission = await submitSaveRequest({
+    await submitSaveRequest({
       url: canonical,
       accessKey: trimmedKey,
       accessSecret: trimmedSecret,
@@ -331,7 +437,7 @@ async function handleQueueEntry(state, queueEntry) {
     const confirmed = await pollForSnapshot(
       canonical,
       archiveEntry.snapshot?.timestamp,
-      (pollResult) => {
+      (pollResult: CDXResult) => {
         appendArchiveHistory(state, {
           url: canonical,
           action: "cdx-poll",
@@ -345,7 +451,7 @@ async function handleQueueEntry(state, queueEntry) {
       },
     );
 
-    if (confirmed.snapshot) {
+    if (confirmed?.snapshot) {
       archives[canonical] = {
         ...archiveEntry,
         status: "saved",
@@ -353,7 +459,7 @@ async function handleQueueEntry(state, queueEntry) {
         lastCheckedAt: new Date().toISOString(),
         lastAttemptAt: nowIso,
         lastError: null,
-      };
+      } as ArchiveEntry;
       appendArchiveHistory(state, {
         url: canonical,
         action: "queue:complete",
@@ -367,7 +473,7 @@ async function handleQueueEntry(state, queueEntry) {
         status: "pending",
         lastAttemptAt: nowIso,
         lastError: null,
-      };
+      } as ArchiveEntry;
       appendArchiveHistory(state, {
         url: canonical,
         action: "queue:pending",
@@ -384,21 +490,21 @@ async function handleQueueEntry(state, queueEntry) {
       ...archiveEntry,
       status: "failed",
       lastAttemptAt: nowIso,
-      lastError: error?.message || String(error),
-    };
+      lastError: (error as Error)?.message || String(error),
+    } as ArchiveEntry;
     appendArchiveHistory(state, {
       url: canonical,
       action: "queue:error",
       status: "error",
       success: false,
-      message: error?.message || "保存失败",
+      message: (error as Error)?.message || "保存失败",
     });
     removeQueueEntry(state, queueEntry.id);
     await writeState(state);
   }
 }
 
-function removeQueueEntry(state, id) {
+function removeQueueEntry(state: ArchiveState, id: string) {
   if (!Array.isArray(state.archiveQueue)) {
     state.archiveQueue = [];
     return;
@@ -419,7 +525,7 @@ export function initializeArchiveQueue() {
   scheduleArchiveQueueProcessing();
 }
 
-async function fetchLatestSnapshot(url) {
+async function fetchLatestSnapshot(url: string): Promise<CDXResult> {
   const endpoint = new URL(CDX_ENDPOINT);
   endpoint.searchParams.set("url", url);
   endpoint.searchParams.set("output", "json");
@@ -475,12 +581,16 @@ async function fetchLatestSnapshot(url) {
   };
 }
 
-async function submitSaveRequest({ url, accessKey, accessSecret }) {
+async function submitSaveRequest({
+  url,
+  accessKey,
+  accessSecret,
+}: SaveSubmissionResult) {
   const params = new URLSearchParams();
   params.set("url", url);
   params.set("capture_all", "on");
 
-  const headers = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
     Accept: "application/json, text/plain, */*",
   };
@@ -525,7 +635,11 @@ async function submitSaveRequest({ url, accessKey, accessSecret }) {
   return { snapshot, statusCode: response.status };
 }
 
-async function pollForSnapshot(url, previousTimestamp, onPoll) {
+async function pollForSnapshot(
+  url: string,
+  previousTimestamp: string | undefined,
+  onPoll: (result: CDXResult) => void,
+) {
   const maxAttempts = 3;
   let attempt = 0;
   let latest = null;
@@ -552,7 +666,7 @@ async function pollForSnapshot(url, previousTimestamp, onPoll) {
   return latest;
 }
 
-function parseSnapshotLocation(location) {
+function parseSnapshotLocation(location: string) {
   const absolute = location.startsWith("http")
     ? location
     : `${WAYBACK_BASE}${location}`;
@@ -567,7 +681,7 @@ function parseSnapshotLocation(location) {
   };
 }
 
-function buildSnapshot(snapshot) {
+function buildSnapshot(snapshot: CDXSnapshot) {
   if (!snapshot?.timestamp || !snapshot.originalUrl) {
     return null;
   }
@@ -577,6 +691,6 @@ function buildSnapshot(snapshot) {
   };
 }
 
-function delay(ms) {
+function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

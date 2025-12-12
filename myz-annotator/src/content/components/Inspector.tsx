@@ -1,7 +1,38 @@
-import { defineComponent, ref, computed } from "vue";
+import {
+  defineComponent,
+  ref,
+  computed,
+  type DefineComponent,
+  type Ref,
+} from "vue";
+import { normalizeHighlightStyle } from "../../shared/highlightUtils.js";
 import { highlightStyleIconMap } from "../../shared/icons.js";
+import {
+  MyZRecord,
+  RECORD_KINDS,
+  HIGHLIGHT_STYLE_OPTIONS,
+  HIGHLIGHT_STYLES,
+  getRecordKind,
+} from "../../shared/types.js";
 
-const DEFAULT_STATE = {
+import { resolveHighlightColor } from "../apply-highlight.js";
+
+interface InsepctorState {
+  id: string | null;
+  title: string;
+  metaParts: string[];
+  tags: string[];
+  html: string;
+  text: string;
+  note: string;
+  style: HIGHLIGHT_STYLES | null;
+  styleIconKey: string;
+  styleLabel: string;
+  color: string;
+  kind: RECORD_KINDS;
+}
+
+const DEFAULT_STATE: InsepctorState = {
   id: null,
   title: "标注详情",
   metaParts: [],
@@ -13,26 +44,30 @@ const DEFAULT_STATE = {
   styleIconKey: "",
   styleLabel: "",
   color: "",
-  kind: "highlight",
+  kind: RECORD_KINDS.HIGHLIGHT,
 };
+
+interface InspectorProps {
+  highlightStyleOptions: Record<string, { icon: string; label: string }>;
+  resolveHighlightColor: (color: string | undefined) => string;
+  onClose?: () => void;
+  onCopy?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}
+
+interface InspectorExpose {
+  showRecord: (record: Partial<MyZRecord>) => void;
+  hide: (options?: { silent?: boolean }) => void;
+  isVisible: () => boolean;
+  getCurrentId: () => string | null;
+}
 
 export default defineComponent({
   name: "MyZInspector",
   props: {
     highlightStyleOptions: {
       type: Object,
-      required: true,
-    },
-    getRecordKind: {
-      type: Function,
-      required: true,
-    },
-    normalizeHighlightStyle: {
-      type: Function,
-      required: true,
-    },
-    resolveHighlightColor: {
-      type: Function,
       required: true,
     },
     onClose: {
@@ -55,9 +90,9 @@ export default defineComponent({
   emits: ["shown", "hidden"],
   setup(props, { emit, expose }) {
     const visible = ref(false);
-    const record = ref({ ...DEFAULT_STATE });
+    const record: Ref<InsepctorState> = ref({ ...DEFAULT_STATE });
 
-    const title = computed(() => record.value.title || "标注详情");
+    const title: Ref<string> = computed(() => record.value.title || "标注详情");
     const metaText = computed(() => {
       const parts = Array.isArray(record.value.metaParts)
         ? record.value.metaParts.filter(Boolean)
@@ -79,7 +114,9 @@ export default defineComponent({
       isHighlight.value ? record.value.styleIconKey || "" : "",
     );
     const StyleIconComponent = computed(() =>
-      isHighlight.value ? highlightStyleIconMap[styleIconKey.value] : null,
+      isHighlight.value
+        ? highlightStyleIconMap[styleIconKey.value as HIGHLIGHT_STYLES]
+        : null,
     );
     const styleLabel = computed(() =>
       isHighlight.value ? record.value.styleLabel || "" : "",
@@ -97,8 +134,9 @@ export default defineComponent({
       typeof record.value.text === "string" ? record.value.text : "",
     );
 
-    function showRecord(rawRecord = {}) {
-      const computedKind = props.getRecordKind(rawRecord) || "highlight";
+    function showRecord(rawRecord: Partial<MyZRecord> = {}) {
+      const computedKind =
+        getRecordKind(rawRecord as MyZRecord) || RECORD_KINDS.HIGHLIGHT;
       const createdAt = rawRecord.createdAt
         ? new Date(rawRecord.createdAt)
         : null;
@@ -110,21 +148,21 @@ export default defineComponent({
         metaParts.push(rawRecord.hostname);
       }
 
-      let style = null;
+      let style: HIGHLIGHT_STYLES | null = null;
       let resolvedColor = "";
       let styleIconKeyValue = "";
       let styleLabelValue = "";
       if (computedKind === "highlight") {
-        style = props.normalizeHighlightStyle(rawRecord.style);
-        resolvedColor = props.resolveHighlightColor(rawRecord.color);
-        const meta = props.highlightStyleOptions?.[style] || null;
+        style = normalizeHighlightStyle(rawRecord.style);
+        resolvedColor = resolveHighlightColor(rawRecord.color);
+        const meta = HIGHLIGHT_STYLE_OPTIONS[style] || null;
         if (meta) {
-          styleIconKeyValue = meta.icon || "";
+          styleIconKeyValue = meta.icon as HIGHLIGHT_STYLES;
           styleLabelValue = meta.label || "";
         } else {
           const fallback = props.highlightStyleOptions?.paint || null;
           if (fallback) {
-            styleIconKeyValue = fallback.icon || "";
+            styleIconKeyValue = fallback.icon as HIGHLIGHT_STYLES;
             styleLabelValue = fallback.label || "";
           }
         }
@@ -225,7 +263,7 @@ export default defineComponent({
               title={
                 isHighlight.value && styleLabel.value && color.value
                   ? `${styleLabel.value} · ${color.value}`
-                  : null
+                  : undefined
               }
             >
               {(() => {
@@ -280,4 +318,4 @@ export default defineComponent({
       </aside>
     );
   },
-});
+}) as DefineComponent<InspectorProps, InspectorExpose>;

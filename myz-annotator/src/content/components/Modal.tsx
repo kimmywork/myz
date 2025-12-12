@@ -1,13 +1,69 @@
-import { defineComponent, ref, computed, watch, nextTick } from "vue";
+import {
+  defineComponent,
+  ref,
+  computed,
+  watch,
+  nextTick,
+  type DefineComponent,
+  type Ref,
+} from "vue";
+import { ArchiveEntry } from "../../background/internetArchive.js";
 import TagInput from "../../dashboard/components/TagInput.jsx";
+import {
+  IconPencil,
+  highlightStyleIconMap,
+  makeIcon,
+} from "../../shared/icons.js";
+import {
+  RECORD_KINDS,
+  HIGHLIGHT_STYLE_OPTIONS,
+  HIGHLIGHT_STYLES,
+  HighlightStyleOption,
+} from "../../shared/types.js";
 import { useHighlightPreferences } from "../stores/highlightPreferences.js";
-import { RECORD_KINDS } from "../../dashboard/utils/records.js";
-import { HIGHLIGHT_STYLE_OPTIONS } from "../../shared/highlightUtils.js";
-import { IconPencil, highlightStyleIconMap } from "../../shared/icons.js";
 
-function uniqueNormalizedTags(tags) {
+interface ModalExposed {
+  open: (options: ModalOpenOptions) => void;
+  hide: () => void;
+  isVisible: () => boolean;
+  setKnownTags: (tags: string[]) => void;
+  addKnownTags: (tags: string[]) => void;
+  containerRef: Ref<HTMLElement>;
+}
+
+export interface ModalProps {
+  onClose: () => void;
+  onSubmit: (data: ModalSubmitPayload) => void;
+  onDelete: () => void;
+}
+
+export interface ModalSubmitPayload {
+  mode: "create" | "edit";
+  kind: RECORD_KINDS;
+  note: string;
+  tags: string[];
+  color: string;
+  style: string;
+  saveToArchive: boolean;
+}
+
+export interface ModalOpenOptions {
+  mode?: "create" | "edit";
+  kind?: RECORD_KINDS;
+  editingId?: string | null;
+  preview?: string;
+  note?: string;
+  tags?: string[];
+  color?: string | null;
+  style?: HIGHLIGHT_STYLES | null;
+  archiveEnabled?: boolean;
+  saveToArchive?: boolean;
+  archiveStatus?: ArchiveEntry;
+}
+
+function uniqueNormalizedTags(tags: string[]): string[] {
   const seen = new Set();
-  const result = [];
+  const result: string[] = [];
   tags?.forEach((tag) => {
     if (typeof tag !== "string") {
       return;
@@ -26,14 +82,17 @@ function uniqueNormalizedTags(tags) {
   return result;
 }
 
-function normalizeTagValue(value) {
+function normalizeTagValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function mergeKnownTags(current = [], incoming = []) {
+function mergeKnownTags(
+  current: string[] = [],
+  incoming: string[] = [],
+): string[] {
   const base = Array.isArray(current) ? current : [];
   const extras = Array.isArray(incoming) ? incoming : [];
-  const merged = new Set();
+  const merged = new Set<string>();
   base.forEach((tag) => {
     const normalized = normalizeTagValue(tag);
     if (normalized) {
@@ -54,27 +113,29 @@ export default defineComponent({
   emits: ["close", "submit", "delete"],
 
   setup(_props, { emit, expose }) {
-    const visible = ref(false);
-    const mode = ref("create");
-    const kind = ref(RECORD_KINDS.HIGHLIGHT);
-    const previewText = ref("");
-    const note = ref("");
-    const tags = ref([]);
-    const knownTags = ref([]);
-    const availableTags = ref([]);
+    const visible: Ref<boolean> = ref(false);
+    const mode: Ref<"create" | "edit"> = ref("create");
+    const kind: Ref<RECORD_KINDS> = ref(RECORD_KINDS.HIGHLIGHT);
+    const previewText: Ref<string> = ref("");
+    const note: Ref<string> = ref("");
+    const tags: Ref<string[]> = ref([]);
+    const knownTags: Ref<string[]> = ref([]);
+    const availableTags: Ref<string[]> = ref([]);
     const preferences = useHighlightPreferences({});
-    const palette = preferences.palette;
-    const selectedColor = ref(preferences.lastUsedColor.value);
-    const selectedStyle = ref(preferences.lastUsedStyle.value);
+    const palette: Ref<string[]> = preferences.palette;
+    const selectedColor: Ref<string> = ref(preferences.lastUsedColor.value);
+    const selectedStyle: Ref<HIGHLIGHT_STYLES> = ref(
+      preferences.lastUsedStyle.value,
+    );
     const tagInputValue = ref("");
-    const dropdownOpen = ref(false);
-    const filteredOptions = ref([]);
-    const activeOptionIndex = ref(-1);
-    const containerRef = ref(null);
-    const tagInputRef = ref(null);
-    const archiveEnabled = ref(false);
-    const saveToArchive = ref(false);
-    const archiveStatus = ref(null);
+    const dropdownOpen: Ref<boolean> = ref(false);
+    const filteredOptions: Ref<string[]> = ref([]);
+    const activeOptionIndex: Ref<number> = ref(-1);
+    const containerRef: Ref<HTMLElement | null> = ref(null);
+    const tagInputRef: Ref<HTMLElement | null> = ref(null);
+    const archiveEnabled: Ref<boolean> = ref(false);
+    const saveToArchive: Ref<boolean> = ref(false);
+    const archiveStatus: Ref<ArchiveEntry | null> = ref(null);
 
     const titleText = computed(() => {
       if (kind.value === RECORD_KINDS.CLIP) {
@@ -100,9 +161,14 @@ export default defineComponent({
       };
     });
 
-    const styleOptions = computed(() =>
-      Object.entries(HIGHLIGHT_STYLE_OPTIONS),
-    );
+    const styleOptions: Ref<[HIGHLIGHT_STYLES, HighlightStyleOption][]> =
+      computed(
+        () =>
+          Object.entries(HIGHLIGHT_STYLE_OPTIONS) as [
+            HIGHLIGHT_STYLES,
+            HighlightStyleOption,
+          ][],
+      );
 
     const archiveStatusText = computed(() => {
       if (!archiveOptionVisible.value) {
@@ -157,7 +223,7 @@ export default defineComponent({
       }
     }
 
-    function refreshAvailableTags(extra) {
+    function refreshAvailableTags(extra: string[] = []) {
       const extras = Array.isArray(extra) ? extra : tags.value;
       availableTags.value = mergeKnownTags(knownTags.value, extras);
       syncFilteredOptions(tagInputValue.value);
@@ -167,7 +233,7 @@ export default defineComponent({
       syncFilteredOptions(value);
     });
 
-    function open(options) {
+    function open(options: ModalOpenOptions) {
       mode.value = options?.mode === "edit" ? "edit" : "create";
       kind.value =
         options?.kind === RECORD_KINDS.CLIP
@@ -231,7 +297,7 @@ export default defineComponent({
       emit("delete");
     }
 
-    function handleSelectColor(index) {
+    function handleSelectColor(index: number) {
       const value = palette.value[index];
       if (!value) {
         return;
@@ -239,20 +305,22 @@ export default defineComponent({
       selectedColor.value = value;
     }
 
-    function handlePaletteInput(index, event) {
-      const value = event.target.value;
+    function handlePaletteInput(index: number, event: Event) {
+      const value = (event.target as HTMLInputElement).value;
       selectedColor.value = value;
       preferences.updatePaletteEntry(index, value, { persist: true });
     }
 
-    function handleSelectStyle(style) {
+    function handleSelectStyle(style: HIGHLIGHT_STYLES) {
       if (!isHighlight.value) {
         return;
       }
       selectedStyle.value = style;
     }
 
-    function formatArchiveTimestamp(timestamp) {
+    function formatArchiveTimestamp(
+      timestamp: string | null | undefined,
+    ): string {
       if (typeof timestamp !== "string" || timestamp.length < 12) {
         return "";
       }
@@ -332,8 +400,8 @@ export default defineComponent({
               <div class="myz-style-picker" role="radiogroup">
                 {styleOptions.value.map(([value, meta]) => {
                   const isActive = value === selectedStyle.value;
-                  const IconComponent =
-                    highlightStyleIconMap[meta.icon] ||
+                  const IconComponent: ReturnType<typeof makeIcon> =
+                    highlightStyleIconMap[meta.icon as HIGHLIGHT_STYLES] ||
                     highlightStyleIconMap.paint;
                   return (
                     <button
@@ -367,8 +435,8 @@ export default defineComponent({
             <textarea
               rows="4"
               value={note.value}
-              onInput={(event) => {
-                note.value = event.target.value;
+              onInput={(event: InputEvent) => {
+                note.value = (event.target as HTMLTextAreaElement).value;
               }}
             />
           </div>
@@ -402,8 +470,10 @@ export default defineComponent({
                   <input
                     type="checkbox"
                     checked={saveToArchive.value}
-                    onChange={(event) =>
-                      (saveToArchive.value = event.target.checked)
+                    onChange={(event: Event) =>
+                      (saveToArchive.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
                     }
                   />
                   <span>同时保存到 Internet Archive</span>
@@ -464,11 +534,12 @@ export default defineComponent({
                             `input[data-color-index="${index}"]`,
                           );
                           if (input) {
-                            if (typeof input.showPicker === "function") {
-                              input.showPicker();
+                            const el = input as HTMLInputElement;
+                            if (typeof el.showPicker === "function") {
+                              el.showPicker();
                             } else {
-                              input.focus();
-                              input.click();
+                              el.focus();
+                              el.click();
                             }
                           }
                         }}
@@ -519,4 +590,4 @@ export default defineComponent({
       </div>
     );
   },
-});
+}) as DefineComponent<ModalProps, ModalExposed>;

@@ -1,4 +1,23 @@
-export function getSelectionBoundingRect(range) {
+export interface ImageCropResult {
+  canvas: HTMLCanvasElement;
+  scaleX: number;
+  scaleY: number;
+  sw: number;
+  sh: number;
+}
+
+export interface CropRect {
+  left: number;
+  right?: number;
+  top: number;
+  bottom?: number;
+  width: number;
+  height: number;
+}
+
+export function getSelectionBoundingRect(
+  range: Range,
+): Partial<CropRect> | null {
   const rects = Array.from(range.getClientRects()).filter(
     (rect) => rect.width && rect.height,
   );
@@ -40,7 +59,11 @@ export function getSelectionBoundingRect(range) {
   };
 }
 
-export async function cropAndDownloadSelection(dataUrl, rect, captureViewport) {
+export async function cropAndDownloadSelection(
+  dataUrl: string,
+  rect: CropRect,
+  captureViewport?: { width: number; height: number },
+) {
   const image = await loadImage(dataUrl);
 
   const viewportWidth = captureViewport?.width ?? image.width;
@@ -66,7 +89,7 @@ export async function cropAndDownloadSelection(dataUrl, rect, captureViewport) {
   downloadImage(cropped, `myz-selection-${Date.now()}.png`);
 }
 
-function loadImage(dataUrl) {
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
@@ -75,14 +98,18 @@ function loadImage(dataUrl) {
   });
 }
 
-export function downloadImage(dataUrl, filename) {
+export function downloadImage(dataUrl: string, filename: string) {
   const anchor = document.createElement("a");
   anchor.href = dataUrl;
   anchor.download = filename;
   anchor.click();
 }
 
-export async function cropToCanvas(dataUrl, rect, captureViewport) {
+export async function cropToCanvas(
+  dataUrl: string,
+  rect: CropRect,
+  captureViewport?: { width: number; height: number },
+): Promise<ImageCropResult> {
   const image = await loadImage(dataUrl);
   const viewportWidth = captureViewport?.width ?? image.width;
   const viewportHeight = captureViewport?.height ?? image.height;

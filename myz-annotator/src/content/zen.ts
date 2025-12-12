@@ -59,7 +59,7 @@ export function getZenTargetElement(): Element | null {
   if (current) return current;
   return findArticleElement();
 }
-  
+
 export function enableZenMode(): boolean {
   if (isZenModeEnabled()) return true;
   const article = findArticleElement();

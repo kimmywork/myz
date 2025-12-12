@@ -5,18 +5,16 @@ import {
   formatDateTime,
   formatInline,
   formatNote,
-  getRecordKind,
   getSearchTerms,
   groupHighlightsByDate,
   normalizeRecord,
   recordToMarkdown,
   renderHighlightContent,
-  RECORD_KINDS,
 } from "../utils/records.js";
 import { sendMessage } from "../../shared/messaging.js";
 import { downloadFile } from "../utils/download.js";
 import { normalizeImportedPayload } from "../utils/import.js";
-import { DEFAULT_COLOR } from "../../shared/highlightUtils.js";
+import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "../../shared/types.js";
 
 export const DashboardStoreKey = Symbol("DashboardStore");
 

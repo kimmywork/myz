@@ -18,7 +18,9 @@ export interface LegacyBadgeCount {
   count: number;
 }
 
-export function normalizeBadgeCounts(payload: Partial<BadgeCount & LegacyBadgeCount> = {}): BadgeCount {
+export function normalizeBadgeCounts(
+  payload: Partial<BadgeCount & LegacyBadgeCount> = {},
+): BadgeCount {
   const highlightFromPayload = coerceBadgeCount(payload.highlightCount);
   const savedFromPayload = coerceBadgeCount(payload.savedCount);
   const totalFromPayload = coerceBadgeCount(payload.total);
@@ -39,7 +41,11 @@ export function normalizeBadgeCounts(payload: Partial<BadgeCount & LegacyBadgeCo
   };
 }
 
-export function buildActionTitle({ total, highlightCount, savedCount }: BadgeCount): string {
+export function buildActionTitle({
+  total,
+  highlightCount,
+  savedCount,
+}: BadgeCount): string {
   const base = "MyZ Annotator";
   if (!total) {
     return `${base} · 暂无条目`;
