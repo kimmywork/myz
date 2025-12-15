@@ -14,13 +14,9 @@ import {
   decorateHighlightElement,
 } from "./apply-highlight.ts";
 
-import {
-  hideInspector,
-  isInspecting,
-  showInspector,
-} from "./inspector-state.ts";
-import { addModalKnownTags, setModalKnownTags } from "./modal-state.ts";
-import { showNotification } from "./notificaton-state.ts";
+import { useInspectorStore } from "./stores/inspector-store.ts";
+import { useModalStore } from "./stores/modal-store.ts";
+import { useNotificationStore } from "./stores/notification-store.ts";
 import { ensureContentStyles } from "./styles.ts";
 
 const HIGHLIGHT_REAPPLY_INTERVAL = 1200;
@@ -71,6 +67,8 @@ export function isInHighlightCache(id: string) {
 }
 
 export async function restoreHighlights() {
+  const modalStore = useModalStore();
+  const inspectorStore = useInspectorStore();
   try {
     ensureContentStyles();
     const currentUrl = window.location.href;
@@ -101,11 +99,11 @@ export async function restoreHighlights() {
 
     if (Array.isArray(tagList)) {
       // FIXME: modal
-      setModalKnownTags(tagList);
+      modalStore.setModalKnownTags(tagList);
     }
 
     // FIXME: inspector
-    hideInspector();
+    inspectorStore.hide();
     Array.from(document.querySelectorAll(".myz-highlight")).forEach((node) =>
       unwrapNode(node),
     );
@@ -120,7 +118,7 @@ export async function restoreHighlights() {
         return;
       }
       // FIXME: modal
-      addModalKnownTags(stored.tags || []);
+      modalStore.addModalKnownTags(stored.tags || []);
       if (isHighlightRecord(stored) && stored.range) {
         const applied = applyHighlight(stored);
         if (applied) {
@@ -340,6 +338,7 @@ function queueHighlightReapply() {
 }
 
 function attemptHighlightReapply() {
+  const notificationStore = useNotificationStore();
   if (!highlightReapplyState.pending.size) {
     cleanupHighlightReapply();
     return;
@@ -392,8 +391,9 @@ function attemptHighlightReapply() {
         remaining === 1
           ? "部分标注无法定位，可能因为页面内容已改变。"
           : `有 ${remaining} 条标注无法定位，可能因为页面内容已改变。`;
-      // FIXME: notification
-      showNotification(message);
+      notificationStore.notify({
+        message: message,
+      });
     }
   }
 }
@@ -482,6 +482,8 @@ export function buildHighlightStateSnapshot() {
 }
 
 export async function updateExistingHighlight(update: Partial<MyZRecord>) {
+  const modalStore = useModalStore();
+  const inspectorStore = useInspectorStore();
   try {
     const record = await sendMessage("myz:updateHighlight", update);
     if (!record) {
@@ -491,7 +493,7 @@ export async function updateExistingHighlight(update: Partial<MyZRecord>) {
     if (!stored) {
       return;
     }
-    addModalKnownTags(stored.tags || []);
+    modalStore.addModalKnownTags(stored.tags || []);
     if (isHighlightRecord(stored)) {
       const nodes = document.querySelectorAll(
         `[data-highlight-id="${stored.id}"]`,
@@ -504,8 +506,8 @@ export async function updateExistingHighlight(update: Partial<MyZRecord>) {
       unreachableHighlights.delete(stored.id);
       removeHighlightFromPending(stored.id);
     }
-    if (isInspecting(stored.id)) {
-      showInspector(stored);
+    if (inspectorStore.isInspecting(stored.id)) {
+      inspectorStore.showRecord(stored);
     }
     updateHighlightIndicators();
   } catch (error) {
@@ -514,14 +516,15 @@ export async function updateExistingHighlight(update: Partial<MyZRecord>) {
 }
 
 export async function deleteHighlight(id: string) {
+  const inspectorStore = useInspectorStore();
   try {
     await sendMessage("myz:removeHighlight", { id });
     highlightCache.delete(id);
     removeHighlightFromPending(id);
     unreachableHighlights.delete(id);
     removeHighlightFromDom(id);
-    if (isInspecting(id)) {
-      hideInspector();
+    if (inspectorStore.isInspecting(id)) {
+      inspectorStore.hide();
     }
     updateHighlightIndicators();
   } catch (error) {

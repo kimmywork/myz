@@ -1,12 +1,4 @@
-import {
-  defineComponent,
-  ref,
-  computed,
-  watch,
-  nextTick,
-  type DefineComponent,
-  type Ref,
-} from "vue";
+import { defineComponent, ref, computed, watch, type Ref } from "vue";
 import { ArchiveEntry } from "../../background/internetArchive.js";
 import TagInput from "../../dashboard/components/TagInput.jsx";
 import {
@@ -21,21 +13,7 @@ import {
   HighlightStyleOption,
 } from "../../shared/types.js";
 import { useHighlightPreferences } from "../stores/highlightPreferences.js";
-
-interface ModalExposed {
-  open: (options: ModalOpenOptions) => void;
-  hide: () => void;
-  isVisible: () => boolean;
-  setKnownTags: (tags: string[]) => void;
-  addKnownTags: (tags: string[]) => void;
-  containerRef: Ref<HTMLElement>;
-}
-
-export interface ModalProps {
-  onClose: () => void;
-  onSubmit: (data: ModalSubmitPayload) => void;
-  onDelete: () => void;
-}
+import { useModalStore } from "../stores/modal-store.js";
 
 export interface ModalSubmitPayload {
   mode: "create" | "edit";
@@ -110,22 +88,34 @@ function mergeKnownTags(
 
 export default defineComponent({
   name: "MyZModal",
-  emits: ["close", "submit", "delete"],
 
-  setup(_props, { emit, expose }) {
-    const visible: Ref<boolean> = ref(false);
-    const mode: Ref<"create" | "edit"> = ref("create");
-    const kind: Ref<RECORD_KINDS> = ref(RECORD_KINDS.HIGHLIGHT);
-    const previewText: Ref<string> = ref("");
-    const note: Ref<string> = ref("");
-    const tags: Ref<string[]> = ref([]);
-    const knownTags: Ref<string[]> = ref([]);
-    const availableTags: Ref<string[]> = ref([]);
+  setup() {
+    const store = useModalStore();
+    const options = store.modalOpenOptions;
+    const mode: Ref<"create" | "edit"> = computed(() =>
+      options.mode === "edit" ? "edit" : "create",
+    );
+    const kind: Ref<RECORD_KINDS> = computed(() =>
+      options?.kind === RECORD_KINDS.CLIP
+        ? RECORD_KINDS.CLIP
+        : RECORD_KINDS.HIGHLIGHT,
+    );
+    const previewText: Ref<string> = computed(() => options.preview || "");
+    const note: Ref<string> = computed(() => options.note || "");
+    const tags: Ref<string[]> = computed(() =>
+      uniqueNormalizedTags(options.tags || []),
+    );
+    const knownTags = store.knownTags;
+    const availableTags: Ref<string[]> = computed(() =>
+      mergeKnownTags(knownTags, tags.value),
+    );
     const preferences = useHighlightPreferences({});
     const palette: Ref<string[]> = preferences.palette;
-    const selectedColor: Ref<string> = ref(preferences.lastUsedColor.value);
-    const selectedStyle: Ref<HIGHLIGHT_STYLES> = ref(
-      preferences.lastUsedStyle.value,
+    const selectedColor: Ref<string> = computed(
+      () => options?.style || preferences.lastUsedStyle.value,
+    );
+    const selectedStyle: Ref<HIGHLIGHT_STYLES> = computed(
+      () => options?.style || preferences.lastUsedStyle.value,
     );
     const tagInputValue = ref("");
     const dropdownOpen: Ref<boolean> = ref(false);
@@ -133,9 +123,19 @@ export default defineComponent({
     const activeOptionIndex: Ref<number> = ref(-1);
     const containerRef: Ref<HTMLElement | null> = ref(null);
     const tagInputRef: Ref<HTMLElement | null> = ref(null);
-    const archiveEnabled: Ref<boolean> = ref(false);
-    const saveToArchive: Ref<boolean> = ref(false);
-    const archiveStatus: Ref<ArchiveEntry | null> = ref(null);
+    const archiveEnabled: Ref<boolean> = computed(() =>
+      Boolean(options?.archiveEnabled),
+    );
+    const saveToArchive: Ref<boolean> = computed(() =>
+      archiveEnabled.value ? Boolean(options?.saveToArchive) : false,
+    );
+    const archiveStatus: Ref<ArchiveEntry | null> = computed(() =>
+      archiveEnabled.value &&
+      options?.archiveStatus &&
+      typeof options.archiveStatus === "object"
+        ? options.archiveStatus
+        : null,
+    );
 
     const titleText = computed(() => {
       if (kind.value === RECORD_KINDS.CLIP) {
@@ -225,7 +225,7 @@ export default defineComponent({
 
     function refreshAvailableTags(extra: string[] = []) {
       const extras = Array.isArray(extra) ? extra : tags.value;
-      availableTags.value = mergeKnownTags(knownTags.value, extras);
+      availableTags.value = mergeKnownTags(knownTags, extras);
       syncFilteredOptions(tagInputValue.value);
     }
 
@@ -233,68 +233,12 @@ export default defineComponent({
       syncFilteredOptions(value);
     });
 
-    function open(options: ModalOpenOptions) {
-      mode.value = options?.mode === "edit" ? "edit" : "create";
-      kind.value =
-        options?.kind === RECORD_KINDS.CLIP
-          ? RECORD_KINDS.CLIP
-          : RECORD_KINDS.HIGHLIGHT;
-      previewText.value = options?.preview || "";
-      note.value = options?.note || "";
-      tags.value = uniqueNormalizedTags(options?.tags || []);
-      refreshAvailableTags(tags.value);
-      selectedStyle.value = options?.style || preferences.lastUsedStyle.value;
-      selectedColor.value = options?.color || preferences.lastUsedColor.value;
-      tagInputValue.value = "";
-      dropdownOpen.value = false;
-      activeOptionIndex.value = -1;
-      archiveEnabled.value = Boolean(options?.archiveEnabled);
-      archiveStatus.value =
-        archiveEnabled.value &&
-        options?.archiveStatus &&
-        typeof options.archiveStatus === "object"
-          ? options.archiveStatus
-          : null;
-      saveToArchive.value = archiveEnabled.value
-        ? Boolean(options?.saveToArchive)
-        : false;
-      visible.value = true;
-      nextTick(() => {
-        syncFilteredOptions("");
-      });
-    }
-
-    function hide() {
-      visible.value = false;
-    }
-
-    function isVisible() {
-      return visible.value;
-    }
-
-    function setKnownTags(options = []) {
-      knownTags.value = mergeKnownTags([], options);
-      refreshAvailableTags();
-    }
-
-    function addKnownTags(options = []) {
-      const merged = mergeKnownTags(knownTags.value, options);
-      if (
-        merged.length !== knownTags.value.length ||
-        merged.some((value, index) => value !== knownTags.value[index])
-      ) {
-        knownTags.value = merged;
-        refreshAvailableTags();
-      }
-    }
-
     function handleCancel() {
-      hide();
-      emit("close");
+      store.hide();
     }
 
     function handleDelete() {
-      emit("delete");
+      store.deleteRecord();
     }
 
     function handleSelectColor(index: number) {
@@ -335,7 +279,7 @@ export default defineComponent({
     function handleSubmit() {
       preferences.persistColor(selectedColor.value);
       preferences.persistStyle(selectedStyle.value);
-      emit("submit", {
+      store.submit({
         mode: mode.value,
         kind: kind.value,
         note: note.value.trim(),
@@ -346,19 +290,10 @@ export default defineComponent({
       });
     }
 
-    expose({
-      open,
-      hide,
-      isVisible,
-      setKnownTags,
-      addKnownTags,
-      containerRef,
-    });
-
     return () => (
       <div
         ref={containerRef}
-        class={["myz-annotator-modal", visible.value ? "" : "myz-hidden"]}
+        class={["myz-annotator-modal", store.isVisible ? "" : "myz-hidden"]}
       >
         <div class="myz-annotator-modal__body">
           <div class="myz-annotator-modal__header">
@@ -590,4 +525,4 @@ export default defineComponent({
       </div>
     );
   },
-}) as DefineComponent<ModalProps, ModalExposed>;
+});

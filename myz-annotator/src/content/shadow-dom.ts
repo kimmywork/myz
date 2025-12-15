@@ -1,6 +1,6 @@
-import contentStyles from "./content.css?raw";
+import contentStyles from "./styles/content.css?raw";
 
-export function createShadowHost(tag = "div") {
+export function createShadowHost(tag = "div", styles = contentStyles) {
   const host = document.createElement(tag);
   host.setAttribute("data-myz-host", "1");
   const shadow = host.attachShadow({ mode: "open" });

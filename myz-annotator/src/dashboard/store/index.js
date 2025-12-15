@@ -14,7 +14,11 @@ import {
 import { sendMessage } from "../../shared/messaging.js";
 import { downloadFile } from "../utils/download.js";
 import { normalizeImportedPayload } from "../utils/import.js";
-import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "../../shared/types.js";
+import {
+  DEFAULT_COLOR,
+  RECORD_KINDS,
+  getRecordKind,
+} from "../../shared/types.js";
 
 export const DashboardStoreKey = Symbol("DashboardStore");
 

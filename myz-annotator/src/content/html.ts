@@ -39,6 +39,32 @@ const ALLOWED_HTML_ATTRS: { [key: string]: Set<string> } = {
   th: new Set<string>(["colspan", "rowspan"]),
 };
 
+const BLOCK_DISPLAY_SET = new Set([
+  "block",
+  "list-item",
+  "flex",
+  "grid",
+  "table",
+  "inline-block",
+]);
+const BLOCK_TAG_SET = new Set([
+  "P",
+  "LI",
+  "BLOCKQUOTE",
+  "SECTION",
+  "ARTICLE",
+  "DIV",
+  "UL",
+  "OL",
+]);
+
+export interface ElementPosition {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export function serializeRangeToHtml(range: Range): string {
   try {
     const fragment = range.cloneContents();
@@ -136,4 +162,156 @@ function normalizeHref(value: string): string | null {
   } catch (error) {
     return null;
   }
+}
+
+export function isElementInViewport(el: Element): boolean {
+  if (!el || !(el instanceof Element)) return false;
+  const rect = el.getBoundingClientRect();
+  if (!rect || rect.width === 0 || rect.height === 0) return false;
+  const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  return rect.bottom > 0 && rect.right > 0 && rect.top < vh && rect.left < vw;
+}
+
+export function normalizeParagraphText(node: Element): string {
+  if (!node) return "";
+  return ((node as HTMLElement).innerText || node.textContent || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function getElementPageRect(el: Element): ElementPosition | null {
+  const rect = el?.getBoundingClientRect?.();
+  if (!rect) return null;
+  return {
+    left: rect.left + window.scrollX,
+    top: rect.top + window.scrollY,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+export function isRectValid(rect?: ElementPosition | null): boolean {
+  return !!(
+    rect &&
+    Number.isFinite(rect.left) &&
+    Number.isFinite(rect.top) &&
+    Number.isFinite(rect.width) &&
+    Number.isFinite(rect.height) &&
+    rect.width > 0 &&
+    rect.height > 0
+  );
+}
+
+function isElementVisible(el: Element): boolean {
+  if (!el || !(el instanceof Element)) return false;
+  const rects = el.getClientRects();
+  if (!rects || rects.length === 0) return false;
+  const style = getComputedStyle(el);
+  if (style.display === "none" || style.visibility === "hidden") {
+    return false;
+  }
+  return rects[0].width > 0 && rects[0].height > 0;
+}
+
+function isBlockElement(el: Element): boolean {
+  if (!el || !(el instanceof Element)) return false;
+  if (BLOCK_TAG_SET.has(el.tagName)) return true;
+  const display = getComputedStyle(el).display;
+  return BLOCK_DISPLAY_SET.has(display);
+}
+
+function extractInlineText(el: Element): string {
+  const parts: string[] = [];
+  el.childNodes.forEach((node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.textContent || "");
+      return;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const child = node as Element;
+      if (isBlockElement(child)) {
+        return;
+      }
+      parts.push(normalizeParagraphText(child));
+    }
+  });
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+
+interface HTMLLeaf {
+  element: HTMLElement;
+  text: string;
+}
+
+export function collectLeafBlocks(
+  maxCount: number = 300,
+  minLength: number = 80,
+): HTMLLeaf[] {
+  const results: HTMLLeaf[] = [];
+  const selected = new WeakSet<HTMLElement>();
+  const walker = document.createTreeWalker(
+    document.body || document.documentElement,
+    NodeFilter.SHOW_ELEMENT,
+  );
+  const start = performance.now();
+  let node;
+  while ((node = walker.nextNode()) && results.length < maxCount) {
+    if (!(node instanceof HTMLElement)) continue;
+    if (!isElementVisible(node)) continue;
+    if (!isBlockElement(node)) continue;
+    if (hasSelectedAncestor(node, selected)) continue;
+
+    const children = Array.from(node.children);
+    const hasBlockChild = children.some((child) => isBlockElement(child));
+
+    let text = "";
+    if (hasBlockChild) {
+      text = extractInlineText(node);
+    } else {
+      text = normalizeParagraphText(node);
+    }
+
+    if (text && text.length >= minLength) {
+      results.push({ element: node, text });
+      if (!hasBlockChild) {
+        selected.add(node);
+      }
+    }
+  }
+  const duration = Math.round(performance.now() - start);
+  console.log(
+    "[MyZ Vectoria] collected candidates",
+    results.length,
+    "in",
+    duration,
+    "ms",
+  );
+  return results;
+}
+
+function hasSelectedAncestor(
+  node: HTMLElement,
+  selected: WeakSet<HTMLElement>,
+): boolean {
+  let current = node?.parentElement;
+  while (current) {
+    if (selected.has(current)) return true;
+    current = current.parentElement;
+  }
+  return false;
+}
+
+export function flashElement(el: HTMLElement): void {
+  if (!el || typeof el.classList?.add !== "function") return;
+  el.classList.add("myz-ai-chunk-flash");
+  setTimeout(() => el.classList.remove("myz-ai-chunk-flash"), 1200);
+}
+
+export function waitForNextPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  });
 }

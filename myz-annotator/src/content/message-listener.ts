@@ -10,13 +10,13 @@ import {
   focusHighlight,
   restoreHighlights,
 } from "./highlight-state.ts";
+import { waitForNextPaint } from "./html.ts";
 import {
   cropAndDownloadSelection,
   cropToCanvas,
   downloadImage,
 } from "./image.ts";
-import { showNotification } from "./notificaton-state.ts";
-import { waitForNextPaint } from "./page-state.ts";
+import { useNotificationStore } from "./stores/notification-store.ts";
 import { hasArticleElement } from "./zen.ts";
 import { toggleZenMode, getZenTargetElement } from "./zen.ts";
 
@@ -32,6 +32,7 @@ export function messageListener(
   sender: chrome.runtime.MessageSender,
   sendResponse: (response?: any) => void,
 ) {
+  const notificationStore = useNotificationStore();
   if (!message || !message.type) {
     return false;
   }
@@ -56,17 +57,25 @@ export function messageListener(
   }
   if (message.type === "myz:toggleZenMode") {
     if (!hasArticleElement()) {
-      showNotification("未检测到 article 元素，无法进入禅定模式");
+      notificationStore.notify({
+        message: "未检测到 article 元素，无法进入禅定模式",
+      });
       sendResponse?.({ ok: false });
       return false;
     }
     const state = toggleZenMode();
     if (state === "on") {
-      showNotification("已进入禅定模式");
+      notificationStore.notify({
+        message: "已进入禅定模式",
+      });
     } else if (state === "off") {
-      showNotification("已退出禅定模式");
+      notificationStore.notify({
+        message: "已退出禅定模式",
+      });
     } else {
-      showNotification("切换禅定模式失败");
+      notificationStore.notify({
+        message: "切换禅定模式失败",
+      });
     }
     sendResponse?.({ ok: state !== "error" });
     try {

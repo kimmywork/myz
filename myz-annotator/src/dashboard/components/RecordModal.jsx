@@ -1,5 +1,9 @@
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "../../shared/types.js";
+import {
+  DEFAULT_COLOR,
+  RECORD_KINDS,
+  getRecordKind,
+} from "../../shared/types.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import TagInput from "./TagInput.jsx";
 

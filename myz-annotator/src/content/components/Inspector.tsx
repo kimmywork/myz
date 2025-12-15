@@ -1,117 +1,36 @@
-import {
-  defineComponent,
-  ref,
-  computed,
-  type DefineComponent,
-  type Ref,
-} from "vue";
-import { normalizeHighlightStyle } from "../../shared/highlightUtils.js";
+import { defineComponent, computed, type Ref } from "vue";
 import { highlightStyleIconMap } from "../../shared/icons.js";
-import {
-  MyZRecord,
-  RECORD_KINDS,
-  HIGHLIGHT_STYLE_OPTIONS,
-  HIGHLIGHT_STYLES,
-  getRecordKind,
-} from "../../shared/types.js";
+import { HIGHLIGHT_STYLES } from "../../shared/types.js";
 
-import { resolveHighlightColor } from "../apply-highlight.js";
-
-interface InsepctorState {
-  id: string | null;
-  title: string;
-  metaParts: string[];
-  tags: string[];
-  html: string;
-  text: string;
-  note: string;
-  style: HIGHLIGHT_STYLES | null;
-  styleIconKey: string;
-  styleLabel: string;
-  color: string;
-  kind: RECORD_KINDS;
-}
-
-const DEFAULT_STATE: InsepctorState = {
-  id: null,
-  title: "标注详情",
-  metaParts: [],
-  tags: [],
-  html: "",
-  text: "",
-  note: "",
-  style: null,
-  styleIconKey: "",
-  styleLabel: "",
-  color: "",
-  kind: RECORD_KINDS.HIGHLIGHT,
-};
-
-interface InspectorProps {
-  highlightStyleOptions: Record<string, { icon: string; label: string }>;
-  resolveHighlightColor: (color: string | undefined) => string;
-  onClose?: () => void;
-  onCopy?: () => void;
-  onEdit?: () => void;
-  onDelete?: () => void;
-}
-
-interface InspectorExpose {
-  showRecord: (record: Partial<MyZRecord>) => void;
-  hide: (options?: { silent?: boolean }) => void;
-  isVisible: () => boolean;
-  getCurrentId: () => string | null;
-}
+import { useInspectorStore } from "../stores/inspector-store.js";
 
 export default defineComponent({
   name: "MyZInspector",
-  props: {
-    highlightStyleOptions: {
-      type: Object,
-      required: true,
-    },
-    onClose: {
-      type: Function,
-      default: null,
-    },
-    onCopy: {
-      type: Function,
-      default: null,
-    },
-    onEdit: {
-      type: Function,
-      default: null,
-    },
-    onDelete: {
-      type: Function,
-      default: null,
-    },
-  },
-  emits: ["shown", "hidden"],
-  setup(props, { emit, expose }) {
-    const visible = ref(false);
-    const record: Ref<InsepctorState> = ref({ ...DEFAULT_STATE });
+  setup({}) {
+    const store = useInspectorStore();
 
-    const title: Ref<string> = computed(() => record.value.title || "标注详情");
+    const visible = store.visible;
+    const record = store.record;
+
+    const title: Ref<string> = computed(() => record.title || "标注详情");
     const metaText = computed(() => {
-      const parts = Array.isArray(record.value.metaParts)
-        ? record.value.metaParts.filter(Boolean)
+      const parts = Array.isArray(record.metaParts)
+        ? record.metaParts.filter(Boolean)
         : [];
       return parts.join(" · ");
     });
     const tags = computed(() =>
-      Array.isArray(record.value.tags) ? record.value.tags : [],
+      Array.isArray(record.tags) ? record.tags : [],
     );
     const hasTags = computed(() => tags.value.length > 0);
     const noteText = computed(() => {
-      const value =
-        typeof record.value.note === "string" ? record.value.note.trim() : "";
+      const value = typeof record.note === "string" ? record.note.trim() : "";
       return value || "无批注";
     });
-    const kind = computed(() => record.value.kind || "highlight");
+    const kind = computed(() => record.kind || "highlight");
     const isHighlight = computed(() => kind.value === "highlight");
     const styleIconKey = computed(() =>
-      isHighlight.value ? record.value.styleIconKey || "" : "",
+      isHighlight.value ? record.styleIconKey || "" : "",
     );
     const StyleIconComponent = computed(() =>
       isHighlight.value
@@ -119,129 +38,27 @@ export default defineComponent({
         : null,
     );
     const styleLabel = computed(() =>
-      isHighlight.value ? record.value.styleLabel || "" : "",
+      isHighlight.value ? record.styleLabel || "" : "",
     );
     const styleValue = computed(() =>
-      isHighlight.value ? record.value.style || "" : "",
+      isHighlight.value ? record.style || "" : "",
     );
-    const color = computed(() =>
-      isHighlight.value ? record.value.color || "" : "",
-    );
+    const color = computed(() => (isHighlight.value ? record.color || "" : ""));
     const quoteHtml = computed(() =>
-      typeof record.value.html === "string" ? record.value.html : "",
+      typeof record.html === "string" ? record.html : "",
     );
     const quoteText = computed(() =>
-      typeof record.value.text === "string" ? record.value.text : "",
+      typeof record.text === "string" ? record.text : "",
     );
 
-    function showRecord(rawRecord: Partial<MyZRecord> = {}) {
-      const computedKind =
-        getRecordKind(rawRecord as MyZRecord) || RECORD_KINDS.HIGHLIGHT;
-      const createdAt = rawRecord.createdAt
-        ? new Date(rawRecord.createdAt)
-        : null;
-      const metaParts = [];
-      if (createdAt && !Number.isNaN(createdAt.getTime())) {
-        metaParts.push(createdAt.toLocaleString());
-      }
-      if (rawRecord.hostname) {
-        metaParts.push(rawRecord.hostname);
-      }
-
-      let style: HIGHLIGHT_STYLES | null = null;
-      let resolvedColor = "";
-      let styleIconKeyValue = "";
-      let styleLabelValue = "";
-      if (computedKind === "highlight") {
-        style = normalizeHighlightStyle(rawRecord.style);
-        resolvedColor = resolveHighlightColor(rawRecord.color);
-        const meta = HIGHLIGHT_STYLE_OPTIONS[style] || null;
-        if (meta) {
-          styleIconKeyValue = meta.icon as HIGHLIGHT_STYLES;
-          styleLabelValue = meta.label || "";
-        } else {
-          const fallback = props.highlightStyleOptions?.paint || null;
-          if (fallback) {
-            styleIconKeyValue = fallback.icon as HIGHLIGHT_STYLES;
-            styleLabelValue = fallback.label || "";
-          }
-        }
-      }
-
-      record.value = {
-        id: rawRecord.id ?? null,
-        title: rawRecord.title || rawRecord.hostname || DEFAULT_STATE.title,
-        metaParts,
-        tags: Array.isArray(rawRecord.tags)
-          ? rawRecord.tags.filter(Boolean)
-          : [],
-        html: rawRecord.html || "",
-        text: rawRecord.text || "",
-        note: typeof rawRecord.note === "string" ? rawRecord.note : "",
-        style,
-        styleIconKey: styleIconKeyValue,
-        styleLabel: styleLabelValue,
-        color: resolvedColor,
-        kind: computedKind,
-      };
-      visible.value = true;
-      emit("shown", record.value.id);
-    }
-
-    function hide({ silent = false } = {}) {
-      if (!visible.value) {
-        if (!silent) {
-          emit("hidden");
-        }
-        return;
-      }
-      visible.value = false;
-      record.value = { ...DEFAULT_STATE };
-      if (!silent) {
-        emit("hidden");
-      }
-    }
-
-    function isVisible() {
-      return visible.value;
-    }
-
-    function getCurrentId() {
-      return record.value.id;
-    }
-
-    function handleClose() {
-      hide();
-      props.onClose?.();
-    }
-
-    function handleCopy() {
-      props.onCopy?.();
-    }
-
-    function handleEdit() {
-      props.onEdit?.();
-    }
-
-    function handleDelete() {
-      props.onDelete?.();
-    }
-
-    expose({
-      showRecord,
-      hide,
-      isVisible,
-      getCurrentId,
-    });
-
     return () => (
-      <aside class={["myz-inspector", visible.value ? "" : "myz-hidden"]}>
+      <aside class={["myz-inspector", visible ? "" : "myz-hidden"]}>
         <div class="myz-inspector__header">
           <div class="myz-inspector__title">{title.value}</div>
           <button
             type="button"
             class="myz-inspector__close"
-            onClick={handleClose}
+            onClick={() => store.hide()}
           >
             ×
           </button>
@@ -305,17 +122,29 @@ export default defineComponent({
         </div>
 
         <div class="myz-inspector__actions">
-          <button type="button" class="myz-btn-secondary" onClick={handleCopy}>
+          <button
+            type="button"
+            class="myz-btn-secondary"
+            onClick={() => store.copy()}
+          >
             复制
           </button>
-          <button type="button" class="myz-btn-primary" onClick={handleEdit}>
+          <button
+            type="button"
+            class="myz-btn-primary"
+            onClick={() => store.edit()}
+          >
             编辑
           </button>
-          <button type="button" class="myz-btn-danger" onClick={handleDelete}>
+          <button
+            type="button"
+            class="myz-btn-danger"
+            onClick={() => store.deleteRecord()}
+          >
             删除
           </button>
         </div>
       </aside>
     );
   },
-}) as DefineComponent<InspectorProps, InspectorExpose>;
+});

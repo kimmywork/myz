@@ -1,7 +1,6 @@
-import { defineComponent, ref, reactive, onBeforeUnmount } from "vue";
-import type { HTMLAttributes, Ref, DefineComponent } from "vue";
-
-const HIDE_ANIMATION_DURATION = 240;
+import { defineComponent, onBeforeUnmount } from "vue";
+import type { HTMLAttributes } from "vue";
+import { useNotificationStore } from "../stores/notification-store";
 
 function buildToastStyle(visible: boolean): HTMLAttributes["style"] {
   return {
@@ -19,71 +18,12 @@ function buildToastStyle(visible: boolean): HTMLAttributes["style"] {
   };
 }
 
-export interface Notification {
-  id: string;
-  message: string;
-  visible: boolean;
-  hideTimer: ReturnType<typeof setTimeout> | null;
-  removeTimer: ReturnType<typeof setTimeout> | null;
-}
-
-export interface NotifyOptions {
-  message: string;
-  duration?: number;
-}
-
-export interface NotificationsExposed {
-  notify: (options?: Partial<NotifyOptions>) => void;
-}
-
 export default defineComponent({
   name: "MyZNotifications",
-  setup(_, { expose }) {
-    const notifications: Ref<Notification[]> = ref([]);
-
-    function removeNotification(id: string) {
-      const index = notifications.value.findIndex((item) => item.id === id);
-      if (index === -1) {
-        return;
-      }
-      const [entry] = notifications.value.splice(index, 1);
-      if (entry?.hideTimer) {
-        clearTimeout(entry.hideTimer);
-      }
-      if (entry?.removeTimer) {
-        clearTimeout(entry.removeTimer);
-      }
-    }
-
-    function scheduleRemoval(entry: Notification, duration: number) {
-      entry.hideTimer = setTimeout(() => {
-        entry.visible = false;
-      }, duration);
-      entry.removeTimer = setTimeout(() => {
-        removeNotification(entry.id);
-      }, duration + HIDE_ANIMATION_DURATION);
-    }
-
-    function notify({ message, duration = 6000 }: Partial<NotifyOptions> = {}) {
-      if (!message) {
-        return;
-      }
-      const entry = reactive({
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        message,
-        visible: false,
-        hideTimer: null,
-        removeTimer: null,
-      });
-      notifications.value.push(entry);
-      requestAnimationFrame(() => {
-        entry.visible = true;
-        scheduleRemoval(entry, duration);
-      });
-    }
-
+  setup() {
+    const store = useNotificationStore();
     onBeforeUnmount(() => {
-      notifications.value.forEach((entry) => {
+      store.notifications.forEach((entry) => {
         if (entry.hideTimer) {
           clearTimeout(entry.hideTimer);
         }
@@ -93,10 +33,8 @@ export default defineComponent({
       });
     });
 
-    expose<NotificationsExposed>({ notify });
-
     return () => {
-      if (!notifications.value.length) {
+      if (!store.notifications.length) {
         return null;
       }
       return (
@@ -114,7 +52,7 @@ export default defineComponent({
             pointerEvents: "none",
           }}
         >
-          {notifications.value.map((toast) => (
+          {store.notifications.map((toast) => (
             <div
               key={toast.id}
               class="myz-toast"
@@ -127,4 +65,4 @@ export default defineComponent({
       );
     };
   },
-}) as DefineComponent<{}, NotificationsExposed>;
+});

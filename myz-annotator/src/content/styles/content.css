@@ -753,3 +753,98 @@
     box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
   }
 }
+
+#myz-interest-popup, #myz-interest-popup * {
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+#myz-interest-popup {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  max-width: 340px;
+  background: rgba(15,23,42,0.95);
+  color: #f8fafc;
+  border-radius: 14px;
+  box-shadow: 0 18px 32px rgba(15,23,42,0.4);
+  padding: 14px;
+  font-size: 13px;
+  z-index: 2147483645;
+  pointer-events: auto;
+}
+#myz-interest-popup.collapsed {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+#myz-interest-popup.collapsed .dock-button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  box-shadow: 0 12px 22px rgba(79,70,229,0.38);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: move;
+  user-select: none;
+}
+.myz-interest-header { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; margin-bottom: 6px; }
+.myz-interest-title { font-weight: 700; font-size: 14px; }
+.myz-interest-badge {
+  min-width: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  color: #e0e7ff;
+  font-weight: 600;
+  font-size: 12px;
+  text-align: center;
+  justify-self: start;
+}
+.myz-interest-item { border-top: 1px solid rgba(255,255,255,0.08); padding: 8px 0; }
+.myz-interest-item:first-of-type { border-top: none; padding-top: 0; }
+.myz-interest-meta { font-size: 11px; color: #cbd5e1; margin-bottom: 4px; }
+.myz-interest-text { color: #e2e8f0; line-height: 1.4; margin-bottom: 6px; }
+.myz-interest-actions { display: flex; gap: 8px; }
+.myz-interest-btn {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.myz-interest-btn.secondary {
+  background: rgba(255,255,255,0.12);
+}
+.myz-interest-close {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  justify-self: end;
+}
+.myz-interest-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+.myz-interest-link {
+  color: #a5b4fc;
+  text-decoration: underline;
+  cursor: pointer;
+}

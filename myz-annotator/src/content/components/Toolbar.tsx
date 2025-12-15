@@ -1,40 +1,37 @@
 import { defineComponent } from "vue";
 import { IconPencil, IconNotebook, IconCamera } from "../../shared/icons.js";
+import { useToolbarStore } from "../stores/toolbar-store.js";
 
 export default defineComponent({
   name: "MyZToolbar",
-  props: {
-    onAnnotate: {
-      type: Function,
-      default: null,
-    },
-    onClip: {
-      type: Function,
-      default: null,
-    },
-    onCapture: {
-      type: Function,
-      default: null,
-    },
-  },
   setup(props) {
+    const store = useToolbarStore();
+
     const handleAnnotate = (event: Event) => {
       event.preventDefault();
-      props.onAnnotate?.(event);
+      store.handleAnnotateClick();
     };
 
     const handleClip = (event: Event) => {
       event.preventDefault();
-      props.onClip?.(event);
+      store.handleClipClick();
     };
 
     const handleCapture = (event: Event) => {
       event.preventDefault();
-      props.onCapture?.(event);
+      store.handleScreenshotClick();
     };
 
     return () => (
-      <div class="myz-annotator-toolbar myz-hidden">
+      <div
+        class={
+          "myz-annotator-toolbar" + `${store.isVisible() ? "" : " myz-hidden"}`
+        }
+        style={{
+          top: `${store.toolbarPosition?.top ?? "0px"}`,
+          left: `${store.toolbarPosition?.left ?? "0px"}`,
+        }}
+      >
         <button type="button" aria-label="添加标注" onClick={handleAnnotate}>
           <IconPencil size={18} aria-hidden="true" />
         </button>

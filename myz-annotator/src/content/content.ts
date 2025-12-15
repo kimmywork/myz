@@ -1,5 +1,5 @@
 import { canonicalUrl } from "../shared/url.js";
-
+import { mountApp } from "./app-state.js";
 import { restoreHighlights } from "./highlight-state.js";
 import { resetInterestStateForNavigation } from "./interests-state.js";
 import {
@@ -7,6 +7,7 @@ import {
   startInterestMonitoring,
 } from "./interests-state.js";
 import { messageListener } from "./message-listener.js";
+import { useToolbarStore } from "./stores/toolbar-store.js";
 import { ensureContentStyles } from "./styles.js";
 
 import {
@@ -14,7 +15,6 @@ import {
   handleDocumentClick,
   handleScrollWhileSelecting,
   maybeShowToolbarForActiveSelection,
-  hideToolbar,
   updateToolbarRange,
 } from "./toolbar-state.js";
 import { hasArticleElement, toggleZenMode, isZenModeEnabled } from "./zen.js";
@@ -22,6 +22,7 @@ import { hasArticleElement, toggleZenMode, isZenModeEnabled } from "./zen.js";
 declare global {
   interface Window {
     __myzAnnotatorInitialized?: boolean;
+    __myz_app?: any;
   }
 }
 
@@ -29,11 +30,16 @@ declare global {
   if (window.__myzAnnotatorInitialized) {
     return;
   }
+  const appInstance = mountApp();
+  window.__myz_app = appInstance;
+
   window.__myzAnnotatorInitialized = true;
   const CANONICAL_URL = canonicalUrl(window.location.href);
 
   // Keep a handle to our injected style.
   ensureContentStyles();
+
+  const toolbarStore = useToolbarStore();
 
   init().catch((error) => console.error("MyZ Annotator init failed", error));
 
@@ -58,7 +64,7 @@ declare global {
     document.addEventListener("selectionchange", () => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {
-        hideToolbar();
+        toolbarStore.hide();
         return;
       }
       if (selection.toString().trim()) {

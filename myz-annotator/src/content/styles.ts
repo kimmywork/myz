@@ -1,4 +1,4 @@
-import contentStyles from "./content.css?raw";
+import contentStyles from "./styles/content.css?raw";
 
 declare global {
   interface Window {
