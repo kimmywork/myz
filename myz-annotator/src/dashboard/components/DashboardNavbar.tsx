@@ -1,6 +1,6 @@
 import { defineComponent } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
-import ThemeToggle from "../../shared/components/ThemeToggle.jsx";
+import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 
 export default defineComponent({
   name: "DashboardNavbar",

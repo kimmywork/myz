@@ -1,6 +1,6 @@
 import { defineComponent, nextTick, watch } from "vue";
-import { useDashboardStore } from "../store/useDashboardStore.js";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
+import { useDashboardStore } from "../store/useDashboardStore.js";
 import HighlightCard from "./HighlightCard.jsx";
 import HighlightListRow from "./HighlightListRow.jsx";
 

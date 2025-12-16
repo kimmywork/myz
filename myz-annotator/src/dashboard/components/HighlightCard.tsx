@@ -1,6 +1,6 @@
 import { computed, defineComponent, ref } from "vue";
-import { MyZRecord, RECORD_KINDS, getRecordKind } from "../../shared/types.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 export enum HighlightItemAction {
   "copy" = "copy",
@@ -12,7 +12,7 @@ export enum HighlightItemAction {
 
 export default defineComponent({
   name: "HighlightCard",
-  setup(props: { record: MyZRecord}) {
+  setup(props: { record: MyZRecord }) {
     const store = useDashboardStore();
     const kind = computed(() => getRecordKind(props.record));
     const hasNote = computed(() => Boolean(props.record?.note));

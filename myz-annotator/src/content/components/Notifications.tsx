@@ -1,6 +1,6 @@
 import { defineComponent, onBeforeUnmount } from "vue";
 import type { HTMLAttributes } from "vue";
-import { useNotificationStore } from "../stores/notification-store";
+import { useNotificationStore } from "@/content/stores/notification-store";
 
 function buildToastStyle(visible: boolean): HTMLAttributes["style"] {
   return {

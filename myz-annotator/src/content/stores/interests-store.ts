@@ -1,9 +1,9 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { VectoriaSearchResult } from "../../background/vectoria-index";
-
-import { sendMessage } from "../../shared/messaging";
 import { ElementPosition } from "../html";
+import { VectoriaSearchResult } from "@/background/vectoria-index";
+
+import { sendMessage } from "@/shared/messaging";
 
 export interface DockPosition {
   top: number | "auto";

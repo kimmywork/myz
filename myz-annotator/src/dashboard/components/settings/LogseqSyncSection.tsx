@@ -1,6 +1,10 @@
 import { defineComponent } from "vue";
 
-type FormKeys = "logseqEndpoint" | "logseqPage" | "logseqGraph" | "logseqAuthToken";
+type FormKeys =
+  | "logseqEndpoint"
+  | "logseqPage"
+  | "logseqGraph"
+  | "logseqAuthToken";
 
 interface FieldsConfig {
   key: FormKeys;
@@ -78,7 +82,10 @@ export default defineComponent({
                 value={props.form[field.key]}
                 disabled={!props.syncEnabled}
                 onInput={(event: InputEvent) =>
-                  props.onUpdateField(field.key, (event.target as HTMLInputElement).value)
+                  props.onUpdateField(
+                    field.key,
+                    (event.target as HTMLInputElement).value,
+                  )
                 }
               />
             </label>

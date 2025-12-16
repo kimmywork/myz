@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  normalizeBadgeCounts,
-  buildActionTitle,
-} from "../../../src/background/badge";
+import { normalizeBadgeCounts, buildActionTitle } from "@/background/badge";
 
 describe("badge", () => {
   describe("normalizeBadgeCounts", () => {

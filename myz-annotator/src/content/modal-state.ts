@@ -1,8 +1,7 @@
-import { sendMessage } from "../shared/messaging.ts";
-import { canonicalUrl } from "../shared/url.ts";
-
 import { mergeArchiveResult, getArchiveState } from "./highlight-state.ts";
 import { useNotificationStore } from "./stores/notification-store.ts";
+import { sendMessage } from "@/shared/messaging.ts";
+import { canonicalUrl } from "@/shared/url.ts";
 
 export async function ensureArchiveSnapshotForCurrentPage({
   force = false,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { useThemePreference } from "../../../src/shared/theme";
+import { useThemePreference } from "@/shared/theme";
 
 describe("theme", () => {
   beforeEach(() => {

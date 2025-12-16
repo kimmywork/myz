@@ -1,9 +1,9 @@
+import { generateId, readSettings, readState, writeState } from "./storage.js";
 import {
   canonicalUrl,
   buildArchiveSnapshotUrl,
   extractArchiveInfo,
-} from "../shared/url.js";
-import { generateId, readSettings, readState, writeState } from "./storage.js";
+} from "@/shared/url.js";
 
 const CDX_ENDPOINT = "https://web.archive.org/cdx/search/cdx";
 const SAVE_ENDPOINT = "https://web.archive.org/save";
@@ -107,7 +107,7 @@ const ARCHIVE_ACTION_LABELS: Record<ArchiveActions, string> = {
   "queue:complete": "保存完成",
   "queue:pending": "等待生成",
   "queue:error": "处理失败",
-  "unknown": "未知状态",
+  unknown: "未知状态",
 };
 
 export function queueStatusTone(entry: ArchiveQueueEntry) {

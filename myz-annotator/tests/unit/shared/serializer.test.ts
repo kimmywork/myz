@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isMyzWrapper, isNodeFromMyz } from "../../../src/shared/serializer";
+import { isMyzWrapper, isNodeFromMyz } from "@/shared/serializer";
 
 describe("serializer", () => {
   describe("isMyzWrapper", () => {

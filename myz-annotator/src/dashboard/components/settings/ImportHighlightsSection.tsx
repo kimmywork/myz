@@ -1,14 +1,13 @@
-import { ImportStrategy, ImportStatus } from "../../store";
 import { defineComponent, Ref } from "vue";
-  
+import { ImportStrategy, ImportStatus } from "../../store";
 
 export interface ImportHighlightsSectionProps {
-  importFileRef: Ref< HTMLInputElement | null>;
+  importFileRef: Ref<HTMLInputElement | null>;
   importStrategy: ImportStrategy;
   onStrategyChange: (strategy: ImportStrategy) => void;
   onImport: () => void;
   isImporting: boolean;
-  status: ImportStatus,
+  status: ImportStatus;
 }
 
 export default defineComponent({
@@ -36,8 +35,11 @@ export default defineComponent({
             <span>冲突处理</span>
             <select
               value={props.importStrategy}
-              onChange={(event: Event) => 
-                props.onStrategyChange((event.target as HTMLSelectElement).value as ImportStrategy)}
+              onChange={(event: Event) =>
+                props.onStrategyChange(
+                  (event.target as HTMLSelectElement).value as ImportStrategy,
+                )
+              }
             >
               <option value="skip">遇到重复时跳过</option>
               <option value="overwrite">遇到重复时覆盖</option>

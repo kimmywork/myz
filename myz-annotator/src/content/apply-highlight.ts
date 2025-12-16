@@ -1,10 +1,6 @@
-import { normalizeHighlightStyle } from "../shared/highlightUtils.ts";
-import { isNodeFromMyz } from "../shared/serializer.ts";
-import {
-  MyZRecord,
-  HIGHLIGHT_STYLES,
-  DEFAULT_COLORS,
-} from "../shared/types.ts";
+import { normalizeHighlightStyle } from "@/shared/highlightUtils.ts";
+import { isNodeFromMyz } from "@/shared/serializer.ts";
+import { MyZRecord, HIGHLIGHT_STYLES, DEFAULT_COLORS } from "@/shared/types.ts";
 
 function createHighlightElement(record: MyZRecord) {
   const highlight = document.createElement("span");

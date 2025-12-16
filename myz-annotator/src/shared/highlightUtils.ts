@@ -1,5 +1,3 @@
-import { normalizeRecord as normalizeBaseRecord } from "../dashboard/utils/records.ts";
-
 import {
   type MyZRecord,
   HIGHLIGHT_STYLES,
@@ -7,6 +5,7 @@ import {
   DEFAULT_HIGHLIGHT_STYLE,
   getRecordKind,
 } from "./types.ts";
+import { normalizeRecord as normalizeBaseRecord } from "@/dashboard/utils/records.ts";
 
 // Default single color and palette tuned for better visibility on dark
 // backgrounds. These are slightly more saturated / deeper than the old

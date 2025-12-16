@@ -5,12 +5,8 @@ import {
   computeRecordStats,
   groupHighlightsByDate,
   formatDateTime,
-} from "../../../../src/dashboard/utils/records";
-import {
-  MyZRecord,
-  RECORD_KINDS,
-  getRecordKind,
-} from "../../../../src/shared/types";
+} from "@/dashboard/utils/records";
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types";
 
 describe("records", () => {
   describe("getRecordKind", () => {

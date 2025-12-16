@@ -1,4 +1,4 @@
-import type { MyZRecord } from "../../shared/types.ts";
+import type { MyZRecord } from "@/shared/types.ts";
 
 export function normalizeImportedPayload(
   payload: MyZRecord[] | { highlights?: MyZRecord[]; data?: MyZRecord[] } | any,

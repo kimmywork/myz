@@ -1,7 +1,7 @@
 import { defineComponent, ref, Ref } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import TagInput from "./TagInput.jsx";
-import { IconCalendar } from "../../shared/icons.js";
+import { IconCalendar } from "@/shared/icons.js";
 
 export default defineComponent({
   name: "FilterToolbar",
@@ -34,7 +34,10 @@ export default defineComponent({
                 class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100 dark:placeholder:text-slate-500"
                 value={store.filters.search}
                 onInput={(event: InputEvent) =>
-                  store.setFilter("search", (event.target as HTMLInputElement).value)
+                  store.setFilter(
+                    "search",
+                    (event.target as HTMLInputElement).value,
+                  )
                 }
               />
             </label>
@@ -45,7 +48,10 @@ export default defineComponent({
                 class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/60 dark:text-white"
                 value={store.filters.site}
                 onChange={(event: Event) =>
-                  store.setFilter("site", (event.target as HTMLSelectElement).value)
+                  store.setFilter(
+                    "site",
+                    (event.target as HTMLSelectElement).value,
+                  )
                 }
               >
                 <option value="">全部网站</option>
@@ -77,7 +83,10 @@ export default defineComponent({
                   class="w-full appearance-none bg-transparent text-sm text-slate-800 outline-none dark:text-white"
                   value={store.filters.from}
                   onInput={(event: InputEvent) =>
-                    store.setFilter("from", (event.target as HTMLInputElement).value)
+                    store.setFilter(
+                      "from",
+                      (event.target as HTMLInputElement).value,
+                    )
                   }
                 />
                 <button
@@ -98,7 +107,12 @@ export default defineComponent({
                   type="date"
                   class="w-full appearance-none bg-transparent text-sm text-slate-800 outline-none dark:text-white"
                   value={store.filters.to}
-                  onInput={(event: InputEvent) => store.setFilter("to", (event.target as HTMLInputElement).value)}
+                  onInput={(event: InputEvent) =>
+                    store.setFilter(
+                      "to",
+                      (event.target as HTMLInputElement).value,
+                    )
+                  }
                 />
                 <button
                   type="button"

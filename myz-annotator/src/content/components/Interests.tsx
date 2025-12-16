@@ -1,6 +1,5 @@
 import { defineComponent, ref, FunctionalComponent, computed } from "vue";
 
-import { canonicalUrl } from "../../shared/url";
 import {
   isInHighlightCache,
   focusHighlight,
@@ -12,7 +11,8 @@ import {
   useInterestsStore,
   InterestMatchResult,
   InterestMatchEntry,
-} from "../stores/interests-store";
+} from "@/content/stores/interests-store";
+import { canonicalUrl } from "@/shared/url";
 
 function handleInterestClick(
   match: InterestMatchResult,

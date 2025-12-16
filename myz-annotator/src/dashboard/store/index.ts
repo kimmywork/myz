@@ -1,5 +1,11 @@
+import {
+  ArchiveHistoryEntry,
+  ArchiveQueueEntry,
+} from "src/background/internetArchive.js";
 import { computed, reactive, Ref, ref, watch } from "vue";
 import { IMPORT_MAX_BYTES, PAGINATION_BATCH } from "../constants.js";
+import { downloadFile } from "@/dashboard/utils/download.js";
+import { normalizeImportedPayload } from "@/dashboard/utils/import.js";
 import {
   computeRecordStats,
   formatDateTime,
@@ -10,17 +16,14 @@ import {
   normalizeRecord,
   recordToMarkdown,
   renderHighlightContent,
-} from "../utils/records.js";
-import { sendMessage } from "../../shared/messaging.js";
-import { downloadFile } from "../utils/download.js";
-import { normalizeImportedPayload } from "../utils/import.js";
+} from "@/dashboard/utils/records.js";
+import { sendMessage } from "@/shared/messaging.js";
 import {
   DEFAULT_COLOR,
   MyZRecord,
   RECORD_KINDS,
   getRecordKind,
-} from "../../shared/types.js";
-import { ArchiveHistoryEntry, ArchiveQueueEntry } from "src/background/internetArchive.js";
+} from "@/shared/types.js";
 
 export const DashboardStoreKey = Symbol("DashboardStore");
 
@@ -75,7 +78,7 @@ export interface ModalState {
 
 export type MessageTone = "info" | "error" | "success";
 
-export type ImportStrategy =  "skip" | "overwrite" | "latest";
+export type ImportStrategy = "skip" | "overwrite" | "latest";
 
 export interface ImportStatus {
   message: string;
@@ -123,7 +126,10 @@ export interface DashboardStore {
   initialize: () => Promise<void>;
   setFilter: (key: keyof SearchFilters, value: string | string[]) => void;
   resetFilters: () => void;
-  setView: (nextView: "cards" | "list", options?: { persist?: boolean }) => void;
+  setView: (
+    nextView: "cards" | "list",
+    options?: { persist?: boolean },
+  ) => void;
   showSettings: () => void;
   showHighlights: () => void;
   loadMore: () => void;
@@ -135,7 +141,10 @@ export interface DashboardStore {
 
   toggleSync: (enabled: boolean) => void;
   toggleInternetArchive: (enabled: boolean) => void;
-  importHighlightsFromFile: (file: File | undefined, strategy: ImportStrategy) => Promise<void>;
+  importHighlightsFromFile: (
+    file: File | undefined,
+    strategy: ImportStrategy,
+  ) => Promise<void>;
   openModal: (recordId: string, mode: "view" | "edit") => void;
   closeModal: () => void;
   saveModal: () => Promise<void>;
@@ -144,14 +153,14 @@ export interface DashboardStore {
   testVectorProvider: (config: Partial<Settings>) => Promise<void>;
 
   formatNote: (value: string) => string;
-    formatInline: (value: string) => string;
-    formatDateTime: (dateString: string) => string;
-    getRecordKind: (record: MyZRecord) => RECORD_KINDS;
-    cleanup: () => void;
-    rebuildVectorIndex: () => Promise<void>;
-    toggleVectorSearch: (enabled: boolean) => void;
-    loadVectorModel: () => Promise<void>;
-    switchVectorProvider: (payload: Partial<Settings>) => Promise<void>,
+  formatInline: (value: string) => string;
+  formatDateTime: (dateString: string) => string;
+  getRecordKind: (record: MyZRecord) => RECORD_KINDS;
+  cleanup: () => void;
+  rebuildVectorIndex: () => Promise<void>;
+  toggleVectorSearch: (enabled: boolean) => void;
+  loadVectorModel: () => Promise<void>;
+  switchVectorProvider: (payload: Partial<Settings>) => Promise<void>;
 }
 
 export function createDashboardStore(): DashboardStore {
@@ -337,7 +346,11 @@ export function createDashboardStore(): DashboardStore {
 
   const availableSites = computed(() => {
     return [
-      ...new Set(highlights.value.map((item) => item.hostname).filter(Boolean) as string[]),
+      ...new Set(
+        highlights.value
+          .map((item) => item.hostname)
+          .filter(Boolean) as string[],
+      ),
     ].sort((a, b) => a.localeCompare(b));
   });
 
@@ -349,7 +362,11 @@ export function createDashboardStore(): DashboardStore {
     return [...set].sort((a, b) => a.localeCompare(b));
   });
 
-  function setTimedStatus(target: Ref<string | null>, message: string, duration = 3000) {
+  function setTimedStatus(
+    target: Ref<string | null>,
+    message: string,
+    duration = 3000,
+  ) {
     target.value = message;
     if (timers.has(target)) {
       clearTimeout(timers.get(target));
@@ -363,7 +380,11 @@ export function createDashboardStore(): DashboardStore {
     }
   }
 
-  function setTimedImportStatus(message: string, tone: MessageTone = "info", duration = 3000) {
+  function setTimedImportStatus(
+    message: string,
+    tone: MessageTone = "info",
+    duration = 3000,
+  ) {
     importStatus.message = message;
     importStatus.tone = tone;
     if (timers.has(importStatus)) {
@@ -401,10 +422,9 @@ export function createDashboardStore(): DashboardStore {
     try {
       const result = await sendMessage("myz:getAllHighlights");
       highlights.value = Array.isArray(result)
-        ? result
+        ? (result
             .map((item) => normalizeRecord(item))
-            .filter(Boolean)
-            .map((item) => ({ ...item, kind: getRecordKind(item) }))
+            .filter(Boolean) as MyZRecord[])
         : [];
       updateRenderedCount();
     } catch (error) {
@@ -752,7 +772,11 @@ export function createDashboardStore(): DashboardStore {
       await refreshHighlights({ preserveProgress: true });
     } catch (error) {
       console.error("同步失败", error);
-      setTimedStatus(logseqStatus, `同步失败：${(error as Error).message}`, 4000);
+      setTimedStatus(
+        logseqStatus,
+        `同步失败：${(error as Error).message}`,
+        4000,
+      );
     } finally {
       isSyncInFlight.value = false;
     }
@@ -787,7 +811,10 @@ export function createDashboardStore(): DashboardStore {
   async function saveSettings(payload: Partial<Settings>) {
     settingsStatus.value = "保存中…";
     try {
-      const updated = await sendMessage<Partial<Settings>, Partial<Settings>>("myz:updateSettings", payload);
+      const updated = await sendMessage<Partial<Settings>, Partial<Settings>>(
+        "myz:updateSettings",
+        payload,
+      );
       if (updated) {
         Object.assign(settings, {
           ...settings,
@@ -845,7 +872,10 @@ export function createDashboardStore(): DashboardStore {
     }
   }
 
-  async function importHighlightsFromFile(file: File | undefined, strategy: ImportStrategy) {
+  async function importHighlightsFromFile(
+    file: File | undefined,
+    strategy: ImportStrategy,
+  ) {
     if (!file) {
       setTimedImportStatus("请先选择 JSON 文件", "error");
       return;
@@ -917,7 +947,11 @@ export function createDashboardStore(): DashboardStore {
       }
       return result;
     } catch (error) {
-      setTimedStatus(settingsStatus, `✗ 测试失败：${(error as Error).message}`, 4000);
+      setTimedStatus(
+        settingsStatus,
+        `✗ 测试失败：${(error as Error).message}`,
+        4000,
+      );
       throw error;
     }
   }
@@ -933,7 +967,10 @@ export function createDashboardStore(): DashboardStore {
     };
     try {
       setTimedStatus(settingsStatus, "保存中…", 0);
-      const updated = await sendMessage<Partial<Settings>, Partial<Settings>>("myz:updateSettings", payload);
+      const updated = await sendMessage<Partial<Settings>, Partial<Settings>>(
+        "myz:updateSettings",
+        payload,
+      );
       if (updated) {
         settings.vectorSearchEnabled = Boolean(updated.vectorSearchEnabled);
         settings.vectorModelReady = Boolean(updated.vectorModelReady);
@@ -941,7 +978,11 @@ export function createDashboardStore(): DashboardStore {
       setTimedStatus(settingsStatus, "设置已保存", 2000);
     } catch (error) {
       settings.vectorSearchEnabled = !enabled;
-      setTimedStatus(settingsStatus, `更新失败：${(error as Error).message}`, 4000);
+      setTimedStatus(
+        settingsStatus,
+        `更新失败：${(error as Error).message}`,
+        4000,
+      );
       throw error;
     }
   }
@@ -964,7 +1005,11 @@ export function createDashboardStore(): DashboardStore {
       return result;
     } catch (error) {
       settings.vectorModelReady = false;
-      setTimedStatus(vectorModelStatus, `加载失败：${(error as Error).message}`, 4000);
+      setTimedStatus(
+        vectorModelStatus,
+        `加载失败：${(error as Error).message}`,
+        4000,
+      );
       throw error;
     } finally {
       vectorModelLoading.value = false;
@@ -982,7 +1027,11 @@ export function createDashboardStore(): DashboardStore {
       }
       return result;
     } catch (error) {
-      setTimedStatus(vectorModelStatus, `测试失败：${(error as Error).message}`, 4000);
+      setTimedStatus(
+        vectorModelStatus,
+        `测试失败：${(error as Error).message}`,
+        4000,
+      );
       throw error;
     }
   }
@@ -993,7 +1042,11 @@ export function createDashboardStore(): DashboardStore {
       await sendMessage("myz:rebuildVectorIndex");
       setTimedStatus(vectorModelStatus, "索引已重建", 4000);
     } catch (error) {
-      setTimedStatus(vectorModelStatus, `重建失败：${(error as Error).message}`, 4000);
+      setTimedStatus(
+        vectorModelStatus,
+        `重建失败：${(error as Error).message}`,
+        4000,
+      );
       throw error;
     }
   }

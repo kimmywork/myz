@@ -1,11 +1,10 @@
-import { computed, defineComponent, ref } from "vue";
-import { renderMarkdown } from "../../../shared/markdownRenderer.js";
 import { MessageStream } from "src/sidepanel/App.jsx";
+import { computed, defineComponent, ref } from "vue";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 interface StreamingMessageProps {
   stream: MessageStream;
 }
-
 
 export default defineComponent({
   name: "StreamingMessage",

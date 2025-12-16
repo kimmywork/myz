@@ -1,5 +1,5 @@
 import { defineComponent, ref } from "vue";
-import TagInput from "../dashboard/components/TagInput.jsx";
+import TagInput from "@/dashboard/components/TagInput.jsx";
 
 interface SaveHighlightModalProps {
   visible: boolean;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeImportedPayload } from "../../../../src/dashboard/utils/import";
+import { normalizeImportedPayload } from "@/dashboard/utils/import";
 
 describe("import", () => {
   it("should return array if payload is array", () => {

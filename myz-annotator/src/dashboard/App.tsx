@@ -1,6 +1,6 @@
 import { defineComponent, onBeforeUnmount, onMounted, provide } from "vue";
-import { DashboardStoreKey, createDashboardStore } from "./store/index.js";
 import AppShell from "./components/AppShell.jsx";
+import { DashboardStoreKey, createDashboardStore } from "./store/index.js";
 
 export default defineComponent({
   name: "DashboardApp",

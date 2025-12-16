@@ -1,5 +1,5 @@
 import { defineComponent } from "vue";
-import { renderMarkdown } from "../../../shared/markdownRenderer.js";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 interface UserMessage {
   id: string;

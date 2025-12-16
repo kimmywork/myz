@@ -1,5 +1,5 @@
-import { Settings } from "../../store";
 import { defineComponent, Ref, ref, watch } from "vue";
+import { Settings } from "../../store";
 
 export interface VectorSearchSectionProps {
   settings: Settings;
@@ -192,7 +192,7 @@ export default defineComponent({
                 class="input mt-1 w-full"
                 value={apiKey.value}
                 onInput={(e: InputEvent) => {
-                  apiKey.value = (e.target as HTMLInputElement).value;;
+                  apiKey.value = (e.target as HTMLInputElement).value;
                   testPassed.value = false;
                 }}
               />
@@ -227,7 +227,8 @@ export default defineComponent({
                 class="input mt-1 w-full"
                 value={maxChars.value}
                 onInput={(e: InputEvent) => {
-                  maxChars.value = Number((e.target as HTMLInputElement).value) || 500;
+                  maxChars.value =
+                    Number((e.target as HTMLInputElement).value) || 500;
                   testPassed.value = false;
                 }}
               />

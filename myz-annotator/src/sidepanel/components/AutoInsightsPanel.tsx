@@ -1,5 +1,5 @@
 import { defineComponent, computed } from "vue";
-import { renderMarkdown } from "../../shared/markdownRenderer.js";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 const ACTION_LABELS: Record<string, string> = {
   summarize: "总结页面内容",
@@ -7,19 +7,19 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export interface AutoInsightsState {
-    action: string;
-    active: boolean;
-    loading: boolean;
-    error: string | null;
-    markdown: string | null;
-    context: {
-      chunkCount?: number;
-      wordCount?: number;
-      truncated?: boolean;
-    } | null;
-    chunkGroups: number;
-    generatedAt: string | null;
-  };
+  action: string;
+  active: boolean;
+  loading: boolean;
+  error: string | null;
+  markdown: string | null;
+  context: {
+    chunkCount?: number;
+    wordCount?: number;
+    truncated?: boolean;
+  } | null;
+  chunkGroups: number;
+  generatedAt: string | null;
+}
 
 interface AutoInsightsPanelProps {
   state: AutoInsightsState;

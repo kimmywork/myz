@@ -4,14 +4,14 @@ import {
   normalizeHighlightStyle,
   normalizeColor,
   normalizePalette,
-} from "../../shared/highlightUtils.js";
-import { sendMessage } from "../../shared/messaging.js";
+} from "@/shared/highlightUtils.js";
+import { sendMessage } from "@/shared/messaging.js";
 
 import {
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLES,
-} from "../../shared/types.js";
+} from "@/shared/types.js";
 
 interface HightlightPreference {
   colorPalette?: string[];

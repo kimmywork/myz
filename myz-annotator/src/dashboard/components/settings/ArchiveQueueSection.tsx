@@ -1,6 +1,10 @@
-import { formatDateTime } from "../../utils/records";
-import { ArchiveQueueEntry, queueStatusTone, queueStatusLabel } from "../../../background/internetArchive";
 import { defineComponent } from "vue";
+import {
+  ArchiveQueueEntry,
+  queueStatusTone,
+  queueStatusLabel,
+} from "@/background/internetArchive";
+import { formatDateTime } from "@/dashboard/utils/records";
 
 interface ArchiveQueueSectionProps {
   entries: ArchiveQueueEntry[];
@@ -53,9 +57,7 @@ export default defineComponent({
                   <div class="settings__list-meta">
                     <span>排队序号 #{(item.position ?? 0) + 1}</span>
                     {item.requestedAt ? (
-                      <span>
-                        加入时间 {formatDateTime(item.requestedAt)}
-                      </span>
+                      <span>加入时间 {formatDateTime(item.requestedAt)}</span>
                     ) : null}
                     <span>尝试 {item.attempts ?? 0} 次</span>
                     {item.force ? (

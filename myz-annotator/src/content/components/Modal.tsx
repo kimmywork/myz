@@ -1,19 +1,18 @@
 import { defineComponent, ref, computed, watch, type Ref } from "vue";
-import { ArchiveEntry } from "../../background/internetArchive.js";
-import TagInput from "../../dashboard/components/TagInput.jsx";
+import { ArchiveEntry } from "@/background/internetArchive.js";
 import {
-  IconPencil,
-  highlightStyleIconMap,
-  makeIcon,
-} from "../../shared/icons.js";
+  useModalStore,
+  ModalOpenOptions,
+} from "@/content/stores/modal-store.js";
+import { usePreferenceStore } from "@/content/stores/preference-store.js";
+import TagInput from "@/dashboard/components/TagInput.jsx";
+import { IconPencil, highlightStyleIconMap, makeIcon } from "@/shared/icons.js";
 import {
   RECORD_KINDS,
   HIGHLIGHT_STYLE_OPTIONS,
   HIGHLIGHT_STYLES,
   HighlightStyleOption,
-} from "../../shared/types.js";
-import { useModalStore, ModalOpenOptions } from "../stores/modal-store.js";
-import { usePreferenceStore } from "../stores/preference-store.js";
+} from "@/shared/types.js";
 
 function uniqueNormalizedTags(tags: string[]): string[] {
   const seen = new Set();

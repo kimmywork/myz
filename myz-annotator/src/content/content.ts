@@ -1,4 +1,3 @@
-import { canonicalUrl } from "../shared/url.js";
 import { mountApp } from "./app-state.js";
 import { restoreHighlights } from "./highlight-state.js";
 import { resetInterestStateForNavigation } from "./interests-state.js";
@@ -18,6 +17,7 @@ import {
   updateToolbarRange,
 } from "./toolbar-state.js";
 import { hasArticleElement, toggleZenMode, isZenModeEnabled } from "./zen.js";
+import { canonicalUrl } from "@/shared/url.js";
 
 declare global {
   interface Window {

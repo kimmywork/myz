@@ -1,12 +1,12 @@
+import { defineComponent } from "vue";
 import {
   ArchiveHistoryEntry,
   describeArchiveAction,
   historyStatusLabel,
   historyStatusTone,
-} from "../../../background/internetArchive";
-import { defineComponent } from "vue";
+} from "@/background/internetArchive";
 
-import { formatDateTime } from "../../utils/records";
+import { formatDateTime } from "@/dashboard/utils/records";
 
 export interface ArchiveHistorySectionProps {
   entries: ArchiveHistoryEntry[];

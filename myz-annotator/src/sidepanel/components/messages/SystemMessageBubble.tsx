@@ -1,5 +1,5 @@
 import { defineComponent } from "vue";
-import { renderMarkdown } from "../../../shared/markdownRenderer.js";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 interface SystemMessage {
   id: string;
@@ -13,7 +13,7 @@ interface SystemMessageBubbleProps {
 
 export default defineComponent({
   name: "SystemMessageBubble",
-  
+
   setup(props: SystemMessageBubbleProps) {
     return () => (
       <div class="w-full max-w-[85%] rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">

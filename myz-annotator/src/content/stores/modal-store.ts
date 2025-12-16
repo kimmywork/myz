@@ -1,20 +1,5 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { ArchiveEntry } from "../../background/internetArchive";
-import {
-  isHighlightRecord,
-  normalizeHighlightStyle,
-} from "../../shared/highlightUtils";
-import { sendMessage } from "../../shared/messaging";
-import { serializeRange } from "../../shared/serializer";
-import {
-  DEFAULT_COLORS,
-  DEFAULT_HIGHLIGHT_STYLE,
-  HIGHLIGHT_STYLES,
-  MyZRecord,
-  RECORD_KINDS,
-} from "../../shared/types";
-import { canonicalUrl, extractArchiveInfo } from "../../shared/url";
 import {
   applyHighlight,
   deleteHighlight,
@@ -30,6 +15,21 @@ import {
 import { ensureArchiveSnapshotForCurrentPage } from "../modal-state";
 import { usePreferenceStore } from "./preference-store";
 import { useToolbarStore } from "./toolbar-store";
+import { ArchiveEntry } from "@/background/internetArchive";
+import {
+  isHighlightRecord,
+  normalizeHighlightStyle,
+} from "@/shared/highlightUtils";
+import { sendMessage } from "@/shared/messaging";
+import { serializeRange } from "@/shared/serializer";
+import {
+  DEFAULT_COLORS,
+  DEFAULT_HIGHLIGHT_STYLE,
+  HIGHLIGHT_STYLES,
+  MyZRecord,
+  RECORD_KINDS,
+} from "@/shared/types";
+import { canonicalUrl, extractArchiveInfo } from "@/shared/url";
 
 interface ModalState {
   currentRange: Range | null;

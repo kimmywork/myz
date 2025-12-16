@@ -1,6 +1,6 @@
-import { normalizeWhitespace } from "../shared/highlightUtils.js";
-import { isNodeFromMyz } from "../shared/serializer.js";
 import { findPrimaryContentElement } from "./content-extraction.js";
+import { normalizeWhitespace } from "@/shared/highlightUtils.js";
+import { isNodeFromMyz } from "@/shared/serializer.js";
 
 const BLOCK_SELECTOR =
   "p,li,blockquote,pre,code,h1,h2,h3,h4,h5,h6,article,section";

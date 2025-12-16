@@ -1,11 +1,11 @@
 import { computed, defineComponent } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
-import { useThemePreference } from "../../shared/theme.js";
 import DashboardNavbar from "./DashboardNavbar.jsx";
 import FilterToolbar from "./FilterToolbar.jsx";
 import HighlightsPane from "./HighlightsPane.jsx";
-import SettingsPane from "./SettingsPane.jsx";
 import RecordModal from "./RecordModal.jsx";
+import SettingsPane from "./SettingsPane.jsx";
+import { useThemePreference } from "@/shared/theme.js";
 
 export default defineComponent({
   name: "AppShell",

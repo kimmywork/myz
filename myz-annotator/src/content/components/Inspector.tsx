@@ -1,8 +1,7 @@
 import { defineComponent, computed, type Ref } from "vue";
-import { highlightStyleIconMap } from "../../shared/icons.js";
-import { HIGHLIGHT_STYLES } from "../../shared/types.js";
-
-import { useInspectorStore } from "../stores/inspector-store.js";
+import { useInspectorStore } from "@/content/stores/inspector-store.js";
+import { highlightStyleIconMap } from "@/shared/icons.js";
+import { HIGHLIGHT_STYLES } from "@/shared/types.js";
 
 export default defineComponent({
   name: "MyZInspector",

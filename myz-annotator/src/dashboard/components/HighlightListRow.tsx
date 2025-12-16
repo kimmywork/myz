@@ -1,9 +1,7 @@
 import { computed, defineComponent, ref } from "vue";
-import { MyZRecord, RECORD_KINDS, getRecordKind } from "../../shared/types.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import { HighlightItemAction } from "./HighlightCard.jsx";
-
-
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 export default defineComponent({
   name: "HighlightListRow",

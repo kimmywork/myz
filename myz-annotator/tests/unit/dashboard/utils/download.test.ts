@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { downloadFile } from "../../../../src/dashboard/utils/download";
+import { downloadFile } from "@/dashboard/utils/download";
 
 describe("download", () => {
   beforeEach(() => {

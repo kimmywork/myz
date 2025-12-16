@@ -23,6 +23,11 @@ export default defineConfig({
         !filePath.endsWith(".map") && !filePath.includes(".vite"),
     }),
   ],
+  resolve: {
+    alias: {
+      "@": resolve(rootDir, "src"),
+    },
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

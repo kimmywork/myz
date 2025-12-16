@@ -1,21 +1,21 @@
 import { defineComponent, ref, computed, onMounted } from "vue";
+import HighlightItem from "./components/HighlightItem.jsx";
 import {
   normalizeRecord,
   recordToMarkdown,
-} from "../dashboard/utils/records.js";
-import ThemeToggle from "../shared/components/ThemeToggle.jsx";
-import { normalizeWhitespace } from "../shared/highlightUtils.js";
+} from "@/dashboard/utils/records.js";
+import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
+import { normalizeWhitespace } from "@/shared/highlightUtils.js";
 
-import { sendMessage } from "../shared/messaging.js";
-import { RECORD_KINDS, MyZRecord } from "../shared/types.js";
+import { sendMessage } from "@/shared/messaging.js";
+import { RECORD_KINDS, MyZRecord } from "@/shared/types.js";
 
 import {
   canonicalUrl,
   extractHostname,
   truncateText,
   buildUrlAliases,
-} from "../shared/url.js";
-import HighlightItem from "./components/HighlightItem.jsx";
+} from "@/shared/url.js";
 
 export default defineComponent({
   name: "PopupApp",
@@ -84,9 +84,9 @@ export default defineComponent({
                 return {
                   ...normalized,
                   unreachable:
-                    normalized.kind === RECORD_KINDS.HIGHLIGHT &&
+                    normalized?.kind === RECORD_KINDS.HIGHLIGHT &&
                     unreachableIds.has(normalized.id),
-                };
+                } as MyZRecord & { unreachable?: boolean };
               })
           : [];
         error.value = "";
@@ -181,7 +181,7 @@ export default defineComponent({
           const normalized = normalizeRecord({
             ...updated,
             unreachable: false,
-          } as MyZRecord & { unreachable?: boolean });
+          }) as MyZRecord;
           highlights.value = highlights.value.map((item) =>
             item.id === normalized.id ? normalized : item,
           );

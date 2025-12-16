@@ -1,7 +1,7 @@
 /**
  * Content extraction utilities for AI and other features
  */
-import { normalizeWhitespace } from "../shared/highlightUtils.js";
+import { normalizeWhitespace } from "@/shared/highlightUtils.js";
 
 const MAX_CONTENT_LENGTH = 15000;
 const CONTENT_STRATEGIES = [

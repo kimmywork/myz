@@ -65,7 +65,9 @@ export async function initDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveConversation(conversation: ConversationInfo): Promise<ConversationInfo> {
+export async function saveConversation(
+  conversation: ConversationInfo,
+): Promise<ConversationInfo> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -78,7 +80,9 @@ export async function saveConversation(conversation: ConversationInfo): Promise<
   });
 }
 
-export async function getConversation(conversationId: string): Promise<ConversationInfo | null> {
+export async function getConversation(
+  conversationId: string,
+): Promise<ConversationInfo | null> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -91,7 +95,10 @@ export async function getConversation(conversationId: string): Promise<Conversat
   });
 }
 
-export async function listConversations(limit = 100, offset = 0): Promise<ConversationInfo[]> {
+export async function listConversations(
+  limit = 100,
+  offset = 0,
+): Promise<ConversationInfo[]> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -239,7 +246,9 @@ export async function getMessagesForConversation(
   });
 }
 
-export async function getConversationStats(conversationId: string): Promise<{ messageCount: number }> {
+export async function getConversationStats(
+  conversationId: string,
+): Promise<{ messageCount: number }> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -291,7 +300,10 @@ interface CompressionResult {
   messages?: Message[];
 }
 
-export async function compressContext(conversationId: string, targetTokens: number): Promise<CompressionResult> {
+export async function compressContext(
+  conversationId: string,
+  targetTokens: number,
+): Promise<CompressionResult> {
   const messages = await getMessagesForConversation(conversationId, 1000);
 
   if (messages.length === 0) return { compressed: false };

@@ -1,11 +1,7 @@
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import {
-  DEFAULT_COLOR,
-  RECORD_KINDS,
-  getRecordKind,
-} from "../../shared/types.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import TagInput from "./TagInput.jsx";
+import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 export default defineComponent({
   name: "RecordModal",
@@ -123,7 +119,11 @@ export default defineComponent({
                     class="mt-2 min-h-[130px] w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
                     rows="4"
                     value={modalState.note}
-                    onInput={(event: InputEvent) => (modalState.note = (event.target as HTMLInputElement).value)}
+                    onInput={(event: InputEvent) =>
+                      (modalState.note = (
+                        event.target as HTMLInputElement
+                      ).value)
+                    }
                   ></textarea>
                 ) : (
                   <div
@@ -196,7 +196,9 @@ export default defineComponent({
                       type="color"
                       value={modalState.color}
                       onInput={(event) => {
-                        modalState.color = (event.target as HTMLInputElement).value || DEFAULT_COLOR;
+                        modalState.color =
+                          (event.target as HTMLInputElement).value ||
+                          DEFAULT_COLOR;
                       }}
                     />
                   </label>

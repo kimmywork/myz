@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  renderMarkdown,
-  hasMarkdown,
-} from "../../../src/shared/markdownRenderer";
+import { renderMarkdown, hasMarkdown } from "@/shared/markdownRenderer";
 
 describe("markdownRenderer", () => {
   describe("renderMarkdown", () => {

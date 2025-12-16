@@ -1,13 +1,13 @@
 import { computed, defineComponent, reactive, Ref, ref, watch } from "vue";
+import { ImportStrategy, Settings } from "../store/index.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import AiSettings from "./AiSettings.jsx";
-import LogseqSyncSection from "./settings/LogseqSyncSection.jsx";
+import ArchiveHistorySection from "./settings/ArchiveHistorySection.jsx";
+import ArchiveQueueSection from "./settings/ArchiveQueueSection.jsx";
 import ImportHighlightsSection from "./settings/ImportHighlightsSection.jsx";
 import InternetArchiveSection from "./settings/InternetArchiveSection.jsx";
-import ArchiveQueueSection from "./settings/ArchiveQueueSection.jsx";
-import ArchiveHistorySection from "./settings/ArchiveHistorySection.jsx";
+import LogseqSyncSection from "./settings/LogseqSyncSection.jsx";
 import VectorSearchSection from "./settings/VectorSearchSection.jsx";
-import { ImportStrategy, Settings } from "../store/index.js";
 
 export default defineComponent({
   name: "SettingsPane",
@@ -67,7 +67,8 @@ export default defineComponent({
         await store.toggleSync(enabled);
       } catch (error) {
         // toggleSync already reverts on failure; keep checkbox in sync
-         (event.target as HTMLInputElement).checked = store.settings.logseqSyncEnabled;
+        (event.target as HTMLInputElement).checked =
+          store.settings.logseqSyncEnabled;
       }
     }
 
@@ -86,11 +87,12 @@ export default defineComponent({
     }
 
     async function handleArchiveToggle(event: Event) {
-      const enabled =  (event.target as HTMLInputElement).checked;
+      const enabled = (event.target as HTMLInputElement).checked;
       try {
         await store.toggleInternetArchive(enabled);
       } catch (error) {
-        (event.target as HTMLInputElement).checked = store.settings.internetArchiveEnabled;
+        (event.target as HTMLInputElement).checked =
+          store.settings.internetArchiveEnabled;
       }
     }
 
@@ -247,7 +249,9 @@ export default defineComponent({
             onSave={handleAiSaveSettings}
             onTestConnection={handleAiTestConnection}
             status={store.settingsStatus.value}
-            onUpdateStatus={(value: any) => (store.settingsStatus.value = value as string)}
+            onUpdateStatus={(value: any) =>
+              (store.settingsStatus.value = value as string)
+            }
           />
 
           <VectorSearchSection

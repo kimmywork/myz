@@ -1,3 +1,4 @@
+import { VectoriaSearchResult } from "src/background/vectoria-index.js";
 import {
   defineComponent,
   ref,
@@ -8,7 +9,6 @@ import {
   nextTick,
   Ref,
 } from "vue";
-import { sendMessage } from "../shared/messaging.js";
 import {
   saveConversation,
   saveMessage,
@@ -18,23 +18,23 @@ import {
   compressContext,
   deleteMessagesByConversationAndType,
 } from "./aiStorage.js";
-import HistoryView from "./HistoryView.jsx";
-import SaveHighlightModal from "./SaveHighlightModal.jsx";
+import AutoInsightsPanel, {
+  AutoInsightsState,
+} from "./components/AutoInsightsPanel.jsx";
 import ConversationList, {
   Conversation,
   Message,
   ToolInvocationDetails,
 } from "./components/ConversationList.jsx";
-import PageContextCard from "./components/PageContextCard.jsx";
 import InputComposer from "./components/InputComposer.jsx";
+import PageContextCard from "./components/PageContextCard.jsx";
 import ToolResponseModal, {
   ToolResponseViewerState,
 } from "./components/ToolResponseModal.jsx";
-import ThemeToggle from "../shared/components/ThemeToggle.jsx";
-import AutoInsightsPanel, {
-  AutoInsightsState,
-} from "./components/AutoInsightsPanel.jsx";
-import { VectoriaSearchResult } from "src/background/vectoria-index.js";
+import HistoryView from "./HistoryView.jsx";
+import SaveHighlightModal from "./SaveHighlightModal.jsx";
+import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
+import { sendMessage } from "@/shared/messaging.js";
 
 export interface ContextChunk {
   id: string;

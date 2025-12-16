@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { sendMessage, sendMessageToTab } from "../../../src/shared/messaging";
+import { sendMessage, sendMessageToTab } from "@/shared/messaging";
 
 describe("messaging", () => {
   const originalChrome = global.chrome;

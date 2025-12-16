@@ -1,7 +1,7 @@
 import { computed, defineComponent, ref } from "vue";
-import { renderMarkdown } from "../../../shared/markdownRenderer.js";
-import ToolInlineNotice from "./ToolInlineNotice.jsx";
 import { resolveToolNames } from "./messageUtils.js";
+import ToolInlineNotice from "./ToolInlineNotice.jsx";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 export interface AssistantMessageMetadata {
   hasToolCalls?: boolean;

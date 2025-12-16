@@ -1,13 +1,13 @@
 import { computed, defineComponent, VNodeRef } from "vue";
+import { MessageStream } from "../App.jsx";
+import AssistantMessageBubble from "./messages/AssistantMessageBubble.jsx";
 import ConversationEmptyState from "./messages/ConversationEmptyState.jsx";
+import { resolveToolNames } from "./messages/messageUtils.jsx";
 import StreamingMessage from "./messages/StreamingMessage.jsx";
+import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
 import ToolInlineNotice from "./messages/ToolInlineNotice.jsx";
 import ToolMessageCard from "./messages/ToolMessageCard.jsx";
-import AssistantMessageBubble from "./messages/AssistantMessageBubble.jsx";
 import UserMessageBubble from "./messages/UserMessageBubble.jsx";
-import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
-import { resolveToolNames } from "./messages/messageUtils.jsx";
-import { MessageStream } from "../App.jsx";
 
 export interface ToolInvocationDetails {
   id: string;
@@ -56,7 +56,7 @@ interface ConversationListProps {
   isLoading?: boolean;
 }
 
-function isToolInvocationNotice(msg: Message) : boolean {
+function isToolInvocationNotice(msg: Message): boolean {
   if (!msg || msg.role !== "assistant" || !msg.metadata?.hasToolCalls) {
     return false;
   }
@@ -98,7 +98,9 @@ export default defineComponent({
             text={`🔧 AI正在通过以下工具检索信息: ${resolveToolNames(msg.metadata) || "处理中..."}`}
             timestamp={new Date(msg.timestamp).toLocaleTimeString()}
             onDetails={
-              hasDetails(msg.metadata) ? () => props.onToolDetails(msg) : undefined
+              hasDetails(msg.metadata)
+                ? () => props.onToolDetails(msg)
+                : undefined
             }
             showButton={hasDetails(msg.metadata)}
             size="lg"

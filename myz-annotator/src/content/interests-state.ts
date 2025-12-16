@@ -1,7 +1,3 @@
-import { type VectoriaSearchResult } from "../background/vectoria-index.ts";
-import { sendMessage } from "../shared/messaging.ts";
-import { canonicalUrl } from "../shared/url.ts";
-
 import {
   ElementPosition,
   collectLeafBlocks,
@@ -10,6 +6,9 @@ import {
   isRectValid,
 } from "./html.ts";
 import { useInterestsStore } from "./stores/interests-store.ts";
+import { type VectoriaSearchResult } from "@/background/vectoria-index.ts";
+import { sendMessage } from "@/shared/messaging.ts";
+import { canonicalUrl } from "@/shared/url.ts";
 
 // -------- Vectoria interest surface --------
 const INTEREST_MAX_COUNT = 300;

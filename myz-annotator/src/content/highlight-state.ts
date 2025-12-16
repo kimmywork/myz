@@ -1,23 +1,22 @@
-import { DEFAULT_SETTINGS } from "../background/constants.ts";
-import { ArchiveEntry } from "../background/internetArchive.ts";
-import { normalizeRecord } from "../dashboard/utils/records.ts";
-import { isHighlightRecord, isClipRecord } from "../shared/highlightUtils.ts";
-import { sendMessage } from "../shared/messaging.ts";
-
-import { deserializeRange, unwrapNode } from "../shared/serializer.ts";
-
-import { MyZRecord } from "../shared/types.ts";
-import { canonicalUrl, buildUrlAliases } from "../shared/url.ts";
 import {
   wrapRangeAcrossNodes,
   wrapSimpleRange,
   decorateHighlightElement,
 } from "./apply-highlight.ts";
-
 import { useInspectorStore } from "./stores/inspector-store.ts";
 import { useModalStore } from "./stores/modal-store.ts";
 import { useNotificationStore } from "./stores/notification-store.ts";
 import { ensureContentStyles } from "./styles.ts";
+import { DEFAULT_SETTINGS } from "@/background/constants.ts";
+import { ArchiveEntry } from "@/background/internetArchive.ts";
+import { normalizeRecord } from "@/dashboard/utils/records.ts";
+import { isHighlightRecord, isClipRecord } from "@/shared/highlightUtils.ts";
+import { sendMessage } from "@/shared/messaging.ts";
+
+import { deserializeRange, unwrapNode } from "@/shared/serializer.ts";
+
+import { MyZRecord } from "@/shared/types.ts";
+import { canonicalUrl, buildUrlAliases } from "@/shared/url.ts";
 
 const HIGHLIGHT_REAPPLY_INTERVAL = 1200;
 const HIGHLIGHT_REAPPLY_TIMEOUT = 20000;
@@ -443,7 +442,7 @@ export function storeRecord(record: MyZRecord) {
   if (!record || !record.id) {
     return null;
   }
-  const normalized = normalizeRecord(record);
+  const normalized = normalizeRecord(record)!;
   highlightCache.set(normalized.id, normalized);
   return normalized;
 }

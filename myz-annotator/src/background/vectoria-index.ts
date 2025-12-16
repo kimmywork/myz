@@ -1,5 +1,5 @@
 import { Vectoria, OpenAIEmbedder } from "vectoria";
-import { MyZRecord } from "../shared/types.ts";
+import { MyZRecord } from "@/shared/types.ts";
 
 const DOC_MAP_KEY = "myz::vectoriaDocMap";
 const DB_NAME = "myz-vectoria";

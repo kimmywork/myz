@@ -4,10 +4,10 @@ import {
   formatNote,
   getRecordPlainText,
   normalizeWhitespace,
-} from "../../shared/highlightUtils.js";
+} from "@/shared/highlightUtils.js";
 
-import { IconWarning } from "../../shared/icons.js";
-import { MyZRecord, RECORD_KINDS } from "../../shared/types.js";
+import { IconWarning } from "@/shared/icons.js";
+import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
 
 const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";
 

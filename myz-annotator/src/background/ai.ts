@@ -1,4 +1,4 @@
-import type { MyZRecord } from "../shared/types.ts";
+import type { MyZRecord } from "@/shared/types.ts";
 
 export const AI_CONVERSATION_KEY = "myz::ai-conversations";
 export const AI_MCP_SERVERS_KEY = "myz::ai-mcp-servers";
