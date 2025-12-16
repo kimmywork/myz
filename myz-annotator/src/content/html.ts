@@ -254,7 +254,7 @@ export function collectLeafBlocks(
     document.body || document.documentElement,
     NodeFilter.SHOW_ELEMENT,
   );
-  const start = performance.now();
+  // const start = performance.now();
   let node;
   while ((node = walker.nextNode()) && results.length < maxCount) {
     if (!(node instanceof HTMLElement)) continue;
@@ -279,14 +279,14 @@ export function collectLeafBlocks(
       }
     }
   }
-  const duration = Math.round(performance.now() - start);
-  console.log(
-    "[MyZ Vectoria] collected candidates",
-    results.length,
-    "in",
-    duration,
-    "ms",
-  );
+  // const duration = Math.round(performance.now() - start);
+  // console.log(
+  //   "[MyZ Vectoria] collected candidates",
+  //   results.length,
+  //   "in",
+  //   duration,
+  //   "ms",
+  // );
   return results;
 }
 

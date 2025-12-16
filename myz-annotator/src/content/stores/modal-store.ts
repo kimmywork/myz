@@ -28,6 +28,7 @@ import {
   updateHighlightIndicators,
 } from "../highlight-state";
 import { ensureArchiveSnapshotForCurrentPage } from "../modal-state";
+import { usePreferenceStore } from "./preference-store";
 import { useToolbarStore } from "./toolbar-store";
 
 interface ModalState {
@@ -57,29 +58,44 @@ export interface ModalSubmitPayload {
 }
 
 export interface ModalOpenOptions {
-  mode?: "create" | "edit";
-  kind?: RECORD_KINDS;
-  editingId?: string | null;
-  preview?: string;
-  note?: string;
-  tags?: string[];
-  color?: string | null;
-  style?: HIGHLIGHT_STYLES | null;
-  archiveEnabled?: boolean;
-  saveToArchive?: boolean;
-  archiveStatus?: ArchiveEntry;
+  mode: "create" | "edit";
+  kind: RECORD_KINDS;
+  editingId: string | null;
+  preview: string;
+  note: string;
+  tags: string[];
+  color: string;
+  style: HIGHLIGHT_STYLES;
+  archiveEnabled: boolean;
+  saveToArchive: boolean;
+  archiveStatus: ArchiveEntry | null;
 }
+
+const DEFAULT_OPTION = {
+  mode: "create" as "create" | "edit",
+  kind: RECORD_KINDS.HIGHLIGHT,
+  editingId: null,
+  preview: "",
+  note: "",
+  tags: [],
+  color: DEFAULT_COLORS[0],
+  style: HIGHLIGHT_STYLES.PAINT,
+  archiveEnabled: false,
+  saveToArchive: false,
+  archiveStatus: null,
+};
 
 export const useModalStore = defineStore("modal", () => {
   const toolbarStore = useToolbarStore();
+  const preferenceStore = usePreferenceStore();
 
   const modalState = ref<ModalState>({ ...state });
-  const modalOpenOptions = ref<ModalOpenOptions>({});
+  const modalOpenOptions = ref<ModalOpenOptions>({ ...DEFAULT_OPTION });
 
   const knownTags = ref<string[]>([]);
   const visible = ref(false);
 
-  function open(options: ModalOpenOptions) {
+  function open(options: Partial<ModalOpenOptions>) {
     const kind =
       options.kind === RECORD_KINDS.CLIP
         ? RECORD_KINDS.CLIP
@@ -102,13 +118,21 @@ export const useModalStore = defineStore("modal", () => {
       ? archiveState.archiveStatus
       : null;
 
+    const resolveColor = options.color
+      ? options.color
+      : preferenceStore.lastUsedColor;
+    const resolveStyle = options.style
+      ? options.style
+      : preferenceStore.lastUsedStyle;
+
     modalOpenOptions.value = {
-      mode: options.mode,
-      preview: options.preview,
-      note: options.note,
+      mode: options.mode || "create",
+      editingId: options.editingId || null,
+      preview: options.preview || "",
+      note: options.note || "",
       tags: initialTags,
-      color: kind === RECORD_KINDS.HIGHLIGHT ? options?.color : undefined,
-      style: kind === RECORD_KINDS.HIGHLIGHT ? options?.style : undefined,
+      color: resolveColor || DEFAULT_COLORS[0],
+      style: resolveStyle || DEFAULT_HIGHLIGHT_STYLE,
       kind,
       archiveEnabled: archiveEnabledForModal,
       saveToArchive: saveToArchiveDefault,
@@ -134,7 +158,9 @@ export const useModalStore = defineStore("modal", () => {
       : [];
     const saveToArchive = payload.saveToArchive === true;
 
-    state.formKind = kind;
+    modalState.value.formKind = kind;
+
+    console.log("Submitting modal", { payload, state: modalState.value });
 
     const style = { color: DEFAULT_COLORS[0], style: DEFAULT_HIGHLIGHT_STYLE };
 
@@ -162,9 +188,9 @@ export const useModalStore = defineStore("modal", () => {
     const archiveUrl = archiveInfo ? currentUrl : null;
     const archiveTimestamp = archiveInfo?.timestamp || null;
 
-    if (state.editingId) {
+    if (modalState.value.editingId) {
       const update: Partial<MyZRecord> = {
-        id: state.editingId,
+        id: modalState.value.editingId,
         note,
         tags,
         kind,
@@ -182,7 +208,7 @@ export const useModalStore = defineStore("modal", () => {
       return;
     }
 
-    if (!state.currentText) {
+    if (!modalState.value.currentText) {
       closeModal();
       return;
     }
@@ -191,8 +217,8 @@ export const useModalStore = defineStore("modal", () => {
       url: canonical,
       sourceUrl: originalSourceUrl,
       title: document.title,
-      text: state.currentText,
-      html: state.currentHtml || "",
+      text: modalState.value.currentText,
+      html: modalState.value.currentHtml || "",
       note,
       tags,
       hostname,
@@ -210,11 +236,11 @@ export const useModalStore = defineStore("modal", () => {
     const selection = window.getSelection();
     try {
       if (kind === RECORD_KINDS.HIGHLIGHT) {
-        if (!state.currentRange) {
+        if (!modalState.value.currentRange) {
           return;
         }
         const serializedRange = serializeRange(
-          state.currentRange,
+          modalState.value.currentRange,
           getHighlightCache(),
           applyHighlight,
         );
@@ -292,8 +318,12 @@ export const useModalStore = defineStore("modal", () => {
   }
 
   async function deleteRecord() {
-    await deleteHighlight(state.editingId!);
+    await deleteHighlight(modalState.value.editingId!);
     closeModal();
+  }
+
+  function isHighlight(): boolean {
+    return modalOpenOptions.value.kind === RECORD_KINDS.HIGHLIGHT;
   }
 
   const isVisible = computed(() => visible.value);
@@ -310,5 +340,6 @@ export const useModalStore = defineStore("modal", () => {
     isVisible,
     submit,
     deleteRecord,
+    isHighlight,
   };
 });

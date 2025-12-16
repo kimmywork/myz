@@ -4,7 +4,7 @@ import { useToolbarStore } from "../stores/toolbar-store.js";
 
 export default defineComponent({
   name: "MyZToolbar",
-  setup(props) {
+  setup() {
     const store = useToolbarStore();
 
     const handleAnnotate = (event: Event) => {

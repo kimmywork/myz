@@ -1,14 +1,13 @@
 import { defineComponent, ref, computed, onMounted } from "vue";
-import HighlightItem from "./components/HighlightItem.jsx";
-import ThemeToggle from "../shared/components/ThemeToggle.jsx";
-import { normalizeWhitespace } from "../shared/highlightUtils.js";
-
 import {
   normalizeRecord,
   recordToMarkdown,
 } from "../dashboard/utils/records.js";
+import ThemeToggle from "../shared/components/ThemeToggle.jsx";
+import { normalizeWhitespace } from "../shared/highlightUtils.js";
 
-import { RECORD_KINDS } from "../shared/types.js";
+import { sendMessage } from "../shared/messaging.js";
+import { RECORD_KINDS, MyZRecord } from "../shared/types.js";
 
 import {
   canonicalUrl,
@@ -16,20 +15,21 @@ import {
   truncateText,
   buildUrlAliases,
 } from "../shared/url.js";
+import HighlightItem from "./components/HighlightItem.jsx";
 
 export default defineComponent({
   name: "PopupApp",
   setup() {
-    const highlights = ref([]);
+    const highlights = ref<MyZRecord[]>([]);
     const query = ref("");
     const loading = ref(true);
     const error = ref("");
     const pageMeta = ref("");
-    const activeTabId = ref(null);
+    const activeTabId = ref<number | null>(null);
     const canonicalPageUrl = ref("");
     const rawPageUrl = ref("");
 
-    const notifyContentScript = (type) => {
+    const notifyContentScript = (type: string) => {
       if (activeTabId.value == null) {
         return;
       }
@@ -45,7 +45,7 @@ export default defineComponent({
       if (!keyword) {
         return highlights.value;
       }
-      return highlights.value.filter((item) => {
+      return highlights.value.filter((item: MyZRecord) => {
         const haystack = [item.text, item.note, (item.tags || []).join(" ")]
           .join(" ")
           .toLowerCase();
@@ -92,18 +92,21 @@ export default defineComponent({
         error.value = "";
       } catch (err) {
         console.error("Failed to load highlights", err);
-        error.value = err?.message || "加载失败";
+        error.value = (err as Error)?.message || "加载失败";
         highlights.value = [];
       } finally {
         loading.value = false;
       }
     };
 
-    const handleSearch = (event) => {
-      query.value = event.target.value;
+    const handleSearch = (event: Event) => {
+      query.value = (event.target as HTMLInputElement).value;
     };
 
-    const handleItemAction = async (action, record) => {
+    const handleItemAction = async (
+      action: string,
+      record: MyZRecord | null,
+    ) => {
       if (!record) {
         return;
       }
@@ -124,7 +127,7 @@ export default defineComponent({
       }
     };
 
-    const focusHighlight = (id) => {
+    const focusHighlight = (id: string) => {
       if (!id || activeTabId.value == null) {
         return;
       }
@@ -143,7 +146,7 @@ export default defineComponent({
       );
     };
 
-    const copyHighlight = async (record) => {
+    const copyHighlight = async (record: MyZRecord) => {
       try {
         await navigator.clipboard.writeText(recordToMarkdown(record));
       } catch (err) {
@@ -151,7 +154,7 @@ export default defineComponent({
       }
     };
 
-    const deleteHighlight = async (id) => {
+    const deleteHighlight = async (id: string) => {
       try {
         await sendMessage("myz:removeHighlight", { id });
         highlights.value = highlights.value.filter((item) => item.id !== id);
@@ -161,7 +164,7 @@ export default defineComponent({
       }
     };
 
-    const downgradeHighlight = async (id) => {
+    const downgradeHighlight = async (id: string) => {
       const existing = highlights.value.find((item) => item.id === id);
       if (!existing || existing.kind === RECORD_KINDS.CLIP) {
         return;
@@ -178,7 +181,7 @@ export default defineComponent({
           const normalized = normalizeRecord({
             ...updated,
             unreachable: false,
-          });
+          } as MyZRecord & { unreachable?: boolean });
           highlights.value = highlights.value.map((item) =>
             item.id === normalized.id ? normalized : item,
           );
@@ -209,7 +212,7 @@ export default defineComponent({
         await loadHighlights();
       } catch (err) {
         console.error("Popup init failed", err);
-        error.value = err?.message || "初始化失败";
+        error.value = (err as Error)?.message || "初始化失败";
         loading.value = false;
       }
     });
@@ -291,7 +294,7 @@ export default defineComponent({
   },
 });
 
-function getActiveTab() {
+function getActiveTab(): Promise<chrome.tabs.Tab | null> {
   return new Promise((resolve) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       resolve(tabs && tabs.length ? tabs[0] : null);
@@ -299,27 +302,9 @@ function getActiveTab() {
   });
 }
 
-function sendMessage(type, payload) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type, payload }, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (!response) {
-        reject(new Error("无响应"));
-        return;
-      }
-      if (!response.ok) {
-        reject(new Error(response.error || "未知错误"));
-        return;
-      }
-      resolve(response.data);
-    });
-  });
-}
-
-function getPageHighlightState(tabId) {
+function getPageHighlightState(
+  tabId: number | null,
+): Promise<{ unreachableIds: string[] } | null> {
   if (tabId == null) {
     return Promise.resolve(null);
   }
@@ -327,7 +312,7 @@ function getPageHighlightState(tabId) {
     chrome.tabs.sendMessage(
       tabId,
       { type: "myz:getHighlightState" },
-      (response) => {
+      (response: { ok: boolean; data?: any }) => {
         if (chrome.runtime.lastError || !response) {
           resolve(null);
           return;

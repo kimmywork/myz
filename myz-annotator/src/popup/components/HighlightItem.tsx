@@ -6,8 +6,8 @@ import {
   normalizeWhitespace,
 } from "../../shared/highlightUtils.js";
 
-import { RECORD_KINDS } from "../../shared/types.js";
 import { IconWarning } from "../../shared/icons.js";
+import { MyZRecord, RECORD_KINDS } from "../../shared/types.js";
 
 const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";
 
@@ -23,7 +23,10 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props) {
+  setup(props: {
+    record: MyZRecord;
+    onAction: (action: string, record: MyZRecord) => void;
+  }) {
     const kind = computed(() =>
       props.record.kind === RECORD_KINDS.CLIP
         ? RECORD_KINDS.CLIP
@@ -67,9 +70,9 @@ export default defineComponent({
       return content || "(无正文内容)";
     });
 
-    const noteText = computed(() => formatNote(props.record.note));
+    const noteText = computed(() => formatNote(props.record.note ?? ""));
 
-    const handleAction = (action) => (event) => {
+    const handleAction = (action: string) => (event: Event) => {
       event.preventDefault();
       props.onAction(action, props.record);
     };
@@ -111,7 +114,7 @@ export default defineComponent({
           {noteText.value ? (
             <p
               class="highlight-item__note text-sm text-amber-600 dark:text-amber-300"
-              title={normalizeWhitespace(props.record.note)}
+              title={normalizeWhitespace(props.record.note ?? "")}
             >
               {noteText.value}
             </p>

@@ -12,32 +12,8 @@ import {
   HIGHLIGHT_STYLES,
   HighlightStyleOption,
 } from "../../shared/types.js";
-import { useHighlightPreferences } from "../stores/highlightPreferences.js";
-import { useModalStore } from "../stores/modal-store.js";
-
-export interface ModalSubmitPayload {
-  mode: "create" | "edit";
-  kind: RECORD_KINDS;
-  note: string;
-  tags: string[];
-  color: string;
-  style: string;
-  saveToArchive: boolean;
-}
-
-export interface ModalOpenOptions {
-  mode?: "create" | "edit";
-  kind?: RECORD_KINDS;
-  editingId?: string | null;
-  preview?: string;
-  note?: string;
-  tags?: string[];
-  color?: string | null;
-  style?: HIGHLIGHT_STYLES | null;
-  archiveEnabled?: boolean;
-  saveToArchive?: boolean;
-  archiveStatus?: ArchiveEntry;
-}
+import { useModalStore, ModalOpenOptions } from "../stores/modal-store.js";
+import { usePreferenceStore } from "../stores/preference-store.js";
 
 function uniqueNormalizedTags(tags: string[]): string[] {
   const seen = new Set();
@@ -86,36 +62,28 @@ function mergeKnownTags(
   return Array.from(merged).sort((a, b) => a.localeCompare(b));
 }
 
+const titleText = (option: ModalOpenOptions) => {
+  if (option.kind === RECORD_KINDS.CLIP) {
+    return option.mode === "edit" ? "编辑保存内容" : "保存摘录";
+  }
+  return option.mode === "edit" ? "编辑批注" : "添加批注";
+};
+
+const previewText = (option: ModalOpenOptions): string => {
+  return option.preview || "";
+};
+
 export default defineComponent({
   name: "MyZModal",
 
   setup() {
     const store = useModalStore();
+    const preferenceStore = usePreferenceStore();
     const options = store.modalOpenOptions;
-    const mode: Ref<"create" | "edit"> = computed(() =>
-      options.mode === "edit" ? "edit" : "create",
-    );
-    const kind: Ref<RECORD_KINDS> = computed(() =>
-      options?.kind === RECORD_KINDS.CLIP
-        ? RECORD_KINDS.CLIP
-        : RECORD_KINDS.HIGHLIGHT,
-    );
-    const previewText: Ref<string> = computed(() => options.preview || "");
-    const note: Ref<string> = computed(() => options.note || "");
-    const tags: Ref<string[]> = computed(() =>
-      uniqueNormalizedTags(options.tags || []),
-    );
+    const mode: Ref<"create" | "edit"> = ref(options.mode || "create");
     const knownTags = store.knownTags;
     const availableTags: Ref<string[]> = computed(() =>
-      mergeKnownTags(knownTags, tags.value),
-    );
-    const preferences = useHighlightPreferences({});
-    const palette: Ref<string[]> = preferences.palette;
-    const selectedColor: Ref<string> = computed(
-      () => options?.style || preferences.lastUsedStyle.value,
-    );
-    const selectedStyle: Ref<HIGHLIGHT_STYLES> = computed(
-      () => options?.style || preferences.lastUsedStyle.value,
+      mergeKnownTags(knownTags, store.modalOpenOptions.tags || []),
     );
     const tagInputValue = ref("");
     const dropdownOpen: Ref<boolean> = ref(false);
@@ -137,38 +105,27 @@ export default defineComponent({
         : null,
     );
 
-    const titleText = computed(() => {
-      if (kind.value === RECORD_KINDS.CLIP) {
-        return mode.value === "edit" ? "编辑保存内容" : "保存摘录";
-      }
-      return mode.value === "edit" ? "编辑批注" : "添加批注";
-    });
-
-    const isHighlight = computed(() => kind.value === RECORD_KINDS.HIGHLIGHT);
-
     const archiveOptionVisible = computed(
-      () => archiveEnabled.value && isHighlight.value && mode.value !== "edit",
+      () =>
+        archiveEnabled.value && store.isHighlight() && mode.value !== "edit",
     );
 
-    const previewStyle = computed(() => {
-      if (!isHighlight.value) {
+    const previewStyle = (options: ModalOpenOptions) => {
+      if (options.kind !== RECORD_KINDS.HIGHLIGHT) {
         return {};
       }
       return {
-        "--myz-highlight-color": selectedColor.value,
+        "--myz-highlight-color": options.color,
         backgroundColor:
-          selectedStyle.value === "paint" ? selectedColor.value : "transparent",
+          options.style === "paint" ? options.color : "transparent",
       };
-    });
+    };
 
-    const styleOptions: Ref<[HIGHLIGHT_STYLES, HighlightStyleOption][]> =
-      computed(
-        () =>
-          Object.entries(HIGHLIGHT_STYLE_OPTIONS) as [
-            HIGHLIGHT_STYLES,
-            HighlightStyleOption,
-          ][],
-      );
+    const styleOptions: [HIGHLIGHT_STYLES, HighlightStyleOption][] =
+      Object.entries(HIGHLIGHT_STYLE_OPTIONS) as [
+        HIGHLIGHT_STYLES,
+        HighlightStyleOption,
+      ][];
 
     const archiveStatusText = computed(() => {
       if (!archiveOptionVisible.value) {
@@ -203,7 +160,9 @@ export default defineComponent({
 
     function syncFilteredOptions(term = tagInputValue.value) {
       const normalized = term.trim().toLowerCase();
-      const blocked = new Set(tags.value.map((tag) => tag.toLowerCase()));
+      const blocked = new Set(
+        (store.modalOpenOptions.tags || []).map((tag) => tag.toLowerCase()),
+      );
       const candidates = availableTags.value.filter((option) => {
         const lower = option.toLowerCase();
         if (blocked.has(lower)) {
@@ -224,7 +183,9 @@ export default defineComponent({
     }
 
     function refreshAvailableTags(extra: string[] = []) {
-      const extras = Array.isArray(extra) ? extra : tags.value;
+      const extras = Array.isArray(extra)
+        ? extra
+        : store.modalOpenOptions.tags || [];
       availableTags.value = mergeKnownTags(knownTags, extras);
       syncFilteredOptions(tagInputValue.value);
     }
@@ -242,24 +203,24 @@ export default defineComponent({
     }
 
     function handleSelectColor(index: number) {
-      const value = palette.value[index];
+      const value = preferenceStore.palette[index];
       if (!value) {
         return;
       }
-      selectedColor.value = value;
+      store.modalOpenOptions.color = value;
     }
 
     function handlePaletteInput(index: number, event: Event) {
       const value = (event.target as HTMLInputElement).value;
-      selectedColor.value = value;
-      preferences.updatePaletteEntry(index, value, { persist: true });
+      store.modalOpenOptions.color = value;
+      preferenceStore.updatePaletteEntry(index, value, { persist: true });
     }
 
     function handleSelectStyle(style: HIGHLIGHT_STYLES) {
-      if (!isHighlight.value) {
+      if (!store.isHighlight()) {
         return;
       }
-      selectedStyle.value = style;
+      store.modalOpenOptions.style = style;
     }
 
     function formatArchiveTimestamp(
@@ -277,15 +238,15 @@ export default defineComponent({
     }
 
     function handleSubmit() {
-      preferences.persistColor(selectedColor.value);
-      preferences.persistStyle(selectedStyle.value);
+      preferenceStore.persistColor(store.modalOpenOptions.color);
+      preferenceStore.persistStyle(store.modalOpenOptions.style);
       store.submit({
-        mode: mode.value,
-        kind: kind.value,
-        note: note.value.trim(),
-        tags: [...tags.value],
-        color: selectedColor.value,
-        style: selectedStyle.value,
+        mode: options.mode || "create",
+        kind: store.modalOpenOptions.kind || RECORD_KINDS.HIGHLIGHT,
+        note: store.modalOpenOptions?.note?.trim() || "",
+        tags: [...(store.modalOpenOptions.tags || [])],
+        color: store.modalOpenOptions.color,
+        style: store.modalOpenOptions.style,
         saveToArchive: archiveOptionVisible.value && saveToArchive.value,
       });
     }
@@ -297,7 +258,7 @@ export default defineComponent({
       >
         <div class="myz-annotator-modal__body">
           <div class="myz-annotator-modal__header">
-            <h3>{titleText.value}</h3>
+            <h3>{titleText(store.modalOpenOptions)}</h3>
             <button
               type="button"
               class="myz-annotator-modal__close"
@@ -308,33 +269,33 @@ export default defineComponent({
           </div>
 
           <div class="myz-annotator-preview">
-            {previewText.value ? (
-              isHighlight.value ? (
+            {store.modalOpenOptions.preview ? (
+              store.modalOpenOptions.kind === RECORD_KINDS.HIGHLIGHT ? (
                 <span
                   class={[
                     "myz-highlight",
                     "myz-highlight-preview",
-                    `myz-highlight--${selectedStyle.value}`,
+                    `myz-highlight--${store.modalOpenOptions.style}`,
                   ]}
-                  style={previewStyle.value}
+                  style={previewStyle(store.modalOpenOptions)}
                 >
-                  {previewText.value}
+                  {previewText(store.modalOpenOptions)}
                 </span>
               ) : (
-                <span>{previewText.value}</span>
+                <span>{previewText(store.modalOpenOptions)}</span>
               )
             ) : null}
           </div>
 
-          {isHighlight.value ? (
+          {store.isHighlight() ? (
             <div class="myz-annotator-field">
               <div class="myz-annotator-field__label-row">
                 <label>样式</label>
                 <span class="myz-annotator-field__hint">选择呈现方式</span>
               </div>
               <div class="myz-style-picker" role="radiogroup">
-                {styleOptions.value.map(([value, meta]) => {
-                  const isActive = value === selectedStyle.value;
+                {styleOptions.map(([value, meta]) => {
+                  const isActive = value === store.modalOpenOptions.style;
                   const IconComponent: ReturnType<typeof makeIcon> =
                     highlightStyleIconMap[meta.icon as HIGHLIGHT_STYLES] ||
                     highlightStyleIconMap.paint;
@@ -369,9 +330,11 @@ export default defineComponent({
             <label>批注</label>
             <textarea
               rows="4"
-              value={note.value}
+              value={store.modalOpenOptions.note}
               onInput={(event: InputEvent) => {
-                note.value = (event.target as HTMLTextAreaElement).value;
+                store.modalOpenOptions.note = (
+                  event.target as HTMLTextAreaElement
+                ).value;
               }}
             />
           </div>
@@ -385,15 +348,17 @@ export default defineComponent({
             </div>
             <TagInput
               ref={tagInputRef}
-              modelValue={tags.value}
+              modelValue={uniqueNormalizedTags(
+                store.modalOpenOptions.tags || [],
+              )}
               options={availableTags.value}
               placeholder="添加标签"
               allowNew={true}
               variant="content"
               onUpdate:modelValue={(val) => {
-                tags.value = Array.isArray(val) ? val : [];
+                store.modalOpenOptions.tags = Array.isArray(val) ? val : [];
                 // keep available tags in sync after external change
-                refreshAvailableTags(tags.value);
+                refreshAvailableTags(store.modalOpenOptions.tags);
               }}
             />
           </div>
@@ -431,7 +396,7 @@ export default defineComponent({
             </div>
           ) : null}
 
-          {isHighlight.value ? (
+          {store.isHighlight() ? (
             <div class="myz-annotator-field">
               <div class="myz-annotator-field__label-row">
                 <label>高亮颜色</label>
@@ -440,8 +405,8 @@ export default defineComponent({
                 </span>
               </div>
               <div class="myz-color-palette" role="radiogroup">
-                {palette.value.map((color, index) => {
-                  const isActive = color === selectedColor.value;
+                {preferenceStore.palette.map((color, index) => {
+                  const isActive = color === store.modalOpenOptions.color;
                   return (
                     <div
                       class="myz-color-swatch-wrapper"

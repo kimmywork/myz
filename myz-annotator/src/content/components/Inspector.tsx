@@ -51,100 +51,102 @@ export default defineComponent({
       typeof record.text === "string" ? record.text : "",
     );
 
-    return () => (
-      <aside class={["myz-inspector", visible ? "" : "myz-hidden"]}>
-        <div class="myz-inspector__header">
-          <div class="myz-inspector__title">{title.value}</div>
-          <button
-            type="button"
-            class="myz-inspector__close"
-            onClick={() => store.hide()}
-          >
-            ×
-          </button>
-        </div>
-
-        <div class="myz-inspector__body">
-          <div class="myz-inspector__info">
-            <span
-              class={[
-                "myz-inspector__style",
-                isHighlight.value ? "" : "myz-hidden",
-              ]}
-              data-style={isHighlight.value ? styleValue.value : null}
-              style={
-                isHighlight.value && color.value
-                  ? { "--myz-highlight-color": color.value }
-                  : undefined
-              }
-              title={
-                isHighlight.value && styleLabel.value && color.value
-                  ? `${styleLabel.value} · ${color.value}`
-                  : undefined
-              }
+    return () => {
+      return (
+        <aside class={["myz-inspector", visible ? "" : "myz-hidden"]}>
+          <div class="myz-inspector__header">
+            <div class="myz-inspector__title">{title.value}</div>
+            <button
+              type="button"
+              class="myz-inspector__close"
+              onClick={() => store.hide()}
             >
-              {(() => {
-                const IconComponent = StyleIconComponent.value;
-                return IconComponent ? (
-                  <IconComponent
-                    class="myz-inspector__style-icon"
-                    size={18}
-                    aria-hidden="true"
-                  />
-                ) : null;
-              })()}
-            </span>
-            <div class="myz-inspector__meta">{metaText.value}</div>
+              ×
+            </button>
           </div>
 
-          <div
-            class={["myz-inspector__tags", hasTags.value ? "" : "myz-hidden"]}
-          >
-            {tags.value.map((tag) => (
-              <span class="myz-tag" key={tag}>
-                {tag}
+          <div class="myz-inspector__body">
+            <div class="myz-inspector__info">
+              <span
+                class={[
+                  "myz-inspector__style",
+                  isHighlight.value ? "" : "myz-hidden",
+                ]}
+                data-style={isHighlight.value ? styleValue.value : null}
+                style={
+                  isHighlight.value && color.value
+                    ? { "--myz-highlight-color": color.value }
+                    : undefined
+                }
+                title={
+                  isHighlight.value && styleLabel.value && color.value
+                    ? `${styleLabel.value} · ${color.value}`
+                    : undefined
+                }
+              >
+                {(() => {
+                  const IconComponent = StyleIconComponent.value;
+                  return IconComponent ? (
+                    <IconComponent
+                      class="myz-inspector__style-icon"
+                      size={18}
+                      aria-hidden="true"
+                    />
+                  ) : null;
+                })()}
               </span>
-            ))}
+              <div class="myz-inspector__meta">{metaText.value}</div>
+            </div>
+
+            <div
+              class={["myz-inspector__tags", hasTags.value ? "" : "myz-hidden"]}
+            >
+              {tags.value.map((tag) => (
+                <span class="myz-tag" key={tag}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+
+            {quoteHtml.value ? (
+              <blockquote
+                class="myz-inspector__quote"
+                innerHTML={quoteHtml.value}
+              />
+            ) : (
+              <blockquote class="myz-inspector__quote">
+                {quoteText.value}
+              </blockquote>
+            )}
+
+            <div class="myz-inspector__note">{noteText.value}</div>
           </div>
 
-          {quoteHtml.value ? (
-            <blockquote
-              class="myz-inspector__quote"
-              innerHTML={quoteHtml.value}
-            />
-          ) : (
-            <blockquote class="myz-inspector__quote">
-              {quoteText.value}
-            </blockquote>
-          )}
-
-          <div class="myz-inspector__note">{noteText.value}</div>
-        </div>
-
-        <div class="myz-inspector__actions">
-          <button
-            type="button"
-            class="myz-btn-secondary"
-            onClick={() => store.copy()}
-          >
-            复制
-          </button>
-          <button
-            type="button"
-            class="myz-btn-primary"
-            onClick={() => store.edit()}
-          >
-            编辑
-          </button>
-          <button
-            type="button"
-            class="myz-btn-danger"
-            onClick={() => store.deleteRecord()}
-          >
-            删除
-          </button>
-        </div>
-      </aside>
-    );
+          <div class="myz-inspector__actions">
+            <button
+              type="button"
+              class="myz-btn-secondary"
+              onClick={() => store.copy()}
+            >
+              复制
+            </button>
+            <button
+              type="button"
+              class="myz-btn-primary"
+              onClick={() => store.edit()}
+            >
+              编辑
+            </button>
+            <button
+              type="button"
+              class="myz-btn-danger"
+              onClick={() => store.deleteRecord()}
+            >
+              删除
+            </button>
+          </div>
+        </aside>
+      );
+    };
   },
 });

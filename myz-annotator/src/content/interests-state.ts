@@ -100,7 +100,7 @@ function rescanInterestTargets() {
     added += 1;
   });
   if (added > 0) {
-    console.log("[MyZ Vectoria] rescan added", added, "new candidates");
+    // console.log("[MyZ Vectoria] rescan added", added, "new candidates");
   }
 }
 
@@ -144,7 +144,7 @@ async function runSemanticLookup(
   }
   state.lastSearchAt = now;
   state.searching = true;
-  const startedAt = performance.now();
+  // const startedAt = performance.now();
   let filtered: VectoriaSearchResult[] = [];
   let hits: VectoriaSearchResult[] = [];
   try {
@@ -178,19 +178,19 @@ async function runSemanticLookup(
   } catch (error) {
     console.warn("Vectoria lookup failed", error);
   } finally {
-    const duration = Math.round(performance.now() - startedAt);
-    const topScore = hits.length ? hits[0].score || 0 : 0;
-    console.log(
-      "[MyZ Vectoria]",
-      "queryLength=",
-      finalText.length,
-      "matches=",
-      filtered.length,
-      "topScore=",
-      topScore.toFixed ? topScore.toFixed(3) : topScore,
-      "timeMs=",
-      duration,
-    );
+    // const duration = Math.round(performance.now() - startedAt);
+    // const topScore = hits.length ? hits[0].score || 0 : 0;
+    // console.log(
+    //   "[MyZ Vectoria]",
+    //   "queryLength=",
+    //   finalText.length,
+    //   "matches=",
+    //   filtered.length,
+    //   "topScore=",
+    //   topScore.toFixed ? topScore.toFixed(3) : topScore,
+    //   "timeMs=",
+    //   duration,
+    // );
     state.searching = false;
   }
 }

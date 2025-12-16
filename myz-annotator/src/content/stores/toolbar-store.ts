@@ -160,8 +160,8 @@ export const useToolbarStore = defineStore("toolbar", () => {
       preview: selection.toString().trim(),
       note: "",
       tags: [],
-      color: null,
-      style: null,
+      color: undefined,
+      style: undefined,
       kind: RECORD_KINDS.HIGHLIGHT,
     });
   }
@@ -186,8 +186,8 @@ export const useToolbarStore = defineStore("toolbar", () => {
       preview: selection.toString().trim(),
       note: "",
       tags: [],
-      color: null,
-      style: null,
+      color: undefined,
+      style: undefined,
       kind: RECORD_KINDS.CLIP,
     });
   }
