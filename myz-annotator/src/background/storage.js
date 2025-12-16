@@ -5,7 +5,7 @@ import {
   STORAGE_KEY,
 } from "./constants.js";
 
-import { normalizeHighlightStyle } from "../shared/highlightUtils.js";
+import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 
 function normalizeAiProvider(input, { nameFallback = "AI Provider" } = {}) {

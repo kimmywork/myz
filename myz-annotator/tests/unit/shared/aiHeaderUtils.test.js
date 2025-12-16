@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseAiRequestHeaders,
   getAiHeaderValue,
-} from "../../../src/shared/aiHeaderUtils.ts";
+} from "@/shared/aiHeaderUtils.ts";
 
 describe("aiHeaderUtils", () => {
   describe("parseAiRequestHeaders", () => {

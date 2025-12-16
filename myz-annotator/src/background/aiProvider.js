@@ -5,7 +5,7 @@ import {
   getMessagesForConversation,
   getConversation,
 } from "../sidepanel/aiStorage.js";
-import { parseAiRequestHeaders } from "../shared/aiHeaderUtils.js";
+import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 import { readState, sortedHighlights } from "./storage.js";
 

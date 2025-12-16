@@ -1,4 +1,4 @@
-import { getAiHeaderValue } from "../shared/aiHeaderUtils.js";
+import { getAiHeaderValue } from "@/shared/aiHeaderUtils.js";
 
 const AI_USER_AGENT_RULE_ID = 1001;
 const HEADER_RESOURCE_TYPES = ["xmlhttprequest", "other"];

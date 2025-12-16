@@ -1,5 +1,5 @@
-import { describeHighlightStyle } from "../shared/highlightUtils.js";
-import { extractHostname } from "../shared/url.js";
+import { describeHighlightStyle } from "@/shared/highlightUtils.js";
+import { extractHostname } from "@/shared/url.js";
 
 export function buildMarkdownExport(highlights) {
   if (!highlights.length) {
