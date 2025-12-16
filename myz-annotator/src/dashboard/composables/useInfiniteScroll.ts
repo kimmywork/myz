@@ -1,9 +1,16 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-export function useInfiniteScroll(options = {}) {
+export interface InfiniteScrollOptions {
+  rootSelector?: string;
+  rootMargin?: string;
+  onIntersect?: () => void;
+  watchTargetSelector?: string;
+  watchTarget?: HTMLElement | null;
+}
+
+export function useInfiniteScroll(options: InfiniteScrollOptions = {}) {
   const {
     rootSelector = "main",
-    sentinelSelector = '.scroll-sentinel[data-role="sentinel"]',
     rootMargin = "0px 0px 200px 0px",
     onIntersect,
     watchTargetSelector = ".highlight-groups",
@@ -11,8 +18,8 @@ export function useInfiniteScroll(options = {}) {
   } = options;
 
   const sentinelRef = ref(null);
-  let observer = null;
-  let mutationObserver = null;
+  let observer: IntersectionObserver | null = null;
+  let mutationObserver: MutationObserver | null = null;
 
   function observeSentinel() {
     if (!observer || !sentinelRef.value) {
@@ -77,6 +84,12 @@ export function useInfiniteScroll(options = {}) {
     stop();
     start();
   }
+
+  watch(sentinelRef, (newVal, oldVal) => {
+    if (!observer) return;
+    if (oldVal) observer.unobserve(oldVal);
+    if (newVal) observer.observe(newVal);
+  });
 
   onMounted(() => {
     start();

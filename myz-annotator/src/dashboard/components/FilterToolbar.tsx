@@ -1,4 +1,4 @@
-import { defineComponent, ref } from "vue";
+import { defineComponent, ref, Ref } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import TagInput from "./TagInput.jsx";
 import { IconCalendar } from "../../shared/icons.js";
@@ -7,10 +7,10 @@ export default defineComponent({
   name: "FilterToolbar",
   setup() {
     const store = useDashboardStore();
-    const fromRef = ref(null);
-    const toRef = ref(null);
+    const fromRef: Ref<HTMLInputElement | null> = ref(null);
+    const toRef: Ref<HTMLInputElement | null> = ref(null);
 
-    function handlePicker(refTarget) {
+    function handlePicker(refTarget?: Ref<HTMLInputElement | null>) {
       const input = refTarget?.value;
       if (input && typeof input.showPicker === "function") {
         input.showPicker();
@@ -33,8 +33,8 @@ export default defineComponent({
                 placeholder="搜索文本、批注或标签"
                 class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100 dark:placeholder:text-slate-500"
                 value={store.filters.search}
-                onInput={(event) =>
-                  store.setFilter("search", event.target.value)
+                onInput={(event: InputEvent) =>
+                  store.setFilter("search", (event.target as HTMLInputElement).value)
                 }
               />
             </label>
@@ -44,12 +44,12 @@ export default defineComponent({
                 data-testid="site-filter"
                 class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/60 dark:text-white"
                 value={store.filters.site}
-                onChange={(event) =>
-                  store.setFilter("site", event.target.value)
+                onChange={(event: Event) =>
+                  store.setFilter("site", (event.target as HTMLSelectElement).value)
                 }
               >
                 <option value="">全部网站</option>
-                {store.availableSites.value.map((site) => (
+                {store.availableSites.value.map((site: string) => (
                   <option key={site} value={site}>
                     {site}
                   </option>
@@ -76,8 +76,8 @@ export default defineComponent({
                   type="date"
                   class="w-full appearance-none bg-transparent text-sm text-slate-800 outline-none dark:text-white"
                   value={store.filters.from}
-                  onInput={(event) =>
-                    store.setFilter("from", event.target.value)
+                  onInput={(event: InputEvent) =>
+                    store.setFilter("from", (event.target as HTMLInputElement).value)
                   }
                 />
                 <button
@@ -98,7 +98,7 @@ export default defineComponent({
                   type="date"
                   class="w-full appearance-none bg-transparent text-sm text-slate-800 outline-none dark:text-white"
                   value={store.filters.to}
-                  onInput={(event) => store.setFilter("to", event.target.value)}
+                  onInput={(event: InputEvent) => store.setFilter("to", (event.target as HTMLInputElement).value)}
                 />
                 <button
                   type="button"

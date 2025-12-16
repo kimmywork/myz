@@ -11,7 +11,7 @@ export default defineComponent({
       { key: "settings", label: "设置" },
     ];
 
-    function handleTabClick(key) {
+    function handleTabClick(key: string) {
       if (key === "settings") {
         store.showSettings();
       } else {
