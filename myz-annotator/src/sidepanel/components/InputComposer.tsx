@@ -1,46 +1,20 @@
 import { defineComponent } from "vue";
 
+interface InputComposerProps {
+  value: string;
+  placeholder?: string;
+  disabled?: boolean;
+  error?: string;
+  onInput: (event: Event) => void;
+  onKeydown: (event: KeyboardEvent) => void;
+  onCompositionstart: (event: CompositionEvent) => void;
+  onCompositionend: (event: CompositionEvent) => void;
+  onSend: () => void;
+}
+
 export default defineComponent({
   name: "InputComposer",
-  props: {
-    value: {
-      type: String,
-      default: "",
-    },
-    placeholder: {
-      type: String,
-      default: "",
-    },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
-    error: {
-      type: String,
-      default: "",
-    },
-    onInput: {
-      type: Function,
-      required: true,
-    },
-    onKeydown: {
-      type: Function,
-      required: true,
-    },
-    onCompositionstart: {
-      type: Function,
-      required: true,
-    },
-    onCompositionend: {
-      type: Function,
-      required: true,
-    },
-    onSend: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: InputComposerProps) {
     return () => (
       <div class="border-t border-slate-200/80 bg-white/80 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/80">
         <textarea

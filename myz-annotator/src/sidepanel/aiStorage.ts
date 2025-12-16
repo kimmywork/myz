@@ -3,14 +3,26 @@
  * Uses a more robust storage mechanism for large conversation data
  */
 
+import { Message } from "./components/ConversationList";
+
 const DB_NAME = "MyZAIAssistantDB";
 const DB_VERSION = 1;
 const CONVERSATIONS_STORE = "conversations";
 const MESSAGES_STORE = "messages";
 
-let db = null;
+let db: IDBDatabase | null = null;
 
-export async function initDB() {
+export interface ConversationInfo {
+  id: string;
+  title: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: Record<string, any>;
+  sendContextEnabled?: boolean;
+}
+
+export async function initDB(): Promise<IDBDatabase> {
   if (db) return db;
 
   return new Promise((resolve, reject) => {
@@ -26,7 +38,7 @@ export async function initDB() {
     };
 
     request.onupgradeneeded = (event) => {
-      const db = event.target.result;
+      const db = (event.target as IDBOpenDBRequest).result;
 
       // Conversations store
       if (!db.objectStoreNames.contains(CONVERSATIONS_STORE)) {
@@ -53,7 +65,7 @@ export async function initDB() {
   });
 }
 
-export async function saveConversation(conversation) {
+export async function saveConversation(conversation: ConversationInfo): Promise<ConversationInfo> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -66,7 +78,7 @@ export async function saveConversation(conversation) {
   });
 }
 
-export async function getConversation(conversationId) {
+export async function getConversation(conversationId: string): Promise<ConversationInfo | null> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -79,7 +91,7 @@ export async function getConversation(conversationId) {
   });
 }
 
-export async function listConversations(limit = 100, offset = 0) {
+export async function listConversations(limit = 100, offset = 0): Promise<ConversationInfo[]> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -88,7 +100,7 @@ export async function listConversations(limit = 100, offset = 0) {
     const index = store.index("updatedAt");
 
     const request = index.openCursor(null, "prev");
-    const conversations = [];
+    const conversations: ConversationInfo[] = [];
     let count = 0;
     let skipped = 0;
 
@@ -112,7 +124,7 @@ export async function listConversations(limit = 100, offset = 0) {
   });
 }
 
-export async function deleteConversation(conversationId) {
+export async function deleteConversation(conversationId: string) {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -123,7 +135,7 @@ export async function deleteConversation(conversationId) {
 
     // Delete conversation
     const conversationStore = transaction.objectStore(CONVERSATIONS_STORE);
-    const deleteConversationRequest = conversationStore.delete(conversationId);
+    conversationStore.delete(conversationId);
 
     // Delete all messages for this conversation
     const messageStore = transaction.objectStore(MESSAGES_STORE);
@@ -145,7 +157,7 @@ export async function deleteConversation(conversationId) {
   });
 }
 
-export async function saveMessage(message) {
+export async function saveMessage(message: Message) {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -159,8 +171,8 @@ export async function saveMessage(message) {
 }
 
 export async function deleteMessagesByConversationAndType(
-  conversationId,
-  metadataType,
+  conversationId: string,
+  metadataType: string,
 ) {
   if (!conversationId || !metadataType) {
     return;
@@ -192,10 +204,10 @@ export async function deleteMessagesByConversationAndType(
 }
 
 export async function getMessagesForConversation(
-  conversationId,
+  conversationId: string,
   limit = 100,
   offset = 0,
-) {
+): Promise<Message[]> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -227,7 +239,7 @@ export async function getMessagesForConversation(
   });
 }
 
-export async function getConversationStats(conversationId) {
+export async function getConversationStats(conversationId: string): Promise<{ messageCount: number }> {
   const db = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -244,9 +256,9 @@ export async function getConversationStats(conversationId) {
 }
 
 export async function checkContextSize(
-  conversationId,
-  maxTokens,
-  options = {},
+  conversationId: string,
+  maxTokens: number,
+  options = { includePageContext: true },
 ) {
   const { includePageContext = true } = options;
   let messages = await getMessagesForConversation(conversationId, 1000);
@@ -272,7 +284,14 @@ export async function checkContextSize(
   };
 }
 
-export async function compressContext(conversationId, targetTokens) {
+interface CompressionResult {
+  compressed: boolean;
+  originalCount?: number;
+  compressedCount?: number;
+  messages?: Message[];
+}
+
+export async function compressContext(conversationId: string, targetTokens: number): Promise<CompressionResult> {
   const messages = await getMessagesForConversation(conversationId, 1000);
 
   if (messages.length === 0) return { compressed: false };
@@ -285,7 +304,7 @@ export async function compressContext(conversationId, targetTokens) {
   if (oldMessages.length === 0) return { compressed: false, messages };
 
   // Create summary of old messages (use assistant role, not system)
-  const summary = {
+  const summary: Message = {
     id: `summary-${Date.now()}`,
     conversationId,
     role: "assistant",

@@ -1,4 +1,4 @@
-export function resolveToolNames(metadata) {
+export function resolveToolNames(metadata: { toolNames?: string[] | string; toolCallCount?: number } | undefined): string {
   if (!metadata) return "";
   if (Array.isArray(metadata.toolNames)) {
     return metadata.toolNames.filter(Boolean).join("、");

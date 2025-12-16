@@ -1,27 +1,16 @@
-import { defineComponent, ref, reactive, nextTick } from "vue";
+import { defineComponent, ref } from "vue";
 import TagInput from "../dashboard/components/TagInput.jsx";
+
+interface SaveHighlightModalProps {
+  visible: boolean;
+  aiResponse: string;
+  onSave: (data: { note: string; tags: string[] }) => Promise<void>;
+  onClose: () => void;
+}
 
 export default defineComponent({
   name: "SaveHighlightModal",
-  props: {
-    visible: {
-      type: Boolean,
-      default: false,
-    },
-    aiResponse: {
-      type: String,
-      default: "",
-    },
-    onSave: {
-      type: Function,
-      required: true,
-    },
-    onClose: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: SaveHighlightModalProps) {
     const note = ref("");
     const tags = ref(["ai-generated"]);
     const saving = ref(false);

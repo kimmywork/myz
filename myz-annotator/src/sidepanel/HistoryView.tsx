@@ -1,24 +1,22 @@
-import { defineComponent, ref, onMounted } from "vue";
+import { defineComponent, ref, onMounted, Ref } from "vue";
 import {
   listConversations,
   getMessagesForConversation,
   deleteConversation,
+  ConversationInfo,
 } from "./aiStorage.js";
+import { Conversation } from "./components/ConversationList.jsx";
+
+interface HistoryViewProps {
+  onSelectConversation: (data: Conversation) => void;
+  onBack: () => void;
+}
 
 export default defineComponent({
   name: "HistoryView",
-  props: {
-    onSelectConversation: {
-      type: Function,
-      required: true,
-    },
-    onBack: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
-    const conversations = ref([]);
+
+  setup(props: HistoryViewProps) {
+    const conversations: Ref<ConversationInfo[]> = ref([]);
     const isLoading = ref(true);
 
     async function loadConversations() {
@@ -49,7 +47,7 @@ export default defineComponent({
       }
     }
 
-    async function selectConversation(conv) {
+    async function selectConversation(conv: ConversationInfo) {
       try {
         const messages = await getMessagesForConversation(conv.id, 1000);
         props.onSelectConversation({
@@ -67,7 +65,7 @@ export default defineComponent({
       }
     }
 
-    async function deleteConv(convId) {
+    async function deleteConv(convId: string) {
       if (confirm("确定要删除这个对话吗？")) {
         try {
           await deleteConversation(convId);
@@ -78,7 +76,7 @@ export default defineComponent({
       }
     }
 
-    function formatDate(dateString) {
+    function formatDate(dateString: string) {
       try {
         return new Date(dateString).toLocaleString();
       } catch (e) {
@@ -86,7 +84,7 @@ export default defineComponent({
       }
     }
 
-    function truncate(text, length = 100) {
+    function truncate(text: string, length = 100) {
       if (!text) return "";
       return text.length > length ? text.slice(0, length) + "..." : text;
     }

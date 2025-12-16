@@ -6,6 +6,7 @@ import {
   onMounted,
   onBeforeUnmount,
   nextTick,
+  Ref,
 } from "vue";
 import { sendMessage } from "../shared/messaging.js";
 import {
@@ -19,44 +20,91 @@ import {
 } from "./aiStorage.js";
 import HistoryView from "./HistoryView.jsx";
 import SaveHighlightModal from "./SaveHighlightModal.jsx";
-import ConversationList from "./components/ConversationList.jsx";
+import ConversationList, {
+  Conversation,
+  Message,
+  ToolInvocationDetails,
+} from "./components/ConversationList.jsx";
 import PageContextCard from "./components/PageContextCard.jsx";
 import InputComposer from "./components/InputComposer.jsx";
-import ToolResponseModal from "./components/ToolResponseModal.jsx";
+import ToolResponseModal, {
+  ToolResponseViewerState,
+} from "./components/ToolResponseModal.jsx";
 import ThemeToggle from "../shared/components/ThemeToggle.jsx";
-import AutoInsightsPanel from "./components/AutoInsightsPanel.jsx";
+import AutoInsightsPanel, {
+  AutoInsightsState,
+} from "./components/AutoInsightsPanel.jsx";
+import { VectoriaSearchResult } from "src/background/vectoria-index.js";
+
+export interface ContextChunk {
+  id: string;
+  text: string;
+  prefix: string;
+}
+
+export interface SaveModalState {
+  visible: boolean;
+  aiResponse: string;
+  messageId: string | null;
+}
+
+export interface MessageStreamData {
+  conversationId: string;
+  streamId: string;
+  message?: Message;
+  content?: string;
+  delta?: string;
+  reasoning?: string;
+  metadata?: Record<string, any>;
+  error?: string;
+}
+
+export interface MessageStream {
+  id: string | null;
+  content: string;
+  timestamp: string;
+  reasoning: string;
+  metadata: Record<string, any>;
+}
+
+interface SidePanelCommunicationMessage {
+  type: string;
+  payload?: { action: string; matches: VectoriaSearchResult[] };
+  data?: MessageStreamData;
+}
 
 export default defineComponent({
   name: "SidePanelApp",
   setup() {
     // View state
-    const view = ref("chat"); // 'chat' or 'history'
+    const view = ref("chat"); // 'chat' or 'history' or 'related'
 
     // Core state
-    const conversationId = ref(null);
-    const messages = ref([]);
+    const conversationId = ref<string | null>(null);
+    const messages: Ref<Message[]> = ref([]);
     const isLoading = ref(false);
     const error = ref("");
     const currentUrl = ref("");
-    const currentTabId = ref(null);
+    const currentTabId = ref<number | null>(null);
     const pageTitle = ref("");
     const pageContent = ref("");
     const sendContext = ref(true); // Toggle to include/exclude page context
     const isContextPreferenceUpdating = ref(false);
     const isComposing = ref(false);
-    const relatedMatches = ref([]);
+    const relatedMatches: Ref<VectoriaSearchResult[]> = ref([]);
     const visibleMessages = computed(() => {
       if (sendContext.value) {
         return messages.value;
       }
       return messages.value.filter(
-        (msg) => msg.metadata?.type !== "page_context" && msg.role !== "system",
+        (msg: Message) =>
+          msg.metadata?.type !== "page_context" && msg.role !== "system",
       );
     });
 
     // Auto-action state
-    const autoAction = ref(null); // 'summarize', 'key_points', etc.
-    const autoInsights = reactive({
+    const autoAction = ref<string | null>(null); // 'summarize', 'key_points', etc.
+    const autoInsights: AutoInsightsState = reactive({
       active: false,
       action: "",
       loading: false,
@@ -73,7 +121,7 @@ export default defineComponent({
     const isSavingHighlight = ref(false);
 
     // Modal state
-    const saveModal = reactive({
+    const saveModal: SaveModalState = reactive({
       visible: false,
       aiResponse: "",
       messageId: null,
@@ -87,10 +135,12 @@ export default defineComponent({
       needsCompression: false,
     });
 
-    const messageListRef = ref(null);
-    let runtimeListener = null;
+    const messageListRef: Ref<Element | null> = ref(null);
+    let runtimeListener:
+      | ((message: SidePanelCommunicationMessage) => void)
+      | null = null;
 
-    const activeStream = reactive({
+    const activeStream: MessageStream = reactive({
       id: null,
       content: "",
       timestamp: "",
@@ -99,14 +149,14 @@ export default defineComponent({
     });
     const hasActiveStream = computed(() => Boolean(activeStream.id));
 
-    const toolResponseViewer = reactive({
+    const toolResponseViewer: ToolResponseViewerState = reactive({
       visible: false,
       title: "",
       content: "",
       toolName: "",
       timestamp: "",
       args: "",
-      invocationDetails: [],
+      invocationDetails: [] as ToolInvocationDetails[],
     });
     const sortedRelatedMatches = computed(() =>
       relatedMatches.value
@@ -149,7 +199,7 @@ export default defineComponent({
       );
     }
 
-    function buildPageContextMessage(conversationId) {
+    function buildPageContextMessage(conversationId: string): Message | null {
       if (!pageContent.value) {
         return null;
       }
@@ -171,7 +221,7 @@ export default defineComponent({
       activeStream.metadata = {};
     }
 
-    async function persistSendContextPreference(enabled) {
+    async function persistSendContextPreference(enabled: boolean) {
       if (!conversationId.value) return;
       try {
         const conversation = await getConversation(conversationId.value);
@@ -203,7 +253,7 @@ export default defineComponent({
           // Try to extract content from the active tab
           try {
             const result = await chrome.tabs
-              .sendMessage(tab.id, {
+              .sendMessage(tab.id!, {
                 type: "myz:extractPageContent",
               })
               .catch(() => null);
@@ -254,7 +304,7 @@ export default defineComponent({
         }
       } catch (e) {
         console.error("Initialization failed:", e);
-        error.value = "初始化失败: " + e.message;
+        error.value = "初始化失败: " + (e as Error).message;
       }
     }
 
@@ -288,7 +338,7 @@ export default defineComponent({
         }
       } catch (e) {
         console.error("Failed to create conversation:", e);
-        error.value = "创建对话失败: " + e.message;
+        error.value = "创建对话失败: " + (e as Error).message;
       }
     }
 
@@ -325,12 +375,12 @@ export default defineComponent({
           );
           if (confirm) {
             const compressed = await compressContext(
-              conversationId.value,
+              conversationId.value!,
               contextInfo.maxSize * 0.5,
             );
             if (compressed.compressed) {
               // Update messages with compressed version
-              messages.value = compressed.messages;
+              messages.value = compressed.messages!;
               await checkContext();
             }
           }
@@ -369,7 +419,7 @@ export default defineComponent({
         }
 
         // Add user message to UI
-        const userMessage = {
+        const userMessage: Message = {
           id: `msg-${Date.now()}`,
           role: "user",
           content: fullInput,
@@ -402,7 +452,7 @@ export default defineComponent({
         });
       } catch (e) {
         console.error("Message processing failed:", e);
-        error.value = "处理消息失败: " + e.message;
+        error.value = "处理消息失败: " + (e as Error).message;
       } finally {
         isLoading.value = false;
         await nextTick();
@@ -410,7 +460,7 @@ export default defineComponent({
       }
     }
 
-    async function runAutoInsights(action) {
+    async function runAutoInsights(action: string) {
       autoInsights.active = true;
       autoInsights.action = action;
       autoInsights.loading = true;
@@ -445,8 +495,7 @@ export default defineComponent({
         }
 
         autoInsights.context = contextData;
-
-        const chunkPayload = contextData.chunks.map((chunk) => ({
+        const chunkPayload = contextData.chunks.map((chunk: ContextChunk) => ({
           id: chunk.id,
           text: chunk.text,
           prefix: chunk.prefix,
@@ -474,13 +523,13 @@ export default defineComponent({
         }
       } catch (err) {
         console.error("Auto insights failed:", err);
-        autoInsights.error = err?.message || "生成失败";
+        autoInsights.error = (err as Error)?.message || "生成失败";
       } finally {
         autoInsights.loading = false;
       }
     }
 
-    async function handleSaveHighlight(messageId) {
+    async function handleSaveHighlight(messageId: string) {
       const message = messages.value.find((m) => m.id === messageId);
       if (!message || message.role !== "assistant") return;
 
@@ -490,7 +539,13 @@ export default defineComponent({
       saveModal.messageId = messageId;
     }
 
-    async function handleModalSave({ note, tags }) {
+    async function handleModalSave({
+      note,
+      tags,
+    }: {
+      note: string;
+      tags: string[];
+    }) {
       const messageId = saveModal.messageId;
       const message = messages.value.find((m) => m.id === messageId);
       if (!message) return;
@@ -529,7 +584,7 @@ export default defineComponent({
         saveModal.messageId = null;
       } catch (e) {
         console.error("Failed to save highlight:", e);
-        error.value = "保存失败: " + e.message;
+        error.value = "保存失败: " + (e as Error).message;
       } finally {
         isSavingHighlight.value = false;
       }
@@ -541,7 +596,7 @@ export default defineComponent({
       saveModal.messageId = null;
     }
 
-    async function handleScrollToCitation(chunkId, snippet = "") {
+    async function handleScrollToCitation(chunkId: string, snippet = "") {
       if (!chunkId || !currentTabId.value) {
         return;
       }
@@ -555,8 +610,10 @@ export default defineComponent({
       }
     }
 
-    async function handleContextToggle(event) {
-      const enabled = Boolean(event?.target?.checked ?? event);
+    async function handleContextToggle(event: Event) {
+      const enabled = Boolean(
+        (event?.target as HTMLInputElement)?.checked ?? event,
+      );
       if (sendContext.value === enabled) {
         return;
       }
@@ -600,14 +657,14 @@ export default defineComponent({
       isComposing.value = false;
     }
 
-    function hasToolInvocationDetails(metadata) {
+    function hasToolInvocationDetails(metadata: Message["metadata"]) {
       return (
         Array.isArray(metadata?.toolCallDetails) &&
         metadata.toolCallDetails.length > 0
       );
     }
 
-    function formatArgumentsForDisplay(value) {
+    function formatArgumentsForDisplay(value: string) {
       if (!value) return "";
       try {
         return JSON.stringify(JSON.parse(value), null, 2);
@@ -616,7 +673,7 @@ export default defineComponent({
       }
     }
 
-    function openToolResponse(message) {
+    function openToolResponse(message: Message) {
       toolResponseViewer.visible = true;
       toolResponseViewer.title = message.metadata?.toolName || "工具响应详情";
       toolResponseViewer.content = message.content || "";
@@ -638,23 +695,26 @@ export default defineComponent({
       toolResponseViewer.invocationDetails = [];
     }
 
-    function openToolInvocationDetails(message) {
+    function openToolInvocationDetails(message: Message) {
       if (!hasToolInvocationDetails(message?.metadata)) return;
-      const details = message.metadata.toolCallDetails.map((detail, index) => ({
-        id: detail.id || `tool-${index + 1}`,
-        name: detail.name || `工具 ${index + 1}`,
-        arguments: formatArgumentsForDisplay(detail.arguments) || "（无参数）",
-      }));
+      const details = message.metadata?.toolCallDetails?.map(
+        (detail, index) => ({
+          id: detail.id || `tool-${index + 1}`,
+          name: detail.name || `工具 ${index + 1}`,
+          arguments:
+            formatArgumentsForDisplay(detail.arguments) || "（无参数）",
+        }),
+      );
       toolResponseViewer.visible = true;
       toolResponseViewer.toolName = "工具调用参数";
       toolResponseViewer.title = "工具调用参数";
       toolResponseViewer.timestamp = message.timestamp || "";
       toolResponseViewer.content = "";
       toolResponseViewer.args = "";
-      toolResponseViewer.invocationDetails = details;
+      toolResponseViewer.invocationDetails = details || [];
     }
 
-    function handleStreamStartEvent(data) {
+    function handleStreamStartEvent(data: MessageStreamData) {
       if (
         !data ||
         data.conversationId !== conversationId.value ||
@@ -681,7 +741,7 @@ export default defineComponent({
       });
     }
 
-    function handleStreamChunkEvent(data) {
+    function handleStreamChunkEvent(data: MessageStreamData) {
       if (
         !data ||
         data.conversationId !== conversationId.value ||
@@ -701,7 +761,7 @@ export default defineComponent({
       });
     }
 
-    function handleStreamCompleteEvent(data) {
+    function handleStreamCompleteEvent(data: MessageStreamData) {
       if (
         !data ||
         data.conversationId !== conversationId.value ||
@@ -711,7 +771,7 @@ export default defineComponent({
         return;
       }
 
-      let finalMessage = data.message;
+      let finalMessage: Message | undefined = data.message;
       if (!finalMessage) {
         finalMessage = {
           id: data.streamId,
@@ -726,14 +786,14 @@ export default defineComponent({
           },
         };
       }
-      const mergedMetadata = {
+      const mergedMetadata: Record<string, any> = {
         ...(finalMessage.metadata || {}),
         streaming: false,
       };
       const reasoningText =
         data.reasoning ||
-        data.metadata?.reasoning ||
-        mergedMetadata.reasoning ||
+        (data.metadata?.reasoning as string) ||
+        (mergedMetadata?.reasoning as string) ||
         activeStream.reasoning ||
         "";
       if (reasoningText) {
@@ -778,7 +838,7 @@ export default defineComponent({
       checkContext();
     }
 
-    function handleStreamErrorEvent(data) {
+    function handleStreamErrorEvent(data: MessageStreamData) {
       if (
         !data ||
         data.conversationId !== conversationId.value ||
@@ -803,7 +863,7 @@ export default defineComponent({
       closeAutoInsights();
     }
 
-    function showChat(selectedConv = null) {
+    function showChat(selectedConv: Conversation | null = null) {
       view.value = "chat";
       resetActiveStream();
       if (selectedConv) {
@@ -820,7 +880,7 @@ export default defineComponent({
       }
     }
 
-    async function handleKeydown(e) {
+    async function handleKeydown(e: KeyboardEvent) {
       if (isComposing.value) {
         return;
       }
@@ -830,12 +890,13 @@ export default defineComponent({
       }
     }
 
-    function handleInputChange(event) {
-      userInput.value = event.target.value;
+    function handleInputChange(event: Event) {
+      const target = event.target as HTMLInputElement;
+      userInput.value = target.value;
     }
 
-    function handleMessageClick(event) {
-      const anchor = event.target.closest("a");
+    function handleMessageClick(event: MouseEvent) {
+      const anchor = (event.target as HTMLElement).closest("a");
       if (!anchor) {
         return;
       }
@@ -853,7 +914,7 @@ export default defineComponent({
       await initialize();
 
       // Listen for real-time message updates (tool calls, tool responses)
-      runtimeListener = (message) => {
+      runtimeListener = (message: SidePanelCommunicationMessage) => {
         // Handle auto-action messages (e.g., from context menu)
         if (
           message.type === "myz:openSidePanelWithAction" &&

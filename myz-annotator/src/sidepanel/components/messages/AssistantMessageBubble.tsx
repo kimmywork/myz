@@ -3,28 +3,35 @@ import { renderMarkdown } from "../../../shared/markdownRenderer.js";
 import ToolInlineNotice from "./ToolInlineNotice.jsx";
 import { resolveToolNames } from "./messageUtils.js";
 
+export interface AssistantMessageMetadata {
+  hasToolCalls?: boolean;
+  toolCallDetails?: Array<any>;
+  reasoning?: string;
+  streamingError?: string;
+  streaming?: boolean;
+  toolNames?: string[] | string;
+  toolCallCount?: number;
+}
+
+export interface AssistantMessage {
+  id: string;
+  content: string;
+  timestamp: string;
+  metadata?: AssistantMessageMetadata;
+}
+
+export interface AssistantMessageBubbleProps {
+  message: AssistantMessage;
+  onSave: (messageId: string) => void;
+  onToolDetails: (message: any) => void;
+  isSaving?: boolean;
+}
+
 export default defineComponent({
   name: "AssistantMessageBubble",
-  props: {
-    message: {
-      type: Object,
-      required: true,
-    },
-    onSave: {
-      type: Function,
-      required: true,
-    },
-    onToolDetails: {
-      type: Function,
-      required: true,
-    },
-    isSaving: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  setup(props) {
-    const hasToolCalls = (message) => Boolean(message?.metadata?.hasToolCalls);
+  setup(props: AssistantMessageBubbleProps) {
+    const hasToolCalls = (message: AssistantMessage) =>
+      Boolean(message?.metadata?.hasToolCalls);
     const showReasoning = ref(false);
     const reasoningText = computed(() =>
       (props.message.metadata?.reasoning || "").trim(),

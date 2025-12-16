@@ -1,30 +1,16 @@
 import { defineComponent } from "vue";
 
+interface PageContextCardProps {
+  title?: string;
+  url?: string;
+  sendContext: boolean;
+  disabled?: boolean;
+  onToggle: (event: Event) => void;
+}
+
 export default defineComponent({
   name: "PageContextCard",
-  props: {
-    title: {
-      type: String,
-      default: "",
-    },
-    url: {
-      type: String,
-      default: "",
-    },
-    sendContext: {
-      type: Boolean,
-      default: true,
-    },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
-    onToggle: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: PageContextCardProps) {
     return () => (
       <section class="mt-4 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
         <div class="text-base font-semibold text-slate-900 dark:text-white">

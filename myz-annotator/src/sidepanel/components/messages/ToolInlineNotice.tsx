@@ -1,30 +1,16 @@
 import { defineComponent } from "vue";
 
+export interface ToolInlineNoticeProps {
+  text?: string;
+  timestamp?: string;
+  onDetails?: () => void;
+  showButton?: boolean;
+  size?: "sm" | "lg";
+}
+
 export default defineComponent({
   name: "ToolInlineNotice",
-  props: {
-    text: {
-      type: String,
-      default: "",
-    },
-    timestamp: {
-      type: String,
-      default: "",
-    },
-    onDetails: {
-      type: Function,
-      default: null,
-    },
-    showButton: {
-      type: Boolean,
-      default: false,
-    },
-    size: {
-      type: String,
-      default: "sm",
-    },
-  },
-  setup(props) {
+  setup(props: ToolInlineNoticeProps) {
     const base =
       "flex w-full flex-wrap items-center gap-2 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 text-indigo-700 dark:border-indigo-400/40 dark:bg-indigo-500/10 dark:text-indigo-200";
 

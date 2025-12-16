@@ -1,18 +1,24 @@
 import { defineComponent } from "vue";
+import { ToolInvocationDetails } from "./ConversationList";
+
+export interface ToolResponseViewerState {
+    visible: boolean;
+    title: string;
+    toolName: string;
+    timestamp?: string;
+    args?: string;
+    content?: string;
+    invocationDetails: ToolInvocationDetails[];
+  }
+
+interface ToolResponseModalProps {
+  viewer: ToolResponseViewerState;
+  onClose: () => void;
+};
 
 export default defineComponent({
   name: "ToolResponseModal",
-  props: {
-    viewer: {
-      type: Object,
-      required: true,
-    },
-    onClose: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: ToolResponseModalProps) {
     return () =>
       props.viewer.visible ? (
         <div

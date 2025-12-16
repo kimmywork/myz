@@ -1,15 +1,15 @@
 import { computed, defineComponent, ref } from "vue";
 import { renderMarkdown } from "../../../shared/markdownRenderer.js";
+import { MessageStream } from "src/sidepanel/App.jsx";
+
+interface StreamingMessageProps {
+  stream: MessageStream;
+}
+
 
 export default defineComponent({
   name: "StreamingMessage",
-  props: {
-    stream: {
-      type: Object,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: StreamingMessageProps) {
     const showReasoning = ref(false);
     const reasoningText = computed(() => (props.stream.reasoning || "").trim());
     const hasReasoning = computed(() => Boolean(reasoningText.value));

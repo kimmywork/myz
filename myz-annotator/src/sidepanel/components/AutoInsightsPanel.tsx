@@ -1,32 +1,36 @@
 import { defineComponent, computed } from "vue";
 import { renderMarkdown } from "../../shared/markdownRenderer.js";
 
-const ACTION_LABELS = {
+const ACTION_LABELS: Record<string, string> = {
   summarize: "总结页面内容",
   key_points: "发现关键要点",
 };
 
+export interface AutoInsightsState {
+    action: string;
+    active: boolean;
+    loading: boolean;
+    error: string | null;
+    markdown: string | null;
+    context: {
+      chunkCount?: number;
+      wordCount?: number;
+      truncated?: boolean;
+    } | null;
+    chunkGroups: number;
+    generatedAt: string | null;
+  };
+
+interface AutoInsightsPanelProps {
+  state: AutoInsightsState;
+  onClose: () => void;
+  onRetry: () => void;
+  onScrollToCitation: (chunkId: string, snippet: string) => void;
+}
+
 export default defineComponent({
   name: "AutoInsightsPanel",
-  props: {
-    state: {
-      type: Object,
-      required: true,
-    },
-    onClose: {
-      type: Function,
-      required: true,
-    },
-    onRetry: {
-      type: Function,
-      required: true,
-    },
-    onScrollToCitation: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: AutoInsightsPanelProps) {
     const actionLabel = computed(
       () => ACTION_LABELS[props.state.action] || "自动分析",
     );
@@ -52,8 +56,8 @@ export default defineComponent({
       return parts.join(" · ");
     }
 
-    function handleMarkdownClick(event) {
-      const anchor = event.target.closest("a");
+    function handleMarkdownClick(event: MouseEvent) {
+      const anchor = (event.target as HTMLElement).closest("a");
       if (!anchor) {
         return;
       }

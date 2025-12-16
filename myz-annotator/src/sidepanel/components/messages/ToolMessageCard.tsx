@@ -1,6 +1,6 @@
 import { defineComponent } from "vue";
 
-function getToolPreviewText(content) {
+function getToolPreviewText(content: string): string {
   if (!content) return "（无输出，点击查看详情）";
   const singleLine = content.replace(/\s+/g, " ").trim();
   if (!singleLine) return "（无输出，点击查看详情）";
@@ -10,19 +10,24 @@ function getToolPreviewText(content) {
   return singleLine.slice(0, 77) + "...";
 }
 
+interface ToolMessage {
+  id: string;
+  content: string;
+  timestamp: string;
+  metadata?: {
+    toolName?: string;
+    [key: string]: any;
+  };
+}
+
+interface ToolMessageCardProps {
+  message: ToolMessage;
+  onView: (message: any) => void;
+}
+
 export default defineComponent({
   name: "ToolMessageCard",
-  props: {
-    message: {
-      type: Object,
-      required: true,
-    },
-    onView: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: ToolMessageCardProps) {
     return () => (
       <div class="flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <div class="flex flex-1 items-center gap-2 text-sm">
