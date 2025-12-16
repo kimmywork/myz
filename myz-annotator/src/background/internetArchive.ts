@@ -39,13 +39,13 @@ export interface ArchiveEntry {
   } | null;
 }
 
-interface ArchiveState {
+export interface ArchiveState {
   archives: Record<string, ArchiveEntry>;
   archiveQueue: ArchiveQueueEntry[];
   archiveHistory: ArchiveHistoryEntry[];
 }
 
-interface ArchiveQueueEntry {
+export interface ArchiveQueueEntry {
   id: string;
   url: string;
   requestedAt: string;
@@ -54,7 +54,7 @@ interface ArchiveQueueEntry {
   force: boolean;
 }
 
-interface ArchiveHistoryEntry {
+export interface ArchiveHistoryEntry {
   id: string;
   url: string;
   action: string;

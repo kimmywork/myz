@@ -1,5 +1,5 @@
-export async function sendMessage<Type, Payload, Result = any>(
-  type: Type,
+export async function sendMessage<Payload, Result = any>(
+  type: string,
   payload?: Payload,
 ): Promise<Result> {
   return new Promise((resolve, reject) => {

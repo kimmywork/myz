@@ -1,3 +1,5 @@
+import { SerializedRange } from "./serializer";
+
 export interface MyZRecord {
   id: string;
   kind: RECORD_KINDS;
@@ -12,6 +14,7 @@ export interface MyZRecord {
   sourceUrl?: string;
   title?: string;
   hostname?: string;
+  range?: SerializedRange;
   [key: string]: any;
 }
 

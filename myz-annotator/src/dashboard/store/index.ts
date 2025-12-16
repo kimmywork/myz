@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch } from "vue";
+import { computed, reactive, Ref, ref, watch } from "vue";
 import { IMPORT_MAX_BYTES, PAGINATION_BATCH } from "../constants.js";
 import {
   computeRecordStats,
@@ -16,14 +16,27 @@ import { downloadFile } from "../utils/download.js";
 import { normalizeImportedPayload } from "../utils/import.js";
 import {
   DEFAULT_COLOR,
+  MyZRecord,
   RECORD_KINDS,
   getRecordKind,
 } from "../../shared/types.js";
+import { ArchiveHistoryEntry, ArchiveQueueEntry } from "src/background/internetArchive.js";
 
 export const DashboardStoreKey = Symbol("DashboardStore");
 
-const ARCHIVE_ACTION_LABELS = {
-  queue: "加入队列",
+enum ArchiveActions {
+  "queue" = "queue",
+  "queue:start" = "queue:start",
+  "cdx-check" = "cdx-check",
+  "save-request" = "save-request",
+  "cdx-poll" = "cdx-poll",
+  "queue:complete" = "queue:complete",
+  "queue:pending" = "queue:pending",
+  "queue:error" = "queue:error",
+}
+
+const ARCHIVE_ACTION_LABELS: Record<ArchiveActions, string> = {
+  "queue": "加入队列",
   "queue:start": "开始处理",
   "cdx-check": "查询存档",
   "save-request": "提交保存请求",
@@ -33,20 +46,69 @@ const ARCHIVE_ACTION_LABELS = {
   "queue:error": "处理失败",
 };
 
+export interface Settings {
+  logseqEndpoint: string;
+  logseqPage: string;
+  logseqAuthToken: string;
+  logseqGraph: string;
+  logseqSyncEnabled: boolean;
+  dashboardView: "cards" | "list";
+  internetArchiveEnabled: boolean;
+  internetArchiveAccessKey: string;
+  internetArchiveAccessSecret: string;
+  // AI Assistant settings
+  aiAssistantEnabled: boolean;
+  aiApiEndpoint: string;
+  aiApiKey: string;
+  aiModel: string;
+  aiCustomModel: string;
+  aiContextSize: string;
+  aiMaxTokens: number;
+  aiRequestHeaders: string;
+  aiProviders: Array<{ id: string; name: string; endpoint: string }>;
+  aiActiveProviderId: string | null;
+  aiMcpServers: Array<{ name: string; endpoint: string }>;
+  vectorSearchEnabled: boolean;
+  vectorModelReady: boolean;
+  vectorUseLocalModel: boolean | "remote";
+  vectorOpenAiEndpoint: string;
+  vectorOpenAiApiKey: string;
+  vectorOpenAiModel: string;
+  vectorMaxChars: number;
+}
+
+export interface SearchFilters {
+  search: string;
+  site: string;
+  tags: string[];
+  from: string;
+  to: string;
+}
+
+export interface ModalState {
+  recordId: string;
+  mode: "view" | "edit";
+  note: string;
+  tags: string[];
+  color: string;
+  status: string;
+  saving: boolean;
+}
+
 export function createDashboardStore() {
-  const highlights = ref([]);
+  const highlights: Ref<MyZRecord[]> = ref([]);
   const loadingHighlights = ref(true);
-  const filters = reactive({
+  const filters: SearchFilters = reactive({
     search: "",
     site: "",
     tags: [],
     from: "",
     to: "",
   });
-  const view = ref("cards");
-  const panel = ref("highlights");
+  const view: Ref<"cards" | "list"> = ref("cards");
+  const panel: Ref<"settings" | "highlights"> = ref("highlights");
   const renderedCount = ref(0);
-  const settings = reactive({
+  const settings: Settings = reactive({
     logseqEndpoint: "",
     logseqPage: "MyZ Inbox",
     logseqAuthToken: "",
@@ -80,15 +142,15 @@ export function createDashboardStore() {
   const settingsStatus = ref("");
   const importStatus = reactive({ message: "", tone: "info" });
   const isSyncInFlight = ref(false);
-  const archiveQueue = ref([]);
-  const archiveHistory = ref([]);
+  const archiveQueue: Ref<ArchiveQueueEntry[]> = ref([]);
+  const archiveHistory: Ref<ArchiveHistoryEntry[]> = ref([]);
   const archiveMetaLoading = ref(false);
   const archiveMetaStatus = ref("");
   const archiveMetaInitialized = ref(false);
   const vectorModelLoading = ref(false);
   const vectorModelStatus = ref("");
 
-  const modalState = reactive({
+  const modalState: ModalState = reactive({
     recordId: "",
     mode: "view",
     note: "",
@@ -216,19 +278,19 @@ export function createDashboardStore() {
 
   const availableSites = computed(() => {
     return [
-      ...new Set(highlights.value.map((item) => item.hostname).filter(Boolean)),
+      ...new Set(highlights.value.map((item) => item.hostname).filter(Boolean) as string[]),
     ].sort((a, b) => a.localeCompare(b));
   });
 
   const availableTags = computed(() => {
-    const set = new Set();
+    const set = new Set<string>();
     highlights.value.forEach((item) => {
       (item.tags || []).forEach((tag) => set.add(tag));
     });
     return [...set].sort((a, b) => a.localeCompare(b));
   });
 
-  function setTimedStatus(target, message, duration = 3000) {
+  function setTimedStatus(target: Ref<string | null>, message: string, duration = 3000) {
     target.value = message;
     if (timers.has(target)) {
       clearTimeout(timers.get(target));
@@ -242,7 +304,7 @@ export function createDashboardStore() {
     }
   }
 
-  function setTimedImportStatus(message, tone = "info", duration = 3000) {
+  function setTimedImportStatus(message: string, tone = "info", duration = 3000) {
     importStatus.message = message;
     importStatus.tone = tone;
     if (timers.has(importStatus)) {
@@ -258,7 +320,7 @@ export function createDashboardStore() {
     }
   }
 
-  function updateRenderedCount({ preserve } = {}) {
+  function updateRenderedCount({ preserve }: { preserve?: boolean } = {}) {
     if (preserve) {
       renderedCount.value = Math.min(
         renderedCount.value || PAGINATION_BATCH,
@@ -303,7 +365,7 @@ export function createDashboardStore() {
 
   async function loadSettings() {
     try {
-      const result = await sendMessage("myz:getSettings");
+      const result: Settings = await sendMessage("myz:getSettings");
       if (!result) {
         return;
       }
@@ -381,7 +443,7 @@ export function createDashboardStore() {
       archiveMetaInitialized.value = true;
       archiveMetaStatus.value = "";
     } catch (error) {
-      archiveMetaStatus.value = `加载失败：${error.message}`;
+      archiveMetaStatus.value = `加载失败：${(error as Error).message}`;
       throw error;
     } finally {
       archiveMetaLoading.value = false;
@@ -392,7 +454,7 @@ export function createDashboardStore() {
     await loadArchiveActivity({ force: true });
   }
 
-  function describeArchiveAction(action) {
+  function describeArchiveAction(action: ArchiveActions) {
     if (!action) {
       return "未知操作";
     }
@@ -403,11 +465,11 @@ export function createDashboardStore() {
     await Promise.all([loadSettings(), loadHighlights()]);
   }
 
-  function setFilter(key, value) {
+  function setFilter(key: keyof SearchFilters, value: string | string[]) {
     if (key === "tags") {
       filters.tags = Array.isArray(value) ? value : [];
     } else if (key in filters) {
-      filters[key] = value;
+      filters[key] = value as string;
     }
     updateRenderedCount();
   }
@@ -421,7 +483,7 @@ export function createDashboardStore() {
     updateRenderedCount();
   }
 
-  async function persistDashboardView(nextView) {
+  async function persistDashboardView(nextView: "cards" | "list") {
     try {
       await sendMessage("myz:updateSettings", { dashboardView: nextView });
     } catch (error) {
@@ -429,7 +491,7 @@ export function createDashboardStore() {
     }
   }
 
-  function setView(nextView, { persist = true } = {}) {
+  function setView(nextView: "cards" | "list", { persist = true } = {}) {
     if (!nextView || view.value === nextView) {
       return;
     }
@@ -447,7 +509,7 @@ export function createDashboardStore() {
     panel.value = "highlights";
   }
 
-  async function copyHighlight(id) {
+  async function copyHighlight(id: string) {
     const record = highlights.value.find((item) => item.id === id);
     if (!record) {
       return;
@@ -462,18 +524,18 @@ export function createDashboardStore() {
     }
   }
 
-  async function deleteHighlight(id) {
+  async function deleteHighlight(id: string) {
     try {
       await sendMessage("myz:removeHighlight", { id });
       highlights.value = highlights.value.filter((item) => item.id !== id);
       updateRenderedCount({ preserve: true });
     } catch (error) {
       console.error("删除失败", error);
-      setTimedStatus(logseqStatus, `删除失败：${error.message}`);
+      setTimedStatus(logseqStatus, `删除失败：${(error as Error).message}`);
     }
   }
 
-  async function downgradeHighlight(id) {
+  async function downgradeHighlight(id: string) {
     const record = highlights.value.find((item) => item.id === id);
     if (!record || getRecordKind(record) === RECORD_KINDS.CLIP) {
       return;
@@ -491,11 +553,11 @@ export function createDashboardStore() {
       }
     } catch (error) {
       console.error("降级失败", error);
-      setTimedStatus(logseqStatus, `降级失败：${error.message}`);
+      setTimedStatus(logseqStatus, `降级失败：${(error as Error).message}`);
     }
   }
 
-  function applyUpdatedRecord(updated, { preserve = false } = {}) {
+  function applyUpdatedRecord(updated: MyZRecord, { preserve = false } = {}) {
     const normalized = normalizeRecord(updated);
     if (!normalized) {
       return;
@@ -514,7 +576,7 @@ export function createDashboardStore() {
     updateRenderedCount({ preserve });
   }
 
-  function openModal(id, mode) {
+  function openModal(id: string, mode: "view" | "edit") {
     const record = highlights.value.find((item) => item.id === id);
     if (!record) {
       return;
@@ -545,7 +607,7 @@ export function createDashboardStore() {
       return;
     }
     const kind = getRecordKind(record);
-    const payload = {
+    const payload: Partial<MyZRecord> = {
       id: modalState.recordId,
       note: modalState.note.trim(),
       tags: [...modalState.tags],
@@ -554,8 +616,8 @@ export function createDashboardStore() {
     if (kind === RECORD_KINDS.HIGHLIGHT) {
       payload.color = modalState.color || DEFAULT_COLOR;
     } else {
-      payload.color = null;
-      payload.range = null;
+      payload.color = undefined;
+      payload.range = undefined;
     }
     modalState.saving = true;
     modalState.status = "保存中…";
@@ -567,13 +629,13 @@ export function createDashboardStore() {
         closeModal();
       }, 600);
     } catch (error) {
-      modalState.status = `保存失败：${error.message}`;
+      modalState.status = `保存失败：${(error as Error).message}`;
     } finally {
       modalState.saving = false;
     }
   }
 
-  async function handleExport(format) {
+  async function handleExport(format: "markdown" | "json") {
     try {
       const result = await sendMessage("myz:export");
       if (!result) {
@@ -594,11 +656,11 @@ export function createDashboardStore() {
       }
     } catch (error) {
       console.error("导出失败", error);
-      setTimedStatus(logseqStatus, `导出失败：${error.message}`);
+      setTimedStatus(logseqStatus, `导出失败：${(error as Error).message}`);
     }
   }
 
-  async function syncLogseq(customPayload = {}) {
+  async function syncLogseq(customPayload: Partial<MyZRecord> = {}) {
     if (!settings.logseqSyncEnabled) {
       setTimedStatus(logseqStatus, "请先在设置中启用同步", 3000);
       return;
@@ -638,25 +700,25 @@ export function createDashboardStore() {
       await refreshHighlights({ preserveProgress: true });
     } catch (error) {
       console.error("同步失败", error);
-      setTimedStatus(logseqStatus, `同步失败：${error.message}`, 4000);
+      setTimedStatus(logseqStatus, `同步失败：${(error as Error).message}`, 4000);
     } finally {
       isSyncInFlight.value = false;
     }
   }
 
-  async function toggleSync(enabled) {
+  async function toggleSync(enabled: boolean) {
     settings.logseqSyncEnabled = enabled;
     try {
       await sendMessage("myz:updateSettings", { logseqSyncEnabled: enabled });
     } catch (error) {
       console.error("Failed to update sync toggle", error);
       settings.logseqSyncEnabled = !enabled;
-      setTimedStatus(settingsStatus, `更新失败：${error.message}`);
+      setTimedStatus(settingsStatus, `更新失败：${(error as Error).message}`);
       throw error;
     }
   }
 
-  async function toggleInternetArchive(enabled) {
+  async function toggleInternetArchive(enabled: boolean) {
     settings.internetArchiveEnabled = enabled;
     try {
       await sendMessage("myz:updateSettings", {
@@ -665,15 +727,15 @@ export function createDashboardStore() {
     } catch (error) {
       console.error("Failed to update archive toggle", error);
       settings.internetArchiveEnabled = !enabled;
-      setTimedStatus(settingsStatus, `更新失败：${error.message}`);
+      setTimedStatus(settingsStatus, `更新失败：${(error as Error).message}`);
       throw error;
     }
   }
 
-  async function saveSettings(payload) {
+  async function saveSettings(payload: Partial<Settings>) {
     settingsStatus.value = "保存中…";
     try {
-      const updated = await sendMessage("myz:updateSettings", payload);
+      const updated = await sendMessage<Partial<Settings>, Partial<Settings>>("myz:updateSettings", payload);
       if (updated) {
         Object.assign(settings, {
           ...settings,
@@ -726,12 +788,12 @@ export function createDashboardStore() {
         settingsStatus.value = "";
       }, 3000);
     } catch (error) {
-      settingsStatus.value = `保存失败：${error.message}`;
+      settingsStatus.value = `保存失败：${(error as Error).message}`;
       throw error;
     }
   }
 
-  async function importHighlightsFromFile(file, strategy) {
+  async function importHighlightsFromFile(file: File, strategy: string) {
     if (!file) {
       setTimedImportStatus("请先选择 JSON 文件", "error");
       return;
@@ -788,7 +850,7 @@ export function createDashboardStore() {
     await refreshHighlights({ preserveProgress: true });
   }
 
-  async function testAiConnection(settings) {
+  async function testAiConnection(settings: Partial<Settings>) {
     try {
       setTimedStatus(settingsStatus, "测试 AI 连接中…", 0);
       const result = await sendMessage("myz:testAiConnection", settings);
@@ -803,12 +865,12 @@ export function createDashboardStore() {
       }
       return result;
     } catch (error) {
-      setTimedStatus(settingsStatus, `✗ 测试失败：${error.message}`, 4000);
+      setTimedStatus(settingsStatus, `✗ 测试失败：${(error as Error).message}`, 4000);
       throw error;
     }
   }
 
-  async function toggleVectorSearch(enabled) {
+  async function toggleVectorSearch(enabled: boolean) {
     settings.vectorSearchEnabled = enabled;
     if (!enabled) {
       settings.vectorModelReady = false;
@@ -819,7 +881,7 @@ export function createDashboardStore() {
     };
     try {
       setTimedStatus(settingsStatus, "保存中…", 0);
-      const updated = await sendMessage("myz:updateSettings", payload);
+      const updated = await sendMessage<Partial<Settings>, Partial<Settings>>("myz:updateSettings", payload);
       if (updated) {
         settings.vectorSearchEnabled = Boolean(updated.vectorSearchEnabled);
         settings.vectorModelReady = Boolean(updated.vectorModelReady);
@@ -827,7 +889,7 @@ export function createDashboardStore() {
       setTimedStatus(settingsStatus, "设置已保存", 2000);
     } catch (error) {
       settings.vectorSearchEnabled = !enabled;
-      setTimedStatus(settingsStatus, `更新失败：${error.message}`, 4000);
+      setTimedStatus(settingsStatus, `更新失败：${(error as Error).message}`, 4000);
       throw error;
     }
   }
@@ -850,14 +912,14 @@ export function createDashboardStore() {
       return result;
     } catch (error) {
       settings.vectorModelReady = false;
-      setTimedStatus(vectorModelStatus, `加载失败：${error.message}`, 4000);
+      setTimedStatus(vectorModelStatus, `加载失败：${(error as Error).message}`, 4000);
       throw error;
     } finally {
       vectorModelLoading.value = false;
     }
   }
 
-  async function testVectorProvider(config) {
+  async function testVectorProvider(config: Partial<Settings>) {
     try {
       setTimedStatus(vectorModelStatus, "测试中…", 0);
       const result = await sendMessage("myz:testVectorProvider", config);
@@ -868,7 +930,7 @@ export function createDashboardStore() {
       }
       return result;
     } catch (error) {
-      setTimedStatus(vectorModelStatus, `测试失败：${error.message}`, 4000);
+      setTimedStatus(vectorModelStatus, `测试失败：${(error as Error).message}`, 4000);
       throw error;
     }
   }
@@ -879,7 +941,7 @@ export function createDashboardStore() {
       await sendMessage("myz:rebuildVectorIndex");
       setTimedStatus(vectorModelStatus, "索引已重建", 4000);
     } catch (error) {
-      setTimedStatus(vectorModelStatus, `重建失败：${error.message}`, 4000);
+      setTimedStatus(vectorModelStatus, `重建失败：${(error as Error).message}`, 4000);
       throw error;
     }
   }
@@ -933,10 +995,10 @@ export function createDashboardStore() {
     openModal,
     closeModal,
     saveModal,
-    renderHighlight: (record) =>
+    renderHighlight: (record: MyZRecord) =>
       renderHighlightContent(record, searchTerms.value),
-    formatNote: (value) => formatNote(value, searchTerms.value),
-    formatInline: (value) => formatInline(value, searchTerms.value),
+    formatNote: (value: string) => formatNote(value, searchTerms.value),
+    formatInline: (value: string) => formatInline(value, searchTerms.value),
     formatDateTime,
     getRecordKind,
     archiveQueue,
@@ -957,7 +1019,7 @@ export function createDashboardStore() {
     rebuildVectorIndex,
     toggleVectorSearch,
     loadVectorModel,
-    switchVectorProvider: async (payload) => {
+    switchVectorProvider: async (payload: Partial<Settings>) => {
       // Save config first
       await saveSettings(payload);
       if (payload.vectorUseLocalModel) {
