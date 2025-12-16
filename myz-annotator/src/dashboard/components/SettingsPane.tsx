@@ -1,4 +1,4 @@
-import { computed, defineComponent, reactive, ref, watch } from "vue";
+import { computed, defineComponent, reactive, Ref, ref, watch } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import AiSettings from "./AiSettings.jsx";
 import LogseqSyncSection from "./settings/LogseqSyncSection.jsx";
@@ -7,6 +7,7 @@ import InternetArchiveSection from "./settings/InternetArchiveSection.jsx";
 import ArchiveQueueSection from "./settings/ArchiveQueueSection.jsx";
 import ArchiveHistorySection from "./settings/ArchiveHistorySection.jsx";
 import VectorSearchSection from "./settings/VectorSearchSection.jsx";
+import { ImportStrategy, Settings } from "../store/index.js";
 
 export default defineComponent({
   name: "SettingsPane",
@@ -26,8 +27,8 @@ export default defineComponent({
       internetArchiveAccessKey: "",
       internetArchiveAccessSecret: "",
     });
-    const importFileRef = ref(null);
-    const importStrategy = ref("skip");
+    const importFileRef: Ref<HTMLInputElement | null> = ref(null);
+    const importStrategy: Ref<ImportStrategy> = ref("skip");
     const isImporting = ref(false);
     const archiveLoaded = ref(false);
     const archiveLoading = computed(() => store.archiveMetaLoading.value);
@@ -60,13 +61,13 @@ export default defineComponent({
       { immediate: true, deep: true },
     );
 
-    async function handleSyncToggle(event) {
-      const enabled = event.target.checked;
+    async function handleSyncToggle(event: Event) {
+      const enabled = (event.target as HTMLInputElement).checked;
       try {
         await store.toggleSync(enabled);
       } catch (error) {
         // toggleSync already reverts on failure; keep checkbox in sync
-        event.target.checked = store.settings.logseqSyncEnabled;
+         (event.target as HTMLInputElement).checked = store.settings.logseqSyncEnabled;
       }
     }
 
@@ -84,12 +85,12 @@ export default defineComponent({
       }
     }
 
-    async function handleArchiveToggle(event) {
-      const enabled = event.target.checked;
+    async function handleArchiveToggle(event: Event) {
+      const enabled =  (event.target as HTMLInputElement).checked;
       try {
         await store.toggleInternetArchive(enabled);
       } catch (error) {
-        event.target.checked = store.settings.internetArchiveEnabled;
+        (event.target as HTMLInputElement).checked = store.settings.internetArchiveEnabled;
       }
     }
 
@@ -122,63 +123,6 @@ export default defineComponent({
       await ensureArchiveActivity({ force: true });
     }
 
-    function queueStatusTone(entry) {
-      const status = (entry?.status || "queued").toLowerCase();
-      if (status.includes("error") || status.includes("fail")) {
-        return "error";
-      }
-      if (status.includes("complete") || status.includes("done")) {
-        return "success";
-      }
-      if (status.includes("pending") || status.includes("processing")) {
-        return "info";
-      }
-      return "info";
-    }
-
-    function queueStatusLabel(entry) {
-      const status = (entry?.status || "queued").toLowerCase();
-      if (status.includes("error") || status.includes("fail")) {
-        return "失败";
-      }
-      if (status.includes("complete") || status.includes("done")) {
-        return "完成";
-      }
-      if (status.includes("pending")) {
-        return "等待存档";
-      }
-      if (status.includes("processing")) {
-        return "处理中";
-      }
-      return "排队中";
-    }
-
-    function historyStatusTone(entry) {
-      if (!entry) {
-        return "info";
-      }
-      if (entry.status === "error" || entry.success === false) {
-        return "error";
-      }
-      if (entry.status === "success" || entry.success === true) {
-        return "success";
-      }
-      return "info";
-    }
-
-    function historyStatusLabel(entry) {
-      if (!entry) {
-        return "记录";
-      }
-      if (entry.status === "success" || entry.success === true) {
-        return "成功";
-      }
-      if (entry.status === "error" || entry.success === false) {
-        return "失败";
-      }
-      return "记录";
-    }
-
     async function handleImport() {
       const fileInput = importFileRef.value;
       const file = fileInput?.files?.[0];
@@ -196,7 +140,7 @@ export default defineComponent({
     }
 
     // AI Settings handlers
-    async function handleAiSaveSettings(payload) {
+    async function handleAiSaveSettings(payload: Partial<Settings>) {
       try {
         store.settingsStatus.value = "保存中...";
         await store.saveSettings(payload);
@@ -205,12 +149,12 @@ export default defineComponent({
           store.settingsStatus.value = "";
         }, 3000);
       } catch (error) {
-        store.settingsStatus.value = `保存失败：${error.message}`;
+        store.settingsStatus.value = `保存失败：${(error as Error).message}`;
         throw error;
       }
     }
 
-    async function handleAiTestConnection(settings) {
+    async function handleAiTestConnection(settings: Partial<Settings>) {
       return await store.testAiConnection(settings);
     }
 
@@ -218,7 +162,7 @@ export default defineComponent({
       store.showHighlights();
     }
 
-    async function handleVectorToggle(enabled) {
+    async function handleVectorToggle(enabled: boolean) {
       await store.toggleVectorSearch(enabled);
     }
 
@@ -230,15 +174,15 @@ export default defineComponent({
       await store.rebuildVectorIndex();
     }
 
-    async function handleVectorTest(payload) {
+    async function handleVectorTest(payload: Partial<Settings>) {
       await store.testVectorProvider(payload);
     }
 
-    async function handleVectorSave(payload) {
+    async function handleVectorSave(payload: Partial<Settings>) {
       await store.saveSettings(payload);
     }
 
-    async function handleVectorSwitch(payload) {
+    async function handleVectorSwitch(payload: Partial<Settings>) {
       await store.switchVectorProvider(payload);
     }
 
@@ -303,7 +247,7 @@ export default defineComponent({
             onSave={handleAiSaveSettings}
             onTestConnection={handleAiTestConnection}
             status={store.settingsStatus.value}
-            onUpdateStatus={(value) => (store.settingsStatus.value = value)}
+            onUpdateStatus={(value: any) => (store.settingsStatus.value = value as string)}
           />
 
           <VectorSearchSection
@@ -332,9 +276,6 @@ export default defineComponent({
             loading={archiveLoading.value}
             status={archiveStatus.value}
             onRefresh={handleRefreshArchive}
-            queueStatusTone={queueStatusTone}
-            queueStatusLabel={queueStatusLabel}
-            formatDateTime={store.formatDateTime}
           />
 
           <ArchiveHistorySection
@@ -345,10 +286,6 @@ export default defineComponent({
                 ? `显示最近 ${archiveHistoryEntries.value.length} 条记录`
                 : ""
             }
-            describeAction={store.describeArchiveAction}
-            historyStatusTone={historyStatusTone}
-            historyStatusLabel={historyStatusLabel}
-            formatDateTime={store.formatDateTime}
           />
         </div>
       </section>

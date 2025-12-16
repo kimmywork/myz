@@ -1,16 +1,13 @@
 import { computed, defineComponent, ref } from "vue";
-import { RECORD_KINDS, getRecordKind } from "../../shared/types.js";
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "../../shared/types.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
+import { HighlightItemAction } from "./HighlightCard.jsx";
+
+
 
 export default defineComponent({
   name: "HighlightListRow",
-  props: {
-    record: {
-      type: Object,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: { record: MyZRecord }) {
     const store = useDashboardStore();
     const kind = computed(() => getRecordKind(props.record));
     const hasNote = computed(() => Boolean(props.record?.note));
@@ -39,7 +36,7 @@ export default defineComponent({
       return record.archiveSnapshotUrl || record.archiveUrl || "";
     });
 
-    function handleAction(action) {
+    function handleAction(action: HighlightItemAction) {
       const id = props.record?.id;
       if (!id) {
         return;
@@ -145,7 +142,7 @@ export default defineComponent({
                   ></div>
                   <div
                     class="max-h-32 overflow-y-auto break-all rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 dark:text-slate-200"
-                    innerHTML={store.formatNote(record.note)}
+                    innerHTML={store.formatNote(record.note ?? "")}
                   ></div>
                 </div>
               ) : (
@@ -181,21 +178,21 @@ export default defineComponent({
               <button
                 class="whitespace-nowrap text-left text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                 type="button"
-                onClick={() => handleAction("view")}
+                onClick={() => handleAction(HighlightItemAction.view)}
               >
                 查看
               </button>
               <button
                 class="whitespace-nowrap text-left text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                 type="button"
-                onClick={() => handleAction("edit")}
+                onClick={() => handleAction(HighlightItemAction.edit)}
               >
                 编辑
               </button>
               <button
                 class="whitespace-nowrap text-left text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                 type="button"
-                onClick={() => handleAction("copy")}
+                onClick={() => handleAction(HighlightItemAction.copy)}
               >
                 复制
               </button>
@@ -203,7 +200,7 @@ export default defineComponent({
                 <button
                   class="whitespace-nowrap text-left text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                   type="button"
-                  onClick={() => handleAction("downgrade")}
+                  onClick={() => handleAction(HighlightItemAction.downgrade)}
                 >
                   降级
                 </button>
@@ -211,7 +208,7 @@ export default defineComponent({
               <button
                 class="whitespace-nowrap text-left text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
                 type="button"
-                onClick={() => handleAction("delete")}
+                onClick={() => handleAction(HighlightItemAction.delete)}
               >
                 删除
               </button>

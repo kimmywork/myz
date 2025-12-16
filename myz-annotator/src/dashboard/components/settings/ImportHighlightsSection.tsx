@@ -1,34 +1,20 @@
-import { defineComponent } from "vue";
+import { ImportStrategy, ImportStatus } from "../../store";
+import { defineComponent, Ref } from "vue";
+  
+
+export interface ImportHighlightsSectionProps {
+  importFileRef: Ref< HTMLInputElement | null>;
+  importStrategy: ImportStrategy;
+  onStrategyChange: (strategy: ImportStrategy) => void;
+  onImport: () => void;
+  isImporting: boolean;
+  status: ImportStatus,
+}
 
 export default defineComponent({
   name: "ImportHighlightsSection",
-  props: {
-    importFileRef: {
-      type: Object,
-      required: true,
-    },
-    importStrategy: {
-      type: String,
-      default: "skip",
-    },
-    onStrategyChange: {
-      type: Function,
-      required: true,
-    },
-    onImport: {
-      type: Function,
-      required: true,
-    },
-    isImporting: {
-      type: Boolean,
-      default: false,
-    },
-    status: {
-      type: Object,
-      required: true,
-    },
-  },
-  setup(props) {
+
+  setup(props: ImportHighlightsSectionProps) {
     return () => (
       <section class="settings__group">
         <div class="settings__group-header">
@@ -50,7 +36,8 @@ export default defineComponent({
             <span>冲突处理</span>
             <select
               value={props.importStrategy}
-              onChange={(event) => props.onStrategyChange(event.target.value)}
+              onChange={(event: Event) => 
+                props.onStrategyChange((event.target as HTMLSelectElement).value as ImportStrategy)}
             >
               <option value="skip">遇到重复时跳过</option>
               <option value="overwrite">遇到重复时覆盖</option>

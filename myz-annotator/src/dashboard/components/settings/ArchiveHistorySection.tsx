@@ -1,38 +1,22 @@
+import {
+  ArchiveHistoryEntry,
+  describeArchiveAction,
+  historyStatusLabel,
+  historyStatusTone,
+} from "../../../background/internetArchive";
 import { defineComponent } from "vue";
+
+import { formatDateTime } from "../../utils/records";
+
+export interface ArchiveHistorySectionProps {
+  entries: ArchiveHistoryEntry[];
+  loading: boolean;
+  metaLabel?: string;
+}
 
 export default defineComponent({
   name: "ArchiveHistorySection",
-  props: {
-    entries: {
-      type: Array,
-      default: () => [],
-    },
-    loading: {
-      type: Boolean,
-      default: false,
-    },
-    metaLabel: {
-      type: String,
-      default: "",
-    },
-    describeAction: {
-      type: Function,
-      required: true,
-    },
-    historyStatusTone: {
-      type: Function,
-      required: true,
-    },
-    historyStatusLabel: {
-      type: Function,
-      required: true,
-    },
-    formatDateTime: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: ArchiveHistorySectionProps) {
     return () => (
       <section class="settings__group">
         <div class="settings__group-header">
@@ -50,22 +34,22 @@ export default defineComponent({
                 <li class="settings__list-item" key={item.id}>
                   <div class="settings__list-row">
                     <span class="settings__list-title">
-                      {item.message || props.describeAction(item.action)}
+                      {item.message || describeArchiveAction(item.action)}
                     </span>
                     <span
                       class={[
                         "settings__pill",
-                        `settings__pill--${props.historyStatusTone(item)}`,
+                        `settings__pill--${historyStatusTone(item)}`,
                       ].join(" ")}
                     >
-                      {props.historyStatusLabel(item)}
+                      {historyStatusLabel(item)}
                     </span>
                   </div>
                   <div class="settings__list-meta">
                     {item.timestamp ? (
-                      <span>{props.formatDateTime(item.timestamp)}</span>
+                      <span>{formatDateTime(item.timestamp)}</span>
                     ) : null}
-                    <span>{props.describeAction(item.action)}</span>
+                    <span>{describeArchiveAction(item.action)}</span>
                     {typeof item.statusCode === "number" ? (
                       <span>HTTP {item.statusCode}</span>
                     ) : null}

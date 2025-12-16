@@ -1,34 +1,19 @@
 import { defineComponent } from "vue";
 
+type FormKeys = "internetArchiveAccessKey" | "internetArchiveAccessSecret";
+
+interface InternetArchiveSectionProps {
+  archiveEnabled: boolean;
+  form: Record<FormKeys, string>;
+  onToggle: (e: Event) => void;
+  onUpdateField: (field: FormKeys, value: string) => void;
+  onSave: () => void;
+  status: string;
+}
+
 export default defineComponent({
   name: "InternetArchiveSection",
-  props: {
-    archiveEnabled: {
-      type: Boolean,
-      default: false,
-    },
-    form: {
-      type: Object,
-      required: true,
-    },
-    onToggle: {
-      type: Function,
-      required: true,
-    },
-    onUpdateField: {
-      type: Function,
-      required: true,
-    },
-    onSave: {
-      type: Function,
-      required: true,
-    },
-    status: {
-      type: String,
-      default: "",
-    },
-  },
-  setup(props) {
+  setup(props: InternetArchiveSectionProps) {
     return () => (
       <section class="settings__group">
         <div class="settings__group-header">
@@ -55,10 +40,10 @@ export default defineComponent({
               placeholder="Internet Archive Access Key"
               value={props.form.internetArchiveAccessKey}
               disabled={!props.archiveEnabled}
-              onInput={(event) =>
+              onInput={(event: InputEvent) =>
                 props.onUpdateField(
                   "internetArchiveAccessKey",
-                  event.target.value,
+                  (event.target as HTMLInputElement).value,
                 )
               }
             />
@@ -70,10 +55,10 @@ export default defineComponent({
               placeholder="Internet Archive Access Secret"
               value={props.form.internetArchiveAccessSecret}
               disabled={!props.archiveEnabled}
-              onInput={(event) =>
+              onInput={(event: InputEvent) =>
                 props.onUpdateField(
                   "internetArchiveAccessSecret",
-                  event.target.value,
+                  (event.target as HTMLInputElement).value,
                 )
               }
             />

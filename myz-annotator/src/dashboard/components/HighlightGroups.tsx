@@ -9,7 +9,7 @@ export default defineComponent({
   setup() {
     const store = useDashboardStore();
 
-    const { sentinelRef, start, stop, restart } = useInfiniteScroll({
+    const { sentinelRef, stop, restart } = useInfiniteScroll({
       onIntersect: () => store.loadMore(),
     });
 

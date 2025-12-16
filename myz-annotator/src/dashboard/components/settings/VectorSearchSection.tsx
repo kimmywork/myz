@@ -1,20 +1,24 @@
-import { defineComponent, ref, watch } from "vue";
+import { Settings } from "../../store";
+import { defineComponent, Ref, ref, watch } from "vue";
+
+export interface VectorSearchSectionProps {
+  settings: Settings;
+  status?: string;
+  loading?: boolean;
+  onToggleEnable: (enabled: boolean) => void;
+  onLoadLocal: () => Promise<void>;
+  onRebuild: () => Promise<void>;
+  onTestOpenAi: (payload: any) => Promise<{ success: boolean } | void>;
+  onSave: (payload: any) => Promise<void>;
+  onSwitchProvider?: (payload: any) => Promise<void>;
+}
+
+export type EmbeddingProviderType = "local" | "openai";
 
 export default defineComponent({
   name: "VectorSearchSection",
-  props: {
-    settings: { type: Object, required: true },
-    status: { type: String, default: "" },
-    loading: { type: Boolean, default: false },
-    onToggleEnable: { type: Function, required: true },
-    onLoadLocal: { type: Function, required: true },
-    onRebuild: { type: Function, required: true },
-    onTestOpenAi: { type: Function, required: true },
-    onSave: { type: Function, required: true },
-    onSwitchProvider: { type: Function, default: null },
-  },
-  setup(props) {
-    const providerType = ref(
+  setup(props: VectorSearchSectionProps) {
+    const providerType: Ref<EmbeddingProviderType> = ref(
       props.settings.vectorUseLocalModel ? "local" : "openai",
     );
     const maxChars = ref(props.settings.vectorMaxChars || 500);
@@ -38,7 +42,7 @@ export default defineComponent({
       { deep: true },
     );
 
-    function buildPayload(type = providerType.value) {
+    function buildPayload(type: EmbeddingProviderType = providerType.value) {
       return {
         vectorSearchEnabled: props.settings.vectorSearchEnabled,
         vectorUseLocalModel: type === "local",
@@ -53,8 +57,8 @@ export default defineComponent({
       };
     }
 
-    function handleToggleEnable(event) {
-      props.onToggleEnable?.(event.target.checked);
+    function handleToggleEnable(event: Event) {
+      props.onToggleEnable?.((event.target as HTMLInputElement).checked);
     }
 
     async function handleLoadLocal() {
@@ -78,7 +82,7 @@ export default defineComponent({
       await props.onSave?.(payload);
     }
 
-    async function handleSwitch(type) {
+    async function handleSwitch(type: EmbeddingProviderType) {
       providerType.value = type;
       testPassed.value = false;
       const payload = buildPayload(type);
@@ -161,8 +165,8 @@ export default defineComponent({
                   class="input mt-1 w-full"
                   placeholder="https://api.openai.com/v1"
                   value={endpoint.value}
-                  onInput={(e) => {
-                    endpoint.value = e.target.value;
+                  onInput={(e: InputEvent) => {
+                    endpoint.value = (e.target as HTMLInputElement).value;
                     testPassed.value = false;
                   }}
                 />
@@ -174,8 +178,8 @@ export default defineComponent({
                   class="input mt-1 w-full"
                   placeholder="text-embedding-3-small"
                   value={model.value}
-                  onInput={(e) => {
-                    model.value = e.target.value;
+                  onInput={(e: InputEvent) => {
+                    model.value = (e.target as HTMLInputElement).value;
                     testPassed.value = false;
                   }}
                 />
@@ -187,8 +191,8 @@ export default defineComponent({
                 type="password"
                 class="input mt-1 w-full"
                 value={apiKey.value}
-                onInput={(e) => {
-                  apiKey.value = e.target.value;
+                onInput={(e: InputEvent) => {
+                  apiKey.value = (e.target as HTMLInputElement).value;;
                   testPassed.value = false;
                 }}
               />
@@ -222,8 +226,8 @@ export default defineComponent({
                 min="50"
                 class="input mt-1 w-full"
                 value={maxChars.value}
-                onInput={(e) => {
-                  maxChars.value = Number(e.target.value) || 500;
+                onInput={(e: InputEvent) => {
+                  maxChars.value = Number((e.target as HTMLInputElement).value) || 500;
                   testPassed.value = false;
                 }}
               />

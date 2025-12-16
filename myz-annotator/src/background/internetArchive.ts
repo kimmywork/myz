@@ -48,6 +48,7 @@ export interface ArchiveState {
 export interface ArchiveQueueEntry {
   id: string;
   url: string;
+  position?: number;
   requestedAt: string;
   status: string;
   attempts: number;
@@ -57,7 +58,7 @@ export interface ArchiveQueueEntry {
 export interface ArchiveHistoryEntry {
   id: string;
   url: string;
-  action: string;
+  action: ArchiveActions;
   timestamp: string;
   success: boolean;
   status: string;
@@ -84,6 +85,93 @@ interface SaveSubmissionResult {
   url: string;
   accessKey: string;
   accessSecret: string;
+}
+export enum ArchiveActions {
+  "queue" = "queue",
+  "queue:start" = "queue:start",
+  "cdx-check" = "cdx-check",
+  "save-request" = "save-request",
+  "cdx-poll" = "cdx-poll",
+  "queue:complete" = "queue:complete",
+  "queue:pending" = "queue:pending",
+  "queue:error" = "queue:error",
+  "unknown" = "unknown",
+}
+
+const ARCHIVE_ACTION_LABELS: Record<ArchiveActions, string> = {
+  queue: "加入队列",
+  "queue:start": "开始处理",
+  "cdx-check": "查询存档",
+  "save-request": "提交保存请求",
+  "cdx-poll": "轮询存档",
+  "queue:complete": "保存完成",
+  "queue:pending": "等待生成",
+  "queue:error": "处理失败",
+  "unknown": "未知状态",
+};
+
+export function queueStatusTone(entry: ArchiveQueueEntry) {
+  const status = (entry?.status || "queued").toLowerCase();
+  if (status.includes("error") || status.includes("fail")) {
+    return "error";
+  }
+  if (status.includes("complete") || status.includes("done")) {
+    return "success";
+  }
+  if (status.includes("pending") || status.includes("processing")) {
+    return "info";
+  }
+  return "info";
+}
+
+export function queueStatusLabel(entry: ArchiveQueueEntry) {
+  const status = (entry?.status || "queued").toLowerCase();
+  if (status.includes("error") || status.includes("fail")) {
+    return "失败";
+  }
+  if (status.includes("complete") || status.includes("done")) {
+    return "完成";
+  }
+  if (status.includes("pending")) {
+    return "等待存档";
+  }
+  if (status.includes("processing")) {
+    return "处理中";
+  }
+  return "排队中";
+}
+
+export function historyStatusTone(entry: ArchiveHistoryEntry) {
+  if (!entry) {
+    return "info";
+  }
+  if (entry.status === "error" || entry.success === false) {
+    return "error";
+  }
+  if (entry.status === "success" || entry.success === true) {
+    return "success";
+  }
+  return "info";
+}
+
+export function historyStatusLabel(entry: ArchiveHistoryEntry) {
+  if (!entry) {
+    return "记录";
+  }
+  if (entry.status === "success" || entry.success === true) {
+    return "成功";
+  }
+  if (entry.status === "error" || entry.success === false) {
+    return "失败";
+  }
+  return "记录";
+}
+
+export function describeArchiveAction(action: ArchiveActions) {
+  if (!action) {
+    return "未知操作";
+  }
+  return ARCHIVE_ACTION_LABELS[action] || action;
 }
 
 export async function getArchiveStatusForUrl(
@@ -172,7 +260,7 @@ export async function ensureArchiveSnapshot({
 
   appendArchiveHistory(state, {
     url: canonical,
-    action: "queue",
+    action: ArchiveActions.queue,
     status: "info",
     success: true,
     message: force ? "强制加入保存队列" : "加入保存队列",
@@ -315,7 +403,7 @@ function appendArchiveHistory(
   state.archiveHistory.push({
     id: entry.id || generateId(),
     url: entry.url!,
-    action: entry.action || "unknown",
+    action: entry.action || ArchiveActions.unknown,
     timestamp: entry.timestamp || new Date().toISOString(),
     success: Boolean(entry.success),
     status: entry.status || (entry.success ? "success" : "info"),
@@ -372,7 +460,7 @@ async function handleQueueEntry(
 
   appendArchiveHistory(state, {
     url: canonical,
-    action: "queue:start",
+    action: ArchiveActions["queue:start"],
     status: "info",
     success: true,
     message: "开始处理保存请求",
@@ -384,7 +472,7 @@ async function handleQueueEntry(
     const cdxResult = await fetchLatestSnapshot(canonical);
     appendArchiveHistory(state, {
       url: canonical,
-      action: "cdx-check",
+      action: ArchiveActions["cdx-check"],
       status: cdxResult.snapshot ? "success" : "info",
       success: Boolean(cdxResult.snapshot),
       statusCode: cdxResult.statusCode,
@@ -404,7 +492,7 @@ async function handleQueueEntry(
       removeQueueEntry(state, queueEntry.id);
       appendArchiveHistory(state, {
         url: canonical,
-        action: "queue:complete",
+        action: ArchiveActions["queue:complete"],
         status: "success",
         success: true,
         message: "检测到已有存档，标记为已保存",
@@ -428,7 +516,7 @@ async function handleQueueEntry(
 
     appendArchiveHistory(state, {
       url: canonical,
-      action: "save-request",
+      action: ArchiveActions["save-request"],
       status: "info",
       success: true,
       message: "已向 Internet Archive 提交保存请求",
@@ -440,7 +528,7 @@ async function handleQueueEntry(
       (pollResult: CDXResult) => {
         appendArchiveHistory(state, {
           url: canonical,
-          action: "cdx-poll",
+          action: ArchiveActions["cdx-poll"],
           status: pollResult.snapshot ? "success" : "info",
           success: Boolean(pollResult.snapshot),
           statusCode: pollResult.statusCode,
@@ -462,7 +550,7 @@ async function handleQueueEntry(
       } as ArchiveEntry;
       appendArchiveHistory(state, {
         url: canonical,
-        action: "queue:complete",
+        action: ArchiveActions["queue:complete"],
         status: "success",
         success: true,
         message: "页面已成功保存到 Internet Archive",
@@ -476,7 +564,7 @@ async function handleQueueEntry(
       } as ArchiveEntry;
       appendArchiveHistory(state, {
         url: canonical,
-        action: "queue:pending",
+        action: ArchiveActions["queue:pending"],
         status: "info",
         success: true,
         message: "保存请求已提交，等待存档生成",
@@ -494,7 +582,7 @@ async function handleQueueEntry(
     } as ArchiveEntry;
     appendArchiveHistory(state, {
       url: canonical,
-      action: "queue:error",
+      action: ArchiveActions["queue:error"],
       status: "error",
       success: false,
       message: (error as Error)?.message || "保存失败",

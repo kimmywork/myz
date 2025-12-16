@@ -32,13 +32,13 @@ export default defineComponent({
     const hasNote = computed(() => Boolean(record.value?.note));
     const availableTags = computed(() => store.availableTags.value);
 
-    function handleOverlayClick(event) {
+    function handleOverlayClick(event: MouseEvent) {
       if (event.target === event.currentTarget) {
         store.closeModal();
       }
     }
 
-    function handleEscape(event) {
+    function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape" && isVisible.value) {
         store.closeModal();
       }
@@ -123,13 +123,13 @@ export default defineComponent({
                     class="mt-2 min-h-[130px] w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100"
                     rows="4"
                     value={modalState.note}
-                    onInput={(event) => (modalState.note = event.target.value)}
+                    onInput={(event: InputEvent) => (modalState.note = (event.target as HTMLInputElement).value)}
                   ></textarea>
                 ) : (
                   <div
                     class="mt-2 min-h-[130px] rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-300"
                     innerHTML={
-                      hasNote.value ? store.formatNote(current.note) : "无批注"
+                      hasNote.value ? store.formatNote(current.note!) : "无批注"
                     }
                   ></div>
                 )}
@@ -158,7 +158,7 @@ export default defineComponent({
                 ) : (
                   <div class="mt-2 flex flex-wrap gap-2 text-sm text-slate-600 dark:text-slate-300">
                     {(current.tags || []).length
-                      ? current.tags.map((tag) => (
+                      ? current.tags!.map((tag) => (
                           <span
                             key={tag}
                             class="rounded-full border border-slate-200 px-3 py-1 text-xs dark:border-white/10"
@@ -196,7 +196,7 @@ export default defineComponent({
                       type="color"
                       value={modalState.color}
                       onInput={(event) => {
-                        modalState.color = event.target.value || DEFAULT_COLOR;
+                        modalState.color = (event.target as HTMLInputElement).value || DEFAULT_COLOR;
                       }}
                     />
                   </label>

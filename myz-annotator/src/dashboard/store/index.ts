@@ -24,28 +24,6 @@ import { ArchiveHistoryEntry, ArchiveQueueEntry } from "src/background/internetA
 
 export const DashboardStoreKey = Symbol("DashboardStore");
 
-enum ArchiveActions {
-  "queue" = "queue",
-  "queue:start" = "queue:start",
-  "cdx-check" = "cdx-check",
-  "save-request" = "save-request",
-  "cdx-poll" = "cdx-poll",
-  "queue:complete" = "queue:complete",
-  "queue:pending" = "queue:pending",
-  "queue:error" = "queue:error",
-}
-
-const ARCHIVE_ACTION_LABELS: Record<ArchiveActions, string> = {
-  "queue": "加入队列",
-  "queue:start": "开始处理",
-  "cdx-check": "查询存档",
-  "save-request": "提交保存请求",
-  "cdx-poll": "轮询存档",
-  "queue:complete": "保存完成",
-  "queue:pending": "等待生成",
-  "queue:error": "处理失败",
-};
-
 export interface Settings {
   logseqEndpoint: string;
   logseqPage: string;
@@ -95,7 +73,88 @@ export interface ModalState {
   saving: boolean;
 }
 
-export function createDashboardStore() {
+export type MessageTone = "info" | "error" | "success";
+
+export type ImportStrategy =  "skip" | "overwrite" | "latest";
+
+export interface ImportStatus {
+  message: string;
+  tone: MessageTone;
+}
+
+export interface DashboardStore {
+  highlights: Ref<MyZRecord[]>;
+  loadingHighlights: Ref<boolean>;
+  filters: SearchFilters;
+  view: Ref<"cards" | "list">;
+  panel: Ref<"settings" | "highlights">;
+  settings: Settings;
+  logseqStatus: Ref<string>;
+  settingsStatus: Ref<string>;
+  importStatus: ImportStatus;
+  isSyncInFlight: Ref<boolean>;
+  archiveQueue: Ref<ArchiveQueueEntry[]>;
+  archiveHistory: Ref<ArchiveHistoryEntry[]>;
+  archiveMetaLoading: Ref<boolean>;
+  archiveMetaStatus: Ref<string>;
+  vectorModelLoading: Ref<boolean>;
+  vectorModelStatus: Ref<string>;
+  modalState: ModalState;
+  searchTerms: Ref<string[]>;
+  archiveQueueWithPosition: Ref<(ArchiveQueueEntry & { position: number })[]>;
+  archiveHistorySorted: Ref<ArchiveHistoryEntry[]>;
+  hasMoreHighlights: Ref<boolean>;
+  visibleHighlights: Ref<MyZRecord[]>;
+  groupedHighlights: Ref<
+    {
+      date: string;
+      items: MyZRecord[];
+      stats: ReturnType<typeof computeRecordStats>;
+      detailText: string;
+    }[]
+  >;
+  summaryText: Ref<string>;
+  availableSites: Ref<string[]>;
+  availableTags: Ref<string[]>;
+  loadHighlights: () => Promise<void>;
+  saveSettings: (payload: Partial<Settings>) => Promise<void>;
+  loadArchiveActivity: (options?: { force?: boolean }) => Promise<void>;
+  refreshArchiveActivity: () => Promise<void>;
+  initialize: () => Promise<void>;
+  setFilter: (key: keyof SearchFilters, value: string | string[]) => void;
+  resetFilters: () => void;
+  setView: (nextView: "cards" | "list", options?: { persist?: boolean }) => void;
+  showSettings: () => void;
+  showHighlights: () => void;
+  loadMore: () => void;
+  copyHighlight: (id: string) => Promise<void>;
+  deleteHighlight: (id: string) => Promise<void>;
+  downgradeHighlight: (id: string) => Promise<void>;
+  handleExport: (format: "markdown" | "json") => Promise<void>;
+  syncLogseq: () => Promise<void>;
+
+  toggleSync: (enabled: boolean) => void;
+  toggleInternetArchive: (enabled: boolean) => void;
+  importHighlightsFromFile: (file: File | undefined, strategy: ImportStrategy) => Promise<void>;
+  openModal: (recordId: string, mode: "view" | "edit") => void;
+  closeModal: () => void;
+  saveModal: () => Promise<void>;
+  renderHighlight: (record: MyZRecord) => string;
+  testAiConnection: (settings: Partial<Settings>) => Promise<void>;
+  testVectorProvider: (config: Partial<Settings>) => Promise<void>;
+
+  formatNote: (value: string) => string;
+    formatInline: (value: string) => string;
+    formatDateTime: (dateString: string) => string;
+    getRecordKind: (record: MyZRecord) => RECORD_KINDS;
+    cleanup: () => void;
+    rebuildVectorIndex: () => Promise<void>;
+    toggleVectorSearch: (enabled: boolean) => void;
+    loadVectorModel: () => Promise<void>;
+    switchVectorProvider: (payload: Partial<Settings>) => Promise<void>,
+}
+
+export function createDashboardStore(): DashboardStore {
   const highlights: Ref<MyZRecord[]> = ref([]);
   const loadingHighlights = ref(true);
   const filters: SearchFilters = reactive({
@@ -140,7 +199,7 @@ export function createDashboardStore() {
   });
   const logseqStatus = ref("");
   const settingsStatus = ref("");
-  const importStatus = reactive({ message: "", tone: "info" });
+  const importStatus: ImportStatus = reactive({ message: "", tone: "info" });
   const isSyncInFlight = ref(false);
   const archiveQueue: Ref<ArchiveQueueEntry[]> = ref([]);
   const archiveHistory: Ref<ArchiveHistoryEntry[]> = ref([]);
@@ -304,7 +363,7 @@ export function createDashboardStore() {
     }
   }
 
-  function setTimedImportStatus(message: string, tone = "info", duration = 3000) {
+  function setTimedImportStatus(message: string, tone: MessageTone = "info", duration = 3000) {
     importStatus.message = message;
     importStatus.tone = tone;
     if (timers.has(importStatus)) {
@@ -452,13 +511,6 @@ export function createDashboardStore() {
 
   async function refreshArchiveActivity() {
     await loadArchiveActivity({ force: true });
-  }
-
-  function describeArchiveAction(action: ArchiveActions) {
-    if (!action) {
-      return "未知操作";
-    }
-    return ARCHIVE_ACTION_LABELS[action] || action;
   }
 
   async function initialize() {
@@ -793,7 +845,7 @@ export function createDashboardStore() {
     }
   }
 
-  async function importHighlightsFromFile(file: File, strategy: string) {
+  async function importHighlightsFromFile(file: File | undefined, strategy: ImportStrategy) {
     if (!file) {
       setTimedImportStatus("请先选择 JSON 文件", "error");
       return;
@@ -1011,7 +1063,6 @@ export function createDashboardStore() {
     vectorModelStatus,
     loadArchiveActivity,
     refreshArchiveActivity,
-    describeArchiveAction,
     cleanup,
     isSyncInFlight,
     testAiConnection,

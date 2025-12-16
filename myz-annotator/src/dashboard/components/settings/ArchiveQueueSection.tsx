@@ -1,42 +1,17 @@
+import { formatDateTime } from "../../utils/records";
+import { ArchiveQueueEntry, queueStatusTone, queueStatusLabel } from "../../../background/internetArchive";
 import { defineComponent } from "vue";
+
+interface ArchiveQueueSectionProps {
+  entries: ArchiveQueueEntry[];
+  loading: boolean;
+  status: string;
+  onRefresh: () => void;
+}
 
 export default defineComponent({
   name: "ArchiveQueueSection",
-  props: {
-    entries: {
-      type: Array,
-      default: () => [],
-    },
-    loading: {
-      type: Boolean,
-      default: false,
-    },
-    status: {
-      type: String,
-      default: "",
-    },
-    onRefresh: {
-      type: Function,
-      required: true,
-    },
-    describeAttempt: {
-      type: Function,
-      required: false,
-    },
-    queueStatusTone: {
-      type: Function,
-      required: true,
-    },
-    queueStatusLabel: {
-      type: Function,
-      required: true,
-    },
-    formatDateTime: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: ArchiveQueueSectionProps) {
     return () => (
       <section class="settings__group">
         <div class="settings__group-header">
@@ -69,17 +44,17 @@ export default defineComponent({
                     <span
                       class={[
                         "settings__pill",
-                        `settings__pill--${props.queueStatusTone(item)}`,
+                        `settings__pill--${queueStatusTone(item)}`,
                       ].join(" ")}
                     >
-                      {props.queueStatusLabel(item)}
+                      {queueStatusLabel(item)}
                     </span>
                   </div>
                   <div class="settings__list-meta">
-                    <span>排队序号 #{item.position + 1}</span>
+                    <span>排队序号 #{(item.position ?? 0) + 1}</span>
                     {item.requestedAt ? (
                       <span>
-                        加入时间 {props.formatDateTime(item.requestedAt)}
+                        加入时间 {formatDateTime(item.requestedAt)}
                       </span>
                     ) : null}
                     <span>尝试 {item.attempts ?? 0} 次</span>

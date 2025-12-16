@@ -1,16 +1,18 @@
 import { computed, defineComponent, ref } from "vue";
-import { RECORD_KINDS, getRecordKind } from "../../shared/types.js";
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "../../shared/types.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
+
+export enum HighlightItemAction {
+  "copy" = "copy",
+  "view" = "view",
+  "edit" = "edit",
+  "delete" = "delete",
+  "downgrade" = "downgrade",
+}
 
 export default defineComponent({
   name: "HighlightCard",
-  props: {
-    record: {
-      type: Object,
-      required: true,
-    },
-  },
-  setup(props) {
+  setup(props: { record: MyZRecord}) {
     const store = useDashboardStore();
     const kind = computed(() => getRecordKind(props.record));
     const hasNote = computed(() => Boolean(props.record?.note));
@@ -50,7 +52,7 @@ export default defineComponent({
       }
     });
 
-    function handleAction(action) {
+    function handleAction(action: HighlightItemAction) {
       const id = props.record?.id;
       if (!id) {
         return;
@@ -145,7 +147,7 @@ export default defineComponent({
                 <p
                   data-testid="card-note"
                   class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-                  innerHTML={store.formatNote(record.note)}
+                  innerHTML={store.formatNote(record.note ?? "")}
                 ></p>
               </section>
             </div>
@@ -207,7 +209,7 @@ export default defineComponent({
               data-action="view"
               class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               type="button"
-              onClick={() => handleAction("view")}
+              onClick={() => handleAction(HighlightItemAction.view)}
             >
               查看
             </button>
@@ -215,7 +217,7 @@ export default defineComponent({
               data-action="edit"
               class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               type="button"
-              onClick={() => handleAction("edit")}
+              onClick={() => handleAction(HighlightItemAction.edit)}
             >
               编辑
             </button>
@@ -223,7 +225,7 @@ export default defineComponent({
               data-action="copy"
               class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
               type="button"
-              onClick={() => handleAction("copy")}
+              onClick={() => handleAction(HighlightItemAction.copy)}
             >
               复制
             </button>
@@ -232,7 +234,7 @@ export default defineComponent({
                 data-action="downgrade"
                 class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 type="button"
-                onClick={() => handleAction("downgrade")}
+                onClick={() => handleAction(HighlightItemAction.downgrade)}
               >
                 降级
               </button>
@@ -241,7 +243,7 @@ export default defineComponent({
               data-action="delete"
               class="text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
               type="button"
-              onClick={() => handleAction("delete")}
+              onClick={() => handleAction(HighlightItemAction.delete)}
             >
               删除
             </button>

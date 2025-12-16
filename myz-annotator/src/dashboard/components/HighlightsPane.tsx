@@ -1,34 +1,28 @@
-import { defineComponent, onBeforeUnmount, onMounted, ref } from "vue";
+import { defineComponent, onBeforeUnmount, onMounted, ref, Ref } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import HighlightGroups from "./HighlightGroups.jsx";
 
 export default defineComponent({
   name: "HighlightsPane",
-  props: {
-    active: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  setup(props) {
+  setup(props: { active: boolean }) {
     const store = useDashboardStore();
     const exportMenuOpen = ref(false);
-    const exportMenuRef = ref(null);
+    const exportMenuRef: Ref<HTMLElement | null> = ref(null);
 
     function toggleExportMenu() {
       exportMenuOpen.value = !exportMenuOpen.value;
     }
 
-    function handleExport(format) {
+    function handleExport(format: "json" | "markdown") {
       store.handleExport(format);
       exportMenuOpen.value = false;
     }
 
-    function handleDocumentClick(event) {
+    function handleDocumentClick(event: MouseEvent) {
       if (!exportMenuOpen.value) {
         return;
       }
-      if (exportMenuRef.value?.contains(event.target)) {
+      if (exportMenuRef.value?.contains(event.target as Node)) {
         return;
       }
       exportMenuOpen.value = false;

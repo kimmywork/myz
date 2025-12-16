@@ -52,7 +52,7 @@ export function groupHighlightsByDate(highlights: MyZRecord[]) {
   );
 }
 
-export function formatDateTime(value: string | number | Date) {
+export function formatDateTime(value: string) {
   if (!value) {
     return "";
   }

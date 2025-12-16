@@ -494,7 +494,7 @@ export default defineComponent({
                           <div class="flex items-center justify-between gap-2">
                             <div class="flex min-w-0 items-center gap-2">
                               <span
-                                class={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${statusDot(item)}`}
+                                class={`inline-block h-2 w-2 shrink-0 rounded-full ${statusDot(item)}`}
                                 aria-hidden="true"
                               ></span>
                               <div class="min-w-0">
