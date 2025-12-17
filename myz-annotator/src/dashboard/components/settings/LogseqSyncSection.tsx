@@ -79,7 +79,7 @@ export default defineComponent({
               <input
                 type={field.type || "text"}
                 placeholder={field.placeholder}
-                value={props.form[field.key]}
+                value={props.form?.[field.key]}
                 disabled={!props.syncEnabled}
                 onInput={(event: InputEvent) =>
                   props.onUpdateField(

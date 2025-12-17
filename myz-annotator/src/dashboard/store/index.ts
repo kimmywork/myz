@@ -82,7 +82,7 @@ export type ImportStrategy = "skip" | "overwrite" | "latest";
 
 export interface ImportStatus {
   message: string;
-  tone: MessageTone;
+  tone?: MessageTone;
 }
 
 export interface DashboardStore {

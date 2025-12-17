@@ -7,7 +7,7 @@ export interface ImportHighlightsSectionProps {
   onStrategyChange: (strategy: ImportStrategy) => void;
   onImport: () => void;
   isImporting: boolean;
-  status: ImportStatus;
+  status?: ImportStatus;
 }
 
 export default defineComponent({
@@ -58,14 +58,14 @@ export default defineComponent({
             <p
               class={[
                 "status-line",
-                props.status.tone === "error"
+                props.status?.tone === "error"
                   ? " status-line--error"
-                  : props.status.tone === "success"
+                  : props.status?.tone === "success"
                     ? " status-line--success"
                     : "",
               ].join(" ")}
             >
-              {props.status.message}
+              {props.status?.message}
             </p>
           </div>
         </div>

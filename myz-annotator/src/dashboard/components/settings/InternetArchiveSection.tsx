@@ -4,7 +4,7 @@ type FormKeys = "internetArchiveAccessKey" | "internetArchiveAccessSecret";
 
 interface InternetArchiveSectionProps {
   archiveEnabled: boolean;
-  form: Record<FormKeys, string>;
+  form?: Record<FormKeys, string>;
   onToggle: (e: Event) => void;
   onUpdateField: (field: FormKeys, value: string) => void;
   onSave: () => void;
@@ -38,7 +38,7 @@ export default defineComponent({
             <input
               type="text"
               placeholder="Internet Archive Access Key"
-              value={props.form.internetArchiveAccessKey}
+              value={props.form?.internetArchiveAccessKey}
               disabled={!props.archiveEnabled}
               onInput={(event: InputEvent) =>
                 props.onUpdateField(
@@ -53,7 +53,7 @@ export default defineComponent({
             <input
               type="password"
               placeholder="Internet Archive Access Secret"
-              value={props.form.internetArchiveAccessSecret}
+              value={props.form?.internetArchiveAccessSecret}
               disabled={!props.archiveEnabled}
               onInput={(event: InputEvent) =>
                 props.onUpdateField(

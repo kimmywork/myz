@@ -9,7 +9,7 @@ import {
 import { formatDateTime } from "@/dashboard/utils/records";
 
 export interface ArchiveHistorySectionProps {
-  entries: ArchiveHistoryEntry[];
+  entries?: ArchiveHistoryEntry[];
   loading: boolean;
   metaLabel?: string;
 }
@@ -28,9 +28,9 @@ export default defineComponent({
         <div class="settings__fields settings__fields--compact">
           {props.loading ? (
             <p class="settings__hint">加载中…</p>
-          ) : props.entries.length ? (
+          ) : props.entries?.length ? (
             <ul class="settings__list">
-              {props.entries.map((item) => (
+              {props.entries?.map((item) => (
                 <li class="settings__list-item" key={item.id}>
                   <div class="settings__list-row">
                     <span class="settings__list-title">

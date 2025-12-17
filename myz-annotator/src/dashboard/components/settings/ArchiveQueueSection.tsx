@@ -7,7 +7,7 @@ import {
 import { formatDateTime } from "@/dashboard/utils/records";
 
 interface ArchiveQueueSectionProps {
-  entries: ArchiveQueueEntry[];
+  entries?: ArchiveQueueEntry[];
   loading: boolean;
   status: string;
   onRefresh: () => void;
@@ -37,9 +37,9 @@ export default defineComponent({
           ) : null}
           {props.loading ? (
             <p class="settings__hint">加载中…</p>
-          ) : props.entries.length ? (
+          ) : props.entries?.length ? (
             <ul class="settings__list">
-              {props.entries.map((item) => (
+              {props.entries?.map((item) => (
                 <li class="settings__list-item" key={item.id}>
                   <div class="settings__list-row">
                     <span class="settings__list-title" title={item.url}>
