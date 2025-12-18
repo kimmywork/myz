@@ -11,12 +11,6 @@ import VectorSearchSection from "./settings/VectorSearchSection.jsx";
 
 export default defineComponent({
   name: "SettingsPane",
-  props: {
-    active: {
-      type: Boolean,
-      default: false,
-    },
-  },
   setup(props) {
     const store = useDashboardStore();
     const form = reactive({
@@ -188,23 +182,11 @@ export default defineComponent({
       await store.switchVectorProvider(payload);
     }
 
-    watch(
-      () => props.active,
-      (isActive) => {
-        if (!isActive) {
-          return;
-        }
-        ensureArchiveActivity({ force: archiveLoaded.value });
-      },
-      { immediate: true },
-    );
-
     return () => (
       <section
         id="settings-view"
         class={[
           "rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl transition dark:border-white/10 dark:bg-slate-900/60",
-          props.active ? "block" : "hidden",
         ].join(" ")}
         aria-labelledby="settings-title"
       >

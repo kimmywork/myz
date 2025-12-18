@@ -12,7 +12,14 @@ export enum HighlightItemAction {
 
 export default defineComponent({
   name: "HighlightCard",
-  setup(props: { record: MyZRecord }) {
+  props: {
+    record: {
+      type: Object as () => MyZRecord | undefined,
+      required: true,
+      default: {}
+    },
+  },
+  setup(props: { record?: MyZRecord }) {
     const store = useDashboardStore();
     const kind = computed(() => getRecordKind(props.record));
     const hasNote = computed(() => Boolean(props.record?.note));
@@ -36,8 +43,8 @@ export default defineComponent({
       showAllTags.value = !showAllTags.value;
     }
     const archiveLink = computed(() => {
-      const record = props.record || {};
-      return record.archiveSnapshotUrl || record.archiveUrl || "";
+      const record: Partial<MyZRecord> = props.record || {};
+      return record?.archiveSnapshotUrl || record?.archiveUrl || "";
     });
 
     const kindLabel = computed(() => {
@@ -77,26 +84,24 @@ export default defineComponent({
           break;
       }
     }
-
-    return () => {
-      const record = props.record;
-      if (!record) {
-        return null;
-      }
-      const cardClasses = [
+    const cardClasses = computed(() => {
+      const original = [
         "space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-5 text-sm text-slate-800 shadow-xl transition dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100",
       ];
       if (kind.value === RECORD_KINDS.CLIP) {
-        cardClasses.push("border-teal-200 dark:border-cyan-500/30");
+        original.push("border-teal-200 dark:border-cyan-500/30");
       }
       if (kind.value === RECORD_KINDS.AI_GENERATED) {
-        cardClasses.push("border-fuchsia-200 dark:border-fuchsia-500/40");
+        original.push("border-fuchsia-200 dark:border-fuchsia-500/40");
       }
+      return original;
+    });
 
+    return () => {
       return (
         <article
-          class={cardClasses.join(" ")}
-          data-id={record.id}
+          class={cardClasses.value.join(" ")}
+          data-id={props.record?.id}
           data-kind={kind.value}
         >
           <div class="flex items-center justify-between">
@@ -115,16 +120,20 @@ export default defineComponent({
             <div class="flex flex-col items-end text-xs text-slate-400">
               <span
                 class="max-w-[120px] truncate text-slate-500 dark:text-slate-300"
-                title={record.hostname || record.url || ""}
+                title={props.record?.hostname || props.record?.url || ""}
                 innerHTML={store.formatInline(
-                  (record.hostname || record.url || "").substring(0, 20) +
-                    ((record.hostname || record.url || "").length > 20
+                  (props.record?.hostname || props.record?.url || "").substring(
+                    0,
+                    20,
+                  ) +
+                    ((props.record?.hostname || props.record?.url || "")
+                      .length > 20
                       ? "..."
                       : ""),
                 )}
               ></span>
               <span class="text-slate-400 dark:text-slate-500">
-                {store.formatDateTime(record.createdAt)}
+                {store.formatDateTime(props.record?.createdAt!!)}
               </span>
             </div>
           </div>
@@ -137,7 +146,7 @@ export default defineComponent({
                 </h4>
                 <blockquote
                   class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-                  innerHTML={store.renderHighlight(record)}
+                  innerHTML={store.renderHighlight(props.record!!)}
                 ></blockquote>
               </section>
               <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
@@ -147,7 +156,7 @@ export default defineComponent({
                 <p
                   data-testid="card-note"
                   class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-                  innerHTML={store.formatNote(record.note ?? "")}
+                  innerHTML={store.formatNote(props.record?.note ?? "")}
                 ></p>
               </section>
             </div>
@@ -158,7 +167,7 @@ export default defineComponent({
               </h4>
               <blockquote
                 class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-                innerHTML={store.renderHighlight(record)}
+                innerHTML={store.renderHighlight(props.record!!)}
               ></blockquote>
             </section>
           )}
@@ -198,10 +207,10 @@ export default defineComponent({
             ) : null}
             <a
               class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
-              href={record.sourceUrl || record.url}
+              href={props.record?.sourceUrl || props.record?.url}
               target="_blank"
               rel="noopener"
-              title={record.title || record.url}
+              title={props.record?.title || props.record?.url}
             >
               页面
             </a>

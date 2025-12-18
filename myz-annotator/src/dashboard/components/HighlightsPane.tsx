@@ -4,7 +4,7 @@ import HighlightGroups from "./HighlightGroups.jsx";
 
 export default defineComponent({
   name: "HighlightsPane",
-  setup(props: { active: boolean }) {
+  setup() {
     const store = useDashboardStore();
     const exportMenuOpen = ref(false);
     const exportMenuRef: Ref<HTMLElement | null> = ref(null);
@@ -41,7 +41,6 @@ export default defineComponent({
         id="highlights-view"
         class={[
           "rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-2xl transition dark:border-white/10 dark:bg-slate-900/60",
-          props.active ? "block" : "hidden",
         ].join(" ")}
         aria-labelledby="highlights-title"
       >

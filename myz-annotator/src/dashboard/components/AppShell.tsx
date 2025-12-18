@@ -23,8 +23,8 @@ export default defineComponent({
             <DashboardNavbar />
             {store.panel.value === "highlights" ? <FilterToolbar /> : null}
             <main class="flex flex-col gap-6">
-              <HighlightsPane active={store.panel.value === "highlights"} />
-              <SettingsPane active={store.panel.value === "settings"} />
+              {store.panel.value === "highlights" ? <HighlightsPane /> : null}
+              {store.panel.value === "settings" ? <SettingsPane /> : null}
             </main>
           </div>
         </div>

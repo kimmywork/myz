@@ -11,6 +11,7 @@ export default defineComponent({
     onMounted(async () => {
       try {
         await store.initialize();
+        console.info("Dashboard initialized");
       } catch (error) {
         console.error("Dashboard init failed", error);
       }

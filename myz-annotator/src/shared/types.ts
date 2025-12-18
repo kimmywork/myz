@@ -60,7 +60,7 @@ export const HIGHLIGHT_STYLE_OPTIONS: Record<
   [HIGHLIGHT_STYLES.WAVY]: { icon: "wavy", label: "波浪线" },
 };
 
-export function getRecordKind(record: MyZRecord): RECORD_KINDS {
+export function getRecordKind(record?: Partial<MyZRecord>): RECORD_KINDS {
   if (record && record.kind === RECORD_KINDS.AI_GENERATED) {
     return RECORD_KINDS.AI_GENERATED;
   }

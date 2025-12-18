@@ -5,6 +5,13 @@ import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 export default defineComponent({
   name: "HighlightListRow",
+  props: {
+    record: {
+      type: Object as () => MyZRecord | undefined,
+      required: true,
+      default: {}
+    },
+  },
   setup(props: { record: MyZRecord }) {
     const store = useDashboardStore();
     const kind = computed(() => getRecordKind(props.record));
