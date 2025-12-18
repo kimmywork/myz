@@ -42,10 +42,10 @@ export default defineComponent({
           onClick={() => props.onClose?.()}
         >
           <div
-            class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 h-full"
+            class="flex flex-col w-full max-w-2xl max-h-[90vh] rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <header class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
+            <header class="flex-none flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
               <div>
                 <div class="text-lg font-semibold text-slate-900 dark:text-white">
                   🔧 {props.viewer.toolName}
@@ -63,7 +63,7 @@ export default defineComponent({
                 ✕
               </button>
             </header>
-            <div class="mt-4 space-y-4 overflow-y-auto">
+            <div class="mt-4 space-y-4 overflow-y-auto flex-1 min-h-0">
               {props.viewer.invocationDetails.length > 0 ? (
                 props.viewer.invocationDetails.map((detail) => (
                   <div
@@ -81,14 +81,14 @@ export default defineComponent({
                   {props.viewer.args && (
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                       <div class="text-sm font-semibold">调用参数</div>
-                      <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400 h-1/2 overflow-y-scroll">
+                      <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400 overflow-x-auto">
                         {props.viewer.args}
                       </pre>
                     </div>
                   )}
                   <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     <div class="text-sm font-semibold">工具输出</div>
-                    <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400 h-1/2 overflow-y-scroll">
+                    <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400 overflow-x-auto">
                       {props.viewer.content || "（无内容）"}
                     </pre>
                   </div>
