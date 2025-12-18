@@ -10,6 +10,32 @@ export interface ToolInlineNoticeProps {
 
 export default defineComponent({
   name: "ToolInlineNotice",
+  props: {
+    text: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    timestamp: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    onDetails: {
+      type: Function,
+      required: false,
+    },
+    showButton: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    size: {
+      type: String,
+      required: false,
+      default: "sm",
+    },
+  },
   setup(props: ToolInlineNoticeProps) {
     const base =
       "flex w-full flex-wrap items-center gap-2 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/70 px-3 text-indigo-700 dark:border-indigo-400/40 dark:bg-indigo-500/10 dark:text-indigo-200";
@@ -28,7 +54,7 @@ export default defineComponent({
           {props.showButton && props.onDetails && (
             <button
               class="ml-auto text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-200"
-              onClick={props.onDetails}
+              onClick={() => props.onDetails?.()}
             >
               查看详情
             </button>

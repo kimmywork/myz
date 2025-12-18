@@ -47,11 +47,11 @@ export interface Conversation {
 interface ConversationListProps {
   messages: Message[];
   listRef?: VNodeRef;
-  onToolDetails: (message: Message) => void;
-  onToolResponse: (message: Message) => void;
-  onSaveAssistant: (messageId: string) => void;
+  onToolDetails?: (message: Message) => void;
+  onToolResponse?: (message: Message) => void;
+  onSaveAssistant?: (messageId: string) => void;
   isSavingHighlight?: boolean;
-  streaming: MessageStream;
+  streaming?: MessageStream;
   hasActiveStream?: boolean;
   isLoading?: boolean;
 }
@@ -71,6 +71,50 @@ function isToolInvocationNotice(msg: Message): boolean {
 
 export default defineComponent({
   name: "ConversationList",
+  props: {
+    messages: {
+      type: Array as () => Message[],
+      required: true,
+      default: () => [],
+    },
+    listRef: {
+      type: Object as () => VNodeRef,
+      required: false,
+      default: null,
+    },
+    onToolDetails: {
+      type: Function,
+      required: true,
+    },
+    onToolResponse: {
+      type: Function,
+      required: true,
+    },
+    onSaveAssistant: {
+      type: Function,
+      required: true,
+    },
+    isSavingHighlight: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    streaming: {
+      type: Object as () => MessageStream,
+      required: true,
+      default: () => ({}),
+    },
+    hasActiveStream: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    isLoading: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+  },
   setup(props: ConversationListProps) {
     const messageEntries = computed(() =>
       props.messages
@@ -99,7 +143,7 @@ export default defineComponent({
             timestamp={new Date(msg.timestamp).toLocaleTimeString()}
             onDetails={
               hasDetails(msg.metadata)
-                ? () => props.onToolDetails(msg)
+                ? () => props.onToolDetails?.(msg)
                 : undefined
             }
             showButton={hasDetails(msg.metadata)}
@@ -113,7 +157,7 @@ export default defineComponent({
           <ToolMessageCard
             key={msg.id}
             message={msg}
-            onView={props.onToolResponse}
+            onView={(msg) => props.onToolResponse?.(msg)}
           />
         );
       }
@@ -123,8 +167,8 @@ export default defineComponent({
           <AssistantMessageBubble
             key={msg.id}
             message={msg}
-            onSave={props.onSaveAssistant}
-            onToolDetails={props.onToolDetails}
+            onSave={(msgId) => props.onSaveAssistant?.(msgId)}
+            onToolDetails={(msg) => props.onToolDetails?.(msg)}
             isSaving={props.isSavingHighlight}
           />
         );

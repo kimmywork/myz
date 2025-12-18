@@ -3,14 +3,21 @@ import { computed, defineComponent, ref } from "vue";
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 interface StreamingMessageProps {
-  stream: MessageStream;
+  stream?: MessageStream;
 }
 
 export default defineComponent({
   name: "StreamingMessage",
+  props: {
+    stream: {
+      type: Object,
+      required: true,
+      default: () => ({}),
+    },
+  },
   setup(props: StreamingMessageProps) {
     const showReasoning = ref(false);
-    const reasoningText = computed(() => (props.stream.reasoning || "").trim());
+    const reasoningText = computed(() => (props.stream?.reasoning || "").trim());
     const hasReasoning = computed(() => Boolean(reasoningText.value));
 
     return () => (
@@ -18,8 +25,8 @@ export default defineComponent({
         <div class="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
           <span>AI助手</span>
           <span>
-            {props.stream.timestamp
-              ? new Date(props.stream.timestamp).toLocaleString()
+            {props.stream?.timestamp
+              ? new Date(props.stream?.timestamp).toLocaleString()
               : new Date().toLocaleString()}
           </span>
         </div>
@@ -44,10 +51,10 @@ export default defineComponent({
             )}
           </div>
         )}
-        {props.stream.content ? (
+        {props.stream?.content ? (
           <div
             class="prose prose-sm max-w-none text-slate-700 dark:prose-invert"
-            v-html={renderMarkdown(props.stream.content)}
+            v-html={renderMarkdown(props.stream?.content)}
           />
         ) : (
           <div class="text-xs text-slate-500">AI 正在生成回答...</div>

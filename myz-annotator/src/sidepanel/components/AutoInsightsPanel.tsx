@@ -22,21 +22,40 @@ export interface AutoInsightsState {
 }
 
 interface AutoInsightsPanelProps {
-  state: AutoInsightsState;
-  onClose: () => void;
-  onRetry: () => void;
-  onScrollToCitation: (chunkId: string, snippet: string) => void;
+  state?: AutoInsightsState;
+  onClose?: () => void;
+  onRetry?: () => void;
+  onScrollToCitation?: (chunkId: string, snippet: string) => void;
 }
 
 export default defineComponent({
   name: "AutoInsightsPanel",
+  props: {
+    state: {
+      type: Object as () => AutoInsightsState,
+      required: true,
+      default: () => ({}),
+    },
+    onClose: {
+      type: Function,
+      required: true,
+    },
+    onRetry: {
+      type: Function,
+      required: true,
+    },
+    onScrollToCitation: {
+      type: Function,
+      required: true,
+    },
+  },
   setup(props: AutoInsightsPanelProps) {
     const actionLabel = computed(
-      () => ACTION_LABELS[props.state.action] || "自动分析",
+      () => ACTION_LABELS[props.state?.action || "summarize"],
     );
 
     function renderContextMeta() {
-      const context = props.state.context;
+      const context = props.state?.context;
       if (!context) {
         return "";
       }
@@ -44,8 +63,8 @@ export default defineComponent({
       if (context.chunkCount) {
         parts.push(`${context.chunkCount} 个片段`);
       }
-      if (props.state.chunkGroups > 1) {
-        parts.push(`共 ${props.state.chunkGroups} 批`);
+      if (props.state?.chunkGroups && props.state?.chunkGroups > 1) {
+        parts.push(`共 ${props.state?.chunkGroups} 批`);
       }
       if (context.wordCount) {
         parts.push(`${context.wordCount} 词`);
@@ -68,11 +87,11 @@ export default defineComponent({
       event.preventDefault();
       const chunkId = href.replace("myz-chunk://", "");
       const snippet = anchor.getAttribute("title") || anchor.textContent || "";
-      props.onScrollToCitation(chunkId, snippet);
+      props.onScrollToCitation?.(chunkId, snippet);
     }
 
     function renderBody() {
-      if (props.state.loading) {
+      if (props.state?.loading) {
         return (
           <div class="flex flex-1 flex-col items-center justify-center text-sm text-slate-500 dark:text-slate-300">
             <span class="mb-2 animate-spin text-2xl">⏳</span>
@@ -80,21 +99,21 @@ export default defineComponent({
           </div>
         );
       }
-      if (props.state.error) {
+      if (props.state?.error) {
         return (
           <div class="flex flex-1 flex-col items-center justify-center text-sm text-rose-500 dark:text-rose-300">
-            <p>{props.state.error}</p>
+            <p>{props.state?.error}</p>
             <button
               type="button"
               class="mt-4 inline-flex items-center rounded-full bg-rose-500/90 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-600"
-              onClick={props.onRetry}
+              onClick={() => props.onRetry?.()}
             >
               重新生成
             </button>
           </div>
         );
       }
-      if (!props.state.markdown) {
+      if (!props.state?.markdown) {
         return (
           <p class="text-sm text-slate-500 dark:text-slate-300">
             暂无内容，请重新生成。
@@ -105,7 +124,7 @@ export default defineComponent({
         <article
           class="prose prose-sm max-w-none dark:prose-invert"
           onClick={handleMarkdownClick}
-          innerHTML={renderMarkdown(props.state.markdown)}
+          innerHTML={renderMarkdown(props.state?.markdown ?? "")}
         ></article>
       );
     }
@@ -125,11 +144,11 @@ export default defineComponent({
             </p>
           </div>
           <div class="flex items-center gap-2">
-            {!props.state.loading && (
+            {!props.state?.loading && (
               <button
                 type="button"
                 class="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
-                onClick={props.onRetry}
+                onClick={() => props.onRetry?.()}
               >
                 重新生成
               </button>
@@ -137,7 +156,7 @@ export default defineComponent({
             <button
               type="button"
               class="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-indigo-500 dark:hover:bg-indigo-400"
-              onClick={props.onClose}
+              onClick={() => props.onClose?.()}
             >
               返回对话
             </button>
@@ -148,9 +167,9 @@ export default defineComponent({
           {renderBody()}
         </section>
 
-        {props.state.generatedAt && (
+        {props.state?.generatedAt && (
           <footer class="border-t border-slate-200 px-4 py-2 text-right text-[11px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
-            生成时间：{new Date(props.state.generatedAt).toLocaleString()}
+            生成时间：{new Date(props.state?.generatedAt).toLocaleString()}
           </footer>
         )}
       </div>

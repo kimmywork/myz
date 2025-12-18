@@ -10,6 +10,26 @@ interface SaveHighlightModalProps {
 
 export default defineComponent({
   name: "SaveHighlightModal",
+  props: {
+    visible: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+    aiResponse: {
+      type: String,
+      required: true,
+      default: "",
+    },
+    onSave: {
+      type: Function,
+      required: true,
+    },
+    onClose: {
+      type: Function,
+      required: true,
+    },
+  },
   setup(props: SaveHighlightModalProps) {
     const note = ref("");
     const tags = ref(["ai-generated"]);
@@ -32,11 +52,11 @@ export default defineComponent({
     function handleClose() {
       note.value = "";
       tags.value = ["ai-generated"];
-      props.onClose();
+      props?.onClose();
     }
 
     return () =>
-      props.visible ? (
+      props?.visible ? (
         <div
           class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur"
           onClick={handleClose}
@@ -63,7 +83,7 @@ export default defineComponent({
                   AI回复内容
                 </h4>
                 <div class="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap">
-                  {props.aiResponse}
+                  {props?.aiResponse}
                 </div>
               </div>
 

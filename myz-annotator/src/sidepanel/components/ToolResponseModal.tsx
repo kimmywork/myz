@@ -12,21 +12,37 @@ export interface ToolResponseViewerState {
 }
 
 interface ToolResponseModalProps {
-  viewer: ToolResponseViewerState;
+  viewer?: ToolResponseViewerState;
   onClose: () => void;
 }
 
 export default defineComponent({
   name: "ToolResponseModal",
+  props: {
+    viewer: {
+      type: Object as () => ToolResponseViewerState,
+      required: false,
+      default: () => ({
+        visible: false,
+        title: "",
+        toolName: "",
+        invocationDetails: [],
+      }),
+    },
+    onClose: {
+      type: Function,
+      required: true,
+    },
+  },
   setup(props: ToolResponseModalProps) {
     return () =>
-      props.viewer.visible ? (
+      props.viewer?.visible ? (
         <div
           class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur"
-          onClick={props.onClose}
+          onClick={() => props.onClose?.()}
         >
           <div
-            class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900"
+            class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900 h-full"
             onClick={(e) => e.stopPropagation()}
           >
             <header class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
@@ -42,7 +58,7 @@ export default defineComponent({
               </div>
               <button
                 class="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-500 hover:text-slate-700 dark:border-slate-700 dark:text-slate-300"
-                onClick={props.onClose}
+                onClick={() => props.onClose?.()}
               >
                 ✕
               </button>
@@ -65,14 +81,14 @@ export default defineComponent({
                   {props.viewer.args && (
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                       <div class="text-sm font-semibold">调用参数</div>
-                      <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
+                      <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400 h-1/2 overflow-y-scroll">
                         {props.viewer.args}
                       </pre>
                     </div>
                   )}
                   <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     <div class="text-sm font-semibold">工具输出</div>
-                    <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400">
+                    <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400 h-1/2 overflow-y-scroll">
                       {props.viewer.content || "（无内容）"}
                     </pre>
                   </div>

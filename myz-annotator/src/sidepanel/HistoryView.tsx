@@ -14,7 +14,16 @@ interface HistoryViewProps {
 
 export default defineComponent({
   name: "HistoryView",
-
+  props: {
+    onSelectConversation: {
+      type: Function,
+      required: true,
+    },
+    onBack: {
+      type: Function,
+      required: true,
+    },
+  },
   setup(props: HistoryViewProps) {
     const conversations: Ref<ConversationInfo[]> = ref([]);
     const isLoading = ref(true);

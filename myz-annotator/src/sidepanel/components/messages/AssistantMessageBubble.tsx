@@ -21,20 +21,27 @@ export interface AssistantMessage {
 }
 
 export interface AssistantMessageBubbleProps {
-  message: AssistantMessage;
-  onSave: (messageId: string) => void;
-  onToolDetails: (message: any) => void;
+  message?: AssistantMessage;
+  onSave?: (messageId: string) => void;
+  onToolDetails?: (message: any) => void;
   isSaving?: boolean;
 }
 
 export default defineComponent({
   name: "AssistantMessageBubble",
+  props: {
+    message: {
+      type: Object,
+      required: true,
+      default: () => ({}),
+    }
+  },
   setup(props: AssistantMessageBubbleProps) {
-    const hasToolCalls = (message: AssistantMessage) =>
+    const hasToolCalls = (message?: AssistantMessage) =>
       Boolean(message?.metadata?.hasToolCalls);
     const showReasoning = ref(false);
     const reasoningText = computed(() =>
-      (props.message.metadata?.reasoning || "").trim(),
+      (props.message?.metadata?.reasoning || "").trim(),
     );
     const hasReasoning = computed(() => Boolean(reasoningText.value));
 
@@ -42,9 +49,9 @@ export default defineComponent({
       <div class="w-full max-w-[85%] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
         <div class="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
           <span>AI助手</span>
-          <span>{new Date(props.message.timestamp).toLocaleString()}</span>
+          <span>{new Date(props.message?.timestamp || "").toLocaleString()}</span>
         </div>
-        {props.message.metadata?.streamingError && (
+        {props.message?.metadata?.streamingError && (
           <div class="mb-2 text-xs text-rose-500">
             ⚠️ {props.message.metadata.streamingError}
           </div>
@@ -52,14 +59,14 @@ export default defineComponent({
         {hasToolCalls(props.message) && (
           <ToolInlineNotice
             text={`🔧 AI正在通过以下工具检索信息: ${
-              resolveToolNames(props.message.metadata) || "处理中..."
+              resolveToolNames(props.message?.metadata) || "处理中..."
             }`}
             timestamp=""
             showButton={
-              Array.isArray(props.message.metadata?.toolCallDetails) &&
-              props.message.metadata.toolCallDetails.length > 0
+              Array.isArray(props.message?.metadata?.toolCallDetails) &&
+              props.message?.metadata?.toolCallDetails.length > 0
             }
-            onDetails={() => props.onToolDetails(props.message)}
+            onDetails={() => props.onToolDetails?.(props.message)}
             size="lg"
           />
         )}
@@ -84,7 +91,7 @@ export default defineComponent({
             )}
           </div>
         )}
-        {props.message.content && (
+        {props.message?.content && (
           <div
             class="prose prose-sm mt-3 max-w-none text-slate-800 dark:prose-invert"
             v-html={renderMarkdown(props.message.content)}
@@ -93,8 +100,8 @@ export default defineComponent({
         <div class="mt-3 flex justify-end">
           <button
             class="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300"
-            onClick={() => props.onSave(props.message.id)}
-            disabled={props.isSaving || props.message.metadata?.streaming}
+            onClick={() => props.onSave?.(props.message?.id || "")}
+            disabled={props.isSaving || props.message?.metadata?.streaming}
           >
             保存
           </button>

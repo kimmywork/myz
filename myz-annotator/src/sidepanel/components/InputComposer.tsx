@@ -1,19 +1,61 @@
 import { defineComponent } from "vue";
 
 interface InputComposerProps {
-  value: string;
+  value?: string;
   placeholder?: string;
   disabled?: boolean;
   error?: string;
-  onInput: (event: Event) => void;
-  onKeydown: (event: KeyboardEvent) => void;
-  onCompositionstart: (event: CompositionEvent) => void;
-  onCompositionend: (event: CompositionEvent) => void;
-  onSend: () => void;
+  onInput?: (event: Event) => void;
+  onKeydown?: (event: KeyboardEvent) => void;
+  onCompositionstart?: (event: CompositionEvent) => void;
+  onCompositionend?: (event: CompositionEvent) => void;
+  onSend?: () => void;
 }
 
 export default defineComponent({
   name: "InputComposer",
+  props: {
+    value: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    placeholder: {
+      type: String,
+      required: false,
+      default: "请输入您的消息...",
+    },
+    disabled: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    error: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    onInput: {
+      type: Function,
+      required: true,
+    },
+    onKeydown: {
+      type: Function,
+      required: true,
+    },
+    onCompositionstart: {
+      type: Function,
+      required: true,
+    },
+    onCompositionend: {
+      type: Function,
+      required: true,
+    },
+    onSend: {
+      type: Function,
+      required: true,
+    },
+  },
   setup(props: InputComposerProps) {
     return () => (
       <div class="border-t border-slate-200/80 bg-white/80 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/80">
@@ -23,17 +65,17 @@ export default defineComponent({
           placeholder={props.placeholder}
           rows={3}
           disabled={props.disabled}
-          onInput={props.onInput}
-          onKeydown={props.onKeydown}
-          onCompositionstart={props.onCompositionstart}
-          onCompositionend={props.onCompositionend}
+          onInput={(e) => props.onInput?.(e)}
+          onKeydown={(e) => props.onKeydown?.(e)}
+          onCompositionstart={(e) => props.onCompositionstart?.(e)}
+          onCompositionend={(e) => props.onCompositionend?.(e)}
         />
         <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
           {props.error && <span class="text-rose-500">{props.error}</span>}
           <button
             class="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500 disabled:opacity-60"
-            onClick={props.onSend}
-            disabled={!props.value.trim() || props.disabled}
+            onClick={() => props.onSend?.()}
+            disabled={!props.value?.trim() || props.disabled}
           >
             发送
           </button>

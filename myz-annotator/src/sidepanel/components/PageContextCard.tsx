@@ -10,6 +10,32 @@ interface PageContextCardProps {
 
 export default defineComponent({
   name: "PageContextCard",
+  props: {
+    title: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    url: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    sendContext: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+    disabled: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    onToggle: {
+      type: Function,
+      required: true,
+    },
+  },
   setup(props: PageContextCardProps) {
     return () => (
       <section class="mt-4 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
