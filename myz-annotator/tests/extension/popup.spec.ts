@@ -1,18 +1,19 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { createStaticServer } from "../helpers/static-server.js";
-import { launchExtension } from "../helpers/launch-extension.js";
+import { LaunchedExtension, launchExtension } from "../helpers/launch-extension.js";
+import { Server } from "node:http";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let server;
-let serverUrl;
-let context;
-let page;
-let extensionId;
-let launched;
+let server: Server;
+let serverUrl: string;
+let context: BrowserContext;
+let page: Page;
+let extensionId: string | null;
+let launched: LaunchedExtension;
 
 test.beforeAll(async () => {
   const fixtures = path.join(__dirname, "..", "fixtures");
@@ -34,7 +35,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context.close();
-  await new Promise((resolve, reject) =>
+  await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );
 });
@@ -77,7 +78,7 @@ test("popup_shows_saved_highlights_and_copy", async () => {
   };
 
   // Save via chrome.runtime.sendMessage in popup context
-  const saved = await popup.evaluate(async (p) => {
+  const saved = await popup.evaluate<{ ok: boolean }>(async (p) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { type: "myz:saveHighlight", payload: p },
@@ -104,7 +105,7 @@ test("popup_shows_saved_highlights_and_copy", async () => {
     '.highlight-item .highlight-item__actions [data-action="copy"]',
   );
   expect(copyBtn).toBeTruthy();
-  await copyBtn.click();
+  await copyBtn?.click();
 
   // Read clipboard from popup context
   const clipboardText = await popup.evaluate(async () => {

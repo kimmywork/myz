@@ -1,17 +1,18 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { createStaticServer } from "../helpers/static-server.js";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { Server } from "node:http";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let server;
-let serverUrl;
-let context;
-let page;
-let extensionId;
+let server: Server;
+let serverUrl: string;
+let context: BrowserContext;
+let page: Page;
+let extensionId: string | null;
 
 test.beforeAll(async () => {
   const fixtures = path.join(__dirname, "..", "fixtures");
@@ -31,7 +32,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context.close();
-  await new Promise((resolve, reject) =>
+  await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );
 });
@@ -77,7 +78,7 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
   // At least one highlight element should contain the selected text
   const highlightTexts = await Promise.all(
     highlights.map((h) =>
-      h.evaluate((el) => el.innerText || el.textContent || ""),
+      h.evaluate((el) => (el as HTMLElement).innerText || el.textContent || ""),
     ),
   );
 
@@ -100,7 +101,7 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
   // After reload at least one highlight should still contain our selected text
   const highlightAfterTexts = await Promise.all(
     highlightsAfter.map((h) =>
-      h.evaluate((el) => el.innerText || el.textContent || ""),
+      h.evaluate((el) => (el as HTMLElement).innerText || el.textContent || ""),
     ),
   );
   const matchedAfter = highlightAfterTexts.some(
@@ -190,7 +191,7 @@ test("save_clip_via_toolbar_persists_to_dashboard", async () => {
     }
   }, `${serverUrl}/myz-test.html`);
 
-  const records = await dash.evaluate(async (url) => {
+  const records = await dash.evaluate<{ data?: any[] }>(async (url) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { type: "myz:getHighlightsForUrl", payload: { url } },

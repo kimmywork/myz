@@ -1,11 +1,12 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { AddressInfo } from "node:net";
 
-function createStaticServer(rootDir) {
-  const server = http.createServer((req, res) => {
+function createStaticServer(rootDir: string) {
+  const server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
     try {
-      let reqPath = decodeURIComponent(req.url.split("?")[0]);
+      let reqPath = decodeURIComponent(req.url?.split("?")[0] || "");
       if (reqPath === "/" || reqPath === "") {
         reqPath = "/myz-test.html";
       }
@@ -39,17 +40,14 @@ function createStaticServer(rootDir) {
   });
 
   return {
-    listen(port = 0) {
-      return new Promise((resolve, reject) => {
+    listen(port = 0): Promise<{ server: http.Server; url: string }> {
+      return new Promise((resolve) => {
         server.listen(port, "127.0.0.1", () => {
-          const addr = server.address();
-          const url = `http://${addr.address}:${addr.port}`;
+          const addr = server.address() as AddressInfo;
+          const url = `http://${addr?.address}:${addr?.port}`;
           resolve({ server, url });
         });
       });
-    },
-    close() {
-      return new Promise((resolve) => server.close(resolve));
     },
   };
 }

@@ -1,16 +1,17 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { createStaticServer } from "../helpers/static-server.js";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { Server } from "node:http";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let server;
-let serverUrl;
-let context;
-let page;
+let server: Server;
+let serverUrl: string;
+let context: BrowserContext;
+let page: Page;
 
 test.beforeAll(async () => {
   const fixtures = path.join(__dirname, "..", "fixtures");

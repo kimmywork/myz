@@ -1,9 +1,18 @@
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
-import { chromium } from "playwright";
+import { Page, BrowserContext, chromium } from "playwright";
 
-async function launchExtension(extensionPath, options = {}) {
+
+export interface LaunchedExtension {
+  context: BrowserContext;
+  page: Page;
+  userDataDir: string;
+  extensionId: string | null;
+  openPopupViaServiceWorker: () => Promise<string>;
+}
+
+async function launchExtension(extensionPath: string, options = {}) {
   // Prefer loading from the dist/ build output if a directory isn't passed.
   if (!extensionPath) {
     throw new Error("extensionPath is required");
@@ -33,7 +42,7 @@ async function launchExtension(extensionPath, options = {}) {
   const pages = context.pages();
   const page = pages.length ? pages[0] : await context.newPage();
   // Try to determine the extension id by inspecting browser targets via CDP.
-  let extensionId = null;
+  let extensionId: string | null = null;
   try {
     // Create a CDP session from the current page and poll for extension targets
     const client = await context.newCDPSession(page);
@@ -103,7 +112,7 @@ async function launchExtension(extensionPath, options = {}) {
         })();`,
         awaitPromise: true,
         returnByValue: true,
-        sessionId,
+        // sessionId,
       });
       return resp?.result?.value;
     } finally {

@@ -1,21 +1,19 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { launchExtension } from "../helpers/launch-extension.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let context;
-let page;
-let extensionId;
+let context: BrowserContext;
+let page: Page;
 
 test.beforeAll(async () => {
   const extensionPath = path.join(__dirname, "..", "..", "dist");
   const launched = await launchExtension(extensionPath);
   context = launched.context;
   page = launched.page;
-  extensionId = launched.extensionId;
 });
 
 test.afterAll(async () => {
@@ -73,10 +71,10 @@ test.skip("highlight_on_wikipedia_awk_page", async () => {
   // Collect highlight texts and perform token-based match like other complex tests
   const highlightTexts = await Promise.all(
     highlights.map((h) =>
-      h.evaluate((el) => el.innerText || el.textContent || ""),
+      h.evaluate((el) => (el as HTMLElement).innerText || el.textContent || ""),
     ),
   );
-  const normalize = (s) => (s || "").replace(/\s+/g, " ").trim();
+  const normalize = (s: string) => (s || "").replace(/\s+/g, " ").trim();
   const combined = highlightTexts.map(normalize).join(" ");
   const tokens = normalize(selIntro)
     .split(/[\s，,、。]+/)

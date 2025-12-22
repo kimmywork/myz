@@ -1,19 +1,19 @@
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { createStaticServer } from "../helpers/static-server.js";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { Server } from "node:http";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let server;
-let serverUrl;
-let context;
-let page;
-let extensionId;
-
+let server: Server;
+let serverUrl: string;
+let context: BrowserContext;
+let page: Page;
+let extensionId: string | null;
 test.beforeAll(async () => {
   const fixtures = path.join(__dirname, "..", "fixtures");
   const s = createStaticServer(fixtures);
@@ -30,7 +30,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context.close();
-  await new Promise((resolve, reject) =>
+  await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );
 });

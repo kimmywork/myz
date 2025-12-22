@@ -1,18 +1,17 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { createStaticServer } from "../helpers/static-server.js";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { Server } from "node:http";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let server;
-let serverUrl;
-let context;
-let page;
-let extensionId;
-
+let server: Server;
+let serverUrl: string;
+let context: BrowserContext;
+let page: Page;
 test.beforeAll(async () => {
   const fixtures = path.join(__dirname, "..", "fixtures");
   const s = createStaticServer(fixtures);
@@ -24,7 +23,6 @@ test.beforeAll(async () => {
   const launched = await launchExtension(extensionPath);
   context = launched.context;
   page = launched.page;
-  extensionId = launched.extensionId;
 });
 
 test.afterAll(async () => {
@@ -37,10 +35,8 @@ test.afterAll(async () => {
 });
 
 async function selectAndAnnotateRange(
-  page,
-  selector,
-  startRatio = 0.1,
-  endRatio = 0.6,
+  page: Page,
+  selector: string,
 ) {
   // Select a portion of the element by dragging the mouse from startRatio to endRatio
   const el = page.locator(selector).first();
@@ -81,7 +77,7 @@ test("prevent overlapping highlights and notify user", async () => {
   });
 
   // Create first highlight over a slice of para-1 (characters 10..60)
-  await selectAndAnnotateRange(page, "#para-1", 10, 60);
+  await selectAndAnnotateRange(page, "#para-1");
   await page.waitForSelector(".myz-highlight", { timeout: 5000 });
 
   // Attempt to create an overlapping highlight: start inside the first
@@ -95,7 +91,7 @@ test("prevent overlapping highlights and notify user", async () => {
   const startY = box.y + box.height / 2;
   // drag to a point further right in the paragraph
   const para = await page.locator("#para-1").first();
-  const paraBox = await para.boundingBox();
+  const paraBox = (await para.boundingBox())!;
   const endX = paraBox.x + Math.max(10, paraBox.width - 6);
   const endY = startY;
   await page.mouse.move(startX, startY);
@@ -114,5 +110,5 @@ test("prevent overlapping highlights and notify user", async () => {
   const toast = await page
     .waitForSelector(".myz-toast", { timeout: 10000 })
     .catch(() => null);
-  expect(await toast.textContent()).toBeTruthy();
+  expect(await toast?.textContent()).toBeTruthy();
 });

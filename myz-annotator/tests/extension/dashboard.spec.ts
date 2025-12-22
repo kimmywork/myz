@@ -1,17 +1,17 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, BrowserContext } from "@playwright/test";
 import { createStaticServer } from "../helpers/static-server.js";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { Server } from "node:http";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let server;
-let serverUrl;
-let context;
-let page;
-let extensionId;
+let server: Server;
+let serverUrl: string;
+let context: BrowserContext;
+let extensionId: string | null;
 let launched;
 
 test.beforeAll(async () => {
@@ -24,7 +24,6 @@ test.beforeAll(async () => {
   const extensionPath = path.join(__dirname, "..", "..", "dist");
   launched = await launchExtension(extensionPath);
   context = launched.context;
-  page = launched.page;
   extensionId = launched.extensionId;
   if (!extensionId) {
     throw new Error("Could not determine extension id (extensionId is null).");
@@ -33,7 +32,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context.close();
-  await new Promise((resolve, reject) =>
+  await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );
 });
@@ -59,7 +58,7 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
     kind: "clip",
   };
 
-  const saved = await dash.evaluate(async (p) => {
+  const saved = await dash.evaluate<{ ok: boolean; data?: { id?: string }; }>(async (p) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { type: "myz:saveHighlight", payload: p },
@@ -76,8 +75,7 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
   const savedId =
     saved?.data?.id ||
     saved?.data?.id ||
-    (saved && saved.data && saved.data.id) ||
-    (saved && saved.id) ||
+    (saved && saved.data && saved.data.id)
     null;
   // Reload dashboard to ensure it fetches latest highlights
   await dash.reload();
@@ -92,9 +90,9 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
   expect(card).toBeTruthy();
 
   // Delete the highlight via the card delete button
-  const deleteBtn = await card.$('button[data-action="delete"]');
+  const deleteBtn = await card?.$('button[data-action="delete"]');
   expect(deleteBtn).toBeTruthy();
-  await deleteBtn.click();
+  await deleteBtn?.click();
 
   // Ensure the card is removed
   await dash.waitForSelector(cardSelector, {
@@ -103,7 +101,7 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
   });
 
   // Verify export no longer contains the deleted snippet
-  const exportResult = await dash.evaluate(() => {
+  const exportResult = await dash.evaluate<{ ok: boolean; data?: { markdown?: string }; }>(() => {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ type: "myz:export" }, (resp) => {
         if (chrome.runtime.lastError)
@@ -137,7 +135,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     hostname: new URL(canonical).hostname,
     kind: "clip",
   };
-  const savedClip = await dash.evaluate(async (p) => {
+  const savedClip = await dash.evaluate<{ ok: boolean; data?: { id?: string }; }>(async (p) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { type: "myz:saveHighlight", payload: p },
@@ -150,7 +148,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     });
   }, clipPayload);
   expect(savedClip && savedClip.ok).toBeTruthy();
-  const clipId = savedClip?.data?.id || savedClip?.id || null;
+  const clipId = savedClip?.data?.id || null;
 
   await dash.reload();
   await dash.waitForSelector(`article[data-id]`, { timeout: 5000 });
@@ -201,7 +199,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     color: "#fde68a",
     style: "paint",
   };
-  const savedHl = await dash.evaluate(async (p) => {
+  const savedHl = await dash.evaluate<{ ok: boolean; data?: { id?: string }; }>(async (p) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { type: "myz:saveHighlight", payload: p },
@@ -214,7 +212,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     });
   }, highlightPayload);
   expect(savedHl && savedHl.ok).toBeTruthy();
-  const hlId = savedHl?.data?.id || savedHl?.id || null;
+  const hlId = savedHl?.data?.id || null;
   await dash.reload();
   const hlSelector = hlId ? `article[data-id="${hlId}"]` : "article.card";
   await dash.waitForSelector(hlSelector, { timeout: 5000 });
@@ -258,7 +256,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     },
   ];
 
-  const importResult = await dash.evaluate(async (records) => {
+  const importResult = await dash.evaluate<{ ok: boolean; }>(async (records) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         {
@@ -303,7 +301,7 @@ test("modal_tag_and_color_edit_checks", async () => {
     style: "paint",
   };
 
-  const saved = await dash.evaluate(async (p) => {
+  const saved = await dash.evaluate<{ ok: boolean; data?: { id?: string }; }>(async (p) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { type: "myz:saveHighlight", payload: p },
@@ -316,7 +314,7 @@ test("modal_tag_and_color_edit_checks", async () => {
     });
   }, hlPayload);
   expect(saved && saved.ok).toBeTruthy();
-  const recId = saved?.data?.id || saved?.id || null;
+  const recId = saved?.data?.id || null;
 
   await dash.reload();
   await dash.waitForSelector(`article[data-id]`, { timeout: 5000 });
@@ -358,7 +356,7 @@ test("modal_tag_and_color_edit_checks", async () => {
   await dash.evaluate((sel) => {
     const input = document.querySelector(sel);
     if (!input) throw new Error("color input not found");
-    input.value = "#ff0000";
+    (input as HTMLInputElement).value = "#ff0000";
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }, colorInputSel);
 
@@ -370,7 +368,7 @@ test("modal_tag_and_color_edit_checks", async () => {
   });
 
   // Query stored record via background message and assert tags and color updated
-  const records = await dash.evaluate(async (url) => {
+  const records = await dash.evaluate<{ ok: boolean; data?: any[] }>(async (url) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { type: "myz:getHighlightsForUrl", payload: { url } },
@@ -488,7 +486,7 @@ test("bulk_import_and_search_filters", async () => {
   }
 
   // Import via background handler (replace strategy)
-  const importResult = await dash.evaluate(async (recs) => {
+  const importResult = await dash.evaluate<{ ok: boolean }>(async (recs) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         {
@@ -506,7 +504,7 @@ test("bulk_import_and_search_filters", async () => {
   expect(importResult && importResult.ok).toBeTruthy();
 
   // Verify background state contains all imported records (UI may lazy-load)
-  const allHighlights = await dash.evaluate(async () => {
+  const allHighlights = await dash.evaluate<{ ok: boolean; data?: any[] }>(async () => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ type: "myz:getAllHighlights" }, (resp) => {
         if (chrome.runtime.lastError)
@@ -572,7 +570,7 @@ test("infinite_scroll_loads_more", async () => {
     });
   }
 
-  const importResult = await dash.evaluate(async (recs) => {
+  const importResult = await dash.evaluate<{ ok: boolean }>(async (recs) => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         {

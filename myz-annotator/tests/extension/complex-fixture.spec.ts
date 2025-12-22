@@ -1,19 +1,19 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { createStaticServer } from "../helpers/static-server.js";
 import { launchExtension } from "../helpers/launch-extension.js";
 
-import { time } from "node:console";
+import { Server } from "node:http";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let server;
-let serverUrl;
-let context;
-let page;
-let extensionId;
+let server: Server;
+let serverUrl: string;
+let context: BrowserContext;
+let page: Page;
+let extensionId: string | null;
 
 async function clearAllHighlights() {
   if (!context || !extensionId) {
@@ -25,7 +25,7 @@ async function clearAllHighlights() {
     await extPage.goto(dashboardUrl);
     await extPage.waitForSelector(".app-shell", { timeout: 5000 });
     await extPage.evaluate(async () => {
-      function sendMessage(type, payload) {
+      function sendMessage(type: string, payload?: any) {
         return new Promise((resolve, reject) => {
           chrome.runtime.sendMessage({ type, payload }, (resp) => {
             if (chrome.runtime.lastError) {
@@ -83,7 +83,12 @@ test.afterAll(async () => {
   } catch (e) {}
 });
 
-async function selectAndAnnotate(page, locator, note = "", text = undefined) {
+async function selectAndAnnotate(
+  page: Page,
+  locator: string,
+  note = "",
+  text: string | undefined = undefined,
+) {
   const el = text
     ? page.locator(locator, { hasText: text }).first()
     : page.locator(locator).first();
@@ -165,10 +170,10 @@ test("highlight_and_comment_on_complex_fixture", async () => {
   // Verify at least one highlight contains each of the selected texts (normalize whitespace)
   const highlightTexts = await Promise.all(
     highlights.map((h) =>
-      h.evaluate((el) => el.innerText || el.textContent || ""),
+      h.evaluate((el) => (el as HTMLElement).innerText || el.textContent || ""),
     ),
   );
-  const normalize = (s) => (s || "").replace(/\s+/g, " ").trim();
+  const normalize = (s: string) => (s || "").replace(/\s+/g, " ").trim();
   const normalizedHighlights = highlightTexts.map((t) => normalize(t));
   const combined = normalizedHighlights.join(" ");
   [sel1, sel2, sel3, sel4, sel5].forEach((sel) => {
@@ -244,7 +249,10 @@ test("export_markdown_contains_codeblock_and_notes", async () => {
   const extPage = await context.newPage();
   await extPage.goto(dashboardUrl);
   await extPage.waitForSelector(".app-shell", { timeout: 5000 });
-  const exportResult = await extPage.evaluate(async () => {
+  const exportResult = await extPage.evaluate<{
+    ok: boolean;
+    data?: { markdown?: string };
+  }>(async () => {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ type: "myz:export" }, (resp) => {
         if (chrome.runtime.lastError)
