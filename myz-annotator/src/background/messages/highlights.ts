@@ -1,0 +1,390 @@
+import { registerMessageHandler } from "./handler";
+import { MyZRecord, RECORD_KINDS } from "@/shared/types";
+import {
+  readState,
+  generateId,
+  writeState,
+  persistHighlightPreferences,
+  sortedHighlights,
+  generateUniqueImportId,
+} from "../storage";
+
+import { removeRecordFromIndex, indexRecord, indexRecords } from "../vectoria-index";
+
+import { ArchiveEntry } from "../internetArchive";
+
+import { normalizeHighlightStyle } from "@/shared/highlightUtils";
+
+import { buildMarkdownExport } from "../markdown"
+
+import {
+  normalizeBadgeCounts,
+  BadgeCount,
+  buildActionTitle
+} from "../badge";
+
+import {
+  ImportStrategy,
+  normalizeImportStrategy,
+  sanitizeImportedHighlight,
+  resolveImportConflict,
+  buildHighlightSignature,
+  applyTimestampFallback,
+  dedupeOrder,
+} from "../import";
+
+function enrichRecordWithArchive(record: MyZRecord, archives: Record<string, ArchiveEntry> | null) {
+  if (!record) {
+    return record;
+  }
+  const canonical = record.url;
+  const archiveEntry: ArchiveEntry | null =
+    canonical && archives && typeof archives === "object"
+      ? archives[canonical]
+      : null;
+  const snapshotUrl = archiveEntry?.snapshot?.url || null;
+  const snapshotTimestamp = archiveEntry?.snapshot?.timestamp || null;
+  const status = archiveEntry?.status || null;
+  const enriched = { ...record };
+  if (snapshotUrl) {
+    enriched.archiveSnapshotUrl = snapshotUrl;
+    if (!enriched.archiveUrl) {
+      enriched.archiveUrl = snapshotUrl;
+    }
+  } else if (enriched.archiveUrl) {
+    enriched.archiveSnapshotUrl = enriched.archiveUrl;
+  }
+  if (snapshotTimestamp) {
+    enriched.archiveSnapshotTimestamp = snapshotTimestamp;
+  }
+  if (status) {
+    enriched.archiveStatus = status;
+  }
+  return enriched;
+}
+
+function enrichRecordsWithArchive(records: MyZRecord[], archives: Record<string, ArchiveEntry> | null) {
+  if (!Array.isArray(records)) {
+    return [];
+  }
+  return records.map((record) => enrichRecordWithArchive(record, archives));
+}
+
+export function initializeHighlightMessageHandlers() {
+  registerMessageHandler("myz:getHighlightsForUrl", async (payload: { url?: string; aliases?: string[] }) => {
+    const state = await readState();
+    const urls = new Set();
+    if (typeof payload?.url === "string" && payload.url) {
+      urls.add(payload.url);
+    }
+    if (Array.isArray(payload?.aliases)) {
+      payload.aliases.forEach((candidate) => {
+        if (typeof candidate === "string" && candidate) {
+          urls.add(candidate);
+        }
+      });
+    }
+    if (!urls.size) {
+      return [];
+    }
+    const matches = Object.values(state.highlights).filter((item) =>
+      urls.has(item.url),
+    );
+    return enrichRecordsWithArchive(matches, state.archives);
+  });
+
+  registerMessageHandler("myz:saveHighlight", async (payload: MyZRecord) => {
+    if (!payload) {
+      throw new Error("Missing highlight payload");
+    }
+    const state = await readState();
+    const now = new Date().toISOString();
+    const id = payload.id || generateId();
+    const kind = payload.kind === "clip" ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    const record: MyZRecord = {
+      ...payload,
+      id,
+      kind,
+      createdAt: payload.createdAt || now,
+      updatedAt: now,
+    };
+
+    if (kind === "clip") {
+      record.range = undefined;
+      record.color = undefined;
+      record.style = undefined;
+    } else {
+      record.style = normalizeHighlightStyle(payload.style);
+    }
+
+    if (!state.highlights[id]) {
+      state.order.push(id);
+    }
+    state.highlights[id] = record;
+    await writeState(state);
+    if (kind === "highlight") {
+      await persistHighlightPreferences({
+        color: record.color,
+        style: record.style,
+      });
+    }
+    await indexRecord(record);
+    return record;
+  });
+
+  registerMessageHandler("myz:updateHighlight", async (payload: Partial<MyZRecord>) => {
+    if (!payload?.id) {
+      throw new Error("Missing highlight id");
+    }
+    const state = await readState();
+    const existing = state.highlights[payload.id];
+    if (!existing) {
+      throw new Error("Highlight not found");
+    }
+    const now = new Date().toISOString();
+    const requestedKind =
+      payload.kind === RECORD_KINDS.CLIP
+        ? RECORD_KINDS.CLIP
+        : payload.kind === RECORD_KINDS.HIGHLIGHT
+          ? RECORD_KINDS.HIGHLIGHT
+          : existing.kind === RECORD_KINDS.CLIP
+            ? RECORD_KINDS.CLIP
+            : RECORD_KINDS.HIGHLIGHT;
+    const updated: MyZRecord = {
+      ...existing,
+      ...payload,
+      kind: requestedKind,
+      updatedAt: now,
+    };
+    if (updated.kind === "clip") {
+      updated.range = undefined;
+      updated.color = undefined;
+      updated.style = undefined;
+    } else {
+      updated.style = normalizeHighlightStyle(updated.style);
+    }
+    state.highlights[payload.id] = updated;
+    await writeState(state);
+    if (updated.kind === "highlight") {
+      await persistHighlightPreferences({
+        color: updated.color,
+        style: updated.style,
+      });
+    }
+    await indexRecord(updated);
+    return updated;
+  });
+
+  registerMessageHandler("myz:removeHighlight", async (payload: { id?: string }) => {
+    if (!payload?.id) {
+      throw new Error("Missing highlight id");
+    }
+    const state = await readState();
+    if (!state.highlights[payload.id]) {
+      return { success: true };
+    }
+    delete state.highlights[payload.id];
+    state.order = state.order.filter((item) => item !== payload.id);
+    await writeState(state);
+    await removeRecordFromIndex(payload.id);
+    return { success: true };
+  });
+
+  registerMessageHandler("myz:getAllHighlights", async () => {
+    const state = await readState();
+    const highlights = sortedHighlights(state);
+    return enrichRecordsWithArchive(highlights, state.archives);
+  });
+
+  registerMessageHandler("myz:getAllTags", async () => {
+    const state = await readState();
+    const tags = new Set<string>();
+    Object.values(state.highlights).forEach((item) => {
+      if (!item || !Array.isArray(item.tags)) {
+        return;
+      }
+      item.tags.forEach((tag) => {
+        if (typeof tag !== "string") {
+          return;
+        }
+        const normalized = tag.trim();
+        if (!normalized) {
+          return;
+        }
+        tags.add(normalized);
+      });
+    });
+    return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  });
+
+  registerMessageHandler("myz:export", async () => {
+    const state = await readState();
+    const highlights = sortedHighlights(state);
+    return {
+      json: JSON.stringify(highlights, null, 2),
+      markdown: buildMarkdownExport(highlights),
+    };
+  });
+
+  registerMessageHandler("myz:updateBadge", async (payload: { tabId?: number; } & Partial<BadgeCount>, sender: chrome.runtime.MessageSender) => {
+    const tabId =
+      typeof payload?.tabId === "number" ? payload.tabId : sender?.tab?.id;
+    if (typeof tabId !== "number" || Number.isNaN(tabId)) {
+      return { success: false };
+    }
+    const { total, highlightCount, savedCount } = normalizeBadgeCounts(payload);
+    const text = total > 0 ? (total > 99 ? "99+" : String(total)) : "";
+    await chrome.action.setBadgeText({ tabId, text });
+    if (text) {
+      await chrome.action.setBadgeBackgroundColor({
+        tabId,
+        color: [37, 99, 235, 255],
+      });
+      if (typeof chrome.action.setBadgeTextColor === "function") {
+        await chrome.action.setBadgeTextColor({
+          tabId,
+          color: [255, 255, 255, 255],
+        });
+      }
+    }
+    const title = buildActionTitle({ total, highlightCount, savedCount });
+    try {
+      await chrome.action.setTitle({ tabId, title });
+    } catch (error) {
+      console.warn("Failed to update action title", error);
+    }
+    return { success: true };
+  });
+
+  registerMessageHandler("myz:importHighlights", async (payload: { records?: MyZRecord[]; strategy?: ImportStrategy }) => {
+    const records = Array.isArray(payload?.records) ? payload.records : [];
+    if (!records.length) {
+      throw new Error("没有可导入的数据");
+    }
+
+    const strategy = normalizeImportStrategy(payload?.strategy);
+    const state = await readState();
+    const existingHighlights = state.highlights || {};
+    const usedIds = new Set(Object.keys(existingHighlights));
+
+    const existingSignatures = new Set();
+    Object.values(existingHighlights).forEach((record) => {
+      const signature = buildHighlightSignature(record);
+      if (signature) {
+        existingSignatures.add(signature);
+      }
+    });
+
+    const replacements: Map<string, MyZRecord> = new Map();
+    const additions: Map<string, MyZRecord> = new Map();
+    let skipped = 0;
+
+    records.forEach((raw) => {
+      const sanitized = sanitizeImportedHighlight(raw);
+      if (!sanitized) {
+        skipped += 1;
+        return;
+      }
+
+      let identifier =
+        typeof sanitized.id === "string" ? sanitized.id.trim() : "";
+
+      // Handle conflicts with existing highlights first.
+      if (
+        identifier &&
+        existingHighlights[identifier] &&
+        !replacements.has(identifier)
+      ) {
+        const existingRecord = existingHighlights[identifier];
+        if (!resolveImportConflict(strategy, existingRecord, sanitized)) {
+          skipped += 1;
+          return;
+        }
+        sanitized.id = identifier;
+        applyTimestampFallback(sanitized, existingRecord);
+        const signature = buildHighlightSignature(sanitized);
+        if (signature) {
+          existingSignatures.add(signature);
+        }
+        replacements.set(identifier, sanitized);
+        return;
+      }
+
+      // Conflicts with already staged replacements or additions (duplicate IDs within payload).
+      if (
+        identifier &&
+        (replacements.has(identifier) || additions.has(identifier))
+      ) {
+        const staged =
+          (replacements.get(identifier) || additions.get(identifier))!;
+        if (!resolveImportConflict(strategy, staged, sanitized)) {
+          skipped += 1;
+          return;
+        }
+        sanitized.id = identifier;
+        applyTimestampFallback(sanitized, staged);
+        const signature = buildHighlightSignature(sanitized);
+        if (signature) {
+          existingSignatures.add(signature);
+        }
+        if (replacements.has(identifier)) {
+          replacements.set(identifier, sanitized);
+        } else {
+          additions.set(identifier, sanitized);
+        }
+        return;
+      }
+
+      // De-duplicate by selection signature to avoid creating multiple identical highlights.
+      const signature = buildHighlightSignature(sanitized);
+      if (signature && existingSignatures.has(signature)) {
+        skipped += 1;
+        return;
+      }
+
+      let resolvedId = identifier;
+      if (!resolvedId || usedIds.has(resolvedId) || additions.has(resolvedId)) {
+        resolvedId = generateUniqueImportId(usedIds);
+      } else {
+        usedIds.add(resolvedId);
+      }
+      sanitized.id = resolvedId;
+      applyTimestampFallback(sanitized);
+      sanitized.updatedAt = sanitized.updatedAt || sanitized.createdAt;
+      if (signature) {
+        existingSignatures.add(signature);
+      }
+      additions.set(resolvedId, sanitized);
+    });
+
+    if (!additions.size && !replacements.size && skipped === 0) {
+      throw new Error("没有符合要求的标注");
+    }
+
+    replacements.forEach((record, id) => {
+      state.highlights[id] = record;
+      state.order.push(id);
+    });
+
+    additions.forEach((record, id) => {
+      state.highlights[id] = record;
+      state.order.push(id);
+    });
+
+    state.order = dedupeOrder(state.order, state.highlights);
+
+    await writeState(state);
+    const toIndex = [
+      ...Array.from(additions.values()),
+      ...Array.from(replacements.values()),
+    ];
+    if (toIndex.length) {
+      await indexRecords(toIndex);
+    }
+    return {
+      inserted: additions.size,
+      replaced: replacements.size,
+      skipped,
+    };
+  });
+}
