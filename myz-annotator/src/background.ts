@@ -18,7 +18,7 @@ import {
   writeSettings,
   writeState,
 } from "./background/storage.js";
-import { buildActionTitle, normalizeBadgeCounts } from "./background/badge.js";
+import { BadgeCount, buildActionTitle, normalizeBadgeCounts } from "./background/badge.js";
 import { buildMarkdownExport } from "./background/markdown.js";
 import {
   normalizeImportStrategy,
@@ -27,6 +27,7 @@ import {
   applyTimestampFallback,
   buildHighlightSignature,
   dedupeOrder,
+  ImportStrategy,
 } from "./background/import.js";
 import {
   buildLogseqEndpointList,
@@ -38,6 +39,7 @@ import {
   extractInsertedBlockEntities,
   matchInsertedHighlights,
   extractEntityUuid,
+  RecordBlockEntry,
 } from "./background/logseq.js";
 import {
   indexRecord as indexVectorRecord,
@@ -48,33 +50,37 @@ import {
   warmVectoriaModel,
   resetVectorIndex,
   testVectorProvider,
+  VectoriaSettings,
 } from "./background/vectoria-index.js";
 import {
   getArchiveStatusForUrl,
   ensureArchiveSnapshot,
   getArchiveHistory,
   initializeArchiveQueue,
+  ArchiveEntry,
 } from "./background/internetArchive.js";
 import {
   readAiConversations,
   writeAiConversations,
   createConversation,
-  addMessageToConversation,
   getConversationHistory,
   saveAiGeneratedHighlight,
   exportConversation,
   deleteConversation,
   listConversations,
 } from "./background/ai.js";
-import { createAiProvider } from "./background/aiProvider.js";
+import { createAiProvider, PageInsightPayload, ProcessConversationOptions } from "./background/aiProvider.js";
 import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
+import { MyZRecord, RECORD_KINDS } from "./shared/types.js";
+import { AIAssistantSettings, McpServerSetting, Settings } from "./background/settings.js";
+import { testMcpConnection } from "./background/mcp.js";
 
-function enrichRecordWithArchive(record, archives) {
+function enrichRecordWithArchive(record: MyZRecord, archives: Record<string, ArchiveEntry> | null) {
   if (!record) {
     return record;
   }
   const canonical = record.url;
-  const archiveEntry =
+  const archiveEntry: ArchiveEntry | null =
     canonical && archives && typeof archives === "object"
       ? archives[canonical]
       : null;
@@ -99,7 +105,7 @@ function enrichRecordWithArchive(record, archives) {
   return enriched;
 }
 
-function enrichRecordsWithArchive(records, archives) {
+function enrichRecordsWithArchive(records: MyZRecord[], archives: Record<string, ArchiveEntry> | null) {
   if (!Array.isArray(records)) {
     return [];
   }
@@ -204,7 +210,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
   if (!tab || !tab.id) return;
   try {
     if (info.menuItemId === "myz-zen-mode") {
@@ -229,11 +235,15 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       // Open side panel with AI assistant
       await chrome.sidePanel.open({ windowId: tab.windowId });
 
+      type ExtractPageContentResponse = {
+        data?: { text?: string };
+      }
+
       // Try to extract page content first
       try {
-        const result = await new Promise((resolve, reject) => {
-          chrome.tabs.sendMessage(
-            tab.id,
+        const result = await new Promise<ExtractPageContentResponse>((resolve, reject) => {
+          chrome.tabs.sendMessage<{ type: string}, ExtractPageContentResponse>(
+            tab.id!,
             { type: "myz:extractPageContent" },
             (response) => {
               if (chrome.runtime.lastError) {
@@ -289,7 +299,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 // Dynamically update menu title/visibility per tab
-async function refreshZenMenuForTab(tabId) {
+async function refreshZenMenuForTab(tabId: number) {
   if (!tabId) return;
   try {
     await chrome.contextMenus.update("myz-zen-mode", {
@@ -344,12 +354,13 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: { type: string, payload: any }, sender, sendResponse) => {
   if (!message || !message.type) {
     return false;
   }
 
-  const handler = messageHandlers[message.type];
+  const handler = messageHandlers[message.type as keyof typeof messageHandlers] as 
+    ((payload?: any, sender?: chrome.runtime.MessageSender) => Promise<any>) | undefined;
   if (!handler) {
     console.warn("Unhandled message type", message.type);
     return false;
@@ -366,7 +377,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 const messageHandlers = {
-  async "myz:getHighlightsForUrl"(payload) {
+  async "myz:getHighlightsForUrl"(payload: { url?: string; aliases?: string[] }) {
     const state = await readState();
     const urls = new Set();
     if (typeof payload?.url === "string" && payload.url) {
@@ -388,15 +399,15 @@ const messageHandlers = {
     return enrichRecordsWithArchive(matches, state.archives);
   },
 
-  async "myz:saveHighlight"(payload) {
+  async "myz:saveHighlight"(payload: MyZRecord) {
     if (!payload) {
       throw new Error("Missing highlight payload");
     }
     const state = await readState();
     const now = new Date().toISOString();
     const id = payload.id || generateId();
-    const kind = payload.kind === "clip" ? "clip" : "highlight";
-    const record = {
+    const kind = payload.kind === "clip" ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    const record: MyZRecord = {
       ...payload,
       id,
       kind,
@@ -405,9 +416,9 @@ const messageHandlers = {
     };
 
     if (kind === "clip") {
-      record.range = null;
-      record.color = null;
-      record.style = null;
+      record.range = undefined;
+      record.color = undefined;
+      record.style = undefined;
     } else {
       record.style = normalizeHighlightStyle(payload.style);
     }
@@ -427,7 +438,7 @@ const messageHandlers = {
     return record;
   },
 
-  async "myz:updateHighlight"(payload) {
+  async "myz:updateHighlight"(payload: Partial<MyZRecord>) {
     if (!payload?.id) {
       throw new Error("Missing highlight id");
     }
@@ -438,23 +449,23 @@ const messageHandlers = {
     }
     const now = new Date().toISOString();
     const requestedKind =
-      payload.kind === "clip"
-        ? "clip"
-        : payload.kind === "highlight"
-          ? "highlight"
-          : existing.kind === "clip"
-            ? "clip"
-            : "highlight";
-    const updated = {
+      payload.kind === RECORD_KINDS.CLIP
+        ? RECORD_KINDS.CLIP
+        : payload.kind === RECORD_KINDS.HIGHLIGHT
+          ? RECORD_KINDS.HIGHLIGHT
+          : existing.kind === RECORD_KINDS.CLIP
+            ? RECORD_KINDS.CLIP
+            : RECORD_KINDS.HIGHLIGHT;
+    const updated: MyZRecord = {
       ...existing,
       ...payload,
       kind: requestedKind,
       updatedAt: now,
     };
     if (updated.kind === "clip") {
-      updated.range = null;
-      updated.color = null;
-      updated.style = null;
+      updated.range = undefined;
+      updated.color = undefined;
+      updated.style = undefined;
     } else {
       updated.style = normalizeHighlightStyle(updated.style);
     }
@@ -470,7 +481,7 @@ const messageHandlers = {
     return updated;
   },
 
-  async "myz:removeHighlight"(payload) {
+  async "myz:removeHighlight"(payload: { id?: string }) {
     if (!payload?.id) {
       throw new Error("Missing highlight id");
     }
@@ -493,7 +504,7 @@ const messageHandlers = {
 
   async "myz:getAllTags"() {
     const state = await readState();
-    const tags = new Set();
+    const tags = new Set<string>();
     Object.values(state.highlights).forEach((item) => {
       if (!item || !Array.isArray(item.tags)) {
         return;
@@ -521,7 +532,7 @@ const messageHandlers = {
     };
   },
 
-  async "myz:updateBadge"(payload, sender) {
+  async "myz:updateBadge"(payload: { tabId?: number; } & Partial<BadgeCount>, sender: chrome.runtime.MessageSender) {
     const tabId =
       typeof payload?.tabId === "number" ? payload.tabId : sender?.tab?.id;
     if (typeof tabId !== "number" || Number.isNaN(tabId)) {
@@ -551,7 +562,7 @@ const messageHandlers = {
     return { success: true };
   },
 
-  async "myz:importHighlights"(payload) {
+  async "myz:importHighlights"(payload: { records?: MyZRecord[]; strategy?: ImportStrategy }) {
     const records = Array.isArray(payload?.records) ? payload.records : [];
     if (!records.length) {
       throw new Error("没有可导入的数据");
@@ -570,8 +581,8 @@ const messageHandlers = {
       }
     });
 
-    const replacements = new Map();
-    const additions = new Map();
+    const replacements: Map<string, MyZRecord> = new Map();
+    const additions: Map<string, MyZRecord> = new Map();
     let skipped = 0;
 
     records.forEach((raw) => {
@@ -611,7 +622,7 @@ const messageHandlers = {
         (replacements.has(identifier) || additions.has(identifier))
       ) {
         const staged =
-          replacements.get(identifier) || additions.get(identifier);
+          (replacements.get(identifier) || additions.get(identifier))!;
         if (!resolveImportConflict(strategy, staged, sanitized)) {
           skipped += 1;
           return;
@@ -687,10 +698,10 @@ const messageHandlers = {
     return readSettings();
   },
 
-  async "myz:updateSettings"(payload) {
+  async "myz:updateSettings"(payload: Partial<Settings>) {
     const current = await readSettings();
-    const patch = payload ? { ...payload } : {};
-    const configKeys = [
+    const patch: Partial<Settings> = payload ? { ...payload } : {};
+    const configKeys: (keyof Settings)[] = [
       "vectorUseLocalModel",
       "vectorOpenAiEndpoint",
       "vectorOpenAiApiKey",
@@ -729,7 +740,7 @@ const messageHandlers = {
     }
   },
 
-  async "myz:testVectorProvider"(payload) {
+  async "myz:testVectorProvider"(payload: Partial<VectoriaSettings>) {
     const config = {
       useLocalModel:
         payload?.useLocalModel !== false && payload?.useLocalModel !== "remote",
@@ -755,14 +766,14 @@ const messageHandlers = {
     return { success: true, count: highlights.length };
   },
 
-  async "myz:updatePalette"(payload) {
+  async "myz:updatePalette"(payload: Partial<Settings>) {
     if (!payload) {
       return readSettings();
     }
     return writeSettings(payload);
   },
 
-  async "myz:syncLogseq"(payload) {
+  async "myz:syncLogseq"(payload: Partial<MyZRecord>) {
     const settings = await readSettings();
     if (!settings.logseqSyncEnabled) {
       throw new Error("LogSeq 同步未启用");
@@ -797,7 +808,7 @@ const messageHandlers = {
 
         const exportedAt = new Date();
         const recordsToInsertMap = new Map();
-        const recordsWithKnownUuid = [];
+        const recordsWithKnownUuid: MyZRecord[] = [];
 
         highlights.forEach((record) => {
           if (!record) {
@@ -828,7 +839,7 @@ const messageHandlers = {
         }
 
         const recordsToInsert = Array.from(recordsToInsertMap.values());
-        const payloadEntries = recordsToInsert
+        const payloadEntries: RecordBlockEntry[] = recordsToInsert
           .map((record) => ({
             record,
             block: buildHighlightBlock(record),
@@ -904,7 +915,7 @@ const messageHandlers = {
     throw new Error("LogSeq sync failed: no endpoint responded");
   },
 
-  async "myz:captureSelection"(payload, sender) {
+  async "myz:captureSelection"(payload: { format?: "jpeg" | "png"; quality?: number }, sender: chrome.runtime.MessageSender) {
     if (!sender?.tab || typeof sender.tab.windowId === "undefined") {
       throw new Error("No active tab for capture");
     }
@@ -918,11 +929,11 @@ const messageHandlers = {
     return { dataUrl };
   },
 
-  async "myz:getArchiveStatusForUrl"(payload) {
+  async "myz:getArchiveStatusForUrl"(payload: { url?: string }) {
     return getArchiveStatusForUrl(payload?.url || "");
   },
 
-  async "myz:ensureArchiveSnapshot"(payload) {
+  async "myz:ensureArchiveSnapshot"(payload: { url?: string; force?: boolean }) {
     return ensureArchiveSnapshot({
       url: payload?.url,
       force: Boolean(payload?.force),
@@ -933,7 +944,7 @@ const messageHandlers = {
     return getArchiveHistory();
   },
 
-  async "myz:vectoriaSearch"(payload) {
+  async "myz:vectoriaSearch"(payload: { text?: string; topK?: number }) {
     const query =
       typeof payload?.text === "string"
         ? payload.text.trim().slice(0, 2000)
@@ -956,13 +967,13 @@ const messageHandlers = {
     };
   },
 
-  async "myz:showRelatedHighlights"(payload, sender) {
+  async "myz:showRelatedHighlights"(payload: any, sender: chrome.runtime.MessageSender) {
     try {
       const tabId = sender?.tab?.id;
       if (typeof tabId === "number") {
         await chrome.sidePanel.open({ tabId });
       } else {
-        await chrome.sidePanel.open({});
+        await chrome.sidePanel.open({ windowId: sender?.tab?.windowId! });
       }
     } catch (error) {
       console.warn("Failed to open sidepanel", error);
@@ -979,7 +990,7 @@ const messageHandlers = {
   },
 
   // AI Assistant handlers
-  async "myz:testAiConnection"(payload) {
+  async "myz:testAiConnection"(payload: Partial<AIAssistantSettings>) {
     const settings = await readSettings();
     const merged = { ...settings, ...(payload || {}) };
     if (!merged.aiAssistantEnabled) {
@@ -994,13 +1005,13 @@ const messageHandlers = {
     return await provider.testConnection();
   },
 
-  async "myz:createConversation"(payload) {
+  async "myz:createConversation"(payload: { url: string; title: string; }) {
     const settings = await readSettings();
     if (!settings.aiAssistantEnabled) {
       throw new Error("AI Assistant is not enabled");
     }
 
-    const { url, title, action } = payload || {};
+    const { url, title } = payload || {};
     const conversation = await createConversation(url, title);
 
     // Store conversation
@@ -1012,7 +1023,12 @@ const messageHandlers = {
     return conversation;
   },
 
-  async "myz:processWithAi"(payload) {
+  async "myz:processWithAi"(payload: {
+    conversationId: string;
+    action: string;
+    content: string;
+    options?: Partial<ProcessConversationOptions>;
+  }) {
     const settings = await readSettings();
     if (!settings.aiAssistantEnabled) {
       throw new Error("AI Assistant is not enabled");
@@ -1040,7 +1056,7 @@ const messageHandlers = {
     }
   },
 
-  async "myz:generatePageInsights"(payload) {
+  async "myz:generatePageInsights"(payload: Partial<PageInsightPayload>) {
     const settings = await readSettings();
     if (!settings.aiAssistantEnabled) {
       throw new Error("AI Assistant is not enabled");
@@ -1050,28 +1066,28 @@ const messageHandlers = {
     return await provider.generatePageInsights(payload || {});
   },
 
-  async "myz:getConversationHistory"(payload) {
+  async "myz:getConversationHistory"(payload: { conversationId: string; limit?: number; }) {
     const { conversationId, limit } = payload || {};
     return await getConversationHistory(conversationId, limit || 50);
   },
 
-  async "myz:listConversations"(payload) {
+  async "myz:listConversations"(payload: { limit?: number; }) {
     const { limit } = payload || {};
     return await listConversations(limit || 100);
   },
 
-  async "myz:exportConversation"(payload) {
+  async "myz:exportConversation"(payload: { conversationId: string; format?: "markdown" | "json"; }) {
     const { conversationId, format } = payload || {};
     return await exportConversation(conversationId, format || "markdown");
   },
 
-  async "myz:deleteConversation"(payload) {
+  async "myz:deleteConversation"(payload: { conversationId: string; }) {
     const { conversationId } = payload || {};
     await deleteConversation(conversationId);
     return { success: true };
   },
 
-  async "myz:saveAiGeneratedHighlight"(payload) {
+  async "myz:saveAiGeneratedHighlight"(payload: Partial<MyZRecord>) {
     // Ensure we have valid timestamps
     const now = new Date().toISOString();
     const highlightData = {
@@ -1084,10 +1100,10 @@ const messageHandlers = {
 
     // Save to main highlights storage
     const id = highlight.id || generateId();
-    const record = {
+    const record: MyZRecord = {
       ...highlight,
       id,
-      kind: "ai-generated",
+      kind: RECORD_KINDS.AI_GENERATED,
       createdAt: highlight.createdAt || now,
       updatedAt: now,
     };
@@ -1102,7 +1118,7 @@ const messageHandlers = {
     return record;
   },
 
-  async "myz:testMcpConnection"(payload) {
+  async "myz:testMcpConnection"(payload: { serverConfig: McpServerSetting }) {
     const { serverConfig } = payload || {};
     return await testMcpConnection(serverConfig);
   },

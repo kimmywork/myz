@@ -1,5 +1,5 @@
 import { computed, defineComponent, reactive, Ref, ref, watch } from "vue";
-import { ImportStrategy } from "../store/index.js";
+import { ImportStrategy } from "@/background/import.js";
 import { Settings } from "@/background/settings.js";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import AiSettings from "./AiSettings.jsx";

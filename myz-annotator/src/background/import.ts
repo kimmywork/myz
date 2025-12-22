@@ -150,7 +150,7 @@ export function resolveImportConflict(strategy: ImportStrategy, existing: MyZRec
   return incomingTime > existingTime;
 }
 
-export function applyTimestampFallback(target: Partial<MyZRecord>, fallback: Partial<MyZRecord>) {
+export function applyTimestampFallback(target: Partial<MyZRecord>, fallback?: Partial<MyZRecord>) {
   const nowIso = new Date().toISOString();
   if (!target.createdAt) {
     target.createdAt = fallback?.createdAt || fallback?.updatedAt || nowIso;

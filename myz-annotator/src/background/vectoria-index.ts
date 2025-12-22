@@ -9,10 +9,10 @@ const MODEL_NAME = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";
 let vectoriaInstance: Vectoria | null = null;
 let vectoriaInitPromise: Promise<Vectoria> | null = null;
 
-interface VectoriaSettings {
+export interface VectoriaSettings {
   enabled: boolean;
   modelReady: boolean;
-  useLocalModel: boolean;
+  useLocalModel: boolean | string;
   openAiEndpoint: string;
   openAiApiKey: string;
   openAiModel: string;
@@ -323,7 +323,7 @@ export async function indexRecord(record: MyZRecord) {
   }
 }
 
-export async function indexRecords(records = []) {
+export async function indexRecords(records: MyZRecord[] = []) {
   if (!vectoriaSettings.enabled || !vectoriaSettings.modelReady) {
     return;
   }

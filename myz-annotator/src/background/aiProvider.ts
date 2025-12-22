@@ -60,21 +60,23 @@ export interface Message {
   };
 }
 
-
-export type ToolParamaterDefinition = {
-  type: "object";
-  required?: string[];
-  properties: Record<string, any>;
-} | {
-  type: "number";
-  minimum?: number;
-  maximum?: number;
-  default?: number;
-  description?: string;
-} | {
-  type: "string";
-  description?: string;
-};
+export type ToolParamaterDefinition =
+  | {
+      type: "object";
+      required?: string[];
+      properties: Record<string, any>;
+    }
+  | {
+      type: "number";
+      minimum?: number;
+      maximum?: number;
+      default?: number;
+      description?: string;
+    }
+  | {
+      type: "string";
+      description?: string;
+    };
 
 export interface ChatCompletionRequestPayload {
   model: string;
@@ -125,7 +127,7 @@ export interface ChatCompletionMessage {
 export interface ChatCompletionResponsePayload {
   choices: Array<{
     message?: ChatCompletionMessage;
-    delta?:  ChatCompletionMessage;
+    delta?: ChatCompletionMessage;
   }>;
 }
 
@@ -172,6 +174,25 @@ export interface MessageStream {
   timestamp: string;
   reasoning: string;
   metadata: Record<string, any>;
+}
+
+export interface ProcessConversationResult {
+  conversationId: string;
+  content: string;
+  reasoning: string;
+  model: string;
+  timestamp: string;
+  hasToolCalls: boolean;
+  toolCallCount: number;
+  availableTools?: Tool[];
+}
+
+export interface PageInsightPayload {
+  action: string;
+  chunks: ContextChunk[];
+  title: string;
+  url: string;
+  temperature: number;
 }
 
 const LOCAL_TOOL_DEFINITIONS: Tool[] = [
@@ -284,7 +305,9 @@ interface SplittedContent {
   reasoning: string;
 }
 
-function splitContentAndReasoning(content: MessageContent | string | undefined): SplittedContent {
+function splitContentAndReasoning(
+  content: MessageContent | string | undefined,
+): SplittedContent {
   const result = { text: "", reasoning: "" };
   if (typeof content === "undefined" || content === null) {
     return result;
@@ -348,7 +371,10 @@ function normalizeReasoningChunk(value: MessageContent | string | undefined) {
 }
 
 // fixme: any
-function normalizeMessagePayload(message: any): { content: string; reasoning: string } {
+function normalizeMessagePayload(message: any): {
+  content: string;
+  reasoning: string;
+} {
   if (!message) {
     return { content: "", reasoning: "" };
   }
@@ -379,14 +405,16 @@ export interface AIProviderOptions {
 }
 
 export class AiProvider {
-
   private allowUntested: boolean;
   public provider: AIProviderSetting | null;
   public settings: Partial<AIAssistantSettings> & Partial<AIProviderSetting>;
   public isEnabled: boolean;
   private mcpClients: Map<string, McpClient>;
 
-  constructor(settings: AIAssistantSettings, options: AIProviderOptions = { allowUntested: false }) {
+  constructor(
+    settings: AIAssistantSettings,
+    options: AIProviderOptions = { allowUntested: false },
+  ) {
     this.allowUntested = Boolean(options.allowUntested);
     const { provider, fallbackSettings } = resolveActiveProvider(settings, {
       allowUntested: this.allowUntested,
@@ -394,12 +422,13 @@ export class AiProvider {
     this.provider = provider;
     this.settings = { ...fallbackSettings, ...(provider || {}) };
     this.mcpClients = new Map();
-    this.isEnabled =
-      Boolean(this.settings.aiAssistantEnabled &&
-      this.provider &&
-      (this.allowUntested || this.provider.lastTestStatus?.ok === true) &&
-      (this.settings.apiEndpoint || this.settings.aiApiEndpoint) &&
-      (this.settings.apiKey || this.settings.aiApiKey));
+    this.isEnabled = Boolean(
+      this.settings.aiAssistantEnabled &&
+        this.provider &&
+        (this.allowUntested || this.provider.lastTestStatus?.ok === true) &&
+        (this.settings.apiEndpoint || this.settings.aiApiEndpoint) &&
+        (this.settings.apiKey || this.settings.aiApiKey),
+    );
 
     // Keep dynamic request header rules (e.g., custom User-Agent) in sync with the
     // provider being used, even before settings are persisted.
@@ -449,7 +478,7 @@ export class AiProvider {
       "";
 
     const payload: AIAssistantSettings = {
-      ...this.settings as AIAssistantSettings,
+      ...(this.settings as AIAssistantSettings),
       aiActiveProviderId: providerId,
       aiApiEndpoint: apiEndpoint,
       aiRequestHeaders: requestHeaders,
@@ -512,7 +541,9 @@ export class AiProvider {
     }
   }
 
-  async makeApiRequest(payload: ChatCompletionRequestPayload): Promise<ChatCompletionResponsePayload> {
+  async makeApiRequest(
+    payload: ChatCompletionRequestPayload,
+  ): Promise<ChatCompletionResponsePayload> {
     await this.syncRequestHeaderRules();
     const aiApiEndpoint =
       this.settings.apiEndpoint || this.settings.aiApiEndpoint;
@@ -541,7 +572,10 @@ export class AiProvider {
     return response.json();
   }
 
-  async streamChatCompletion(payload: ChatCompletionRequestPayload, options: StreamCompletionOptions = {}) {
+  async streamChatCompletion(
+    payload: ChatCompletionRequestPayload,
+    options: StreamCompletionOptions = {},
+  ) {
     await this.syncRequestHeaderRules();
     const aiApiEndpoint =
       this.settings.apiEndpoint || this.settings.aiApiEndpoint;
@@ -573,7 +607,9 @@ export class AiProvider {
       try {
         return JSON.parse(text);
       } catch (error) {
-        throw new Error(`Failed to parse streaming response: ${(error as Error).message}`);
+        throw new Error(
+          `Failed to parse streaming response: ${(error as Error).message}`,
+        );
       }
     }
 
@@ -686,14 +722,16 @@ export class AiProvider {
 
     reader.releaseLock();
 
-    const cleanedToolCalls: ToolCall[] = toolCalls.filter(Boolean).map((call, index) => ({
-      id: call.id || `tool-${index + 1}`,
-      type: "function",
-      function: {
-        name: call.function?.name || "",
-        arguments: call.function?.arguments || "",
-      },
-    }));
+    const cleanedToolCalls: ToolCall[] = toolCalls
+      .filter(Boolean)
+      .map((call, index) => ({
+        id: call.id || `tool-${index + 1}`,
+        type: "function",
+        function: {
+          name: call.function?.name || "",
+          arguments: call.function?.arguments || "",
+        },
+      }));
 
     const message: ChatCompletionMessage = {
       role: "assistant",
@@ -713,8 +751,10 @@ export class AiProvider {
     };
   }
 
-  async generateResponse(messages: ChatCompletionMessage[], options: GenerateResponseOptions = {}): 
-      Promise<ChatCompletionResponsePayload> {
+  async generateResponse(
+    messages: ChatCompletionMessage[],
+    options: GenerateResponseOptions = {},
+  ): Promise<ChatCompletionResponsePayload> {
     if (!this.isEnabled) {
       throw new Error("AI Assistant is not enabled");
     }
@@ -1099,7 +1139,12 @@ export class AiProvider {
     this.mcpClients.clear();
   }
 
-  async processConversation(conversationId: string, action: string, content: string, options: ProcessConversationOptions = {}) {
+  async processConversation(
+    conversationId: string,
+    action: string,
+    content: string,
+    options: ProcessConversationOptions = {},
+  ): Promise<ProcessConversationResult> {
     const {
       includePageContext = true,
       metadata = {},
@@ -1249,14 +1294,17 @@ export class AiProvider {
       conversationId,
       content: assistantContent,
       reasoning: reasoningContent || "",
-      model: this.settings.aiModel,
+      model: this.settings.aiModel!,
       timestamp: assistantMessage.timestamp,
       hasToolCalls: !!message?.tool_calls,
       toolCallCount: message?.tool_calls?.length || 0,
     };
   }
 
-  async getConversationMessages(conversationId: string, includePageContext = true) {
+  async getConversationMessages(
+    conversationId: string,
+    includePageContext = true,
+  ) {
     // Get messages from IndexedDB (which already includes system context from sidepanel)
     let messages = await getMessagesForConversation(conversationId, 1000);
 
@@ -1340,7 +1388,10 @@ CHUNK 1: myz-chunk-miy0603t-000
     ].join("\n");
   }
 
-  normalizeInsightChunks(chunks: Partial<ContextChunk>[] = [], maxChunks = Infinity): ContextChunk[] {
+  normalizeInsightChunks(
+    chunks: Partial<ContextChunk>[] = [],
+    maxChunks = Infinity,
+  ): ContextChunk[] {
     if (!Array.isArray(chunks)) {
       return [];
     }
@@ -1368,7 +1419,11 @@ CHUNK 1: myz-chunk-miy0603t-000
     });
   }
 
-  splitChunksIntoGroups(chunks: ContextChunk[], perGroup = 20, maxCharsPerGroup = Infinity) {
+  splitChunksIntoGroups(
+    chunks: ContextChunk[],
+    perGroup = 20,
+    maxCharsPerGroup = Infinity,
+  ) {
     if (!Array.isArray(chunks) || !chunks.length) {
       return [];
     }
@@ -1404,7 +1459,7 @@ CHUNK 1: myz-chunk-miy0603t-000
     return groups;
   }
 
-  async generatePageInsights(payload: { action?: string; chunks?: Partial<ContextChunk>[]; title?: string; url?: string; temperature?: number } = {}) {
+  async generatePageInsights(payload: Partial<PageInsightPayload> = {}) {
     if (!this.isEnabled) {
       throw new Error("AI Assistant is not enabled");
     }
@@ -1517,7 +1572,10 @@ CHUNK 1: myz-chunk-miy0603t-000
   }
 }
 
-export function createAiProvider(settings: AIAssistantSettings, options: AIProviderOptions = {}) {
+export function createAiProvider(
+  settings: AIAssistantSettings,
+  options: AIProviderOptions = {},
+) {
   return new AiProvider(settings, options);
 }
 
@@ -1559,7 +1617,10 @@ function buildHighlightSummary(record: MyZRecord): string {
   return parts.join(" · ");
 }
 
-const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionResult>> = {
+const LOCAL_TOOL_HANDLERS: Record<
+  string,
+  (args?: any) => Promise<ToolExecutionResult>
+> = {
   "myz-list-hosts": async () => {
     const highlights = await readAllHighlights();
     const counts = new Map();
@@ -1653,7 +1714,9 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
         : "未找到符合日期范围的标注。";
     return { content: [{ type: "text", text }], data: matches };
   },
-  "myz-filter-by-tag-or-host": async (args: {tags?: string[], host?: string, limit?: number} = {tags: []}) => {
+  "myz-filter-by-tag-or-host": async (
+    args: { tags?: string[]; host?: string; limit?: number } = { tags: [] },
+  ) => {
     const limit = normalizeLimit(args.limit, 20, 50);
     const tags = Array.isArray(args.tags)
       ? args.tags
@@ -1696,8 +1759,13 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
   },
 };
 
-function resolveActiveProvider(settings: Partial<AIAssistantSettings> = {}, options: { allowUntested?: boolean } = {})
-  : { provider: AIProviderSetting | null, fallbackSettings: Partial<AIAssistantSettings> & Partial<AIProviderSetting> } {
+function resolveActiveProvider(
+  settings: Partial<AIAssistantSettings> = {},
+  options: { allowUntested?: boolean } = {},
+): {
+  provider: AIProviderSetting | null;
+  fallbackSettings: Partial<AIAssistantSettings> & Partial<AIProviderSetting>;
+} {
   const allowUntested = Boolean(options.allowUntested);
   const providers = Array.isArray(settings.aiProviders)
     ? settings.aiProviders
@@ -1741,7 +1809,8 @@ function resolveActiveProvider(settings: Partial<AIAssistantSettings> = {}, opti
     };
   }
 
-  const fallbackSettings: Partial<AIAssistantSettings> & Partial<AIProviderSetting> = {
+  const fallbackSettings: Partial<AIAssistantSettings> &
+    Partial<AIProviderSetting> = {
     ...settings,
   };
   if (provider) {

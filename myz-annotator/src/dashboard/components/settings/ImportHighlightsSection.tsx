@@ -1,5 +1,6 @@
 import { defineComponent, Ref } from "vue";
-import { ImportStrategy, ImportStatus } from "../../store";
+import { ImportStatus } from "../../store";
+import { ImportStrategy } from "@/background/import";
 
 export interface ImportHighlightsSectionProps {
   importFileRef: Ref<HTMLInputElement | null>;

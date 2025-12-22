@@ -6,6 +6,7 @@ import { computed, reactive, Ref, ref, watch } from "vue";
 import { IMPORT_MAX_BYTES, PAGINATION_BATCH } from "../constants.js";
 import { downloadFile } from "@/dashboard/utils/download.js";
 import { normalizeImportedPayload } from "@/dashboard/utils/import.js";
+import { ImportStrategy } from "@/background/import.js";
 import {
   computeRecordStats,
   formatDateTime,
@@ -48,8 +49,6 @@ export interface ModalState {
 }
 
 export type MessageTone = "info" | "error" | "success";
-
-export type ImportStrategy = "skip" | "overwrite" | "latest";
 
 export interface ImportStatus {
   message: string;

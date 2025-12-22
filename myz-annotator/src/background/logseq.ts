@@ -29,7 +29,7 @@ export interface LogseqEntity {
 
 export interface RecordBlockEntry {
   record: MyZRecord;
-  block: LogseqEntity;
+  block: LogseqBlock | null;
 }
 
 export function buildLogseqEndpointList(settings: LogseqSettings, payload: any = {}): string[] {
