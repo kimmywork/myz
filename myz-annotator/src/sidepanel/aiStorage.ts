@@ -3,7 +3,7 @@
  * Uses a more robust storage mechanism for large conversation data
  */
 
-import { Message } from "./components/ConversationList";
+import { Message } from "@/background/aiProvider.js";
 
 const DB_NAME = "MyZAIAssistantDB";
 const DB_VERSION = 1;

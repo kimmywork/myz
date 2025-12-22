@@ -7,8 +7,11 @@ import {
 
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
+import { AIAssistantSettings, AIProviderSetting, Settings, VectorSettings } from "./settings.js";
+import { ArchiveActions, ArchiveEntry, ArchiveHistoryEntry, ArchiveQueueEntry } from "./internetArchive.js";
+import { MyZRecord } from "@/shared/types.js";
 
-function normalizeAiProvider(input, { nameFallback = "AI Provider" } = {}) {
+function normalizeAiProvider(input: AIProviderSetting | undefined, { nameFallback = "AI Provider" } = {}) {
   if (!input || typeof input !== "object") {
     return null;
   }
@@ -48,43 +51,16 @@ function normalizeAiProvider(input, { nameFallback = "AI Provider" } = {}) {
   };
 }
 
-function buildLegacyProvider(settings) {
-  return normalizeAiProvider(
-    {
-      id: "provider-default",
-      name: "默认 Provider",
-      apiEndpoint: settings.aiApiEndpoint || "",
-      apiKey: settings.aiApiKey || "",
-      model: settings.aiModel || "gpt-4",
-      customModel: settings.aiCustomModel || "",
-      contextSize: settings.aiContextSize || "32K",
-      maxTokens:
-        typeof settings.aiMaxTokens === "number" ? settings.aiMaxTokens : 32768,
-      requestHeaders: settings.aiRequestHeaders || "",
-      lastTestStatus: { ok: true, message: "已迁移" },
-    },
-    { nameFallback: "默认 Provider" },
-  );
-}
-
-function normalizeAiSettings(settings) {
-  let providers = [];
+function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(settings: T): T {
+  let providers: AIProviderSetting[] = [];
   if (Array.isArray(settings.aiProviders)) {
     providers = settings.aiProviders
       .map((p, idx) =>
         normalizeAiProvider(p, { nameFallback: `Provider ${idx + 1}` }),
       )
-      .filter(Boolean);
+      .filter(Boolean) as AIProviderSetting[];
   }
-  if (
-    !providers.length &&
-    (settings.aiApiEndpoint || settings.aiApiKey || settings.aiModel)
-  ) {
-    const legacy = buildLegacyProvider(settings);
-    if (legacy) {
-      providers.push(legacy);
-    }
-  }
+
   settings.aiProviders = providers;
 
   if (!settings.aiActiveProviderId && providers.length) {
@@ -140,7 +116,15 @@ function normalizeAiSettings(settings) {
   return settings;
 }
 
-export async function readState() {
+export interface StorageState {
+  highlights: Record<string, MyZRecord>;
+  order: string[];
+  archives: Record<string, ArchiveEntry>;
+  archiveQueue: ArchiveQueueEntry[];
+  archiveHistory: ArchiveHistoryEntry[];
+}
+
+export async function readState(): Promise<StorageState> {
   const { [STORAGE_KEY]: stored } = await chrome.storage.local.get(STORAGE_KEY);
   if (!stored || typeof stored !== "object") {
     return {
@@ -151,7 +135,7 @@ export async function readState() {
       archiveHistory: [],
     };
   }
-  const safeState = {
+  const safeState: StorageState = {
     highlights: stored.highlights || {},
     order: Array.isArray(stored.order) ? stored.order : [],
     archives: sanitizeArchiveMap(stored.archives),
@@ -167,7 +151,7 @@ export async function readState() {
   return safeState;
 }
 
-export async function writeState(state) {
+export async function writeState(state: StorageState) {
   await chrome.storage.local.set({ [STORAGE_KEY]: state });
 }
 
@@ -182,8 +166,8 @@ export async function readSettings() {
   return merged;
 }
 
-export async function writeSettings(patch) {
-  const current = await readSettings();
+export async function writeSettings(patch: Partial<Settings>) {
+  const current = await readSettings() as Settings;
   const updated = normalizeAiSettings({ ...current, ...patch });
   updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
   await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
@@ -195,8 +179,8 @@ export async function writeSettings(patch) {
   return updated;
 }
 
-export async function persistHighlightPreferences({ color, style } = {}) {
-  const patch = {};
+export async function persistHighlightPreferences({ color, style }: Partial<MyZRecord> = {}) {
+  const patch: Partial<Settings> = {};
   const settings = await readSettings();
 
   if (typeof color === "string" && color.trim()) {
@@ -218,7 +202,7 @@ export async function persistHighlightPreferences({ color, style } = {}) {
   }
 }
 
-export function sortedHighlights(state) {
+export function sortedHighlights(state: StorageState): MyZRecord[] {
   return state.order
     .map((id) => state.highlights[id])
     .filter(Boolean)
@@ -233,7 +217,7 @@ export function generateId() {
   return `myz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function generateUniqueImportId(usedIds) {
+export function generateUniqueImportId(usedIds: Set<string>) {
   let candidate = generateId();
   while (usedIds.has(candidate)) {
     candidate = generateId();
@@ -242,11 +226,11 @@ export function generateUniqueImportId(usedIds) {
   return candidate;
 }
 
-function sanitizeArchiveMap(input) {
+function sanitizeArchiveMap(input: Record<string, ArchiveEntry> | undefined) {
   if (!input || typeof input !== "object") {
     return {};
   }
-  const result = {};
+  const result: Record<string, ArchiveEntry> = {};
   Object.entries(input).forEach(([key, value]) => {
     if (typeof key !== "string" || !key) {
       return;
@@ -259,7 +243,7 @@ function sanitizeArchiveMap(input) {
   return result;
 }
 
-function sanitizeArchiveEntry(entry) {
+function sanitizeArchiveEntry(entry: ArchiveEntry): ArchiveEntry | null {
   if (!entry || typeof entry !== "object") {
     return null;
   }
@@ -275,7 +259,7 @@ function sanitizeArchiveEntry(entry) {
   };
 }
 
-function sanitizeArchiveSnapshot(snapshot) {
+function sanitizeArchiveSnapshot(snapshot: ArchiveEntry["snapshot"]): ArchiveEntry["snapshot"] | null {
   if (!snapshot || typeof snapshot !== "object") {
     return null;
   }
@@ -288,11 +272,11 @@ function sanitizeArchiveSnapshot(snapshot) {
   return { timestamp, url };
 }
 
-function sanitizeArchiveQueue(queue) {
+function sanitizeArchiveQueue(queue: ArchiveQueueEntry[] | undefined) {
   if (!Array.isArray(queue)) {
     return [];
   }
-  const result = [];
+  const result: ArchiveQueueEntry[] = [];
   queue.forEach((entry) => {
     if (!entry || typeof entry !== "object") {
       return;
@@ -320,11 +304,11 @@ function sanitizeArchiveQueue(queue) {
   return result;
 }
 
-function sanitizeArchiveHistory(history) {
+function sanitizeArchiveHistory(history: ArchiveHistoryEntry[] | undefined) {
   if (!Array.isArray(history)) {
     return [];
   }
-  const result = [];
+  const result: ArchiveHistoryEntry[] = [];
   history.forEach((entry) => {
     if (!entry || typeof entry !== "object") {
       return;
@@ -336,7 +320,7 @@ function sanitizeArchiveHistory(history) {
     result.push({
       id: typeof entry.id === "string" && entry.id ? entry.id : generateId(),
       url,
-      action: typeof entry.action === "string" ? entry.action : "unknown",
+      action: typeof entry.action === "string" ? entry.action : ArchiveActions.unknown,
       timestamp: typeof entry.timestamp === "string" ? entry.timestamp : null,
       success: Boolean(entry.success),
       status: typeof entry.status === "string" ? entry.status : "info",

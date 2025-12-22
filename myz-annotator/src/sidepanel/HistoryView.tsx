@@ -5,7 +5,7 @@ import {
   deleteConversation,
   ConversationInfo,
 } from "./aiStorage.js";
-import { Conversation } from "./components/ConversationList.jsx";
+import { Conversation } from "@/background/aiProvider.js";
 
 interface HistoryViewProps {
   onSelectConversation: (data: Conversation) => void;

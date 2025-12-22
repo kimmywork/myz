@@ -1,13 +1,16 @@
-import { McpClient, testMcpConnection } from "./mcp.js";
-import { readAiConversations, addMessageToConversation } from "./ai.js";
+import { McpClient } from "./mcp.js";
+import { readAiConversations } from "./ai.js";
 import {
   saveMessage,
   getMessagesForConversation,
-  getConversation,
 } from "../sidepanel/aiStorage.js";
 import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 import { readState, sortedHighlights } from "./storage.js";
+import { AIAssistantSettings, AIProviderSetting } from "./settings.js";
+import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { ContentBlock } from "./mcp_schema.js";
+import { MyZRecord } from "@/shared/types.js";
 
 const REASONING_TYPES = new Set([
   "reasoning",
@@ -18,12 +21,165 @@ const REASONING_TYPES = new Set([
   "thought",
 ]);
 
-const LOCAL_TOOL_DEFINITIONS = [
+export type Role = "user" | "assistant" | "tool" | "system";
+
+export interface ToolInvocationDetails {
+  id: string;
+  name: string;
+  arguments: string;
+  response?: string;
+}
+
+export interface Conversation {
+  conversationId: string;
+  title: string;
+  url: string;
+  createdAt?: string;
+  updatedAt?: string;
+  sendContextEnabled?: boolean;
+  messages: Message[];
+}
+
+export interface Message {
+  id: string;
+  conversationId?: string | null;
+  role: Role;
+  content: string;
+  timestamp: string;
+  reasoning_content?: string;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+  metadata?: {
+    type?: string;
+    hasToolCalls?: boolean;
+    toolInvocationOnly?: boolean;
+    toolCallDetails?: Array<ToolInvocationDetails>;
+    [key: string]: any;
+    toolNames?: string[] | string;
+    toolCallCount?: number;
+  };
+}
+
+
+export type ToolParamaterDefinition = {
+  type: "object";
+  required?: string[];
+  properties: Record<string, any>;
+} | {
+  type: "number";
+  minimum?: number;
+  maximum?: number;
+  default?: number;
+  description?: string;
+} | {
+  type: "string";
+  description?: string;
+};
+
+export interface ChatCompletionRequestPayload {
+  model: string;
+  messages: MessageInPayload[];
+  max_tokens?: number;
+  temperature?: number;
+  tools?: { type: "function"; function: ToolDefinition }[];
+  stream?: boolean;
+}
+
+export interface MessageInPayload {
+  role: Role;
+  content: string;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: ToolParamaterDefinition;
+}
+
+export interface ToolCall {
+  id: string;
+  index?: number;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+export interface ToolExecutionResult {
+  content: ContentBlock[];
+  data?: any;
+  isError?: boolean;
+}
+
+export interface ChatCompletionMessage {
+  role: Role;
+  content: string;
+  reasoning_content?: string;
+  reasoning?: string;
+  tool_calls?: ToolCall[];
+}
+
+export interface ChatCompletionResponsePayload {
+  choices: Array<{
+    message?: ChatCompletionMessage;
+    delta?:  ChatCompletionMessage;
+  }>;
+}
+
+export interface StreamCompletionOptions {
+  onStreamDelta?: (delta: { content: string; reasoning: string }) => void;
+}
+
+export interface GenerateResponseOptions {
+  stream?: boolean;
+  onStreamDelta?: (delta: { content: string; reasoning: string }) => void;
+  conversationId?: string | null;
+  temperature?: number;
+}
+
+export interface ProcessConversationOptions {
+  includePageContext?: boolean;
+  metadata?: Record<string, any>;
+  toolExecutionTimeoutMs?: number;
+  stream?: boolean;
+  streamId?: string;
+}
+
+export interface ContextChunk {
+  id: string;
+  order?: number;
+  text: string;
+  prefix: string;
+}
+
+export interface MessageStreamData {
+  conversationId?: string;
+  streamId: string | null;
+  message?: Message;
+  content?: string;
+  delta?: string;
+  reasoning?: string;
+  metadata?: Record<string, any>;
+  error?: string;
+}
+
+export interface MessageStream {
+  id: string | null;
+  content: string;
+  timestamp: string;
+  reasoning: string;
+  metadata: Record<string, any>;
+}
+
+const LOCAL_TOOL_DEFINITIONS: Tool[] = [
   {
     name: "myz-list-hosts",
     description:
       "列出所有保存过的站点 host 以及对应的标注数量，按数量降序排序。",
-    parameters: {
+    inputSchema: {
       type: "object",
       properties: {},
     },
@@ -31,7 +187,7 @@ const LOCAL_TOOL_DEFINITIONS = [
   {
     name: "myz-popular-tags",
     description: "列出最常用的标签及其出现次数，按次数降序排序。",
-    parameters: {
+    inputSchema: {
       type: "object",
       properties: {
         limit: {
@@ -48,7 +204,7 @@ const LOCAL_TOOL_DEFINITIONS = [
     name: "myz-search-highlights",
     description:
       "按关键词搜索已保存的标注，匹配文本、笔记或标签，返回最近的匹配项。",
-    parameters: {
+    inputSchema: {
       type: "object",
       required: ["query"],
       properties: {
@@ -69,7 +225,7 @@ const LOCAL_TOOL_DEFINITIONS = [
   {
     name: "myz-filter-by-date",
     description: "按日期范围筛选标注，返回最近的标注，日期格式 YYYY-MM-DD。",
-    parameters: {
+    inputSchema: {
       type: "object",
       properties: {
         from: {
@@ -94,7 +250,7 @@ const LOCAL_TOOL_DEFINITIONS = [
     name: "myz-filter-by-tag-or-host",
     description:
       "按标签或站点 host 筛选标注，可同时指定多个标签，返回最近的标注。",
-    parameters: {
+    inputSchema: {
       type: "object",
       properties: {
         tags: {
@@ -118,18 +274,28 @@ const LOCAL_TOOL_DEFINITIONS = [
   },
 ];
 
-function splitContentAndReasoning(content) {
+interface MessageContent {
+  text?: string;
+  reasoning?: string;
+}
+
+interface SplittedContent {
+  text: string;
+  reasoning: string;
+}
+
+function splitContentAndReasoning(content: MessageContent | string | undefined): SplittedContent {
   const result = { text: "", reasoning: "" };
   if (typeof content === "undefined" || content === null) {
     return result;
   }
 
-  const append = (value, target) => {
+  const append = (value: string | number, target: "text" | "reasoning") => {
     if (typeof value === "undefined" || value === null) return;
     result[target] += String(value);
   };
 
-  const handlePart = (part) => {
+  const handlePart = (part: any) => {
     if (typeof part === "undefined" || part === null) return;
     if (typeof part === "string" || typeof part === "number") {
       append(part, "text");
@@ -175,13 +341,14 @@ function splitContentAndReasoning(content) {
   return result;
 }
 
-function normalizeReasoningChunk(value) {
+function normalizeReasoningChunk(value: MessageContent | string | undefined) {
   if (typeof value === "undefined" || value === null) return "";
   const { text, reasoning } = splitContentAndReasoning(value);
   return (reasoning || text || "").toString();
 }
 
-function normalizeMessagePayload(message) {
+// fixme: any
+function normalizeMessagePayload(message: any): { content: string; reasoning: string } {
   if (!message) {
     return { content: "", reasoning: "" };
   }
@@ -207,8 +374,19 @@ function normalizeMessagePayload(message) {
   };
 }
 
+export interface AIProviderOptions {
+  allowUntested?: boolean;
+}
+
 export class AiProvider {
-  constructor(settings, options = {}) {
+
+  private allowUntested: boolean;
+  public provider: AIProviderSetting | null;
+  public settings: Partial<AIAssistantSettings> & Partial<AIProviderSetting>;
+  public isEnabled: boolean;
+  private mcpClients: Map<string, McpClient>;
+
+  constructor(settings: AIAssistantSettings, options: AIProviderOptions = { allowUntested: false }) {
     this.allowUntested = Boolean(options.allowUntested);
     const { provider, fallbackSettings } = resolveActiveProvider(settings, {
       allowUntested: this.allowUntested,
@@ -217,11 +395,11 @@ export class AiProvider {
     this.settings = { ...fallbackSettings, ...(provider || {}) };
     this.mcpClients = new Map();
     this.isEnabled =
-      this.settings.aiAssistantEnabled &&
+      Boolean(this.settings.aiAssistantEnabled &&
       this.provider &&
       (this.allowUntested || this.provider.lastTestStatus?.ok === true) &&
       (this.settings.apiEndpoint || this.settings.aiApiEndpoint) &&
-      (this.settings.apiKey || this.settings.aiApiKey);
+      (this.settings.apiKey || this.settings.aiApiKey));
 
     // Keep dynamic request header rules (e.g., custom User-Agent) in sync with the
     // provider being used, even before settings are persisted.
@@ -230,14 +408,14 @@ export class AiProvider {
     });
   }
 
-  buildRequestHeaders() {
+  buildRequestHeaders(): Record<string, string> {
     const customHeaders = parseAiRequestHeaders(
       this.settings.requestHeaders || this.settings.aiRequestHeaders,
     );
     const headerNamesLower = new Set(
       Object.keys(customHeaders).map((key) => key.toLowerCase()),
     );
-    const headers = {};
+    const headers: Record<string, string> = {};
 
     if (!headerNamesLower.has("content-type")) {
       headers["Content-Type"] = "application/json";
@@ -270,20 +448,14 @@ export class AiProvider {
       this.settings.aiRequestHeaders ||
       "";
 
-    const payload = {
-      ...this.settings,
+    const payload: AIAssistantSettings = {
+      ...this.settings as AIAssistantSettings,
       aiActiveProviderId: providerId,
       aiApiEndpoint: apiEndpoint,
       aiRequestHeaders: requestHeaders,
       aiProviders: [
         {
-          id: providerId,
-          apiEndpoint,
-          requestHeaders,
-          lastTestStatus: this.provider?.lastTestStatus || {
-            ok: true,
-            message: "",
-          },
+          ...this.provider!,
         },
       ],
     };
@@ -315,7 +487,7 @@ export class AiProvider {
     }
 
     try {
-      const testPayload = {
+      const testPayload: ChatCompletionRequestPayload = {
         model,
         messages: [
           {
@@ -335,12 +507,12 @@ export class AiProvider {
     } catch (error) {
       return {
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       };
     }
   }
 
-  async makeApiRequest(payload) {
+  async makeApiRequest(payload: ChatCompletionRequestPayload): Promise<ChatCompletionResponsePayload> {
     await this.syncRequestHeaderRules();
     const aiApiEndpoint =
       this.settings.apiEndpoint || this.settings.aiApiEndpoint;
@@ -369,7 +541,7 @@ export class AiProvider {
     return response.json();
   }
 
-  async streamChatCompletion(payload, options = {}) {
+  async streamChatCompletion(payload: ChatCompletionRequestPayload, options: StreamCompletionOptions = {}) {
     await this.syncRequestHeaderRules();
     const aiApiEndpoint =
       this.settings.apiEndpoint || this.settings.aiApiEndpoint;
@@ -401,7 +573,7 @@ export class AiProvider {
       try {
         return JSON.parse(text);
       } catch (error) {
-        throw new Error(`Failed to parse streaming response: ${error.message}`);
+        throw new Error(`Failed to parse streaming response: ${(error as Error).message}`);
       }
     }
 
@@ -411,9 +583,9 @@ export class AiProvider {
     let done = false;
     let fullContent = "";
     let fullReasoning = "";
-    const toolCalls = [];
+    const toolCalls: ToolCall[] = [];
 
-    const ensureToolCallSlot = (index, partial) => {
+    const ensureToolCallSlot = (index: number, partial: Partial<ToolCall>) => {
       if (!toolCalls[index]) {
         toolCalls[index] = {
           id: partial.id || `tool-${index + 1}`,
@@ -458,7 +630,7 @@ export class AiProvider {
             done = dataStr === "[DONE]";
             continue;
           }
-          let parsed;
+          let parsed: ChatCompletionResponsePayload;
           try {
             parsed = JSON.parse(dataStr);
           } catch {
@@ -514,7 +686,7 @@ export class AiProvider {
 
     reader.releaseLock();
 
-    const cleanedToolCalls = toolCalls.filter(Boolean).map((call, index) => ({
+    const cleanedToolCalls: ToolCall[] = toolCalls.filter(Boolean).map((call, index) => ({
       id: call.id || `tool-${index + 1}`,
       type: "function",
       function: {
@@ -523,7 +695,7 @@ export class AiProvider {
       },
     }));
 
-    const message = {
+    const message: ChatCompletionMessage = {
       role: "assistant",
       content: fullContent,
     };
@@ -541,7 +713,8 @@ export class AiProvider {
     };
   }
 
-  async generateResponse(messages, options = {}) {
+  async generateResponse(messages: ChatCompletionMessage[], options: GenerateResponseOptions = {}): 
+      Promise<ChatCompletionResponsePayload> {
     if (!this.isEnabled) {
       throw new Error("AI Assistant is not enabled");
     }
@@ -551,7 +724,7 @@ export class AiProvider {
       onStreamDelta,
       conversationId = null,
       ...restOptions
-    } = options;
+    }: GenerateResponseOptions = options;
 
     // Determine model to use (support custom models)
     let model = this.settings.model || this.settings.aiModel || "gpt-4";
@@ -562,7 +735,7 @@ export class AiProvider {
     // Determine max tokens based on context size setting
     const maxTokens = this.settings.aiMaxTokens || 32768;
 
-    const payload = {
+    const payload: ChatCompletionRequestPayload = {
       model,
       messages,
       max_tokens: maxTokens,
@@ -571,7 +744,7 @@ export class AiProvider {
     };
 
     // If MCP tools are available, include them in the request
-    const mcpTools = await this.getAvailableTools();
+    const mcpTools: Tool[] = await this.getAvailableTools();
     console.log(
       "[MCP Debug] getAvailableTools returned:",
       mcpTools.length,
@@ -583,8 +756,8 @@ export class AiProvider {
         function: {
           name: tool.name,
           description: tool.description,
-          parameters: tool.inputSchema || {},
-        },
+          parameters: tool.inputSchema,
+        } as ToolDefinition,
       }));
       console.log(
         "[MCP Debug] Added tools to payload:",
@@ -595,7 +768,7 @@ export class AiProvider {
       console.log("[MCP Debug] No MCP tools available");
     }
 
-    const response = stream
+    const response: ChatCompletionResponsePayload = stream
       ? await this.streamChatCompletion(payload, {
           onStreamDelta,
         })
@@ -612,10 +785,10 @@ export class AiProvider {
       const toolNames = toolCallDetails.map((detail) => detail.name);
 
       // Save tool call message first
-      const toolCallMessage = {
+      const toolCallMessage: Message = {
         id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         conversationId,
-        role: "assistant",
+        role: "assistant" as Role,
         content: message.content || "", // Preserve content if present
         tool_calls: message.tool_calls,
         timestamp: new Date().toISOString(),
@@ -649,13 +822,13 @@ export class AiProvider {
   }
 
   async handleToolCalls(
-    message,
-    previousMessages,
-    conversationId,
-    options = {},
+    message: MessageInPayload,
+    previousMessages: MessageInPayload[],
+    conversationId: string | null,
+    options: GenerateResponseOptions = {},
   ) {
-    const toolCalls = message.tool_calls;
-    const followUpMessages = [
+    const toolCalls: ToolCall[] = message.tool_calls || [];
+    const followUpMessages: MessageInPayload[] = [
       ...previousMessages,
       message, // Original assistant message with tool calls
     ];
@@ -681,7 +854,7 @@ export class AiProvider {
         }
 
         // Save tool response to IndexedDB
-        const toolResponseMessage = {
+        const toolResponseMessage: Message = {
           id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           conversationId,
           role: "tool",
@@ -704,10 +877,10 @@ export class AiProvider {
           content: contentText,
         });
       } catch (error) {
-        const errorText = `Error: ${error.message}`;
+        const errorText = `Error: ${(error as Error).message}`;
 
         // Save error to IndexedDB
-        const toolErrorMessage = {
+        const toolErrorMessage: Message = {
           id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           conversationId,
           role: "tool",
@@ -717,7 +890,7 @@ export class AiProvider {
           metadata: {
             toolName: toolCall.function?.name,
             toolArgs: toolCall.function?.arguments,
-            error: error.message,
+            error: (error as Error).message,
           },
         };
         await saveMessage(toolErrorMessage);
@@ -740,7 +913,7 @@ export class AiProvider {
    * Notify UI about new message via chrome.runtime messaging
    * This allows real-time updates for tool calls and responses
    */
-  notifyNewMessage(conversationId, message) {
+  notifyNewMessage(conversationId: string | null, message: Message) {
     try {
       // Send message to all connected clients (including sidepanel)
       chrome.runtime
@@ -759,7 +932,7 @@ export class AiProvider {
     }
   }
 
-  notifyStreamStart(conversationId, message) {
+  notifyStreamStart(conversationId: string, message: Partial<Message>) {
     try {
       chrome.runtime
         .sendMessage({
@@ -775,7 +948,7 @@ export class AiProvider {
     }
   }
 
-  notifyStreamDelta(conversationId, payload) {
+  notifyStreamDelta(conversationId: string, payload: MessageStreamData) {
     try {
       chrome.runtime
         .sendMessage({
@@ -791,7 +964,7 @@ export class AiProvider {
     }
   }
 
-  notifyStreamComplete(conversationId, payload) {
+  notifyStreamComplete(conversationId: string, payload: MessageStreamData) {
     try {
       chrome.runtime
         .sendMessage({
@@ -807,7 +980,7 @@ export class AiProvider {
     }
   }
 
-  notifyStreamError(conversationId, payload) {
+  notifyStreamError(conversationId: string, payload: MessageStreamData) {
     try {
       chrome.runtime
         .sendMessage({
@@ -823,7 +996,7 @@ export class AiProvider {
     }
   }
 
-  async executeToolCall(toolCall) {
+  async executeToolCall(toolCall: ToolCall): Promise<ToolExecutionResult> {
     const { name, arguments: args } = toolCall.function;
 
     if (LOCAL_TOOL_HANDLERS[name]) {
@@ -837,14 +1010,18 @@ export class AiProvider {
     }
 
     // Find which MCP client has this tool
-    for (const [serverName, client] of this.mcpClients) {
+    for (const [_, client] of this.mcpClients) {
       const tools = client.getTools();
       if (tools.some((tool) => tool.name === name)) {
         try {
           const result = await client.callTool(name, JSON.parse(args));
-          return result;
+          return {
+            content: result.content,
+            data: result.data,
+            isError: result.isError,
+          };
         } catch (error) {
-          throw new Error(`Tool execution failed: ${error.message}`);
+          throw new Error(`Tool execution failed: ${(error as Error).message}`);
         }
       }
     }
@@ -893,7 +1070,7 @@ export class AiProvider {
   }
 
   async getAvailableTools() {
-    const tools = [];
+    const tools: Tool[] = [];
 
     tools.push(
       ...LOCAL_TOOL_DEFINITIONS.map((tool) => ({
@@ -915,14 +1092,14 @@ export class AiProvider {
     return tools;
   }
 
-  async disconnectMcpClients() {
+  async disconnectMcpClients(): Promise<void> {
     for (const client of this.mcpClients.values()) {
       await client.disconnect();
     }
     this.mcpClients.clear();
   }
 
-  async processConversation(conversationId, action, content, options = {}) {
+  async processConversation(conversationId: string, action: string, content: string, options: ProcessConversationOptions = {}) {
     const {
       includePageContext = true,
       metadata = {},
@@ -934,7 +1111,7 @@ export class AiProvider {
     const userMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       conversationId,
-      role: "user",
+      role: "user" as Role,
       content,
       timestamp: new Date().toISOString(),
       metadata: { action, ...metadata },
@@ -947,7 +1124,7 @@ export class AiProvider {
       includePageContext,
     );
 
-    let streamMessageId = null;
+    let streamMessageId: string | null = null;
     if (stream) {
       streamMessageId =
         llmOptions.streamId ||
@@ -978,7 +1155,7 @@ export class AiProvider {
               typeof delta === "string"
                 ? { delta }
                 : {
-                    delta: delta?.content ?? delta?.delta ?? "",
+                    delta: delta?.content ?? (delta as any)?.delta ?? "",
                     reasoning: delta?.reasoning ?? "",
                   };
             if (!payload.delta && !payload.reasoning) {
@@ -1007,8 +1184,8 @@ export class AiProvider {
     let assistantContent = normalizedContent || "";
     let toolCallInfo = "";
 
-    let toolNamesList = [];
-    let toolCallDetails = [];
+    let toolNamesList: string[] = [];
+    let toolCallDetails: ToolInvocationDetails[] = [];
     const assistantHadContent = Boolean((normalizedContent || "").trim());
 
     if (message?.tool_calls && message.tool_calls.length > 0) {
@@ -1031,7 +1208,7 @@ export class AiProvider {
     }
 
     // Save assistant message to IndexedDB
-    const assistantMessage = {
+    const assistantMessage: Message = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       conversationId,
       role: "assistant",
@@ -1079,7 +1256,7 @@ export class AiProvider {
     };
   }
 
-  async getConversationMessages(conversationId, includePageContext = true) {
+  async getConversationMessages(conversationId: string, includePageContext = true) {
     // Get messages from IndexedDB (which already includes system context from sidepanel)
     let messages = await getMessagesForConversation(conversationId, 1000);
 
@@ -1108,12 +1285,12 @@ export class AiProvider {
     return messages.map((msg) => this.transformMessageForModel(msg));
   }
 
-  transformMessageForModel(message) {
+  transformMessageForModel(message: Message): MessageInPayload {
     if (!message) {
       return { role: "system", content: "" };
     }
 
-    const formatted = {
+    const formatted: MessageInPayload = {
       role: message.role,
       content: message.content,
     };
@@ -1131,7 +1308,7 @@ export class AiProvider {
     return formatted;
   }
 
-  buildInsightsPrompt(action, { totalGroups = 1 } = {}) {
+  buildInsightsPrompt(action: string, { totalGroups = 1 } = {}): string {
     const actionLabel =
       action === "key_points" ? "发现关键要点" : "总结页面内容";
     const multiPartHint =
@@ -1163,7 +1340,7 @@ CHUNK 1: myz-chunk-miy0603t-000
     ].join("\n");
   }
 
-  normalizeInsightChunks(chunks = [], maxChunks = Infinity) {
+  normalizeInsightChunks(chunks: Partial<ContextChunk>[] = [], maxChunks = Infinity): ContextChunk[] {
     if (!Array.isArray(chunks)) {
       return [];
     }
@@ -1191,13 +1368,13 @@ CHUNK 1: myz-chunk-miy0603t-000
     });
   }
 
-  splitChunksIntoGroups(chunks, perGroup = 20, maxCharsPerGroup = Infinity) {
+  splitChunksIntoGroups(chunks: ContextChunk[], perGroup = 20, maxCharsPerGroup = Infinity) {
     if (!Array.isArray(chunks) || !chunks.length) {
       return [];
     }
     const limitCount = Math.max(1, Number(perGroup) || 20);
-    const groups = [];
-    let current = [];
+    const groups: ContextChunk[][] = [];
+    let current: ContextChunk[] = [];
     let currentChars = 0;
 
     const flush = () => {
@@ -1227,7 +1404,7 @@ CHUNK 1: myz-chunk-miy0603t-000
     return groups;
   }
 
-  async generatePageInsights(payload = {}) {
+  async generatePageInsights(payload: { action?: string; chunks?: Partial<ContextChunk>[]; title?: string; url?: string; temperature?: number } = {}) {
     if (!this.isEnabled) {
       throw new Error("AI Assistant is not enabled");
     }
@@ -1247,7 +1424,7 @@ CHUNK 1: myz-chunk-miy0603t-000
       ...this.splitChunksIntoGroups(chunks, chunks.length, targetCharsPerBatch),
     ];
 
-    const baseMessages = [
+    const baseMessages: MessageInPayload[] = [
       {
         role: "system",
         content: this.buildInsightsPrompt(action, {
@@ -1280,7 +1457,7 @@ CHUNK 1: myz-chunk-miy0603t-000
       });
     });
 
-    const conversationMessages = [...baseMessages];
+    const conversationMessages: MessageInPayload[] = [...baseMessages];
     const markdownParts = [];
     const rawResponses = [];
     let numberingHint = 0;
@@ -1340,11 +1517,11 @@ CHUNK 1: myz-chunk-miy0603t-000
   }
 }
 
-export function createAiProvider(settings, options = {}) {
+export function createAiProvider(settings: AIAssistantSettings, options: AIProviderOptions = {}) {
   return new AiProvider(settings, options);
 }
 
-function toDateOnly(value) {
+function toDateOnly(value: any): Date | null {
   if (!value) return null;
   try {
     const date = new Date(value);
@@ -1360,12 +1537,12 @@ async function readAllHighlights() {
   return sortedHighlights(state);
 }
 
-function normalizeLimit(value, fallback = 20, max = 50) {
+function normalizeLimit(value: any, fallback = 20, max = 50): number {
   if (typeof value !== "number") return fallback;
   return Math.max(1, Math.min(max, Math.floor(value)));
 }
 
-function buildHighlightSummary(record) {
+function buildHighlightSummary(record: MyZRecord): string {
   if (!record) return "";
   const date =
     typeof record.createdAt === "string"
@@ -1382,7 +1559,7 @@ function buildHighlightSummary(record) {
   return parts.join(" · ");
 }
 
-const LOCAL_TOOL_HANDLERS = {
+const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionResult>> = {
   "myz-list-hosts": async () => {
     const highlights = await readAllHighlights();
     const counts = new Map();
@@ -1476,7 +1653,7 @@ const LOCAL_TOOL_HANDLERS = {
         : "未找到符合日期范围的标注。";
     return { content: [{ type: "text", text }], data: matches };
   },
-  "myz-filter-by-tag-or-host": async (args = {}) => {
+  "myz-filter-by-tag-or-host": async (args: {tags?: string[], host?: string, limit?: number} = {tags: []}) => {
     const limit = normalizeLimit(args.limit, 20, 50);
     const tags = Array.isArray(args.tags)
       ? args.tags
@@ -1519,14 +1696,15 @@ const LOCAL_TOOL_HANDLERS = {
   },
 };
 
-function resolveActiveProvider(settings = {}, options = {}) {
+function resolveActiveProvider(settings: Partial<AIAssistantSettings> = {}, options: { allowUntested?: boolean } = {})
+  : { provider: AIProviderSetting | null, fallbackSettings: Partial<AIAssistantSettings> & Partial<AIProviderSetting> } {
   const allowUntested = Boolean(options.allowUntested);
   const providers = Array.isArray(settings.aiProviders)
     ? settings.aiProviders
     : [];
   const eligibleProviders = providers.filter((p) => p && typeof p === "object");
   const hasProviders = eligibleProviders.length > 0;
-  let provider = null;
+  let provider: AIProviderSetting | null = null;
 
   if (allowUntested) {
     provider =
@@ -1551,8 +1729,8 @@ function resolveActiveProvider(settings = {}, options = {}) {
     provider = {
       id: "provider-default",
       name: "默认 Provider",
-      apiEndpoint: settings.aiApiEndpoint,
-      apiKey: settings.aiApiKey,
+      apiEndpoint: settings.aiApiEndpoint!,
+      apiKey: settings.aiApiKey!,
       model: settings.aiModel || "gpt-4",
       customModel: settings.aiCustomModel || "",
       contextSize: settings.aiContextSize || "32K",
@@ -1563,7 +1741,7 @@ function resolveActiveProvider(settings = {}, options = {}) {
     };
   }
 
-  const fallbackSettings = {
+  const fallbackSettings: Partial<AIAssistantSettings> & Partial<AIProviderSetting> = {
     ...settings,
   };
   if (provider) {

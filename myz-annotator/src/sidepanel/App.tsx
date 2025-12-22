@@ -21,11 +21,15 @@ import {
 import AutoInsightsPanel, {
   AutoInsightsState,
 } from "./components/AutoInsightsPanel.jsx";
-import ConversationList, {
+import ConversationList from "./components/ConversationList.jsx";
+import {
   Conversation,
   Message,
   ToolInvocationDetails,
-} from "./components/ConversationList.jsx";
+  ContextChunk,
+  MessageStream,
+  MessageStreamData,
+} from "@/background/aiProvider.js";
 import InputComposer from "./components/InputComposer.jsx";
 import PageContextCard from "./components/PageContextCard.jsx";
 import ToolResponseModal, {
@@ -37,35 +41,10 @@ import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 import { sendMessage } from "@/shared/messaging.js";
 import InterestsPanel from "./components/InterestsPanel.jsx";
 
-export interface ContextChunk {
-  id: string;
-  text: string;
-  prefix: string;
-}
-
 export interface SaveModalState {
   visible: boolean;
   aiResponse: string;
   messageId: string | null;
-}
-
-export interface MessageStreamData {
-  conversationId: string;
-  streamId: string;
-  message?: Message;
-  content?: string;
-  delta?: string;
-  reasoning?: string;
-  metadata?: Record<string, any>;
-  error?: string;
-}
-
-export interface MessageStream {
-  id: string | null;
-  content: string;
-  timestamp: string;
-  reasoning: string;
-  metadata: Record<string, any>;
 }
 
 interface SidePanelCommunicationMessage {

@@ -1,7 +1,8 @@
 import { describeHighlightStyle } from "@/shared/highlightUtils.js";
+import { HIGHLIGHT_STYLES, MyZRecord } from "@/shared/types";
 import { extractHostname } from "@/shared/url.js";
 
-export function buildMarkdownExport(highlights) {
+export function buildMarkdownExport(highlights: MyZRecord[]): string {
   if (!highlights.length) {
     return "# MyZ Annotator Export\n\n_No highlights available._";
   }
@@ -45,7 +46,7 @@ export function buildMarkdownExport(highlights) {
         lines.push(`  - Color: ${item.color}`);
       }
       if (item.kind === "highlight") {
-        lines.push(`  - Style: ${describeHighlightStyle(item.style)}`);
+        lines.push(`  - Style: ${describeHighlightStyle(item.style ?? HIGHLIGHT_STYLES.WAVY)}`);
       }
       lines.push("");
     });
@@ -54,7 +55,7 @@ export function buildMarkdownExport(highlights) {
   return lines.join("\n");
 }
 
-function groupByDate(highlights) {
+function groupByDate(highlights: MyZRecord[]): Map<string, MyZRecord[]> {
   const map = new Map();
   highlights.forEach((item) => {
     const date = new Date(item.createdAt || Date.now())
@@ -68,11 +69,11 @@ function groupByDate(highlights) {
   return new Map([...map.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)));
 }
 
-function escapeMarkdown(text) {
+function escapeMarkdown(text: string): string {
   return text.replace(/[\\`*_{}[\]()#+\-.!|]/g, (match) => `\\${match}`);
 }
 
-export function htmlToMarkdown(html) {
+export function htmlToMarkdown(html: string): string {
   if (!html) {
     return "";
   }
@@ -91,17 +92,17 @@ export function htmlToMarkdown(html) {
   return cleanLogseqMultiline(stripHtmlTags(source));
 }
 
-function normalizeMarkdown(markdown) {
+function normalizeMarkdown(markdown: string): string {
   return markdown.replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function fallbackHtmlToMarkdown(html) {
+function fallbackHtmlToMarkdown(html: string): string {
   if (!html) {
     return "";
   }
 
   let output = html;
-  const preservedPre = [];
+  const preservedPre: string[] = [];
 
   output = annotateHtmlLists(output);
 
@@ -160,7 +161,7 @@ function fallbackHtmlToMarkdown(html) {
   return output;
 }
 
-function annotateHtmlLists(html) {
+function annotateHtmlLists(html: string): string {
   if (!html || typeof html !== "string") {
     return html || "";
   }
@@ -215,7 +216,7 @@ function annotateHtmlLists(html) {
   return result;
 }
 
-function normalizePreBlock(value) {
+function normalizePreBlock(value: string): string {
   const decoded = decodeHtmlEntities(value || "")
     .replace(/<span\b[^>]*>([\s\S]*?)<\/span>/gi, "$1")
     .replace(/<div\b[^>]*>([\s\S]*?)<\/div>/gi, "$1")
@@ -234,7 +235,7 @@ function normalizePreBlock(value) {
   return lines.map((line) => line.replace(/\s+$/g, "")).join("\n");
 }
 
-export function cleanLogseqMultiline(value) {
+export function cleanLogseqMultiline(value: string): string {
   if (!value) {
     return "";
   }
@@ -261,7 +262,7 @@ export function cleanLogseqMultiline(value) {
   return normalized.join("\n");
 }
 
-function decodeHtmlEntities(value) {
+function decodeHtmlEntities(value: unknown): string {
   if (!value) {
     return "";
   }
@@ -303,7 +304,7 @@ function decodeHtmlEntities(value) {
   );
 }
 
-function stripHtmlTags(value) {
+function stripHtmlTags(value: unknown): string {
   if (!value) {
     return "";
   }

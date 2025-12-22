@@ -1,5 +1,4 @@
 import { computed, defineComponent, VNodeRef } from "vue";
-import { MessageStream } from "../App.jsx";
 import AssistantMessageBubble from "./messages/AssistantMessageBubble.jsx";
 import ConversationEmptyState from "./messages/ConversationEmptyState.jsx";
 import { resolveToolNames } from "./messages/messageUtils.jsx";
@@ -8,41 +7,9 @@ import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
 import ToolInlineNotice from "./messages/ToolInlineNotice.jsx";
 import ToolMessageCard from "./messages/ToolMessageCard.jsx";
 import UserMessageBubble from "./messages/UserMessageBubble.jsx";
-
-export interface ToolInvocationDetails {
-  id: string;
-  name: string;
-  arguments: string;
-  response?: string;
-}
-
-export interface Message {
-  id: string;
-  conversationId: string;
-  role: "user" | "assistant" | "tool" | "system";
-  content: string;
-  timestamp: string;
-  reasoning_content?: string;
-  metadata?: {
-    type?: string;
-    hasToolCalls?: boolean;
-    toolInvocationOnly?: boolean;
-    toolCallDetails?: Array<ToolInvocationDetails>;
-    [key: string]: any;
-    toolNames?: string[] | string;
-    toolCallCount?: number;
-  };
-}
-
-export interface Conversation {
-  conversationId: string;
-  title: string;
-  url: string;
-  createdAt?: string;
-  updatedAt?: string;
-  sendContextEnabled?: boolean;
-  messages: Message[];
-}
+import {
+  Message, MessageStream
+} from "@/background/aiProvider.js";
 
 interface ConversationListProps {
   messages: Message[];

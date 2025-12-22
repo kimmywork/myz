@@ -1,3 +1,4 @@
+import { AIAssistantSettings, AIProviderSetting, McpServerSetting } from "@/background/settings";
 import {
   defineComponent,
   ref,
@@ -5,9 +6,11 @@ import {
   computed,
   watch,
   onMounted,
+  ComputedRef,
+  Ref,
 } from "vue";
 
-function newProviderTemplate() {
+function newProviderTemplate(): AIProviderSetting {
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : `prov_${Date.now()}`,
     name: "自定义 Provider",
@@ -22,7 +25,7 @@ function newProviderTemplate() {
   };
 }
 
-function legacyProviderFromSettings(settings = {}) {
+function legacyProviderFromSettings(settings: Partial<AIAssistantSettings> = {}) {
   if (
     !settings ||
     (!settings.aiApiEndpoint && !settings.aiApiKey && !settings.aiModel)
@@ -47,8 +50,8 @@ function legacyProviderFromSettings(settings = {}) {
   };
 }
 
-function getTokensForContextSize(size) {
-  const mapping = {
+function getTokensForContextSize(size: string): number {
+  const mapping: Record<string, number> = {
     "8K": 8000,
     "32K": 32000,
     "128K": 128000,
@@ -58,8 +61,20 @@ function getTokensForContextSize(size) {
   return mapping[size] || 32000;
 }
 
-function cloneProvider(provider) {
+function cloneProvider(provider: AIProviderSetting): AIProviderSetting {
   return JSON.parse(JSON.stringify(provider));
+}
+
+export interface AiSettingsProps {
+  settings: AIAssistantSettings;
+  onSave: (settings: AIAssistantSettings) => Promise<void>;
+  onTestConnection: (settings: AIAssistantSettings) => Promise<{
+    success: boolean;
+    response?: string;
+    error?: string;
+  }>;
+  status?: string;
+  onUpdateStatus?: (message: string) => void;
 }
 
 export default defineComponent({
@@ -88,15 +103,15 @@ export default defineComponent({
   },
   setup(props) {
     const aiAssistantEnabled = ref(false);
-    const providers = ref([]);
-    const activeProviderId = ref(null);
-    const selectedProviderId = ref(null);
-    const isTestingId = ref(null);
+    const providers: Ref<AIProviderSetting[]> = ref([]);
+    const activeProviderId: Ref<string | null> = ref(null);
+    const selectedProviderId: Ref<string | null> = ref(null);
+    const isTestingId: Ref<string | null> = ref(null);
     const testMessage = ref("");
     const showApiKey = ref(false);
     const showCustomModel = ref(false);
 
-    const mcpServers = ref([]);
+    const mcpServers: Ref<McpServerSetting[]> = ref([]);
     const showMcpForm = ref(false);
     const mcpForm = reactive({
       id: "",
@@ -104,7 +119,7 @@ export default defineComponent({
       url: "",
       enabled: true,
     });
-    const editingMcpServerId = ref(null);
+    const editingMcpServerId: Ref<string | null> = ref(null);
 
     const aiModels = [
       { value: "gpt-4", label: "GPT-4" },
@@ -128,11 +143,11 @@ export default defineComponent({
       { value: "1M", label: "1M (约 1000000 tokens)" },
     ];
 
-    const selectedProvider = computed(() =>
+    const selectedProvider: ComputedRef<AIProviderSetting | undefined> = computed(() =>
       providers.value.find((p) => p.id === selectedProviderId.value),
     );
 
-    function updateStatus(message, { autoClear = false } = {}) {
+    function updateStatus(message: string, { autoClear = false } = {}) {
       if (typeof props.onUpdateStatus === "function") {
         props.onUpdateStatus(message);
         if (autoClear) {
@@ -180,8 +195,7 @@ export default defineComponent({
         null;
       ensureSelection();
       showCustomModel.value =
-        selectedProvider.value?.model === "custom" ||
-        selectedProvider.value?.aiModel === "custom";
+        selectedProvider.value?.model === "custom";
 
       mcpServers.value = Array.isArray(props.settings.aiMcpServers)
         ? props.settings.aiMcpServers.map((s) => ({ ...s }))
@@ -199,7 +213,7 @@ export default defineComponent({
       showCustomModel.value = false;
     }
 
-    function removeProvider(id) {
+    function removeProvider(id: string) {
       providers.value = providers.value.filter((p) => p.id !== id);
       if (activeProviderId.value === id) {
         const nextActive =
@@ -211,14 +225,13 @@ export default defineComponent({
       }
       ensureSelection();
       showCustomModel.value =
-        selectedProvider.value?.model === "custom" ||
-        selectedProvider.value?.aiModel === "custom";
+        selectedProvider.value?.model === "custom";
     }
 
-    function updateProviderField(key, value) {
+    function updateProviderField(key: keyof AIProviderSetting, value: any) {
       const provider = selectedProvider.value;
       if (!provider) return;
-      provider[key] = value;
+      (provider[key] as any) = value;
       if (key === "contextSize") {
         provider.maxTokens = getTokensForContextSize(value);
       }
@@ -246,14 +259,14 @@ export default defineComponent({
       updateStatus("设置已保存", { autoClear: true });
     }
 
-    async function handleToggle(event) {
-      const enabled = event.target.checked;
+    async function handleToggle(event: Event) {
+      const enabled = (event.target as HTMLInputElement).checked;
       aiAssistantEnabled.value = enabled;
       try {
         await persistSettings("保存中...");
       } catch (error) {
         aiAssistantEnabled.value = !enabled;
-        updateStatus(`保存失败：${error.message}`);
+        updateStatus(`保存失败：${(error as Error).message}`);
       }
     }
 
@@ -291,9 +304,9 @@ export default defineComponent({
       } catch (error) {
         provider.lastTestStatus = {
           ok: false,
-          message: error.message,
+          message: (error as Error).message,
         };
-        testMessage.value = `测试失败：${error.message}`;
+        testMessage.value = `测试失败：${(error as Error).message}`;
       } finally {
         isTestingId.value = null;
       }
@@ -307,11 +320,11 @@ export default defineComponent({
       try {
         await persistSettings();
       } catch (error) {
-        updateStatus(`保存失败：${error.message}`);
+        updateStatus(`保存失败：${(error as Error).message}`);
       }
     }
 
-    async function handleSelectActive(id) {
+    async function handleSelectActive(id: string) {
       const provider = providers.value.find((p) => p.id === id);
       if (!provider) return;
       if (!provider.lastTestStatus?.ok) {
@@ -323,7 +336,7 @@ export default defineComponent({
       try {
         await persistSettings();
       } catch (error) {
-        updateStatus(`保存失败：${error.message}`);
+        updateStatus(`保存失败：${(error as Error).message}`);
       }
     }
 
@@ -336,7 +349,7 @@ export default defineComponent({
       showMcpForm.value = true;
     }
 
-    function handleEditMcpServer(server) {
+    function handleEditMcpServer(server: McpServerSetting) {
       editingMcpServerId.value = server.id;
       mcpForm.id = server.id;
       mcpForm.name = server.name;
@@ -345,7 +358,7 @@ export default defineComponent({
       showMcpForm.value = true;
     }
 
-    function handleRemoveMcpServer(id) {
+    function handleRemoveMcpServer(id: string) {
       mcpServers.value = mcpServers.value.filter((s) => s.id !== id);
     }
 
@@ -354,7 +367,7 @@ export default defineComponent({
         updateStatus("请填写服务器名称和URL");
         return;
       }
-      const record = {
+      const record: McpServerSetting = {
         id:
           editingMcpServerId.value ||
           mcpForm.id ||
@@ -395,14 +408,14 @@ export default defineComponent({
       selectedProvider,
       (next) => {
         showCustomModel.value =
-          next?.model === "custom" || next?.aiModel === "custom";
+          next?.model === "custom";
       },
       { immediate: true },
     );
 
     return () => {
       const provider = selectedProvider.value;
-      const statusState = (p) => {
+      const statusState = (p: Partial<AIProviderSetting>) => {
         if (!p) return "idle";
         if (p.lastTestStatus?.ok === true) return "success";
         if (p.lastTestStatus?.ok === false && p.lastTestStatus?.message) {
@@ -410,25 +423,25 @@ export default defineComponent({
         }
         return "idle";
       };
-      const statusLabel = (p) => {
+      const statusLabel = (p: Partial<AIProviderSetting>) => {
         const state = statusState(p);
         if (state === "success") return "已通过测试";
         if (state === "error") return p.lastTestStatus?.message || "测试失败";
         return "未测试";
       };
-      const statusTone = (p) => {
+      const statusTone = (p: Partial<AIProviderSetting>) => {
         const state = statusState(p);
         if (state === "success") return "text-emerald-600";
         if (state === "error") return "text-rose-600";
         return "text-slate-500";
       };
-      const statusDot = (p) => {
+      const statusDot = (p: Partial<AIProviderSetting>) => {
         const state = statusState(p);
         if (state === "success") return "bg-emerald-500";
         if (state === "error") return "bg-rose-500";
         return "bg-slate-400";
       };
-      const cardAccent = (p) => {
+      const cardAccent = (p: Partial<AIProviderSetting>) => {
         const state = statusState(p);
         if (state === "success") {
           return "border-emerald-200 hover:border-emerald-300 dark:border-emerald-500/40 dark:hover:border-emerald-400/60";
@@ -528,7 +541,7 @@ export default defineComponent({
                             type="text"
                             value={provider.name}
                             onInput={(e) =>
-                              updateProviderField("name", e.target.value)
+                              updateProviderField("name", (e.target as HTMLInputElement).value)
                             }
                           />
                         </label>
@@ -537,7 +550,7 @@ export default defineComponent({
                           <select
                             value={provider.model}
                             onChange={(e) =>
-                              updateProviderField("model", e.target.value)
+                              updateProviderField("model", (e.target as HTMLSelectElement).value)
                             }
                           >
                             {aiModels.map((model) => (
@@ -554,7 +567,7 @@ export default defineComponent({
                             type="text"
                             value={provider.customModel}
                             onInput={(e) =>
-                              updateProviderField("customModel", e.target.value)
+                              updateProviderField("customModel", (e.target as HTMLInputElement).value)
                             }
                           />
                         </label>
@@ -567,7 +580,7 @@ export default defineComponent({
                           value={provider.apiEndpoint}
                           placeholder="https://api.openai.com/v1/chat/completions"
                           onInput={(e) =>
-                            updateProviderField("apiEndpoint", e.target.value)
+                            updateProviderField("apiEndpoint", (e.target as HTMLInputElement).value)
                           }
                         />
                       </label>
@@ -580,7 +593,7 @@ export default defineComponent({
                             value={provider.apiKey}
                             placeholder="sk-..."
                             onInput={(e) =>
-                              updateProviderField("apiKey", e.target.value)
+                              updateProviderField("apiKey", (e.target as HTMLInputElement).value)
                             }
                             style="padding-right: 40px;"
                           />
@@ -602,7 +615,7 @@ export default defineComponent({
                           <select
                             value={provider.contextSize}
                             onChange={(e) =>
-                              updateProviderField("contextSize", e.target.value)
+                              updateProviderField("contextSize", (e.target as HTMLSelectElement).value)
                             }
                           >
                             {contextSizes.map((size) => (
@@ -618,7 +631,7 @@ export default defineComponent({
                             onInput={(e) =>
                               updateProviderField(
                                 "maxTokens",
-                                Number(e.target.value),
+                                Number((e.target as HTMLInputElement).value),
                               )
                             }
                           />
@@ -634,7 +647,7 @@ export default defineComponent({
                           onInput={(e) =>
                             updateProviderField(
                               "requestHeaders",
-                              e.target.value,
+                              (e.target as HTMLTextAreaElement).value,
                             )
                           }
                         ></textarea>
@@ -760,7 +773,7 @@ export default defineComponent({
                       <input
                         type="text"
                         value={mcpForm.name}
-                        onInput={(e) => (mcpForm.name = e.target.value)}
+                        onInput={(e) => (mcpForm.name = (e.target as HTMLInputElement).value)}
                       />
                     </label>
                     <label class="field">
@@ -768,7 +781,7 @@ export default defineComponent({
                       <input
                         type="url"
                         value={mcpForm.url}
-                        onInput={(e) => (mcpForm.url = e.target.value)}
+                        onInput={(e) => (mcpForm.url = (e.target as HTMLInputElement).value)}
                       />
                     </label>
                   </div>
@@ -776,7 +789,7 @@ export default defineComponent({
                     <input
                       type="checkbox"
                       checked={mcpForm.enabled}
-                      onChange={(e) => (mcpForm.enabled = e.target.checked)}
+                      onChange={(e) => (mcpForm.enabled = (e.target as HTMLInputElement).checked)}
                     />
                     <span>启用此服务器</span>
                   </label>

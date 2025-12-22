@@ -1,6 +1,7 @@
 import { defineComponent } from "vue";
-import { ToolInvocationDetails } from "./ConversationList";
-
+import {
+  ToolInvocationDetails,
+} from "@/background/aiProvider.js";
 export interface ToolResponseViewerState {
   visible: boolean;
   title: string;

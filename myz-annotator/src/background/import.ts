@@ -1,7 +1,11 @@
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
+import { PathSegment, SerializedRange } from "@/shared/serializer";
+import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import { extractHostname } from "@/shared/url.js";
 
-export function normalizeImportStrategy(value) {
+export type ImportStrategy = "skip" | "overwrite" | "latest";
+
+export function normalizeImportStrategy(value: unknown): ImportStrategy {
   const normalized = typeof value === "string" ? value.toLowerCase() : "";
   if (normalized === "overwrite") {
     return "overwrite";
@@ -12,64 +16,67 @@ export function normalizeImportStrategy(value) {
   return "skip";
 }
 
-export function sanitizeImportedHighlight(raw) {
+export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
   if (!raw || typeof raw !== "object") {
     return null;
   }
 
-  const url = sanitizeUrl(raw.url || raw.sourceUrl);
+  const url = sanitizeUrl((raw as any).url || (raw as any).sourceUrl);
   if (!url) {
     return null;
   }
 
-  const kind = raw.kind === "clip" ? "clip" : "highlight";
+  const kind: RECORD_KINDS =
+    (raw as any).kind === "clip" ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+
+  const rawRecord = raw as MyZRecord;
 
   let range = null;
-  if (kind === "highlight") {
-    range = sanitizeImportedRange(raw.range);
+  if (kind === RECORD_KINDS.HIGHLIGHT) {
+    range = sanitizeImportedRange(rawRecord.range);
     if (!range) {
       return null;
     }
   }
 
-  const result = {
-    id: typeof raw.id === "string" ? raw.id.trim() : "",
+  const result: Partial<MyZRecord> = {
+    id: typeof rawRecord.id === "string" ? rawRecord.id.trim() : "",
     url,
-    sourceUrl: sanitizeUrl(raw.sourceUrl) || url,
-    title: sanitizeNullableString(raw.title),
-    text: sanitizeNullableString(raw.text),
-    html: sanitizeNullableString(raw.html),
-    note: sanitizeNullableString(raw.note),
-    tags: sanitizeTags(raw.tags),
-    hostname: sanitizeHostname(raw.hostname, url),
+    sourceUrl: sanitizeUrl(rawRecord.sourceUrl) || url,
+    title: sanitizeNullableString(rawRecord.title),
+    text: sanitizeNullableString(rawRecord.text),
+    html: sanitizeNullableString(rawRecord.html),
+    note: sanitizeNullableString(rawRecord.note),
+    tags: sanitizeTags(rawRecord.tags),
+    hostname: sanitizeHostname(rawRecord.hostname, url),
     kind,
   };
 
-  if (kind === "highlight") {
-    result.range = range;
-    const color = sanitizeColor(raw.color);
+  if (kind === RECORD_KINDS.HIGHLIGHT) {
+    result.range = range!;
+    const color = sanitizeColor(rawRecord.color);
     if (color) {
       result.color = color;
     }
-    result.style = normalizeHighlightStyle(raw.style);
+    result.style = normalizeHighlightStyle(rawRecord.style);
   }
 
-  const createdAt = coerceIsoTimestamp(raw.createdAt);
+  const createdAt = coerceIsoTimestamp(rawRecord.createdAt);
   if (createdAt) {
     result.createdAt = createdAt;
   }
-  const updatedAt = coerceIsoTimestamp(raw.updatedAt);
+  const updatedAt = coerceIsoTimestamp(rawRecord.updatedAt);
   if (updatedAt) {
     result.updatedAt = updatedAt;
   }
 
   const logseqUuid =
-    typeof raw.logseqBlockUuid === "string" ? raw.logseqBlockUuid.trim() : "";
+    typeof rawRecord.logseqBlockUuid === "string" ? rawRecord.logseqBlockUuid.trim() : "";
   if (logseqUuid) {
     result.logseqBlockUuid = logseqUuid;
   }
 
-  const syncedAt = coerceIsoTimestamp(raw.logseqSyncedAt);
+  const syncedAt = coerceIsoTimestamp(rawRecord.logseqSyncedAt);
   if (syncedAt) {
     result.logseqSyncedAt = syncedAt;
   }
@@ -104,10 +111,10 @@ export function sanitizeImportedHighlight(raw) {
     delete result.style;
   }
 
-  return result;
+  return result as MyZRecord;
 }
 
-export function buildHighlightSignature(record) {
+export function buildHighlightSignature(record: MyZRecord): string {
   if (!record || typeof record !== "object") {
     return "";
   }
@@ -125,7 +132,7 @@ export function buildHighlightSignature(record) {
   }
 }
 
-export function resolveImportConflict(strategy, existing, incoming) {
+export function resolveImportConflict(strategy: ImportStrategy, existing: MyZRecord, incoming: MyZRecord): boolean {
   if (strategy === "overwrite") {
     return true;
   }
@@ -143,7 +150,7 @@ export function resolveImportConflict(strategy, existing, incoming) {
   return incomingTime > existingTime;
 }
 
-export function applyTimestampFallback(target, fallback) {
+export function applyTimestampFallback(target: Partial<MyZRecord>, fallback: Partial<MyZRecord>) {
   const nowIso = new Date().toISOString();
   if (!target.createdAt) {
     target.createdAt = fallback?.createdAt || fallback?.updatedAt || nowIso;
@@ -153,11 +160,11 @@ export function applyTimestampFallback(target, fallback) {
   }
 }
 
-export function dedupeOrder(order, highlights) {
+export function dedupeOrder(order: string[], highlights: Record<string, MyZRecord>): string[] {
   if (!Array.isArray(order)) {
     return [];
   }
-  const result = [];
+  const result: string[] = [];
   const seen = new Set();
   order.forEach((id) => {
     if (!id || seen.has(id)) {
@@ -172,7 +179,7 @@ export function dedupeOrder(order, highlights) {
   return result;
 }
 
-function sanitizeUrl(value) {
+function sanitizeUrl(value: unknown): string {
   if (!value || typeof value !== "string") {
     return "";
   }
@@ -193,7 +200,7 @@ function sanitizeUrl(value) {
   }
 }
 
-function sanitizeNullableString(value) {
+function sanitizeNullableString(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }
@@ -201,7 +208,7 @@ function sanitizeNullableString(value) {
   return trimmed;
 }
 
-function sanitizeColor(value) {
+function sanitizeColor(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }
@@ -209,7 +216,7 @@ function sanitizeColor(value) {
   return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed : "";
 }
 
-function sanitizeTags(tags) {
+function sanitizeTags(tags: unknown): string[] {
   if (!Array.isArray(tags)) {
     return [];
   }
@@ -218,7 +225,7 @@ function sanitizeTags(tags) {
   return unique;
 }
 
-function sanitizeHostname(candidate, fallbackUrl) {
+function sanitizeHostname(candidate: unknown, fallbackUrl: string): string {
   if (typeof candidate === "string" && candidate.trim()) {
     return candidate.trim();
   }
@@ -228,35 +235,38 @@ function sanitizeHostname(candidate, fallbackUrl) {
   return "";
 }
 
-function sanitizeImportedRange(range) {
+function sanitizeImportedRange(range: unknown): SerializedRange | null {
   if (!range || typeof range !== "object") {
     return null;
   }
-  const start = sanitizeRangeEdge(range.start);
-  const end = sanitizeRangeEdge(range.end);
+  const start = sanitizeRangeEdge((range as any).start);
+  const end = sanitizeRangeEdge((range as any).end);
   if (!start || !end) {
     return null;
   }
   return { start, end };
 }
 
-function sanitizeRangeEdge(edge) {
+function sanitizeRangeEdge(edge: any) {
   if (!edge || typeof edge !== "object") {
     return null;
   }
-  const path = Array.isArray(edge.path)
+  const path: PathSegment[] = Array.isArray(edge.path)
     ? edge.path.map(sanitizeRangeSegment).filter(Boolean)
     : [];
   if (!path.length) {
     return null;
   }
-  const offset =
+  const offset: number =
     typeof edge.offset === "number" ? edge.offset : parseInt(edge.offset, 10);
   const normalizedOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
-  return { path, offset: normalizedOffset };
+  const charOffset: number =
+    typeof edge.charOffset === "number" ? edge.charOffset : parseInt(edge.charOffset, 10);
+  const normalizedCharoffset = Number.isFinite(charOffset) && charOffset >= 0 ? charOffset : 0;
+  return { path, offset: normalizedOffset, charOffset: normalizedCharoffset };
 }
 
-function sanitizeRangeSegment(segment) {
+function sanitizeRangeSegment(segment: any): PathSegment | null {
   if (!segment || typeof segment !== "object") {
     return null;
   }
@@ -272,7 +282,7 @@ function sanitizeRangeSegment(segment) {
   return { name, index };
 }
 
-function coerceIsoTimestamp(value) {
+function coerceIsoTimestamp(value: unknown): string {
   if (!value || typeof value !== "string") {
     return "";
   }
@@ -287,7 +297,7 @@ function coerceIsoTimestamp(value) {
   return new Date(timestamp).toISOString();
 }
 
-function getRecordTimestamp(record) {
+function getRecordTimestamp(record?: MyZRecord): number {
   if (!record || typeof record !== "object") {
     return 0;
   }
@@ -303,6 +313,6 @@ function getRecordTimestamp(record) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function normalizeTagValue(tag) {
+function normalizeTagValue(tag: unknown): string {
   return typeof tag === "string" ? tag.trim() : "";
 }

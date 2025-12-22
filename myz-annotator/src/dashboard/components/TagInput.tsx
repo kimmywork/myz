@@ -8,15 +8,24 @@ import {
   watch,
 } from "vue";
 
+export interface TagInputProps {
+  modelValue: string[];
+  options: string[];
+  placeholder?: string;
+  allowNew?: boolean;
+  disabled?: boolean;
+  variant?: "dashboard" | "content";
+}
+
 export default defineComponent({
   name: "TagInput",
   props: {
     modelValue: {
-      type: Array,
+      type: Array as () => string[],
       default: () => [],
     },
     options: {
-      type: Array,
+      type: Array as () => string[],
       default: () => [],
     },
     placeholder: {
@@ -38,9 +47,9 @@ export default defineComponent({
   },
   emits: ["update:modelValue", "focus"],
   setup(props, { emit }) {
-    const containerRef = ref(null);
-    const inputRef = ref(null);
-    const internalValue = ref([...props.modelValue]);
+    const containerRef = ref<HTMLElement | null>(null);
+    const inputRef = ref<HTMLInputElement | null>(null);
+    const internalValue = ref<string[]>([...props.modelValue]);
     const inputValue = ref("");
     const dropdownOpen = ref(false);
     const activeIndex = ref(-1);
@@ -48,7 +57,7 @@ export default defineComponent({
 
     const normalizedOptions = computed(() => {
       const seen = new Set();
-      const result = [];
+      const result: string[] = [];
       props.options.forEach((option) => {
         const trimmed = typeof option === "string" ? option.trim() : "";
         if (!trimmed) {
@@ -100,7 +109,7 @@ export default defineComponent({
       emit("update:modelValue", [...internalValue.value]);
     }
 
-    function addTag(raw) {
+    function addTag(raw: string): boolean {
       const tag = typeof raw === "string" ? raw.trim() : "";
       if (!tag) {
         return false;
@@ -125,7 +134,7 @@ export default defineComponent({
       return true;
     }
 
-    function removeTag(tag) {
+    function removeTag(tag: string) {
       const lower = tag.toLowerCase();
       const next = internalValue.value.filter(
         (item) => item.toLowerCase() !== lower,
@@ -173,9 +182,9 @@ export default defineComponent({
       closeDropdown();
     }
 
-    function handleInput(event) {
-      inputValue.value = event.target.value;
-      if (!event.target.value.trim()) {
+    function handleInput(event: Event) {
+      inputValue.value = (event.target as HTMLInputElement).value;
+      if (!inputValue.value.trim()) {
         if (filteredOptions.value.length) {
           dropdownOpen.value = true;
           activeIndex.value = 0;
@@ -187,7 +196,7 @@ export default defineComponent({
       openDropdown();
     }
 
-    function handleKeydown(event) {
+    function handleKeydown(event: KeyboardEvent) {
       event.stopPropagation();
       if (event.key === "Enter" || event.key === ",") {
         event.preventDefault();
@@ -230,7 +239,7 @@ export default defineComponent({
       }
     }
 
-    function handleKeyup(event) {
+    function handleKeyup(event: KeyboardEvent) {
       // Prevent bubbling to page-level shortcuts on host sites (e.g. GitHub).
       event.stopPropagation();
     }
@@ -249,7 +258,7 @@ export default defineComponent({
       });
     }
 
-    function handleBlur(event) {
+    function handleBlur(event: FocusEvent) {
       if (props.disabled) {
         return;
       }
@@ -267,12 +276,12 @@ export default defineComponent({
       }, 120);
     }
 
-    function handleContainerMouseDown(event) {
+    function handleContainerMouseDown(event: MouseEvent) {
       const removeSelector =
         props.variant === "content"
           ? ".myz-tag-input__remove"
           : ".tag-input__remove";
-      if (event.target.closest(removeSelector)) {
+      if (event.target instanceof HTMLElement && event.target.closest(removeSelector)) {
         return;
       }
       focusInput();
@@ -285,7 +294,7 @@ export default defineComponent({
       nextTick(() => inputRef.value?.focus());
     }
 
-    function selectOption(option) {
+    function selectOption(option: string) {
       if (addTag(option)) {
         inputValue.value = "";
       }
@@ -308,20 +317,20 @@ export default defineComponent({
       });
     }
 
-    function handleOptionMouseDown(event, option, index) {
+    function handleOptionMouseDown(event: MouseEvent, option: string, index: number) {
       event.preventDefault();
       activeIndex.value = index;
       selectOption(option);
     }
 
-    function handleDocumentClick(event) {
+    function handleDocumentClick(event: MouseEvent) {
       if (!containerRef.value) {
         return;
       }
       const path = event.composedPath ? event.composedPath() : [];
       const inside =
         (containerRef.value && path.includes(containerRef.value)) ||
-        containerRef.value.contains(event.target);
+        containerRef.value.contains(event.target as Node);
       if (!inside) {
         isFocused.value = false;
         closeDropdown();

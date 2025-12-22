@@ -1,4 +1,4 @@
-import { generateId, readSettings, readState, writeState } from "./storage.js";
+import { generateId, readSettings, readState, StorageState, writeState } from "./storage.js";
 import {
   canonicalUrl,
   buildArchiveSnapshotUrl,
@@ -25,31 +25,25 @@ type ArchiveStatusType =
 type ArchiveSnapshot = { timestamp: string; url: string };
 
 export interface ArchiveEntry {
-  url: string;
+  url?: string;
   status: ArchiveStatusType;
-  saved: boolean;
+  saved?: boolean;
   snapshot: ArchiveSnapshot | null;
   lastCheckedAt: string | null;
   lastAttemptAt: string | null;
   lastError?: string | null;
-  queue: {
+  queue?: {
     status: string;
     requestedAt: string | null;
     position: number | null;
   } | null;
 }
 
-export interface ArchiveState {
-  archives: Record<string, ArchiveEntry>;
-  archiveQueue: ArchiveQueueEntry[];
-  archiveHistory: ArchiveHistoryEntry[];
-}
-
 export interface ArchiveQueueEntry {
   id: string;
   url: string;
   position?: number;
-  requestedAt: string;
+  requestedAt: string | null;
   status: string;
   attempts: number;
   force: boolean;
@@ -59,7 +53,7 @@ export interface ArchiveHistoryEntry {
   id: string;
   url: string;
   action: ArchiveActions;
-  timestamp: string;
+  timestamp: string | null;
   success: boolean;
   status: string;
   statusCode: number | null;
@@ -189,7 +183,7 @@ export async function getArchiveStatusForUrl(
       queue: null,
     };
   }
-  const state: ArchiveState = await readState();
+  const state: StorageState = await readState();
   ensureArchiveContainers(state);
   const entry = normalizeArchiveEntry(state.archives[canonical]);
   const queueEntry = findQueueEntry(state.archiveQueue, canonical);
@@ -212,7 +206,7 @@ export async function ensureArchiveSnapshot({
     throw new Error("无法识别页面地址");
   }
 
-  const state: ArchiveState = await readState();
+  const state: StorageState = await readState();
   ensureArchiveContainers(state);
 
   const queueEntry = findQueueEntry(state.archiveQueue, canonical);
@@ -344,7 +338,7 @@ function formatArchiveEntry(
   };
 }
 
-function ensureArchiveContainers(state: ArchiveState): ArchiveState {
+function ensureArchiveContainers(state: StorageState): StorageState {
   if (!state.archives || typeof state.archives !== "object") {
     state.archives = {};
   }
@@ -394,7 +388,7 @@ function findLatestHistoryForUrl(
 }
 
 function appendArchiveHistory(
-  state: ArchiveState,
+  state: StorageState,
   entry: Partial<ArchiveHistoryEntry>,
 ) {
   if (!state.archiveHistory) {
@@ -449,7 +443,7 @@ async function processArchiveQueue() {
 }
 
 async function handleQueueEntry(
-  state: ArchiveState,
+  state: StorageState,
   queueEntry: ArchiveQueueEntry,
 ) {
   ensureArchiveContainers(state);
@@ -592,7 +586,7 @@ async function handleQueueEntry(
   }
 }
 
-function removeQueueEntry(state: ArchiveState, id: string) {
+function removeQueueEntry(state: StorageState, id: string) {
   if (!Array.isArray(state.archiveQueue)) {
     state.archiveQueue = [];
     return;

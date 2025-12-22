@@ -1,5 +1,5 @@
 import { defineComponent, Ref, ref, watch } from "vue";
-import { Settings } from "../../store";
+import { Settings } from "@/background/settings";
 
 export interface VectorSearchSectionProps {
   settings?: Settings;

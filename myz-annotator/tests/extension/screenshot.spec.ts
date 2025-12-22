@@ -13,7 +13,7 @@ let server: Server;
 let serverUrl: string;
 let context: BrowserContext;
 let page: Page;
-let extensionId: string | null;
+
 test.beforeAll(async () => {
   const fixtures = path.join(__dirname, "..", "fixtures");
   const s = createStaticServer(fixtures);
@@ -25,7 +25,6 @@ test.beforeAll(async () => {
   const launched = await launchExtension(extensionPath);
   context = launched.context;
   page = launched.page;
-  extensionId = launched.extensionId;
 });
 
 test.afterAll(async () => {

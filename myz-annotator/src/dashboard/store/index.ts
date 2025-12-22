@@ -20,43 +20,14 @@ import {
 import { sendMessage } from "@/shared/messaging.js";
 import {
   DEFAULT_COLOR,
+  DEFAULT_HIGHLIGHT_STYLE,
   MyZRecord,
   RECORD_KINDS,
   getRecordKind,
 } from "@/shared/types.js";
+import { Settings } from "@/background/settings.js";
 
 export const DashboardStoreKey = Symbol("DashboardStore");
-
-export interface Settings {
-  logseqEndpoint: string;
-  logseqPage: string;
-  logseqAuthToken: string;
-  logseqGraph: string;
-  logseqSyncEnabled: boolean;
-  dashboardView: "cards" | "list";
-  internetArchiveEnabled: boolean;
-  internetArchiveAccessKey: string;
-  internetArchiveAccessSecret: string;
-  // AI Assistant settings
-  aiAssistantEnabled: boolean;
-  aiApiEndpoint: string;
-  aiApiKey: string;
-  aiModel: string;
-  aiCustomModel: string;
-  aiContextSize: string;
-  aiMaxTokens: number;
-  aiRequestHeaders: string;
-  aiProviders: Array<{ id: string; name: string; endpoint: string }>;
-  aiActiveProviderId: string | null;
-  aiMcpServers: Array<{ name: string; endpoint: string }>;
-  vectorSearchEnabled: boolean;
-  vectorModelReady: boolean;
-  vectorUseLocalModel: boolean | "remote";
-  vectorOpenAiEndpoint: string;
-  vectorOpenAiApiKey: string;
-  vectorOpenAiModel: string;
-  vectorMaxChars: number;
-}
 
 export interface SearchFilters {
   search: string;
@@ -205,6 +176,8 @@ export function createDashboardStore(): DashboardStore {
     vectorOpenAiApiKey: "",
     vectorOpenAiModel: "text-embedding-3-small",
     vectorMaxChars: 500,
+    lastUsedColor: DEFAULT_COLOR,
+    lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
   });
   const logseqStatus = ref("");
   const settingsStatus = ref("");

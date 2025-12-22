@@ -1,13 +1,18 @@
 import { getAiHeaderValue } from "@/shared/aiHeaderUtils.js";
+import { AIAssistantSettings, Settings } from "./settings";
+
+type ResourceType = chrome.declarativeNetRequest.ResourceType;
+
+const ResourceType = chrome.declarativeNetRequest.ResourceType;
 
 const AI_USER_AGENT_RULE_ID = 1001;
-const HEADER_RESOURCE_TYPES = ["xmlhttprequest", "other"];
+const HEADER_RESOURCE_TYPES: ResourceType[] = [ResourceType.XMLHTTPREQUEST, ResourceType.OTHER];
 
-function escapeRegex(input) {
+function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function buildRegexFilterForEndpoint(endpoint) {
+function buildRegexFilterForEndpoint(endpoint: string): string | null {
   if (!endpoint) {
     return null;
   }
@@ -23,7 +28,7 @@ function buildRegexFilterForEndpoint(endpoint) {
   }
 }
 
-function resolveActiveHeaderConfig(settings = {}) {
+function resolveActiveHeaderConfig(settings: Partial<Settings> = {}) {
   const providers = Array.isArray(settings.aiProviders)
     ? settings.aiProviders
     : [];
@@ -37,7 +42,7 @@ function resolveActiveHeaderConfig(settings = {}) {
   return { endpoint, headers };
 }
 
-export async function syncAiRequestHeaderRules(settings = {}) {
+export async function syncAiRequestHeaderRules(settings: Partial<AIAssistantSettings> = {}) {
   if (!chrome?.declarativeNetRequest?.updateDynamicRules) {
     return;
   }
@@ -48,7 +53,7 @@ export async function syncAiRequestHeaderRules(settings = {}) {
 
   const addRules = [];
   if (userAgent && regexFilter) {
-    const rule = {
+    const rule: chrome.declarativeNetRequest.Rule = {
       id: AI_USER_AGENT_RULE_ID,
       priority: 1,
       action: {
@@ -64,6 +69,7 @@ export async function syncAiRequestHeaderRules(settings = {}) {
       condition: {
         regexFilter,
         resourceTypes: HEADER_RESOURCE_TYPES,
+        initiatorDomains: [],
       },
     };
 

@@ -1,4 +1,4 @@
-import { MessageStream } from "src/sidepanel/App.jsx";
+import { MessageStream } from "@/background/aiProvider.js";
 import { computed, defineComponent, ref } from "vue";
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
