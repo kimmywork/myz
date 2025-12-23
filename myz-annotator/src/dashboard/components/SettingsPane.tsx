@@ -7,7 +7,6 @@ import ArchiveHistorySection from "./settings/ArchiveHistorySection.jsx";
 import ArchiveQueueSection from "./settings/ArchiveQueueSection.jsx";
 import ImportHighlightsSection from "./settings/ImportHighlightsSection.jsx";
 import InternetArchiveSection from "./settings/InternetArchiveSection.jsx";
-import LogseqSyncSection from "./settings/LogseqSyncSection.jsx";
 import VectorSearchSection from "./settings/VectorSearchSection.jsx";
 
 export default defineComponent({
@@ -15,10 +14,6 @@ export default defineComponent({
   setup(props) {
     const store = useDashboardStore();
     const form = reactive({
-      logseqEndpoint: "",
-      logseqPage: "",
-      logseqAuthToken: "",
-      logseqGraph: "",
       internetArchiveAccessKey: "",
       internetArchiveAccessSecret: "",
     });
@@ -37,7 +32,6 @@ export default defineComponent({
       return Array.isArray(list) ? list : [];
     });
 
-    const syncEnabled = computed(() => store.settings.logseqSyncEnabled);
     const archiveEnabled = computed(
       () => store.settings.internetArchiveEnabled,
     );
@@ -45,41 +39,12 @@ export default defineComponent({
     watch(
       () => store.settings,
       (settings) => {
-        form.logseqEndpoint = settings.logseqEndpoint || "";
-        form.logseqPage = settings.logseqPage || "MyZ Inbox";
-        form.logseqAuthToken = settings.logseqAuthToken || "";
-        form.logseqGraph = settings.logseqGraph || "";
         form.internetArchiveAccessKey = settings.internetArchiveAccessKey || "";
         form.internetArchiveAccessSecret =
           settings.internetArchiveAccessSecret || "";
       },
       { immediate: true, deep: true },
     );
-
-    async function handleSyncToggle(event: Event) {
-      const enabled = (event.target as HTMLInputElement).checked;
-      try {
-        await store.toggleSync(enabled);
-      } catch (error) {
-        // toggleSync already reverts on failure; keep checkbox in sync
-        (event.target as HTMLInputElement).checked =
-          store.settings.logseqSyncEnabled;
-      }
-    }
-
-    async function handleSaveSettings() {
-      try {
-        await store.saveSettings({
-          logseqEndpoint: form.logseqEndpoint.trim(),
-          logseqPage: form.logseqPage.trim(),
-          logseqAuthToken: form.logseqAuthToken.trim(),
-          logseqGraph: form.logseqGraph.trim(),
-          logseqSyncEnabled: store.settings.logseqSyncEnabled,
-        });
-      } catch (error) {
-        // status already surfaced
-      }
-    }
 
     async function handleArchiveToggle(event: Event) {
       const enabled = (event.target as HTMLInputElement).checked;
@@ -200,7 +165,7 @@ export default defineComponent({
               设置
             </h2>
             <p class="text-sm text-slate-500 dark:text-slate-400">
-              配置 LogSeq 同步与默认选项
+              配置选项
             </p>
           </div>
           <button class="btn-link" type="button" onClick={handleCloseSettings}>
@@ -209,15 +174,6 @@ export default defineComponent({
         </header>
 
         <div class="mt-4 space-y-4">
-          <LogseqSyncSection
-            syncEnabled={syncEnabled.value}
-            form={form}
-            onToggle={handleSyncToggle}
-            onUpdateField={(key, value) => (form[key] = value)}
-            onSave={handleSaveSettings}
-            status={store.settingsStatus.value}
-          />
-
           <ImportHighlightsSection
             importFileRef={importFileRef}
             importStrategy={importStrategy.value}

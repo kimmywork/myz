@@ -959,9 +959,7 @@ export default defineComponent({
       }
 
       // Set input based on action type
-      if (action === "find_related_logseq") {
-        userInput.value = "请查找与当前页面相关的LogSeq笔记";
-      } else if (action === "custom") {
+      if (action === "custom") {
         userInput.value = "请问关于当前页面的问题";
       }
 

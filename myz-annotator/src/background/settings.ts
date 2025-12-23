@@ -13,14 +13,6 @@ customModel: string;
   requestHeaders: string;
 }
 
-export interface LogseqSettings {
-  logseqEndpoint: string;
-  logseqPage: string;
-  logseqAuthToken: string;
-  logseqGraph: string;
-  logseqSyncEnabled: boolean;
-}
-
 export interface VectorSettings {
   vectorSearchEnabled: boolean;
   vectorModelReady: boolean;
@@ -61,8 +53,7 @@ export interface InternetArchiveSettings {
 }
 
 export interface Settings
-  extends LogseqSettings,
-    VectorSettings,
+  extends VectorSettings,
     AIAssistantSettings,
     InternetArchiveSettings {
   dashboardView: "cards" | "list";

@@ -7,15 +7,7 @@ export const DEFAULT_STATE = {
   archiveQueue: [],
   archiveHistory: [],
 };
-export const DEFAULT_LOGSEQ_ENDPOINT = "http://127.0.0.1:12315/api";
-export const DEFAULT_LOGSEQ_PAGE = "MyZ Inbox";
-
 export const DEFAULT_SETTINGS = {
-  logseqEndpoint: "",
-  logseqAuthToken: "",
-  logseqGraph: "",
-  logseqPage: DEFAULT_LOGSEQ_PAGE,
-  logseqSyncEnabled: false,
   colorPalette: [
     // amber / warm highlight
     "#b58900",

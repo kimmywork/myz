@@ -89,7 +89,7 @@ export function htmlToMarkdown(html: string): string {
     return normalized;
   }
 
-  return cleanLogseqMultiline(stripHtmlTags(source));
+  return cleanMultiline(stripHtmlTags(source));
 }
 
 function normalizeMarkdown(markdown: string): string {
@@ -235,7 +235,7 @@ function normalizePreBlock(value: string): string {
   return lines.map((line) => line.replace(/\s+$/g, "")).join("\n");
 }
 
-export function cleanLogseqMultiline(value: string): string {
+export function cleanMultiline(value: string): string {
   if (!value) {
     return "";
   }

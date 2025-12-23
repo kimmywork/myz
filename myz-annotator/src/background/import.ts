@@ -70,17 +70,6 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     result.updatedAt = updatedAt;
   }
 
-  const logseqUuid =
-    typeof rawRecord.logseqBlockUuid === "string" ? rawRecord.logseqBlockUuid.trim() : "";
-  if (logseqUuid) {
-    result.logseqBlockUuid = logseqUuid;
-  }
-
-  const syncedAt = coerceIsoTimestamp(rawRecord.logseqSyncedAt);
-  if (syncedAt) {
-    result.logseqSyncedAt = syncedAt;
-  }
-
   if (!result.text && !result.html) {
     return null;
   }

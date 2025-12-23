@@ -16,8 +16,6 @@ export interface MyZRecord {
   hostname?: string;
   range?: SerializedRange;
 
-  logseqBlockUuid?: string;
-  logseqSyncedAt?: string;
   [key: string]: any;
 }
 

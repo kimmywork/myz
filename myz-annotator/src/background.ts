@@ -18,7 +18,6 @@ import { handleMessage } from "./background/messages/handler.js";
 import { initializeAIMessageHandlers } from "./background/messages/ai.js";
 import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
 import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
-import { initializeLogseqMessageHandlers } from "./background/messages/logseq.js";
 import { initializeVectoriaMessageHandlers } from "./background/messages/vectoria.js";
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
 import { initializeArchiveMessageHandlers } from "./background/messages/archive.js";
@@ -96,14 +95,6 @@ chrome.runtime.onInstalled.addListener(async () => {
       contexts: ["page", "selection"],
     });
 
-    await chrome.contextMenus.remove("myz-ai-logseq").catch(() => {});
-    chrome.contextMenus.create({
-      id: "myz-ai-logseq",
-      parentId: "myz-ai-assistant",
-      title: "查找LogSeq关联笔记",
-      contexts: ["page", "selection"],
-    });
-
     await chrome.contextMenus.remove("myz-ai-custom").catch(() => {});
     chrome.contextMenus.create({
       id: "myz-ai-custom",
@@ -135,8 +126,7 @@ chrome.contextMenus.onClicked.addListener(async (info: chrome.contextMenus.OnCli
       await chrome.sidePanel.open({ windowId: tab.windowId });
     } else if (
       info.menuItemId === "myz-ai-summarize" ||
-      info.menuItemId === "myz-ai-keypoints" ||
-      info.menuItemId === "myz-ai-logseq"
+      info.menuItemId === "myz-ai-keypoints"
     ) {
       // Open side panel with AI assistant
       await chrome.sidePanel.open({ windowId: tab.windowId });
@@ -178,8 +168,6 @@ chrome.contextMenus.onClicked.addListener(async (info: chrome.contextMenus.OnCli
           if (info.menuItemId === "myz-ai-summarize") action = "summarize";
           else if (info.menuItemId === "myz-ai-keypoints")
             action = "key_points";
-          else if (info.menuItemId === "myz-ai-logseq")
-            action = "find_related_logseq";
 
           // Send message to side panel with the selected action
           setTimeout(async () => {
@@ -264,7 +252,6 @@ initializeAIMessageHandlers();
 initializeArchiveMessageHandlers();
 initializeCaptureMessageHandlers();
 initializeHighlightMessageHandlers();
-initializeLogseqMessageHandlers();
 initializeSettingsMessageHandlers();
 initializeVectoriaMessageHandlers();
 

@@ -62,7 +62,7 @@ export interface DashboardStore {
   view: Ref<"cards" | "list">;
   panel: Ref<"settings" | "highlights">;
   settings: Settings;
-  logseqStatus: Ref<string>;
+  operationStatus: Ref<string>;
   settingsStatus: Ref<string>;
   importStatus: ImportStatus;
   isSyncInFlight: Ref<boolean>;
@@ -107,9 +107,7 @@ export interface DashboardStore {
   deleteHighlight: (id: string) => Promise<void>;
   downgradeHighlight: (id: string) => Promise<void>;
   handleExport: (format: "markdown" | "json") => Promise<void>;
-  syncLogseq: () => Promise<void>;
 
-  toggleSync: (enabled: boolean) => void;
   toggleInternetArchive: (enabled: boolean) => void;
   importHighlightsFromFile: (
     file: File | undefined,
@@ -147,11 +145,6 @@ export function createDashboardStore(): DashboardStore {
   const panel: Ref<"settings" | "highlights"> = ref("highlights");
   const renderedCount = ref(0);
   const settings: Settings = reactive({
-    logseqEndpoint: "",
-    logseqPage: "MyZ Inbox",
-    logseqAuthToken: "",
-    logseqGraph: "",
-    logseqSyncEnabled: false,
     dashboardView: "cards",
     internetArchiveEnabled: false,
     internetArchiveAccessKey: "",
@@ -178,7 +171,7 @@ export function createDashboardStore(): DashboardStore {
     lastUsedColor: DEFAULT_COLOR,
     lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
   });
-  const logseqStatus = ref("");
+  const operationStatus = ref("");
   const settingsStatus = ref("");
   const importStatus: ImportStatus = reactive({ message: "", tone: "info" });
   const isSyncInFlight = ref(false);
@@ -421,11 +414,6 @@ export function createDashboardStore(): DashboardStore {
         return;
       }
       Object.assign(settings, {
-        logseqEndpoint: result.logseqEndpoint || "",
-        logseqPage: result.logseqPage || settings.logseqPage,
-        logseqAuthToken: result.logseqAuthToken || "",
-        logseqGraph: result.logseqGraph || "",
-        logseqSyncEnabled: Boolean(result.logseqSyncEnabled),
         dashboardView: result.dashboardView || settings.dashboardView,
         internetArchiveEnabled: Boolean(result.internetArchiveEnabled),
         internetArchiveAccessKey: result.internetArchiveAccessKey || "",
@@ -561,10 +549,10 @@ export function createDashboardStore(): DashboardStore {
     const markdown = recordToMarkdown(record);
     try {
       await navigator.clipboard.writeText(markdown);
-      setTimedStatus(logseqStatus, "已复制到剪贴板", 2000);
+      setTimedStatus(operationStatus, "已复制到剪贴板", 2000);
     } catch (error) {
       console.error("复制失败", error);
-      setTimedStatus(logseqStatus, "复制失败", 2000);
+      setTimedStatus(operationStatus, "复制失败", 2000);
     }
   }
 
@@ -575,7 +563,7 @@ export function createDashboardStore(): DashboardStore {
       updateRenderedCount({ preserve: true });
     } catch (error) {
       console.error("删除失败", error);
-      setTimedStatus(logseqStatus, `删除失败：${(error as Error).message}`);
+      setTimedStatus(operationStatus, `删除失败：${(error as Error).message}`);
     }
   }
 
@@ -597,7 +585,7 @@ export function createDashboardStore(): DashboardStore {
       }
     } catch (error) {
       console.error("降级失败", error);
-      setTimedStatus(logseqStatus, `降级失败：${(error as Error).message}`);
+      setTimedStatus(operationStatus, `降级失败：${(error as Error).message}`);
     }
   }
 
@@ -700,69 +688,7 @@ export function createDashboardStore(): DashboardStore {
       }
     } catch (error) {
       console.error("导出失败", error);
-      setTimedStatus(logseqStatus, `导出失败：${(error as Error).message}`);
-    }
-  }
-
-  async function syncLogseq(customPayload: Partial<MyZRecord> = {}) {
-    if (!settings.logseqSyncEnabled) {
-      setTimedStatus(logseqStatus, "请先在设置中启用同步", 3000);
-      return;
-    }
-    if (isSyncInFlight.value) {
-      return;
-    }
-    isSyncInFlight.value = true;
-    setTimedStatus(logseqStatus, "同步中…", 0);
-    try {
-      const payload = {
-        title: `MyZ Export ${new Date().toISOString()}`,
-        endpoint:
-          customPayload.endpoint ||
-          settings.logseqEndpoint?.trim() ||
-          undefined,
-        token:
-          customPayload.token || settings.logseqAuthToken?.trim() || undefined,
-        page: customPayload.page || settings.logseqPage?.trim() || undefined,
-      };
-      const result = await sendMessage("myz:syncLogseq", payload);
-      const count =
-        typeof result?.inserted === "number" ? result.inserted : null;
-      const message =
-        typeof result?.message === "string" ? result.message : "同步成功";
-      const pageName =
-        typeof result?.page === "string" && result.page ? result.page : "";
-      const baseText =
-        count !== null && !message.includes("新增")
-          ? `${message}（新增 ${count} 条）`
-          : message;
-      setTimedStatus(
-        logseqStatus,
-        pageName ? `${baseText} → ${pageName}` : baseText,
-        4000,
-      );
-      await refreshHighlights({ preserveProgress: true });
-    } catch (error) {
-      console.error("同步失败", error);
-      setTimedStatus(
-        logseqStatus,
-        `同步失败：${(error as Error).message}`,
-        4000,
-      );
-    } finally {
-      isSyncInFlight.value = false;
-    }
-  }
-
-  async function toggleSync(enabled: boolean) {
-    settings.logseqSyncEnabled = enabled;
-    try {
-      await sendMessage("myz:updateSettings", { logseqSyncEnabled: enabled });
-    } catch (error) {
-      console.error("Failed to update sync toggle", error);
-      settings.logseqSyncEnabled = !enabled;
-      setTimedStatus(settingsStatus, `更新失败：${(error as Error).message}`);
-      throw error;
+      setTimedStatus(operationStatus, `导出失败：${(error as Error).message}`);
     }
   }
 
@@ -1034,7 +960,7 @@ export function createDashboardStore(): DashboardStore {
     view,
     panel,
     settings,
-    logseqStatus,
+    operationStatus,
     settingsStatus,
     importStatus,
     modalState,
@@ -1064,8 +990,6 @@ export function createDashboardStore(): DashboardStore {
     deleteHighlight,
     downgradeHighlight,
     handleExport,
-    syncLogseq,
-    toggleSync,
     toggleInternetArchive,
     saveSettings,
     importHighlightsFromFile,
