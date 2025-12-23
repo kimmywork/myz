@@ -1,4 +1,4 @@
-import { readSettings, readState, sortedHighlights, writeSettings, writeState } from "../storage";
+import { getAllHighlights, readSettings, saveHighlight, writeSettings } from "../storage";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord } from "@/shared/types";
 import { buildHighlightBlock, buildLogseqEndpointList, callLogseq, ensureLogseqPage, extractEntityUuid, extractInsertedBlockEntities, matchInsertedHighlights, normalizeLogseqEndpoint, normalizeLogseqPageName, RecordBlockEntry, } from "../logseq";
@@ -11,8 +11,7 @@ export function initializeLogseqMessageHandlers() {
     if (!settings.logseqSyncEnabled) {
       throw new Error("LogSeq 同步未启用");
     }
-    const state = await readState();
-    const highlights = sortedHighlights(state);
+    const highlights = await getAllHighlights();
     const pageName = normalizeLogseqPageName(
       payload?.page || settings.logseqPage || DEFAULT_LOGSEQ_PAGE,
     );
@@ -80,7 +79,6 @@ export function initializeLogseqMessageHandlers() {
           .filter((entry) => !!entry.block);
 
         let inserted = 0;
-        let stateMutated = false;
 
         if (payloadEntries.length) {
           const blocksPayload = payloadEntries.map((entry) => entry.block);
@@ -101,24 +99,26 @@ export function initializeLogseqMessageHandlers() {
           });
 
           const syncedAt = exportedAt.toISOString();
+          const savePromises: Promise<void>[] = [];
+
           blockMatches.forEach((entity, entry) => {
             const blockUuid = extractEntityUuid(entity);
             if (!blockUuid) {
               throw new Error("未能获取新建块的 UUID");
             }
-            const current = state.highlights[entry.record.id] || entry.record;
-            state.highlights[entry.record.id] = {
+            const current = entry.record;
+            const updated = {
               ...current,
               logseqBlockUuid: blockUuid,
               logseqSyncedAt: syncedAt,
             };
+            savePromises.push(saveHighlight(updated));
             inserted += 1;
-            stateMutated = true;
           });
-        }
 
-        if (stateMutated) {
-          await writeState(state);
+          if (savePromises.length) {
+            await Promise.all(savePromises);
+          }
         }
 
         if (

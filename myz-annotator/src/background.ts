@@ -1,8 +1,6 @@
 import {
   DEFAULT_SETTINGS,
-  DEFAULT_STATE,
   SETTINGS_KEY,
-  STORAGE_KEY,
 } from "./background/constants.js";
 
 import {
@@ -51,11 +49,6 @@ import { initializeArchiveMessageHandlers } from "./background/messages/archive.
 })();
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const { [STORAGE_KEY]: existingHighlights } =
-    await chrome.storage.local.get(STORAGE_KEY);
-  if (!existingHighlights) {
-    await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_STATE });
-  }
   const { [SETTINGS_KEY]: existingSettings } =
     await chrome.storage.local.get(SETTINGS_KEY);
   if (!existingSettings) {

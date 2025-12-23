@@ -1,6 +1,5 @@
 import {
   DEFAULT_SETTINGS,
-  DEFAULT_STATE,
   SETTINGS_KEY,
   STORAGE_KEY,
 } from "./constants.js";
@@ -8,8 +7,118 @@ import {
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 import { AIAssistantSettings, AIProviderSetting, Settings, VectorSettings } from "./settings.js";
-import { ArchiveActions, ArchiveEntry, ArchiveHistoryEntry, ArchiveQueueEntry } from "./internetArchive.js";
+import { ArchiveEntry, ArchiveHistoryEntry, ArchiveQueueEntry } from "./internetArchive.js";
 import { MyZRecord } from "@/shared/types.js";
+
+const DB_NAME = "myz_db";
+const DB_VERSION = 1;
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function getDB(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => {
+      console.error("Failed to open database", request.error);
+      reject(request.error);
+    };
+
+    request.onsuccess = async () => {
+      const db = request.result;
+      try {
+        await migrateFromLocalStorage(db);
+      } catch (e) {
+        console.error("Migration failed", e);
+      }
+      resolve(db);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains("highlights")) {
+        const store = db.createObjectStore("highlights", { keyPath: "id" });
+        store.createIndex("url", "url", { unique: false });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains("archives")) {
+        db.createObjectStore("archives", { keyPath: "url" });
+      }
+
+      if (!db.objectStoreNames.contains("archiveQueue")) {
+        const store = db.createObjectStore("archiveQueue", { keyPath: "id" });
+        store.createIndex("url", "url", { unique: false });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("requestedAt", "requestedAt", { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains("archiveHistory")) {
+        const store = db.createObjectStore("archiveHistory", { keyPath: "id" });
+        store.createIndex("url", "url", { unique: false });
+        store.createIndex("timestamp", "timestamp", { unique: false });
+      }
+    };
+  });
+  return dbPromise;
+}
+
+async function migrateFromLocalStorage(db: IDBDatabase) {
+  const { [STORAGE_KEY]: stored } = await chrome.storage.local.get(STORAGE_KEY);
+  if (!stored || typeof stored !== "object") return;
+
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(
+      ["highlights", "archives", "archiveQueue", "archiveHistory"],
+      "readwrite",
+    );
+
+    tx.oncomplete = async () => {
+      await chrome.storage.local.remove(STORAGE_KEY);
+      console.log("Migrated storage to IndexedDB");
+      resolve();
+    };
+
+    tx.onerror = () => reject(tx.error);
+
+    const highlightsStore = tx.objectStore("highlights");
+    const archivesStore = tx.objectStore("archives");
+    const queueStore = tx.objectStore("archiveQueue");
+    const historyStore = tx.objectStore("archiveHistory");
+
+    if (stored.highlights) {
+      Object.values(stored.highlights).forEach((h: any) =>
+        highlightsStore.put(h),
+      );
+    }
+    if (stored.archives) {
+      Object.entries(stored.archives).forEach(([url, entry]: [string, any]) => {
+        archivesStore.put({ ...entry, url });
+      });
+    }
+    if (Array.isArray(stored.archiveQueue)) {
+      stored.archiveQueue.forEach((q: any) => queueStore.put(q));
+    }
+    if (Array.isArray(stored.archiveHistory)) {
+      stored.archiveHistory.forEach((h: any) => historyStore.put(h));
+    }
+  });
+}
+
+function getAllFromStore<T>(storeName: string): Promise<T[]> {
+  return getDB().then((db) => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readonly");
+      const store = tx.objectStore(storeName);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  });
+}
 
 function normalizeAiProvider(input: AIProviderSetting | undefined, { nameFallback = "AI Provider" } = {}) {
   if (!input || typeof input !== "object") {
@@ -116,43 +225,156 @@ function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(set
   return settings;
 }
 
-export interface StorageState {
-  highlights: Record<string, MyZRecord>;
-  order: string[];
-  archives: Record<string, ArchiveEntry>;
-  archiveQueue: ArchiveQueueEntry[];
-  archiveHistory: ArchiveHistoryEntry[];
+
+
+export async function saveHighlight(record: MyZRecord) {
+  const db = await getDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("highlights", "readwrite");
+    const store = tx.objectStore("highlights");
+    const request = store.put(record);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
 }
 
-export async function readState(): Promise<StorageState> {
-  const { [STORAGE_KEY]: stored } = await chrome.storage.local.get(STORAGE_KEY);
-  if (!stored || typeof stored !== "object") {
-    return {
-      ...DEFAULT_STATE,
-      order: [],
-      archives: {},
-      archiveQueue: [],
-      archiveHistory: [],
+export async function deleteHighlight(id: string) {
+  const db = await getDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("highlights", "readwrite");
+    const store = tx.objectStore("highlights");
+    const request = store.delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getHighlightsForUrl(url: string): Promise<MyZRecord[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("highlights", "readonly");
+    const store = tx.objectStore("highlights");
+    const index = store.index("url");
+    const request = index.getAll(url);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getHighlight(id: string): Promise<MyZRecord | undefined> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("highlights", "readonly");
+    const store = tx.objectStore("highlights");
+    const request = store.get(id);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getAllHighlights(): Promise<MyZRecord[]> {
+  const records = await getAllFromStore<MyZRecord>("highlights");
+  return records.sort((a, b) => {
+    const timeA = new Date(a.createdAt || 0).getTime();
+    const timeB = new Date(b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+}
+
+export async function getAllArchives(): Promise<Record<string, ArchiveEntry>> {
+  const archivesList = await getAllFromStore<ArchiveEntry & { url: string }>("archives");
+  const archivesMap: Record<string, ArchiveEntry> = {};
+  archivesList.forEach((a) => {
+    const { url, ...rest } = a;
+    archivesMap[url] = rest as ArchiveEntry;
+  });
+  return archivesMap;
+}
+
+export async function saveArchiveEntry(url: string, entry: ArchiveEntry) {
+  const db = await getDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("archives", "readwrite");
+    const store = tx.objectStore("archives");
+    const request = store.put({ ...entry, url });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getArchiveEntry(
+  url: string,
+): Promise<ArchiveEntry | null> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("archives", "readonly");
+    const store = tx.objectStore("archives");
+    const request = store.get(url);
+    request.onsuccess = () => {
+      if (request.result) {
+        const { url: _, ...rest } = request.result;
+        resolve(rest as ArchiveEntry);
+      } else {
+        resolve(null);
+      }
     };
-  }
-  const safeState: StorageState = {
-    highlights: stored.highlights || {},
-    order: Array.isArray(stored.order) ? stored.order : [],
-    archives: sanitizeArchiveMap(stored.archives),
-    archiveQueue: sanitizeArchiveQueue(stored.archiveQueue),
-    archiveHistory: sanitizeArchiveHistory(stored.archiveHistory),
-  };
-  const missing = safeState.order.filter((id) => !safeState.highlights[id]);
-  if (missing.length) {
-    safeState.order = safeState.order.filter(
-      (id) => !!safeState.highlights[id],
-    );
-  }
-  return safeState;
+    request.onerror = () => reject(request.error);
+  });
 }
 
-export async function writeState(state: StorageState) {
-  await chrome.storage.local.set({ [STORAGE_KEY]: state });
+export async function getArchiveQueue(): Promise<ArchiveQueueEntry[]> {
+  return getAllFromStore<ArchiveQueueEntry>("archiveQueue");
+}
+
+export async function saveArchiveQueueEntry(entry: ArchiveQueueEntry) {
+  const db = await getDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("archiveQueue", "readwrite");
+    const store = tx.objectStore("archiveQueue");
+    const request = store.put(entry);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function deleteArchiveQueueEntry(id: string) {
+  const db = await getDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("archiveQueue", "readwrite");
+    const store = tx.objectStore("archiveQueue");
+    const request = store.delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getArchiveHistory(): Promise<ArchiveHistoryEntry[]> {
+  return getAllFromStore<ArchiveHistoryEntry>("archiveHistory");
+}
+
+export async function addArchiveHistoryEntry(entry: ArchiveHistoryEntry) {
+  const db = await getDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("archiveHistory", "readwrite");
+    const store = tx.objectStore("archiveHistory");
+    const request = store.put(entry);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getArchiveHistoryForUrl(
+  url: string,
+): Promise<ArchiveHistoryEntry[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("archiveHistory", "readonly");
+    const store = tx.objectStore("archiveHistory");
+    const index = store.index("url");
+    const request = index.getAll(url);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
 }
 
 export async function readSettings() {
@@ -202,16 +424,7 @@ export async function persistHighlightPreferences({ color, style }: Partial<MyZR
   }
 }
 
-export function sortedHighlights(state: StorageState): MyZRecord[] {
-  return state.order
-    .map((id) => state.highlights[id])
-    .filter(Boolean)
-    .sort((a, b) => {
-      const timeA = new Date(a.createdAt || 0).getTime();
-      const timeB = new Date(b.createdAt || 0).getTime();
-      return timeB - timeA;
-    });
-}
+
 
 export function generateId() {
   return `myz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -226,108 +439,4 @@ export function generateUniqueImportId(usedIds: Set<string>) {
   return candidate;
 }
 
-function sanitizeArchiveMap(input: Record<string, ArchiveEntry> | undefined) {
-  if (!input || typeof input !== "object") {
-    return {};
-  }
-  const result: Record<string, ArchiveEntry> = {};
-  Object.entries(input).forEach(([key, value]) => {
-    if (typeof key !== "string" || !key) {
-      return;
-    }
-    const entry = sanitizeArchiveEntry(value);
-    if (entry) {
-      result[key] = entry;
-    }
-  });
-  return result;
-}
 
-function sanitizeArchiveEntry(entry: ArchiveEntry): ArchiveEntry | null {
-  if (!entry || typeof entry !== "object") {
-    return null;
-  }
-  const snapshot = sanitizeArchiveSnapshot(entry.snapshot);
-  return {
-    status: typeof entry.status === "string" ? entry.status : "unknown",
-    snapshot,
-    lastCheckedAt:
-      typeof entry.lastCheckedAt === "string" ? entry.lastCheckedAt : null,
-    lastAttemptAt:
-      typeof entry.lastAttemptAt === "string" ? entry.lastAttemptAt : null,
-    lastError: typeof entry.lastError === "string" ? entry.lastError : null,
-  };
-}
-
-function sanitizeArchiveSnapshot(snapshot: ArchiveEntry["snapshot"]): ArchiveEntry["snapshot"] | null {
-  if (!snapshot || typeof snapshot !== "object") {
-    return null;
-  }
-  const timestamp =
-    typeof snapshot.timestamp === "string" ? snapshot.timestamp : null;
-  const url = typeof snapshot.url === "string" ? snapshot.url : null;
-  if (!timestamp || !url) {
-    return null;
-  }
-  return { timestamp, url };
-}
-
-function sanitizeArchiveQueue(queue: ArchiveQueueEntry[] | undefined) {
-  if (!Array.isArray(queue)) {
-    return [];
-  }
-  const result: ArchiveQueueEntry[] = [];
-  queue.forEach((entry) => {
-    if (!entry || typeof entry !== "object") {
-      return;
-    }
-    const url = typeof entry.url === "string" ? entry.url : "";
-    if (!url) {
-      return;
-    }
-    result.push({
-      id: typeof entry.id === "string" && entry.id ? entry.id : generateId(),
-      url,
-      requestedAt:
-        typeof entry.requestedAt === "string" ? entry.requestedAt : null,
-      status:
-        typeof entry.status === "string" && entry.status
-          ? entry.status
-          : "queued",
-      attempts:
-        typeof entry.attempts === "number" && entry.attempts >= 0
-          ? entry.attempts
-          : 0,
-      force: Boolean(entry.force),
-    });
-  });
-  return result;
-}
-
-function sanitizeArchiveHistory(history: ArchiveHistoryEntry[] | undefined) {
-  if (!Array.isArray(history)) {
-    return [];
-  }
-  const result: ArchiveHistoryEntry[] = [];
-  history.forEach((entry) => {
-    if (!entry || typeof entry !== "object") {
-      return;
-    }
-    const url = typeof entry.url === "string" ? entry.url : "";
-    if (!url) {
-      return;
-    }
-    result.push({
-      id: typeof entry.id === "string" && entry.id ? entry.id : generateId(),
-      url,
-      action: typeof entry.action === "string" ? entry.action : ArchiveActions.unknown,
-      timestamp: typeof entry.timestamp === "string" ? entry.timestamp : null,
-      success: Boolean(entry.success),
-      status: typeof entry.status === "string" ? entry.status : "info",
-      statusCode:
-        typeof entry.statusCode === "number" ? entry.statusCode : null,
-      message: typeof entry.message === "string" ? entry.message : "",
-    });
-  });
-  return result;
-}

@@ -6,7 +6,7 @@ import {
 } from "../sidepanel/aiStorage.js";
 import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
-import { readState, sortedHighlights } from "./storage.js";
+import { getAllHighlights } from "./storage.js";
 import { AIAssistantSettings, AIProviderSetting } from "./settings.js";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { ContentBlock } from "./mcp_schema.js";
@@ -1591,8 +1591,7 @@ function toDateOnly(value: any): Date | null {
 }
 
 async function readAllHighlights() {
-  const state = await readState();
-  return sortedHighlights(state);
+  return getAllHighlights();
 }
 
 function normalizeLimit(value: any, fallback = 20, max = 50): number {

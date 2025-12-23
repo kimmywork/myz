@@ -3,7 +3,7 @@ import { deleteConversation } from "@/sidepanel/aiStorage";
 import { createConversation, exportConversation, getConversationHistory, listConversations, readAiConversations, saveAiGeneratedHighlight, writeAiConversations } from "../ai";
 import { createAiProvider, PageInsightPayload, ProcessConversationOptions } from "../aiProvider";
 import { AIAssistantSettings, McpServerSetting } from "../settings";
-import { generateId, readSettings, readState, writeState } from "../storage";
+import { generateId, readSettings, saveHighlight } from "../storage";
 import { registerMessageHandler } from "./handler";
 import { testMcpConnection } from "../mcp";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
@@ -129,12 +129,7 @@ export function initializeAIMessageHandlers() {
       updatedAt: now,
     };
 
-    const state = await readState();
-    if (!state.highlights[id]) {
-      state.order.push(id);
-    }
-    state.highlights[id] = record;
-    await writeState(state);
+    await saveHighlight(record);
 
     return record;
   });

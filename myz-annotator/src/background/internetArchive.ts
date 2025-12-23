@@ -1,4 +1,15 @@
-import { generateId, readSettings, readState, StorageState, writeState } from "./storage.js";
+import {
+  generateId,
+  readSettings,
+  getArchiveEntry,
+  getArchiveQueue,
+  saveArchiveQueueEntry,
+  saveArchiveEntry,
+  addArchiveHistoryEntry,
+  getArchiveHistoryForUrl,
+  deleteArchiveQueueEntry,
+  getArchiveHistory as getArchiveHistoryFromStorage,
+} from "./storage.js";
 import {
   canonicalUrl,
   buildArchiveSnapshotUrl,
@@ -8,7 +19,6 @@ import {
 const CDX_ENDPOINT = "https://web.archive.org/cdx/search/cdx";
 const SAVE_ENDPOINT = "https://web.archive.org/save";
 const WAYBACK_BASE = "https://web.archive.org";
-const MAX_HISTORY_ITEMS = 200;
 
 let queueProcessing = false;
 let queueScheduled = false;
@@ -183,11 +193,10 @@ export async function getArchiveStatusForUrl(
       queue: null,
     };
   }
-  const state: StorageState = await readState();
-  ensureArchiveContainers(state);
-  const entry = normalizeArchiveEntry(state.archives[canonical]);
-  const queueEntry = findQueueEntry(state.archiveQueue, canonical);
-  const position = computeQueuePosition(state.archiveQueue, canonical);
+  const entry = (await getArchiveEntry(canonical)) || {};
+  const queue = await getArchiveQueue();
+  const queueEntry = findQueueEntry(queue, canonical);
+  const position = computeQueuePosition(queue, canonical);
   return formatArchiveEntry(
     canonical,
     entry,
@@ -206,13 +215,12 @@ export async function ensureArchiveSnapshot({
     throw new Error("无法识别页面地址");
   }
 
-  const state: StorageState = await readState();
-  ensureArchiveContainers(state);
+  const queue = await getArchiveQueue();
+  const queueEntry = findQueueEntry(queue, canonical);
 
-  const queueEntry = findQueueEntry(state.archiveQueue, canonical);
   if (queueEntry && !force) {
-    const entry = normalizeArchiveEntry(state.archives[canonical]);
-    const position = computeQueuePosition(state.archiveQueue, canonical);
+    const entry = (await getArchiveEntry(canonical)) || {};
+    const position = computeQueuePosition(queue, canonical);
     return formatArchiveEntry(
       canonical,
       entry,
@@ -222,12 +230,13 @@ export async function ensureArchiveSnapshot({
     );
   }
 
-  const archiveEntry = normalizeArchiveEntry(state.archives[canonical]);
+  const archiveEntry = normalizeArchiveEntry(
+    (await getArchiveEntry(canonical))
+  );
+
   if (!force) {
-    const latestHistory = findLatestHistoryForUrl(
-      state.archiveHistory,
-      canonical,
-    );
+    const history = await getArchiveHistoryForUrl(canonical);
+    const latestHistory = findLatestHistoryForUrl(history, canonical);
     if (latestHistory) {
       return formatArchiveEntry(canonical, archiveEntry, archiveEntry.status);
     }
@@ -245,14 +254,14 @@ export async function ensureArchiveSnapshot({
     force: Boolean(force),
   };
 
-  state.archiveQueue.push(newQueueEntry);
-  state.archives[canonical] = {
+  await saveArchiveQueueEntry(newQueueEntry);
+  await saveArchiveEntry(canonical, {
     ...archiveEntry,
     status: "pending",
     lastError: null,
-  } as ArchiveEntry;
+  } as ArchiveEntry);
 
-  appendArchiveHistory(state, {
+  await appendArchiveHistory({
     url: canonical,
     action: ArchiveActions.queue,
     status: "info",
@@ -260,20 +269,20 @@ export async function ensureArchiveSnapshot({
     message: force ? "强制加入保存队列" : "加入保存队列",
   });
 
-  await writeState(state);
   scheduleArchiveQueueProcessing();
 
-  const position = computeQueuePosition(state.archiveQueue, canonical);
+  const updatedQueue = await getArchiveQueue();
+  const position = computeQueuePosition(updatedQueue, canonical);
   return formatArchiveEntry(
     canonical,
-    state.archives[canonical],
+    archiveEntry,
     "queued",
     newQueueEntry,
     position ?? undefined,
   );
 }
 
-function normalizeArchiveEntry(entry: ArchiveEntry): Partial<ArchiveEntry> {
+function normalizeArchiveEntry(entry: ArchiveEntry | null): Partial<ArchiveEntry> {
   if (!entry || typeof entry !== "object") {
     return {
       status: "unknown",
@@ -338,19 +347,6 @@ function formatArchiveEntry(
   };
 }
 
-function ensureArchiveContainers(state: StorageState): StorageState {
-  if (!state.archives || typeof state.archives !== "object") {
-    state.archives = {};
-  }
-  if (!Array.isArray(state.archiveQueue)) {
-    state.archiveQueue = [];
-  }
-  if (!Array.isArray(state.archiveHistory)) {
-    state.archiveHistory = [];
-  }
-  return state;
-}
-
 function findQueueEntry(
   queue: ArchiveQueueEntry[],
   url: string,
@@ -387,14 +383,10 @@ function findLatestHistoryForUrl(
   return null;
 }
 
-function appendArchiveHistory(
-  state: StorageState,
+async function appendArchiveHistory(
   entry: Partial<ArchiveHistoryEntry>,
 ) {
-  if (!state.archiveHistory) {
-    state.archiveHistory = [];
-  }
-  state.archiveHistory.push({
+  await addArchiveHistoryEntry({
     id: entry.id || generateId(),
     url: entry.url!,
     action: entry.action || ArchiveActions.unknown,
@@ -404,9 +396,6 @@ function appendArchiveHistory(
     statusCode: typeof entry.statusCode === "number" ? entry.statusCode : null,
     message: entry.message || "",
   });
-  if (state.archiveHistory.length > MAX_HISTORY_ITEMS) {
-    state.archiveHistory = state.archiveHistory.slice(-MAX_HISTORY_ITEMS);
-  }
 }
 
 function scheduleArchiveQueueProcessing() {
@@ -429,13 +418,12 @@ async function processArchiveQueue() {
   queueProcessing = true;
   try {
     while (true) {
-      const state = await readState();
-      ensureArchiveContainers(state);
-      if (!state.archiveQueue.length) {
+      const queue = await getArchiveQueue();
+      if (!queue.length) {
         break;
       }
-      const entry = state.archiveQueue[0];
-      await handleQueueEntry(state, entry);
+      const entry = queue[0];
+      await handleQueueEntry(entry);
     }
   } finally {
     queueProcessing = false;
@@ -443,16 +431,15 @@ async function processArchiveQueue() {
 }
 
 async function handleQueueEntry(
-  state: StorageState,
   queueEntry: ArchiveQueueEntry,
 ) {
-  ensureArchiveContainers(state);
   const canonical = queueEntry.url;
-  const archives = state.archives;
   const nowIso = new Date().toISOString();
-  const archiveEntry = normalizeArchiveEntry(archives[canonical]);
+  const archiveEntry = normalizeArchiveEntry(
+    (await getArchiveEntry(canonical)),
+  );
 
-  appendArchiveHistory(state, {
+  await appendArchiveHistory({
     url: canonical,
     action: ArchiveActions["queue:start"],
     status: "info",
@@ -464,7 +451,7 @@ async function handleQueueEntry(
 
   try {
     const cdxResult = await fetchLatestSnapshot(canonical);
-    appendArchiveHistory(state, {
+    await appendArchiveHistory({
       url: canonical,
       action: ArchiveActions["cdx-check"],
       status: cdxResult.snapshot ? "success" : "info",
@@ -476,22 +463,21 @@ async function handleQueueEntry(
     });
 
     if (cdxResult.snapshot) {
-      archives[canonical] = {
+      await saveArchiveEntry(canonical, {
         ...archiveEntry,
         status: "saved",
         snapshot: buildSnapshot(cdxResult.snapshot),
         lastCheckedAt: nowIso,
         lastError: null,
-      } as ArchiveEntry;
-      removeQueueEntry(state, queueEntry.id);
-      appendArchiveHistory(state, {
+      } as ArchiveEntry);
+      await deleteArchiveQueueEntry(queueEntry.id);
+      await appendArchiveHistory({
         url: canonical,
         action: ArchiveActions["queue:complete"],
         status: "success",
         success: true,
         message: "检测到已有存档，标记为已保存",
       });
-      await writeState(state);
       return;
     }
 
@@ -508,7 +494,7 @@ async function handleQueueEntry(
       accessSecret: trimmedSecret,
     });
 
-    appendArchiveHistory(state, {
+    await appendArchiveHistory({
       url: canonical,
       action: ArchiveActions["save-request"],
       status: "info",
@@ -519,8 +505,8 @@ async function handleQueueEntry(
     const confirmed = await pollForSnapshot(
       canonical,
       archiveEntry.snapshot?.timestamp,
-      (pollResult: CDXResult) => {
-        appendArchiveHistory(state, {
+      async (pollResult: CDXResult) => {
+        await appendArchiveHistory({
           url: canonical,
           action: ArchiveActions["cdx-poll"],
           status: pollResult.snapshot ? "success" : "info",
@@ -534,15 +520,15 @@ async function handleQueueEntry(
     );
 
     if (confirmed?.snapshot) {
-      archives[canonical] = {
+      await saveArchiveEntry(canonical, {
         ...archiveEntry,
         status: "saved",
         snapshot: buildSnapshot(confirmed.snapshot),
         lastCheckedAt: new Date().toISOString(),
         lastAttemptAt: nowIso,
         lastError: null,
-      } as ArchiveEntry;
-      appendArchiveHistory(state, {
+      } as ArchiveEntry);
+      await appendArchiveHistory({
         url: canonical,
         action: ArchiveActions["queue:complete"],
         status: "success",
@@ -550,13 +536,13 @@ async function handleQueueEntry(
         message: "页面已成功保存到 Internet Archive",
       });
     } else {
-      archives[canonical] = {
+      await saveArchiveEntry(canonical, {
         ...archiveEntry,
         status: "pending",
         lastAttemptAt: nowIso,
         lastError: null,
-      } as ArchiveEntry;
-      appendArchiveHistory(state, {
+      } as ArchiveEntry);
+      await appendArchiveHistory({
         url: canonical,
         action: ArchiveActions["queue:pending"],
         status: "info",
@@ -565,41 +551,33 @@ async function handleQueueEntry(
       });
     }
 
-    removeQueueEntry(state, queueEntry.id);
-    await writeState(state);
+    await deleteArchiveQueueEntry(queueEntry.id);
   } catch (error) {
-    archives[canonical] = {
+    await saveArchiveEntry(canonical, {
       ...archiveEntry,
       status: "failed",
       lastAttemptAt: nowIso,
       lastError: (error as Error)?.message || String(error),
-    } as ArchiveEntry;
-    appendArchiveHistory(state, {
+    } as ArchiveEntry);
+    await appendArchiveHistory({
       url: canonical,
       action: ArchiveActions["queue:error"],
       status: "error",
       success: false,
       message: (error as Error)?.message || "保存失败",
     });
-    removeQueueEntry(state, queueEntry.id);
-    await writeState(state);
+    await deleteArchiveQueueEntry(queueEntry.id);
   }
 }
 
-function removeQueueEntry(state: StorageState, id: string) {
-  if (!Array.isArray(state.archiveQueue)) {
-    state.archiveQueue = [];
-    return;
-  }
-  state.archiveQueue = state.archiveQueue.filter((item) => item.id !== id);
-}
+
 
 export async function getArchiveHistory() {
-  const state = await readState();
-  ensureArchiveContainers(state);
+  const history = await getArchiveHistoryFromStorage();
+  const queue = await getArchiveQueue();
   return {
-    queue: state.archiveQueue,
-    history: state.archiveHistory,
+    queue,
+    history: history.reverse(),
   };
 }
 

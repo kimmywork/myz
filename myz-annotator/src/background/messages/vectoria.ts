@@ -1,8 +1,7 @@
 import {
   readSettings,
   writeSettings,
-  readState,
-  sortedHighlights,
+  getAllHighlights,
 } from "../storage";
 import {
   applyVectoriaSettings,
@@ -61,8 +60,7 @@ export function initializeVectoriaMessageHandlers() {
     applyVectoriaSettings(settings);
     await warmVectoriaModel();
     await resetVectorIndex();
-    const state = await readState();
-    const highlights = sortedHighlights(state);
+    const highlights = await getAllHighlights();
     await indexRecords(highlights);
     return { success: true, count: highlights.length };
   });

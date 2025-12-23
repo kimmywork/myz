@@ -1,12 +1,16 @@
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import {
-  readState,
   generateId,
-  writeState,
   persistHighlightPreferences,
-  sortedHighlights,
   generateUniqueImportId,
+  getHighlightsForUrl,
+  saveHighlight,
+  getHighlight,
+  deleteHighlight,
+  getAllHighlights,
+  getArchiveEntry,
+  getAllArchives,
 } from "../storage";
 
 import { removeRecordFromIndex, indexRecord, indexRecords } from "../vectoria-index";
@@ -30,7 +34,6 @@ import {
   resolveImportConflict,
   buildHighlightSignature,
   applyTimestampFallback,
-  dedupeOrder,
 } from "../import";
 
 function enrichRecordWithArchive(record: MyZRecord, archives: Record<string, ArchiveEntry> | null) {
@@ -72,8 +75,7 @@ function enrichRecordsWithArchive(records: MyZRecord[], archives: Record<string,
 
 export function initializeHighlightMessageHandlers() {
   registerMessageHandler("myz:getHighlightsForUrl", async (payload: { url?: string; aliases?: string[] }) => {
-    const state = await readState();
-    const urls = new Set();
+    const urls = new Set<string>();
     if (typeof payload?.url === "string" && payload.url) {
       urls.add(payload.url);
     }
@@ -87,17 +89,33 @@ export function initializeHighlightMessageHandlers() {
     if (!urls.size) {
       return [];
     }
-    const matches = Object.values(state.highlights).filter((item) =>
-      urls.has(item.url),
+
+    const promises = Array.from(urls).map((url) => getHighlightsForUrl(url));
+    const results = await Promise.all(promises);
+    const matches = results.flat();
+
+    const uniqueMatches = Array.from(
+      new Map(matches.map((m) => [m.id, m])).values(),
     );
-    return enrichRecordsWithArchive(matches, state.archives);
+
+    const uniqueUrls = new Set(uniqueMatches.map((m) => m.url));
+    const archivePromises = Array.from(uniqueUrls).map(async (url) => {
+      const entry = await getArchiveEntry(url);
+      return { url, entry };
+    });
+    const archivesList = await Promise.all(archivePromises);
+    const archives: Record<string, ArchiveEntry> = {};
+    archivesList.forEach(({ url, entry }) => {
+      if (entry) archives[url] = entry;
+    });
+
+    return enrichRecordsWithArchive(uniqueMatches, archives);
   });
 
   registerMessageHandler("myz:saveHighlight", async (payload: MyZRecord) => {
     if (!payload) {
       throw new Error("Missing highlight payload");
     }
-    const state = await readState();
     const now = new Date().toISOString();
     const id = payload.id || generateId();
     const kind = payload.kind === "clip" ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
@@ -117,11 +135,8 @@ export function initializeHighlightMessageHandlers() {
       record.style = normalizeHighlightStyle(payload.style);
     }
 
-    if (!state.highlights[id]) {
-      state.order.push(id);
-    }
-    state.highlights[id] = record;
-    await writeState(state);
+    await saveHighlight(record);
+
     if (kind === "highlight") {
       await persistHighlightPreferences({
         color: record.color,
@@ -136,8 +151,7 @@ export function initializeHighlightMessageHandlers() {
     if (!payload?.id) {
       throw new Error("Missing highlight id");
     }
-    const state = await readState();
-    const existing = state.highlights[payload.id];
+    const existing = await getHighlight(payload.id);
     if (!existing) {
       throw new Error("Highlight not found");
     }
@@ -163,8 +177,7 @@ export function initializeHighlightMessageHandlers() {
     } else {
       updated.style = normalizeHighlightStyle(updated.style);
     }
-    state.highlights[payload.id] = updated;
-    await writeState(state);
+    await saveHighlight(updated);
     if (updated.kind === "highlight") {
       await persistHighlightPreferences({
         color: updated.color,
@@ -179,27 +192,21 @@ export function initializeHighlightMessageHandlers() {
     if (!payload?.id) {
       throw new Error("Missing highlight id");
     }
-    const state = await readState();
-    if (!state.highlights[payload.id]) {
-      return { success: true };
-    }
-    delete state.highlights[payload.id];
-    state.order = state.order.filter((item) => item !== payload.id);
-    await writeState(state);
+    await deleteHighlight(payload.id);
     await removeRecordFromIndex(payload.id);
     return { success: true };
   });
 
   registerMessageHandler("myz:getAllHighlights", async () => {
-    const state = await readState();
-    const highlights = sortedHighlights(state);
-    return enrichRecordsWithArchive(highlights, state.archives);
+    const highlights = await getAllHighlights();
+    const archives = await getAllArchives();
+    return enrichRecordsWithArchive(highlights, archives);
   });
 
   registerMessageHandler("myz:getAllTags", async () => {
-    const state = await readState();
+    const highlights = await getAllHighlights();
     const tags = new Set<string>();
-    Object.values(state.highlights).forEach((item) => {
+    highlights.forEach((item) => {
       if (!item || !Array.isArray(item.tags)) {
         return;
       }
@@ -218,8 +225,7 @@ export function initializeHighlightMessageHandlers() {
   });
 
   registerMessageHandler("myz:export", async () => {
-    const state = await readState();
-    const highlights = sortedHighlights(state);
+    const highlights = await getAllHighlights();
     return {
       json: JSON.stringify(highlights, null, 2),
       markdown: buildMarkdownExport(highlights),
@@ -263,8 +269,9 @@ export function initializeHighlightMessageHandlers() {
     }
 
     const strategy = normalizeImportStrategy(payload?.strategy);
-    const state = await readState();
-    const existingHighlights = state.highlights || {};
+    const existingHighlightsList = await getAllHighlights();
+    const existingHighlights: Record<string, MyZRecord> = {};
+    existingHighlightsList.forEach((h) => (existingHighlights[h.id] = h));
     const usedIds = new Set(Object.keys(existingHighlights));
 
     const existingSignatures = new Set();
@@ -361,19 +368,11 @@ export function initializeHighlightMessageHandlers() {
       throw new Error("没有符合要求的标注");
     }
 
-    replacements.forEach((record, id) => {
-      state.highlights[id] = record;
-      state.order.push(id);
-    });
+    const savePromises: Promise<void>[] = [];
+    replacements.forEach((record) => savePromises.push(saveHighlight(record)));
+    additions.forEach((record) => savePromises.push(saveHighlight(record)));
+    await Promise.all(savePromises);
 
-    additions.forEach((record, id) => {
-      state.highlights[id] = record;
-      state.order.push(id);
-    });
-
-    state.order = dedupeOrder(state.order, state.highlights);
-
-    await writeState(state);
     const toIndex = [
       ...Array.from(additions.values()),
       ...Array.from(replacements.values()),
