@@ -22,6 +22,14 @@ import AutoInsightsPanel, {
   AutoInsightsState,
 } from "./components/AutoInsightsPanel.jsx";
 import ConversationList from "./components/ConversationList.jsx";
+import InputComposer from "./components/InputComposer.jsx";
+import InterestsPanel from "./components/InterestsPanel.jsx";
+import PageContextCard from "./components/PageContextCard.jsx";
+import ToolResponseModal, {
+  ToolResponseViewerState,
+} from "./components/ToolResponseModal.jsx";
+import HistoryView from "./HistoryView.jsx";
+import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import {
   Conversation,
   Message,
@@ -30,16 +38,8 @@ import {
   MessageStream,
   MessageStreamData,
 } from "@/background/aiProvider.js";
-import InputComposer from "./components/InputComposer.jsx";
-import PageContextCard from "./components/PageContextCard.jsx";
-import ToolResponseModal, {
-  ToolResponseViewerState,
-} from "./components/ToolResponseModal.jsx";
-import HistoryView from "./HistoryView.jsx";
-import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 import { sendMessage } from "@/shared/messaging.js";
-import InterestsPanel from "./components/InterestsPanel.jsx";
 
 export interface SaveModalState {
   visible: boolean;
@@ -972,7 +972,7 @@ export default defineComponent({
     return () => (
       <div class="flex h-screen flex-col bg-slate-50 px-4 py-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         {view.value === "related" && relatedMatches.value.length ? (
-          <InterestsPanel 
+          <InterestsPanel
             relatedMatches={relatedMatches.value}
             sortedRelatedMatches={sortedRelatedMatches.value}
             backToChat={() => {

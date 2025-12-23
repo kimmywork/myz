@@ -1,9 +1,9 @@
+import { test, expect, BrowserContext, Page } from "@playwright/test";
+import { Server } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect, BrowserContext, Page } from "@playwright/test";
-import { createStaticServer } from "../helpers/static-server.js";
 import { launchExtension } from "../helpers/launch-extension.js";
-import { Server } from "node:http";
+import { createStaticServer } from "../helpers/static-server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,10 +34,7 @@ test.afterAll(async () => {
   } catch (e) {}
 });
 
-async function selectAndAnnotateRange(
-  page: Page,
-  selector: string,
-) {
+async function selectAndAnnotateRange(page: Page, selector: string) {
   // Select a portion of the element by dragging the mouse from startRatio to endRatio
   const el = page.locator(selector).first();
   await el.waitFor({ timeout: 5000 });

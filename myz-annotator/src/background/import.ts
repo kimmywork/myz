@@ -121,7 +121,11 @@ export function buildHighlightSignature(record: MyZRecord): string {
   }
 }
 
-export function resolveImportConflict(strategy: ImportStrategy, existing: MyZRecord, incoming: MyZRecord): boolean {
+export function resolveImportConflict(
+  strategy: ImportStrategy,
+  existing: MyZRecord,
+  incoming: MyZRecord,
+): boolean {
   if (strategy === "overwrite") {
     return true;
   }
@@ -139,7 +143,10 @@ export function resolveImportConflict(strategy: ImportStrategy, existing: MyZRec
   return incomingTime > existingTime;
 }
 
-export function applyTimestampFallback(target: Partial<MyZRecord>, fallback?: Partial<MyZRecord>) {
+export function applyTimestampFallback(
+  target: Partial<MyZRecord>,
+  fallback?: Partial<MyZRecord>,
+) {
   const nowIso = new Date().toISOString();
   if (!target.createdAt) {
     target.createdAt = fallback?.createdAt || fallback?.updatedAt || nowIso;
@@ -149,7 +156,10 @@ export function applyTimestampFallback(target: Partial<MyZRecord>, fallback?: Pa
   }
 }
 
-export function dedupeOrder(order: string[], highlights: Record<string, MyZRecord>): string[] {
+export function dedupeOrder(
+  order: string[],
+  highlights: Record<string, MyZRecord>,
+): string[] {
   if (!Array.isArray(order)) {
     return [];
   }
@@ -250,8 +260,11 @@ function sanitizeRangeEdge(edge: any) {
     typeof edge.offset === "number" ? edge.offset : parseInt(edge.offset, 10);
   const normalizedOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
   const charOffset: number =
-    typeof edge.charOffset === "number" ? edge.charOffset : parseInt(edge.charOffset, 10);
-  const normalizedCharoffset = Number.isFinite(charOffset) && charOffset >= 0 ? charOffset : 0;
+    typeof edge.charOffset === "number"
+      ? edge.charOffset
+      : parseInt(edge.charOffset, 10);
+  const normalizedCharoffset =
+    Number.isFinite(charOffset) && charOffset >= 0 ? charOffset : 0;
   return { path, offset: normalizedOffset, charOffset: normalizedCharoffset };
 }
 

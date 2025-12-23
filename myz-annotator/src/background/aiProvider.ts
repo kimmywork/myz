@@ -1,15 +1,15 @@
-import { McpClient } from "./mcp.js";
-import { readAiConversations } from "./ai.js";
+import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   saveMessage,
   getMessagesForConversation,
 } from "../sidepanel/aiStorage.js";
-import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js";
+import { readAiConversations } from "./ai.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
-import { getAllHighlights } from "./storage.js";
-import { AIAssistantSettings, AIProviderSetting } from "./settings.js";
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { McpClient } from "./mcp.js";
 import { ContentBlock } from "./mcp_schema.js";
+import { AIAssistantSettings, AIProviderSetting } from "./settings.js";
+import { getAllHighlights } from "./storage.js";
+import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js";
 import { MyZRecord } from "@/shared/types.js";
 
 const REASONING_TYPES = new Set([

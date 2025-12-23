@@ -3,9 +3,6 @@ export const SETTINGS_KEY = "myz::settings";
 export const DEFAULT_STATE = {
   highlights: {},
   order: [],
-  archives: {},
-  archiveQueue: [],
-  archiveHistory: [],
 };
 export const DEFAULT_SETTINGS = {
   colorPalette: [
@@ -23,9 +20,6 @@ export const DEFAULT_SETTINGS = {
   lastUsedColor: "#b58900",
   lastUsedStyle: "paint",
   dashboardView: "cards",
-  internetArchiveEnabled: false,
-  internetArchiveAccessKey: "",
-  internetArchiveAccessSecret: "",
   // AI Assistant settings
   aiAssistantEnabled: false,
   aiApiEndpoint: "",

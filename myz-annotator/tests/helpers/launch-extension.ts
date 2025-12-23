@@ -1,8 +1,7 @@
-import path from "node:path";
-import os from "node:os";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { Page, BrowserContext, chromium } from "playwright";
-
 
 export interface LaunchedExtension {
   context: BrowserContext;

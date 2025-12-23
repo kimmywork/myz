@@ -3,9 +3,9 @@ import { defineComponent } from "vue";
 import { VectoriaSearchResult } from "@/background/vectoria-index";
 
 interface InterestsPanelProps {
-    relatedMatches: VectoriaSearchResult[];
-    sortedRelatedMatches: VectoriaSearchResult[];
-    backToChat: () => void;
+  relatedMatches: VectoriaSearchResult[];
+  sortedRelatedMatches: VectoriaSearchResult[];
+  backToChat: () => void;
 }
 
 export default defineComponent({
@@ -22,8 +22,8 @@ export default defineComponent({
       default: () => [],
     },
     backToChat: {
-        type: Function,
-        required: true,
+      type: Function,
+      required: true,
     },
   },
   setup(props: InterestsPanelProps) {
@@ -39,7 +39,6 @@ export default defineComponent({
           <button
             class="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-300"
             onClick={() => {
-              props.relatedMatches = [];
               props.backToChat();
             }}
           >

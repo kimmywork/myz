@@ -46,7 +46,9 @@ export function buildMarkdownExport(highlights: MyZRecord[]): string {
         lines.push(`  - Color: ${item.color}`);
       }
       if (item.kind === "highlight") {
-        lines.push(`  - Style: ${describeHighlightStyle(item.style ?? HIGHLIGHT_STYLES.WAVY)}`);
+        lines.push(
+          `  - Style: ${describeHighlightStyle(item.style ?? HIGHLIGHT_STYLES.WAVY)}`,
+        );
       }
       lines.push("");
     });

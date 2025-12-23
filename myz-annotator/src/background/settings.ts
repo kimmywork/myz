@@ -5,7 +5,7 @@ export interface AIProviderSetting {
   name: string;
   apiKey: string;
   model: string;
-customModel: string;
+  customModel: string;
   contextSize: string;
   lastTestStatus: { ok: boolean; message: string } | null;
   maxTokens: number;
@@ -46,16 +46,7 @@ export interface AIAssistantSettings {
   aiMcpServers: McpServerSetting[];
 }
 
-export interface InternetArchiveSettings {
-  internetArchiveEnabled: boolean;
-  internetArchiveAccessKey: string;
-  internetArchiveAccessSecret: string;
-}
-
-export interface Settings
-  extends VectorSettings,
-    AIAssistantSettings,
-    InternetArchiveSettings {
+export interface Settings extends VectorSettings, AIAssistantSettings {
   dashboardView: "cards" | "list";
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;

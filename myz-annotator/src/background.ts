@@ -1,26 +1,16 @@
-import {
-  DEFAULT_SETTINGS,
-  SETTINGS_KEY,
-} from "./background/constants.js";
-
-import {
-  readSettings,
-} from "./background/storage.js";
+import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
+import { initializeAIMessageHandlers } from "./background/messages/ai.js";
+import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
+import { handleMessage } from "./background/messages/handler.js";
+import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
+import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
+import { initializeVectoriaMessageHandlers } from "./background/messages/vectoria.js";
+import { readSettings } from "./background/storage.js";
 import {
   applyVectoriaSettings,
   warmVectoriaModel,
 } from "./background/vectoria-index.js";
-import {
-  initializeArchiveQueue,
-} from "./background/internetArchive.js";
-import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
-import { handleMessage } from "./background/messages/handler.js";
-import { initializeAIMessageHandlers } from "./background/messages/ai.js";
-import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
-import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
-import { initializeVectoriaMessageHandlers } from "./background/messages/vectoria.js";
-import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
-import { initializeArchiveMessageHandlers } from "./background/messages/archive.js";
 
 (async function initializeAiHeaderRules() {
   try {
@@ -107,90 +97,96 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
-chrome.contextMenus.onClicked.addListener(async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
-  if (!tab || !tab.id) return;
-  try {
-    if (info.menuItemId === "myz-zen-mode") {
-      await chrome.tabs.sendMessage(tab.id, { type: "myz:toggleZenMode" });
-      await refreshZenMenuForTab(tab.id);
-    } else if (info.menuItemId === "myz-zen-capture") {
-      // In Zen mode, capture only the target article element instead of full page
-      await chrome.tabs.sendMessage(tab.id, {
-        type: "myz:captureZenTargetFull",
-      });
-    } else if (
-      info.menuItemId === "myz-ai-assistant" ||
-      info.menuItemId === "myz-ai-custom"
-    ) {
-      // Open side panel only (no auto-trigger for parent menu and "打开面板")
-      await chrome.sidePanel.open({ windowId: tab.windowId });
-    } else if (
-      info.menuItemId === "myz-ai-summarize" ||
-      info.menuItemId === "myz-ai-keypoints"
-    ) {
-      // Open side panel with AI assistant
-      await chrome.sidePanel.open({ windowId: tab.windowId });
+chrome.contextMenus.onClicked.addListener(
+  async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
+    if (!tab || !tab.id) return;
+    try {
+      if (info.menuItemId === "myz-zen-mode") {
+        await chrome.tabs.sendMessage(tab.id, { type: "myz:toggleZenMode" });
+        await refreshZenMenuForTab(tab.id);
+      } else if (info.menuItemId === "myz-zen-capture") {
+        // In Zen mode, capture only the target article element instead of full page
+        await chrome.tabs.sendMessage(tab.id, {
+          type: "myz:captureZenTargetFull",
+        });
+      } else if (
+        info.menuItemId === "myz-ai-assistant" ||
+        info.menuItemId === "myz-ai-custom"
+      ) {
+        // Open side panel only (no auto-trigger for parent menu and "打开面板")
+        await chrome.sidePanel.open({ windowId: tab.windowId });
+      } else if (
+        info.menuItemId === "myz-ai-summarize" ||
+        info.menuItemId === "myz-ai-keypoints"
+      ) {
+        // Open side panel with AI assistant
+        await chrome.sidePanel.open({ windowId: tab.windowId });
 
-      type ExtractPageContentResponse = {
-        data?: { text?: string };
-      }
+        type ExtractPageContentResponse = {
+          data?: { text?: string };
+        };
 
-      // Try to extract page content first
-      try {
-        const result = await new Promise<ExtractPageContentResponse>((resolve, reject) => {
-          chrome.tabs.sendMessage<{ type: string}, ExtractPageContentResponse>(
-            tab.id!,
-            { type: "myz:extractPageContent" },
-            (response) => {
-              if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-              } else {
-                resolve(response);
-              }
+        // Try to extract page content first
+        try {
+          const result = await new Promise<ExtractPageContentResponse>(
+            (resolve, reject) => {
+              chrome.tabs.sendMessage<
+                { type: string },
+                ExtractPageContentResponse
+              >(tab.id!, { type: "myz:extractPageContent" }, (response) => {
+                if (chrome.runtime.lastError) {
+                  reject(chrome.runtime.lastError);
+                } else {
+                  resolve(response);
+                }
+              });
             },
           );
-        });
 
-        let hasContent = false;
-        if (
-          result &&
-          result.data &&
-          result.data.text &&
-          result.data.text.length > 100
-        ) {
-          hasContent = true;
+          let hasContent = false;
+          if (
+            result &&
+            result.data &&
+            result.data.text &&
+            result.data.text.length > 100
+          ) {
+            hasContent = true;
+          }
+
+          // Only auto-trigger if we have enough page content
+          if (hasContent) {
+            // Extract action type from menu ID
+            let action = "custom";
+            if (info.menuItemId === "myz-ai-summarize") action = "summarize";
+            else if (info.menuItemId === "myz-ai-keypoints")
+              action = "key_points";
+
+            // Send message to side panel with the selected action
+            setTimeout(async () => {
+              try {
+                await chrome.runtime.sendMessage({
+                  type: "myz:openSidePanelWithAction",
+                  payload: { action, tabId: tab.id },
+                });
+              } catch (e) {
+                console.warn("Could not send side panel action message:", e);
+              }
+            }, 500);
+          } else {
+            console.log("Not enough page content, skipping auto-trigger");
+          }
+        } catch (e) {
+          console.warn(
+            "Could not check page content, skipping auto-trigger:",
+            e,
+          );
         }
-
-        // Only auto-trigger if we have enough page content
-        if (hasContent) {
-          // Extract action type from menu ID
-          let action = "custom";
-          if (info.menuItemId === "myz-ai-summarize") action = "summarize";
-          else if (info.menuItemId === "myz-ai-keypoints")
-            action = "key_points";
-
-          // Send message to side panel with the selected action
-          setTimeout(async () => {
-            try {
-              await chrome.runtime.sendMessage({
-                type: "myz:openSidePanelWithAction",
-                payload: { action, tabId: tab.id },
-              });
-            } catch (e) {
-              console.warn("Could not send side panel action message:", e);
-            }
-          }, 500);
-        } else {
-          console.log("Not enough page content, skipping auto-trigger");
-        }
-      } catch (e) {
-        console.warn("Could not check page content, skipping auto-trigger:", e);
       }
+    } catch (e) {
+      // ignore
     }
-  } catch (e) {
-    // ignore
-  }
-});
+  },
+);
 
 // Dynamically update menu title/visibility per tab
 async function refreshZenMenuForTab(tabId: number) {
@@ -249,28 +245,30 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 });
 
 initializeAIMessageHandlers();
-initializeArchiveMessageHandlers();
 initializeCaptureMessageHandlers();
 initializeHighlightMessageHandlers();
 initializeSettingsMessageHandlers();
 initializeVectoriaMessageHandlers();
 
-chrome.runtime.onMessage.addListener((message: { type: string, payload: any }, sender, sendResponse) => {
-  if (!message || !message.type) {
-    return false;
-  }
-  try {
+chrome.runtime.onMessage.addListener(
+  (message: { type: string; payload: any }, sender, sendResponse) => {
+    if (!message || !message.type) {
+      return false;
+    }
+    try {
       handleMessage(message.type, message.payload, sender)
-    .then((result) => sendResponse({ ok: true, data: result }))
-    .catch((error) => {
-      console.error("Handler error", message.type, error);
-      sendResponse({ ok: false, error: error.message || String(error) });
-    });
-  } catch (error) {
-    console.error("Handler exception", message.type, error);
-    sendResponse({ ok: false, error: (error as Error).message || String(error) });
-  }
-  return true;
-});
-
-initializeArchiveQueue();
+        .then((result) => sendResponse({ ok: true, data: result }))
+        .catch((error) => {
+          console.error("Handler error", message.type, error);
+          sendResponse({ ok: false, error: error.message || String(error) });
+        });
+    } catch (error) {
+      console.error("Handler exception", message.type, error);
+      sendResponse({
+        ok: false,
+        error: (error as Error).message || String(error),
+      });
+    }
+    return true;
+  },
+);

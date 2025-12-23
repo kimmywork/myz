@@ -1,12 +1,9 @@
-import {
-  ArchiveHistoryEntry,
-  ArchiveQueueEntry,
-} from "src/background/internetArchive.js";
 import { computed, reactive, Ref, ref, watch } from "vue";
 import { IMPORT_MAX_BYTES, PAGINATION_BATCH } from "../constants.js";
+import { ImportStrategy } from "@/background/import.js";
+import { Settings } from "@/background/settings.js";
 import { downloadFile } from "@/dashboard/utils/download.js";
 import { normalizeImportedPayload } from "@/dashboard/utils/import.js";
-import { ImportStrategy } from "@/background/import.js";
 import {
   computeRecordStats,
   formatDateTime,
@@ -26,7 +23,6 @@ import {
   RECORD_KINDS,
   getRecordKind,
 } from "@/shared/types.js";
-import { Settings } from "@/background/settings.js";
 
 export const DashboardStoreKey = Symbol("DashboardStore");
 
@@ -66,16 +62,10 @@ export interface DashboardStore {
   settingsStatus: Ref<string>;
   importStatus: ImportStatus;
   isSyncInFlight: Ref<boolean>;
-  archiveQueue: Ref<ArchiveQueueEntry[]>;
-  archiveHistory: Ref<ArchiveHistoryEntry[]>;
-  archiveMetaLoading: Ref<boolean>;
-  archiveMetaStatus: Ref<string>;
   vectorModelLoading: Ref<boolean>;
   vectorModelStatus: Ref<string>;
   modalState: ModalState;
   searchTerms: Ref<string[]>;
-  archiveQueueWithPosition: Ref<(ArchiveQueueEntry & { position: number })[]>;
-  archiveHistorySorted: Ref<ArchiveHistoryEntry[]>;
   hasMoreHighlights: Ref<boolean>;
   visibleHighlights: Ref<MyZRecord[]>;
   groupedHighlights: Ref<
@@ -91,8 +81,6 @@ export interface DashboardStore {
   availableTags: Ref<string[]>;
   loadHighlights: () => Promise<void>;
   saveSettings: (payload: Partial<Settings>) => Promise<void>;
-  loadArchiveActivity: (options?: { force?: boolean }) => Promise<void>;
-  refreshArchiveActivity: () => Promise<void>;
   initialize: () => Promise<void>;
   setFilter: (key: keyof SearchFilters, value: string | string[]) => void;
   resetFilters: () => void;
@@ -108,7 +96,6 @@ export interface DashboardStore {
   downgradeHighlight: (id: string) => Promise<void>;
   handleExport: (format: "markdown" | "json") => Promise<void>;
 
-  toggleInternetArchive: (enabled: boolean) => void;
   importHighlightsFromFile: (
     file: File | undefined,
     strategy: ImportStrategy,
@@ -146,9 +133,6 @@ export function createDashboardStore(): DashboardStore {
   const renderedCount = ref(0);
   const settings: Settings = reactive({
     dashboardView: "cards",
-    internetArchiveEnabled: false,
-    internetArchiveAccessKey: "",
-    internetArchiveAccessSecret: "",
     // AI Assistant settings
     aiAssistantEnabled: false,
     aiApiEndpoint: "",
@@ -175,11 +159,6 @@ export function createDashboardStore(): DashboardStore {
   const settingsStatus = ref("");
   const importStatus: ImportStatus = reactive({ message: "", tone: "info" });
   const isSyncInFlight = ref(false);
-  const archiveQueue: Ref<ArchiveQueueEntry[]> = ref([]);
-  const archiveHistory: Ref<ArchiveHistoryEntry[]> = ref([]);
-  const archiveMetaLoading = ref(false);
-  const archiveMetaStatus = ref("");
-  const archiveMetaInitialized = ref(false);
   const vectorModelLoading = ref(false);
   const vectorModelStatus = ref("");
 
@@ -239,23 +218,6 @@ export function createDashboardStore(): DashboardStore {
       }
       return true;
     });
-  });
-
-  const archiveQueueWithPosition = computed(() => {
-    return archiveQueue.value.map((entry, index) => ({
-      ...entry,
-      position: index,
-    }));
-  });
-
-  const archiveHistorySorted = computed(() => {
-    return [...archiveHistory.value]
-      .sort((a, b) => {
-        const left = typeof a?.timestamp === "string" ? a.timestamp : "";
-        const right = typeof b?.timestamp === "string" ? b.timestamp : "";
-        return right.localeCompare(left);
-      })
-      .slice(0, 50);
   });
 
   const hasMoreHighlights = computed(
@@ -415,9 +377,6 @@ export function createDashboardStore(): DashboardStore {
       }
       Object.assign(settings, {
         dashboardView: result.dashboardView || settings.dashboardView,
-        internetArchiveEnabled: Boolean(result.internetArchiveEnabled),
-        internetArchiveAccessKey: result.internetArchiveAccessKey || "",
-        internetArchiveAccessSecret: result.internetArchiveAccessSecret || "",
         // AI Assistant settings
         aiAssistantEnabled: Boolean(result.aiAssistantEnabled),
         aiApiEndpoint: result.aiApiEndpoint || "",
@@ -463,34 +422,6 @@ export function createDashboardStore(): DashboardStore {
     } catch (error) {
       console.error("Failed to load settings", error);
     }
-  }
-
-  async function loadArchiveActivity({ force = false } = {}) {
-    if (archiveMetaLoading.value) {
-      return;
-    }
-    if (!force && archiveMetaInitialized.value) {
-      return;
-    }
-    archiveMetaLoading.value = true;
-    try {
-      const result = await sendMessage("myz:getArchiveHistory");
-      archiveQueue.value = Array.isArray(result?.queue) ? result.queue : [];
-      archiveHistory.value = Array.isArray(result?.history)
-        ? result.history
-        : [];
-      archiveMetaInitialized.value = true;
-      archiveMetaStatus.value = "";
-    } catch (error) {
-      archiveMetaStatus.value = `加载失败：${(error as Error).message}`;
-      throw error;
-    } finally {
-      archiveMetaLoading.value = false;
-    }
-  }
-
-  async function refreshArchiveActivity() {
-    await loadArchiveActivity({ force: true });
   }
 
   async function initialize() {
@@ -689,20 +620,6 @@ export function createDashboardStore(): DashboardStore {
     } catch (error) {
       console.error("导出失败", error);
       setTimedStatus(operationStatus, `导出失败：${(error as Error).message}`);
-    }
-  }
-
-  async function toggleInternetArchive(enabled: boolean) {
-    settings.internetArchiveEnabled = enabled;
-    try {
-      await sendMessage("myz:updateSettings", {
-        internetArchiveEnabled: enabled,
-      });
-    } catch (error) {
-      console.error("Failed to update archive toggle", error);
-      settings.internetArchiveEnabled = !enabled;
-      setTimedStatus(settingsStatus, `更新失败：${(error as Error).message}`);
-      throw error;
     }
   }
 
@@ -990,7 +907,6 @@ export function createDashboardStore(): DashboardStore {
     deleteHighlight,
     downgradeHighlight,
     handleExport,
-    toggleInternetArchive,
     saveSettings,
     importHighlightsFromFile,
     openModal,
@@ -1002,16 +918,8 @@ export function createDashboardStore(): DashboardStore {
     formatInline: (value: string) => formatInline(value, searchTerms.value),
     formatDateTime,
     getRecordKind,
-    archiveQueue,
-    archiveQueueWithPosition,
-    archiveHistory,
-    archiveHistorySorted,
-    archiveMetaLoading,
-    archiveMetaStatus,
     vectorModelLoading,
     vectorModelStatus,
-    loadArchiveActivity,
-    refreshArchiveActivity,
     cleanup,
     isSyncInFlight,
     testAiConnection,

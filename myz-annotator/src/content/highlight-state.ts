@@ -7,8 +7,6 @@ import { useInspectorStore } from "./stores/inspector-store.ts";
 import { useModalStore } from "./stores/modal-store.ts";
 import { useNotificationStore } from "./stores/notification-store.ts";
 import { ensureContentStyles } from "./styles.ts";
-import { DEFAULT_SETTINGS } from "@/background/constants.ts";
-import { ArchiveEntry } from "@/background/internetArchive.ts";
 import { normalizeRecord } from "@/dashboard/utils/records.ts";
 import { isHighlightRecord, isClipRecord } from "@/shared/highlightUtils.ts";
 import { sendMessage } from "@/shared/messaging.ts";
@@ -20,22 +18,6 @@ import { canonicalUrl, buildUrlAliases } from "@/shared/url.ts";
 
 const HIGHLIGHT_REAPPLY_INTERVAL = 1200;
 const HIGHLIGHT_REAPPLY_TIMEOUT = 20000;
-
-type Settings = typeof DEFAULT_SETTINGS;
-
-interface HightlightArchiveState {
-  archiveFeatureEnabled: boolean;
-  archiveDefaultOptIn: boolean;
-  archiveSettingsLoaded: boolean;
-  archiveStatus: any;
-}
-
-let state: HightlightArchiveState = {
-  archiveFeatureEnabled: false,
-  archiveDefaultOptIn: false,
-  archiveSettingsLoaded: false,
-  archiveStatus: null,
-};
 
 interface HighlightReapplyState {
   pending: Set<string>;
@@ -73,7 +55,7 @@ export async function restoreHighlights() {
     const currentUrl = window.location.href;
     const currentCanonical = canonicalUrl(currentUrl);
     const urlAliases = buildUrlAliases(currentUrl, currentCanonical);
-    const [highlights, tagList, archiveStatus, settings] = await Promise.all([
+    const [highlights, tagList] = await Promise.all([
       sendMessage("myz:getHighlightsForUrl", {
         url: currentCanonical,
         aliases: urlAliases,
@@ -82,19 +64,7 @@ export async function restoreHighlights() {
         console.warn("Failed to load known tags", error);
         return null;
       }),
-      sendMessage("myz:getArchiveStatusForUrl", {
-        url: currentCanonical,
-      }).catch((error) => {
-        console.warn("Failed to load archive status", error);
-        return null;
-      }),
-      sendMessage("myz:getSettings").catch((error) => {
-        console.warn("Failed to load settings", error);
-        return null;
-      }),
     ]);
-
-    applyArchivePreferences(settings, archiveStatus);
 
     if (Array.isArray(tagList)) {
       // FIXME: modal
@@ -179,27 +149,6 @@ function computeHighlightStats() {
     savedCount,
     total: highlightCount + savedCount,
   };
-}
-
-function applyArchivePreferences(
-  settings: Settings | undefined,
-  status: ArchiveEntry,
-) {
-  const hasSettings = settings && typeof settings === "object";
-  const enabled = hasSettings
-    ? Boolean(settings.internetArchiveEnabled)
-    : state.archiveFeatureEnabled;
-  state.archiveFeatureEnabled = enabled;
-  if (status && typeof status === "object") {
-    state.archiveStatus = status;
-  } else if (!enabled) {
-    state.archiveStatus = null;
-  }
-  const saved = Boolean(state.archiveStatus?.saved);
-  state.archiveDefaultOptIn = enabled && !saved;
-  if (hasSettings) {
-    state.archiveSettingsLoaded = true;
-  }
 }
 
 function resetHighlightReapplyState() {
@@ -547,17 +496,4 @@ export function getFromHighlightCache(id?: string) {
 
 export function getHighlightCache() {
   return highlightCache;
-}
-
-export function mergeArchiveResult(result: ArchiveEntry) {
-  if (!result || typeof result !== "object") {
-    return;
-  }
-  state.archiveStatus = result;
-  const saved = Boolean(result.saved);
-  state.archiveDefaultOptIn = state.archiveFeatureEnabled && !saved;
-}
-
-export function getArchiveState() {
-  return { ...state };
 }

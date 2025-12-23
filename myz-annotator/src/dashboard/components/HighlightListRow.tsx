@@ -9,7 +9,7 @@ export default defineComponent({
     record: {
       type: Object as () => MyZRecord | undefined,
       required: true,
-      default: {}
+      default: () => ({}),
     },
   },
   setup(props: { record: MyZRecord }) {
@@ -35,11 +35,6 @@ export default defineComponent({
     function toggleTags() {
       showAllTags.value = !showAllTags.value;
     }
-
-    const archiveLink = computed(() => {
-      const record = props.record || {};
-      return record.archiveSnapshotUrl || record.archiveUrl || "";
-    });
 
     function handleAction(action: HighlightItemAction) {
       const id = props.record?.id;
@@ -160,17 +155,6 @@ export default defineComponent({
 
             {/* 操作按钮 */}
             <div class="flex flex-col gap-2 text-xs font-semibold">
-              {archiveLink.value ? (
-                <a
-                  class="whitespace-nowrap text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
-                  href={archiveLink.value}
-                  target="_blank"
-                  rel="noopener"
-                  title="存档"
-                >
-                  存档
-                </a>
-              ) : null}
               <a
                 class="whitespace-nowrap text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
                 href={record.sourceUrl || record.url}

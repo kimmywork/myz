@@ -1,4 +1,3 @@
-import { AIAssistantSettings, AIProviderSetting, McpServerSetting } from "@/background/settings";
 import {
   defineComponent,
   ref,
@@ -9,6 +8,11 @@ import {
   ComputedRef,
   Ref,
 } from "vue";
+import {
+  AIAssistantSettings,
+  AIProviderSetting,
+  McpServerSetting,
+} from "@/background/settings";
 
 function newProviderTemplate(): AIProviderSetting {
   return {
@@ -25,7 +29,9 @@ function newProviderTemplate(): AIProviderSetting {
   };
 }
 
-function legacyProviderFromSettings(settings: Partial<AIAssistantSettings> = {}) {
+function legacyProviderFromSettings(
+  settings: Partial<AIAssistantSettings> = {},
+) {
   if (
     !settings ||
     (!settings.aiApiEndpoint && !settings.aiApiKey && !settings.aiModel)
@@ -143,9 +149,10 @@ export default defineComponent({
       { value: "1M", label: "1M (约 1000000 tokens)" },
     ];
 
-    const selectedProvider: ComputedRef<AIProviderSetting | undefined> = computed(() =>
-      providers.value.find((p) => p.id === selectedProviderId.value),
-    );
+    const selectedProvider: ComputedRef<AIProviderSetting | undefined> =
+      computed(() =>
+        providers.value.find((p) => p.id === selectedProviderId.value),
+      );
 
     function updateStatus(message: string, { autoClear = false } = {}) {
       if (typeof props.onUpdateStatus === "function") {
@@ -194,8 +201,7 @@ export default defineComponent({
         providers.value[0]?.id ||
         null;
       ensureSelection();
-      showCustomModel.value =
-        selectedProvider.value?.model === "custom";
+      showCustomModel.value = selectedProvider.value?.model === "custom";
 
       mcpServers.value = Array.isArray(props.settings.aiMcpServers)
         ? props.settings.aiMcpServers.map((s) => ({ ...s }))
@@ -224,8 +230,7 @@ export default defineComponent({
         selectedProviderId.value = providers.value[0]?.id || null;
       }
       ensureSelection();
-      showCustomModel.value =
-        selectedProvider.value?.model === "custom";
+      showCustomModel.value = selectedProvider.value?.model === "custom";
     }
 
     function updateProviderField(key: keyof AIProviderSetting, value: any) {
@@ -407,8 +412,7 @@ export default defineComponent({
     watch(
       selectedProvider,
       (next) => {
-        showCustomModel.value =
-          next?.model === "custom";
+        showCustomModel.value = next?.model === "custom";
       },
       { immediate: true },
     );
@@ -541,7 +545,10 @@ export default defineComponent({
                             type="text"
                             value={provider.name}
                             onInput={(e) =>
-                              updateProviderField("name", (e.target as HTMLInputElement).value)
+                              updateProviderField(
+                                "name",
+                                (e.target as HTMLInputElement).value,
+                              )
                             }
                           />
                         </label>
@@ -550,7 +557,10 @@ export default defineComponent({
                           <select
                             value={provider.model}
                             onChange={(e) =>
-                              updateProviderField("model", (e.target as HTMLSelectElement).value)
+                              updateProviderField(
+                                "model",
+                                (e.target as HTMLSelectElement).value,
+                              )
                             }
                           >
                             {aiModels.map((model) => (
@@ -567,7 +577,10 @@ export default defineComponent({
                             type="text"
                             value={provider.customModel}
                             onInput={(e) =>
-                              updateProviderField("customModel", (e.target as HTMLInputElement).value)
+                              updateProviderField(
+                                "customModel",
+                                (e.target as HTMLInputElement).value,
+                              )
                             }
                           />
                         </label>
@@ -580,7 +593,10 @@ export default defineComponent({
                           value={provider.apiEndpoint}
                           placeholder="https://api.openai.com/v1/chat/completions"
                           onInput={(e) =>
-                            updateProviderField("apiEndpoint", (e.target as HTMLInputElement).value)
+                            updateProviderField(
+                              "apiEndpoint",
+                              (e.target as HTMLInputElement).value,
+                            )
                           }
                         />
                       </label>
@@ -593,7 +609,10 @@ export default defineComponent({
                             value={provider.apiKey}
                             placeholder="sk-..."
                             onInput={(e) =>
-                              updateProviderField("apiKey", (e.target as HTMLInputElement).value)
+                              updateProviderField(
+                                "apiKey",
+                                (e.target as HTMLInputElement).value,
+                              )
                             }
                             style="padding-right: 40px;"
                           />
@@ -615,7 +634,10 @@ export default defineComponent({
                           <select
                             value={provider.contextSize}
                             onChange={(e) =>
-                              updateProviderField("contextSize", (e.target as HTMLSelectElement).value)
+                              updateProviderField(
+                                "contextSize",
+                                (e.target as HTMLSelectElement).value,
+                              )
                             }
                           >
                             {contextSizes.map((size) => (
@@ -773,7 +795,9 @@ export default defineComponent({
                       <input
                         type="text"
                         value={mcpForm.name}
-                        onInput={(e) => (mcpForm.name = (e.target as HTMLInputElement).value)}
+                        onInput={(e) =>
+                          (mcpForm.name = (e.target as HTMLInputElement).value)
+                        }
                       />
                     </label>
                     <label class="field">
@@ -781,7 +805,9 @@ export default defineComponent({
                       <input
                         type="url"
                         value={mcpForm.url}
-                        onInput={(e) => (mcpForm.url = (e.target as HTMLInputElement).value)}
+                        onInput={(e) =>
+                          (mcpForm.url = (e.target as HTMLInputElement).value)
+                        }
                       />
                     </label>
                   </div>
@@ -789,7 +815,11 @@ export default defineComponent({
                     <input
                       type="checkbox"
                       checked={mcpForm.enabled}
-                      onChange={(e) => (mcpForm.enabled = (e.target as HTMLInputElement).checked)}
+                      onChange={(e) =>
+                        (mcpForm.enabled = (
+                          e.target as HTMLInputElement
+                        ).checked)
+                      }
                     />
                     <span>启用此服务器</span>
                   </label>

@@ -3,7 +3,6 @@
 
 - [x] 📝 Clip only mode 
 - [ ] 📎 Special Site Support: Twitter.com
-- [x] 🗄️ Sync to Internet Archive
 - [x] 🎨 New annotation styles: line, curly and highlight.
 - [ ] 📒 Sync to Notion
 

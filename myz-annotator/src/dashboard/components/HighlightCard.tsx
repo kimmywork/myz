@@ -16,7 +16,7 @@ export default defineComponent({
     record: {
       type: Object as () => MyZRecord | undefined,
       required: true,
-      default: {}
+      default: () => ({}),
     },
   },
   setup(props: { record?: MyZRecord }) {
@@ -42,10 +42,6 @@ export default defineComponent({
     function toggleTags() {
       showAllTags.value = !showAllTags.value;
     }
-    const archiveLink = computed(() => {
-      const record: Partial<MyZRecord> = props.record || {};
-      return record?.archiveSnapshotUrl || record?.archiveUrl || "";
-    });
 
     const kindLabel = computed(() => {
       const kind = getRecordKind(props.record);
@@ -194,17 +190,6 @@ export default defineComponent({
           </div>
 
           <div class="mt-4 flex flex-wrap gap-3 border-t border-slate-200 pt-3 text-xs font-semibold dark:border-white/5">
-            {archiveLink.value ? (
-              <a
-                class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
-                href={archiveLink.value}
-                target="_blank"
-                rel="noopener"
-                title="存档"
-              >
-                存档
-              </a>
-            ) : null}
             <a
               class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
               href={props.record?.sourceUrl || props.record?.url}

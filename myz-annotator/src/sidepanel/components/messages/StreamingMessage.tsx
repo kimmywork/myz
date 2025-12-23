@@ -1,5 +1,5 @@
-import { MessageStream } from "@/background/aiProvider.js";
 import { computed, defineComponent, ref } from "vue";
+import { MessageStream } from "@/background/aiProvider.js";
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 interface StreamingMessageProps {
@@ -17,7 +17,9 @@ export default defineComponent({
   },
   setup(props: StreamingMessageProps) {
     const showReasoning = ref(false);
-    const reasoningText = computed(() => (props.stream?.reasoning || "").trim());
+    const reasoningText = computed(() =>
+      (props.stream?.reasoning || "").trim(),
+    );
     const hasReasoning = computed(() => Boolean(reasoningText.value));
 
     return () => (

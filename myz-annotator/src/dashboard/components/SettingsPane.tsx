@@ -1,89 +1,18 @@
-import { computed, defineComponent, reactive, Ref, ref, watch } from "vue";
-import { ImportStrategy } from "@/background/import.js";
-import { Settings } from "@/background/settings.js";
+import { defineComponent, Ref, ref } from "vue";
 import { useDashboardStore } from "../store/useDashboardStore.js";
 import AiSettings from "./AiSettings.jsx";
-import ArchiveHistorySection from "./settings/ArchiveHistorySection.jsx";
-import ArchiveQueueSection from "./settings/ArchiveQueueSection.jsx";
 import ImportHighlightsSection from "./settings/ImportHighlightsSection.jsx";
-import InternetArchiveSection from "./settings/InternetArchiveSection.jsx";
 import VectorSearchSection from "./settings/VectorSearchSection.jsx";
+import { ImportStrategy } from "@/background/import.js";
+import { Settings } from "@/background/settings.js";
 
 export default defineComponent({
   name: "SettingsPane",
   setup(props) {
     const store = useDashboardStore();
-    const form = reactive({
-      internetArchiveAccessKey: "",
-      internetArchiveAccessSecret: "",
-    });
     const importFileRef: Ref<HTMLInputElement | null> = ref(null);
     const importStrategy: Ref<ImportStrategy> = ref("skip");
     const isImporting = ref(false);
-    const archiveLoaded = ref(false);
-    const archiveLoading = computed(() => store.archiveMetaLoading.value);
-    const archiveStatus = computed(() => store.archiveMetaStatus.value);
-    const archiveQueueEntries = computed(() => {
-      const list = store.archiveQueueWithPosition.value;
-      return Array.isArray(list) ? list : [];
-    });
-    const archiveHistoryEntries = computed(() => {
-      const list = store.archiveHistorySorted.value;
-      return Array.isArray(list) ? list : [];
-    });
-
-    const archiveEnabled = computed(
-      () => store.settings.internetArchiveEnabled,
-    );
-
-    watch(
-      () => store.settings,
-      (settings) => {
-        form.internetArchiveAccessKey = settings.internetArchiveAccessKey || "";
-        form.internetArchiveAccessSecret =
-          settings.internetArchiveAccessSecret || "";
-      },
-      { immediate: true, deep: true },
-    );
-
-    async function handleArchiveToggle(event: Event) {
-      const enabled = (event.target as HTMLInputElement).checked;
-      try {
-        await store.toggleInternetArchive(enabled);
-      } catch (error) {
-        (event.target as HTMLInputElement).checked =
-          store.settings.internetArchiveEnabled;
-      }
-    }
-
-    async function handleSaveArchiveSettings() {
-      try {
-        await store.saveSettings({
-          internetArchiveEnabled: store.settings.internetArchiveEnabled,
-          internetArchiveAccessKey: form.internetArchiveAccessKey.trim(),
-          internetArchiveAccessSecret: form.internetArchiveAccessSecret.trim(),
-        });
-      } catch (error) {
-        // status already surfaced
-      }
-    }
-
-    async function ensureArchiveActivity({ force = false } = {}) {
-      try {
-        if (force) {
-          await store.refreshArchiveActivity();
-        } else {
-          await store.loadArchiveActivity();
-        }
-        archiveLoaded.value = true;
-      } catch (error) {
-        // error state already reflected in archiveStatus
-      }
-    }
-
-    async function handleRefreshArchive() {
-      await ensureArchiveActivity({ force: true });
-    }
 
     async function handleImport() {
       const fileInput = importFileRef.value;
@@ -164,9 +93,7 @@ export default defineComponent({
             >
               设置
             </h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              配置选项
-            </p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">配置选项</p>
           </div>
           <button class="btn-link" type="button" onClick={handleCloseSettings}>
             返回标注
@@ -203,32 +130,6 @@ export default defineComponent({
             onTestOpenAi={handleVectorTest}
             onSave={handleVectorSave}
             onSwitchProvider={handleVectorSwitch}
-          />
-
-          <InternetArchiveSection
-            archiveEnabled={archiveEnabled.value}
-            form={form}
-            onToggle={handleArchiveToggle}
-            onUpdateField={(key, value) => (form[key] = value)}
-            onSave={handleSaveArchiveSettings}
-            status={store.settingsStatus.value}
-          />
-
-          <ArchiveQueueSection
-            entries={archiveQueueEntries.value}
-            loading={archiveLoading.value}
-            status={archiveStatus.value}
-            onRefresh={handleRefreshArchive}
-          />
-
-          <ArchiveHistorySection
-            entries={archiveHistoryEntries.value}
-            loading={archiveLoading.value}
-            metaLabel={
-              archiveHistoryEntries.value.length
-                ? `显示最近 ${archiveHistoryEntries.value.length} 条记录`
-                : ""
-            }
           />
         </div>
       </section>

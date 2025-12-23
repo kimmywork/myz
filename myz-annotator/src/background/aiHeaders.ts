@@ -1,12 +1,15 @@
-import { getAiHeaderValue } from "@/shared/aiHeaderUtils.js";
 import { AIAssistantSettings, Settings } from "./settings";
+import { getAiHeaderValue } from "@/shared/aiHeaderUtils.js";
 
 type ResourceType = chrome.declarativeNetRequest.ResourceType;
 
 const ResourceType = chrome.declarativeNetRequest.ResourceType;
 
 const AI_USER_AGENT_RULE_ID = 1001;
-const HEADER_RESOURCE_TYPES: ResourceType[] = [ResourceType.XMLHTTPREQUEST, ResourceType.OTHER];
+const HEADER_RESOURCE_TYPES: ResourceType[] = [
+  ResourceType.XMLHTTPREQUEST,
+  ResourceType.OTHER,
+];
 
 function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -42,7 +45,9 @@ function resolveActiveHeaderConfig(settings: Partial<Settings> = {}) {
   return { endpoint, headers };
 }
 
-export async function syncAiRequestHeaderRules(settings: Partial<AIAssistantSettings> = {}) {
+export async function syncAiRequestHeaderRules(
+  settings: Partial<AIAssistantSettings> = {},
+) {
   if (!chrome?.declarativeNetRequest?.updateDynamicRules) {
     return;
   }

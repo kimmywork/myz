@@ -1,13 +1,13 @@
-import {
-  DEFAULT_SETTINGS,
-  SETTINGS_KEY,
-  STORAGE_KEY,
-} from "./constants.js";
-
-import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
-import { AIAssistantSettings, AIProviderSetting, Settings, VectorSettings } from "./settings.js";
-import { ArchiveEntry, ArchiveHistoryEntry, ArchiveQueueEntry } from "./internetArchive.js";
+import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
+
+import {
+  AIAssistantSettings,
+  AIProviderSetting,
+  Settings,
+  VectorSettings,
+} from "./settings.js";
+import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { MyZRecord } from "@/shared/types.js";
 
 const DB_NAME = "myz_db";
@@ -44,23 +44,6 @@ function getDB(): Promise<IDBDatabase> {
         store.createIndex("url", "url", { unique: false });
         store.createIndex("createdAt", "createdAt", { unique: false });
       }
-
-      if (!db.objectStoreNames.contains("archives")) {
-        db.createObjectStore("archives", { keyPath: "url" });
-      }
-
-      if (!db.objectStoreNames.contains("archiveQueue")) {
-        const store = db.createObjectStore("archiveQueue", { keyPath: "id" });
-        store.createIndex("url", "url", { unique: false });
-        store.createIndex("status", "status", { unique: false });
-        store.createIndex("requestedAt", "requestedAt", { unique: false });
-      }
-
-      if (!db.objectStoreNames.contains("archiveHistory")) {
-        const store = db.createObjectStore("archiveHistory", { keyPath: "id" });
-        store.createIndex("url", "url", { unique: false });
-        store.createIndex("timestamp", "timestamp", { unique: false });
-      }
     };
   });
   return dbPromise;
@@ -71,10 +54,7 @@ async function migrateFromLocalStorage(db: IDBDatabase) {
   if (!stored || typeof stored !== "object") return;
 
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(
-      ["highlights", "archives", "archiveQueue", "archiveHistory"],
-      "readwrite",
-    );
+    const tx = db.transaction(["highlights"], "readwrite");
 
     tx.oncomplete = async () => {
       await chrome.storage.local.remove(STORAGE_KEY);
@@ -85,25 +65,11 @@ async function migrateFromLocalStorage(db: IDBDatabase) {
     tx.onerror = () => reject(tx.error);
 
     const highlightsStore = tx.objectStore("highlights");
-    const archivesStore = tx.objectStore("archives");
-    const queueStore = tx.objectStore("archiveQueue");
-    const historyStore = tx.objectStore("archiveHistory");
 
     if (stored.highlights) {
       Object.values(stored.highlights).forEach((h: any) =>
         highlightsStore.put(h),
       );
-    }
-    if (stored.archives) {
-      Object.entries(stored.archives).forEach(([url, entry]: [string, any]) => {
-        archivesStore.put({ ...entry, url });
-      });
-    }
-    if (Array.isArray(stored.archiveQueue)) {
-      stored.archiveQueue.forEach((q: any) => queueStore.put(q));
-    }
-    if (Array.isArray(stored.archiveHistory)) {
-      stored.archiveHistory.forEach((h: any) => historyStore.put(h));
     }
   });
 }
@@ -120,7 +86,10 @@ function getAllFromStore<T>(storeName: string): Promise<T[]> {
   });
 }
 
-function normalizeAiProvider(input: AIProviderSetting | undefined, { nameFallback = "AI Provider" } = {}) {
+function normalizeAiProvider(
+  input: AIProviderSetting | undefined,
+  { nameFallback = "AI Provider" } = {},
+) {
   if (!input || typeof input !== "object") {
     return null;
   }
@@ -160,7 +129,9 @@ function normalizeAiProvider(input: AIProviderSetting | undefined, { nameFallbac
   };
 }
 
-function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(settings: T): T {
+function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(
+  settings: T,
+): T {
   let providers: AIProviderSetting[] = [];
   if (Array.isArray(settings.aiProviders)) {
     providers = settings.aiProviders
@@ -225,8 +196,6 @@ function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(set
   return settings;
 }
 
-
-
 export async function saveHighlight(record: MyZRecord) {
   const db = await getDB();
   return new Promise<void>((resolve, reject) => {
@@ -281,102 +250,6 @@ export async function getAllHighlights(): Promise<MyZRecord[]> {
   });
 }
 
-export async function getAllArchives(): Promise<Record<string, ArchiveEntry>> {
-  const archivesList = await getAllFromStore<ArchiveEntry & { url: string }>("archives");
-  const archivesMap: Record<string, ArchiveEntry> = {};
-  archivesList.forEach((a) => {
-    const { url, ...rest } = a;
-    archivesMap[url] = rest as ArchiveEntry;
-  });
-  return archivesMap;
-}
-
-export async function saveArchiveEntry(url: string, entry: ArchiveEntry) {
-  const db = await getDB();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction("archives", "readwrite");
-    const store = tx.objectStore("archives");
-    const request = store.put({ ...entry, url });
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
-
-export async function getArchiveEntry(
-  url: string,
-): Promise<ArchiveEntry | null> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("archives", "readonly");
-    const store = tx.objectStore("archives");
-    const request = store.get(url);
-    request.onsuccess = () => {
-      if (request.result) {
-        const { url: _, ...rest } = request.result;
-        resolve(rest as ArchiveEntry);
-      } else {
-        resolve(null);
-      }
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
-
-export async function getArchiveQueue(): Promise<ArchiveQueueEntry[]> {
-  return getAllFromStore<ArchiveQueueEntry>("archiveQueue");
-}
-
-export async function saveArchiveQueueEntry(entry: ArchiveQueueEntry) {
-  const db = await getDB();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction("archiveQueue", "readwrite");
-    const store = tx.objectStore("archiveQueue");
-    const request = store.put(entry);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
-
-export async function deleteArchiveQueueEntry(id: string) {
-  const db = await getDB();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction("archiveQueue", "readwrite");
-    const store = tx.objectStore("archiveQueue");
-    const request = store.delete(id);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
-
-export async function getArchiveHistory(): Promise<ArchiveHistoryEntry[]> {
-  return getAllFromStore<ArchiveHistoryEntry>("archiveHistory");
-}
-
-export async function addArchiveHistoryEntry(entry: ArchiveHistoryEntry) {
-  const db = await getDB();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction("archiveHistory", "readwrite");
-    const store = tx.objectStore("archiveHistory");
-    const request = store.put(entry);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-}
-
-export async function getArchiveHistoryForUrl(
-  url: string,
-): Promise<ArchiveHistoryEntry[]> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("archiveHistory", "readonly");
-    const store = tx.objectStore("archiveHistory");
-    const index = store.index("url");
-    const request = index.getAll(url);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
 export async function readSettings() {
   const { [SETTINGS_KEY]: stored } =
     await chrome.storage.local.get(SETTINGS_KEY);
@@ -389,7 +262,7 @@ export async function readSettings() {
 }
 
 export async function writeSettings(patch: Partial<Settings>) {
-  const current = await readSettings() as Settings;
+  const current = (await readSettings()) as Settings;
   const updated = normalizeAiSettings({ ...current, ...patch });
   updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
   await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
@@ -401,7 +274,10 @@ export async function writeSettings(patch: Partial<Settings>) {
   return updated;
 }
 
-export async function persistHighlightPreferences({ color, style }: Partial<MyZRecord> = {}) {
+export async function persistHighlightPreferences({
+  color,
+  style,
+}: Partial<MyZRecord> = {}) {
   const patch: Partial<Settings> = {};
   const settings = await readSettings();
 
@@ -424,8 +300,6 @@ export async function persistHighlightPreferences({ color, style }: Partial<MyZR
   }
 }
 
-
-
 export function generateId() {
   return `myz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -438,5 +312,3 @@ export function generateUniqueImportId(usedIds: Set<string>) {
   usedIds.add(candidate);
   return candidate;
 }
-
-

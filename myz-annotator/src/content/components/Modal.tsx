@@ -1,5 +1,4 @@
 import { defineComponent, ref, computed, watch, type Ref } from "vue";
-import { ArchiveEntry } from "@/background/internetArchive.js";
 import {
   useModalStore,
   ModalOpenOptions,
@@ -90,24 +89,6 @@ export default defineComponent({
     const activeOptionIndex: Ref<number> = ref(-1);
     const containerRef: Ref<HTMLElement | null> = ref(null);
     const tagInputRef: Ref<HTMLElement | null> = ref(null);
-    const archiveEnabled: Ref<boolean> = computed(() =>
-      Boolean(options?.archiveEnabled),
-    );
-    const saveToArchive: Ref<boolean> = computed(() =>
-      archiveEnabled.value ? Boolean(options?.saveToArchive) : false,
-    );
-    const archiveStatus: Ref<ArchiveEntry | null> = computed(() =>
-      archiveEnabled.value &&
-      options?.archiveStatus &&
-      typeof options.archiveStatus === "object"
-        ? options.archiveStatus
-        : null,
-    );
-
-    const archiveOptionVisible = computed(
-      () =>
-        archiveEnabled.value && store.isHighlight() && mode.value !== "edit",
-    );
 
     const previewStyle = (options: ModalOpenOptions) => {
       if (options.kind !== RECORD_KINDS.HIGHLIGHT) {
@@ -125,37 +106,6 @@ export default defineComponent({
         HIGHLIGHT_STYLES,
         HighlightStyleOption,
       ][];
-
-    const archiveStatusText = computed(() => {
-      if (!archiveOptionVisible.value) {
-        return "";
-      }
-      const status = archiveStatus.value?.status;
-      if (
-        archiveStatus.value?.saved ||
-        status === "saved" ||
-        status === "exists"
-      ) {
-        const timestamp = archiveStatus.value?.snapshot?.timestamp;
-        const formatted = formatArchiveTimestamp(timestamp);
-        return formatted ? `已有存档：${formatted}` : "已有存档";
-      }
-      if (status === "pending") {
-        return "保存请求已提交";
-      }
-      if (status === "failed") {
-        return "上次保存失败";
-      }
-      return "";
-    });
-
-    const archiveSnapshotUrl = computed(() => {
-      if (!archiveOptionVisible.value) {
-        return "";
-      }
-      const link = archiveStatus.value?.snapshot?.url;
-      return typeof link === "string" ? link : "";
-    });
 
     function syncFilteredOptions(term = tagInputValue.value) {
       const normalized = term.trim().toLowerCase();
@@ -222,20 +172,6 @@ export default defineComponent({
       store.modalOpenOptions.style = style;
     }
 
-    function formatArchiveTimestamp(
-      timestamp: string | null | undefined,
-    ): string {
-      if (typeof timestamp !== "string" || timestamp.length < 12) {
-        return "";
-      }
-      const year = timestamp.slice(0, 4);
-      const month = timestamp.slice(4, 6);
-      const day = timestamp.slice(6, 8);
-      const hour = timestamp.slice(8, 10);
-      const minute = timestamp.slice(10, 12);
-      return `${year}-${month}-${day} ${hour}:${minute}`;
-    }
-
     function handleSubmit() {
       preferenceStore.persistColor(store.modalOpenOptions.color);
       preferenceStore.persistStyle(store.modalOpenOptions.style);
@@ -246,7 +182,6 @@ export default defineComponent({
         tags: [...(store.modalOpenOptions.tags || [])],
         color: store.modalOpenOptions.color,
         style: store.modalOpenOptions.style,
-        saveToArchive: archiveOptionVisible.value && saveToArchive.value,
       });
     }
 
@@ -361,39 +296,6 @@ export default defineComponent({
               }}
             />
           </div>
-
-          {archiveOptionVisible.value ? (
-            <div class="myz-annotator-field">
-              <div class="myz-annotator-archive">
-                <label class="myz-annotator-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={saveToArchive.value}
-                    onChange={(event: Event) =>
-                      (saveToArchive.value = (
-                        event.target as HTMLInputElement
-                      ).checked)
-                    }
-                  />
-                  <span>同时保存到 Internet Archive</span>
-                </label>
-                {archiveStatusText.value ? (
-                  <span class="myz-annotator-archive__status">
-                    {archiveStatusText.value}
-                    {archiveSnapshotUrl.value ? (
-                      <a
-                        href={archiveSnapshotUrl.value}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        查看
-                      </a>
-                    ) : null}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
 
           {store.isHighlight() ? (
             <div class="myz-annotator-field">

@@ -281,7 +281,10 @@ export default defineComponent({
         props.variant === "content"
           ? ".myz-tag-input__remove"
           : ".tag-input__remove";
-      if (event.target instanceof HTMLElement && event.target.closest(removeSelector)) {
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest(removeSelector)
+      ) {
         return;
       }
       focusInput();
@@ -317,7 +320,11 @@ export default defineComponent({
       });
     }
 
-    function handleOptionMouseDown(event: MouseEvent, option: string, index: number) {
+    function handleOptionMouseDown(
+      event: MouseEvent,
+      option: string,
+      index: number,
+    ) {
       event.preventDefault();
       activeIndex.value = index;
       selectOption(option);

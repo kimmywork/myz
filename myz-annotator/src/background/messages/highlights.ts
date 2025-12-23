@@ -1,5 +1,13 @@
-import { registerMessageHandler } from "./handler";
-import { MyZRecord, RECORD_KINDS } from "@/shared/types";
+import { normalizeBadgeCounts, BadgeCount, buildActionTitle } from "../badge";
+import {
+  ImportStrategy,
+  normalizeImportStrategy,
+  sanitizeImportedHighlight,
+  resolveImportConflict,
+  buildHighlightSignature,
+  applyTimestampFallback,
+} from "../import";
+import { buildMarkdownExport } from "../markdown";
 import {
   generateId,
   persistHighlightPreferences,
@@ -9,108 +17,46 @@ import {
   getHighlight,
   deleteHighlight,
   getAllHighlights,
-  getArchiveEntry,
-  getAllArchives,
 } from "../storage";
-
-import { removeRecordFromIndex, indexRecord, indexRecords } from "../vectoria-index";
-
-import { ArchiveEntry } from "../internetArchive";
-
+import {
+  removeRecordFromIndex,
+  indexRecord,
+  indexRecords,
+} from "../vectoria-index";
+import { registerMessageHandler } from "./handler";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils";
-
-import { buildMarkdownExport } from "../markdown"
-
-import {
-  normalizeBadgeCounts,
-  BadgeCount,
-  buildActionTitle
-} from "../badge";
-
-import {
-  ImportStrategy,
-  normalizeImportStrategy,
-  sanitizeImportedHighlight,
-  resolveImportConflict,
-  buildHighlightSignature,
-  applyTimestampFallback,
-} from "../import";
-
-function enrichRecordWithArchive(record: MyZRecord, archives: Record<string, ArchiveEntry> | null) {
-  if (!record) {
-    return record;
-  }
-  const canonical = record.url;
-  const archiveEntry: ArchiveEntry | null =
-    canonical && archives && typeof archives === "object"
-      ? archives[canonical]
-      : null;
-  const snapshotUrl = archiveEntry?.snapshot?.url || null;
-  const snapshotTimestamp = archiveEntry?.snapshot?.timestamp || null;
-  const status = archiveEntry?.status || null;
-  const enriched = { ...record };
-  if (snapshotUrl) {
-    enriched.archiveSnapshotUrl = snapshotUrl;
-    if (!enriched.archiveUrl) {
-      enriched.archiveUrl = snapshotUrl;
-    }
-  } else if (enriched.archiveUrl) {
-    enriched.archiveSnapshotUrl = enriched.archiveUrl;
-  }
-  if (snapshotTimestamp) {
-    enriched.archiveSnapshotTimestamp = snapshotTimestamp;
-  }
-  if (status) {
-    enriched.archiveStatus = status;
-  }
-  return enriched;
-}
-
-function enrichRecordsWithArchive(records: MyZRecord[], archives: Record<string, ArchiveEntry> | null) {
-  if (!Array.isArray(records)) {
-    return [];
-  }
-  return records.map((record) => enrichRecordWithArchive(record, archives));
-}
+import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 
 export function initializeHighlightMessageHandlers() {
-  registerMessageHandler("myz:getHighlightsForUrl", async (payload: { url?: string; aliases?: string[] }) => {
-    const urls = new Set<string>();
-    if (typeof payload?.url === "string" && payload.url) {
-      urls.add(payload.url);
-    }
-    if (Array.isArray(payload?.aliases)) {
-      payload.aliases.forEach((candidate) => {
-        if (typeof candidate === "string" && candidate) {
-          urls.add(candidate);
-        }
-      });
-    }
-    if (!urls.size) {
-      return [];
-    }
+  registerMessageHandler(
+    "myz:getHighlightsForUrl",
+    async (payload: { url?: string; aliases?: string[] }) => {
+      const urls = new Set<string>();
+      if (typeof payload?.url === "string" && payload.url) {
+        urls.add(payload.url);
+      }
+      if (Array.isArray(payload?.aliases)) {
+        payload.aliases.forEach((candidate) => {
+          if (typeof candidate === "string" && candidate) {
+            urls.add(candidate);
+          }
+        });
+      }
+      if (!urls.size) {
+        return [];
+      }
 
-    const promises = Array.from(urls).map((url) => getHighlightsForUrl(url));
-    const results = await Promise.all(promises);
-    const matches = results.flat();
+      const promises = Array.from(urls).map((url) => getHighlightsForUrl(url));
+      const results = await Promise.all(promises);
+      const matches = results.flat();
 
-    const uniqueMatches = Array.from(
-      new Map(matches.map((m) => [m.id, m])).values(),
-    );
+      const uniqueMatches = Array.from(
+        new Map(matches.map((m) => [m.id, m])).values(),
+      );
 
-    const uniqueUrls = new Set(uniqueMatches.map((m) => m.url));
-    const archivePromises = Array.from(uniqueUrls).map(async (url) => {
-      const entry = await getArchiveEntry(url);
-      return { url, entry };
-    });
-    const archivesList = await Promise.all(archivePromises);
-    const archives: Record<string, ArchiveEntry> = {};
-    archivesList.forEach(({ url, entry }) => {
-      if (entry) archives[url] = entry;
-    });
-
-    return enrichRecordsWithArchive(uniqueMatches, archives);
-  });
+      return uniqueMatches;
+    },
+  );
 
   registerMessageHandler("myz:saveHighlight", async (payload: MyZRecord) => {
     if (!payload) {
@@ -118,7 +64,8 @@ export function initializeHighlightMessageHandlers() {
     }
     const now = new Date().toISOString();
     const id = payload.id || generateId();
-    const kind = payload.kind === "clip" ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    const kind =
+      payload.kind === "clip" ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
     const record: MyZRecord = {
       ...payload,
       id,
@@ -147,60 +94,65 @@ export function initializeHighlightMessageHandlers() {
     return record;
   });
 
-  registerMessageHandler("myz:updateHighlight", async (payload: Partial<MyZRecord>) => {
-    if (!payload?.id) {
-      throw new Error("Missing highlight id");
-    }
-    const existing = await getHighlight(payload.id);
-    if (!existing) {
-      throw new Error("Highlight not found");
-    }
-    const now = new Date().toISOString();
-    const requestedKind =
-      payload.kind === RECORD_KINDS.CLIP
-        ? RECORD_KINDS.CLIP
-        : payload.kind === RECORD_KINDS.HIGHLIGHT
-          ? RECORD_KINDS.HIGHLIGHT
-          : existing.kind === RECORD_KINDS.CLIP
-            ? RECORD_KINDS.CLIP
-            : RECORD_KINDS.HIGHLIGHT;
-    const updated: MyZRecord = {
-      ...existing,
-      ...payload,
-      kind: requestedKind,
-      updatedAt: now,
-    };
-    if (updated.kind === "clip") {
-      updated.range = undefined;
-      updated.color = undefined;
-      updated.style = undefined;
-    } else {
-      updated.style = normalizeHighlightStyle(updated.style);
-    }
-    await saveHighlight(updated);
-    if (updated.kind === "highlight") {
-      await persistHighlightPreferences({
-        color: updated.color,
-        style: updated.style,
-      });
-    }
-    await indexRecord(updated);
-    return updated;
-  });
+  registerMessageHandler(
+    "myz:updateHighlight",
+    async (payload: Partial<MyZRecord>) => {
+      if (!payload?.id) {
+        throw new Error("Missing highlight id");
+      }
+      const existing = await getHighlight(payload.id);
+      if (!existing) {
+        throw new Error("Highlight not found");
+      }
+      const now = new Date().toISOString();
+      const requestedKind =
+        payload.kind === RECORD_KINDS.CLIP
+          ? RECORD_KINDS.CLIP
+          : payload.kind === RECORD_KINDS.HIGHLIGHT
+            ? RECORD_KINDS.HIGHLIGHT
+            : existing.kind === RECORD_KINDS.CLIP
+              ? RECORD_KINDS.CLIP
+              : RECORD_KINDS.HIGHLIGHT;
+      const updated: MyZRecord = {
+        ...existing,
+        ...payload,
+        kind: requestedKind,
+        updatedAt: now,
+      };
+      if (updated.kind === "clip") {
+        updated.range = undefined;
+        updated.color = undefined;
+        updated.style = undefined;
+      } else {
+        updated.style = normalizeHighlightStyle(updated.style);
+      }
+      await saveHighlight(updated);
+      if (updated.kind === "highlight") {
+        await persistHighlightPreferences({
+          color: updated.color,
+          style: updated.style,
+        });
+      }
+      await indexRecord(updated);
+      return updated;
+    },
+  );
 
-  registerMessageHandler("myz:removeHighlight", async (payload: { id?: string }) => {
-    if (!payload?.id) {
-      throw new Error("Missing highlight id");
-    }
-    await deleteHighlight(payload.id);
-    await removeRecordFromIndex(payload.id);
-    return { success: true };
-  });
+  registerMessageHandler(
+    "myz:removeHighlight",
+    async (payload: { id?: string }) => {
+      if (!payload?.id) {
+        throw new Error("Missing highlight id");
+      }
+      await deleteHighlight(payload.id);
+      await removeRecordFromIndex(payload.id);
+      return { success: true };
+    },
+  );
 
   registerMessageHandler("myz:getAllHighlights", async () => {
     const highlights = await getAllHighlights();
-    const archives = await getAllArchives();
-    return enrichRecordsWithArchive(highlights, archives);
+    return highlights;
   });
 
   registerMessageHandler("myz:getAllTags", async () => {
@@ -232,158 +184,174 @@ export function initializeHighlightMessageHandlers() {
     };
   });
 
-  registerMessageHandler("myz:updateBadge", async (payload: { tabId?: number; } & Partial<BadgeCount>, sender: chrome.runtime.MessageSender) => {
-    const tabId =
-      typeof payload?.tabId === "number" ? payload.tabId : sender?.tab?.id;
-    if (typeof tabId !== "number" || Number.isNaN(tabId)) {
-      return { success: false };
-    }
-    const { total, highlightCount, savedCount } = normalizeBadgeCounts(payload);
-    const text = total > 0 ? (total > 99 ? "99+" : String(total)) : "";
-    await chrome.action.setBadgeText({ tabId, text });
-    if (text) {
-      await chrome.action.setBadgeBackgroundColor({
-        tabId,
-        color: [37, 99, 235, 255],
-      });
-      if (typeof chrome.action.setBadgeTextColor === "function") {
-        await chrome.action.setBadgeTextColor({
+  registerMessageHandler(
+    "myz:updateBadge",
+    async (
+      payload: { tabId?: number } & Partial<BadgeCount>,
+      sender: chrome.runtime.MessageSender,
+    ) => {
+      const tabId =
+        typeof payload?.tabId === "number" ? payload.tabId : sender?.tab?.id;
+      if (typeof tabId !== "number" || Number.isNaN(tabId)) {
+        return { success: false };
+      }
+      const { total, highlightCount, savedCount } =
+        normalizeBadgeCounts(payload);
+      const text = total > 0 ? (total > 99 ? "99+" : String(total)) : "";
+      await chrome.action.setBadgeText({ tabId, text });
+      if (text) {
+        await chrome.action.setBadgeBackgroundColor({
           tabId,
-          color: [255, 255, 255, 255],
+          color: [37, 99, 235, 255],
         });
-      }
-    }
-    const title = buildActionTitle({ total, highlightCount, savedCount });
-    try {
-      await chrome.action.setTitle({ tabId, title });
-    } catch (error) {
-      console.warn("Failed to update action title", error);
-    }
-    return { success: true };
-  });
-
-  registerMessageHandler("myz:importHighlights", async (payload: { records?: MyZRecord[]; strategy?: ImportStrategy }) => {
-    const records = Array.isArray(payload?.records) ? payload.records : [];
-    if (!records.length) {
-      throw new Error("没有可导入的数据");
-    }
-
-    const strategy = normalizeImportStrategy(payload?.strategy);
-    const existingHighlightsList = await getAllHighlights();
-    const existingHighlights: Record<string, MyZRecord> = {};
-    existingHighlightsList.forEach((h) => (existingHighlights[h.id] = h));
-    const usedIds = new Set(Object.keys(existingHighlights));
-
-    const existingSignatures = new Set();
-    Object.values(existingHighlights).forEach((record) => {
-      const signature = buildHighlightSignature(record);
-      if (signature) {
-        existingSignatures.add(signature);
-      }
-    });
-
-    const replacements: Map<string, MyZRecord> = new Map();
-    const additions: Map<string, MyZRecord> = new Map();
-    let skipped = 0;
-
-    records.forEach((raw) => {
-      const sanitized = sanitizeImportedHighlight(raw);
-      if (!sanitized) {
-        skipped += 1;
-        return;
-      }
-
-      let identifier =
-        typeof sanitized.id === "string" ? sanitized.id.trim() : "";
-
-      // Handle conflicts with existing highlights first.
-      if (
-        identifier &&
-        existingHighlights[identifier] &&
-        !replacements.has(identifier)
-      ) {
-        const existingRecord = existingHighlights[identifier];
-        if (!resolveImportConflict(strategy, existingRecord, sanitized)) {
-          skipped += 1;
-          return;
+        if (typeof chrome.action.setBadgeTextColor === "function") {
+          await chrome.action.setBadgeTextColor({
+            tabId,
+            color: [255, 255, 255, 255],
+          });
         }
-        sanitized.id = identifier;
-        applyTimestampFallback(sanitized, existingRecord);
-        const signature = buildHighlightSignature(sanitized);
+      }
+      const title = buildActionTitle({ total, highlightCount, savedCount });
+      try {
+        await chrome.action.setTitle({ tabId, title });
+      } catch (error) {
+        console.warn("Failed to update action title", error);
+      }
+      return { success: true };
+    },
+  );
+
+  registerMessageHandler(
+    "myz:importHighlights",
+    async (payload: { records?: MyZRecord[]; strategy?: ImportStrategy }) => {
+      const records = Array.isArray(payload?.records) ? payload.records : [];
+      if (!records.length) {
+        throw new Error("没有可导入的数据");
+      }
+
+      const strategy = normalizeImportStrategy(payload?.strategy);
+      const existingHighlightsList = await getAllHighlights();
+      const existingHighlights: Record<string, MyZRecord> = {};
+      existingHighlightsList.forEach((h) => (existingHighlights[h.id] = h));
+      const usedIds = new Set(Object.keys(existingHighlights));
+
+      const existingSignatures = new Set();
+      Object.values(existingHighlights).forEach((record) => {
+        const signature = buildHighlightSignature(record);
         if (signature) {
           existingSignatures.add(signature);
         }
-        replacements.set(identifier, sanitized);
-        return;
-      }
+      });
 
-      // Conflicts with already staged replacements or additions (duplicate IDs within payload).
-      if (
-        identifier &&
-        (replacements.has(identifier) || additions.has(identifier))
-      ) {
-        const staged =
-          (replacements.get(identifier) || additions.get(identifier))!;
-        if (!resolveImportConflict(strategy, staged, sanitized)) {
+      const replacements: Map<string, MyZRecord> = new Map();
+      const additions: Map<string, MyZRecord> = new Map();
+      let skipped = 0;
+
+      records.forEach((raw) => {
+        const sanitized = sanitizeImportedHighlight(raw);
+        if (!sanitized) {
           skipped += 1;
           return;
         }
-        sanitized.id = identifier;
-        applyTimestampFallback(sanitized, staged);
-        const signature = buildHighlightSignature(sanitized);
-        if (signature) {
-          existingSignatures.add(signature);
-        }
-        if (replacements.has(identifier)) {
+
+        let identifier =
+          typeof sanitized.id === "string" ? sanitized.id.trim() : "";
+
+        // Handle conflicts with existing highlights first.
+        if (
+          identifier &&
+          existingHighlights[identifier] &&
+          !replacements.has(identifier)
+        ) {
+          const existingRecord = existingHighlights[identifier];
+          if (!resolveImportConflict(strategy, existingRecord, sanitized)) {
+            skipped += 1;
+            return;
+          }
+          sanitized.id = identifier;
+          applyTimestampFallback(sanitized, existingRecord);
+          const signature = buildHighlightSignature(sanitized);
+          if (signature) {
+            existingSignatures.add(signature);
+          }
           replacements.set(identifier, sanitized);
-        } else {
-          additions.set(identifier, sanitized);
+          return;
         }
-        return;
+
+        // Conflicts with already staged replacements or additions (duplicate IDs within payload).
+        if (
+          identifier &&
+          (replacements.has(identifier) || additions.has(identifier))
+        ) {
+          const staged = (replacements.get(identifier) ||
+            additions.get(identifier))!;
+          if (!resolveImportConflict(strategy, staged, sanitized)) {
+            skipped += 1;
+            return;
+          }
+          sanitized.id = identifier;
+          applyTimestampFallback(sanitized, staged);
+          const signature = buildHighlightSignature(sanitized);
+          if (signature) {
+            existingSignatures.add(signature);
+          }
+          if (replacements.has(identifier)) {
+            replacements.set(identifier, sanitized);
+          } else {
+            additions.set(identifier, sanitized);
+          }
+          return;
+        }
+
+        // De-duplicate by selection signature to avoid creating multiple identical highlights.
+        const signature = buildHighlightSignature(sanitized);
+        if (signature && existingSignatures.has(signature)) {
+          skipped += 1;
+          return;
+        }
+
+        let resolvedId = identifier;
+        if (
+          !resolvedId ||
+          usedIds.has(resolvedId) ||
+          additions.has(resolvedId)
+        ) {
+          resolvedId = generateUniqueImportId(usedIds);
+        } else {
+          usedIds.add(resolvedId);
+        }
+        sanitized.id = resolvedId;
+        applyTimestampFallback(sanitized);
+        sanitized.updatedAt = sanitized.updatedAt || sanitized.createdAt;
+        if (signature) {
+          existingSignatures.add(signature);
+        }
+        additions.set(resolvedId, sanitized);
+      });
+
+      if (!additions.size && !replacements.size && skipped === 0) {
+        throw new Error("没有符合要求的标注");
       }
 
-      // De-duplicate by selection signature to avoid creating multiple identical highlights.
-      const signature = buildHighlightSignature(sanitized);
-      if (signature && existingSignatures.has(signature)) {
-        skipped += 1;
-        return;
+      const savePromises: Promise<void>[] = [];
+      replacements.forEach((record) =>
+        savePromises.push(saveHighlight(record)),
+      );
+      additions.forEach((record) => savePromises.push(saveHighlight(record)));
+      await Promise.all(savePromises);
+
+      const toIndex = [
+        ...Array.from(additions.values()),
+        ...Array.from(replacements.values()),
+      ];
+      if (toIndex.length) {
+        await indexRecords(toIndex);
       }
-
-      let resolvedId = identifier;
-      if (!resolvedId || usedIds.has(resolvedId) || additions.has(resolvedId)) {
-        resolvedId = generateUniqueImportId(usedIds);
-      } else {
-        usedIds.add(resolvedId);
-      }
-      sanitized.id = resolvedId;
-      applyTimestampFallback(sanitized);
-      sanitized.updatedAt = sanitized.updatedAt || sanitized.createdAt;
-      if (signature) {
-        existingSignatures.add(signature);
-      }
-      additions.set(resolvedId, sanitized);
-    });
-
-    if (!additions.size && !replacements.size && skipped === 0) {
-      throw new Error("没有符合要求的标注");
-    }
-
-    const savePromises: Promise<void>[] = [];
-    replacements.forEach((record) => savePromises.push(saveHighlight(record)));
-    additions.forEach((record) => savePromises.push(saveHighlight(record)));
-    await Promise.all(savePromises);
-
-    const toIndex = [
-      ...Array.from(additions.values()),
-      ...Array.from(replacements.values()),
-    ];
-    if (toIndex.length) {
-      await indexRecords(toIndex);
-    }
-    return {
-      inserted: additions.size,
-      replaced: replacements.size,
-      skipped,
-    };
-  });
+      return {
+        inserted: additions.size,
+        replaced: replacements.size,
+        skipped,
+      };
+    },
+  );
 }

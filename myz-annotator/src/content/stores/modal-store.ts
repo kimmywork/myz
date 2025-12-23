@@ -4,7 +4,6 @@ import {
   applyHighlight,
   deleteHighlight,
   deleteUnreachableHighlights,
-  getArchiveState,
   getHighlightCache,
   markHighlightForReapply,
   removeHighlightFromPending,
@@ -12,10 +11,8 @@ import {
   updateExistingHighlight,
   updateHighlightIndicators,
 } from "../highlight-state";
-import { ensureArchiveSnapshotForCurrentPage } from "../modal-state";
 import { usePreferenceStore } from "./preference-store";
 import { useToolbarStore } from "./toolbar-store";
-import { ArchiveEntry } from "@/background/internetArchive";
 import {
   isHighlightRecord,
   normalizeHighlightStyle,
@@ -29,7 +26,7 @@ import {
   MyZRecord,
   RECORD_KINDS,
 } from "@/shared/types";
-import { canonicalUrl, extractArchiveInfo } from "@/shared/url";
+import { canonicalUrl } from "@/shared/url";
 
 interface ModalState {
   currentRange: Range | null;
@@ -54,7 +51,6 @@ export interface ModalSubmitPayload {
   tags: string[];
   color: string;
   style: string;
-  saveToArchive: boolean;
 }
 
 export interface ModalOpenOptions {
@@ -66,9 +62,6 @@ export interface ModalOpenOptions {
   tags: string[];
   color: string;
   style: HIGHLIGHT_STYLES;
-  archiveEnabled: boolean;
-  saveToArchive: boolean;
-  archiveStatus: ArchiveEntry | null;
 }
 
 const DEFAULT_OPTION = {
@@ -80,9 +73,6 @@ const DEFAULT_OPTION = {
   tags: [],
   color: DEFAULT_COLORS[0],
   style: HIGHLIGHT_STYLES.PAINT,
-  archiveEnabled: false,
-  saveToArchive: false,
-  archiveStatus: null,
 };
 
 export const useModalStore = defineStore("modal", () => {
@@ -105,18 +95,6 @@ export const useModalStore = defineStore("modal", () => {
       : options.tags
         ? [options.tags]
         : [];
-    const archiveState = getArchiveState();
-    const archiveEnabledForModal =
-      kind === RECORD_KINDS.HIGHLIGHT &&
-      archiveState.archiveFeatureEnabled &&
-      options?.mode !== "edit";
-    const saveToArchiveDefault =
-      typeof options?.saveToArchive === "boolean"
-        ? options.saveToArchive
-        : archiveEnabledForModal && archiveState.archiveDefaultOptIn;
-    const archiveStatusPayload = archiveEnabledForModal
-      ? archiveState.archiveStatus
-      : null;
 
     const resolveColor = options.color
       ? options.color
@@ -134,9 +112,6 @@ export const useModalStore = defineStore("modal", () => {
       color: resolveColor || DEFAULT_COLORS[0],
       style: resolveStyle || DEFAULT_HIGHLIGHT_STYLE,
       kind,
-      archiveEnabled: archiveEnabledForModal,
-      saveToArchive: saveToArchiveDefault,
-      archiveStatus: archiveStatusPayload,
     };
     visible.value = true;
   }
@@ -156,7 +131,6 @@ export const useModalStore = defineStore("modal", () => {
     const tags = Array.isArray(payload.tags)
       ? payload.tags.filter(Boolean)
       : [];
-    const saveToArchive = payload.saveToArchive === true;
 
     modalState.value.formKind = kind;
 
@@ -177,16 +151,13 @@ export const useModalStore = defineStore("modal", () => {
 
     const currentUrl = window.location.href;
     const canonical = canonicalUrl(currentUrl);
-    const archiveInfo = extractArchiveInfo(currentUrl);
-    const originalSourceUrl = archiveInfo?.originalUrl || currentUrl;
+    const originalSourceUrl = currentUrl;
     let hostname = window.location.hostname;
     try {
       hostname = new URL(originalSourceUrl).hostname || hostname;
     } catch (error) {
       // keep existing hostname fallback
     }
-    const archiveUrl = archiveInfo ? currentUrl : null;
-    const archiveTimestamp = archiveInfo?.timestamp || null;
 
     if (modalState.value.editingId) {
       const update: Partial<MyZRecord> = {
@@ -225,14 +196,6 @@ export const useModalStore = defineStore("modal", () => {
       kind,
     };
 
-    if (archiveUrl) {
-      basePayload.archiveUrl = archiveUrl;
-      basePayload.archiveSnapshotUrl = archiveUrl;
-      if (archiveTimestamp) {
-        basePayload.archiveSnapshotTimestamp = archiveTimestamp;
-      }
-    }
-
     const selection = window.getSelection();
     try {
       if (kind === RECORD_KINDS.HIGHLIGHT) {
@@ -265,9 +228,6 @@ export const useModalStore = defineStore("modal", () => {
             }
             addModalKnownTags(stored.tags || tags);
             updateHighlightIndicators();
-            if (saveToArchive && getArchiveState().archiveFeatureEnabled) {
-              ensureArchiveSnapshotForCurrentPage().catch(() => {});
-            }
           }
         }
       } else {

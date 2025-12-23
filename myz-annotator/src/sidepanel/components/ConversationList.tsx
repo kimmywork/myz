@@ -7,9 +7,7 @@ import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
 import ToolInlineNotice from "./messages/ToolInlineNotice.jsx";
 import ToolMessageCard from "./messages/ToolMessageCard.jsx";
 import UserMessageBubble from "./messages/UserMessageBubble.jsx";
-import {
-  Message, MessageStream
-} from "@/background/aiProvider.js";
+import { Message, MessageStream } from "@/background/aiProvider.js";
 
 interface ConversationListProps {
   messages: Message[];

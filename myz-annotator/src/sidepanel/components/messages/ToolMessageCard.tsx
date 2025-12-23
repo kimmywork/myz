@@ -54,7 +54,9 @@ export default defineComponent({
         </div>
         <div class="flex items-center gap-4">
           <span class="text-xs text-slate-400">
-            {new Date(props.message?.timestamp || Date.now()).toLocaleTimeString()}
+            {new Date(
+              props.message?.timestamp || Date.now(),
+            ).toLocaleTimeString()}
           </span>
           <button
             class="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-300"

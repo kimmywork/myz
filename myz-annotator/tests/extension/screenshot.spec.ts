@@ -1,10 +1,10 @@
-import path from "node:path";
-import fs from "node:fs";
-import { fileURLToPath } from "node:url";
 import { test, expect, BrowserContext, Page } from "@playwright/test";
-import { createStaticServer } from "../helpers/static-server.js";
-import { launchExtension } from "../helpers/launch-extension.js";
+import fs from "node:fs";
 import { Server } from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { launchExtension } from "../helpers/launch-extension.js";
+import { createStaticServer } from "../helpers/static-server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
