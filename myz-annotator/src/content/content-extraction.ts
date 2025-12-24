@@ -2,14 +2,39 @@
  * Content extraction utilities for AI and other features
  */
 import { normalizeWhitespace } from "@/shared/highlightUtils.js";
+import { ZEN_SELECTOR_MAP } from "./zen-config.js";
 
-const MAX_CONTENT_LENGTH = 15000;
+function resolveSelectorForUrl(url: string): string | null {
+  try {
+    for (const rule of ZEN_SELECTOR_MAP) {
+      const { pattern, selector } = rule || {};
+      if (!selector) continue;
+      if (typeof pattern === "string" && url.includes(pattern)) {
+        return selector;
+      }
+      if (pattern instanceof RegExp && pattern.test(url)) {
+        return selector;
+      }
+    }
+  } catch (err) {
+    console.warn("[ContentExtraction] Error resolving selector for URL:", err);
+  }
+  return null;
+}
+
 const CONTENT_STRATEGIES = [
+  // Strategy 0: Explicit configuration
+  () => {
+    const selector = resolveSelectorForUrl(window.location.href);
+    return selector ? document.querySelector(selector) : null;
+  },
   // Strategy 1: Main content areas
-  () => document.querySelector("main, article, [role='main']"),
-  // Strategy 2: Common content classes
+  () => document.querySelector("main, article, [role='main'], [role='article']"),
+  // Strategy 2: Common content classes and IDs
   () =>
-    document.querySelector(".post-content, .entry-content, .article-content"),
+    document.querySelector(
+      "#article, #article-content, #content, #main, .post-content, .entry-content, .article-content, .article, .content, .main",
+    ),
   // Strategy 3: Heuristic-based selection
   () => {
     const candidates = Array.from(
@@ -43,79 +68,6 @@ export function findPrimaryContentElement() {
     }
   }
   return document.body;
-}
-
-export function extractPageContentForAi() {
-  try {
-    const contentElement = findPrimaryContentElement() || document.body;
-
-    const clone = contentElement.cloneNode(true) as Element;
-
-    // Remove MyZ wrapper elements to avoid duplication
-    clone.querySelectorAll(".myz-highlight").forEach((el) => {
-      const parent = el.parentNode as Element;
-      while (el.firstChild) parent.insertBefore(el.firstChild, el);
-      parent.removeChild(el);
-    });
-
-    // Remove noise elements
-    const noiseSelectors = [
-      "nav",
-      "header",
-      "footer",
-      "aside",
-      "script",
-      "style",
-      "noscript",
-      ".nav",
-      ".navigation",
-      ".menu",
-      ".sidebar",
-      ".ads",
-      ".advertisement",
-      ".social-share",
-      ".comments",
-      ".comment",
-      ".popup",
-      ".modal",
-      "#nav",
-      "#header",
-      "#footer",
-      "#sidebar",
-      "#ads",
-      "#comments",
-      '[role="navigation"]',
-    ];
-
-    noiseSelectors.forEach((selector) => {
-      clone.querySelectorAll(selector).forEach((el) => {
-        if (!el.closest(".myz-highlight")) {
-          el.remove();
-        }
-      });
-    });
-
-    // Extract clean text
-    let text = normalizeWhitespace(clone.textContent || "");
-
-    // Truncate if needed
-    if (text.length > MAX_CONTENT_LENGTH) {
-      text = text.substring(0, MAX_CONTENT_LENGTH) + "... (truncated)";
-    }
-
-    return {
-      text,
-      title: document.title || "",
-      url: window.location.href,
-    };
-  } catch (error) {
-    console.error("Content extraction failed:", error);
-    return {
-      text: normalizeWhitespace(document.body.textContent || ""),
-      title: document.title || "",
-      url: window.location.href,
-    };
-  }
 }
 
 // Also export a simplified version

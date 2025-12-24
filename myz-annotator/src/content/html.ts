@@ -247,11 +247,13 @@ interface HTMLLeaf {
 export function collectLeafBlocks(
   maxCount: number = 300,
   minLength: number = 80,
+  root: Element = document.body || document.documentElement,
+  filter?: (node: HTMLElement) => boolean,
 ): HTMLLeaf[] {
   const results: HTMLLeaf[] = [];
   const selected = new WeakSet<HTMLElement>();
   const walker = document.createTreeWalker(
-    document.body || document.documentElement,
+    root,
     NodeFilter.SHOW_ELEMENT,
   );
   // const start = performance.now();
@@ -260,6 +262,7 @@ export function collectLeafBlocks(
     if (!(node instanceof HTMLElement)) continue;
     if (!isElementVisible(node)) continue;
     if (!isBlockElement(node)) continue;
+    if (filter && !filter(node)) continue;
     if (hasSelectedAncestor(node, selected)) continue;
 
     const children = Array.from(node.children);

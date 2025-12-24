@@ -1,53 +1,13 @@
-import { ZEN_SELECTOR_MAP } from "./zen-config.js";
+import { findPrimaryContentElement } from "./content-extraction.js";
 
 declare global {
   interface Window {
     __myzZenAncestors: HTMLElement[];
   }
 }
-function resolveSelectorForUrl(url: string): string | null {
-  try {
-    for (const rule of ZEN_SELECTOR_MAP) {
-      const { pattern, selector } = rule || {};
-      if (!selector) continue;
-      if (typeof pattern === "string" && url.includes(pattern)) {
-        return selector;
-      }
-      if (pattern instanceof RegExp && pattern.test(url)) {
-        return selector;
-      }
-    }
-  } catch (err) {
-    console.warn("[Zen] Error resolving selector for URL:", err);
-  }
-  return null;
-}
-
-function findArticleElement() {
-  const url = window.location.href;
-  const mappedSelector = resolveSelectorForUrl(url);
-  const candidates = [
-    mappedSelector,
-    "article",
-    "#article",
-    "#article-content",
-    ".article",
-    ".article-content",
-    '[role="article"]',
-  ].filter(Boolean) as string[];
-  for (const sel of candidates) {
-    try {
-      const el = document.querySelector(sel);
-      if (el) return el;
-    } catch (err) {
-      console.warn("[Zen] Error resolving selector for URL:", err);
-    }
-  }
-  return null;
-}
 
 export function hasArticleElement(): boolean {
-  return Boolean(findArticleElement());
+  return Boolean(findPrimaryContentElement());
 }
 
 export function isZenModeEnabled(): boolean {
@@ -57,12 +17,12 @@ export function isZenModeEnabled(): boolean {
 export function getZenTargetElement(): Element | null {
   const current = document.querySelector(".myz-zen-target-keep");
   if (current) return current;
-  return findArticleElement();
+  return findPrimaryContentElement();
 }
 
 export function enableZenMode(): boolean {
   if (isZenModeEnabled()) return true;
-  const article = findArticleElement();
+  const article = findPrimaryContentElement() as HTMLElement;
   if (!article) return false;
   const styleId = "myz-zen-style";
   let style = document.getElementById(styleId);

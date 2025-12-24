@@ -1,9 +1,8 @@
 import { findPrimaryContentElement } from "./content-extraction.js";
 import { normalizeWhitespace } from "@/shared/highlightUtils.js";
 import { isNodeFromMyz } from "@/shared/serializer.js";
+import { collectLeafBlocks } from "./html.js";
 
-const BLOCK_SELECTOR =
-  "p,li,blockquote,pre,code,h1,h2,h3,h4,h5,h6,article,section";
 const IGNORED_CLASS_PATTERN =
   /(comment|nav|menu|sidebar|footer|header|login|subscribe|popup|modal|ads?)/;
 const CHUNK_CHAR_LIMIT = 1800;
@@ -11,16 +10,7 @@ const DEFAULT_MAX_TOTAL_CHARS = Number.POSITIVE_INFINITY;
 const DEFAULT_MAX_CHUNKS = 80;
 const activeAnchors: Set<Element> = new Set();
 
-function isVisible(node: Element): boolean {
-  const style = window.getComputedStyle(node);
-  if (style.display === "none" || style.visibility === "hidden") {
-    return false;
-  }
-  const rect = node.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
-}
-
-function isEligibleBlock(node: Element): boolean {
+function isEligibleBlock(node: HTMLElement): boolean {
   if (isNodeFromMyz(node)) {
     return false;
   }
@@ -29,33 +19,7 @@ function isEligibleBlock(node: Element): boolean {
   if (IGNORED_CLASS_PATTERN.test(className + id)) {
     return false;
   }
-  if (!isVisible(node)) {
-    return false;
-  }
-  const text = normalizeWhitespace(
-    (node as HTMLElement).innerText ?? node.textContent ?? "",
-  );
-  if (!text) {
-    return false;
-  }
-  const tag = node.tagName?.toLowerCase() || "";
-  const isHeading = /^h[1-6]$/.test(tag);
-  const minLength = isHeading ? 5 : 30;
-  if (text.length < minLength && !isHeading) {
-    return false;
-  }
   return true;
-}
-
-function collectBlocks(root: Element | Document): Element[] {
-  const nodes = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(
-    isEligibleBlock,
-  );
-  if (!nodes.length && root && root.nodeType === Node.ELEMENT_NODE) {
-    const el = root as Element;
-    return isEligibleBlock(el) ? [el] : [];
-  }
-  return nodes;
 }
 
 function registerAnchor(node: Element, chunkId: string) {
@@ -87,10 +51,14 @@ export interface AIContextOptions {
   chunkCharLimit?: number;
   maxTotalChars?: number;
   maxChunks?: number;
+  registerAnchors?: boolean;
 }
 
 export function captureAiPageContext(options: AIContextOptions = {}) {
-  clearAiPageChunkAnchors();
+  const { registerAnchors = true } = options;
+  if (registerAnchors) {
+    clearAiPageChunkAnchors();
+  }
 
   const chunkCharLimit = clampNumber(
     Number(options.chunkCharLimit) || CHUNK_CHAR_LIMIT,
@@ -109,7 +77,7 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
   );
 
   const root = findPrimaryContentElement() || document.body;
-  const blocks = collectBlocks(root);
+  const blocks = collectLeafBlocks(maxChunks * 3, 5, root, isEligibleBlock);
   const chunks: Array<{
     id: string;
     order: number;
@@ -142,7 +110,9 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
       return;
     }
     const chunkId = `myz-chunk-${Date.now().toString(36)}-${chunkIndex.toString().padStart(3, "0")}`;
-    registerAnchor(anchorNode, chunkId);
+    if (registerAnchors) {
+      registerAnchor(anchorNode, chunkId);
+    }
     const words = text.match(/\S+/g)?.length || 0;
     chunks.push({
       id: chunkId,
@@ -158,17 +128,19 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
     chunkIndex += 1;
   }
 
-  for (const node of blocks) {
+  for (const { element: node, text } of blocks) {
     if (chunks.length >= maxChunks) {
       truncated = true;
       break;
     }
-    const text = normalizeWhitespace(
-      (node as HTMLElement).innerText ?? node.textContent ?? "",
-    );
-    if (!text) {
+    
+    const tag = node.tagName?.toLowerCase() || "";
+    const isHeading = /^h[1-6]$/.test(tag);
+    const minLength = isHeading ? 5 : 30;
+    if (text.length < minLength && !isHeading) {
       continue;
     }
+
     if (!anchorNode) {
       anchorNode = node;
     }
@@ -202,7 +174,9 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
           break;
         }
         const chunkId = `myz-chunk-${Date.now().toString(36)}-root-${localIndex}`;
-        registerAnchor(root, chunkId);
+        if (registerAnchors) {
+          registerAnchor(root, chunkId);
+        }
         const words = segment.match(/\S+/g)?.length || 0;
         chunks.push({
           id: chunkId,
@@ -316,4 +290,28 @@ export function scrollToAiChunk(chunkId: string, snippet = ""): boolean {
     target.classList.remove("myz-ai-chunk-flash");
   }, 1600);
   return true;
+}
+
+export function extractPageContentForAi() {
+  try {
+    const result = captureAiPageContext({
+      maxTotalChars: 15000,
+      registerAnchors: false,
+    });
+
+    const text = result.chunks.map((c) => c.text).join("\n\n");
+
+    return {
+      text,
+      title: result.title,
+      url: result.url,
+    };
+  } catch (error) {
+    console.error("Content extraction failed:", error);
+    return {
+      text: normalizeWhitespace(document.body.textContent || ""),
+      title: document.title || "",
+      url: window.location.href,
+    };
+  }
 }

@@ -3,8 +3,8 @@ import {
   captureAiPageContext,
   clearAiPageChunkAnchors,
   scrollToAiChunk,
+  extractPageContentForAi,
 } from "./ai-page-context";
-import { extractPageContentForAi } from "./content-extraction.ts";
 import {
   buildHighlightStateSnapshot,
   focusHighlight,
@@ -12,7 +12,6 @@ import {
 } from "./highlight-state.ts";
 import { waitForNextPaint } from "./html.ts";
 import {
-  cropAndDownloadSelection,
   cropToCanvas,
   downloadImage,
 } from "./image.ts";
@@ -123,51 +122,6 @@ export function messageListener(
   if (message.type === "myz:getHighlightState") {
     sendResponse?.({ ok: true, data: buildHighlightStateSnapshot() });
     return false;
-  }
-  if (message.type === "myz:getZenTargetBounds") {
-    try {
-      const target = getZenTargetElement();
-      if (!target) {
-        sendResponse?.({ ok: true, data: { rect: null } });
-        return false;
-      }
-      const r = target.getBoundingClientRect();
-      sendResponse?.({
-        ok: true,
-        data: {
-          rect: {
-            top: r.top,
-            left: r.left,
-            width: r.width,
-            height: r.height,
-          },
-          viewport: {
-            width: window.innerWidth,
-            height: window.innerHeight,
-          },
-        },
-      });
-    } catch (e) {
-      sendResponse?.({ ok: false });
-    }
-    return true;
-  }
-  if (message.type === "myz:downloadCropped") {
-    (async () => {
-      try {
-        const { dataUrl, rect, viewport } = message.payload || {};
-        if (!dataUrl || !rect) {
-          sendResponse?.({ ok: false });
-          return;
-        }
-        await cropAndDownloadSelection(dataUrl, rect, viewport);
-        sendResponse?.({ ok: true });
-      } catch (e) {
-        console.error("Download cropped failed", e);
-        sendResponse?.({ ok: false });
-      }
-    })();
-    return true;
   }
   if (message.type === "myz:captureZenTargetFull") {
     (async () => {
@@ -326,130 +280,6 @@ export function messageListener(
       console.error("Get selection failed", e);
       sendResponse?.({ ok: false, error: (e as Error).message });
     }
-    return false;
-  }
-  if (message.type === "myz:getSelection") {
-    try {
-      const selection = window.getSelection();
-      const text = selection ? selection.toString().trim() : "";
-      sendResponse?.({ ok: true, data: { text } });
-    } catch (e) {
-      console.error("Get selection failed", e);
-      sendResponse?.({ ok: false });
-    }
-    return false;
-  }
-  if (message.type === "myz:capturePageFull") {
-    (async () => {
-      try {
-        const viewport = {
-          width: window.innerWidth,
-          height: window.innerHeight,
-        };
-        const totalWidth = Math.max(
-          document.documentElement.scrollWidth,
-          document.body.scrollWidth,
-          viewport.width,
-        );
-        const totalHeight = Math.max(
-          document.documentElement.scrollHeight,
-          document.body.scrollHeight,
-          viewport.height,
-        );
-        const rows = Math.max(1, Math.ceil(totalHeight / viewport.height));
-        const cols = Math.max(1, Math.ceil(totalWidth / viewport.width));
-        const dpr2 = window.devicePixelRatio || 1;
-        const MAX_DIM = 16384; // device pixels
-        const MAX_AREA = 16384 * 16384;
-        const originalScroll = { x: window.scrollX, y: window.scrollY };
-
-        const maxColsPerImage = Math.max(
-          1,
-          Math.floor(MAX_DIM / Math.ceil(viewport.width * dpr2)),
-        );
-        const maxRowsPerImage = Math.max(
-          1,
-          Math.floor(MAX_DIM / Math.ceil(viewport.height * dpr2)),
-        );
-
-        for (let rowStart = 0; rowStart < rows; rowStart += maxRowsPerImage) {
-          const rowsInBatch = Math.min(maxRowsPerImage, rows - rowStart);
-          for (let colStart = 0; colStart < cols; colStart += maxColsPerImage) {
-            const colsInBatch = Math.min(maxColsPerImage, cols - colStart);
-            const batchPixelW = Math.ceil(colsInBatch * viewport.width * dpr2);
-            const batchPixelH = Math.ceil(rowsInBatch * viewport.height * dpr2);
-            const areaOk = batchPixelW * batchPixelH <= MAX_AREA;
-            const canvasW = areaOk
-              ? batchPixelW
-              : Math.min(batchPixelW, MAX_DIM);
-            const canvasH = areaOk
-              ? batchPixelH
-              : Math.min(batchPixelH, MAX_DIM);
-            const stitched = document.createElement("canvas");
-            stitched.width = canvasW;
-            stitched.height = canvasH;
-            const ctx = stitched.getContext("2d");
-
-            for (let r = 0; r < rowsInBatch; r++) {
-              for (let c = 0; c < colsInBatch; c++) {
-                const globalRow = rowStart + r;
-                const globalCol = colStart + c;
-                const tileLeftAbs = globalCol * viewport.width;
-                const tileTopAbs = globalRow * viewport.height;
-                window.scrollTo(tileLeftAbs, tileTopAbs);
-                await waitForNextPaint();
-                const dataUrl = await captureVisiblePngWithThrottle();
-                if (!dataUrl) continue;
-                // Use actual scroll offsets to avoid losing the final portion
-                // when the browser clamps scroll to maxY/maxX on the last tiles.
-                const actualLeft = window.scrollX;
-                const actualTop = window.scrollY;
-                const expectedLeft = globalCol * viewport.width;
-                const expectedTop = globalRow * viewport.height;
-                const vx = Math.max(0, expectedLeft - actualLeft);
-                const vy = Math.max(0, expectedTop - actualTop);
-                const tileW = Math.min(
-                  viewport.width - vx,
-                  totalWidth - expectedLeft,
-                );
-                const tileH = Math.min(
-                  viewport.height - vy,
-                  totalHeight - expectedTop,
-                );
-                const { canvas } = await cropToCanvas(
-                  dataUrl,
-                  { left: vx, top: vy, width: tileW, height: tileH },
-                  viewport,
-                );
-                // Place at the expected grid position; crop accounts for offset
-                const destX = Math.floor(c * viewport.width * dpr2);
-                const destY = Math.floor(r * viewport.height * dpr2);
-                const destW = Math.floor(tileW * dpr2);
-                const destH = Math.floor(tileH * dpr2);
-                ctx?.drawImage(
-                  canvas,
-                  0,
-                  0,
-                  canvas.width,
-                  canvas.height,
-                  destX,
-                  destY,
-                  destW,
-                  destH,
-                );
-              }
-            }
-            downloadImage(
-              stitched.toDataURL("image/png"),
-              `myz-page-${Date.now()}-${rowStart}-${colStart}.png`,
-            );
-          }
-        }
-        window.scrollTo(originalScroll.x, originalScroll.y);
-      } catch (e) {
-        console.error("capturePageFull failed", e);
-      }
-    })();
     return false;
   }
   return false;
