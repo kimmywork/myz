@@ -18,6 +18,14 @@ export const ZEN_SELECTOR_MAP: ZenSelectorRule[] = [
   {
     pattern: /:\/\/(?:www\.)?marxists\.org\/chinese/,
     selector: "body",
+  },
+  {
+    pattern: /:\/\/(?:www\.)?zhihu\.com\/question\/\d+\/answer/,
+    selector: "#content",
+  },
+  {
+    "pattern": /:\/\/(?:www\.)?zhihu\.com\/question\/\d+$/,
+    "selector": ".Question-mainColumn",
   }
   // Add more rules as needed, e.g.
   // { pattern: /example\.com/, selector: "main .article" },

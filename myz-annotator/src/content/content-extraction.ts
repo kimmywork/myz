@@ -28,14 +28,16 @@ const CONTENT_STRATEGIES = [
     const selector = resolveSelectorForUrl(window.location.href);
     return selector ? document.querySelector(selector) : null;
   },
-  // Strategy 1: Main content areas
-  () => document.querySelector("main, article, [role='main'], [role='article']"),
-  // Strategy 2: Common content classes and IDs
+  // Strategy 1: Article (more specific content)
+  () => document.querySelector("article, [role='article']"),
+  // Strategy 2: Main (broader container)
+  () => document.querySelector("main, [role='main']"),
+  // Strategy 3: Common content classes and IDs
   () =>
     document.querySelector(
       "#article, #article-content, #content, #main, .post-content, .entry-content, .article-content, .article, .content, .main",
     ),
-  // Strategy 3: Heuristic-based selection
+  // Strategy 4: Heuristic-based selection
   () => {
     const candidates = Array.from(
       document.querySelectorAll("div, section, article"),
