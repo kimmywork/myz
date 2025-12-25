@@ -1,4 +1,10 @@
 import { findPrimaryContentElement } from "./content-extraction.js";
+import { waitForNextPaint } from "./html.js";
+import {
+  captureVisiblePngWithThrottle,
+  cropToCanvas,
+  downloadImage,
+} from "./image.js";
 
 declare global {
   interface Window {
@@ -14,7 +20,7 @@ export function isZenModeEnabled(): boolean {
   return document.documentElement.classList.contains("myz-zen-enabled");
 }
 
-export function getZenTargetElement(): Element | null {
+function getZenTargetElement(): Element | null {
   const current = document.querySelector(".myz-zen-target-keep");
   if (current) return current;
   return findPrimaryContentElement();
@@ -75,6 +81,133 @@ export function toggleZenMode(): "on" | "off" | "error" {
   }
   const ok = enableZenMode();
   return ok ? "on" : "error";
+}
+
+export async function captureZenTargetFull() {
+  try {
+    const target = getZenTargetElement();
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const elementAbsLeft = Math.max(0, Math.floor(rect.left + window.scrollX));
+    const elementAbsTop = Math.max(0, Math.floor(rect.top + window.scrollY));
+    const totalWidth = Math.max(
+      Math.ceil(target.scrollWidth || 0),
+      Math.ceil(rect.width),
+    );
+    const totalHeight = Math.max(
+      Math.ceil(target.scrollHeight || 0),
+      Math.ceil(rect.height),
+    );
+    const viewport = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+    const rows = Math.max(1, Math.ceil(totalHeight / viewport.height));
+    const cols = Math.max(1, Math.ceil(totalWidth / viewport.width));
+    const dpr2 = window.devicePixelRatio || 1;
+    const MAX_DIM = 16384; // device pixels
+    const MAX_AREA = 16384 * 16384;
+
+    // Preserve and clear selection to avoid highlight artifacts in screenshots
+    const selection = window.getSelection();
+    const storedRanges: Range[] = [];
+    if (selection && !selection.isCollapsed) {
+      for (let index = 0; index < selection.rangeCount; index += 1) {
+        storedRanges.push(selection.getRangeAt(index).cloneRange());
+      }
+      selection.removeAllRanges();
+      await waitForNextPaint();
+    }
+
+    const originalScroll = { x: window.scrollX, y: window.scrollY };
+    const maxColsPerImage = Math.max(
+      1,
+      Math.floor(MAX_DIM / Math.ceil(viewport.width * dpr2)),
+    );
+    const maxRowsPerImage = Math.max(
+      1,
+      Math.floor(MAX_DIM / Math.ceil(viewport.height * dpr2)),
+    );
+
+    for (let rowStart = 0; rowStart < rows; rowStart += maxRowsPerImage) {
+      const rowsInBatch = Math.min(maxRowsPerImage, rows - rowStart);
+      for (let colStart = 0; colStart < cols; colStart += maxColsPerImage) {
+        const colsInBatch = Math.min(maxColsPerImage, cols - colStart);
+        const batchPixelW = Math.ceil(colsInBatch * viewport.width * dpr2);
+        const batchPixelH = Math.ceil(rowsInBatch * viewport.height * dpr2);
+        const areaOk = batchPixelW * batchPixelH <= MAX_AREA;
+        const canvasW = areaOk ? batchPixelW : Math.min(batchPixelW, MAX_DIM);
+        const canvasH = areaOk ? batchPixelH : Math.min(batchPixelH, MAX_DIM);
+        const stitched = document.createElement("canvas");
+        stitched.width = canvasW;
+        stitched.height = canvasH;
+        const ctx = stitched.getContext("2d");
+
+        for (let r = 0; r < rowsInBatch; r++) {
+          for (let c = 0; c < colsInBatch; c++) {
+            const globalRow = rowStart + r;
+            const globalCol = colStart + c;
+            const tileLeftAbs = elementAbsLeft + globalCol * viewport.width;
+            const tileTopAbs = elementAbsTop + globalRow * viewport.height;
+            window.scrollTo(tileLeftAbs, tileTopAbs);
+            await waitForNextPaint();
+            const dataUrl = await captureVisiblePngWithThrottle();
+            if (!dataUrl) continue;
+            // Account for scroll clamping at edges by using actual offsets
+            const actualLeft = window.scrollX;
+            const actualTop = window.scrollY;
+            const expectedLeft = tileLeftAbs;
+            const expectedTop = tileTopAbs;
+            const vx = Math.max(0, expectedLeft - actualLeft);
+            const vy = Math.max(0, expectedTop - actualTop);
+            const remainingW = totalWidth - globalCol * viewport.width;
+            const remainingH = totalHeight - globalRow * viewport.height;
+            const tileW = Math.min(viewport.width - vx, remainingW);
+            const tileH = Math.min(viewport.height - vy, remainingH);
+            const { canvas } = await cropToCanvas(
+              dataUrl,
+              { left: vx, top: vy, width: tileW, height: tileH } as DOMRect,
+              viewport,
+            );
+            const destX = Math.floor(c * viewport.width * dpr2);
+            const destY = Math.floor(r * viewport.height * dpr2);
+            const destW = Math.floor(tileW * dpr2);
+            const destH = Math.floor(tileH * dpr2);
+            ctx?.drawImage(
+              canvas,
+              0,
+              0,
+              canvas.width,
+              canvas.height,
+              destX,
+              destY,
+              destW,
+              destH,
+            );
+          }
+        }
+        downloadImage(
+          stitched.toDataURL("image/png"),
+          `myz-article-${Date.now()}-${rowStart}-${colStart}.png`,
+        );
+      }
+    }
+    window.scrollTo(originalScroll.x, originalScroll.y);
+
+    // Restore selection if cleared
+    if (selection && storedRanges.length) {
+      try {
+        storedRanges.forEach((storedRange) => {
+          try {
+            selection.addRange(storedRange);
+          } catch {}
+        });
+      } catch {}
+    }
+  } catch (e) {
+    console.error("captureZenTargetFull failed", e);
+    throw e;
+  }
 }
 
 function buildZenCss(): string {

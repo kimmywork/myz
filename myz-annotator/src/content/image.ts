@@ -1,3 +1,5 @@
+import { waitForNextPaint } from "./html.ts";
+
 export interface ImageCropResult {
   canvas: HTMLCanvasElement;
   scaleX: number;
@@ -125,4 +127,38 @@ export async function cropToCanvas(
   const context = canvas.getContext("2d");
   context?.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
   return { canvas, scaleX, scaleY, sw, sh };
+}
+
+let __myzLastCaptureAt = 0;
+
+function sleep(ms: number) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+export async function captureVisiblePngWithThrottle(maxRetries = 4) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const now = Date.now();
+    const since = now - __myzLastCaptureAt;
+    const minGap = 650; // ms, stay under rate limit
+    if (since < minGap) {
+      await sleep(minGap - since);
+    }
+    await waitForNextPaint();
+    const resp = (await new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(
+          { type: "myz:captureSelection", payload: { format: "png" } },
+          (r) => resolve(r),
+        );
+      } catch (e) {
+        resolve(null);
+      }
+    })) as { ok: boolean; data?: { dataUrl: string } } | null;
+    __myzLastCaptureAt = Date.now();
+    if (resp && resp.ok && resp.data && resp.data.dataUrl) {
+      return resp.data.dataUrl;
+    }
+    await sleep(700 + attempt * 250);
+  }
+  throw new Error("capture throttled or failed");
 }
