@@ -1,36 +1,14 @@
 import { defineComponent, ref } from "vue";
 import TagInput from "@/dashboard/components/TagInput.jsx";
-
-interface SaveHighlightModalProps {
-  visible: boolean;
-  aiResponse: string;
-  onSave: (data: { note: string; tags: string[] }) => Promise<void>;
-  onClose: () => void;
-}
+import { useUIStore } from "./stores/ui.js";
+import { storeToRefs } from "pinia";
 
 export default defineComponent({
   name: "SaveHighlightModal",
-  props: {
-    visible: {
-      type: Boolean,
-      required: true,
-      default: false,
-    },
-    aiResponse: {
-      type: String,
-      required: true,
-      default: "",
-    },
-    onSave: {
-      type: Function,
-      required: true,
-    },
-    onClose: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props: SaveHighlightModalProps) {
+  setup() {
+    const uiStore = useUIStore();
+    const { saveModal } = storeToRefs(uiStore);
+
     const note = ref("");
     const tags = ref(["ai-generated"]);
     const saving = ref(false);
@@ -38,8 +16,8 @@ export default defineComponent({
 
     function handleSave() {
       saving.value = true;
-      props
-        .onSave({
+      uiStore
+        .saveHighlight({
           note: note.value,
           tags: [...tags.value],
         })
@@ -52,11 +30,11 @@ export default defineComponent({
     function handleClose() {
       note.value = "";
       tags.value = ["ai-generated"];
-      props?.onClose();
+      uiStore.closeSaveModal();
     }
 
     return () =>
-      props?.visible ? (
+      saveModal.value.visible ? (
         <div
           class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur"
           onClick={handleClose}
@@ -83,7 +61,7 @@ export default defineComponent({
                   AI回复内容
                 </h4>
                 <div class="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap">
-                  {props?.aiResponse}
+                  {saveModal.value.aiResponse}
                 </div>
               </div>
 
@@ -106,7 +84,7 @@ export default defineComponent({
                 <TagInput
                   ref={tagInputRef}
                   modelValue={tags.value}
-                  onUpdate:modelValue={(val) => (tags.value = val)}
+                  onUpdate:modelValue={(val: string[]) => (tags.value = val)}
                   placeholder="添加标签，按回车确认"
                 />
               </div>

@@ -1,5 +1,8 @@
 import { defineComponent } from "vue";
+import { useUIStore } from "../stores/ui.js";
+import { storeToRefs } from "pinia";
 import { ToolInvocationDetails } from "@/background/aiProvider.js";
+
 export interface ToolResponseViewerState {
   visible: boolean;
   title: string;
@@ -10,35 +13,21 @@ export interface ToolResponseViewerState {
   invocationDetails: ToolInvocationDetails[];
 }
 
-interface ToolResponseModalProps {
-  viewer?: ToolResponseViewerState;
-  onClose: () => void;
-}
-
 export default defineComponent({
   name: "ToolResponseModal",
-  props: {
-    viewer: {
-      type: Object as () => ToolResponseViewerState,
-      required: false,
-      default: () => ({
-        visible: false,
-        title: "",
-        toolName: "",
-        invocationDetails: [],
-      }),
-    },
-    onClose: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props: ToolResponseModalProps) {
+  setup() {
+    const uiStore = useUIStore();
+    const { toolResponseViewer } = storeToRefs(uiStore);
+
+    const handleClose = () => {
+      uiStore.closeToolResponse();
+    };
+
     return () =>
-      props.viewer?.visible ? (
+      toolResponseViewer.value.visible ? (
         <div
           class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur"
-          onClick={() => props.onClose?.()}
+          onClick={handleClose}
         >
           <div
             class="flex flex-col w-full max-w-2xl max-h-[90vh] rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900"
@@ -47,24 +36,24 @@ export default defineComponent({
             <header class="flex-none flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800">
               <div>
                 <div class="text-lg font-semibold text-slate-900 dark:text-white">
-                  🔧 {props.viewer.toolName}
+                  🔧 {toolResponseViewer.value.toolName}
                 </div>
-                {props.viewer.timestamp && (
+                {toolResponseViewer.value.timestamp && (
                   <div class="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(props.viewer.timestamp).toLocaleString()}
+                    {new Date(toolResponseViewer.value.timestamp).toLocaleString()}
                   </div>
                 )}
               </div>
               <button
                 class="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-500 hover:text-slate-700 dark:border-slate-700 dark:text-slate-300"
-                onClick={() => props.onClose?.()}
+                onClick={handleClose}
               >
                 ✕
               </button>
             </header>
             <div class="mt-4 space-y-4 overflow-y-auto flex-1 min-h-0">
-              {props.viewer.invocationDetails.length > 0 ? (
-                props.viewer.invocationDetails.map((detail) => (
+              {toolResponseViewer.value.invocationDetails.length > 0 ? (
+                toolResponseViewer.value.invocationDetails.map((detail) => (
                   <div
                     key={detail.id}
                     class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
@@ -77,18 +66,18 @@ export default defineComponent({
                 ))
               ) : (
                 <>
-                  {props.viewer.args && (
+                  {toolResponseViewer.value.args && (
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                       <div class="text-sm font-semibold">调用参数</div>
                       <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400 overflow-x-auto">
-                        {props.viewer.args}
+                        {toolResponseViewer.value.args}
                       </pre>
                     </div>
                   )}
                   <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     <div class="text-sm font-semibold">工具输出</div>
                     <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-500 dark:text-slate-400 overflow-x-auto">
-                      {props.viewer.content || "（无内容）"}
+                      {toolResponseViewer.value.content || "（无内容）"}
                     </pre>
                   </div>
                 </>

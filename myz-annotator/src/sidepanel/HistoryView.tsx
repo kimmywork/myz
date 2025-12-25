@@ -1,88 +1,33 @@
-import { defineComponent, ref, onMounted, Ref } from "vue";
-import {
-  listConversations,
-  getMessagesForConversation,
-  deleteConversation,
-  ConversationInfo,
-} from "./aiStorage.js";
-import { Conversation } from "@/background/aiProvider.js";
-
-interface HistoryViewProps {
-  onSelectConversation: (data: Conversation) => void;
-  onBack: () => void;
-}
+import { defineComponent, onMounted } from "vue";
+import { useHistoryStore } from "./stores/history.js";
+import { useChatStore } from "./stores/chat.js";
+import { useUIStore } from "./stores/ui.js";
+import { ConversationInfo } from "./aiStorage.js";
 
 export default defineComponent({
   name: "HistoryView",
-  props: {
-    onSelectConversation: {
-      type: Function,
-      required: true,
-    },
-    onBack: {
-      type: Function,
-      required: true,
-    },
-  },
-  setup(props: HistoryViewProps) {
-    const conversations: Ref<ConversationInfo[]> = ref([]);
-    const isLoading = ref(true);
-
-    async function loadConversations() {
-      isLoading.value = true;
-      try {
-        // Get all conversations
-        const allConversations = await listConversations(100);
-
-        // Filter to only show conversations with AI responses (assistant messages)
-        const filtered = [];
-        for (const conv of allConversations) {
-          try {
-            const messages = await getMessagesForConversation(conv.id, 1000);
-            // Check if there's at least one assistant message
-            const hasAIResponse = messages.some((m) => m.role === "assistant");
-            if (hasAIResponse) {
-              filtered.push(conv);
-            }
-          } catch (e) {
-            console.warn("Failed to check conversation:", conv.id, e);
-          }
-        }
-        conversations.value = filtered;
-      } catch (e) {
-        console.error("Failed to load conversations:", e);
-      } finally {
-        isLoading.value = false;
-      }
-    }
+  setup() {
+    const historyStore = useHistoryStore();
+    const chatStore = useChatStore();
+    const uiStore = useUIStore();
 
     async function selectConversation(conv: ConversationInfo) {
-      try {
-        const messages = await getMessagesForConversation(conv.id, 1000);
-        props.onSelectConversation({
-          conversationId: conv.id,
-          title: conv.title,
-          url: conv.url,
-          messages,
-          sendContextEnabled:
-            typeof conv.sendContextEnabled === "boolean"
-              ? conv.sendContextEnabled
-              : messages.some((m) => m.metadata?.type === "page_context"),
-        });
-      } catch (e) {
-        console.error("Failed to load conversation:", e);
-      }
+      await chatStore.loadConversation(conv.id);
+      uiStore.setView("chat");
     }
 
     async function deleteConv(convId: string) {
       if (confirm("确定要删除这个对话吗？")) {
         try {
-          await deleteConversation(convId);
-          await loadConversations();
+          await historyStore.deleteConv(convId);
         } catch (e) {
           console.error("Failed to delete conversation:", e);
         }
       }
+    }
+
+    function handleBack() {
+      uiStore.setView("chat");
     }
 
     function formatDate(dateString: string) {
@@ -99,7 +44,7 @@ export default defineComponent({
     }
 
     onMounted(() => {
-      loadConversations();
+      historyStore.loadConversations();
     });
 
     return () => (
@@ -110,24 +55,24 @@ export default defineComponent({
           </h2>
           <button
             class="inline-flex items-center rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
-            onClick={props.onBack}
+            onClick={handleBack}
           >
             返回
           </button>
         </header>
 
-        {isLoading.value ? (
+        {historyStore.isLoading ? (
           <div class="flex flex-1 items-center justify-center text-sm text-slate-500 dark:text-slate-400">
             加载中...
           </div>
-        ) : conversations.value.length === 0 ? (
+        ) : historyStore.conversations.length === 0 ? (
           <div class="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/70 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
             <p class="text-base font-medium">暂无对话历史</p>
             <p class="mt-1 text-xs">与AI助理的对话将自动保存到这里</p>
           </div>
         ) : (
           <ul class="flex-1 space-y-3 overflow-y-auto pr-1">
-            {conversations.value.map((conv) => (
+            {historyStore.conversations.map((conv) => (
               <li
                 key={conv.id}
                 class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-4 shadow-sm transition hover:border-indigo-400 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-800/80"

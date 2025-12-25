@@ -1,4 +1,5 @@
-import { computed, defineComponent, VNodeRef } from "vue";
+import { computed, defineComponent } from "vue";
+import { storeToRefs } from "pinia";
 import AssistantMessageBubble from "./messages/AssistantMessageBubble.jsx";
 import ConversationEmptyState from "./messages/ConversationEmptyState.jsx";
 import { resolveToolNames } from "./messages/messageUtils.jsx";
@@ -7,19 +8,10 @@ import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
 import ToolInlineNotice from "./messages/ToolInlineNotice.jsx";
 import ToolMessageCard from "./messages/ToolMessageCard.jsx";
 import UserMessageBubble from "./messages/UserMessageBubble.jsx";
-import { Message, MessageStream } from "@/background/aiProvider.js";
-
-interface ConversationListProps {
-  messages: Message[];
-  listRef?: VNodeRef;
-  onToolDetails?: (message: Message) => void;
-  onToolResponse?: (message: Message) => void;
-  onSaveAssistant?: (messageId: string) => void;
-  isSavingHighlight?: boolean;
-  streaming?: MessageStream;
-  hasActiveStream?: boolean;
-  isLoading?: boolean;
-}
+import { Message } from "@/background/aiProvider.js";
+import { useChatStore } from "../stores/chat.js";
+import { useUIStore } from "../stores/ui.js";
+import { usePageStore } from "../stores/page.js";
 
 function isToolInvocationNotice(msg: Message): boolean {
   if (!msg || msg.role !== "assistant" || !msg.metadata?.hasToolCalls) {
@@ -36,53 +28,14 @@ function isToolInvocationNotice(msg: Message): boolean {
 
 export default defineComponent({
   name: "ConversationList",
-  props: {
-    messages: {
-      type: Array as () => Message[],
-      required: true,
-      default: () => [],
-    },
-    listRef: {
-      type: Object as () => VNodeRef,
-      required: false,
-      default: null,
-    },
-    onToolDetails: {
-      type: Function,
-      required: true,
-    },
-    onToolResponse: {
-      type: Function,
-      required: true,
-    },
-    onSaveAssistant: {
-      type: Function,
-      required: true,
-    },
-    isSavingHighlight: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-    streaming: {
-      type: Object as () => MessageStream,
-      required: true,
-      default: () => ({}),
-    },
-    hasActiveStream: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-    isLoading: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-  },
-  setup(props: ConversationListProps) {
+  setup() {
+    const chatStore = useChatStore();
+    const uiStore = useUIStore();
+    const pageStore = usePageStore();
+    const { messageListRef } = storeToRefs(uiStore);
+
     const messageEntries = computed(() =>
-      props.messages
+      chatStore.visibleMessages
         .filter(Boolean)
         .filter((msg) => msg.metadata?.type !== "streaming_preview"),
     );
@@ -90,6 +43,21 @@ export default defineComponent({
     const hasDetails = (metadata: Message["metadata"]) =>
       Array.isArray(metadata?.toolCallDetails) &&
       metadata.toolCallDetails.length > 0;
+
+    const handleMessageClick = (event: MouseEvent) => {
+      const anchor = (event.target as HTMLElement).closest("a");
+      if (!anchor) {
+        return;
+      }
+      const href = anchor.getAttribute("href") || "";
+      if (!href.startsWith("myz-chunk://")) {
+        return;
+      }
+      event.preventDefault();
+      const chunkId = href.replace("myz-chunk://", "");
+      const snippet = anchor.getAttribute("title") || anchor.textContent || "";
+      pageStore.scrollToCitation(chunkId, snippet);
+    };
 
     const renderMessage = (msg: Message) => {
       if (msg.metadata?.type === "page_context") {
@@ -108,7 +76,7 @@ export default defineComponent({
             timestamp={new Date(msg.timestamp).toLocaleTimeString()}
             onDetails={
               hasDetails(msg.metadata)
-                ? () => props.onToolDetails?.(msg)
+                ? () => uiStore.openToolInvocationDetails(msg)
                 : undefined
             }
             showButton={hasDetails(msg.metadata)}
@@ -122,7 +90,7 @@ export default defineComponent({
           <ToolMessageCard
             key={msg.id}
             message={msg}
-            onView={(msg) => props.onToolResponse?.(msg)}
+            onView={(msg) => uiStore.openToolResponse(msg)}
           />
         );
       }
@@ -132,9 +100,9 @@ export default defineComponent({
           <AssistantMessageBubble
             key={msg.id}
             message={msg}
-            onSave={(msgId) => props.onSaveAssistant?.(msgId)}
-            onToolDetails={(msg) => props.onToolDetails?.(msg)}
-            isSaving={props.isSavingHighlight}
+            onSave={() => uiStore.openSaveModal(msg)}
+            onToolDetails={(msg) => uiStore.openToolInvocationDetails(msg)}
+            isSaving={uiStore.isSavingHighlight}
           />
         );
       }
@@ -145,15 +113,16 @@ export default defineComponent({
     return () => (
       <div
         class="flex flex-1 flex-col space-y-3 overflow-y-auto px-3 py-4 pr-4"
-        ref={props.listRef}
+        ref={messageListRef}
+        onClick={handleMessageClick}
       >
         {messageEntries.value.length === 0 && <ConversationEmptyState />}
 
         {messageEntries.value.map((msg) => renderMessage(msg))}
 
-        {props.hasActiveStream && <StreamingMessage stream={props.streaming} />}
+        {chatStore.hasActiveStream && <StreamingMessage stream={chatStore.activeStream} />}
 
-        {props.isLoading && (
+        {chatStore.isLoading && (
           <div class="flex items-center justify-center gap-2 text-sm text-slate-500">
             <span class="animate-spin">⏳</span>
             AI 正在思考...
