@@ -1,12 +1,14 @@
 import { defineComponent, ref, Ref } from "vue";
-import { useDashboardStore } from "../store/useDashboardStore.js";
+import { useHighlightsStore } from "../stores/highlights.js";
+import { useUIStore } from "../stores/ui.js";
 import TagInput from "./TagInput.jsx";
 import { IconCalendar } from "@/shared/icons.js";
 
 export default defineComponent({
   name: "FilterToolbar",
   setup() {
-    const store = useDashboardStore();
+    const highlightsStore = useHighlightsStore();
+    const uiStore = useUIStore();
     const fromRef: Ref<HTMLInputElement | null> = ref(null);
     const toRef: Ref<HTMLInputElement | null> = ref(null);
 
@@ -32,9 +34,9 @@ export default defineComponent({
                 type="search"
                 placeholder="搜索文本、批注或标签"
                 class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100 dark:placeholder:text-slate-500"
-                value={store.filters.search}
+                value={uiStore.filters.search}
                 onInput={(event: InputEvent) =>
-                  store.setFilter(
+                  uiStore.setFilter(
                     "search",
                     (event.target as HTMLInputElement).value,
                   )
@@ -46,16 +48,16 @@ export default defineComponent({
               <select
                 data-testid="site-filter"
                 class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/60 dark:text-white"
-                value={store.filters.site}
+                value={uiStore.filters.site}
                 onChange={(event: Event) =>
-                  store.setFilter(
+                  uiStore.setFilter(
                     "site",
                     (event.target as HTMLSelectElement).value,
                   )
                 }
               >
                 <option value="">全部网站</option>
-                {store.availableSites.value.map((site: string) => (
+                {highlightsStore.availableSites.map((site: string) => (
                   <option key={site} value={site}>
                     {site}
                   </option>
@@ -65,11 +67,11 @@ export default defineComponent({
             <label class="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
               <span>标签</span>
               <TagInput
-                modelValue={store.filters.tags}
-                options={store.availableTags.value}
+                modelValue={uiStore.filters.tags}
+                options={highlightsStore.availableTags}
                 placeholder="输入后按回车或逗号确认"
                 allowNew={false}
-                onUpdate:modelValue={(value) => store.setFilter("tags", value)}
+                onUpdate:modelValue={(value) => uiStore.setFilter("tags", value)}
               />
             </label>
           </div>
@@ -81,9 +83,9 @@ export default defineComponent({
                   ref={fromRef}
                   type="date"
                   class="w-full appearance-none bg-transparent text-sm text-slate-800 outline-none dark:text-white"
-                  value={store.filters.from}
+                  value={uiStore.filters.from}
                   onInput={(event: InputEvent) =>
-                    store.setFilter(
+                    uiStore.setFilter(
                       "from",
                       (event.target as HTMLInputElement).value,
                     )
@@ -106,9 +108,9 @@ export default defineComponent({
                   ref={toRef}
                   type="date"
                   class="w-full appearance-none bg-transparent text-sm text-slate-800 outline-none dark:text-white"
-                  value={store.filters.to}
+                  value={uiStore.filters.to}
                   onInput={(event: InputEvent) =>
-                    store.setFilter(
+                    uiStore.setFilter(
                       "to",
                       (event.target as HTMLInputElement).value,
                     )
@@ -128,7 +130,7 @@ export default defineComponent({
               <button
                 type="button"
                 class="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-200"
-                onClick={store.resetFilters}
+                onClick={uiStore.resetFilters}
               >
                 重置筛选
               </button>

@@ -1,11 +1,13 @@
 import { defineComponent, onBeforeUnmount, onMounted, ref, Ref } from "vue";
-import { useDashboardStore } from "../store/useDashboardStore.js";
+import { useHighlightsStore } from "../stores/highlights.js";
+import { useUIStore } from "../stores/ui.js";
 import HighlightGroups from "./HighlightGroups.jsx";
 
 export default defineComponent({
   name: "HighlightsPane",
   setup() {
-    const store = useDashboardStore();
+    const highlightsStore = useHighlightsStore();
+    const uiStore = useUIStore();
     const exportMenuOpen = ref(false);
     const exportMenuRef: Ref<HTMLElement | null> = ref(null);
 
@@ -14,7 +16,7 @@ export default defineComponent({
     }
 
     function handleExport(format: "json" | "markdown") {
-      store.handleExport(format);
+      highlightsStore.handleExport(format);
       exportMenuOpen.value = false;
     }
 
@@ -53,7 +55,7 @@ export default defineComponent({
               全部记录
             </h2>
             <p class="text-sm text-slate-500 dark:text-slate-400">
-              {store.summaryText.value}
+              {uiStore.summaryText}
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-3">
@@ -66,11 +68,11 @@ export default defineComponent({
                 type="button"
                 class={[
                   "rounded-full px-4 py-1.5 transition",
-                  store.view.value === "cards"
+                  uiStore.view === "cards"
                     ? "bg-indigo-600 text-white shadow"
                     : "text-slate-500 dark:text-slate-300",
                 ].join(" ")}
-                onClick={() => store.setView("cards")}
+                onClick={() => uiStore.setView("cards")}
               >
                 卡片
               </button>
@@ -78,11 +80,11 @@ export default defineComponent({
                 type="button"
                 class={[
                   "rounded-full px-4 py-1.5 transition",
-                  store.view.value === "list"
+                  uiStore.view === "list"
                     ? "bg-indigo-600 text-white shadow"
                     : "text-slate-500 dark:text-slate-300",
                 ].join(" ")}
-                onClick={() => store.setView("list")}
+                onClick={() => uiStore.setView("list")}
               >
                 列表
               </button>

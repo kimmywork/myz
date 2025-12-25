@@ -1,82 +1,31 @@
 import { computed, defineComponent, Ref, ref, watch } from "vue";
-import { Settings, VectorSettings } from "@/background/settings";
-
-export interface VectorSearchSectionProps {
-  settings?: Settings;
-  status?: string;
-  loading?: boolean;
-  onToggleEnable: (enabled: boolean) => void;
-  onLoadLocal: () => Promise<void>;
-  onRebuild: () => Promise<void>;
-  onTestOpenAi: (payload: any) => Promise<{ success: boolean } | void>;
-  onSave: (payload: any) => Promise<void>;
-  onSwitchProvider?: (payload: any) => Promise<void>;
-}
+import { useSettingsStore } from "../../stores/settings.js";
+import { VectorSettings } from "@/background/settings";
 
 export type EmbeddingProviderType = "local" | "openai";
 
 export default defineComponent({
   name: "VectorSearchSection",
-  props: {
-    settings: {
-      type: Object as () => Settings,
-      required: false,
-      default: () => ({}),
-    },
-    status: {
-      type: String,
-      required: false,
-      default: "",
-    },
-    loading: {
-      type: Boolean,
-      required: false,
-      default: false,
-    },
-    onToggleEnable: {
-      type: Function,
-      required: true,
-    },
-    onLoadLocal: {
-      type: Function,
-      required: true,
-    },
-    onRebuild: {
-      type: Function,
-      required: true,
-    },
-    onTestOpenAi: {
-      type: Function,
-      required: true,
-    },
-    onSave: {
-      type: Function,
-      required: true,
-    },
-    onSwitchProvider: {
-      type: Function,
-      required: false,
-    },
-  },
-  setup(props: VectorSearchSectionProps) {
+  setup() {
+    const store = useSettingsStore();
     const providerType: Ref<EmbeddingProviderType> = ref(
-      props.settings?.vectorUseLocalModel ? "local" : "openai",
+      store.settings.vectorUseLocalModel ? "local" : "openai",
     );
-    const maxChars = ref(props.settings?.vectorMaxChars || 500);
-    const endpoint = ref(props.settings?.vectorOpenAiEndpoint || "");
-    const apiKey = ref(props.settings?.vectorOpenAiApiKey || "");
+    const maxChars = ref(store.settings.vectorMaxChars || 500);
+    const endpoint = ref(store.settings.vectorOpenAiEndpoint || "");
+    const apiKey = ref(store.settings.vectorOpenAiApiKey || "");
     const model = ref(
-      props.settings?.vectorOpenAiModel || "text-embedding-3-small",
+      store.settings.vectorOpenAiModel || "text-embedding-3-small",
     );
     const testPassed = ref(false);
     const modelReady = computed(() => {
       return providerType.value === "openai"
-        ? testPassed.value || Boolean(props.settings?.vectorSearchEnabled)
-        : Boolean(props.settings?.vectorModelReady);
+        ? testPassed.value || Boolean(store.settings.vectorSearchEnabled)
+        : Boolean(store.settings.vectorModelReady);
     });
 
     watch(
-      () => props.settings,
+      () => store.settings,
       (next) => {
         providerType.value = next?.vectorUseLocalModel ? "local" : "openai";
         maxChars.value = next?.vectorMaxChars || 500;
@@ -89,7 +38,7 @@ export default defineComponent({
 
     function buildPayload(type: EmbeddingProviderType = providerType.value): VectorSettings {
       return {
-        vectorSearchEnabled: Boolean(props.settings?.vectorSearchEnabled),
+        vectorSearchEnabled: Boolean(store.settings.vectorSearchEnabled),
         vectorUseLocalModel: type === "local",
         vectorMaxChars: Number(maxChars.value) || 500,
         vectorOpenAiEndpoint: endpoint.value.trim(),
@@ -97,26 +46,26 @@ export default defineComponent({
         vectorOpenAiModel: model.value.trim() || "text-embedding-3-small",
         vectorModelReady:
           providerType.value === "openai"
-            ? testPassed.value && Boolean(props.settings?.vectorSearchEnabled)
+            ? testPassed.value && Boolean(store.settings.vectorSearchEnabled)
             : modelReady.value,
       };
     }
 
     function handleToggleEnable(event: Event) {
-      props.onToggleEnable?.((event.target as HTMLInputElement).checked);
+      store.toggleVectorSearch((event.target as HTMLInputElement).checked);
     }
 
     async function handleLoadLocal() {
-      await props.onLoadLocal?.();
+      await store.loadVectorModel();
     }
 
     async function handleRebuild() {
-      await props.onRebuild?.();
+      await store.rebuildVectorIndex();
     }
 
     async function handleTestOpenAi() {
       const payload = buildPayload("openai");
-      const result = await props.onTestOpenAi?.(payload);
+      const result = await store.testVectorProvider(payload);
       if (result?.success) {
         testPassed.value = true;
       }
@@ -124,16 +73,14 @@ export default defineComponent({
 
     async function handleSave() {
       const payload = buildPayload();
-      await props.onSave?.(payload);
+      await store.saveSettings(payload);
     }
 
     async function handleSwitch(type: EmbeddingProviderType) {
       providerType.value = type;
       testPassed.value = false;
       const payload = buildPayload(type);
-      if (typeof props.onSwitchProvider === "function") {
-        await props.onSwitchProvider(payload);
-      }
+      await store.switchVectorProvider(payload);
     }
 
     return () => (
@@ -151,7 +98,7 @@ export default defineComponent({
             <input
               type="checkbox"
               class="h-4 w-4 accent-sky-600"
-              checked={props.settings?.vectorSearchEnabled}
+              checked={store.settings.vectorSearchEnabled}
               onChange={handleToggleEnable}
             />
             启用
@@ -181,19 +128,19 @@ export default defineComponent({
               <button
                 type="button"
                 class="btn btn-primary btn-sm"
-                disabled={!props.settings?.vectorSearchEnabled || props.loading}
+                disabled={!store.settings.vectorSearchEnabled || store.vectorModelLoading}
                 onClick={handleLoadLocal}
               >
-                {props.loading
+                {store.vectorModelLoading
                   ? "加载中…"
-                  : props.settings?.vectorModelReady
+                  : store.settings.vectorModelReady
                     ? "重新加载模型"
                     : "加载模型"}
               </button>
               <button
                 type="button"
                 class="btn btn-outline btn-sm"
-                disabled={!props.settings?.vectorSearchEnabled}
+                disabled={!store.settings.vectorSearchEnabled}
                 onClick={handleSave}
               >
                 保存设置
@@ -246,7 +193,7 @@ export default defineComponent({
               <button
                 type="button"
                 class="btn btn-secondary btn-sm"
-                disabled={!props.settings?.vectorSearchEnabled || props.loading}
+                disabled={!store.settings.vectorSearchEnabled || store.vectorModelLoading}
                 onClick={handleTestOpenAi}
               >
                 测试连接
@@ -254,7 +201,7 @@ export default defineComponent({
               <button
                 type="button"
                 class="btn btn-outline btn-sm"
-                disabled={!props.settings?.vectorSearchEnabled}
+                disabled={!store.settings.vectorSearchEnabled}
                 onClick={handleSave}
               >
                 保存设置
@@ -282,7 +229,7 @@ export default defineComponent({
               <button
                 type="button"
                 class="btn btn-secondary btn-sm"
-                disabled={!props.settings?.vectorSearchEnabled || props.loading}
+                disabled={!store.settings.vectorSearchEnabled || store.vectorModelLoading}
                 onClick={handleRebuild}
               >
                 重建索引
@@ -290,7 +237,7 @@ export default defineComponent({
               <button
                 type="button"
                 class="btn btn-outline btn-sm"
-                disabled={!props.settings?.vectorSearchEnabled}
+                disabled={!store.settings.vectorSearchEnabled}
                 onClick={handleSave}
               >
                 保存设置
@@ -301,7 +248,7 @@ export default defineComponent({
             {modelReady.value
               ? "模型已准备就绪"
               : "模型未加载或未测试"}
-            {props.status ? ` · ${props.status}` : ""}
+            {store.vectorModelStatus ? ` · ${store.vectorModelStatus}` : ""}
           </div>
         </div>
       </section>

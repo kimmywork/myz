@@ -1,80 +1,16 @@
-import { defineComponent, Ref, ref } from "vue";
-import { useDashboardStore } from "../store/useDashboardStore.js";
+import { defineComponent } from "vue";
+import { useUIStore } from "../stores/ui.js";
 import AiSettings from "./AiSettings.jsx";
 import ImportHighlightsSection from "./settings/ImportHighlightsSection.jsx";
 import VectorSearchSection from "./settings/VectorSearchSection.jsx";
-import { ImportStrategy } from "@/background/import.js";
-import { Settings } from "@/background/settings.js";
 
 export default defineComponent({
   name: "SettingsPane",
-  setup(props) {
-    const store = useDashboardStore();
-    const importFileRef: Ref<HTMLInputElement | null> = ref(null);
-    const importStrategy: Ref<ImportStrategy> = ref("skip");
-    const isImporting = ref(false);
-
-    async function handleImport() {
-      const fileInput = importFileRef.value;
-      const file = fileInput?.files?.[0];
-      isImporting.value = true;
-      try {
-        await store.importHighlightsFromFile(file, importStrategy.value);
-        if (fileInput) {
-          fileInput.value = "";
-        }
-      } catch (error) {
-        // status already surfaced by store
-      } finally {
-        isImporting.value = false;
-      }
-    }
-
-    // AI Settings handlers
-    async function handleAiSaveSettings(payload: Partial<Settings>) {
-      try {
-        store.settingsStatus.value = "保存中...";
-        await store.saveSettings(payload);
-        store.settingsStatus.value = "设置已保存";
-        setTimeout(() => {
-          store.settingsStatus.value = "";
-        }, 3000);
-      } catch (error) {
-        store.settingsStatus.value = `保存失败：${(error as Error).message}`;
-        throw error;
-      }
-    }
-
-    async function handleAiTestConnection(settings: Partial<Settings>) {
-      return await store.testAiConnection(settings);
-    }
+  setup() {
+    const uiStore = useUIStore();
 
     function handleCloseSettings() {
-      store.showHighlights();
-    }
-
-    async function handleVectorToggle(enabled: boolean) {
-      await store.toggleVectorSearch(enabled);
-    }
-
-    async function handleVectorLoad() {
-      await store.loadVectorModel();
-    }
-
-    async function handleVectorRebuild() {
-      await store.rebuildVectorIndex();
-    }
-
-    async function handleVectorTest(payload: Partial<Settings>) {
-      await store.testVectorProvider(payload);
-    }
-
-    async function handleVectorSave(payload: Partial<Settings>) {
-      await store.saveSettings(payload);
-    }
-
-    async function handleVectorSwitch(payload: Partial<Settings>) {
-      await store.switchVectorProvider(payload);
+      uiStore.showHighlights();
     }
 
     return () => (
@@ -101,36 +37,9 @@ export default defineComponent({
         </header>
 
         <div class="mt-4 space-y-4">
-          <ImportHighlightsSection
-            importFileRef={importFileRef}
-            importStrategy={importStrategy.value}
-            onStrategyChange={(value) => (importStrategy.value = value)}
-            onImport={handleImport}
-            isImporting={isImporting.value}
-            status={store.importStatus}
-          />
-
-          <AiSettings
-            settings={store.settings}
-            onSave={handleAiSaveSettings}
-            onTestConnection={handleAiTestConnection}
-            status={store.settingsStatus.value}
-            onUpdateStatus={(value: any) =>
-              (store.settingsStatus.value = value as string)
-            }
-          />
-
-          <VectorSearchSection
-            settings={store.settings}
-            loading={store.vectorModelLoading.value}
-            status={store.vectorModelStatus.value}
-            onToggleEnable={handleVectorToggle}
-            onLoadLocal={handleVectorLoad}
-            onRebuild={handleVectorRebuild}
-            onTestOpenAi={handleVectorTest}
-            onSave={handleVectorSave}
-            onSwitchProvider={handleVectorSwitch}
-          />
+          <ImportHighlightsSection />
+          <AiSettings />
+          <VectorSearchSection />
         </div>
       </section>
     );

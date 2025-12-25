@@ -8,6 +8,7 @@ import {
   ComputedRef,
   Ref,
 } from "vue";
+import { useSettingsStore } from "../stores/settings.js";
 import {
   AIAssistantSettings,
   AIProviderSetting,
@@ -71,43 +72,10 @@ function cloneProvider(provider: AIProviderSetting): AIProviderSetting {
   return JSON.parse(JSON.stringify(provider));
 }
 
-export interface AiSettingsProps {
-  settings: AIAssistantSettings;
-  onSave: (settings: AIAssistantSettings) => Promise<void>;
-  onTestConnection: (settings: AIAssistantSettings) => Promise<{
-    success: boolean;
-    response?: string;
-    error?: string;
-  }>;
-  status?: string;
-  onUpdateStatus?: (message: string) => void;
-}
-
 export default defineComponent({
   name: "AiSettings",
-  props: {
-    settings: {
-      type: Object,
-      required: true,
-    },
-    onSave: {
-      type: Function,
-      required: true,
-    },
-    onTestConnection: {
-      type: Function,
-      required: true,
-    },
-    status: {
-      type: String,
-      default: "",
-    },
-    onUpdateStatus: {
-      type: Function,
-      default: null,
-    },
-  },
-  setup(props) {
+  setup() {
+    const store = useSettingsStore();
     const aiAssistantEnabled = ref(false);
     const providers: Ref<AIProviderSetting[]> = ref([]);
     const activeProviderId: Ref<string | null> = ref(null);
@@ -154,14 +122,14 @@ export default defineComponent({
         providers.value.find((p) => p.id === selectedProviderId.value),
       );
 
-    function updateStatus(message: string, { autoClear = false } = {}) {
-      if (typeof props.onUpdateStatus === "function") {
-        props.onUpdateStatus(message);
-        if (autoClear) {
-          setTimeout(() => props.onUpdateStatus?.(""), 3000);
-        }
-      }
-    }
+    // Sync local state with store settings
+    watch(
+      () => store.settings,
+      (newSettings) => {
+        setFormFromSettings(newSettings);
+      },
+      { deep: true, immediate: true }
+    );
 
     function ensureSelection() {
       if (!selectedProvider.value && providers.value.length) {
@@ -171,12 +139,12 @@ export default defineComponent({
       }
     }
 
-    function setFormFromSettings() {
-      aiAssistantEnabled.value = Boolean(props.settings.aiAssistantEnabled);
-      const incomingProviders = Array.isArray(props.settings.aiProviders)
-        ? props.settings.aiProviders.map(cloneProvider)
+    function setFormFromSettings(settings: AIAssistantSettings) {
+      aiAssistantEnabled.value = Boolean(settings.aiAssistantEnabled);
+      const incomingProviders = Array.isArray(settings.aiProviders)
+        ? settings.aiProviders.map(cloneProvider)
         : [];
-      const legacy = legacyProviderFromSettings(props.settings);
+      const legacy = legacyProviderFromSettings(settings);
       const previousSelectedId = selectedProviderId.value;
       providers.value =
         incomingProviders.length > 0
@@ -186,7 +154,7 @@ export default defineComponent({
             : [];
       const requestedActive = providers.value.find(
         (p) =>
-          p.id === props.settings.aiActiveProviderId && p.lastTestStatus?.ok,
+          p.id === settings.aiActiveProviderId && p.lastTestStatus?.ok,
       );
       activeProviderId.value =
         requestedActive?.id ||
@@ -203,8 +171,8 @@ export default defineComponent({
       ensureSelection();
       showCustomModel.value = selectedProvider.value?.model === "custom";
 
-      mcpServers.value = Array.isArray(props.settings.aiMcpServers)
-        ? props.settings.aiMcpServers.map((s) => ({ ...s }))
+      mcpServers.value = Array.isArray(settings.aiMcpServers)
+        ? settings.aiMcpServers.map((s) => ({ ...s }))
         : [];
 
       testMessage.value = "";
@@ -245,8 +213,7 @@ export default defineComponent({
       }
     }
 
-    async function persistSettings(messagePrefix = "保存中...") {
-      updateStatus(messagePrefix);
+    async function persistSettings() {
       const activeProvider =
         providers.value.find(
           (p) => p.id === activeProviderId.value && p.lastTestStatus?.ok,
@@ -260,18 +227,17 @@ export default defineComponent({
         aiActiveProviderId: resolvedActiveId,
         aiMcpServers: mcpServers.value.map((s) => ({ ...s })),
       };
-      await props.onSave(payload);
-      updateStatus("设置已保存", { autoClear: true });
+      await store.saveSettings(payload);
     }
 
     async function handleToggle(event: Event) {
       const enabled = (event.target as HTMLInputElement).checked;
       aiAssistantEnabled.value = enabled;
       try {
-        await persistSettings("保存中...");
+        await persistSettings();
       } catch (error) {
         aiAssistantEnabled.value = !enabled;
-        updateStatus(`保存失败：${(error as Error).message}`);
+        console.error("Failed to toggle AI assistant:", error);
       }
     }
 
@@ -285,11 +251,16 @@ export default defineComponent({
       isTestingId.value = provider.id;
       testMessage.value = "";
       try {
-        const result = await props.onTestConnection({
-          aiAssistantEnabled: true,
-          aiProviders: [provider],
-          aiActiveProviderId: provider.id,
-        });
+        const testSettings: Partial<AIAssistantSettings> = {
+          aiApiEndpoint: provider.apiEndpoint,
+          aiApiKey: provider.apiKey,
+          aiModel: provider.model,
+          aiCustomModel: provider.customModel,
+          aiRequestHeaders: provider.requestHeaders,
+        };
+
+        const result = await store.testAiConnection(testSettings);
+        
         provider.lastTestStatus = {
           ok: Boolean(result.success),
           message: result.success
@@ -298,20 +269,14 @@ export default defineComponent({
         };
         testMessage.value = provider.lastTestStatus.message;
         if (result.success) {
-          const hasActive =
-            providers.value.find(
-              (p) => p.id === activeProviderId.value && p.lastTestStatus?.ok,
-            ) || null;
-          if (!hasActive) {
-            activeProviderId.value = provider.id;
-          }
+          await persistSettings();
         }
-      } catch (error) {
+      } catch (e) {
         provider.lastTestStatus = {
           ok: false,
-          message: (error as Error).message,
+          message: (e as Error).message,
         };
-        testMessage.value = `测试失败：${(error as Error).message}`;
+        testMessage.value = (e as Error).message;
       } finally {
         isTestingId.value = null;
       }
@@ -319,13 +284,12 @@ export default defineComponent({
 
     async function handleSaveProvider() {
       if (!selectedProvider.value) {
-        updateStatus("请先添加 Provider");
         return;
       }
       try {
         await persistSettings();
       } catch (error) {
-        updateStatus(`保存失败：${(error as Error).message}`);
+        console.error("Failed to save provider:", error);
       }
     }
 
@@ -333,7 +297,6 @@ export default defineComponent({
       const provider = providers.value.find((p) => p.id === id);
       if (!provider) return;
       if (!provider.lastTestStatus?.ok) {
-        updateStatus("请先通过测试再设为正在使用");
         return;
       }
       activeProviderId.value = id;
@@ -341,7 +304,7 @@ export default defineComponent({
       try {
         await persistSettings();
       } catch (error) {
-        updateStatus(`保存失败：${(error as Error).message}`);
+        console.error("Failed to select active provider:", error);
       }
     }
 
@@ -365,11 +328,11 @@ export default defineComponent({
 
     function handleRemoveMcpServer(id: string) {
       mcpServers.value = mcpServers.value.filter((s) => s.id !== id);
+      persistSettings();
     }
 
     async function handleSaveMcpServer() {
       if (!mcpForm.name.trim() || !mcpForm.url.trim()) {
-        updateStatus("请填写服务器名称和URL");
         return;
       }
       const record: McpServerSetting = {
@@ -400,14 +363,8 @@ export default defineComponent({
     }
 
     onMounted(() => {
-      setFormFromSettings();
+      setFormFromSettings(store.settings);
     });
-
-    watch(
-      () => props.settings,
-      () => setFormFromSettings(),
-      { deep: true },
-    );
 
     watch(
       selectedProvider,

@@ -1,20 +1,32 @@
-import { defineComponent, Ref } from "vue";
-import { ImportStatus } from "../../store";
+import { defineComponent, Ref, ref } from "vue";
+import { useHighlightsStore } from "../../stores/highlights.js";
 import { ImportStrategy } from "@/background/import";
-
-export interface ImportHighlightsSectionProps {
-  importFileRef: Ref<HTMLInputElement | null>;
-  importStrategy: ImportStrategy;
-  onStrategyChange: (strategy: ImportStrategy) => void;
-  onImport: () => void;
-  isImporting: boolean;
-  status?: ImportStatus;
-}
 
 export default defineComponent({
   name: "ImportHighlightsSection",
 
-  setup(props: ImportHighlightsSectionProps) {
+  setup() {
+    const store = useHighlightsStore();
+    const importFileRef: Ref<HTMLInputElement | null> = ref(null);
+    const importStrategy: Ref<ImportStrategy> = ref("skip");
+    const isImporting = ref(false);
+
+    async function handleImport() {
+      const fileInput = importFileRef.value;
+      const file = fileInput?.files?.[0];
+      isImporting.value = true;
+      try {
+        await store.importHighlightsFromFile(file, importStrategy.value);
+        if (fileInput) {
+          fileInput.value = "";
+        }
+      } catch (error) {
+        // status already surfaced by store
+      } finally {
+        isImporting.value = false;
+      }
+    }
+
     return () => (
       <section class="settings__group">
         <div class="settings__group-header">
@@ -27,7 +39,7 @@ export default defineComponent({
           <label class="field">
             <span>JSON 文件</span>
             <input
-              ref={props.importFileRef}
+              ref={importFileRef}
               type="file"
               accept="application/json"
             />
@@ -35,11 +47,11 @@ export default defineComponent({
           <label class="field">
             <span>冲突处理</span>
             <select
-              value={props.importStrategy}
+              value={importStrategy.value}
               onChange={(event: Event) =>
-                props.onStrategyChange(
-                  (event.target as HTMLSelectElement).value as ImportStrategy,
-                )
+                (importStrategy.value = (
+                  event.target as HTMLSelectElement
+                ).value as ImportStrategy)
               }
             >
               <option value="skip">遇到重复时跳过</option>
@@ -51,22 +63,22 @@ export default defineComponent({
             <button
               class="btn"
               type="button"
-              disabled={props.isImporting}
-              onClick={props.onImport}
+              disabled={isImporting.value}
+              onClick={handleImport}
             >
-              {props.isImporting ? "导入中…" : "导入 JSON"}
+              {isImporting.value ? "导入中…" : "导入 JSON"}
             </button>
             <p
               class={[
                 "status-line",
-                props.status?.tone === "error"
+                store.importStatus.tone === "error"
                   ? " status-line--error"
-                  : props.status?.tone === "success"
+                  : store.importStatus.tone === "success"
                     ? " status-line--success"
                     : "",
               ].join(" ")}
             >
-              {props.status?.message}
+              {store.importStatus.message}
             </p>
           </div>
         </div>

@@ -1,7 +1,9 @@
 import { computed, defineComponent, ref } from "vue";
-import { useDashboardStore } from "../store/useDashboardStore.js";
+import { useHighlightsStore } from "../stores/highlights.js";
+import { useUIStore } from "../stores/ui.js";
 import { HighlightItemAction } from "./HighlightCard.jsx";
 import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
+import { formatDateTime } from "@/dashboard/utils/records.js";
 
 export default defineComponent({
   name: "HighlightListRow",
@@ -13,7 +15,8 @@ export default defineComponent({
     },
   },
   setup(props: { record: MyZRecord }) {
-    const store = useDashboardStore();
+    const highlightsStore = useHighlightsStore();
+    const uiStore = useUIStore();
     const kind = computed(() => getRecordKind(props.record));
     const hasNote = computed(() => Boolean(props.record?.note));
     const shouldSplitLayout = computed(() => hasNote.value);
@@ -43,19 +46,19 @@ export default defineComponent({
       }
       switch (action) {
         case "copy":
-          store.copyHighlight(id);
+          highlightsStore.copyHighlight(id);
           break;
         case "delete":
-          store.deleteHighlight(id);
+          highlightsStore.deleteHighlight(id);
           break;
         case "view":
-          store.openModal(id, "view");
+          uiStore.openModal(id, "view");
           break;
         case "edit":
-          store.openModal(id, "edit");
+          uiStore.openModal(id, "edit");
           break;
         case "downgrade":
-          store.downgradeHighlight(id);
+          highlightsStore.downgradeHighlight(id);
           break;
         default:
           break;
@@ -96,7 +99,7 @@ export default defineComponent({
             <span
               class="max-w-[120px] truncate font-semibold text-slate-600 dark:text-slate-200"
               title={record.hostname || record.url || ""}
-              innerHTML={store.formatInline(
+              innerHTML={uiStore.formatInline(
                 (record.hostname || record.url || "").substring(0, 20) +
                   ((record.hostname || record.url || "").length > 20
                     ? "..."
@@ -104,7 +107,7 @@ export default defineComponent({
               )}
             ></span>
             <span class="text-slate-400 dark:text-slate-500">
-              {store.formatDateTime(record.createdAt)}
+              {formatDateTime(record.createdAt)}
             </span>
           </div>
 
@@ -115,7 +118,7 @@ export default defineComponent({
                 <span
                   key={tag}
                   class="rounded-full border border-slate-200 px-2 py-0.5 text-xs text-slate-700 dark:border-white/10 dark:text-slate-100"
-                  innerHTML={store.formatInline(tag)}
+                  innerHTML={uiStore.formatInline(tag)}
                 ></span>
               ))}
               {hiddenTagsCount.value > 0 && (
@@ -138,17 +141,17 @@ export default defineComponent({
                 <div class="grid gap-4 md:grid-cols-2">
                   <div
                     class="max-h-32 overflow-y-auto break-all rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70"
-                    innerHTML={store.renderHighlight(record)}
+                    innerHTML={uiStore.renderHighlight(record)}
                   ></div>
                   <div
                     class="max-h-32 overflow-y-auto break-all rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 dark:text-slate-200"
-                    innerHTML={store.formatNote(record.note ?? "")}
+                    innerHTML={uiStore.formatNote(record.note ?? "")}
                   ></div>
                 </div>
               ) : (
                 <div
                   class="max-h-32 overflow-y-auto break-all rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70"
-                  innerHTML={store.renderHighlight(record)}
+                  innerHTML={uiStore.renderHighlight(record)}
                 ></div>
               )}
             </div>

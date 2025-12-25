@@ -1,11 +1,11 @@
 import { defineComponent } from "vue";
-import { useDashboardStore } from "../store/useDashboardStore.js";
+import { useUIStore } from "../stores/ui.js";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 
 export default defineComponent({
   name: "DashboardNavbar",
   setup() {
-    const store = useDashboardStore();
+    const uiStore = useUIStore();
     const tabs = [
       { key: "highlights", label: "标注列表" },
       { key: "settings", label: "设置" },
@@ -13,9 +13,9 @@ export default defineComponent({
 
     function handleTabClick(key: string) {
       if (key === "settings") {
-        store.showSettings();
+        uiStore.showSettings();
       } else {
-        store.showHighlights();
+        uiStore.showHighlights();
       }
     }
 
@@ -24,7 +24,7 @@ export default defineComponent({
         <div class="text-lg font-semibold">MyZ 标注</div>
         <div class="flex flex-1 flex-wrap items-center gap-2">
           {tabs.map((tab) => {
-            const active = store.panel.value === tab.key;
+            const active = uiStore.panel === tab.key;
             return (
               <button
                 key={tab.key}

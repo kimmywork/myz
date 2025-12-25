@@ -1,6 +1,8 @@
 import { computed, defineComponent, ref } from "vue";
-import { useDashboardStore } from "../store/useDashboardStore.js";
+import { useHighlightsStore } from "../stores/highlights.js";
+import { useUIStore } from "../stores/ui.js";
 import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
+import { formatDateTime } from "@/dashboard/utils/records.js";
 
 export enum HighlightItemAction {
   "copy" = "copy",
@@ -20,7 +22,8 @@ export default defineComponent({
     },
   },
   setup(props: { record?: MyZRecord }) {
-    const store = useDashboardStore();
+    const highlightsStore = useHighlightsStore();
+    const uiStore = useUIStore();
     const kind = computed(() => getRecordKind(props.record));
     const hasNote = computed(() => Boolean(props.record?.note));
     const shouldSplitLayout = computed(() => hasNote.value);
@@ -62,19 +65,19 @@ export default defineComponent({
       }
       switch (action) {
         case "copy":
-          store.copyHighlight(id);
+          highlightsStore.copyHighlight(id);
           break;
         case "delete":
-          store.deleteHighlight(id);
+          highlightsStore.deleteHighlight(id);
           break;
         case "view":
-          store.openModal(id, "view");
+          uiStore.openModal(id, "view");
           break;
         case "edit":
-          store.openModal(id, "edit");
+          uiStore.openModal(id, "edit");
           break;
         case "downgrade":
-          store.downgradeHighlight(id);
+          highlightsStore.downgradeHighlight(id);
           break;
         default:
           break;
@@ -117,7 +120,7 @@ export default defineComponent({
               <span
                 class="max-w-[120px] truncate text-slate-500 dark:text-slate-300"
                 title={props.record?.hostname || props.record?.url || ""}
-                innerHTML={store.formatInline(
+                innerHTML={uiStore.formatInline(
                   (props.record?.hostname || props.record?.url || "").substring(
                     0,
                     20,
@@ -129,7 +132,7 @@ export default defineComponent({
                 )}
               ></span>
               <span class="text-slate-400 dark:text-slate-500">
-                {store.formatDateTime(props.record?.createdAt!!)}
+                {formatDateTime(props.record?.createdAt!!)}
               </span>
             </div>
           </div>
@@ -142,7 +145,7 @@ export default defineComponent({
                 </h4>
                 <blockquote
                   class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-                  innerHTML={store.renderHighlight(props.record!!)}
+                  innerHTML={uiStore.renderHighlight(props.record!!)}
                 ></blockquote>
               </section>
               <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
@@ -152,7 +155,7 @@ export default defineComponent({
                 <p
                   data-testid="card-note"
                   class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-                  innerHTML={store.formatNote(props.record?.note ?? "")}
+                  innerHTML={uiStore.formatNote(props.record?.note ?? "")}
                 ></p>
               </section>
             </div>
@@ -163,7 +166,7 @@ export default defineComponent({
               </h4>
               <blockquote
                 class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-                innerHTML={store.renderHighlight(props.record!!)}
+                innerHTML={uiStore.renderHighlight(props.record!!)}
               ></blockquote>
             </section>
           )}
@@ -174,7 +177,7 @@ export default defineComponent({
                   <span
                     key={tag}
                     class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 dark:border-white/10 dark:text-slate-100"
-                    innerHTML={store.formatInline(tag)}
+                    innerHTML={uiStore.formatInline(tag)}
                   ></span>
                 ))
               : "无标签"}

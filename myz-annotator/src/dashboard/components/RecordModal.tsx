@@ -1,20 +1,22 @@
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import { useDashboardStore } from "../store/useDashboardStore.js";
+import { useHighlightsStore } from "../stores/highlights.js";
+import { useUIStore } from "../stores/ui.js";
 import TagInput from "./TagInput.jsx";
 import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 export default defineComponent({
   name: "RecordModal",
   setup() {
-    const store = useDashboardStore();
-    const modalState = store.modalState;
+    const highlightsStore = useHighlightsStore();
+    const uiStore = useUIStore();
+    const modalState = uiStore.modalState;
 
     const record = computed(() => {
       if (!modalState.recordId) {
         return null;
       }
       return (
-        store.highlights.value.find(
+        highlightsStore.highlights.find(
           (item) => item.id === modalState.recordId,
         ) || null
       );
@@ -26,17 +28,17 @@ export default defineComponent({
     const isVisible = computed(() => Boolean(modalState.recordId));
     const isEditMode = computed(() => modalState.mode === "edit");
     const hasNote = computed(() => Boolean(record.value?.note));
-    const availableTags = computed(() => store.availableTags.value);
+    const availableTags = computed(() => highlightsStore.availableTags);
 
     function handleOverlayClick(event: MouseEvent) {
       if (event.target === event.currentTarget) {
-        store.closeModal();
+        uiStore.closeModal();
       }
     }
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape" && isVisible.value) {
-        store.closeModal();
+        uiStore.closeModal();
       }
     }
 
@@ -91,7 +93,7 @@ export default defineComponent({
                 type="button"
                 class="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-500 hover:text-slate-800 dark:border-white/20 dark:text-slate-300 dark:hover:text-white"
                 aria-label="关闭"
-                onClick={store.closeModal}
+                onClick={uiStore.closeModal}
               >
                 ✕
               </button>
@@ -106,7 +108,7 @@ export default defineComponent({
                 </h4>
                 <div
                   class="mt-2 text-sm text-slate-800 dark:text-slate-100"
-                  innerHTML={store.renderHighlight(current)}
+                  innerHTML={uiStore.renderHighlight(current)}
                 ></div>
               </section>
               <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/60">
@@ -129,7 +131,7 @@ export default defineComponent({
                   <div
                     class="mt-2 min-h-[130px] rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-300"
                     innerHTML={
-                      hasNote.value ? store.formatNote(current.note!) : "无批注"
+                      hasNote.value ? uiStore.formatNote(current.note!) : "无批注"
                     }
                   ></div>
                 )}
@@ -212,7 +214,7 @@ export default defineComponent({
               <button
                 type="button"
                 class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400 dark:border-white/20 dark:text-slate-200"
-                onClick={store.closeModal}
+                onClick={uiStore.closeModal}
               >
                 {isEditMode.value ? "取消" : "关闭"}
               </button>
@@ -222,7 +224,7 @@ export default defineComponent({
                   type="button"
                   class="rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-indigo-500 disabled:opacity-60"
                   disabled={modalState.saving}
-                  onClick={store.saveModal}
+                  onClick={uiStore.saveModal}
                 >
                   {modalState.saving ? "保存中…" : "保存"}
                 </button>

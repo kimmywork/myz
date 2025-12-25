@@ -1,16 +1,20 @@
-import { defineComponent, onBeforeUnmount, onMounted, provide } from "vue";
+import { defineComponent, onBeforeUnmount, onMounted } from "vue";
 import AppShell from "./components/AppShell.jsx";
-import { DashboardStoreKey, createDashboardStore } from "./store/index.js";
+import { useHighlightsStore } from "./stores/highlights.js";
+import { useSettingsStore } from "./stores/settings.js";
 
 export default defineComponent({
   name: "DashboardApp",
   setup() {
-    const store = createDashboardStore();
-    provide(DashboardStoreKey, store);
+    const highlightsStore = useHighlightsStore();
+    const settingsStore = useSettingsStore();
 
     onMounted(async () => {
       try {
-        await store.initialize();
+        await Promise.all([
+          highlightsStore.initialize(),
+          settingsStore.initialize(),
+        ]);
         console.info("Dashboard initialized");
       } catch (error) {
         console.error("Dashboard init failed", error);
@@ -18,7 +22,7 @@ export default defineComponent({
     });
 
     onBeforeUnmount(() => {
-      store.cleanup();
+      highlightsStore.cleanup();
     });
 
     return () => <AppShell />;
