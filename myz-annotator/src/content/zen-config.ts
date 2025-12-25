@@ -15,6 +15,10 @@ export const ZEN_SELECTOR_MAP: ZenSelectorRule[] = [
     pattern: /:\/\/(?:www\.)?gcores\.com\/articles\/\d+/,
     selector: ".articlePage",
   },
+  {
+    pattern: /:\/\/(?:www\.)?marxists\.org\/chinese/,
+    selector: "body",
+  }
   // Add more rules as needed, e.g.
   // { pattern: /example\.com/, selector: "main .article" },
 ];
