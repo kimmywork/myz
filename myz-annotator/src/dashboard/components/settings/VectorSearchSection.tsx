@@ -1,5 +1,5 @@
-import { defineComponent, Ref, ref, watch } from "vue";
-import { Settings } from "@/background/settings";
+import { computed, defineComponent, Ref, ref, watch } from "vue";
+import { Settings, VectorSettings } from "@/background/settings";
 
 export interface VectorSearchSectionProps {
   settings?: Settings;
@@ -17,6 +17,47 @@ export type EmbeddingProviderType = "local" | "openai";
 
 export default defineComponent({
   name: "VectorSearchSection",
+  props: {
+    settings: {
+      type: Object as () => Settings,
+      required: false,
+      default: () => ({}),
+    },
+    status: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    loading: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    onToggleEnable: {
+      type: Function,
+      required: true,
+    },
+    onLoadLocal: {
+      type: Function,
+      required: true,
+    },
+    onRebuild: {
+      type: Function,
+      required: true,
+    },
+    onTestOpenAi: {
+      type: Function,
+      required: true,
+    },
+    onSave: {
+      type: Function,
+      required: true,
+    },
+    onSwitchProvider: {
+      type: Function,
+      required: false,
+    },
+  },
   setup(props: VectorSearchSectionProps) {
     const providerType: Ref<EmbeddingProviderType> = ref(
       props.settings?.vectorUseLocalModel ? "local" : "openai",
@@ -28,6 +69,11 @@ export default defineComponent({
       props.settings?.vectorOpenAiModel || "text-embedding-3-small",
     );
     const testPassed = ref(false);
+    const modelReady = computed(() => {
+      return providerType.value === "openai"
+        ? testPassed.value || Boolean(props.settings?.vectorSearchEnabled)
+        : Boolean(props.settings?.vectorModelReady);
+    });
 
     watch(
       () => props.settings,
@@ -37,14 +83,13 @@ export default defineComponent({
         endpoint.value = next?.vectorOpenAiEndpoint || "";
         apiKey.value = next?.vectorOpenAiApiKey || "";
         model.value = next?.vectorOpenAiModel || "text-embedding-3-small";
-        testPassed.value = false;
       },
       { deep: true },
     );
 
-    function buildPayload(type: EmbeddingProviderType = providerType.value) {
+    function buildPayload(type: EmbeddingProviderType = providerType.value): VectorSettings {
       return {
-        vectorSearchEnabled: props.settings?.vectorSearchEnabled,
+        vectorSearchEnabled: Boolean(props.settings?.vectorSearchEnabled),
         vectorUseLocalModel: type === "local",
         vectorMaxChars: Number(maxChars.value) || 500,
         vectorOpenAiEndpoint: endpoint.value.trim(),
@@ -52,8 +97,8 @@ export default defineComponent({
         vectorOpenAiModel: model.value.trim() || "text-embedding-3-small",
         vectorModelReady:
           providerType.value === "openai"
-            ? testPassed.value && props.settings?.vectorSearchEnabled
-            : props.settings?.vectorModelReady,
+            ? testPassed.value && Boolean(props.settings?.vectorSearchEnabled)
+            : modelReady.value,
       };
     }
 
@@ -253,7 +298,7 @@ export default defineComponent({
             </div>
           </div>
           <div class="text-xs text-slate-500 dark:text-slate-400">
-            {props.settings?.vectorModelReady
+            {modelReady.value
               ? "模型已准备就绪"
               : "模型未加载或未测试"}
             {props.status ? ` · ${props.status}` : ""}

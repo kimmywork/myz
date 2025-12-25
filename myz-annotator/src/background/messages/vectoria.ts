@@ -5,14 +5,14 @@ import {
   testVectorProvider,
   resetVectorIndex,
   indexRecords,
-  VectoriaSettings,
   searchSimilar,
 } from "../vectoria-index";
+import { VectorSettings } from "@/background/settings";
 import { registerMessageHandler } from "./handler";
 
 export function initializeVectoriaMessageHandlers() {
   registerMessageHandler("myz:loadVectorModel", async () => {
-    const settings = await readSettings();
+    const settings: VectorSettings = await readSettings();
     if (!settings.vectorSearchEnabled) {
       throw new Error("向量检索未启用");
     }
@@ -34,14 +34,14 @@ export function initializeVectoriaMessageHandlers() {
 
   registerMessageHandler(
     "myz:testVectorProvider",
-    async (payload: Partial<VectoriaSettings>) => {
+    async (payload: Partial<VectorSettings>) => {
       const config = {
         useLocalModel:
-          payload?.useLocalModel !== false &&
-          payload?.useLocalModel !== "remote",
-        openAiEndpoint: payload?.openAiEndpoint || "",
-        openAiApiKey: payload?.openAiApiKey || "",
-        openAiModel: payload?.openAiModel || "text-embedding-3-small",
+          payload?.vectorUseLocalModel !== false &&
+          payload?.vectorUseLocalModel !== "remote",
+        openAiEndpoint: payload?.vectorOpenAiEndpoint || "",
+        openAiApiKey: payload?.vectorOpenAiApiKey || "",
+        openAiModel: payload?.vectorOpenAiModel || "text-embedding-3-small",
       };
       await testVectorProvider(config);
       return { success: true };
