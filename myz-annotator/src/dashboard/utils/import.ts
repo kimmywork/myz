@@ -1,18 +1,25 @@
 import type { MyZRecord } from "@/shared/types.ts";
+import { normalizeRecord } from "./records";
+import { z } from "zod";
+
+const ImportStructureSchema = z.union([
+  z.array(z.unknown()),
+  z.object({ highlights: z.array(z.unknown()) }).transform((data) => data.highlights),
+  z.object({ data: z.array(z.unknown()) }).transform((data) => data.data),
+]);
 
 export function normalizeImportedPayload(
   payload: MyZRecord[] | { highlights?: MyZRecord[]; data?: MyZRecord[] } | any,
 ): MyZRecord[] {
-  if (Array.isArray(payload)) {
-    return payload;
+  const result = ImportStructureSchema.safeParse(payload);
+
+  if (!result.success) {
+    return [];
   }
-  if (payload && typeof payload === "object") {
-    if (Array.isArray(payload.highlights)) {
-      return payload.highlights;
-    }
-    if (Array.isArray(payload.data)) {
-      return payload.data;
-    }
-  }
-  return [];
+
+  const rawItems = result.data;
+
+  return rawItems
+    .map((item) => normalizeRecord(item))
+    .filter((item): item is MyZRecord => item !== null);
 }

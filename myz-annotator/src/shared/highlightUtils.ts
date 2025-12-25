@@ -2,10 +2,10 @@ import {
   type MyZRecord,
   HIGHLIGHT_STYLES,
   RECORD_KINDS,
-  DEFAULT_HIGHLIGHT_STYLE,
   getRecordKind,
 } from "./types.ts";
 import { normalizeRecord as normalizeBaseRecord } from "@/dashboard/utils/records.ts";
+import { HighlightStyleSchema, SanitizedColorSchema } from "@/shared/schemas";
 
 // Default single color and palette tuned for better visibility on dark
 // backgrounds. These are slightly more saturated / deeper than the old
@@ -13,17 +13,7 @@ import { normalizeRecord as normalizeBaseRecord } from "@/dashboard/utils/record
 // color scheme.
 
 export function normalizeHighlightStyle(style: any): HIGHLIGHT_STYLES {
-  if (!style) {
-    return DEFAULT_HIGHLIGHT_STYLE;
-  }
-  const value = String(style).toLowerCase();
-  if (value === HIGHLIGHT_STYLES.UNDERLINE) {
-    return HIGHLIGHT_STYLES.UNDERLINE;
-  }
-  if (value === HIGHLIGHT_STYLES.WAVY) {
-    return HIGHLIGHT_STYLES.WAVY;
-  }
-  return DEFAULT_HIGHLIGHT_STYLE;
+  return HighlightStyleSchema.parse(style);
 }
 
 export function describeHighlightStyle(style: HIGHLIGHT_STYLES): string {
@@ -65,14 +55,8 @@ export function normalizeColor(
   value: string | undefined,
   fallback: string,
 ): string {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-  const trimmed = value.trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
-    return trimmed.toLowerCase();
-  }
-  return fallback;
+  const parsed = SanitizedColorSchema.parse(value);
+  return parsed ? parsed.toLowerCase() : fallback;
 }
 
 export function normalizePalette(

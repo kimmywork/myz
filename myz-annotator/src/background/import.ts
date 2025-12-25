@@ -1,19 +1,19 @@
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
-import { PathSegment, SerializedRange } from "@/shared/serializer";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import { extractHostname } from "@/shared/url.js";
+import {
+  SerializedRangeSchema,
+  ImportStrategySchema,
+  SanitizedUrlSchema,
+  SanitizedColorSchema,
+  SanitizedTimestampSchema,
+  SanitizedTagsSchema,
+} from "@/shared/schemas";
 
 export type ImportStrategy = "skip" | "overwrite" | "latest";
 
 export function normalizeImportStrategy(value: unknown): ImportStrategy {
-  const normalized = typeof value === "string" ? value.toLowerCase() : "";
-  if (normalized === "overwrite") {
-    return "overwrite";
-  }
-  if (normalized === "latest" || normalized === "keep-latest") {
-    return "latest";
-  }
-  return "skip";
+  return ImportStrategySchema.parse(value);
 }
 
 export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
@@ -21,7 +21,7 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     return null;
   }
 
-  const url = sanitizeUrl((raw as any).url || (raw as any).sourceUrl);
+  const url = SanitizedUrlSchema.parse((raw as any).url || (raw as any).sourceUrl);
   if (!url) {
     return null;
   }
@@ -33,8 +33,10 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
 
   let range = null;
   if (kind === RECORD_KINDS.HIGHLIGHT) {
-    range = sanitizeImportedRange(rawRecord.range);
-    if (!range) {
+    const rangeResult = SerializedRangeSchema.safeParse(rawRecord.range);
+    if (rangeResult.success) {
+      range = rangeResult.data;
+    } else {
       return null;
     }
   }
@@ -42,33 +44,37 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
   const result: Partial<MyZRecord> = {
     id: typeof rawRecord.id === "string" ? rawRecord.id.trim() : "",
     url,
-    sourceUrl: sanitizeUrl(rawRecord.sourceUrl) || url,
-    title: sanitizeNullableString(rawRecord.title),
-    text: sanitizeNullableString(rawRecord.text),
-    html: sanitizeNullableString(rawRecord.html),
-    note: sanitizeNullableString(rawRecord.note),
-    tags: sanitizeTags(rawRecord.tags),
-    hostname: sanitizeHostname(rawRecord.hostname, url),
+    sourceUrl: SanitizedUrlSchema.parse(rawRecord.sourceUrl) || url,
+    title: typeof rawRecord.title === "string" ? rawRecord.title.trim() : "",
+    text: typeof rawRecord.text === "string" ? rawRecord.text.trim() : "",
+    html: typeof rawRecord.html === "string" ? rawRecord.html.trim() : "",
+    note: typeof rawRecord.note === "string" ? rawRecord.note.trim() : "",
+    tags: SanitizedTagsSchema.parse(rawRecord.tags),
+    hostname:
+      typeof rawRecord.hostname === "string" && rawRecord.hostname.trim()
+        ? rawRecord.hostname.trim()
+        : extractHostname(url),
     kind,
   };
 
   if (kind === RECORD_KINDS.HIGHLIGHT) {
     result.range = range!;
-    const color = sanitizeColor(rawRecord.color);
+    const color = SanitizedColorSchema.parse(rawRecord.color);
     if (color) {
       result.color = color;
     }
     result.style = normalizeHighlightStyle(rawRecord.style);
   }
 
-  const createdAt = coerceIsoTimestamp(rawRecord.createdAt);
+  const createdAt = SanitizedTimestampSchema.parse(rawRecord.createdAt);
   if (createdAt) {
     result.createdAt = createdAt;
   }
-  const updatedAt = coerceIsoTimestamp(rawRecord.updatedAt);
+  const updatedAt = SanitizedTimestampSchema.parse(rawRecord.updatedAt);
   if (updatedAt) {
     result.updatedAt = updatedAt;
   }
+
 
   if (!result.text && !result.html) {
     return null;
@@ -178,127 +184,6 @@ export function dedupeOrder(
   return result;
 }
 
-function sanitizeUrl(value: unknown): string {
-  if (!value || typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-  try {
-    const url = new URL(trimmed);
-    if (!/^https?:$/i.test(url.protocol)) {
-      return "";
-    }
-    return url.toString();
-  } catch (error) {
-    return trimmed.startsWith("http://") || trimmed.startsWith("https://")
-      ? trimmed
-      : "";
-  }
-}
-
-function sanitizeNullableString(value: unknown): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim();
-  return trimmed;
-}
-
-function sanitizeColor(value: unknown): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim();
-  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed : "";
-}
-
-function sanitizeTags(tags: unknown): string[] {
-  if (!Array.isArray(tags)) {
-    return [];
-  }
-  const normalized = tags.map((tag) => normalizeTagValue(tag)).filter(Boolean);
-  const unique = Array.from(new Set(normalized));
-  return unique;
-}
-
-function sanitizeHostname(candidate: unknown, fallbackUrl: string): string {
-  if (typeof candidate === "string" && candidate.trim()) {
-    return candidate.trim();
-  }
-  if (fallbackUrl) {
-    return extractHostname(fallbackUrl);
-  }
-  return "";
-}
-
-function sanitizeImportedRange(range: unknown): SerializedRange | null {
-  if (!range || typeof range !== "object") {
-    return null;
-  }
-  const start = sanitizeRangeEdge((range as any).start);
-  const end = sanitizeRangeEdge((range as any).end);
-  if (!start || !end) {
-    return null;
-  }
-  return { start, end };
-}
-
-function sanitizeRangeEdge(edge: any) {
-  if (!edge || typeof edge !== "object") {
-    return null;
-  }
-  const path: PathSegment[] = Array.isArray(edge.path)
-    ? edge.path.map(sanitizeRangeSegment).filter(Boolean)
-    : [];
-  if (!path.length) {
-    return null;
-  }
-  const offset: number =
-    typeof edge.offset === "number" ? edge.offset : parseInt(edge.offset, 10);
-  const normalizedOffset = Number.isFinite(offset) && offset >= 0 ? offset : 0;
-  const charOffset: number =
-    typeof edge.charOffset === "number"
-      ? edge.charOffset
-      : parseInt(edge.charOffset, 10);
-  const normalizedCharoffset =
-    Number.isFinite(charOffset) && charOffset >= 0 ? charOffset : 0;
-  return { path, offset: normalizedOffset, charOffset: normalizedCharoffset };
-}
-
-function sanitizeRangeSegment(segment: any): PathSegment | null {
-  if (!segment || typeof segment !== "object") {
-    return null;
-  }
-  const name = typeof segment.name === "string" ? segment.name.trim() : "";
-  const indexRaw =
-    typeof segment.index === "number"
-      ? segment.index
-      : parseInt(segment.index, 10);
-  if (!name) {
-    return null;
-  }
-  const index = Number.isFinite(indexRaw) && indexRaw >= 0 ? indexRaw : 0;
-  return { name, index };
-}
-
-function coerceIsoTimestamp(value: unknown): string {
-  if (!value || typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-  const timestamp = Date.parse(trimmed);
-  if (Number.isNaN(timestamp)) {
-    return "";
-  }
-  return new Date(timestamp).toISOString();
-}
-
 function getRecordTimestamp(record?: MyZRecord): number {
   if (!record || typeof record !== "object") {
     return 0;
@@ -313,8 +198,4 @@ function getRecordTimestamp(record?: MyZRecord): number {
   }
   const parsed = Date.parse(source);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function normalizeTagValue(tag: unknown): string {
-  return typeof tag === "string" ? tag.trim() : "";
 }

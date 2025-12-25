@@ -1,4 +1,5 @@
 import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.ts";
+import { MyZRecordSchema } from "@/shared/schemas";
 
 export function getRecordKindLabel(record: MyZRecord) {
   const kind = getRecordKind(record);
@@ -14,11 +15,19 @@ export function getRecordKindLabel(record: MyZRecord) {
   }
 }
 
-export function normalizeRecord(record?: MyZRecord): MyZRecord | null {
+export function normalizeRecord(record?: any): MyZRecord | null {
   if (!record || typeof record !== "object") {
     return null;
   }
-  return { ...record, kind: getRecordKind(record) };
+  // Ensure kind is set correctly before validation
+  const recordWithKind = { ...record, kind: getRecordKind(record) };
+  
+  const result = MyZRecordSchema.safeParse(recordWithKind);
+  if (result.success) {
+    return result.data;
+  }
+  console.warn("Record validation failed", result.error);
+  return null;
 }
 
 export function computeRecordStats(records: MyZRecord[] = []) {

@@ -102,7 +102,7 @@ export async function saveAiGeneratedHighlight(
   highlightData: Partial<MyZRecord>,
 ) {
   const state = await readAiConversations();
-  const conversation = state.conversations[highlightData.conversationId];
+  const conversation = state.conversations[highlightData.conversationId!];
   if (conversation) {
     conversation.isAiGenerated = true;
     await writeAiConversations(state);

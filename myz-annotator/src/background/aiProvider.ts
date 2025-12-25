@@ -1590,7 +1590,7 @@ function toDateOnly(value: any): Date | null {
   }
 }
 
-async function readAllHighlights() {
+async function readAllHighlights(): Promise<MyZRecord[]> {
   return getAllHighlights();
 }
 
@@ -1605,7 +1605,7 @@ function buildHighlightSummary(record: MyZRecord): string {
     typeof record.createdAt === "string"
       ? record.createdAt.slice(0, 10)
       : new Date(record.createdAt || Date.now()).toISOString().slice(0, 10);
-  const host = record.hostname || record.host || "";
+  const host = record.hostname || "";
   const tags = Array.isArray(record.tags) ? record.tags.join(", ") : "";
   const text = (record.text || "").replace(/\s+/g, " ").slice(0, 140);
   const note = (record.note || "").replace(/\s+/g, " ").slice(0, 100);
@@ -1624,7 +1624,7 @@ const LOCAL_TOOL_HANDLERS: Record<
     const highlights = await readAllHighlights();
     const counts = new Map();
     highlights.forEach((h) => {
-      const host = h.hostname || h.host || "";
+      const host = h.hostname || "";
       if (!host) return;
       counts.set(host, (counts.get(host) || 0) + 1);
     });
@@ -1730,7 +1730,7 @@ const LOCAL_TOOL_HANDLERS: Record<
     const matches = highlights
       .filter((h) => {
         if (host) {
-          const currentHost = (h.hostname || h.host || "").toLowerCase();
+          const currentHost = (h.hostname || "").toLowerCase();
           if (!currentHost.includes(host)) return false;
         }
         if (tags.length) {
