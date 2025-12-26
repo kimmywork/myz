@@ -132,6 +132,12 @@ export const useUIStore = defineStore("ui", () => {
         if (stats.savedCount) {
           detail.push(`保存 ${stats.savedCount}`);
         }
+        if (stats.aiCount) {
+          detail.push(`AI ${stats.aiCount}`);
+        }
+        if (stats.tweetCount) {
+          detail.push(`推文 ${stats.tweetCount}`);
+        }
         return {
           date,
           items,
@@ -153,6 +159,12 @@ export const useUIStore = defineStore("ui", () => {
     }
     if (stats.savedCount) {
       parts.push(`保存 ${stats.savedCount}`);
+    }
+    if (stats.aiCount) {
+      parts.push(`AI ${stats.aiCount}`);
+    }
+    if (stats.tweetCount) {
+      parts.push(`推文 ${stats.tweetCount}`);
     }
     const detail = parts.length ? `（${parts.join(" · ")}）` : "";
     return `共 ${stats.total} 条记录${detail} · 涉及 ${sites.size} 个站点`;
@@ -258,24 +270,42 @@ export const useUIStore = defineStore("ui", () => {
     if (!record) {
       return;
     }
+    const tweetRecordIds: string[] = Array.isArray((record as any)?.tweetRecordIds)
+      ? ((record as any).tweetRecordIds as any[])
+          .map((id) => (typeof id === "string" ? id.trim() : ""))
+          .filter(Boolean)
+      : [];
     const kind = getRecordKind(record);
-    const payload: Partial<MyZRecord> = {
-      id: modalState.recordId,
-      note: modalState.note.trim(),
-      tags: [...modalState.tags],
-      kind,
-    };
+    const note = modalState.note.trim();
+    const tags = [...modalState.tags];
     if (kind === RECORD_KINDS.HIGHLIGHT) {
-      payload.color = modalState.color || DEFAULT_COLOR;
-    } else {
-      payload.color = undefined;
-      payload.range = undefined;
+      // handled below
     }
     modalState.saving = true;
     modalState.status = "保存中…";
     try {
-      const updated = await sendMessage("myz:updateHighlight", payload);
-      highlightsStore.applyUpdatedRecord(updated);
+      if (tweetRecordIds.length) {
+        await sendMessage("myz:updateRecordsByIds", {
+          ids: tweetRecordIds,
+          patch: { note, tags },
+        });
+        await highlightsStore.refreshHighlights();
+      } else {
+        const payload: Partial<MyZRecord> = {
+          id: modalState.recordId,
+          note,
+          tags,
+          kind,
+        };
+        if (kind === RECORD_KINDS.HIGHLIGHT) {
+          payload.color = modalState.color || DEFAULT_COLOR;
+        } else {
+          payload.color = undefined;
+          payload.range = undefined;
+        }
+        const updated = await sendMessage("myz:updateHighlight", payload);
+        highlightsStore.applyUpdatedRecord(updated);
+      }
       modalState.status = "保存成功";
       setTimeout(() => {
         closeModal();

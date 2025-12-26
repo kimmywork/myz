@@ -7,11 +7,19 @@ export * from "./enums";
 export type MyZRecord = z.infer<typeof MyZRecordSchema>;
 
 export function getRecordKind(record?: Partial<MyZRecord>): RECORD_KINDS {
-  if (record && record.kind === RECORD_KINDS.AI_GENERATED) {
-    return RECORD_KINDS.AI_GENERATED;
-  }
-  if (record && record.kind === RECORD_KINDS.CLIP) {
-    return RECORD_KINDS.CLIP;
+  const kind = record?.kind;
+  if (typeof kind === "string") {
+    const normalized = kind.trim();
+    if (
+      normalized &&
+      Object.values(RECORD_KINDS).includes(normalized as RECORD_KINDS)
+    ) {
+      return normalized as RECORD_KINDS;
+    }
   }
   return RECORD_KINDS.HIGHLIGHT;
+}
+
+export function isHighlightKind(kind: unknown): kind is RECORD_KINDS.HIGHLIGHT {
+  return kind === RECORD_KINDS.HIGHLIGHT;
 }

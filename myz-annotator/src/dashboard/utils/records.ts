@@ -10,6 +10,16 @@ export function getRecordKindLabel(record: MyZRecord) {
       return "保存文字";
     case RECORD_KINDS.AI_GENERATED:
       return "AI摘录";
+    case RECORD_KINDS.TWEET_POST:
+      return "推文";
+    case RECORD_KINDS.TWEET_REPLY:
+      return "回复";
+    case RECORD_KINDS.TWEET_RETWEET:
+      return "转推";
+    case RECORD_KINDS.TWEET_FAVORITE:
+      return "点赞推文";
+    case RECORD_KINDS.TWEET_BOOKMARK:
+      return "书签推文";
     default:
       return "标注";
   }
@@ -33,20 +43,39 @@ export function normalizeRecord(record?: any): MyZRecord | null {
 export function computeRecordStats(records: MyZRecord[] = []) {
   let highlightCount = 0;
   let savedCount = 0;
+  let aiCount = 0;
+  let tweetCount = 0;
   records.forEach((item) => {
     if (!item) {
       return;
     }
-    if (getRecordKind(item) === RECORD_KINDS.CLIP) {
+    const kind = getRecordKind(item);
+    if (kind === RECORD_KINDS.CLIP) {
       savedCount += 1;
-    } else {
-      highlightCount += 1;
+      return;
     }
+    if (kind === RECORD_KINDS.AI_GENERATED) {
+      aiCount += 1;
+      return;
+    }
+    if (
+      kind === RECORD_KINDS.TWEET_POST ||
+      kind === RECORD_KINDS.TWEET_REPLY ||
+      kind === RECORD_KINDS.TWEET_RETWEET ||
+      kind === RECORD_KINDS.TWEET_FAVORITE ||
+      kind === RECORD_KINDS.TWEET_BOOKMARK
+    ) {
+      tweetCount += 1;
+      return;
+    }
+    highlightCount += 1;
   });
   return {
-    total: highlightCount + savedCount,
+    total: highlightCount + savedCount + aiCount + tweetCount,
     highlightCount,
     savedCount,
+    aiCount,
+    tweetCount,
   };
 }
 

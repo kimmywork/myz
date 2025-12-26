@@ -2,6 +2,11 @@ export enum RECORD_KINDS {
   HIGHLIGHT = "highlight",
   CLIP = "clip",
   AI_GENERATED = "ai-generated",
+  TWEET_POST = "tweet:post",
+  TWEET_REPLY = "tweet:reply",
+  TWEET_RETWEET = "tweet:retweet",
+  TWEET_FAVORITE = "tweet:favorite",
+  TWEET_BOOKMARK = "tweet:bookmark",
 }
 
 export const DEFAULT_COLOR = "#b58900";

@@ -25,6 +25,7 @@ export default defineComponent({
     const kind = computed(() =>
       record.value ? getRecordKind(record.value) : RECORD_KINDS.HIGHLIGHT,
     );
+    const isHighlight = computed(() => kind.value === RECORD_KINDS.HIGHLIGHT);
     const isVisible = computed(() => Boolean(modalState.recordId));
     const isEditMode = computed(() => modalState.mode === "edit");
     const hasNote = computed(() => Boolean(record.value?.note));
@@ -104,7 +105,18 @@ export default defineComponent({
                   id="modal-quote-label"
                   class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
                 >
-                  {clip ? "保存文字" : "标注"}
+                  {(() => {
+                    if (kind.value === RECORD_KINDS.CLIP) return "保存文字";
+                    if (kind.value === RECORD_KINDS.AI_GENERATED) return "AI摘录";
+                    if (kind.value === RECORD_KINDS.TWEET_POST) return "推文";
+                    if (kind.value === RECORD_KINDS.TWEET_REPLY) return "回复";
+                    if (kind.value === RECORD_KINDS.TWEET_RETWEET) return "转推";
+                    if (kind.value === RECORD_KINDS.TWEET_FAVORITE)
+                      return "点赞推文";
+                    if (kind.value === RECORD_KINDS.TWEET_BOOKMARK)
+                      return "书签推文";
+                    return "标注";
+                  })()}
                 </h4>
                 <div
                   class="mt-2 text-sm text-slate-800 dark:text-slate-100"
@@ -178,18 +190,18 @@ export default defineComponent({
                   <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     颜色
                   </h4>
-                  {!clip ? (
+                  {isHighlight.value ? (
                     <span
                       class="mt-2 inline-block h-3 w-16 rounded-full"
                       style={{ background: modalState.color }}
                     ></span>
                   ) : (
                     <span class="mt-2 inline-block text-xs text-slate-500 dark:text-slate-400">
-                      保存文字无高亮颜色
+                      该记录无高亮颜色
                     </span>
                   )}
                 </div>
-                {!clip && isEditMode.value ? (
+                {isHighlight.value && isEditMode.value ? (
                   <label class="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                     <span>选择颜色</span>
                     <input

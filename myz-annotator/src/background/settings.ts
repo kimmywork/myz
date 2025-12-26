@@ -46,8 +46,17 @@ export interface AIAssistantSettings {
   aiMcpServers: McpServerSetting[];
 }
 
+export interface SocialImportProviderSettings {
+  profileUrl: string;
+}
+
+export interface SocialImportSettings {
+  twitter: SocialImportProviderSettings;
+}
+
 export interface Settings extends VectorSettings, AIAssistantSettings {
   dashboardView: "cards" | "list";
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;
+  socialImport: SocialImportSettings;
 }

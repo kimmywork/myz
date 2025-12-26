@@ -4,7 +4,7 @@ import {
   normalizeImportStrategy,
   sanitizeImportedHighlight,
   resolveImportConflict,
-  buildHighlightSignature,
+  buildRecordSignature,
   applyTimestampFallback,
 } from "../import";
 import { buildMarkdownExport } from "../markdown";
@@ -64,8 +64,19 @@ export function initializeHighlightMessageHandlers() {
     }
     const now = new Date().toISOString();
     const id = payload.id || generateId();
-    const kind =
-      payload.kind === "clip" ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+    const kind = (() => {
+      const candidate = payload.kind;
+      if (typeof candidate === "string") {
+        const normalized = candidate.trim();
+        if (
+          normalized &&
+          Object.values(RECORD_KINDS).includes(normalized as RECORD_KINDS)
+        ) {
+          return normalized as RECORD_KINDS;
+        }
+      }
+      return RECORD_KINDS.HIGHLIGHT;
+    })();
     const record: MyZRecord = {
       ...payload,
       id,
@@ -74,7 +85,7 @@ export function initializeHighlightMessageHandlers() {
       updatedAt: now,
     };
 
-    if (kind === "clip") {
+    if (kind !== RECORD_KINDS.HIGHLIGHT) {
       record.range = undefined;
       record.color = undefined;
       record.style = undefined;
@@ -84,7 +95,7 @@ export function initializeHighlightMessageHandlers() {
 
     await saveHighlight(record);
 
-    if (kind === "highlight") {
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
       await persistHighlightPreferences({
         color: record.color,
         style: record.style,
@@ -106,20 +117,17 @@ export function initializeHighlightMessageHandlers() {
       }
       const now = new Date().toISOString();
       const requestedKind =
-        payload.kind === RECORD_KINDS.CLIP
-          ? RECORD_KINDS.CLIP
-          : payload.kind === RECORD_KINDS.HIGHLIGHT
-            ? RECORD_KINDS.HIGHLIGHT
-            : existing.kind === RECORD_KINDS.CLIP
-              ? RECORD_KINDS.CLIP
-              : RECORD_KINDS.HIGHLIGHT;
+        typeof payload.kind === "string" &&
+        Object.values(RECORD_KINDS).includes(payload.kind as RECORD_KINDS)
+          ? (payload.kind as RECORD_KINDS)
+          : existing.kind;
       const updated: MyZRecord = {
         ...existing,
         ...payload,
         kind: requestedKind,
         updatedAt: now,
       };
-      if (updated.kind === "clip") {
+      if (updated.kind !== RECORD_KINDS.HIGHLIGHT) {
         updated.range = undefined;
         updated.color = undefined;
         updated.style = undefined;
@@ -127,7 +135,7 @@ export function initializeHighlightMessageHandlers() {
         updated.style = normalizeHighlightStyle(updated.style);
       }
       await saveHighlight(updated);
-      if (updated.kind === "highlight") {
+      if (updated.kind === RECORD_KINDS.HIGHLIGHT) {
         await persistHighlightPreferences({
           color: updated.color,
           style: updated.style,
@@ -147,6 +155,66 @@ export function initializeHighlightMessageHandlers() {
       await deleteHighlight(payload.id);
       await removeRecordFromIndex(payload.id);
       return { success: true };
+    },
+  );
+
+  registerMessageHandler(
+    "myz:removeRecordsByIds",
+    async (payload: { ids?: string[] }) => {
+      const ids = Array.isArray(payload?.ids) ? payload.ids : [];
+      const unique = Array.from(
+        new Set(
+          ids
+            .map((id) => (typeof id === "string" ? id.trim() : ""))
+            .filter(Boolean),
+        ),
+      );
+      if (!unique.length) {
+        return { removed: 0 };
+      }
+      for (const id of unique) {
+        await deleteHighlight(id);
+        await removeRecordFromIndex(id);
+      }
+      return { removed: unique.length };
+    },
+  );
+
+  registerMessageHandler(
+    "myz:updateRecordsByIds",
+    async (payload: {
+      ids?: string[];
+      patch?: Partial<MyZRecord>;
+    }) => {
+      const ids = Array.isArray(payload?.ids) ? payload.ids : [];
+      const unique = Array.from(
+        new Set(
+          ids
+            .map((id) => (typeof id === "string" ? id.trim() : ""))
+            .filter(Boolean),
+        ),
+      );
+      const patch = payload?.patch && typeof payload.patch === "object" ? payload.patch : {};
+      if (!unique.length) {
+        return { updated: 0 };
+      }
+      const now = new Date().toISOString();
+      for (const id of unique) {
+        const existing = await getHighlight(id);
+        if (!existing) {
+          continue;
+        }
+        const updated: MyZRecord = {
+          ...existing,
+          note:
+            typeof patch.note === "string" ? patch.note.trim() : existing.note,
+          tags: Array.isArray(patch.tags) ? patch.tags : existing.tags,
+          updatedAt: now,
+        };
+        await saveHighlight(updated);
+        await indexRecord(updated);
+      }
+      return { updated: unique.length };
     },
   );
 
@@ -237,7 +305,7 @@ export function initializeHighlightMessageHandlers() {
 
       const existingSignatures = new Set();
       Object.values(existingHighlights).forEach((record) => {
-        const signature = buildHighlightSignature(record);
+        const signature = buildRecordSignature(record);
         if (signature) {
           existingSignatures.add(signature);
         }
@@ -270,7 +338,7 @@ export function initializeHighlightMessageHandlers() {
           }
           sanitized.id = identifier;
           applyTimestampFallback(sanitized, existingRecord);
-          const signature = buildHighlightSignature(sanitized);
+          const signature = buildRecordSignature(sanitized);
           if (signature) {
             existingSignatures.add(signature);
           }
@@ -291,7 +359,7 @@ export function initializeHighlightMessageHandlers() {
           }
           sanitized.id = identifier;
           applyTimestampFallback(sanitized, staged);
-          const signature = buildHighlightSignature(sanitized);
+          const signature = buildRecordSignature(sanitized);
           if (signature) {
             existingSignatures.add(signature);
           }
@@ -303,8 +371,8 @@ export function initializeHighlightMessageHandlers() {
           return;
         }
 
-        // De-duplicate by selection signature to avoid creating multiple identical highlights.
-        const signature = buildHighlightSignature(sanitized);
+        // De-duplicate by record signature to avoid creating duplicates (e.g. identical clips or tweets).
+        const signature = buildRecordSignature(sanitized);
         if (signature && existingSignatures.has(signature)) {
           skipped += 1;
           return;

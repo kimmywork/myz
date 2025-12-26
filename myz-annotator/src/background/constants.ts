@@ -40,4 +40,10 @@ export const DEFAULT_SETTINGS = {
   vectorOpenAiApiKey: "",
   vectorOpenAiModel: "text-embedding-3-small",
   vectorMaxChars: 500,
+  // Social import (extensible)
+  socialImport: {
+    twitter: {
+      profileUrl: "",
+    },
+  },
 };

@@ -26,8 +26,19 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     return null;
   }
 
-  const kind: RECORD_KINDS =
-    (raw as any).kind === "clip" ? RECORD_KINDS.CLIP : RECORD_KINDS.HIGHLIGHT;
+  const kind = (() => {
+    const candidate = (raw as any).kind;
+    if (typeof candidate === "string") {
+      const normalized = candidate.trim();
+      if (
+        normalized &&
+        Object.values(RECORD_KINDS).includes(normalized as RECORD_KINDS)
+      ) {
+        return normalized as RECORD_KINDS;
+      }
+    }
+    return RECORD_KINDS.HIGHLIGHT;
+  })();
 
   const rawRecord = raw as MyZRecord;
 
@@ -101,9 +112,10 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
   if (!result.hostname) {
     delete result.hostname;
   }
-  if (result.kind === "clip") {
+  if (result.kind !== RECORD_KINDS.HIGHLIGHT) {
     delete result.range;
     delete result.style;
+    delete result.color;
   }
 
   return result as MyZRecord;
@@ -125,6 +137,46 @@ export function buildHighlightSignature(record: MyZRecord): string {
   } catch (error) {
     return "";
   }
+}
+
+export function buildRecordSignature(record: MyZRecord): string {
+  if (!record || typeof record !== "object") {
+    return "";
+  }
+  const url =
+    typeof record.url === "string" && record.url
+      ? record.url
+      : record.sourceUrl;
+  if (!url) {
+    return "";
+  }
+  if (record.kind === RECORD_KINDS.HIGHLIGHT) {
+    return buildHighlightSignature(record);
+  }
+  const kind =
+    typeof record.kind === "string" && record.kind ? record.kind : "unknown";
+
+  const canonicalUrl = (() => {
+    try {
+      const parsed = new URL(url);
+      parsed.search = "";
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return url;
+    }
+  })();
+
+  // Tweet-like records are expected to be globally unique by (kind, url).
+  if (kind.startsWith("tweet:")) {
+    return `${kind}::${canonicalUrl}`;
+  }
+
+  const content =
+    (typeof record.text === "string" ? record.text : "") ||
+    (typeof record.html === "string" ? record.html : "");
+  const fingerprint = content.trim().slice(0, 2000);
+  return `${kind}::${canonicalUrl}::${fingerprint}`;
 }
 
 export function resolveImportConflict(

@@ -7,6 +7,7 @@ import { normalizeImportedPayload } from "@/dashboard/utils/import.js";
 import { normalizeRecord, recordToMarkdown } from "@/dashboard/utils/records.js";
 import { sendMessage } from "@/shared/messaging.js";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
+import { normalizeTweetUrl } from "@/shared/social/twitter";
 
 export type MessageTone = "info" | "error" | "success";
 
@@ -21,6 +22,104 @@ export const useHighlightsStore = defineStore("highlights", () => {
   const importStatus: ImportStatus = reactive({ message: "", tone: "info" });
   const operationStatus = ref("");
   const timers = new Map();
+
+  /**
+   * Dashboard requirement: if the same tweet URL is stored multiple times with different
+   * `tweet:*` kinds (e.g. retweet + favorite + bookmark), display only one entry and
+   * expose all kinds for UI badges via `tweetKinds`/`tweetRecordIds`.
+   */
+  function mergeTweetRecordsForDashboard(records: MyZRecord[]): MyZRecord[] {
+    const tweetBuckets = new Map<string, MyZRecord[]>();
+    const others: MyZRecord[] = [];
+
+    records.forEach((record) => {
+      const kind = typeof record?.kind === "string" ? record.kind : "";
+      if (!kind.startsWith("tweet:")) {
+        others.push(record);
+        return;
+      }
+      const url = normalizeTweetUrl(record.url || record.sourceUrl || "");
+      const key = url || record.url || record.sourceUrl || "";
+      if (!key) {
+        others.push(record);
+        return;
+      }
+      const bucket = tweetBuckets.get(key) || [];
+      bucket.push(record);
+      tweetBuckets.set(key, bucket);
+    });
+
+    const priority: RECORD_KINDS[] = [
+      RECORD_KINDS.TWEET_RETWEET,
+      RECORD_KINDS.TWEET_POST,
+      RECORD_KINDS.TWEET_REPLY,
+      RECORD_KINDS.TWEET_FAVORITE,
+      RECORD_KINDS.TWEET_BOOKMARK,
+    ];
+
+    const mergedTweets: MyZRecord[] = [];
+    tweetBuckets.forEach((bucket, key) => {
+      if (!bucket.length) {
+        return;
+      }
+      const kinds = Array.from(
+        new Set(
+          bucket
+            .map((r) => (typeof r?.kind === "string" ? r.kind : ""))
+            .filter((k) => k.startsWith("tweet:")),
+        ),
+      ) as RECORD_KINDS[];
+      kinds.sort((a, b) => priority.indexOf(a) - priority.indexOf(b));
+
+      const base =
+        bucket
+          .slice()
+          .sort(
+            (a, b) =>
+              priority.indexOf(a.kind as RECORD_KINDS) -
+              priority.indexOf(b.kind as RECORD_KINDS),
+          )[0] || bucket[0];
+
+      const tags = Array.from(
+        new Set(
+          bucket
+            .flatMap((r) => (Array.isArray(r.tags) ? r.tags : []))
+            .filter(Boolean),
+        ),
+      );
+      const note =
+        base.note ||
+        bucket.find((r) => typeof r.note === "string" && r.note.trim())?.note ||
+        "";
+      const updatedAt = bucket
+        .map((r) => Date.parse(r.updatedAt || r.createdAt || ""))
+        .filter((t) => Number.isFinite(t))
+        .sort((a, b) => b - a)[0];
+
+      const merged: any = {
+        ...base,
+        url: key,
+        sourceUrl: key,
+        hostname: base.hostname || "x.com",
+        tags: tags.length ? tags : undefined,
+        note: note ? note : undefined,
+        updatedAt: Number.isFinite(updatedAt)
+          ? new Date(updatedAt).toISOString()
+          : base.updatedAt,
+        tweetKinds: kinds,
+        tweetRecordIds: bucket.map((r) => r.id).filter(Boolean),
+      };
+      mergedTweets.push(merged as MyZRecord);
+    });
+
+    const merged = [...others, ...mergedTweets];
+    merged.sort((a, b) => {
+      const timeA = Date.parse(a.createdAt || a.updatedAt || "");
+      const timeB = Date.parse(b.createdAt || b.updatedAt || "");
+      return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+    });
+    return merged;
+  }
 
   const availableSites = computed(() => {
     return [
@@ -82,11 +181,12 @@ export const useHighlightsStore = defineStore("highlights", () => {
     loadingHighlights.value = true;
     try {
       const result = await sendMessage("myz:getAllHighlights");
-      highlights.value = Array.isArray(result)
+      const normalized = Array.isArray(result)
         ? (result
             .map((item) => normalizeRecord(item))
             .filter(Boolean) as MyZRecord[])
         : [];
+      highlights.value = mergeTweetRecordsForDashboard(normalized);
     } catch (error) {
       console.error("Failed to load highlights", error);
       highlights.value = [];
@@ -121,7 +221,13 @@ export const useHighlightsStore = defineStore("highlights", () => {
 
   async function deleteHighlight(id: string) {
     try {
-      await sendMessage("myz:removeHighlight", { id });
+      const record: any = highlights.value.find((item) => item.id === id);
+      const ids = Array.isArray(record?.tweetRecordIds) ? record.tweetRecordIds : [];
+      if (ids.length) {
+        await sendMessage("myz:removeRecordsByIds", { ids });
+      } else {
+        await sendMessage("myz:removeHighlight", { id });
+      }
       highlights.value = highlights.value.filter((item) => item.id !== id);
     } catch (error) {
       console.error("删除失败", error);

@@ -25,6 +25,14 @@ export default defineComponent({
     const highlightsStore = useHighlightsStore();
     const uiStore = useUIStore();
     const kind = computed(() => getRecordKind(props.record));
+    const isTweet = computed(() => String(kind.value).startsWith("tweet:"));
+    const tweetKinds = computed(() => {
+      const raw = (props.record as any)?.tweetKinds;
+      if (Array.isArray(raw) && raw.length) {
+        return raw as string[];
+      }
+      return isTweet.value ? [String(kind.value)] : [];
+    });
     const hasNote = computed(() => Boolean(props.record?.note));
     const shouldSplitLayout = computed(() => hasNote.value);
     const tags = computed(() => props.record?.tags || []);
@@ -53,10 +61,27 @@ export default defineComponent({
           return "保存文字";
         case RECORD_KINDS.AI_GENERATED:
           return "AI摘录";
+        case RECORD_KINDS.TWEET_POST:
+          return "推文";
+        case RECORD_KINDS.TWEET_REPLY:
+          return "回复";
+        case RECORD_KINDS.TWEET_RETWEET:
+          return "转推";
+        case RECORD_KINDS.TWEET_FAVORITE:
+          return "点赞推文";
+        case RECORD_KINDS.TWEET_BOOKMARK:
+          return "书签推文";
         default:
           return "划线标注";
       }
     });
+    function getTweetKindBadgeLabel(value: string) {
+      if (value === RECORD_KINDS.TWEET_RETWEET) return "转推";
+      if (value === RECORD_KINDS.TWEET_FAVORITE) return "点赞推文";
+      if (value === RECORD_KINDS.TWEET_BOOKMARK) return "书签推文";
+      if (value === RECORD_KINDS.TWEET_REPLY) return "回复";
+      return "推文";
+    }
 
     function handleAction(action: HighlightItemAction) {
       const id = props.record?.id;
@@ -93,6 +118,9 @@ export default defineComponent({
       if (kind.value === RECORD_KINDS.AI_GENERATED) {
         original.push("border-fuchsia-200 dark:border-fuchsia-500/40");
       }
+      if (isTweet.value) {
+        original.push("border-sky-200 dark:border-sky-500/30");
+      }
       return original;
     });
 
@@ -111,6 +139,8 @@ export default defineComponent({
                   ? "bg-fuchsia-500 text-white"
                   : kind.value === RECORD_KINDS.CLIP
                     ? "bg-teal-500 text-white"
+                    : isTweet.value
+                      ? "bg-sky-500 text-white"
                     : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
               ].join(" ")}
             >
@@ -172,6 +202,16 @@ export default defineComponent({
           )}
 
           <div class="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+            {tweetKinds.value.length
+              ? tweetKinds.value.map((k) => (
+                  <span
+                    key={`kind:${k}`}
+                    class="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"
+                  >
+                    {getTweetKindBadgeLabel(k)}
+                  </span>
+                ))
+              : null}
             {visibleTags.value.length
               ? visibleTags.value.map((tag) => (
                   <span

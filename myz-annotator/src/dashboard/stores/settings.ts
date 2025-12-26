@@ -27,6 +27,11 @@ export const useSettingsStore = defineStore("settings", () => {
     vectorMaxChars: 500,
     lastUsedColor: DEFAULT_COLOR,
     lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
+    socialImport: {
+      twitter: {
+        profileUrl: "",
+      },
+    },
   });
 
   const settingsStatus = ref("");
@@ -101,6 +106,17 @@ export const useSettingsStore = defineStore("settings", () => {
           typeof result.vectorMaxChars === "number" && result.vectorMaxChars > 0
             ? Math.floor(result.vectorMaxChars)
             : settings.vectorMaxChars,
+        socialImport:
+          result.socialImport && typeof result.socialImport === "object"
+            ? {
+                twitter: {
+                  profileUrl:
+                    typeof result.socialImport.twitter?.profileUrl === "string"
+                      ? result.socialImport.twitter.profileUrl
+                      : settings.socialImport.twitter.profileUrl,
+                },
+              }
+            : settings.socialImport,
       });
     } catch (error) {
       console.error("Failed to load settings", error);
@@ -160,6 +176,20 @@ export const useSettingsStore = defineStore("settings", () => {
             updated.vectorMaxChars > 0
               ? Math.floor(updated.vectorMaxChars)
               : settings.vectorMaxChars;
+        }
+        if ("socialImport" in updated) {
+          settings.socialImport =
+            updated.socialImport && typeof updated.socialImport === "object"
+              ? {
+                  twitter: {
+                    profileUrl:
+                      typeof updated.socialImport.twitter?.profileUrl ===
+                      "string"
+                        ? updated.socialImport.twitter.profileUrl
+                        : settings.socialImport.twitter.profileUrl,
+                  },
+                }
+              : settings.socialImport;
         }
       }
       setTimedStatus(settingsStatus, "设置已保存", 3000);

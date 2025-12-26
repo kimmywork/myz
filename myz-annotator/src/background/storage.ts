@@ -193,6 +193,19 @@ function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(
       ? Math.floor(settings.vectorMaxChars)
       : 500;
 
+  // Social import settings (extensible)
+  const socialImport = (settings as any).socialImport;
+  if (!socialImport || typeof socialImport !== "object") {
+    (settings as any).socialImport = { twitter: { profileUrl: "" } };
+  } else if (
+    !socialImport.twitter ||
+    typeof socialImport.twitter !== "object"
+  ) {
+    socialImport.twitter = { profileUrl: "" };
+  } else if (typeof socialImport.twitter.profileUrl !== "string") {
+    socialImport.twitter.profileUrl = "";
+  }
+
   return settings;
 }
 
