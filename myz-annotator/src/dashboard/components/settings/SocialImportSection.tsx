@@ -4,6 +4,7 @@ import { useSettingsStore } from "../../stores/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
 import { RECORD_KINDS } from "@/shared/types";
 import { parseTwitterProfileUrl } from "@/shared/social/twitter";
+import { parseMastodonProfileUrl } from "@/shared/social/mastodon";
 
 type StatusTone = "info" | "error" | "success";
 
@@ -14,19 +15,29 @@ export default defineComponent({
     const settingsStore = useSettingsStore();
     const highlightsStore = useHighlightsStore();
 
-    const profileUrl = ref("");
+    const twitterProfileUrl = ref("");
+    const mastodonProfileUrl = ref("");
     const limitPerKind = ref(60);
-    const includePost = ref(true);
-    const includeReply = ref(true);
-    const includeFavorite = ref(true);
-    const includeBookmark = ref(true);
+    const includeTweetPost = ref(true);
+    const includeTweetReply = ref(true);
+    const includeTweetFavorite = ref(true);
+    const includeTweetBookmark = ref(true);
+
+    const includeTootPost = ref(true);
+    const includeTootReply = ref(true);
+    const includeTootBoost = ref(true);
+    const includeTootFavorite = ref(true);
+    const includeTootBookmark = ref(true);
 
     const importing = ref(false);
     const status = ref("");
     const tone = ref<StatusTone>("info");
 
     watchEffect(() => {
-      profileUrl.value = settingsStore.settings.socialImport.twitter.profileUrl;
+      twitterProfileUrl.value =
+        settingsStore.settings.socialImport.twitter.profileUrl;
+      mastodonProfileUrl.value =
+        settingsStore.settings.socialImport.mastodon.profileUrl;
     });
 
     function setStatus(message: string, nextTone: StatusTone = "info") {
@@ -34,16 +45,26 @@ export default defineComponent({
       tone.value = nextTone;
     }
 
-    function buildKinds() {
+    function buildTwitterKinds() {
       const kinds: RECORD_KINDS[] = [];
-      if (includePost.value) kinds.push(RECORD_KINDS.TWEET_POST);
-      if (includeReply.value) kinds.push(RECORD_KINDS.TWEET_REPLY);
-      if (includeFavorite.value) kinds.push(RECORD_KINDS.TWEET_FAVORITE);
-      if (includeBookmark.value) kinds.push(RECORD_KINDS.TWEET_BOOKMARK);
+      if (includeTweetPost.value) kinds.push(RECORD_KINDS.TWEET_POST);
+      if (includeTweetReply.value) kinds.push(RECORD_KINDS.TWEET_REPLY);
+      if (includeTweetFavorite.value) kinds.push(RECORD_KINDS.TWEET_FAVORITE);
+      if (includeTweetBookmark.value) kinds.push(RECORD_KINDS.TWEET_BOOKMARK);
       return kinds;
     }
 
-    async function handleImport() {
+    function buildMastodonKinds() {
+      const kinds: RECORD_KINDS[] = [];
+      if (includeTootPost.value) kinds.push(RECORD_KINDS.TOOT_POST);
+      if (includeTootReply.value) kinds.push(RECORD_KINDS.TOOT_REPLY);
+      if (includeTootBoost.value) kinds.push(RECORD_KINDS.TOOT_BOOST);
+      if (includeTootFavorite.value) kinds.push(RECORD_KINDS.TOOT_FAVORITE);
+      if (includeTootBookmark.value) kinds.push(RECORD_KINDS.TOOT_BOOKMARK);
+      return kinds;
+    }
+
+    async function handleImportTwitter() {
       if (importing.value) {
         return;
       }
@@ -51,8 +72,8 @@ export default defineComponent({
       setStatus("准备导入…", "info");
 
       try {
-        const parsed = parseTwitterProfileUrl(profileUrl.value);
-        const kinds = buildKinds();
+        const parsed = parseTwitterProfileUrl(twitterProfileUrl.value);
+        const kinds = buildTwitterKinds();
         if (!kinds.length) {
           throw new Error("请至少选择一种导入类型");
         }
@@ -66,9 +87,49 @@ export default defineComponent({
           },
         });
 
-        setStatus("抓取中…（将会在后台打开 x.com 页面）", "info");
+        setStatus("抓取中…（将打开新窗口展示导入过程）", "info");
         const result = await sendMessage("myz:importSocialRecords", {
           provider: "twitter",
+          profileUrl: parsed.profileUrl,
+          kinds,
+          limitPerKind: limitPerKind.value,
+        });
+
+        await highlightsStore.refreshHighlights();
+        setStatus(`导入完成：新增 ${result.inserted} 条，跳过 ${result.skipped} 条`, "success");
+      } catch (error) {
+        setStatus(`导入失败：${(error as Error).message}`, "error");
+      } finally {
+        importing.value = false;
+      }
+    }
+
+    async function handleImportMastodon() {
+      if (importing.value) {
+        return;
+      }
+      importing.value = true;
+      setStatus("准备导入…", "info");
+
+      try {
+        const parsed = parseMastodonProfileUrl(mastodonProfileUrl.value);
+        const kinds = buildMastodonKinds();
+        if (!kinds.length) {
+          throw new Error("请至少选择一种导入类型");
+        }
+
+        await settingsStore.saveSettings({
+          socialImport: {
+            ...settingsStore.settings.socialImport,
+            mastodon: {
+              profileUrl: parsed.profileUrl,
+            },
+          },
+        });
+
+        setStatus("抓取中…（将打开新窗口展示导入过程）", "info");
+        const result = await sendMessage("myz:importSocialRecords", {
+          provider: "mastodon",
           profileUrl: parsed.profileUrl,
           kinds,
           limitPerKind: limitPerKind.value,
@@ -128,9 +189,11 @@ export default defineComponent({
                 <input
                   type="url"
                   placeholder="https://x.com/kenpusney"
-                  value={profileUrl.value}
+                  value={twitterProfileUrl.value}
                   onInput={(event: InputEvent) =>
-                    (profileUrl.value = (event.target as HTMLInputElement).value)
+                    (twitterProfileUrl.value = (
+                      event.target as HTMLInputElement
+                    ).value)
                   }
                 />
               </label>
@@ -155,9 +218,11 @@ export default defineComponent({
                 <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
-                    checked={includePost.value}
+                    checked={includeTweetPost.value}
                     onChange={(event: Event) =>
-                      (includePost.value = (event.target as HTMLInputElement).checked)
+                      (includeTweetPost.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
                     }
                   />
                   <span>推文</span>
@@ -165,9 +230,11 @@ export default defineComponent({
                 <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
-                    checked={includeReply.value}
+                    checked={includeTweetReply.value}
                     onChange={(event: Event) =>
-                      (includeReply.value = (event.target as HTMLInputElement).checked)
+                      (includeTweetReply.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
                     }
                   />
                   <span>回复</span>
@@ -175,9 +242,11 @@ export default defineComponent({
                 <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
-                    checked={includeFavorite.value}
+                    checked={includeTweetFavorite.value}
                     onChange={(event: Event) =>
-                      (includeFavorite.value = (event.target as HTMLInputElement).checked)
+                      (includeTweetFavorite.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
                     }
                   />
                   <span>点赞</span>
@@ -185,9 +254,11 @@ export default defineComponent({
                 <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
-                    checked={includeBookmark.value}
+                    checked={includeTweetBookmark.value}
                     onChange={(event: Event) =>
-                      (includeBookmark.value = (event.target as HTMLInputElement).checked)
+                      (includeTweetBookmark.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
                     }
                   />
                   <span>书签</span>
@@ -199,7 +270,7 @@ export default defineComponent({
                   class="btn"
                   type="button"
                   disabled={importing.value}
-                  onClick={handleImport}
+                  onClick={handleImportTwitter}
                 >
                   {importing.value ? "导入中…" : "开始导入"}
                 </button>
@@ -211,21 +282,120 @@ export default defineComponent({
                 >
                   清理导入
                 </button>
-                <p
-                  class={[
-                    "status-line",
-                    tone.value === "error"
-                      ? " status-line--error"
-                      : tone.value === "success"
-                        ? " status-line--success"
-                        : "",
-                  ].join(" ")}
-                >
-                  {status.value}
-                </p>
               </div>
             </div>
           </div>
+
+          <div class="mt-4 rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-950/40">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-slate-900 dark:text-white">
+                Mastodon
+              </h4>
+            </div>
+
+            <div class="mt-3 grid gap-3">
+              <label class="field">
+                <span>个人主页地址</span>
+                <input
+                  type="url"
+                  placeholder="https://mastodon.social/@kenpusney"
+                  value={mastodonProfileUrl.value}
+                  onInput={(event: InputEvent) =>
+                    (mastodonProfileUrl.value = (
+                      event.target as HTMLInputElement
+                    ).value)
+                  }
+                />
+              </label>
+
+              <div class="grid gap-2 sm:grid-cols-2">
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={includeTootPost.value}
+                    onChange={(event: Event) =>
+                      (includeTootPost.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
+                    }
+                  />
+                  <span>嘟文</span>
+                </label>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={includeTootReply.value}
+                    onChange={(event: Event) =>
+                      (includeTootReply.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
+                    }
+                  />
+                  <span>回复</span>
+                </label>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={includeTootBoost.value}
+                    onChange={(event: Event) =>
+                      (includeTootBoost.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
+                    }
+                  />
+                  <span>转嘟</span>
+                </label>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={includeTootFavorite.value}
+                    onChange={(event: Event) =>
+                      (includeTootFavorite.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
+                    }
+                  />
+                  <span>点赞</span>
+                </label>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={includeTootBookmark.value}
+                    onChange={(event: Event) =>
+                      (includeTootBookmark.value = (
+                        event.target as HTMLInputElement
+                      ).checked)
+                    }
+                  />
+                  <span>书签</span>
+                </label>
+              </div>
+
+              <div class="settings__actions">
+                <button
+                  class="btn"
+                  type="button"
+                  disabled={importing.value}
+                  onClick={handleImportMastodon}
+                >
+                  {importing.value ? "导入中…" : "开始导入"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <p
+            class={[
+              "status-line",
+              tone.value === "error"
+                ? " status-line--error"
+                : tone.value === "success"
+                  ? " status-line--success"
+                  : "",
+            ].join(" ")}
+          >
+            {status.value}
+          </p>
         </div>
       </section>
     );

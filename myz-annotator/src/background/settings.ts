@@ -52,6 +52,7 @@ export interface SocialImportProviderSettings {
 
 export interface SocialImportSettings {
   twitter: SocialImportProviderSettings;
+  mastodon: SocialImportProviderSettings;
 }
 
 export interface Settings extends VectorSettings, AIAssistantSettings {

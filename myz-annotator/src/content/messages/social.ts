@@ -1,5 +1,6 @@
 import { registerMessageHandler } from "./handler";
 import { scrapeTwitterTimeline } from "@/content/social/twitter";
+import { scrapeMastodonTimeline } from "@/content/social/mastodon";
 import { isTwitterHost } from "@/shared/social/twitter";
 
 /**
@@ -18,5 +19,11 @@ export function initializeSocialMessageHandlers() {
       return scrapeTwitterTimeline(payload || {});
     },
   );
-}
 
+  registerMessageHandler(
+    "myz:scrapeMastodonTimeline",
+    async (payload: any): Promise<any> => {
+      return scrapeMastodonTimeline(payload || {});
+    },
+  );
+}

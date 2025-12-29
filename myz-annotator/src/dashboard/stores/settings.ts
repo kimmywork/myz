@@ -31,6 +31,9 @@ export const useSettingsStore = defineStore("settings", () => {
       twitter: {
         profileUrl: "",
       },
+      mastodon: {
+        profileUrl: "",
+      },
     },
   });
 
@@ -115,6 +118,12 @@ export const useSettingsStore = defineStore("settings", () => {
                       ? result.socialImport.twitter.profileUrl
                       : settings.socialImport.twitter.profileUrl,
                 },
+                mastodon: {
+                  profileUrl:
+                    typeof result.socialImport.mastodon?.profileUrl === "string"
+                      ? result.socialImport.mastodon.profileUrl
+                      : settings.socialImport.mastodon.profileUrl,
+                },
               }
             : settings.socialImport,
       });
@@ -187,6 +196,13 @@ export const useSettingsStore = defineStore("settings", () => {
                       "string"
                         ? updated.socialImport.twitter.profileUrl
                         : settings.socialImport.twitter.profileUrl,
+                  },
+                  mastodon: {
+                    profileUrl:
+                      typeof updated.socialImport.mastodon?.profileUrl ===
+                      "string"
+                        ? updated.socialImport.mastodon.profileUrl
+                        : settings.socialImport.mastodon.profileUrl,
                   },
                 }
               : settings.socialImport;

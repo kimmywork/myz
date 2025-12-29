@@ -8,6 +8,7 @@ import { normalizeRecord, recordToMarkdown } from "@/dashboard/utils/records.js"
 import { sendMessage } from "@/shared/messaging.js";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
 import { normalizeTweetUrl } from "@/shared/social/twitter";
+import { normalizeMastodonStatusUrl } from "@/shared/social/mastodon";
 
 export type MessageTone = "info" | "error" | "success";
 
@@ -24,41 +25,53 @@ export const useHighlightsStore = defineStore("highlights", () => {
   const timers = new Map();
 
   /**
-   * Dashboard requirement: if the same tweet URL is stored multiple times with different
-   * `tweet:*` kinds (e.g. retweet + favorite + bookmark), display only one entry and
-   * expose all kinds for UI badges via `tweetKinds`/`tweetRecordIds`.
+   * Dashboard requirement: if the same social URL is stored multiple times with different
+   * kinds (e.g. tweet:retweet + tweet:favorite + tweet:bookmark), display only one entry and
+   * expose all kinds for UI badges via `socialKinds`/`socialRecordIds`.
    */
-  function mergeTweetRecordsForDashboard(records: MyZRecord[]): MyZRecord[] {
-    const tweetBuckets = new Map<string, MyZRecord[]>();
+  function mergeSocialRecordsForDashboard(records: MyZRecord[]): MyZRecord[] {
+    const buckets = new Map<string, MyZRecord[]>();
     const others: MyZRecord[] = [];
 
     records.forEach((record) => {
       const kind = typeof record?.kind === "string" ? record.kind : "";
-      if (!kind.startsWith("tweet:")) {
+      const isSocial = kind.startsWith("tweet:") || kind.startsWith("toot:");
+      if (!isSocial) {
         others.push(record);
         return;
       }
-      const url = normalizeTweetUrl(record.url || record.sourceUrl || "");
-      const key = url || record.url || record.sourceUrl || "";
+      const rawUrl = record.url || record.sourceUrl || "";
+      const normalized =
+        kind.startsWith("tweet:")
+          ? normalizeTweetUrl(rawUrl)
+          : normalizeMastodonStatusUrl(rawUrl);
+      const key = normalized || rawUrl;
       if (!key) {
         others.push(record);
         return;
       }
-      const bucket = tweetBuckets.get(key) || [];
+      const bucket = buckets.get(key) || [];
       bucket.push(record);
-      tweetBuckets.set(key, bucket);
+      buckets.set(key, bucket);
     });
 
-    const priority: RECORD_KINDS[] = [
+    const tweetPriority: RECORD_KINDS[] = [
       RECORD_KINDS.TWEET_RETWEET,
       RECORD_KINDS.TWEET_POST,
       RECORD_KINDS.TWEET_REPLY,
       RECORD_KINDS.TWEET_FAVORITE,
       RECORD_KINDS.TWEET_BOOKMARK,
     ];
+    const tootPriority: RECORD_KINDS[] = [
+      RECORD_KINDS.TOOT_BOOST,
+      RECORD_KINDS.TOOT_POST,
+      RECORD_KINDS.TOOT_REPLY,
+      RECORD_KINDS.TOOT_FAVORITE,
+      RECORD_KINDS.TOOT_BOOKMARK,
+    ];
 
-    const mergedTweets: MyZRecord[] = [];
-    tweetBuckets.forEach((bucket, key) => {
+    const mergedSocial: MyZRecord[] = [];
+    buckets.forEach((bucket, key) => {
       if (!bucket.length) {
         return;
       }
@@ -66,9 +79,11 @@ export const useHighlightsStore = defineStore("highlights", () => {
         new Set(
           bucket
             .map((r) => (typeof r?.kind === "string" ? r.kind : ""))
-            .filter((k) => k.startsWith("tweet:")),
+            .filter((k) => k.startsWith("tweet:") || k.startsWith("toot:")),
         ),
       ) as RECORD_KINDS[];
+      const isTweet = kinds.some((k) => String(k).startsWith("tweet:"));
+      const priority = isTweet ? tweetPriority : tootPriority;
       kinds.sort((a, b) => priority.indexOf(a) - priority.indexOf(b));
 
       const base =
@@ -100,19 +115,33 @@ export const useHighlightsStore = defineStore("highlights", () => {
         ...base,
         url: key,
         sourceUrl: key,
-        hostname: base.hostname || "x.com",
+        hostname:
+          base.hostname ||
+          (() => {
+            try {
+              return new URL(key).hostname || "";
+            } catch {
+              return isTweet ? "x.com" : "";
+            }
+          })(),
         tags: tags.length ? tags : undefined,
         note: note ? note : undefined,
         updatedAt: Number.isFinite(updatedAt)
           ? new Date(updatedAt).toISOString()
           : base.updatedAt,
-        tweetKinds: kinds,
-        tweetRecordIds: bucket.map((r) => r.id).filter(Boolean),
+        socialKinds: kinds,
+        socialRecordIds: bucket.map((r) => r.id).filter(Boolean),
+        ...(isTweet
+          ? {
+              tweetKinds: kinds,
+              tweetRecordIds: bucket.map((r) => r.id).filter(Boolean),
+            }
+          : {}),
       };
-      mergedTweets.push(merged as MyZRecord);
+      mergedSocial.push(merged as MyZRecord);
     });
 
-    const merged = [...others, ...mergedTweets];
+    const merged = [...others, ...mergedSocial];
     merged.sort((a, b) => {
       const timeA = Date.parse(a.createdAt || a.updatedAt || "");
       const timeB = Date.parse(b.createdAt || b.updatedAt || "");
@@ -186,7 +215,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
             .map((item) => normalizeRecord(item))
             .filter(Boolean) as MyZRecord[])
         : [];
-      highlights.value = mergeTweetRecordsForDashboard(normalized);
+      highlights.value = mergeSocialRecordsForDashboard(normalized);
     } catch (error) {
       console.error("Failed to load highlights", error);
       highlights.value = [];
@@ -222,7 +251,11 @@ export const useHighlightsStore = defineStore("highlights", () => {
   async function deleteHighlight(id: string) {
     try {
       const record: any = highlights.value.find((item) => item.id === id);
-      const ids = Array.isArray(record?.tweetRecordIds) ? record.tweetRecordIds : [];
+      const ids = Array.isArray(record?.socialRecordIds)
+        ? record.socialRecordIds
+        : Array.isArray(record?.tweetRecordIds)
+          ? record.tweetRecordIds
+          : [];
       if (ids.length) {
         await sendMessage("myz:removeRecordsByIds", { ids });
       } else {

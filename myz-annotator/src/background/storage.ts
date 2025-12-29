@@ -196,7 +196,10 @@ function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(
   // Social import settings (extensible)
   const socialImport = (settings as any).socialImport;
   if (!socialImport || typeof socialImport !== "object") {
-    (settings as any).socialImport = { twitter: { profileUrl: "" } };
+    (settings as any).socialImport = {
+      twitter: { profileUrl: "" },
+      mastodon: { profileUrl: "" },
+    };
   } else if (
     !socialImport.twitter ||
     typeof socialImport.twitter !== "object"
@@ -204,6 +207,11 @@ function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(
     socialImport.twitter = { profileUrl: "" };
   } else if (typeof socialImport.twitter.profileUrl !== "string") {
     socialImport.twitter.profileUrl = "";
+  }
+  if (!socialImport.mastodon || typeof socialImport.mastodon !== "object") {
+    socialImport.mastodon = { profileUrl: "" };
+  } else if (typeof socialImport.mastodon.profileUrl !== "string") {
+    socialImport.mastodon.profileUrl = "";
   }
 
   return settings;

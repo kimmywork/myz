@@ -7,6 +7,11 @@ export enum RECORD_KINDS {
   TWEET_RETWEET = "tweet:retweet",
   TWEET_FAVORITE = "tweet:favorite",
   TWEET_BOOKMARK = "tweet:bookmark",
+  TOOT_POST = "toot:post",
+  TOOT_REPLY = "toot:reply",
+  TOOT_BOOST = "toot:boost",
+  TOOT_FAVORITE = "toot:favorite",
+  TOOT_BOOKMARK = "toot:bookmark",
 }
 
 export const DEFAULT_COLOR = "#b58900";

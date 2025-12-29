@@ -168,7 +168,7 @@ export function buildRecordSignature(record: MyZRecord): string {
   })();
 
   // Tweet-like records are expected to be globally unique by (kind, url).
-  if (kind.startsWith("tweet:")) {
+  if (kind.startsWith("tweet:") || kind.startsWith("toot:")) {
     return `${kind}::${canonicalUrl}`;
   }
 

@@ -20,6 +20,16 @@ export function getRecordKindLabel(record: MyZRecord) {
       return "点赞推文";
     case RECORD_KINDS.TWEET_BOOKMARK:
       return "书签推文";
+    case RECORD_KINDS.TOOT_POST:
+      return "嘟文";
+    case RECORD_KINDS.TOOT_REPLY:
+      return "嘟文回复";
+    case RECORD_KINDS.TOOT_BOOST:
+      return "转嘟";
+    case RECORD_KINDS.TOOT_FAVORITE:
+      return "点赞嘟文";
+    case RECORD_KINDS.TOOT_BOOKMARK:
+      return "书签嘟文";
     default:
       return "标注";
   }
@@ -58,13 +68,7 @@ export function computeRecordStats(records: MyZRecord[] = []) {
       aiCount += 1;
       return;
     }
-    if (
-      kind === RECORD_KINDS.TWEET_POST ||
-      kind === RECORD_KINDS.TWEET_REPLY ||
-      kind === RECORD_KINDS.TWEET_RETWEET ||
-      kind === RECORD_KINDS.TWEET_FAVORITE ||
-      kind === RECORD_KINDS.TWEET_BOOKMARK
-    ) {
+    if (String(kind).startsWith("tweet:") || String(kind).startsWith("toot:")) {
       tweetCount += 1;
       return;
     }

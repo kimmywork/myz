@@ -136,7 +136,7 @@ export const useUIStore = defineStore("ui", () => {
           detail.push(`AI ${stats.aiCount}`);
         }
         if (stats.tweetCount) {
-          detail.push(`推文 ${stats.tweetCount}`);
+          detail.push(`社区 ${stats.tweetCount}`);
         }
         return {
           date,
@@ -164,7 +164,7 @@ export const useUIStore = defineStore("ui", () => {
       parts.push(`AI ${stats.aiCount}`);
     }
     if (stats.tweetCount) {
-      parts.push(`推文 ${stats.tweetCount}`);
+      parts.push(`社区 ${stats.tweetCount}`);
     }
     const detail = parts.length ? `（${parts.join(" · ")}）` : "";
     return `共 ${stats.total} 条记录${detail} · 涉及 ${sites.size} 个站点`;
@@ -270,8 +270,8 @@ export const useUIStore = defineStore("ui", () => {
     if (!record) {
       return;
     }
-    const tweetRecordIds: string[] = Array.isArray((record as any)?.tweetRecordIds)
-      ? ((record as any).tweetRecordIds as any[])
+    const socialRecordIds: string[] = Array.isArray((record as any)?.socialRecordIds)
+      ? ((record as any).socialRecordIds as any[])
           .map((id) => (typeof id === "string" ? id.trim() : ""))
           .filter(Boolean)
       : [];
@@ -284,9 +284,9 @@ export const useUIStore = defineStore("ui", () => {
     modalState.saving = true;
     modalState.status = "保存中…";
     try {
-      if (tweetRecordIds.length) {
+      if (socialRecordIds.length) {
         await sendMessage("myz:updateRecordsByIds", {
-          ids: tweetRecordIds,
+          ids: socialRecordIds,
           patch: { note, tags },
         });
         await highlightsStore.refreshHighlights();

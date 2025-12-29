@@ -45,5 +45,8 @@ export const DEFAULT_SETTINGS = {
     twitter: {
       profileUrl: "",
     },
+    mastodon: {
+      profileUrl: "",
+    },
   },
 };

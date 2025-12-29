@@ -7,9 +7,12 @@ import {
 } from "@/shared/highlightUtils.js";
 
 import { IconWarning } from "@/shared/icons.js";
-import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
+import { getRecordKindLabel } from "@/dashboard/utils/records.js";
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";
+const AI_COLOR = "rgba(217, 70, 239, 0.45)";
+const SOCIAL_COLOR = "rgba(56, 189, 248, 0.45)";
 
 export default defineComponent({
   name: "HighlightItem",
@@ -27,20 +30,22 @@ export default defineComponent({
     record: MyZRecord;
     onAction: (action: string, record: MyZRecord) => void;
   }) {
-    const kind = computed(() =>
-      props.record.kind === RECORD_KINDS.CLIP
-        ? RECORD_KINDS.CLIP
-        : RECORD_KINDS.HIGHLIGHT,
-    );
+    const kind = computed(() => getRecordKind(props.record));
+    const isSocial = computed(() => {
+      const value = String(kind.value);
+      return value.startsWith("tweet:") || value.startsWith("toot:");
+    });
 
-    const badgeLabel = computed(() =>
-      kind.value === RECORD_KINDS.CLIP ? "保存文字" : "划线标注",
-    );
+    const badgeLabel = computed(() => getRecordKindLabel(props.record));
 
     const colorStyle = computed(() => ({
       background:
         kind.value === RECORD_KINDS.CLIP
           ? CLIP_COLOR
+          : kind.value === RECORD_KINDS.AI_GENERATED
+            ? AI_COLOR
+            : isSocial.value
+              ? SOCIAL_COLOR
           : props.record.color || "#ffe58f",
     }));
 
@@ -56,6 +61,14 @@ export default defineComponent({
       } else if (kind.value === RECORD_KINDS.CLIP) {
         base.push(
           "border-teal-200/70 bg-teal-50/70 dark:border-teal-400/40 dark:bg-teal-500/10",
+        );
+      } else if (kind.value === RECORD_KINDS.AI_GENERATED) {
+        base.push(
+          "border-fuchsia-200/70 bg-fuchsia-50/70 dark:border-fuchsia-400/40 dark:bg-fuchsia-500/10",
+        );
+      } else if (isSocial.value) {
+        base.push(
+          "border-sky-200/70 bg-sky-50/70 dark:border-sky-400/40 dark:bg-sky-500/10",
         );
       } else {
         base.push(
@@ -91,7 +104,11 @@ export default defineComponent({
                 "highlight-item__badge inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
                 kind.value === RECORD_KINDS.CLIP
                   ? "bg-teal-500 text-white"
-                  : "bg-amber-200 text-amber-900 dark:bg-amber-400/30 dark:text-amber-100",
+                  : kind.value === RECORD_KINDS.AI_GENERATED
+                    ? "bg-fuchsia-500 text-white"
+                    : isSocial.value
+                      ? "bg-sky-500 text-white"
+                      : "bg-amber-200 text-amber-900 dark:bg-amber-400/30 dark:text-amber-100",
               ].join(" ")}
             >
               {badgeLabel.value}

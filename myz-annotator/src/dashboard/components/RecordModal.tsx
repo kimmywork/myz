@@ -115,6 +115,13 @@ export default defineComponent({
                       return "点赞推文";
                     if (kind.value === RECORD_KINDS.TWEET_BOOKMARK)
                       return "书签推文";
+                    if (kind.value === RECORD_KINDS.TOOT_POST) return "嘟文";
+                    if (kind.value === RECORD_KINDS.TOOT_REPLY) return "回复";
+                    if (kind.value === RECORD_KINDS.TOOT_BOOST) return "转嘟";
+                    if (kind.value === RECORD_KINDS.TOOT_FAVORITE)
+                      return "点赞嘟文";
+                    if (kind.value === RECORD_KINDS.TOOT_BOOKMARK)
+                      return "书签嘟文";
                     return "标注";
                   })()}
                 </h4>

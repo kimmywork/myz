@@ -18,13 +18,16 @@ export default defineComponent({
     const highlightsStore = useHighlightsStore();
     const uiStore = useUIStore();
     const kind = computed(() => getRecordKind(props.record));
-    const isTweet = computed(() => String(kind.value).startsWith("tweet:"));
-    const tweetKinds = computed(() => {
-      const raw = (props.record as any)?.tweetKinds;
+    const isSocial = computed(() => {
+      const value = String(kind.value);
+      return value.startsWith("tweet:") || value.startsWith("toot:");
+    });
+    const socialKinds = computed(() => {
+      const raw = (props.record as any)?.socialKinds || (props.record as any)?.tweetKinds;
       if (Array.isArray(raw) && raw.length) {
         return raw as string[];
       }
-      return isTweet.value ? [String(kind.value)] : [];
+      return isSocial.value ? [String(kind.value)] : [];
     });
     const hasNote = computed(() => Boolean(props.record?.note));
     const shouldSplitLayout = computed(() => hasNote.value);
@@ -87,7 +90,7 @@ export default defineComponent({
       if (kind.value === RECORD_KINDS.AI_GENERATED) {
         rowClasses.push("border-fuchsia-200 dark:border-fuchsia-500/40");
       }
-      if (isTweet.value) {
+      if (isSocial.value) {
         rowClasses.push("border-sky-200 dark:border-sky-500/30");
       }
       return (
@@ -105,7 +108,7 @@ export default defineComponent({
                   ? "bg-fuchsia-500 text-white"
                   : kind.value === RECORD_KINDS.CLIP
                     ? "bg-teal-500 text-white"
-                    : isTweet.value
+                    : isSocial.value
                       ? "bg-sky-500 text-white"
                     : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
               ].join(" ")}
@@ -118,6 +121,11 @@ export default defineComponent({
                 if (kind.value === RECORD_KINDS.TWEET_RETWEET) return "转推";
                 if (kind.value === RECORD_KINDS.TWEET_FAVORITE) return "点赞推文";
                 if (kind.value === RECORD_KINDS.TWEET_BOOKMARK) return "书签推文";
+                if (kind.value === RECORD_KINDS.TOOT_POST) return "嘟文";
+                if (kind.value === RECORD_KINDS.TOOT_REPLY) return "回复";
+                if (kind.value === RECORD_KINDS.TOOT_BOOST) return "转嘟";
+                if (kind.value === RECORD_KINDS.TOOT_FAVORITE) return "点赞嘟文";
+                if (kind.value === RECORD_KINDS.TOOT_BOOKMARK) return "书签嘟文";
                 return "划线标注";
               })()}
             </span>
@@ -137,9 +145,9 @@ export default defineComponent({
           </div>
 
           {/* 第二行：标签 */}
-          {(tweetKinds.value.length > 0 || visibleTags.value.length > 0) && (
+          {(socialKinds.value.length > 0 || visibleTags.value.length > 0) && (
             <div class="mb-4 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-              {tweetKinds.value.map((k) => (
+              {socialKinds.value.map((k) => (
                 <span
                   key={`kind:${k}`}
                   class="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"
@@ -149,6 +157,11 @@ export default defineComponent({
                     if (k === RECORD_KINDS.TWEET_FAVORITE) return "点赞推文";
                     if (k === RECORD_KINDS.TWEET_BOOKMARK) return "书签推文";
                     if (k === RECORD_KINDS.TWEET_REPLY) return "回复";
+                    if (k === RECORD_KINDS.TOOT_BOOST) return "转嘟";
+                    if (k === RECORD_KINDS.TOOT_FAVORITE) return "点赞嘟文";
+                    if (k === RECORD_KINDS.TOOT_BOOKMARK) return "书签嘟文";
+                    if (k === RECORD_KINDS.TOOT_REPLY) return "回复";
+                    if (String(k).startsWith("toot:")) return "嘟文";
                     return "推文";
                   })()}
                 </span>
