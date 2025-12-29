@@ -5,6 +5,8 @@ import { VectoriaSearchResult } from "@/background/vectoria-index";
 
 import { sendMessage } from "@/shared/messaging";
 
+const INTEREST_POPUP_COLLAPSED_KEY = "myz::interestPopupCollapsed";
+
 export interface DockPosition {
   top: number | "auto";
   left: number | "auto";
@@ -35,6 +37,8 @@ export interface InterestIndicator {
 }
 
 export const useInterestsStore = defineStore("interests", () => {
+  const popupCollapsed = ref(false);
+
   const dockPosition = ref<DockPosition>({
     top: 0.75,
     left: "auto",
@@ -55,6 +59,38 @@ export const useInterestsStore = defineStore("interests", () => {
   const badgeCount = computed(() => {
     return interestMatchesByRecord.value.size;
   });
+
+  async function loadPopupCollapsedState() {
+    try {
+      const stored = await chrome.storage.local.get(INTEREST_POPUP_COLLAPSED_KEY);
+      popupCollapsed.value = Boolean(stored?.[INTEREST_POPUP_COLLAPSED_KEY]);
+    } catch (error) {
+      // ignore: keep default
+    }
+  }
+
+  async function setPopupCollapsed(next: boolean) {
+    const value = Boolean(next);
+    popupCollapsed.value = value;
+    try {
+      await chrome.storage.local.set({ [INTEREST_POPUP_COLLAPSED_KEY]: value });
+    } catch (error) {
+      // ignore: in-page UI still updates
+    }
+  }
+
+  function installPopupCollapsedSync() {
+    try {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== "local") return;
+        const change = changes?.[INTEREST_POPUP_COLLAPSED_KEY];
+        if (!change) return;
+        popupCollapsed.value = Boolean(change.newValue);
+      });
+    } catch (error) {
+      // ignore
+    }
+  }
 
   const applyDockPosition = (position: DockPosition) => {
     dockPosition.value = position;
@@ -81,7 +117,14 @@ export const useInterestsStore = defineStore("interests", () => {
       url: window.location.href,
     }).catch((error) => console.warn("open sidepanel failed", error));
   }
+
+  // Initialize persisted UI state early.
+  void loadPopupCollapsedState();
+  installPopupCollapsedSync();
+
   return {
+    popupCollapsed,
+    setPopupCollapsed,
     dockPosition,
     badgeCount,
     interestState,

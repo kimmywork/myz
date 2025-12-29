@@ -165,14 +165,13 @@ export default defineComponent({
   name: "MyZInterests",
   setup() {
     const store = useInterestsStore();
-    const interestPopupCollapsed = ref(false);
     const interestResults = computed(() =>
       Array.from(store.interestMatchesByRecord.values()),
     );
 
     const toggleInterestPopup = (e: Event) => {
       e?.stopPropagation();
-      interestPopupCollapsed.value = !interestPopupCollapsed.value;
+      store.setPopupCollapsed(!store.popupCollapsed);
     };
     const sorted = computed(() =>
       Array.from(interestResults.value).sort(
@@ -201,12 +200,12 @@ export default defineComponent({
       return (
         <div
           id="myz-interest-popup"
-          class={interestPopupCollapsed.value ? "collapsed" : ""}
+          class={store.popupCollapsed ? "collapsed" : ""}
           style={
-            interestPopupCollapsed.value ? dockPosition.value : DEFAULT_STYLE
+            store.popupCollapsed ? dockPosition.value : DEFAULT_STYLE
           }
         >
-          {interestPopupCollapsed.value ? (
+          {store.popupCollapsed ? (
             <InterestDock onClick={toggleInterestPopup} />
           ) : (
             <div>
