@@ -40,6 +40,65 @@ export function initializeAIMessageHandlers() {
   );
 
   registerMessageHandler(
+    "myz:aiStreamRequest",
+    async (payload: {
+      conversationId: string;
+      message: string;
+      action?: string;
+      context?: {
+        url?: string;
+        title?: string;
+        includePageContext?: boolean;
+      };
+      options?: Partial<ProcessConversationOptions>;
+    }) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+
+      const { conversationId, message, action, context, options } = payload || ({} as any);
+      if (!conversationId) {
+        throw new Error("conversationId is required");
+      }
+      if (!message) {
+        throw new Error("message is required");
+      }
+
+      const provider = createAiProvider(settings);
+
+      try {
+        await provider.initializeMcpClients();
+
+        const includePageContext =
+          typeof context?.includePageContext === "boolean"
+            ? context?.includePageContext
+            : undefined;
+
+        return await provider.processConversation(
+          conversationId,
+          action || "custom",
+          message,
+          {
+            ...(options || {}),
+            includePageContext:
+              includePageContext ?? options?.includePageContext ?? true,
+            stream: true,
+            metadata: {
+              ...(options?.metadata || {}),
+              ...(context?.url ? { url: context.url } : {}),
+              ...(context?.title ? { title: context.title } : {}),
+              source: "sidepanel",
+            },
+          },
+        );
+      } finally {
+        await provider.disconnectMcpClients();
+      }
+    },
+  );
+
+  registerMessageHandler(
     "myz:createConversation",
     async (payload: { url: string; title: string }) => {
       const settings = await readSettings();

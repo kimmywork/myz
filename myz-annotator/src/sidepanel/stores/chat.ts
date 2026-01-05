@@ -44,6 +44,7 @@ export const useChatStore = defineStore("chat", () => {
   const isLoading = ref(false);
   const error = ref("");
   const userInput = ref("");
+  const pendingRequestId = ref<string | null>(null);
   const sendContext = ref(true);
   const contextInfo = reactive({
     size: 0,
@@ -208,10 +209,23 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   async function sendUserMessage(content: string) {
-    if (!conversationId.value) return;
+    const trimmed = (content || "").trim();
+    if (!trimmed || isLoading.value) {
+      return;
+    }
+
+    if (!conversationId.value) {
+      await createNewConversation();
+    }
+    if (!conversationId.value) {
+      error.value = "创建对话失败";
+      return;
+    }
 
     error.value = "";
     isLoading.value = true;
+    const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    pendingRequestId.value = requestId;
 
     try {
       if (contextInfo.needsCompression) {
@@ -220,30 +234,41 @@ export const useChatStore = defineStore("chat", () => {
       }
 
       const userMsg: Message = {
-        id: `msg-${Date.now()}`,
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         conversationId: conversationId.value,
         role: "user",
-        content,
+        content: trimmed,
         timestamp: new Date().toISOString(),
       };
 
-      await saveMessage(userMsg);
       messages.value.push(userMsg);
       userInput.value = "";
 
-      // Send to background
-      sendMessage("myz:aiStreamRequest", {
+      // Send to background (streaming via runtime messages)
+      void sendMessage("myz:aiStreamRequest", {
         conversationId: conversationId.value,
-        message: content,
+        message: trimmed,
+        action: "custom",
         context: {
           url: pageStore.currentUrl,
           title: pageStore.pageTitle,
           includePageContext: sendContext.value,
         },
+      }).catch((e) => {
+        if (pendingRequestId.value !== requestId) {
+          return;
+        }
+        if (hasActiveStream.value) {
+          return;
+        }
+        pendingRequestId.value = null;
+        error.value = "发送失败: " + (e as Error).message;
+        isLoading.value = false;
       });
     } catch (e) {
       console.error("Failed to send message:", e);
       error.value = "发送失败: " + (e as Error).message;
+      pendingRequestId.value = null;
       isLoading.value = false;
     }
   }
@@ -269,18 +294,22 @@ export const useChatStore = defineStore("chat", () => {
     autoInsights.loading = true;
 
     try {
-      const response = await chrome.tabs.sendMessage(pageStore.currentTabId, {
+      const envelope: any = await chrome.tabs.sendMessage(pageStore.currentTabId, {
         type: "myz:analyzePage",
-        action,
+        payload: { action },
       });
+      if (envelope?.ok === false) {
+        throw new Error(envelope?.error || "分析失败");
+      }
+      const result = envelope?.data ?? envelope;
 
-      if (response && response.success) {
-        autoInsights.markdown = response.data.markdown;
-        autoInsights.chunkGroups = response.data.chunkGroups || 0;
-        autoInsights.context = response.data.context;
-        autoInsights.generatedAt = new Date().toISOString();
+      if (result && result.success) {
+        autoInsights.markdown = result.markdown;
+        autoInsights.chunkGroups = result.chunkGroups || 0;
+        autoInsights.context = result.context;
+        autoInsights.generatedAt = result.generatedAt || new Date().toISOString();
       } else {
-        autoInsights.error = response?.error || "分析失败";
+        autoInsights.error = result?.error || "分析失败";
       }
     } catch (e) {
       autoInsights.error = (e as Error).message;
@@ -426,6 +455,8 @@ export const useChatStore = defineStore("chat", () => {
     const messageToAppend = { ...finalMessage, metadata: { ...(finalMessage.metadata || {}) } };
     resetActiveStream();
     messages.value.push(messageToAppend);
+    isLoading.value = false;
+    pendingRequestId.value = null;
     
     const uiStore = useUIStore();
     uiStore.scrollToBottom();
@@ -436,6 +467,8 @@ export const useChatStore = defineStore("chat", () => {
     if (!data || data.conversationId !== conversationId.value || !data.streamId || activeStream.id !== data.streamId) return;
     resetActiveStream();
     error.value = data.error ? `AI生成失败: ${data.error}` : "AI生成失败";
+    isLoading.value = false;
+    pendingRequestId.value = null;
   }
 
   async function handleAutoAction(action: string) {

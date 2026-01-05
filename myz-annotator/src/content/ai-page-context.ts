@@ -70,6 +70,8 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
     Number.isFinite(requestedTotal) && requestedTotal > 0
       ? requestedTotal
       : DEFAULT_MAX_TOTAL_CHARS;
+  const shouldLimitTotalChars =
+    Number.isFinite(maxTotalChars) && maxTotalChars > 0;
   const maxChunks = clampNumber(
     Number(options.maxChunks) || DEFAULT_MAX_CHUNKS,
     5,
@@ -133,6 +135,12 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
       truncated = true;
       break;
     }
+
+    if (shouldLimitTotalChars && totalChars + chunkLength >= maxTotalChars) {
+      truncated = true;
+      flushChunk();
+      break;
+    }
     
     const tag = node.tagName?.toLowerCase() || "";
     const isHeading = /^h[1-6]$/.test(tag);
@@ -141,14 +149,37 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
       continue;
     }
 
+    let nextText = text;
+    if (shouldLimitTotalChars) {
+      const remaining = maxTotalChars - totalChars - chunkLength;
+      if (remaining <= 0) {
+        truncated = true;
+        flushChunk();
+        break;
+      }
+      if (nextText.length > remaining) {
+        nextText = nextText.slice(0, remaining).trimEnd();
+        truncated = true;
+      }
+      if (!nextText.trim()) {
+        flushChunk();
+        break;
+      }
+    }
+
     if (!anchorNode) {
       anchorNode = node;
     }
-    chunkParts.push(text);
-    chunkLength += text.length;
+    chunkParts.push(nextText);
+    chunkLength += nextText.length;
 
     if (chunkLength >= chunkCharLimit) {
       flushChunk();
+    }
+
+    if (truncated) {
+      flushChunk();
+      break;
     }
   }
 
@@ -163,13 +194,20 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
       (root as HTMLElement).innerText ?? root.textContent ?? "",
     );
     if (fallbackText) {
+      const maxFallbackChars = shouldLimitTotalChars
+        ? Math.max(0, maxTotalChars - totalChars)
+        : fallbackText.length;
       let offset = 0;
       let localIndex = 0;
       while (
         offset < fallbackText.length &&
+        offset < maxFallbackChars &&
         (chunks.length < maxChunks || !maxChunks)
       ) {
-        const segment = fallbackText.slice(offset, offset + chunkCharLimit);
+        const segment = fallbackText.slice(
+          offset,
+          Math.min(offset + chunkCharLimit, maxFallbackChars),
+        );
         if (!segment) {
           break;
         }
@@ -191,6 +229,10 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
         offset += chunkCharLimit;
         localIndex += 1;
         if (chunks.length >= maxChunks) {
+          truncated = true;
+          break;
+        }
+        if (shouldLimitTotalChars && totalChars >= maxTotalChars) {
           truncated = true;
           break;
         }

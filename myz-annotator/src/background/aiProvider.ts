@@ -104,10 +104,15 @@ export interface ToolCall {
   id: string;
   index?: number;
   type: "function";
+  // Gemini 2.5/3 thinking models may include thought signatures for tool calls.
+  // If present, we must echo them back in subsequent turns for function calling.
+  thought_signature?: string;
+  thoughtSignature?: string;
   function: {
     name: string;
     arguments: string;
   };
+  [key: string]: any;
 }
 
 export interface ToolExecutionResult {
@@ -370,6 +375,16 @@ function normalizeReasoningChunk(value: MessageContent | string | undefined) {
   return (reasoning || text || "").toString();
 }
 
+function extractGoogleThoughtSignature(message: any): string {
+  const maybeSignature =
+    message?.extra_content?.google?.thought_signature ??
+    message?.extra_content?.google?.thoughtSignature ??
+    message?.extraContent?.google?.thought_signature ??
+    message?.extraContent?.google?.thoughtSignature;
+
+  return typeof maybeSignature === "string" ? maybeSignature : "";
+}
+
 // fixme: any
 function normalizeMessagePayload(message: any): {
   content: string;
@@ -620,12 +635,19 @@ export class AiProvider {
     let fullContent = "";
     let fullReasoning = "";
     const toolCalls: ToolCall[] = [];
+    let googleThoughtSignature = "";
 
     const ensureToolCallSlot = (index: number, partial: Partial<ToolCall>) => {
       if (!toolCalls[index]) {
         toolCalls[index] = {
           id: partial.id || `tool-${index + 1}`,
           type: "function",
+          ...(typeof (partial as any).thought_signature === "string"
+            ? { thought_signature: (partial as any).thought_signature }
+            : {}),
+          ...(typeof (partial as any).thoughtSignature === "string"
+            ? { thoughtSignature: (partial as any).thoughtSignature }
+            : {}),
           function: {
             name: partial.function?.name || "",
             arguments: "",
@@ -642,6 +664,12 @@ export class AiProvider {
       if (partial.function?.arguments) {
         target.function.arguments =
           (target.function.arguments || "") + partial.function.arguments;
+      }
+      if (typeof (partial as any).thought_signature === "string") {
+        (target as any).thought_signature = (partial as any).thought_signature;
+      }
+      if (typeof (partial as any).thoughtSignature === "string") {
+        (target as any).thoughtSignature = (partial as any).thoughtSignature;
       }
     };
 
@@ -674,6 +702,13 @@ export class AiProvider {
           }
           const delta = parsed.choices?.[0]?.delta;
           if (!delta) continue;
+
+          if (!googleThoughtSignature) {
+            googleThoughtSignature =
+              extractGoogleThoughtSignature(delta) ||
+              extractGoogleThoughtSignature(parsed.choices?.[0] as any) ||
+              extractGoogleThoughtSignature(parsed as any);
+          }
 
           const { text: deltaText, reasoning: reasoningFromContent } =
             splitContentAndReasoning(delta.content);
@@ -724,14 +759,31 @@ export class AiProvider {
 
     const cleanedToolCalls: ToolCall[] = toolCalls
       .filter(Boolean)
-      .map((call, index) => ({
-        id: call.id || `tool-${index + 1}`,
-        type: "function",
-        function: {
-          name: call.function?.name || "",
-          arguments: call.function?.arguments || "",
-        },
-      }));
+      .map((call, index) => {
+        const thoughtSignatureSnake =
+          typeof (call as any).thought_signature === "string"
+            ? (call as any).thought_signature
+            : undefined;
+        const resolvedThoughtSignatureSnake =
+          thoughtSignatureSnake || googleThoughtSignature || undefined;
+        const thoughtSignature =
+          typeof (call as any).thoughtSignature === "string"
+            ? (call as any).thoughtSignature
+            : undefined;
+
+        return {
+          id: call.id || `tool-${index + 1}`,
+          type: "function",
+          function: {
+            name: call.function?.name || "",
+            arguments: call.function?.arguments || "",
+          },
+          ...(resolvedThoughtSignatureSnake
+            ? { thought_signature: resolvedThoughtSignatureSnake }
+            : {}),
+          ...(thoughtSignature ? { thoughtSignature } : {}),
+        };
+      });
 
     const message: ChatCompletionMessage = {
       role: "assistant",
@@ -808,14 +860,29 @@ export class AiProvider {
       console.log("[MCP Debug] No MCP tools available");
     }
 
-    const response: ChatCompletionResponsePayload = stream
-      ? await this.streamChatCompletion(payload, {
-          onStreamDelta,
-        })
-      : await this.makeApiRequest(payload);
+    const shouldForceNonStreamingForGeminiTools =
+      stream &&
+      /^gemini/i.test(model) &&
+      Array.isArray(payload.tools) &&
+      payload.tools.length > 0;
+
+    const response: ChatCompletionResponsePayload = shouldForceNonStreamingForGeminiTools
+      ? await this.makeApiRequest(payload)
+      : stream
+        ? await this.streamChatCompletion(payload, {
+            onStreamDelta,
+          })
+        : await this.makeApiRequest(payload);
 
     // Handle tool calls if present
     const message = response.choices?.[0]?.message;
+    const googleThoughtSignature = extractGoogleThoughtSignature(message);
+    if (googleThoughtSignature && Array.isArray(message?.tool_calls)) {
+      message.tool_calls = message.tool_calls.map((call: any) => ({
+        ...call,
+        thought_signature: call?.thought_signature || googleThoughtSignature,
+      }));
+    }
     if (message?.tool_calls) {
       const toolCallDetails = message.tool_calls.map((call, index) => ({
         id: call.id || `tool-${index + 1}`,
@@ -1037,9 +1104,24 @@ export class AiProvider {
   }
 
   async executeToolCall(toolCall: ToolCall): Promise<ToolExecutionResult> {
-    const { name, arguments: args } = toolCall.function;
+    const { name: rawName, arguments: args } = toolCall.function;
+    const fallbackName =
+      typeof rawName === "string" && rawName.includes(":")
+        ? rawName.split(":").pop() || rawName
+        : rawName;
+    const candidates = Array.from(
+      new Set(
+        [rawName, fallbackName].filter(
+          (value): value is string =>
+            typeof value === "string" && value.trim().length > 0,
+        ),
+      ),
+    );
 
-    if (LOCAL_TOOL_HANDLERS[name]) {
+    for (const name of candidates) {
+      if (!LOCAL_TOOL_HANDLERS[name]) {
+        continue;
+      }
       let parsedArgs = {};
       try {
         parsedArgs = args ? JSON.parse(args) : {};
@@ -1052,9 +1134,12 @@ export class AiProvider {
     // Find which MCP client has this tool
     for (const [_, client] of this.mcpClients) {
       const tools = client.getTools();
-      if (tools.some((tool) => tool.name === name)) {
+      const resolvedName = candidates.find((candidate) =>
+        tools.some((tool) => tool.name === candidate),
+      );
+      if (resolvedName) {
         try {
-          const result = await client.callTool(name, JSON.parse(args));
+          const result = await client.callTool(resolvedName, JSON.parse(args));
           return {
             content: result.content,
             data: result.data,
@@ -1066,7 +1151,7 @@ export class AiProvider {
       }
     }
 
-    throw new Error(`Tool not found: ${name}`);
+    throw new Error(`Tool not found: ${rawName}`);
   }
 
   async initializeMcpClients() {
