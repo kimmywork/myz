@@ -17,13 +17,34 @@ function isToolInvocationNotice(msg: Message): boolean {
   if (!msg || msg.role !== "assistant" || !msg.metadata?.hasToolCalls) {
     return false;
   }
-  if (msg.metadata?.toolInvocationOnly) return true;
+  const reasoningText = (
+    (msg as any)?.reasoning_content ||
+    (msg.metadata as any)?.reasoning ||
+    (msg.metadata as any)?.reasoning_content ||
+    ""
+  ).trim();
+  if (reasoningText) {
+    return false;
+  }
+
   const text = (msg.content || "").trim();
-  if (!text) return true;
+  if (!text) {
+    return true;
+  }
   const pattern = /\[Tool\s+\d+:[^\]]+\]/g;
   const matches = text.match(pattern);
   if (!matches) return false;
-  return text.replace(pattern, "").trim().length === 0;
+  const remaining = text.replace(pattern, "").trim();
+  if (remaining.length > 0) {
+    return false;
+  }
+
+  // Some messages are explicitly marked tool-invocation-only; keep the old behavior,
+  // but only when there is no other user-visible output.
+  if (msg.metadata?.toolInvocationOnly) {
+    return true;
+  }
+  return true;
 }
 
 export default defineComponent({

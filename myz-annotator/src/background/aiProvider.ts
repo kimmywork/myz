@@ -85,6 +85,15 @@ export interface ChatCompletionRequestPayload {
   temperature?: number;
   tools?: { type: "function"; function: ToolDefinition }[];
   stream?: boolean;
+  extra_body?: {
+    google?: {
+      thinking_config?: {
+        include_thoughts?: boolean;
+      };
+      [key: string]: any;
+    };
+    [key: string]: any;
+  };
 }
 
 export interface MessageInPayload {
@@ -107,7 +116,6 @@ export interface ToolCall {
   // Gemini 2.5/3 thinking models may include thought signatures for tool calls.
   // If present, we must echo them back in subsequent turns for function calling.
   thought_signature?: string;
-  thoughtSignature?: string;
   function: {
     name: string;
     arguments: string;
@@ -375,14 +383,58 @@ function normalizeReasoningChunk(value: MessageContent | string | undefined) {
   return (reasoning || text || "").toString();
 }
 
-function extractGoogleThoughtSignature(message: any): string {
-  const maybeSignature =
-    message?.extra_content?.google?.thought_signature ??
-    message?.extra_content?.google?.thoughtSignature ??
-    message?.extraContent?.google?.thought_signature ??
-    message?.extraContent?.google?.thoughtSignature;
+function splitGeminiThoughtTaggedContent(content: string): {
+  text: string;
+  thought: string;
+} {
+  if (!content) {
+    return { text: "", thought: "" };
+  }
 
-  return typeof maybeSignature === "string" ? maybeSignature : "";
+  const thoughtParts: string[] = [];
+  const text = content.replace(
+    /<thought>([\s\S]*?)<\/thought>/g,
+    (_, thought: string) => {
+      const trimmed = typeof thought === "string" ? thought.trim() : "";
+      if (trimmed) {
+        thoughtParts.push(trimmed);
+      }
+      return "";
+    },
+  );
+
+  return {
+    text: text.trim(),
+    thought: thoughtParts.join("\n\n").trim(),
+  };
+}
+
+function extractGeminiThoughtSegments(buffer: string): {
+  buffer: string;
+  thought: string;
+} {
+  if (!buffer) {
+    return { buffer: "", thought: "" };
+  }
+
+  const parts: string[] = [];
+  const openTag = "<thought>";
+  const closeTag = "</thought>";
+  let working = buffer;
+
+  while (true) {
+    const start = working.indexOf(openTag);
+    if (start === -1) break;
+    const end = working.indexOf(closeTag, start + openTag.length);
+    if (end === -1) break;
+    const inner = working.slice(start + openTag.length, end).trim();
+    if (inner) {
+      parts.push(inner);
+    }
+    working = working.slice(0, start) + working.slice(end + closeTag.length);
+  }
+
+  return { buffer: working, thought: parts.join("\n\n").trim() };
 }
 
 // fixme: any
@@ -394,8 +446,23 @@ function normalizeMessagePayload(message: any): {
     return { content: "", reasoning: "" };
   }
 
-  const { text, reasoning } = splitContentAndReasoning(message.content);
+  const googleThoughtFlag = Boolean(message?.extra_content?.google?.thought);
+  const contentValue = message.content;
+  const isStringContent = typeof contentValue === "string";
+  const tagged =
+    isStringContent && (contentValue.includes("<thought>") || googleThoughtFlag)
+      ? splitGeminiThoughtTaggedContent(contentValue)
+      : { text: "", thought: "" };
+
+  const treatAsThoughtOnly = googleThoughtFlag && isStringContent && !tagged.thought;
+  const visibleText = treatAsThoughtOnly ? "" : tagged.text;
+
+  const { text, reasoning } = splitContentAndReasoning(
+    isStringContent ? visibleText : contentValue,
+  );
+  const extractedThought = tagged.thought || (treatAsThoughtOnly ? contentValue : "");
   const reasoningCandidates = [
+    extractedThought,
     message.reasoning_content,
     message.reasoning,
     message.analysis,
@@ -409,7 +476,11 @@ function normalizeMessagePayload(message: any): {
     content:
       text ||
       (typeof message.content === "string"
-        ? message.content
+        ? tagged.thought
+          ? tagged.text
+          : treatAsThoughtOnly
+            ? ""
+            : tagged.text || message.content
         : normalizeReasoningChunk(message.content)),
     reasoning: explicitReasoning || reasoning || "",
   };
@@ -634,19 +705,31 @@ export class AiProvider {
     let done = false;
     let fullContent = "";
     let fullReasoning = "";
+    const isGeminiModel =
+      typeof payload.model === "string" && /^gemini/i.test(payload.model);
+    let geminiVisibleBuffer = "";
+    let geminiThoughtBuffer = "";
     const toolCalls: ToolCall[] = [];
-    let googleThoughtSignature = "";
+    // Gemini tool-call thought signatures are emitted in `tool_calls[].extra_content.google.thought_signature`,
+    // which is not reliably available in the streaming delta for OpenAI-compatible endpoints.
 
     const ensureToolCallSlot = (index: number, partial: Partial<ToolCall>) => {
       if (!toolCalls[index]) {
+        const thoughtSignature =
+          typeof (partial as any).thought_signature === "string"
+            ? (partial as any).thought_signature
+            : undefined;
         toolCalls[index] = {
           id: partial.id || `tool-${index + 1}`,
           type: "function",
-          ...(typeof (partial as any).thought_signature === "string"
-            ? { thought_signature: (partial as any).thought_signature }
-            : {}),
-          ...(typeof (partial as any).thoughtSignature === "string"
-            ? { thoughtSignature: (partial as any).thoughtSignature }
+          ...(thoughtSignature
+            ? {
+                extra_content: {
+                  google: {
+                    thought_signature: thoughtSignature,
+                  },
+                },
+              }
             : {}),
           function: {
             name: partial.function?.name || "",
@@ -666,10 +749,19 @@ export class AiProvider {
           (target.function.arguments || "") + partial.function.arguments;
       }
       if (typeof (partial as any).thought_signature === "string") {
-        (target as any).thought_signature = (partial as any).thought_signature;
+        (target as any).extra_content = {
+          ...((target as any).extra_content || {}),
+          google: {
+            ...(((target as any).extra_content?.google as any) || {}),
+            thought_signature: (partial as any).thought_signature,
+          },
+        };
       }
-      if (typeof (partial as any).thoughtSignature === "string") {
-        (target as any).thoughtSignature = (partial as any).thoughtSignature;
+      if (partial && typeof partial === "object" && (partial as any).extra_content) {
+        (target as any).extra_content = {
+          ...((target as any).extra_content || {}),
+          ...(partial as any).extra_content,
+        };
       }
     };
 
@@ -703,15 +795,17 @@ export class AiProvider {
           const delta = parsed.choices?.[0]?.delta;
           if (!delta) continue;
 
-          if (!googleThoughtSignature) {
-            googleThoughtSignature =
-              extractGoogleThoughtSignature(delta) ||
-              extractGoogleThoughtSignature(parsed.choices?.[0] as any) ||
-              extractGoogleThoughtSignature(parsed as any);
-          }
+          const deltaContent =
+            typeof delta.content === "string"
+              ? delta.content
+              : typeof (delta.content as any)?.text === "string"
+                ? (delta.content as any).text
+                : "";
 
           const { text: deltaText, reasoning: reasoningFromContent } =
-            splitContentAndReasoning(delta.content);
+            isGeminiModel && deltaContent
+              ? { text: deltaContent, reasoning: "" }
+              : splitContentAndReasoning(delta.content);
           const reasoningDeltaParts = [];
           if (reasoningFromContent) {
             reasoningDeltaParts.push(reasoningFromContent);
@@ -727,12 +821,36 @@ export class AiProvider {
           let hasDeltaUpdate = false;
 
           if (deltaText) {
-            fullContent += deltaText;
-            hasDeltaUpdate = true;
+            if (isGeminiModel) {
+              geminiVisibleBuffer += deltaText;
+              const extracted = extractGeminiThoughtSegments(geminiVisibleBuffer);
+              geminiVisibleBuffer = extracted.buffer;
+              if (extracted.thought) {
+                geminiThoughtBuffer = [
+                  geminiThoughtBuffer,
+                  extracted.thought,
+                ]
+                  .filter(Boolean)
+                  .join("\n\n");
+              }
+              fullContent = geminiVisibleBuffer;
+              fullReasoning = geminiThoughtBuffer;
+              hasDeltaUpdate = true;
+            } else {
+              fullContent += deltaText;
+              hasDeltaUpdate = true;
+            }
           }
 
           if (reasoningDelta) {
-            fullReasoning += reasoningDelta;
+            if (isGeminiModel) {
+              geminiThoughtBuffer = [geminiThoughtBuffer, reasoningDelta]
+                .filter(Boolean)
+                .join("");
+              fullReasoning = geminiThoughtBuffer;
+            } else {
+              fullReasoning += reasoningDelta;
+            }
             hasDeltaUpdate = true;
           }
 
@@ -760,16 +878,17 @@ export class AiProvider {
     const cleanedToolCalls: ToolCall[] = toolCalls
       .filter(Boolean)
       .map((call, index) => {
-        const thoughtSignatureSnake =
+        const signatureFromExtra =
+          typeof (call as any)?.extra_content?.google?.thought_signature ===
+          "string"
+            ? (call as any).extra_content.google.thought_signature
+            : undefined;
+        const fallbackSignature =
           typeof (call as any).thought_signature === "string"
             ? (call as any).thought_signature
             : undefined;
-        const resolvedThoughtSignatureSnake =
-          thoughtSignatureSnake || googleThoughtSignature || undefined;
-        const thoughtSignature =
-          typeof (call as any).thoughtSignature === "string"
-            ? (call as any).thoughtSignature
-            : undefined;
+        const thoughtSignature = signatureFromExtra || fallbackSignature;
+        const baseExtra = (call as any).extra_content || undefined;
 
         return {
           id: call.id || `tool-${index + 1}`,
@@ -778,10 +897,18 @@ export class AiProvider {
             name: call.function?.name || "",
             arguments: call.function?.arguments || "",
           },
-          ...(resolvedThoughtSignatureSnake
-            ? { thought_signature: resolvedThoughtSignatureSnake }
+          ...(baseExtra ? { extra_content: baseExtra } : {}),
+          ...(thoughtSignature
+            ? {
+                extra_content: {
+                  ...(baseExtra || {}),
+                  google: {
+                    ...((baseExtra?.google as any) || {}),
+                    thought_signature: thoughtSignature,
+                  },
+                },
+              }
             : {}),
-          ...(thoughtSignature ? { thoughtSignature } : {}),
         };
       });
 
@@ -860,29 +987,24 @@ export class AiProvider {
       console.log("[MCP Debug] No MCP tools available");
     }
 
-    const shouldForceNonStreamingForGeminiTools =
-      stream &&
-      /^gemini/i.test(model) &&
-      Array.isArray(payload.tools) &&
-      payload.tools.length > 0;
+    if (/^gemini/i.test(model)) {
+      payload.extra_body = payload.extra_body || {};
+      payload.extra_body.google = payload.extra_body.google || {};
+      payload.extra_body.google.thinking_config =
+        payload.extra_body.google.thinking_config || {};
+      if (typeof payload.extra_body.google.thinking_config.include_thoughts === "undefined") {
+        payload.extra_body.google.thinking_config.include_thoughts = true;
+      }
+    }
 
-    const response: ChatCompletionResponsePayload = shouldForceNonStreamingForGeminiTools
-      ? await this.makeApiRequest(payload)
-      : stream
-        ? await this.streamChatCompletion(payload, {
-            onStreamDelta,
-          })
-        : await this.makeApiRequest(payload);
+    const response: ChatCompletionResponsePayload = stream
+      ? await this.streamChatCompletion(payload, {
+          onStreamDelta,
+        })
+      : await this.makeApiRequest(payload);
 
     // Handle tool calls if present
     const message = response.choices?.[0]?.message;
-    const googleThoughtSignature = extractGoogleThoughtSignature(message);
-    if (googleThoughtSignature && Array.isArray(message?.tool_calls)) {
-      message.tool_calls = message.tool_calls.map((call: any) => ({
-        ...call,
-        thought_signature: call?.thought_signature || googleThoughtSignature,
-      }));
-    }
     if (message?.tool_calls) {
       const toolCallDetails = message.tool_calls.map((call, index) => ({
         id: call.id || `tool-${index + 1}`,
@@ -891,12 +1013,15 @@ export class AiProvider {
       }));
       const toolNames = toolCallDetails.map((detail) => detail.name);
 
+      const { content: normalizedContent, reasoning: reasoningContent } =
+        normalizeMessagePayload(message);
+
       // Save tool call message first
       const toolCallMessage: Message = {
         id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         conversationId,
         role: "assistant" as Role,
-        content: message.content || "", // Preserve content if present
+        content: normalizedContent || "",
         tool_calls: message.tool_calls,
         timestamp: new Date().toISOString(),
         metadata: {
@@ -905,6 +1030,7 @@ export class AiProvider {
           toolCallCount: message.tool_calls.length,
           toolNames,
           toolCallDetails,
+          ...(reasoningContent ? { reasoning: reasoningContent } : {}),
         },
       };
       await saveMessage(toolCallMessage);
@@ -935,9 +1061,29 @@ export class AiProvider {
     options: GenerateResponseOptions = {},
   ) {
     const toolCalls: ToolCall[] = message.tool_calls || [];
+    const rawContent = (message as any)?.content;
+    const rawThoughtFlag = Boolean((message as any)?.extra_content?.google?.thought);
+    let sanitizedContent = "";
+    if (typeof rawContent === "string") {
+      if (rawThoughtFlag && !rawContent.includes("<thought>")) {
+        sanitizedContent = "";
+      } else {
+        const split = splitGeminiThoughtTaggedContent(rawContent);
+        sanitizedContent = split.text || "";
+      }
+    }
+
+    const sanitizedAssistantMessage: MessageInPayload = {
+      role: message.role,
+      content: sanitizedContent,
+      ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+    };
+
+    // When calling tools, we only need the function-call parts and user-visible content;
+    // never forward any reasoning fields that an OpenAI-compatible endpoint might add.
     const followUpMessages: MessageInPayload[] = [
       ...previousMessages,
-      message, // Original assistant message with tool calls
+      sanitizedAssistantMessage,
     ];
 
     for (const toolCall of toolCalls) {
@@ -1316,7 +1462,9 @@ export class AiProvider {
 
     let toolNamesList: string[] = [];
     let toolCallDetails: ToolInvocationDetails[] = [];
-    const assistantHadContent = Boolean((normalizedContent || "").trim());
+    const assistantHadContent = Boolean(
+      (normalizedContent || "").trim() || (reasoningContent || "").trim(),
+    );
 
     if (message?.tool_calls && message.tool_calls.length > 0) {
       toolNamesList = message.tool_calls.map(
