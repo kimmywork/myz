@@ -8,15 +8,11 @@ export const useSettingsStore = defineStore("settings", () => {
   const settings: Settings = reactive({
     dashboardView: "cards",
     aiAssistantEnabled: false,
-    aiApiEndpoint: "",
-    aiApiKey: "",
-    aiModel: "gpt-4",
-    aiCustomModel: "",
-    aiContextSize: "32K",
-    aiMaxTokens: 32768,
-    aiRequestHeaders: "",
     aiProviders: [],
-    aiActiveProviderId: null,
+    aiAgents: {
+      conversation: { target: null, temperature: 0.7 },
+      insights: { target: null, temperature: 0.7 },
+    },
     aiMcpServers: [],
     vectorSearchEnabled: false,
     vectorModelReady: false,
@@ -73,24 +69,28 @@ export const useSettingsStore = defineStore("settings", () => {
       Object.assign(settings, {
         dashboardView: result.dashboardView || settings.dashboardView,
         aiAssistantEnabled: Boolean(result.aiAssistantEnabled),
-        aiApiEndpoint: result.aiApiEndpoint || "",
-        aiApiKey: result.aiApiKey || "",
-        aiModel: result.aiModel || "gpt-4",
-        aiCustomModel: result.aiCustomModel || "",
-        aiContextSize: result.aiContextSize || "32K",
-        aiMaxTokens:
-          typeof result.aiMaxTokens === "number"
-            ? result.aiMaxTokens
-            : settings.aiMaxTokens,
-        aiRequestHeaders: result.aiRequestHeaders || "",
         aiProviders: Array.isArray(result.aiProviders)
           ? result.aiProviders.map((p) => ({ ...p }))
           : [],
-        aiActiveProviderId:
-          typeof result.aiActiveProviderId === "string" ||
-          result.aiActiveProviderId === null
-            ? result.aiActiveProviderId
-            : null,
+        aiAgents:
+          result.aiAgents && typeof result.aiAgents === "object"
+            ? {
+                conversation: {
+                  target: result.aiAgents.conversation?.target || null,
+                  temperature:
+                    typeof result.aiAgents.conversation?.temperature === "number"
+                      ? result.aiAgents.conversation.temperature
+                      : 0.7,
+                },
+                insights: {
+                  target: result.aiAgents.insights?.target || null,
+                  temperature:
+                    typeof result.aiAgents.insights?.temperature === "number"
+                      ? result.aiAgents.insights.temperature
+                      : 0.7,
+                },
+              }
+            : settings.aiAgents,
         aiMcpServers: Array.isArray(result.aiMcpServers)
           ? result.aiMcpServers.map((s) => ({ ...s }))
           : [],
@@ -144,16 +144,11 @@ export const useSettingsStore = defineStore("settings", () => {
           ...settings,
           ...updated,
         });
-        // Ensure specific fields are correctly updated if present
-        if ("aiActiveProviderId" in updated) {
-          settings.aiActiveProviderId =
-            typeof updated.aiActiveProviderId === "string" ||
-            updated.aiActiveProviderId === null
-              ? updated.aiActiveProviderId
-              : settings.aiActiveProviderId;
-        }
         if (Array.isArray(updated.aiProviders)) {
           settings.aiProviders = updated.aiProviders.map((p) => ({ ...p }));
+        }
+        if ("aiAgents" in updated && updated.aiAgents) {
+          settings.aiAgents = updated.aiAgents as any;
         }
         if (Array.isArray(updated.aiMcpServers)) {
           settings.aiMcpServers = updated.aiMcpServers.map((s) => ({ ...s }));
@@ -213,30 +208,6 @@ export const useSettingsStore = defineStore("settings", () => {
       setTimedStatus(
         settingsStatus,
         `保存失败：${(error as Error).message}`,
-        4000,
-      );
-      throw error;
-    }
-  }
-
-  async function testAiConnection(settingsPayload: Partial<Settings>) {
-    try {
-      setTimedStatus(settingsStatus, "测试 AI 连接中…", 0);
-      const result = await sendMessage("myz:testAiConnection", settingsPayload);
-      if (result.success) {
-        setTimedStatus(settingsStatus, "✓ AI 连接成功", 3000);
-      } else {
-        setTimedStatus(
-          settingsStatus,
-          `✗ AI 连接失败：${result.error || "未知错误"}`,
-          4000,
-        );
-      }
-      return result;
-    } catch (error) {
-      setTimedStatus(
-        settingsStatus,
-        `✗ 测试失败：${(error as Error).message}`,
         4000,
       );
       throw error;
@@ -364,7 +335,6 @@ export const useSettingsStore = defineStore("settings", () => {
     initialize,
     loadSettings,
     saveSettings,
-    testAiConnection,
     toggleVectorSearch,
     loadVectorModel,
     testVectorProvider,

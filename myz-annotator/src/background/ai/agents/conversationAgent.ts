@@ -1,8 +1,5 @@
 import type { ChatCompletionClient } from "../providers/types.js"
-import type {
-  AIAssistantSettings,
-  AIProviderSetting,
-} from "../../settings.js"
+import type { AIModelSetting, AIProviderSetting, MaxOutputTokenParam } from "../../settings.js"
 import type {
   Message,
   MessageInPayload,
@@ -20,16 +17,6 @@ function generateId(prefix = "msg") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function resolveModel(
-  settings: Partial<AIAssistantSettings> & Partial<AIProviderSetting>,
-): string {
-  let model = settings.model || settings.aiModel || "gpt-4"
-  if (model === "custom" && (settings.customModel || settings.aiCustomModel)) {
-    model = settings.customModel || settings.aiCustomModel || model
-  }
-  return model
-}
-
 function notifyRuntime(type: string, payload: any) {
   try {
     chrome.runtime
@@ -40,23 +27,13 @@ function notifyRuntime(type: string, payload: any) {
   }
 }
 
-export interface ConversationAgentOptions {
-  isEnabled: boolean
-  settings: Partial<AIAssistantSettings> & Partial<AIProviderSetting>
-  client: ChatCompletionClient
+export interface ConversationCallConfig {
+  provider: AIProviderSetting
+  model: AIModelSetting
+  temperature: number
 }
 
 export class ConversationAgent {
-  private isEnabled: boolean
-  private settings: Partial<AIAssistantSettings> & Partial<AIProviderSetting>
-  private client: ChatCompletionClient
-
-  constructor(options: ConversationAgentOptions) {
-    this.isEnabled = Boolean(options.isEnabled)
-    this.settings = options.settings || {}
-    this.client = options.client
-  }
-
   private notifyNewMessage(conversationId: string | null, message: Message) {
     notifyRuntime("myz:newMessage", {
       data: {
@@ -132,6 +109,7 @@ export class ConversationAgent {
     conversationId: string | null,
     action: string,
     message: any,
+    callConfig: ConversationCallConfig,
   ) {
     if (!conversationId) return
     if (!message?.tool_calls || !message.tool_calls.length) return
@@ -153,7 +131,9 @@ export class ConversationAgent {
       tool_calls: message.tool_calls,
       timestamp: new Date().toISOString(),
       metadata: {
-        model: this.settings.aiModel,
+        model: callConfig.model.model,
+        providerId: callConfig.provider.id,
+        providerName: callConfig.provider.name,
         action,
         hasToolCalls: true,
         toolCallCount: message.tool_calls.length,
@@ -198,8 +178,9 @@ export class ConversationAgent {
     action: string,
     content: string,
     options: ProcessConversationOptions = {},
+    deps: { client: ChatCompletionClient; isEnabled: boolean; callConfig: ConversationCallConfig },
   ): Promise<ProcessConversationResult> {
-    if (!this.isEnabled) {
+    if (!deps.isEnabled) {
       throw new Error("AI Assistant is not enabled")
     }
 
@@ -238,26 +219,37 @@ export class ConversationAgent {
         content: "",
         timestamp: new Date().toISOString(),
         metadata: {
-          model: this.settings.aiModel,
+          model: deps.callConfig.model.model,
+          providerId: deps.callConfig.provider.id,
+          providerName: deps.callConfig.provider.name,
           action,
           streaming: true,
         },
       })
     }
 
-    const model = resolveModel(this.settings)
-    const maxTokens = this.settings.aiMaxTokens || 32768
+    const model = deps.callConfig.model.model
+    const maxOutputTokens = deps.callConfig.model.limits.maxOutputTokens
+    const maxOutputTokenParam: MaxOutputTokenParam =
+      deps.callConfig.model.limits.maxOutputTokenParam
+    const temperature = deps.callConfig.temperature
 
     let response: any
     try {
-      response = await this.client.createCompletion(
-        {
-          model,
-          messages: historyPayload,
-          max_tokens: maxTokens,
-          temperature: restOptions.temperature ?? 0.7,
-          stream,
-        } as any,
+      const request: any = {
+        model,
+        messages: historyPayload,
+        temperature: typeof restOptions.temperature === "number" ? restOptions.temperature : temperature,
+        stream,
+      }
+      if (maxOutputTokenParam === "max_completion_tokens") {
+        request.max_completion_tokens = maxOutputTokens
+      } else {
+        request.max_tokens = maxOutputTokens
+      }
+
+      response = await deps.client.createCompletion(
+        request,
         {
           onStreamDelta: stream
             ? (delta: any) => {
@@ -279,7 +271,7 @@ export class ConversationAgent {
               }
             : undefined,
           onToolCallMessage: async (message: any) =>
-            this.persistToolCallMessage(conversationId, action, message),
+            this.persistToolCallMessage(conversationId, action, message, deps.callConfig),
           onToolResultMessage: async (message: any) =>
             this.persistToolResultMessage(conversationId, message),
         } as any,
@@ -323,7 +315,9 @@ export class ConversationAgent {
       content: assistantContent,
       timestamp: new Date().toISOString(),
       metadata: {
-        model: this.settings.aiModel,
+        model: deps.callConfig.model.model,
+        providerId: deps.callConfig.provider.id,
+        providerName: deps.callConfig.provider.name,
         action,
         hasToolCalls: !!message?.tool_calls,
         toolCallCount: message?.tool_calls?.length || 0,
@@ -358,11 +352,10 @@ export class ConversationAgent {
       conversationId,
       content: assistantContent,
       reasoning: reasoningContent || "",
-      model: this.settings.aiModel!,
+      model: deps.callConfig.model.model,
       timestamp: assistantMessage.timestamp,
       hasToolCalls: !!message?.tool_calls,
       toolCallCount: message?.tool_calls?.length || 0,
     }
   }
 }
-

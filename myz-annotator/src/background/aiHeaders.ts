@@ -5,7 +5,8 @@ type ResourceType = chrome.declarativeNetRequest.ResourceType;
 
 const ResourceType = chrome.declarativeNetRequest.ResourceType;
 
-const AI_USER_AGENT_RULE_ID = 1001;
+const AI_USER_AGENT_RULE_BASE_ID = 1100;
+const AI_USER_AGENT_RULE_MAX = 20;
 const HEADER_RESOURCE_TYPES: ResourceType[] = [
   ResourceType.XMLHTTPREQUEST,
   ResourceType.OTHER,
@@ -31,18 +32,32 @@ function buildRegexFilterForEndpoint(endpoint: string): string | null {
   }
 }
 
-function resolveActiveHeaderConfig(settings: Partial<Settings> = {}) {
-  const providers = Array.isArray(settings.aiProviders)
-    ? settings.aiProviders
-    : [];
-  let target =
-    providers.find((p) => p?.id === settings.aiActiveProviderId) ||
-    providers[0] ||
-    null;
-  // Fallback to legacy fields
-  const endpoint = target?.apiEndpoint || settings.aiApiEndpoint || "";
-  const headers = target?.requestHeaders || settings.aiRequestHeaders || "";
-  return { endpoint, headers };
+function pickProviderIdsFromAgents(settings: Partial<Settings> = {}) {
+  const ids = new Set<string>();
+  const agents: any = (settings as any).aiAgents || {};
+  const conversationProvider = agents?.conversation?.target?.providerId;
+  const insightsProvider = agents?.insights?.target?.providerId;
+  [conversationProvider, insightsProvider].forEach((value) => {
+    if (typeof value === "string" && value.trim()) {
+      ids.add(value.trim());
+    }
+  });
+  return [...ids];
+}
+
+function resolveHeaderTargets(settings: Partial<Settings> = {}) {
+  const providers = Array.isArray(settings.aiProviders) ? settings.aiProviders : [];
+  const selectedIds = pickProviderIdsFromAgents(settings);
+  const selectedProviders = selectedIds
+    .map((id) => providers.find((p) => p?.id === id))
+    .filter(Boolean) as any[];
+
+  return selectedProviders
+    .map((provider) => ({
+      baseUrl: typeof provider.baseUrl === "string" ? provider.baseUrl : "",
+      headers: typeof provider.headers === "string" ? provider.headers : "",
+    }))
+    .filter((item) => item.baseUrl && item.headers);
 }
 
 export async function syncAiRequestHeaderRules(
@@ -52,14 +67,18 @@ export async function syncAiRequestHeaderRules(
     return;
   }
 
-  const { endpoint, headers } = resolveActiveHeaderConfig(settings);
-  const userAgent = getAiHeaderValue(headers, "user-agent");
-  const regexFilter = userAgent ? buildRegexFilterForEndpoint(endpoint) : null;
+  const targets = resolveHeaderTargets(settings as any);
+  const addRules: chrome.declarativeNetRequest.Rule[] = [];
 
-  const addRules = [];
-  if (userAgent && regexFilter) {
+  targets.slice(0, AI_USER_AGENT_RULE_MAX).forEach((target, index) => {
+    const userAgent = getAiHeaderValue(target.headers, "user-agent");
+    const regexFilter = userAgent ? buildRegexFilterForEndpoint(target.baseUrl) : null;
+    if (!userAgent || !regexFilter) {
+      return;
+    }
+    const id = AI_USER_AGENT_RULE_BASE_ID + index + 1;
     const rule: chrome.declarativeNetRequest.Rule = {
-      id: AI_USER_AGENT_RULE_ID,
+      id,
       priority: 1,
       action: {
         type: "modifyHeaders",
@@ -84,11 +103,14 @@ export async function syncAiRequestHeaderRules(
     }
 
     addRules.push(rule);
-  }
+  });
 
   try {
+    const removeRuleIds = Array.from({ length: AI_USER_AGENT_RULE_MAX }, (_, idx) =>
+      AI_USER_AGENT_RULE_BASE_ID + idx + 1,
+    );
     await chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds: [AI_USER_AGENT_RULE_ID],
+      removeRuleIds,
       addRules,
     });
   } catch (error) {

@@ -2,14 +2,9 @@ import type { ChatCompletionClient } from "../providers/types.js"
 import type { ContextChunk, PageInsightPayload } from "../types.js"
 import { normalizeMessagePayload } from "../normalize/message.js"
 import { PromptBuilder } from "../prompt/builder.js"
+import type { AIModelSetting, AIProviderSetting, MaxOutputTokenParam } from "../../settings.js"
 
 export interface InsightsAgentDeps {
-  isEnabled: boolean
-  settings: {
-    aiMaxTokens?: number
-    aiModel?: string
-    aiCustomModel?: string
-  }
   client: ChatCompletionClient
 }
 
@@ -123,7 +118,17 @@ CHUNK 1: myz-chunk-miy0603t-000
   }
 
   async generatePageInsights(payload: Partial<PageInsightPayload> = {}) {
-    if (!this.deps.isEnabled) {
+    throw new Error("InsightsAgent.generatePageInsights must be called with run config")
+  }
+
+  async generatePageInsightsWithConfig(
+    payload: Partial<PageInsightPayload> = {},
+    deps: {
+      isEnabled: boolean
+      callConfig: { provider: AIProviderSetting; model: AIModelSetting; temperature: number }
+    },
+  ) {
+    if (!deps.isEnabled) {
       throw new Error("AI Assistant is not enabled")
     }
     const action = payload.action === "key_points" ? "key_points" : "summarize"
@@ -132,11 +137,16 @@ CHUNK 1: myz-chunk-miy0603t-000
       throw new Error("No page context available to summarize")
     }
 
-    const maxTokens = this.deps.settings.aiMaxTokens || 32768
+    const maxOutputTokens = deps.callConfig.model.limits.maxOutputTokens
+    const maxOutputTokenParam: MaxOutputTokenParam =
+      deps.callConfig.model.limits.maxOutputTokenParam
     const approximateCharsPerToken = 4
     const targetCharsPerBatch = Math.min(
       80000,
-      Math.max(4000, Math.floor((maxTokens / 2) * approximateCharsPerToken)),
+      Math.max(
+        4000,
+        Math.floor((maxOutputTokens / 2) * approximateCharsPerToken),
+      ),
     )
     const chunkGroups = [
       ...this.splitChunksIntoGroups(chunks, chunks.length, targetCharsPerBatch),
@@ -175,18 +185,24 @@ CHUNK 1: myz-chunk-miy0603t-000
     let attempts = 0
     const maxAttempts = 6
 
-    let model = this.deps.settings.aiModel || "gpt-4"
-    if (model === "custom" && this.deps.settings.aiCustomModel) {
-      model = this.deps.settings.aiCustomModel
-    }
+    const model = deps.callConfig.model.model
 
     while (attempts < maxAttempts) {
-      const response = await this.deps.client.createCompletion({
+      const request: any = {
         model,
         messages: conversationMessages as any,
-        max_tokens: maxTokens,
-        temperature: payload.temperature ?? 0.2,
-      } as any)
+        temperature:
+          typeof payload.temperature === "number"
+            ? payload.temperature
+            : deps.callConfig.temperature,
+      }
+      if (maxOutputTokenParam === "max_completion_tokens") {
+        request.max_completion_tokens = maxOutputTokens
+      } else {
+        request.max_tokens = maxOutputTokens
+      }
+
+      const response = await this.deps.client.createCompletion(request)
 
       const normalizedResponse = normalizeMessagePayload(
         response?.choices?.[0]?.message,
@@ -226,4 +242,3 @@ CHUNK 1: myz-chunk-miy0603t-000
     }
   }
 }
-

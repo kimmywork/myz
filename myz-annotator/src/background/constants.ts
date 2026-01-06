@@ -22,15 +22,11 @@ export const DEFAULT_SETTINGS = {
   dashboardView: "cards",
   // AI Assistant settings
   aiAssistantEnabled: false,
-  aiApiEndpoint: "",
-  aiApiKey: "",
-  aiModel: "gpt-4",
-  aiCustomModel: "",
-  aiContextSize: "32K",
-  aiMaxTokens: 32768,
-  aiRequestHeaders: "",
   aiProviders: [],
-  aiActiveProviderId: null,
+  aiAgents: {
+    conversation: { target: null, temperature: 0.7 },
+    insights: { target: null, temperature: 0.7 },
+  },
   aiMcpServers: [],
   // Vector search / Vectoria
   vectorSearchEnabled: false,

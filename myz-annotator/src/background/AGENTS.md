@@ -4,24 +4,31 @@ This folder contains the MV3 service worker background logic. The AI integration
 
 - **Providers (transport + capabilities)**: OpenAI-compatible chat completions, plus composable capabilities (streaming/tool-calling/reasoning/vendor quirks).
 - **Agents (application layer)**: Conversation + Insights workflows built on top of providers.
-- **Runtime (assembly + caching)**: Creates sessions (provider + MCP) and agents; caches them globally and manages MCP connections.
+- **Runtime (selection + caching)**: Resolves agent→(provider, model, temperature), creates sessions (provider + MCP), caches them globally, and ref-counts MCP connect/disconnect.
 
 Import shared AI types from `@/background/ai/types.js`.
 
 ## Key Entry Points
 
 - Background message handlers: `myz-annotator/src/background/messages/ai.ts`
-  - Uses `acquireAiRuntime()` to get a cached runtime and then calls agents directly.
-- Runtime cache / lifecycle: `myz-annotator/src/background/ai/runtime/runtimeManager.ts`
+  - Resolves the selected agent target via `resolveAgentTarget()` and acquires a cached provider runtime via `acquireProviderRuntime()`.
+- Agent selection: `myz-annotator/src/background/ai/runtime/agentSelection.ts`
+  - Validates enabled/tested provider + enabled model and returns `{ provider, model, temperature }`.
+- Provider runtime cache / lifecycle: `myz-annotator/src/background/ai/runtime/providerRuntime.ts`
   - Global cache keyed by provider config + MCP servers; ref-counted MCP connect/disconnect.
-- Runtime session assembly: `myz-annotator/src/background/ai/runtime/session.ts`
-  - Builds provider clients (base + tool-calling), and owns `McpCapability`.
+- Provider session assembly: `myz-annotator/src/background/ai/runtime/providerSession.ts`
+  - Builds provider clients (base + tool-calling) and owns `McpCapability`.
+- OpenAI-compatible URL/headers helpers: `myz-annotator/src/background/ai/runtime/openaiCompatible.ts`
 
 ## Folder Map
 
 ### Types (shared by background + UI)
 - `myz-annotator/src/background/ai/types.ts`
   - Message/Conversation types, request/response payload shapes, streaming payloads, tool call types.
+
+### Settings (shared by background + UI)
+- `myz-annotator/src/background/settings.ts`
+  - `aiProviders[]` (multiple providers), per-provider `models[]` (multiple models), and `aiAgents` (Conversation/Insights target + temperature).
 
 ### Providers (transport + capabilities)
 - `myz-annotator/src/background/ai/providers/openaiCompatible/jsonClient.ts`
@@ -58,8 +65,11 @@ Import shared AI types from `@/background/ai/types.js`.
 ## Runtime Flow (Conversation)
 
 1. UI sends `myz:aiStreamRequest` (sidepanel) or `myz:processWithAi`.
-2. `messages/ai.ts` calls `acquireAiRuntime(settings)` and `runtime.connectMcp()` (ref-counted).
-3. `runtime.conversation.processConversation()`:
+2. `messages/ai.ts`:
+   - Resolves `aiAgents.conversation.target` via `resolveAgentTarget(settings, "conversation")`.
+   - Acquires a cached provider runtime via `acquireProviderRuntime(target.provider, settings.aiMcpServers)`.
+   - Connects MCP only when `target.model.capabilities.toolCalling === true`.
+3. `ConversationAgent.processConversation()`:
    - Persists the user message.
    - Loads history from IndexedDB; falls back to legacy storage when empty.
    - Builds the model payload via `buildConversationPromptMessages()`.
@@ -70,7 +80,7 @@ Import shared AI types from `@/background/ai/types.js`.
      - visible `content`
      - extracted reasoning/thinking in `reasoning_content` and `metadata.reasoning` (if available)
    - Persists tool messages as `role: "tool"` and emits `myz:newMessage` for tool-call/tool-result updates.
-4. Handler `finally` calls `runtime.disconnectMcp()` and `runtime.release()`.
+4. Handler `finally` disconnects MCP (ref-counted) and releases the provider runtime.
 
 ## Google Gemini (OpenAI-Compatible) Notes
 
@@ -104,4 +114,3 @@ Gemini’s OpenAI-compatible API differs from typical providers:
 - If tools don’t execute: confirm `runtime.connectMcp()` is called and `myz:listMcpTools` returns expected tools.
 - If Gemini tool calls fail with 4xx: ensure tool call messages preserve `tool_calls[].extra_content.google.thought_signature`.
 - If thinking is missing: confirm request includes `extra_body.google.thinking_config.include_thoughts` and response contains `<thought>` tags.
-

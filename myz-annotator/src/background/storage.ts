@@ -1,12 +1,7 @@
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 
-import {
-  AIAssistantSettings,
-  AIProviderSetting,
-  Settings,
-  VectorSettings,
-} from "./settings.js";
+import { AIAssistantSettings, Settings, VectorSettings } from "./settings.js";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { MyZRecord } from "@/shared/types.js";
 
@@ -86,89 +81,21 @@ function getAllFromStore<T>(storeName: string): Promise<T[]> {
   });
 }
 
-function normalizeAiProvider(
-  input: AIProviderSetting | undefined,
-  { nameFallback = "AI Provider" } = {},
-) {
-  if (!input || typeof input !== "object") {
-    return null;
-  }
-  const safeId =
-    typeof input.id === "string" && input.id.trim()
-      ? input.id.trim()
-      : `prov_${generateId()}`;
-  const safeName =
-    typeof input.name === "string" && input.name.trim()
-      ? input.name.trim()
-      : nameFallback;
-  return {
-    id: safeId,
-    name: safeName,
-    apiEndpoint: typeof input.apiEndpoint === "string" ? input.apiEndpoint : "",
-    apiKey: typeof input.apiKey === "string" ? input.apiKey : "",
-    model: typeof input.model === "string" ? input.model : "gpt-4",
-    customModel: typeof input.customModel === "string" ? input.customModel : "",
-    contextSize:
-      typeof input.contextSize === "string" ? input.contextSize : "32K",
-    maxTokens:
-      typeof input.maxTokens === "number" && input.maxTokens > 0
-        ? input.maxTokens
-        : 32768,
-    requestHeaders:
-      typeof input.requestHeaders === "string" ? input.requestHeaders : "",
-    lastTestStatus:
-      input.lastTestStatus && typeof input.lastTestStatus === "object"
-        ? {
-            ok: Boolean(input.lastTestStatus.ok),
-            message:
-              typeof input.lastTestStatus.message === "string"
-                ? input.lastTestStatus.message
-                : "",
-          }
-        : { ok: false, message: "" },
-  };
-}
-
-function normalizeAiSettings<T extends AIAssistantSettings & VectorSettings>(
+function normalizeSettings<T extends AIAssistantSettings & VectorSettings>(
   settings: T,
 ): T {
-  let providers: AIProviderSetting[] = [];
-  if (Array.isArray(settings.aiProviders)) {
-    providers = settings.aiProviders
-      .map((p, idx) =>
-        normalizeAiProvider(p, { nameFallback: `Provider ${idx + 1}` }),
-      )
-      .filter(Boolean) as AIProviderSetting[];
-  }
+  settings.aiAssistantEnabled = Boolean(settings.aiAssistantEnabled);
+  settings.aiProviders = Array.isArray(settings.aiProviders)
+    ? settings.aiProviders.filter((p) => p && typeof p === "object")
+    : [];
+  settings.aiAgents =
+    settings.aiAgents && typeof settings.aiAgents === "object"
+      ? settings.aiAgents
+      : ({ conversation: { target: null, temperature: 0.7 }, insights: { target: null, temperature: 0.7 } } as any);
+  settings.aiMcpServers = Array.isArray(settings.aiMcpServers)
+    ? settings.aiMcpServers.filter((s) => s && typeof s === "object")
+    : [];
 
-  settings.aiProviders = providers;
-
-  if (!settings.aiActiveProviderId && providers.length) {
-    const okProvider = providers.find((p) => p.lastTestStatus?.ok);
-    settings.aiActiveProviderId = okProvider ? okProvider.id : null;
-  }
-  const activeProvider =
-    providers.find(
-      (p) => p.id === settings.aiActiveProviderId && p.lastTestStatus?.ok,
-    ) || null;
-
-  if (!activeProvider) {
-    const fallback = providers.find((p) => p.lastTestStatus?.ok);
-    settings.aiActiveProviderId = fallback ? fallback.id : null;
-  }
-
-  const selected =
-    providers.find(
-      (p) => p.id === settings.aiActiveProviderId && p.lastTestStatus?.ok,
-    ) || null;
-  settings.aiApiEndpoint = selected?.apiEndpoint || "";
-  settings.aiApiKey = selected?.apiKey || "";
-  settings.aiModel = selected?.model || "gpt-4";
-  settings.aiCustomModel = selected?.customModel || "";
-  settings.aiContextSize = selected?.contextSize || "32K";
-  settings.aiMaxTokens =
-    typeof selected?.maxTokens === "number" ? selected.maxTokens : 32768;
-  settings.aiRequestHeaders = selected?.requestHeaders || "";
   settings.vectorSearchEnabled = Boolean(settings.vectorSearchEnabled);
   settings.vectorModelReady = Boolean(
     settings.vectorSearchEnabled && settings.vectorModelReady,
@@ -275,16 +202,16 @@ export async function readSettings() {
   const { [SETTINGS_KEY]: stored } =
     await chrome.storage.local.get(SETTINGS_KEY);
   if (!stored) {
-    return normalizeAiSettings({ ...DEFAULT_SETTINGS });
+    return normalizeSettings({ ...DEFAULT_SETTINGS });
   }
-  const merged = normalizeAiSettings({ ...DEFAULT_SETTINGS, ...stored });
+  const merged = normalizeSettings({ ...DEFAULT_SETTINGS, ...stored });
   merged.lastUsedStyle = normalizeHighlightStyle(merged.lastUsedStyle);
   return merged;
 }
 
 export async function writeSettings(patch: Partial<Settings>) {
   const current = (await readSettings()) as Settings;
-  const updated = normalizeAiSettings({ ...current, ...patch });
+  const updated = normalizeSettings({ ...current, ...patch });
   updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
   await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
   try {

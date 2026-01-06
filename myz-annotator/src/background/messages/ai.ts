@@ -9,59 +9,115 @@ import {
 } from "../ai";
 import type { PageInsightPayload, ProcessConversationOptions } from "../ai/types.js";
 import { testMcpConnection } from "../mcp";
-import { AIAssistantSettings, McpServerSetting } from "../settings";
+import type {
+  AIProviderSetting,
+  MaxOutputTokenParam,
+  McpServerSetting,
+} from "../settings";
 import { generateId, readSettings, saveHighlight } from "../storage";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import { deleteConversation } from "@/sidepanel/aiStorage";
-import { acquireAiRuntime } from "../ai/runtime/runtimeManager.js";
+import { resolveAgentTarget } from "../ai/runtime/agentSelection.js";
+import { acquireProviderRuntime } from "../ai/runtime/providerRuntime.js";
+import {
+  buildModelsUrl,
+  buildProviderHeaders,
+  buildChatCompletionsUrl,
+  extractOpenAICompatibleModels,
+} from "../ai/runtime/openaiCompatible.js";
+import { McpCapability } from "../ai/capabilities/mcp.js";
+import { ConversationAgent } from "../ai/agents/conversationAgent.js";
+import { InsightsAgent } from "../ai/agents/insightsAgent.js";
 
 export function initializeAIMessageHandlers() {
   // AI Assistant handlers
   registerMessageHandler(
-    "myz:testAiConnection",
-    async (payload: Partial<AIAssistantSettings>) => {
-      const settings = await readSettings();
-      const merged = { ...settings, ...(payload || {}) };
-      if (!merged.aiAssistantEnabled) {
-        return { success: false, error: "AI Assistant is not enabled" };
+    "myz:aiProviderFetchModels",
+    async (payload: { baseUrl: string; apiKey: string; headers?: string }) => {
+      const { baseUrl, apiKey, headers = "" } = payload || ({} as any);
+      const url = buildModelsUrl(baseUrl);
+      if (!url) {
+        throw new Error("Base URL is required");
+      }
+      const response = await fetch(url, {
+        method: "GET",
+        headers: buildProviderHeaders(apiKey, headers),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Fetch models failed: ${response.status} ${response.statusText} - ${errorText}`,
+        );
+      }
+      const data = await response.json();
+      return { models: extractOpenAICompatibleModels(data) };
+    },
+  );
+
+  registerMessageHandler(
+    "myz:aiProviderTestConnection",
+    async (payload: {
+      provider: Pick<AIProviderSetting, "baseUrl" | "apiKey" | "headers">;
+      model: string;
+      maxOutputTokens?: number;
+      maxOutputTokenParam?: MaxOutputTokenParam;
+    }) => {
+      const provider = payload?.provider;
+      const model = typeof payload?.model === "string" ? payload.model.trim() : "";
+      if (!provider?.baseUrl) {
+        throw new Error("Base URL is required");
+      }
+      if (!provider?.apiKey) {
+        throw new Error("API key is required");
+      }
+      if (!model) {
+        throw new Error("Model is required");
       }
 
-      const runtime = await acquireAiRuntime(merged as any, { allowUntested: true });
-      try {
-        if (!runtime.session.provider) {
-          return { success: false, error: "请先配置 Provider" };
-        }
+      const endpoint = buildChatCompletionsUrl(provider.baseUrl);
+      const maxOutputTokens =
+        typeof payload?.maxOutputTokens === "number" && payload.maxOutputTokens > 0
+          ? Math.floor(payload.maxOutputTokens)
+          : 64;
+      const maxOutputTokenParam: MaxOutputTokenParam =
+        payload?.maxOutputTokenParam === "max_completion_tokens"
+          ? "max_completion_tokens"
+          : "max_tokens";
 
-        let model =
-          runtime.session.settings.model || runtime.session.settings.aiModel || "gpt-4";
-        const customModel =
-          runtime.session.settings.customModel || runtime.session.settings.aiCustomModel;
-        if (model === "custom" && customModel) {
-          model = customModel;
-        }
+      const request: any = {
+        model,
+        messages: [
+          {
+            role: "user",
+            content:
+              "Please respond with 'Connection successful' to confirm the API is working.",
+          },
+        ],
+        temperature: 0.0,
+      };
+      if (maxOutputTokenParam === "max_completion_tokens") {
+        request.max_completion_tokens = maxOutputTokens;
+      } else {
+        request.max_tokens = maxOutputTokens;
+      }
 
-        const response = await runtime.session.client.createCompletion({
-          model,
-          messages: [
-            {
-              role: "user",
-              content:
-                "Please respond with 'Connection successful' to confirm the API is working.",
-            },
-          ],
-          max_tokens: 50,
-        } as any);
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: buildProviderHeaders(provider.apiKey, provider.headers || ""),
+        body: JSON.stringify(request),
+      });
 
+      if (!response.ok) {
+        const errorText = await response.text();
         return {
-          success: true,
-          response: response.choices?.[0]?.message?.content || "",
+          success: false,
+          error: `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
         };
-      } catch (error) {
-        return { success: false, error: (error as Error).message };
-      } finally {
-        await runtime.release();
       }
+      const data = await response.json();
+      const text = data?.choices?.[0]?.message?.content || "";
+      return { success: true, response: text };
     },
   );
 
@@ -91,21 +147,29 @@ export function initializeAIMessageHandlers() {
         throw new Error("message is required");
       }
 
-      const runtime = await acquireAiRuntime(settings as any);
-      if (!runtime.session.isEnabled) {
-        await runtime.release();
-        throw new Error("AI Assistant is not enabled");
-      }
+      const target = resolveAgentTarget(settings as any, "conversation");
+      const runtime = await acquireProviderRuntime(
+        target.provider as any,
+        (settings.aiMcpServers || []) as any,
+      );
 
       try {
-        await runtime.connectMcp();
+        const enableTools = Boolean(target.model.capabilities.toolCalling);
+        if (enableTools) {
+          await runtime.connectMcp();
+        }
 
         const includePageContext =
           typeof context?.includePageContext === "boolean"
             ? context?.includePageContext
             : undefined;
 
-        return await runtime.conversation.processConversation(
+        const agent = new ConversationAgent();
+        const client = enableTools
+          ? runtime.session.clientWithTools
+          : runtime.session.client;
+
+        return await agent.processConversation(
           conversationId,
           action || "custom",
           message,
@@ -121,9 +185,16 @@ export function initializeAIMessageHandlers() {
               source: "sidepanel",
             },
           },
+          {
+            client: client as any,
+            isEnabled: Boolean(settings.aiAssistantEnabled),
+            callConfig: target as any,
+          },
         );
       } finally {
-        await runtime.disconnectMcp();
+        if (target.model.capabilities.toolCalling) {
+          await runtime.disconnectMcp();
+        }
         await runtime.release();
       }
     },
@@ -163,28 +234,44 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const runtime = await acquireAiRuntime(settings as any);
-      if (!runtime.session.isEnabled) {
-        await runtime.release();
-        throw new Error("AI Assistant is not enabled");
-      }
+      const target = resolveAgentTarget(settings as any, "conversation");
+      const runtime = await acquireProviderRuntime(
+        target.provider as any,
+        (settings.aiMcpServers || []) as any,
+      );
 
       try {
-        await runtime.connectMcp();
+        const enableTools = Boolean(target.model.capabilities.toolCalling);
+        if (enableTools) {
+          await runtime.connectMcp();
+        }
         const { conversationId, action, content, options = {} } = payload || {};
 
-        const result = await runtime.conversation.processConversation(
+        const agent = new ConversationAgent();
+        const client = enableTools
+          ? runtime.session.clientWithTools
+          : runtime.session.client;
+        const result = await agent.processConversation(
           conversationId,
           action,
           content,
           options,
+          {
+            client: client as any,
+            isEnabled: Boolean(settings.aiAssistantEnabled),
+            callConfig: target as any,
+          },
         );
 
-        result.availableTools = runtime.session.mcp.listTools();
+        if (enableTools) {
+          result.availableTools = runtime.session.mcp.listTools();
+        }
 
         return result;
       } finally {
-        await runtime.disconnectMcp();
+        if (target.model.capabilities.toolCalling) {
+          await runtime.disconnectMcp();
+        }
         await runtime.release();
       }
     },
@@ -198,12 +285,17 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const runtime = await acquireAiRuntime(settings as any);
+      const target = resolveAgentTarget(settings as any, "insights");
+      const runtime = await acquireProviderRuntime(
+        target.provider as any,
+        (settings.aiMcpServers || []) as any,
+      );
       try {
-        if (!runtime.session.isEnabled) {
-          throw new Error("AI Assistant is not enabled");
-        }
-        return await runtime.insights.generatePageInsights(payload || {});
+        const agent = new InsightsAgent({ client: runtime.session.client as any });
+        return await agent.generatePageInsightsWithConfig(payload || {}, {
+          isEnabled: Boolean(settings.aiAssistantEnabled),
+          callConfig: target as any,
+        });
       } finally {
         await runtime.release();
       }
@@ -289,14 +381,14 @@ export function initializeAIMessageHandlers() {
       return { tools: [] };
     }
 
-    const runtime = await acquireAiRuntime(settings as any);
-
+    const mcp = new McpCapability({
+      getServers: () => settings.aiMcpServers || [],
+    });
     try {
-      await runtime.connectMcp();
-      return { tools: runtime.session.mcp.listTools() };
+      await mcp.connect();
+      return { tools: mcp.listTools() };
     } finally {
-      await runtime.disconnectMcp();
-      await runtime.release();
+      await mcp.disconnect();
     }
   });
 }
