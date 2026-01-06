@@ -25,6 +25,10 @@ export default defineComponent({
     onSelect: { type: Function as PropType<(id: string) => void>, required: true },
     onAdd: { type: Function as PropType<() => void>, required: true },
     onRemove: { type: Function as PropType<(id: string) => void>, required: true },
+    onRename: {
+      type: Function as PropType<(id: string, name: string) => void>,
+      required: true,
+    },
   },
   setup(props) {
     return () => (
@@ -35,7 +39,7 @@ export default defineComponent({
           </span>
           <button
             type="button"
-            class="btn-small btn-primary text-white"
+            class="btn-small btn-primary whitespace-nowrap text-white"
             onClick={() => props.onAdd()}
           >
             添加
@@ -55,9 +59,10 @@ export default defineComponent({
                     : "border-slate-200 hover:border-indigo-300 dark:border-white/10 dark:hover:border-indigo-400/40",
                 ].join(" ")}
               >
-                <button
-                  type="button"
-                  class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                <div
+                  class="flex min-w-0 flex-1 items-center gap-2"
+                  role="button"
+                  tabindex={0}
                   onClick={() => props.onSelect(provider.id)}
                 >
                   <span
@@ -65,9 +70,18 @@ export default defineComponent({
                     aria-hidden="true"
                   ></span>
                   <div class="min-w-0">
-                    <div class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {provider.name || "未命名"}
-                    </div>
+                    <input
+                      class="input h-8 w-full min-w-0 px-2 py-1 text-sm font-semibold"
+                      value={provider.name || ""}
+                      placeholder="Provider 名称"
+                      onClick={(e) => e.stopPropagation()}
+                      onInput={(e) =>
+                        props.onRename(
+                          provider.id,
+                          (e.target as HTMLInputElement).value,
+                        )
+                      }
+                    />
                     <div class="text-xs text-slate-500 dark:text-slate-400">
                       {statusLabel(provider)}
                       {provider.lastTest?.model ? ` · ${provider.lastTest.model}` : ""}
@@ -76,10 +90,10 @@ export default defineComponent({
                         : ""}
                     </div>
                   </div>
-                </button>
+                </div>
                 <button
                   type="button"
-                  class="btn btn-small"
+                  class="btn btn-small whitespace-nowrap"
                   onClick={() => props.onRemove(provider.id)}
                 >
                   删除

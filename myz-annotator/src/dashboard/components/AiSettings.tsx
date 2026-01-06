@@ -63,8 +63,11 @@ export default defineComponent({
     const selectedProviderId = ref<string | null>(null)
     const isFetchingModels = ref(false)
     const isTesting = ref(false)
-    const statusMessage = ref("")
+    const catalogStatusMessage = ref("")
     const catalogByProviderId = ref<Record<string, string[]>>({})
+    const providerSaveNotice = ref("")
+    const agentSaveNotice = ref("")
+    const mcpSaveNotice = ref("")
 
     const usedByMap = computed(() => {
       const map: Record<string, string[]> = {}
@@ -118,11 +121,15 @@ export default defineComponent({
       providers.value = providers.value.map((p) => (p.id === next.id ? next : p))
     }
 
+    const renameProvider = (id: string, name: string) => {
+      providers.value = providers.value.map((p) => (p.id === id ? { ...p, name } : p))
+    }
+
     const addProvider = () => {
       const created = ensureProviderHasModel(createProviderSetting())
       providers.value = [...providers.value, created]
       selectedProviderId.value = created.id
-      statusMessage.value = ""
+      catalogStatusMessage.value = ""
     }
 
     const removeProvider = (id: string) => {
@@ -145,7 +152,7 @@ export default defineComponent({
     const fetchModels = async () => {
       const provider = selectedProvider.value
       if (!provider) return
-      statusMessage.value = ""
+      catalogStatusMessage.value = ""
       isFetchingModels.value = true
       try {
         const result = await sendMessage("myz:aiProviderFetchModels", {
@@ -158,9 +165,11 @@ export default defineComponent({
           ...catalogByProviderId.value,
           [provider.id]: models,
         }
-        statusMessage.value = models.length ? `已加载 ${models.length} 个模型` : "未返回模型"
+        catalogStatusMessage.value = models.length
+          ? `已加载 ${models.length} 个模型`
+          : "未返回模型"
       } catch (error) {
-        statusMessage.value = `加载失败：${(error as Error).message}`
+        catalogStatusMessage.value = `加载失败：${(error as Error).message}`
       } finally {
         isFetchingModels.value = false
       }
@@ -171,7 +180,6 @@ export default defineComponent({
       if (!provider) return
 
       isTesting.value = true
-      statusMessage.value = ""
       try {
         const result = await sendMessage("myz:aiProviderTestConnection", {
           provider: {
@@ -207,22 +215,47 @@ export default defineComponent({
       }
     }
 
-    const saveAll = async () => {
+    const setTimedNotice = (target: typeof providerSaveNotice, message: string) => {
+      target.value = message
+      setTimeout(() => {
+        if (target.value === message) target.value = ""
+      }, 2500)
+    }
+
+    const buildProvidersForSave = () => {
       const nextProviders = providers.value.map((p) => {
         if (!p.lastTest?.ok && p.enabled) {
           return { ...p, enabled: false }
         }
         return p
       })
+      providers.value = nextProviders
+      return nextProviders
+    }
+
+    const saveProvidersSection = async () => {
+      const nextProviders = buildProvidersForSave()
       const nextAgents = clearMissingTargets(agents.value, nextProviders)
       await store.saveSettings({
         aiAssistantEnabled: Boolean(aiAssistantEnabled.value),
         aiProviders: nextProviders,
         aiAgents: nextAgents,
-        aiMcpServers: mcpServers.value,
       })
-      providers.value = nextProviders
       agents.value = nextAgents
+      setTimedNotice(providerSaveNotice, "已保存")
+    }
+
+    const saveAgentsSection = async () => {
+      const nextProviders = buildProvidersForSave()
+      const nextAgents = clearMissingTargets(agents.value, nextProviders)
+      await store.saveSettings({ aiAgents: nextAgents })
+      agents.value = nextAgents
+      setTimedNotice(agentSaveNotice, "已保存")
+    }
+
+    const saveMcpSection = async () => {
+      await store.saveSettings({ aiMcpServers: mcpServers.value })
+      setTimedNotice(mcpSaveNotice, "已保存")
     }
 
     return () => (
@@ -240,55 +273,109 @@ export default defineComponent({
         </div>
 
         <div class="settings__fields space-y-4">
-          <p class="settings__hint">
-            支持添加多个 OpenAI Compatible Provider。Provider 需测试通过后才能启用；模型可分别配置能力与 token 参数。
-          </p>
+          <p class="settings__hint">配置 Provider / Agent / MCP，并分别保存。</p>
 
-          <div class="grid gap-4 md:grid-cols-3">
-            <AiProviderList
-              providers={providers.value}
-              selectedProviderId={selectedProviderId.value}
-              usedByMap={usedByMap.value}
-              onSelect={(id) => (selectedProviderId.value = id)}
-              onAdd={addProvider}
-              onRemove={removeProvider}
-            />
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm dark:border-white/10 dark:bg-slate-800/40">
+            <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p class="text-sm font-medium text-slate-900 dark:text-white">
+                  Provider
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  需测试通过后才能启用 Provider；模型可从 /models 加载并配置能力与 token 参数。
+                </p>
+              </div>
+              <div class="flex items-center justify-end gap-2">
+                {providerSaveNotice.value ? (
+                  <span class="text-xs text-emerald-600">{providerSaveNotice.value}</span>
+                ) : null}
+                <button
+                  type="button"
+                  class="btn btn-primary whitespace-nowrap"
+                  onClick={saveProvidersSection}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
 
-            <div class="md:col-span-2 space-y-3">
-              {selectedProvider.value ? (
-                <AiProviderEditor
-                  provider={selectedProvider.value}
-                  catalog={selectedCatalog.value}
-                  isFetchingModels={isFetchingModels.value}
-                  isTesting={isTesting.value}
-                  statusMessage={statusMessage.value}
-                  onChange={replaceProvider}
-                  onFetchModels={fetchModels}
-                  onTestConnection={testConnection}
-                />
-              ) : (
-                <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900/60">
-                  <p class="text-sm text-slate-500">请选择或添加 Provider</p>
-                </div>
-              )}
+            <div class="grid gap-4 md:grid-cols-3">
+              <AiProviderList
+                providers={providers.value}
+                selectedProviderId={selectedProviderId.value}
+                usedByMap={usedByMap.value}
+                onSelect={(id) => (selectedProviderId.value = id)}
+                onAdd={addProvider}
+                onRemove={removeProvider}
+                onRename={renameProvider}
+              />
+
+              <div class="md:col-span-2 space-y-3">
+                {selectedProvider.value ? (
+                  <AiProviderEditor
+                    provider={selectedProvider.value}
+                    catalog={selectedCatalog.value}
+                    isFetchingModels={isFetchingModels.value}
+                    isTesting={isTesting.value}
+                    statusMessage={catalogStatusMessage.value}
+                    onChange={replaceProvider}
+                    onFetchModels={fetchModels}
+                    onTestConnection={testConnection}
+                  />
+                ) : (
+                  <div class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900/60">
+                    <p class="text-sm text-slate-500">请选择或添加 Provider</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <AiAgentRouting
-            providers={providers.value}
-            agents={agents.value}
-            onChange={(next) => (agents.value = next)}
-          />
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm dark:border-white/10 dark:bg-slate-800/40">
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <p class="text-sm font-medium text-slate-900 dark:text-white">
+                Agent 模型选择
+              </p>
+              <div class="flex items-center gap-2">
+                {agentSaveNotice.value ? (
+                  <span class="text-xs text-emerald-600">{agentSaveNotice.value}</span>
+                ) : null}
+                <button
+                  type="button"
+                  class="btn btn-primary whitespace-nowrap"
+                  onClick={saveAgentsSection}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+            <AiAgentRouting
+              providers={providers.value}
+              agents={agents.value}
+              onChange={(next) => (agents.value = next)}
+            />
+          </div>
 
-          <AiMcpServersEditor
-            servers={mcpServers.value}
-            onChange={(next) => (mcpServers.value = next)}
-          />
-
-          <div class="flex justify-end">
-            <button type="button" class="btn btn-primary" onClick={saveAll}>
-              保存 AI 设置
-            </button>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm dark:border-white/10 dark:bg-slate-800/40">
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <p class="text-sm font-medium text-slate-900 dark:text-white">MCP 服务器</p>
+              <div class="flex items-center gap-2">
+                {mcpSaveNotice.value ? (
+                  <span class="text-xs text-emerald-600">{mcpSaveNotice.value}</span>
+                ) : null}
+                <button
+                  type="button"
+                  class="btn btn-primary whitespace-nowrap"
+                  onClick={saveMcpSection}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+            <AiMcpServersEditor
+              servers={mcpServers.value}
+              onChange={(next) => (mcpServers.value = next)}
+            />
           </div>
         </div>
       </section>

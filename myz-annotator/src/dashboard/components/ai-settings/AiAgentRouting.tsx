@@ -116,16 +116,10 @@ export default defineComponent({
     }
 
     return () => (
-      <section class="settings__group">
-        <div class="settings__group-header">
-          <h3>Agent 模型选择</h3>
-        </div>
-        <div class="settings__fields space-y-3">
-          {renderAgentRow("conversation", "Conversation")}
-          {renderAgentRow("insights", "Insights")}
-        </div>
-      </section>
+      <div class="space-y-3">
+        {renderAgentRow("conversation", "Conversation")}
+        {renderAgentRow("insights", "Insights")}
+      </div>
     )
   },
 })
-

@@ -14,6 +14,9 @@ export default defineComponent({
   props: {
     models: { type: Array as PropType<AIModelSetting[]>, required: true },
     catalog: { type: Array as PropType<string[]>, default: () => [] },
+    isRefreshingCatalog: { type: Boolean, default: false },
+    catalogStatusMessage: { type: String, default: "" },
+    onRefreshCatalog: { type: Function as PropType<() => void>, default: null },
     onChange: { type: Function as PropType<(models: AIModelSetting[]) => void>, required: true },
   },
   setup(props) {
@@ -148,12 +151,51 @@ export default defineComponent({
       <div class="space-y-3">
         <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              模型列表
+            <div class="flex items-center gap-2">
+              <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                模型列表
+              </div>
+              {props.onRefreshCatalog && (
+                <button
+                  type="button"
+                  class="btn btn-small px-2"
+                  aria-label="刷新模型列表"
+                  title="刷新 /models"
+                  disabled={props.isRefreshingCatalog}
+                  onClick={() => props.onRefreshCatalog?.()}
+                >
+                  <svg
+                    class={[
+                      "h-4 w-4",
+                      props.isRefreshingCatalog ? "animate-spin" : "",
+                    ].join(" ")}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M20 12a8 8 0 1 1-2.343-5.657"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                    <path
+                      d="M20 4v6h-6"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              )}
             </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400">
-              每个 Provider 可启用多个模型，并为每个模型设置能力与 token 参数。
-            </div>
+            {props.catalogStatusMessage ? (
+              <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {props.catalogStatusMessage}
+              </div>
+            ) : null}
           </div>
           <div class="flex items-center gap-2">
             <input
@@ -165,7 +207,7 @@ export default defineComponent({
             />
             <button
               type="button"
-              class="btn btn-small btn-primary text-white"
+              class="btn btn-small btn-primary whitespace-nowrap text-white"
               onClick={() => {
                 addModel(manualModel.value)
                 manualModel.value = ""
@@ -180,15 +222,38 @@ export default defineComponent({
           <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900/60">
             <div class="flex items-center justify-between gap-2">
               <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                模型列表（/models + 手动添加合并）
+                模型列表
               </div>
-              <input
-                class="input"
-                type="text"
-                value={listFilter.value}
-                placeholder="筛选模型名称…"
-                onInput={(e) => (listFilter.value = (e.target as HTMLInputElement).value)}
-              />
+              <div class="relative">
+                <span class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">
+                  <svg
+                    class="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    />
+                    <path
+                      d="M21 21l-4.35-4.35"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+                <input
+                  class="input pl-8"
+                  type="text"
+                  value={listFilter.value}
+                  placeholder="筛选模型名称…"
+                  onInput={(e) => (listFilter.value = (e.target as HTMLInputElement).value)}
+                />
+              </div>
             </div>
             <div class="mt-2 max-h-72 overflow-auto pr-1">
               <div class="space-y-1">
@@ -248,7 +313,7 @@ export default defineComponent({
                   </div>
                   <button
                     type="button"
-                    class="btn btn-small"
+                    class="btn btn-small whitespace-nowrap"
                     onClick={() => removeModel(selectedModel.value!.id)}
                   >
                     删除配置

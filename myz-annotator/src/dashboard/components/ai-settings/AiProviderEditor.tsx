@@ -84,20 +84,27 @@ export default defineComponent({
 
     return () => (
       <div class="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
-        <div class="grid gap-3 md:grid-cols-2">
-          <label class="field">
-            <span>名称</span>
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div class="min-w-0">
+            <div class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {props.provider.name || "未命名 Provider"}
+            </div>
+            <div class="truncate text-xs text-slate-500 dark:text-slate-400">
+              {props.provider.baseUrl || "未配置 Base URL"}
+            </div>
+          </div>
+          <label class="toggle shrink-0">
             <input
-              type="text"
-              value={props.provider.name}
-              onInput={(e) =>
-                updateProvider({ name: (e.target as HTMLInputElement).value })
+              type="checkbox"
+              checked={props.provider.enabled}
+              disabled={!canEnable.value}
+              onChange={(e) =>
+                updateProvider({
+                  enabled: (e.target as HTMLInputElement).checked,
+                })
               }
             />
-          </label>
-          <label class="field">
-            <span>类型</span>
-            <input type="text" value="OpenAI Compatible" disabled />
+            <span>启用 Provider</span>
           </label>
         </div>
 
@@ -143,65 +150,24 @@ export default defineComponent({
           onChange={(headers) => updateProvider({ headers })}
         />
 
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
-          <div class="space-y-1">
-            <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Provider 状态
-            </div>
-            {renderTestHint()}
-          </div>
-          <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-            <input
-              type="checkbox"
-              checked={props.provider.enabled}
-              disabled={!canEnable.value}
-              onChange={(e) =>
-                updateProvider({
-                  enabled: (e.target as HTMLInputElement).checked,
-                })
-              }
-            />
-            <span>启用</span>
-          </label>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            class="btn btn-small"
-            disabled={props.isFetchingModels || !props.provider.baseUrl}
-            onClick={() => props.onFetchModels()}
-          >
-            {props.isFetchingModels ? "加载中…" : "加载模型列表 (/models)"}
-          </button>
-          {props.statusMessage ? (
-            <span class="text-xs text-slate-500">{props.statusMessage}</span>
-          ) : null}
-        </div>
-
         <AiModelListEditor
           models={props.provider.models}
           catalog={props.catalog}
+          isRefreshingCatalog={props.isFetchingModels}
+          catalogStatusMessage={props.statusMessage}
+          onRefreshCatalog={props.onFetchModels}
           onChange={updateModels}
         />
 
-        <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900/60">
-          <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                测试连接
-              </div>
-              <div class="text-xs text-slate-500 dark:text-slate-400">
-                使用当前编辑中的 Provider + 模型配置发起请求，测试通过后才能启用 Provider。
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
+        <div class="space-y-2">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex min-w-0 items-center gap-2">
               <select
-                class="input"
+                class="input w-full sm:w-auto"
                 value={testModelId.value}
                 onChange={(e) => (testModelId.value = (e.target as HTMLSelectElement).value)}
               >
-                <option value="">选择模型…</option>
+                <option value="">选择测试模型…</option>
                 {availableModels.value.map((m) => (
                   <option value={m.id}>
                     {m.model}
@@ -211,7 +177,7 @@ export default defineComponent({
               </select>
               <button
                 type="button"
-                class="btn btn-small btn-primary text-white"
+                class="btn btn-small btn-primary whitespace-nowrap text-white"
                 disabled={
                   props.isTesting ||
                   !selectedTestModel.value ||
@@ -228,9 +194,9 @@ export default defineComponent({
               </button>
             </div>
           </div>
+          {renderTestHint()}
         </div>
       </div>
     )
   },
 })
-
