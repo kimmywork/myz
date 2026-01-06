@@ -93,7 +93,31 @@ function normalizeSettings<T extends AIAssistantSettings & VectorSettings>(
       ? settings.aiAgents
       : ({ conversation: { target: null, temperature: 0.7 }, insights: { target: null, temperature: 0.7 } } as any);
   settings.aiMcpServers = Array.isArray(settings.aiMcpServers)
-    ? settings.aiMcpServers.filter((s) => s && typeof s === "object")
+    ? settings.aiMcpServers
+        .filter((s) => s && typeof s === "object")
+        .map((server: any) => {
+          const normalized: any = {
+            id: typeof server.id === "string" ? server.id : "",
+            name: typeof server.name === "string" ? server.name : "",
+            enabled: Boolean(server.enabled),
+            url: typeof server.url === "string" ? server.url : "",
+          }
+          const headers = server.headers
+          if (headers && typeof headers === "object" && !Array.isArray(headers)) {
+            normalized.headers = headers as any
+          }
+          const lastTest = server.lastTest
+          if (lastTest && typeof lastTest === "object") {
+            normalized.lastTest = {
+              ok: Boolean(lastTest.ok),
+              message: typeof lastTest.message === "string" ? lastTest.message : "",
+              testedAt: typeof lastTest.testedAt === "string" ? lastTest.testedAt : "",
+            }
+          } else if (lastTest === null) {
+            normalized.lastTest = null
+          }
+          return normalized
+        })
     : [];
 
   settings.vectorSearchEnabled = Boolean(settings.vectorSearchEnabled);

@@ -75,6 +75,11 @@ export interface McpServerSetting {
   enabled: boolean;
   url: string;
   headers?: Record<string, string>;
+  lastTest?: {
+    ok: boolean;
+    message: string;
+    testedAt: string;
+  } | null;
 }
 
 export interface AIAssistantSettings {
