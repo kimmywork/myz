@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { reactive, ref, nextTick } from "vue";
-import { ToolInvocationDetails, Message } from "@/background/aiProvider.js";
+import { ToolInvocationDetails, Message } from "@/background/ai/types.js";
 import { sendMessage } from "@/shared/messaging.js";
 import { useChatStore } from "./chat.js";
 import { usePageStore } from "./page.js";

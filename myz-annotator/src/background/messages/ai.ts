@@ -7,17 +7,14 @@ import {
   saveAiGeneratedHighlight,
   writeAiConversations,
 } from "../ai";
-import {
-  createAiProvider,
-  PageInsightPayload,
-  ProcessConversationOptions,
-} from "../aiProvider";
+import type { PageInsightPayload, ProcessConversationOptions } from "../ai/types.js";
 import { testMcpConnection } from "../mcp";
 import { AIAssistantSettings, McpServerSetting } from "../settings";
 import { generateId, readSettings, saveHighlight } from "../storage";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import { deleteConversation } from "@/sidepanel/aiStorage";
+import { acquireAiRuntime } from "../ai/runtime/runtimeManager.js";
 
 export function initializeAIMessageHandlers() {
   // AI Assistant handlers
@@ -30,12 +27,41 @@ export function initializeAIMessageHandlers() {
         return { success: false, error: "AI Assistant is not enabled" };
       }
 
-      const provider = createAiProvider(merged, { allowUntested: true });
-      if (!provider.provider) {
-        return { success: false, error: "请先配置 Provider" };
-      }
+      const runtime = await acquireAiRuntime(merged as any, { allowUntested: true });
+      try {
+        if (!runtime.session.provider) {
+          return { success: false, error: "请先配置 Provider" };
+        }
 
-      return await provider.testConnection();
+        let model =
+          runtime.session.settings.model || runtime.session.settings.aiModel || "gpt-4";
+        const customModel =
+          runtime.session.settings.customModel || runtime.session.settings.aiCustomModel;
+        if (model === "custom" && customModel) {
+          model = customModel;
+        }
+
+        const response = await runtime.session.client.createCompletion({
+          model,
+          messages: [
+            {
+              role: "user",
+              content:
+                "Please respond with 'Connection successful' to confirm the API is working.",
+            },
+          ],
+          max_tokens: 50,
+        } as any);
+
+        return {
+          success: true,
+          response: response.choices?.[0]?.message?.content || "",
+        };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      } finally {
+        await runtime.release();
+      }
     },
   );
 
@@ -65,17 +91,21 @@ export function initializeAIMessageHandlers() {
         throw new Error("message is required");
       }
 
-      const provider = createAiProvider(settings);
+      const runtime = await acquireAiRuntime(settings as any);
+      if (!runtime.session.isEnabled) {
+        await runtime.release();
+        throw new Error("AI Assistant is not enabled");
+      }
 
       try {
-        await provider.initializeMcpClients();
+        await runtime.connectMcp();
 
         const includePageContext =
           typeof context?.includePageContext === "boolean"
             ? context?.includePageContext
             : undefined;
 
-        return await provider.processConversation(
+        return await runtime.conversation.processConversation(
           conversationId,
           action || "custom",
           message,
@@ -93,7 +123,8 @@ export function initializeAIMessageHandlers() {
           },
         );
       } finally {
-        await provider.disconnectMcpClients();
+        await runtime.disconnectMcp();
+        await runtime.release();
       }
     },
   );
@@ -132,25 +163,29 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const provider = createAiProvider(settings);
+      const runtime = await acquireAiRuntime(settings as any);
+      if (!runtime.session.isEnabled) {
+        await runtime.release();
+        throw new Error("AI Assistant is not enabled");
+      }
 
       try {
-        await provider.initializeMcpClients();
+        await runtime.connectMcp();
         const { conversationId, action, content, options = {} } = payload || {};
 
-        const result = await provider.processConversation(
+        const result = await runtime.conversation.processConversation(
           conversationId,
           action,
           content,
           options,
         );
 
-        const tools = await provider.getAvailableTools();
-        result.availableTools = tools;
+        result.availableTools = runtime.session.mcp.listTools();
 
         return result;
       } finally {
-        await provider.disconnectMcpClients();
+        await runtime.disconnectMcp();
+        await runtime.release();
       }
     },
   );
@@ -163,8 +198,15 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const provider = createAiProvider(settings);
-      return await provider.generatePageInsights(payload || {});
+      const runtime = await acquireAiRuntime(settings as any);
+      try {
+        if (!runtime.session.isEnabled) {
+          throw new Error("AI Assistant is not enabled");
+        }
+        return await runtime.insights.generatePageInsights(payload || {});
+      } finally {
+        await runtime.release();
+      }
     },
   );
 
@@ -247,14 +289,14 @@ export function initializeAIMessageHandlers() {
       return { tools: [] };
     }
 
-    const provider = createAiProvider(settings);
+    const runtime = await acquireAiRuntime(settings as any);
 
     try {
-      await provider.initializeMcpClients();
-      const tools = await provider.getAvailableTools();
-      return { tools };
+      await runtime.connectMcp();
+      return { tools: runtime.session.mcp.listTools() };
     } finally {
-      await provider.disconnectMcpClients();
+      await runtime.disconnectMcp();
+      await runtime.release();
     }
   });
 }

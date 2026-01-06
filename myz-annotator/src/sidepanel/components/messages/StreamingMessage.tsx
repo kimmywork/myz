@@ -1,5 +1,5 @@
 import { computed, defineComponent, ref } from "vue";
-import { MessageStream } from "@/background/aiProvider.js";
+import { MessageStream } from "@/background/ai/types.js";
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 interface StreamingMessageProps {

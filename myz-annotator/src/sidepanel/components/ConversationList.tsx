@@ -8,7 +8,7 @@ import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
 import ToolInlineNotice from "./messages/ToolInlineNotice.jsx";
 import ToolMessageCard from "./messages/ToolMessageCard.jsx";
 import UserMessageBubble from "./messages/UserMessageBubble.jsx";
-import { Message } from "@/background/aiProvider.js";
+import { Message } from "@/background/ai/types.js";
 import { useChatStore } from "../stores/chat.js";
 import { useUIStore } from "../stores/ui.js";
 import { usePageStore } from "../stores/page.js";

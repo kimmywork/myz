@@ -4,7 +4,7 @@ import {
   Message,
   MessageStream,
   MessageStreamData,
-} from "@/background/aiProvider.js";
+} from "@/background/ai/types.js";
 import {
   saveConversation,
   saveMessage,

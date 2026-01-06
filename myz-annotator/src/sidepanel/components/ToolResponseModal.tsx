@@ -1,7 +1,7 @@
 import { defineComponent } from "vue";
 import { useUIStore } from "../stores/ui.js";
 import { storeToRefs } from "pinia";
-import { ToolInvocationDetails } from "@/background/aiProvider.js";
+import { ToolInvocationDetails } from "@/background/ai/types.js";
 
 export interface ToolResponseViewerState {
   visible: boolean;
