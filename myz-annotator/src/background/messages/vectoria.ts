@@ -1,60 +1,62 @@
-import { readSettings, writeSettings, getAllHighlights } from "../storage";
+import { readSettings, getAllHighlights } from "../storage";
 import {
-  applyVectoriaSettings,
-  warmVectoriaModel,
-  testVectorProvider,
   resetVectorIndex,
   indexRecords,
   searchSimilar,
+  applyVectorSearchSettings,
 } from "../vectoria-index";
-import { VectorSettings } from "@/background/settings";
+import type { AIProviderSetting } from "../settings";
 import { registerMessageHandler } from "./handler";
+import { OpenAIEmbedder } from "vectoria";
+import { normalizeBaseUrl } from "../ai/runtime/openaiCompatible.js";
 
 export function initializeVectoriaMessageHandlers() {
-  registerMessageHandler("myz:loadVectorModel", async () => {
-    const settings: VectorSettings = await readSettings();
-    if (!settings.vectorSearchEnabled) {
-      throw new Error("向量检索未启用");
-    }
-    applyVectoriaSettings(settings);
-    try {
-      await warmVectoriaModel();
-      const updated = await writeSettings({ vectorModelReady: true });
-      applyVectoriaSettings(updated);
-      return { success: true, vectorModelReady: true };
-    } catch (error) {
-      await writeSettings({ vectorModelReady: false });
-      applyVectoriaSettings({
-        vectorSearchEnabled: settings.vectorSearchEnabled,
-        vectorModelReady: false,
-      });
-      throw error;
-    }
-  });
-
   registerMessageHandler(
-    "myz:testVectorProvider",
-    async (payload: Partial<VectorSettings>) => {
-      const config = {
-        useLocalModel:
-          payload?.vectorUseLocalModel !== false &&
-          payload?.vectorUseLocalModel !== "remote",
-        openAiEndpoint: payload?.vectorOpenAiEndpoint || "",
-        openAiApiKey: payload?.vectorOpenAiApiKey || "",
-        openAiModel: payload?.vectorOpenAiModel || "text-embedding-3-small",
-      };
-      await testVectorProvider(config);
-      return { success: true };
+    "myz:vectorTestConnection",
+    async (payload: {
+      provider: Pick<AIProviderSetting, "baseUrl" | "apiKey">;
+      model: string;
+    }) => {
+      const provider = payload?.provider
+      const model = typeof payload?.model === "string" ? payload.model.trim() : ""
+      if (!provider?.baseUrl) {
+        throw new Error("Base URL is required")
+      }
+      if (!provider?.apiKey) {
+        throw new Error("API key is required")
+      }
+      if (!model) {
+        throw new Error("Model is required")
+      }
+
+      // Vectoria's OpenAIEmbedder uses `{endpoint}/embeddings`
+      const endpoint = normalizeBaseUrl(provider.baseUrl)
+      const embedder = new OpenAIEmbedder({
+        apiKey: provider.apiKey,
+        endpoint,
+        modelName: model,
+      })
+      try {
+        const embedding = await embedder.embed("connection test")
+        if (!Array.isArray(embedding) || embedding.length === 0) {
+          return { success: false, error: "No embedding returned" }
+        }
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: (error as Error).message }
+      }
     },
   );
 
   registerMessageHandler("myz:rebuildVectorIndex", async () => {
     const settings = await readSettings();
-    if (!settings.vectorSearchEnabled || !settings.vectorModelReady) {
-      throw new Error("请先启用并加载向量模型");
+    if (!settings.vectorSearch?.enabled) {
+      throw new Error("请先启用向量检索");
     }
-    applyVectoriaSettings(settings);
-    await warmVectoriaModel();
+    if (!settings.vectorSearch?.target || !settings.vectorSearch?.lastTest?.ok) {
+      throw new Error("请先选择模型并测试连接")
+    }
+    applyVectorSearchSettings(settings as any)
     await resetVectorIndex();
     const highlights = await getAllHighlights();
     await indexRecords(highlights);
@@ -74,6 +76,12 @@ export function initializeVectoriaMessageHandlers() {
           : 3;
       if (!query) {
         return { results: [] };
+      }
+      try {
+        const settings = await readSettings()
+        applyVectorSearchSettings(settings as any)
+      } catch (error) {
+        console.warn("Vectoria apply settings failed", error)
       }
       const results = await searchSimilar(query, { topK });
       return {

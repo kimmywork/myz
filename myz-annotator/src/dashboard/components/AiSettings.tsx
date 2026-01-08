@@ -11,6 +11,7 @@ import AiProviderList from "./ai-settings/AiProviderList.jsx"
 import AiProviderEditor from "./ai-settings/AiProviderEditor.jsx"
 import AiAgentRouting from "./ai-settings/AiAgentRouting.jsx"
 import AiMcpServersEditor from "./ai-settings/AiMcpServersEditor.jsx"
+import AiVectorSearchSection from "./ai-settings/AiVectorSearchSection.jsx"
 import { createProviderSetting, createModelSetting } from "./ai-settings/factories.js"
 
 function deepClone<T>(value: T): T {
@@ -377,6 +378,8 @@ export default defineComponent({
               onChange={(next) => (mcpServers.value = next)}
             />
           </div>
+
+          <AiVectorSearchSection providers={providers.value} />
         </div>
       </section>
     )

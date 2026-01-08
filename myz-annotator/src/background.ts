@@ -9,8 +9,8 @@ import { initializeSocialImportMessageHandlers } from "./background/messages/soc
 import { initializeVectoriaMessageHandlers } from "./background/messages/vectoria.js";
 import { readSettings } from "./background/storage.js";
 import {
-  applyVectoriaSettings,
-  warmVectoriaModel,
+  applyVectorSearchSettings,
+  getVectoria,
 } from "./background/vectoria-index.js";
 
 (async function initializeAiHeaderRules() {
@@ -25,14 +25,8 @@ import {
 (async function initializeVectoriaSettings() {
   try {
     const settings = await readSettings();
-    applyVectoriaSettings(settings);
-    if (settings.vectorSearchEnabled) {
-      try {
-        await warmVectoriaModel();
-      } catch (error) {
-        console.warn("Vectoria warm-up on startup failed", error);
-      }
-    }
+    applyVectorSearchSettings(settings as any);
+    await getVectoria();
   } catch (error) {
     console.warn("Failed to initialize vector settings", error);
   }

@@ -1,10 +1,13 @@
+import type { Settings } from "./settings.js";
+import { HIGHLIGHT_STYLES } from "@/shared/types";
+
 export const STORAGE_KEY = "myz::highlights";
 export const SETTINGS_KEY = "myz::settings";
 export const DEFAULT_STATE = {
   highlights: {},
   order: [],
 };
-export const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS: Settings = {
   colorPalette: [
     // amber / warm highlight
     "#b58900",
@@ -18,7 +21,7 @@ export const DEFAULT_SETTINGS = {
     "#34d399",
   ],
   lastUsedColor: "#b58900",
-  lastUsedStyle: "paint",
+  lastUsedStyle: HIGHLIGHT_STYLES.PAINT,
   dashboardView: "cards",
   // AI Assistant settings
   aiAssistantEnabled: false,
@@ -29,13 +32,11 @@ export const DEFAULT_SETTINGS = {
   },
   aiMcpServers: [],
   // Vector search / Vectoria
-  vectorSearchEnabled: false,
-  vectorModelReady: false,
-  vectorUseLocalModel: true,
-  vectorOpenAiEndpoint: "",
-  vectorOpenAiApiKey: "",
-  vectorOpenAiModel: "text-embedding-3-small",
-  vectorMaxChars: 500,
+  vectorSearch: {
+    enabled: false,
+    target: null,
+    lastTest: null,
+  },
   // Social import (extensible)
   socialImport: {
     twitter: {

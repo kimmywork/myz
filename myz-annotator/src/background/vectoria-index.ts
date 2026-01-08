@@ -1,22 +1,23 @@
-import { Vectoria, OpenAIEmbedder } from "vectoria";
+import { Vectoria, OpenAIEmbedder } from "vectoria/thin";
 import { MyZRecord } from "@/shared/types.ts";
+import type { AIProviderSetting, Settings, VectorSettings } from "./settings.js";
+import { normalizeBaseUrl } from "./ai/runtime/openaiCompatible.js";
 
 const DOC_MAP_KEY = "myz::vectoriaDocMap";
 const DB_NAME = "myz-vectoria";
 const STORE_NAME = "myz-vectoria-store";
-const MODEL_NAME = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";
+const DEFAULT_MAX_CHARS = 500;
+const MAX_ADD_DOCS_PER_BATCH = 64;
+const MAX_ADD_CHARS_PER_BATCH = 20_000;
 
 let vectoriaInstance: Vectoria | null = null;
 let vectoriaInitPromise: Promise<Vectoria> | null = null;
 
-export interface VectoriaSettings {
+interface VectorSearchRuntimeState {
   enabled: boolean;
-  modelReady: boolean;
-  useLocalModel: boolean | string;
-  openAiEndpoint: string;
-  openAiApiKey: string;
-  openAiModel: string;
-  maxChars: number;
+  target: VectorSettings["target"];
+  lastTest: VectorSettings["lastTest"];
+  providers: AIProviderSetting[];
   signature: string;
 }
 
@@ -42,115 +43,93 @@ export interface VectoriaMetadata {
   chunkIndex: number;
   chunkCount: number;
 }
-const vectoriaSettings: VectoriaSettings = {
+const vectorSearchState: VectorSearchRuntimeState = {
   enabled: false,
-  modelReady: false,
-  useLocalModel: true,
-  openAiEndpoint: "",
-  openAiApiKey: "",
-  openAiModel: "text-embedding-3-small",
-  maxChars: 500,
+  target: null,
+  lastTest: null,
+  providers: [],
   signature: "",
 };
 
-interface PersistedVectoriaSettings {
-  vectorSearchEnabled?: boolean;
-  vectorModelReady?: boolean;
-  vectorUseLocalModel?: boolean | "remote";
-  vectorOpenAiEndpoint?: string;
-  vectorOpenAiApiKey?: string;
-  vectorOpenAiModel?: string;
-  vectorMaxChars?: number;
+function resolveEmbedderConfig(): {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+} | null {
+  if (!vectorSearchState.enabled) return null;
+  if (!vectorSearchState.target) return null;
+  if (!vectorSearchState.lastTest?.ok) return null;
+  if (
+    vectorSearchState.lastTest.providerId !== vectorSearchState.target.providerId ||
+    vectorSearchState.lastTest.modelId !== vectorSearchState.target.modelId
+  ) {
+    return null;
+  }
+
+  const provider = vectorSearchState.providers.find(
+    (p) => p.id === vectorSearchState.target?.providerId,
+  );
+  const model = provider?.models?.find(
+    (m) => m.id === vectorSearchState.target?.modelId,
+  );
+
+  const baseUrl = provider?.baseUrl || "";
+  const apiKey = provider?.apiKey || "";
+  const modelName = model?.model || "";
+  if (!baseUrl || !apiKey || !modelName) {
+    return null;
+  }
+
+  return { baseUrl, apiKey, model: modelName };
 }
 
-export function applyVectoriaSettings(settings: PersistedVectoriaSettings) {
-  vectoriaSettings.enabled = Boolean(settings?.vectorSearchEnabled);
-  vectoriaSettings.modelReady = Boolean(
-    vectoriaSettings.enabled && settings?.vectorModelReady,
-  );
-  vectoriaSettings.useLocalModel =
-    settings?.vectorUseLocalModel !== false &&
-    settings?.vectorUseLocalModel !== "remote";
-  vectoriaSettings.openAiEndpoint = settings?.vectorOpenAiEndpoint || "";
-  vectoriaSettings.openAiApiKey = settings?.vectorOpenAiApiKey || "";
-  vectoriaSettings.openAiModel =
-    settings?.vectorOpenAiModel || "text-embedding-3-small";
-  vectoriaSettings.maxChars =
-    typeof settings?.vectorMaxChars === "number" && settings.vectorMaxChars > 0
-      ? Math.floor(settings.vectorMaxChars)
-      : 500;
+export function applyVectorSearchSettings(
+  settings: Pick<Settings, "aiProviders" | "vectorSearch">,
+) {
+  vectorSearchState.enabled = Boolean(settings?.vectorSearch?.enabled);
+  vectorSearchState.target = settings?.vectorSearch?.target || null;
+  vectorSearchState.lastTest = settings?.vectorSearch?.lastTest || null;
+  vectorSearchState.providers = Array.isArray(settings?.aiProviders)
+    ? settings.aiProviders
+    : [];
 
-  const signature = JSON.stringify({
-    enabled: vectoriaSettings.enabled,
-    useLocalModel: vectoriaSettings.useLocalModel,
-    openAiEndpoint: vectoriaSettings.openAiEndpoint,
-    openAiModel: vectoriaSettings.openAiModel,
-    openAiKey: vectoriaSettings.openAiApiKey ? 1 : 0,
-    maxChars: vectoriaSettings.maxChars,
-  });
+  const config = resolveEmbedderConfig();
+  const signature = config
+    ? JSON.stringify({
+        enabled: vectorSearchState.enabled,
+        providerId: vectorSearchState.target?.providerId,
+        modelId: vectorSearchState.target?.modelId,
+        baseUrl: normalizeBaseUrl(config.baseUrl),
+        model: config.model,
+        hasKey: config.apiKey ? 1 : 0,
+      })
+    : "";
 
-  if (
-    signature !== vectoriaSettings.signature ||
-    (!vectoriaSettings.enabled && vectoriaInstance)
-  ) {
+  if (signature !== vectorSearchState.signature) {
     vectoriaInstance = null;
     vectoriaInitPromise = null;
   }
-  vectoriaSettings.signature = signature;
+  vectorSearchState.signature = signature;
 }
 
-function createVectoriaInstance(config: Partial<VectoriaSettings> = {}) {
-  if (config.useLocalModel === false) {
-    if (!config.openAiApiKey) {
-      throw new Error("缺少 OpenAI API Key");
-    }
+async function ensureVectoria(): Promise<Vectoria | undefined> {
+  const config = resolveEmbedderConfig();
+  if (!config) return undefined;
+  if (vectoriaInstance) return vectoriaInstance;
+  if (vectoriaInitPromise) return vectoriaInitPromise;
+
+  vectoriaInitPromise = (async () => {
     const embedder = new OpenAIEmbedder({
-      apiKey: config.openAiApiKey ?? "",
-      endpoint: config.openAiEndpoint ?? "",
-      modelName: config.openAiModel ?? "text-embedding-3-small",
+      apiKey: config.apiKey,
+      endpoint: normalizeBaseUrl(config.baseUrl),
+      modelName: config.model,
     });
-    return new Vectoria({
+    const instance = new Vectoria({
       dbName: DB_NAME,
       storeName: STORE_NAME,
       useLocalModel: false,
       customEmbedder: embedder,
     });
-  }
-
-  return new Vectoria({
-    dbName: DB_NAME,
-    storeName: STORE_NAME,
-    useLocalModel: true,
-    modelName: MODEL_NAME,
-    device: "auto",
-  });
-}
-
-export function getActiveMaxChars(override?: number) {
-  const value =
-    typeof override === "number" && override > 0
-      ? override
-      : vectoriaSettings.maxChars;
-  return Math.max(1, value || 500);
-}
-
-async function ensureVectoria({ forceInit = false } = {}): Promise<
-  Vectoria | undefined
-> {
-  if (!vectoriaSettings.enabled) return undefined;
-  if (!forceInit && !vectoriaSettings.modelReady) return undefined;
-  if (vectoriaInstance) return vectoriaInstance;
-  if (vectoriaInitPromise) return vectoriaInitPromise;
-
-  const config: Partial<VectoriaSettings> = {
-    useLocalModel: vectoriaSettings.useLocalModel,
-    openAiEndpoint: vectoriaSettings.openAiEndpoint,
-    openAiApiKey: vectoriaSettings.openAiApiKey,
-    openAiModel: vectoriaSettings.openAiModel,
-  };
-
-  vectoriaInitPromise = (async () => {
-    const instance = createVectoriaInstance(config);
     if (typeof instance.init === "function") {
       await instance.init();
     }
@@ -169,19 +148,7 @@ async function ensureVectoria({ forceInit = false } = {}): Promise<
 }
 
 export async function getVectoria(): Promise<Vectoria | undefined> {
-  return ensureVectoria({ forceInit: false });
-}
-
-export async function warmVectoriaModel() {
-  const instance = await ensureVectoria({ forceInit: true });
-  if (instance) {
-    try {
-      await instance.search("warm up", 1);
-    } catch (error) {
-      console.warn("Vectoria warm-up failed", error);
-    }
-  }
-  return instance;
+  return ensureVectoria();
 }
 
 async function readDocMap() {
@@ -208,7 +175,10 @@ function splitSentences(text: string): string[] {
 }
 
 function chunkText(text: string, maxChars?: number): string[] {
-  const limit = getActiveMaxChars(maxChars);
+  const limit = Math.max(
+    1,
+    typeof maxChars === "number" && maxChars > 0 ? maxChars : DEFAULT_MAX_CHARS,
+  );
   const sentences = splitSentences(text);
   if (!sentences.length) return [];
 
@@ -269,7 +239,7 @@ function buildDocumentsFromRecord(record: MyZRecord): VectoriaDocument[] {
 
   const docs: VectoriaDocument[] = [];
   sections.forEach((section) => {
-    const chunks = chunkText(section.text, vectoriaSettings.maxChars);
+    const chunks = chunkText(section.text, DEFAULT_MAX_CHARS);
     chunks.forEach((chunk, idx) => {
       docs.push({
         text: chunk,
@@ -283,6 +253,33 @@ function buildDocumentsFromRecord(record: MyZRecord): VectoriaDocument[] {
     });
   });
   return docs;
+}
+
+function batchDocumentsForAdd(docs: VectoriaDocument[]): VectoriaDocument[][] {
+  const batches: VectoriaDocument[][] = [];
+  let current: VectoriaDocument[] = [];
+  let currentChars = 0;
+
+  for (const doc of docs) {
+    const textLen = typeof doc.text === "string" ? doc.text.length : 0;
+    const wouldExceedCount = current.length >= MAX_ADD_DOCS_PER_BATCH;
+    const wouldExceedChars =
+      current.length > 0 && currentChars + textLen > MAX_ADD_CHARS_PER_BATCH;
+
+    if (wouldExceedCount || wouldExceedChars) {
+      batches.push(current);
+      current = [];
+      currentChars = 0;
+    }
+
+    current.push(doc);
+    currentChars += textLen;
+  }
+
+  if (current.length) {
+    batches.push(current);
+  }
+  return batches;
 }
 
 async function deleteDocsByIds(docIds = []) {
@@ -301,9 +298,6 @@ async function deleteDocsByIds(docIds = []) {
 
 export async function indexRecord(record: MyZRecord) {
   try {
-    if (!vectoriaSettings.enabled || !vectoriaSettings.modelReady) {
-      return;
-    }
     const docs = buildDocumentsFromRecord(record);
     if (!docs.length) {
       return;
@@ -324,20 +318,66 @@ export async function indexRecord(record: MyZRecord) {
 }
 
 export async function indexRecords(records: MyZRecord[] = []) {
-  if (!vectoriaSettings.enabled || !vectoriaSettings.modelReady) {
-    return;
-  }
-  for (const record of records) {
-    await indexRecord(record);
+  const vectoria = await getVectoria();
+  if (!vectoria) return;
+
+  const byId = new Map<string, MyZRecord>();
+  records.forEach((record) => {
+    if (record?.id) byId.set(record.id, record);
+  });
+  const uniqueRecords = Array.from(byId.values());
+  if (!uniqueRecords.length) return;
+
+  try {
+    const map = await readDocMap();
+
+    for (const record of uniqueRecords) {
+      const prevIds = map[record.id] || [];
+      if (prevIds.length) {
+        await deleteDocsByIds(prevIds);
+      }
+    }
+
+    const docs: VectoriaDocument[] = [];
+    for (const record of uniqueRecords) {
+      docs.push(...buildDocumentsFromRecord(record));
+    }
+
+    const nextIdsByRecord: Record<string, string[]> = {};
+    for (const batch of batchDocumentsForAdd(docs)) {
+      if (!batch.length) continue;
+      const inserted = await vectoria.addDocuments(batch);
+      inserted.forEach((doc) => {
+        const recordId =
+          doc?.metadata && typeof doc.metadata.recordId === "string"
+            ? doc.metadata.recordId
+            : "";
+        if (!recordId) return;
+        nextIdsByRecord[recordId] = nextIdsByRecord[recordId] || [];
+        nextIdsByRecord[recordId].push(doc.id);
+      });
+    }
+
+    uniqueRecords.forEach((record) => {
+      const nextIds = nextIdsByRecord[record.id] || [];
+      if (nextIds.length) {
+        map[record.id] = nextIds;
+      } else {
+        delete map[record.id];
+      }
+    });
+
+    await writeDocMap(map);
+  } catch (error) {
+    console.warn("Vectoria indexRecords failed", error);
   }
 }
 
 export async function removeRecordFromIndex(recordId: string) {
   if (!recordId) return;
   try {
-    if (!vectoriaSettings.enabled || !vectoriaSettings.modelReady) {
-      return;
-    }
+    const vectoria = await getVectoria();
+    if (!vectoria) return;
     const map = await readDocMap();
     const docIds = map[recordId] || [];
     if (docIds.length) {
@@ -365,25 +405,10 @@ export async function searchSimilar(
   }
 }
 
-export async function testVectorProvider(config: Partial<VectoriaSettings>) {
-  if (!config?.openAiApiKey) {
-    throw new Error("请填写 OpenAI API Key");
-  }
-  const instance = createVectoriaInstance({
-    useLocalModel: false,
-    openAiApiKey: config?.openAiApiKey || "",
-    openAiEndpoint: config?.openAiEndpoint || "",
-    openAiModel: config?.openAiModel || "text-embedding-3-small",
-  });
-  await instance.init();
-  await instance.search("warm up", 1);
-  return true;
-}
-
 export async function resetVectorIndex() {
   const vectoria = await getVectoria();
   if (!vectoria) {
-    throw new Error("模型未就绪");
+    throw new Error("向量检索未启用或未测试");
   }
   if (typeof vectoria.resetIndex === "function") {
     await vectoria.resetIndex();

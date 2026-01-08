@@ -1,7 +1,8 @@
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 
-import { AIAssistantSettings, Settings, VectorSettings } from "./settings.js";
+import { Settings } from "./settings.js";
+import { applyVectorSearchSettings } from "./vectoria-index.js";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { MyZRecord } from "@/shared/types.js";
 
@@ -81,9 +82,7 @@ function getAllFromStore<T>(storeName: string): Promise<T[]> {
   });
 }
 
-function normalizeSettings<T extends AIAssistantSettings & VectorSettings>(
-  settings: T,
-): T {
+function normalizeSettings<T extends Settings>(settings: T): T {
   settings.aiAssistantEnabled = Boolean(settings.aiAssistantEnabled);
   settings.aiProviders = Array.isArray(settings.aiProviders)
     ? settings.aiProviders.filter((p) => p && typeof p === "object")
@@ -119,30 +118,47 @@ function normalizeSettings<T extends AIAssistantSettings & VectorSettings>(
           return normalized
         })
     : [];
+  const vectorSearch = (settings as any).vectorSearch
+  if (!vectorSearch || typeof vectorSearch !== "object") {
+    ;(settings as any).vectorSearch = {
+      enabled: false,
+      target: null,
+      lastTest: null,
+    }
+  } else {
+    vectorSearch.enabled = Boolean(vectorSearch.enabled)
+    const target = vectorSearch.target
+    if (
+      target &&
+      typeof target === "object" &&
+      typeof target.providerId === "string" &&
+      typeof target.modelId === "string"
+    ) {
+      vectorSearch.target = { providerId: target.providerId, modelId: target.modelId }
+    } else {
+      vectorSearch.target = null
+    }
 
-  settings.vectorSearchEnabled = Boolean(settings.vectorSearchEnabled);
-  settings.vectorModelReady = Boolean(
-    settings.vectorSearchEnabled && settings.vectorModelReady,
-  );
-  settings.vectorUseLocalModel =
-    settings.vectorUseLocalModel !== false &&
-    settings.vectorUseLocalModel !== "remote";
-  settings.vectorOpenAiEndpoint =
-    typeof settings.vectorOpenAiEndpoint === "string"
-      ? settings.vectorOpenAiEndpoint
-      : "";
-  settings.vectorOpenAiApiKey =
-    typeof settings.vectorOpenAiApiKey === "string"
-      ? settings.vectorOpenAiApiKey
-      : "";
-  settings.vectorOpenAiModel =
-    typeof settings.vectorOpenAiModel === "string"
-      ? settings.vectorOpenAiModel
-      : "text-embedding-3-small";
-  settings.vectorMaxChars =
-    typeof settings.vectorMaxChars === "number" && settings.vectorMaxChars > 0
-      ? Math.floor(settings.vectorMaxChars)
-      : 500;
+    const lastTest = vectorSearch.lastTest
+    if (lastTest && typeof lastTest === "object") {
+      vectorSearch.lastTest = {
+        ok: Boolean(lastTest.ok),
+        message: typeof lastTest.message === "string" ? lastTest.message : "",
+        testedAt: typeof lastTest.testedAt === "string" ? lastTest.testedAt : "",
+        providerId: typeof lastTest.providerId === "string" ? lastTest.providerId : "",
+        modelId: typeof lastTest.modelId === "string" ? lastTest.modelId : "",
+        model: typeof lastTest.model === "string" ? lastTest.model : "",
+      }
+    } else if (lastTest === null) {
+      vectorSearch.lastTest = null
+    } else {
+      vectorSearch.lastTest = null
+    }
+  }
+
+  ;(settings as any).colorPalette = Array.isArray((settings as any).colorPalette)
+    ? (settings as any).colorPalette.filter((c: any) => typeof c === "string" && c.trim())
+    : []
 
   // Social import settings (extensible)
   const socialImport = (settings as any).socialImport;
@@ -242,6 +258,11 @@ export async function writeSettings(patch: Partial<Settings>) {
     await syncAiRequestHeaderRules(updated);
   } catch (error) {
     console.warn("Failed to sync AI header rules", error);
+  }
+  try {
+    applyVectorSearchSettings(updated as any);
+  } catch (error) {
+    console.warn("Failed to apply vector search settings", error);
   }
   return updated;
 }

@@ -3,7 +3,6 @@ import { useUIStore } from "../stores/ui.js";
 import AiSettings from "./AiSettings.jsx";
 import ImportHighlightsSection from "./settings/ImportHighlightsSection.jsx";
 import SocialImportSection from "./settings/SocialImportSection.jsx";
-import VectorSearchSection from "./settings/VectorSearchSection.jsx";
 
 export default defineComponent({
   name: "SettingsPane",
@@ -41,7 +40,6 @@ export default defineComponent({
           <ImportHighlightsSection />
           <SocialImportSection />
           <AiSettings />
-          <VectorSearchSection />
         </div>
       </section>
     );

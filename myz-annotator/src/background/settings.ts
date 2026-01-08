@@ -60,13 +60,18 @@ export interface AIAgentsSettings {
 }
 
 export interface VectorSettings {
-  vectorSearchEnabled: boolean;
-  vectorModelReady: boolean;
-  vectorUseLocalModel: boolean | "remote";
-  vectorOpenAiEndpoint: string;
-  vectorOpenAiApiKey: string;
-  vectorOpenAiModel: string;
-  vectorMaxChars: number;
+  enabled: boolean;
+  target: AIAgentModelRef | null;
+  lastTest: VectorSearchLastTestStatus | null;
+}
+
+export interface VectorSearchLastTestStatus {
+  ok: boolean;
+  message: string;
+  testedAt: string;
+  providerId: string;
+  modelId: string;
+  model: string;
 }
 
 export interface McpServerSetting {
@@ -88,6 +93,7 @@ export interface AIAssistantSettings {
   aiProviders: Array<AIProviderSetting>;
   aiAgents: AIAgentsSettings;
   aiMcpServers: McpServerSetting[];
+  vectorSearch: VectorSettings;
 }
 
 export interface SocialImportProviderSettings {
@@ -99,8 +105,9 @@ export interface SocialImportSettings {
   mastodon: SocialImportProviderSettings;
 }
 
-export interface Settings extends VectorSettings, AIAssistantSettings {
+export interface Settings extends AIAssistantSettings {
   dashboardView: "cards" | "list";
+  colorPalette: string[];
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;
   socialImport: SocialImportSettings;
