@@ -7,7 +7,7 @@ import {
 } from "../vectoria-index";
 import type { AIProviderSetting } from "../settings";
 import { registerMessageHandler } from "./handler";
-import { OpenAIEmbedder } from "vectoria";
+import { OpenAIEmbedder } from "vectoria/thin";
 import { normalizeBaseUrl } from "../ai/runtime/openaiCompatible.js";
 
 export function initializeVectoriaMessageHandlers() {

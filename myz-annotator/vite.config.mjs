@@ -20,7 +20,7 @@ export default defineConfig({
       outDir: "release",
       outFileName: `crx-myz-annotator-${manifest.version}.zip`,
       filter: (filePath) =>
-        !filePath.endsWith(".map") && !filePath.includes(".vite"),
+        !filePath.endsWith(".map") && !filePath.includes(".vite") && !filePath.endsWith(".wasm"),
     }),
   ],
   resolve: {
