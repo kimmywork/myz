@@ -15,7 +15,47 @@ const INTEREST_MAX_COUNT = 300;
 const INTEREST_MIN_LENGTH = 80;
 const INTEREST_STAY_MS = 2000;
 const INTEREST_COOLDOWN_MS = 60_000;
-const INTEREST_SCORE_THRESHOLD = 0.32;
+const DEFAULT_MATCH_THRESHOLD = 0.5;
+const SETTINGS_STORAGE_KEY = "myz::settings";
+
+let interestMatchThreshold = DEFAULT_MATCH_THRESHOLD;
+let thresholdSyncInstalled = false;
+
+function normalizeMatchThreshold(value: any): number {
+  const n =
+    typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_MATCH_THRESHOLD;
+  return Math.min(1, Math.max(0.4, n));
+}
+
+async function loadMatchThresholdFromSettings(): Promise<void> {
+  try {
+    const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
+    const settings = stored?.[SETTINGS_STORAGE_KEY];
+    interestMatchThreshold = normalizeMatchThreshold(settings?.vectorSearch?.matchThreshold);
+  } catch {
+    // ignore
+  }
+}
+
+function installMatchThresholdSync(): void {
+  if (thresholdSyncInstalled) return;
+  thresholdSyncInstalled = true;
+  try {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local") return;
+      const change = changes?.[SETTINGS_STORAGE_KEY];
+      if (!change) return;
+      const next = normalizeMatchThreshold(
+        change.newValue?.vectorSearch?.matchThreshold,
+      );
+      if (next === interestMatchThreshold) return;
+      interestMatchThreshold = next;
+      pruneMatchesBelowThreshold(next);
+    });
+  } catch {
+    // ignore
+  }
+}
 
 interface InterestStatus {
   text: string;
@@ -34,6 +74,8 @@ let interestTempRectKeyId = 0;
 
 export function startInterestMonitoring(): void {
   const interestStore = useInterestsStore();
+  void loadMatchThresholdFromSettings();
+  installMatchThresholdSync();
   if (!interestObserver) {
     interestObserver = new IntersectionObserver(handleInterestEntries, {
       threshold: 0.6,
@@ -168,7 +210,7 @@ async function runSemanticLookup(
       .filter(
         (item) =>
           typeof item?.score === "number" &&
-          item.score >= INTEREST_SCORE_THRESHOLD,
+          item.score >= interestMatchThreshold,
       )
       .sort((a, b) => (b.score || 0) - (a.score || 0));
     if (hits.length) {
@@ -219,6 +261,18 @@ function updateInterestAggregates(
         rect,
         rectKey,
       });
+    }
+  });
+  updateInterestIndicators();
+}
+
+function pruneMatchesBelowThreshold(threshold: number): void {
+  const interestStore = useInterestsStore();
+  const entries = Array.from(interestStore.interestMatchesByRecord.entries());
+  entries.forEach(([key, entry]) => {
+    const score = entry?.match?.score || 0;
+    if (typeof score !== "number" || !Number.isFinite(score) || score < threshold) {
+      interestStore.interestMatchesByRecord.delete(key);
     }
   });
   updateInterestIndicators();

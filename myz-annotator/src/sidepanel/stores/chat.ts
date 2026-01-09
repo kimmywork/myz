@@ -836,6 +836,7 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   async function initialize() {
+    const uiStore = useUIStore();
     // Setup listener
     runtimeListener = (message: SidePanelCommunicationMessage) => {
       const uiStore = useUIStore();
@@ -895,6 +896,20 @@ export const useChatStore = defineStore("chat", () => {
       try {
         await pageStore.loadPageContext(undefined, { includeContent: false });
       } catch {}
+    }
+
+    // If a related-highlights payload was produced while the SidePanel was closed,
+    // pull it once on startup and show it.
+    try {
+      const pendingRelated: any = await sendMessage(
+        "myz:popPendingRelatedHighlights",
+      );
+      if (pendingRelated && Array.isArray(pendingRelated.matches)) {
+        pageStore.relatedMatches = pendingRelated.matches;
+        uiStore.setView("related");
+      }
+    } catch {
+      // ignore
     }
 
     // On each SidePanel open/reload, start a fresh conversation.

@@ -19,6 +19,7 @@ export default defineComponent({
       enabled: false,
       target: null,
       lastTest: null,
+      matchThreshold: 0.5,
     })
     const saveNotice = ref("")
     const status = ref("")
@@ -30,7 +31,7 @@ export default defineComponent({
       () => store.settings.vectorSearch,
       (next) => {
         draft.value = deepClone(
-          next || { enabled: false, target: null, lastTest: null },
+          next || { enabled: false, target: null, lastTest: null, matchThreshold: 0.5 },
         )
       },
       { deep: true, immediate: true },
@@ -201,8 +202,8 @@ export default defineComponent({
         </div>
 
         <div class="space-y-3">
-          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <label class="field flex-1">
+          <div class="space-y-2">
+            <label class="field">
               <span>模型</span>
               <select
                 value={targetKey.value}
@@ -241,6 +242,34 @@ export default defineComponent({
               <span>启用</span>
             </label>
           </div>
+
+          <label class="field">
+            <span>匹配阈值</span>
+            <div class="flex items-center gap-3">
+              <input
+                type="range"
+                min="40"
+                max="100"
+                step="1"
+                class="w-full"
+                value={Math.round((draft.value.matchThreshold || 0.5) * 100)}
+                onInput={(e) => {
+                  const percent = Number((e.target as HTMLInputElement).value)
+                  const next = Number.isFinite(percent) ? percent / 100 : 0.5
+                  draft.value = {
+                    ...draft.value,
+                    matchThreshold: Math.min(1, Math.max(0.4, next)),
+                  }
+                }}
+              />
+              <span class="text-xs tabular-nums text-slate-500 dark:text-slate-300">
+                {Math.round((draft.value.matchThreshold || 0.5) * 100)}%
+              </span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-300">
+              仅显示相似度高于阈值的匹配结果（40% - 100%）
+            </p>
+          </label>
 
           <div class="flex flex-wrap items-center gap-2">
             <button

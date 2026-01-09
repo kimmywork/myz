@@ -42,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
     enabled: false,
     target: null,
     lastTest: null,
+    matchThreshold: 0.5,
   },
   // Social import (extensible)
   socialImport: {

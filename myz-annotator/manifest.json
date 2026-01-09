@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "MyZ Annotator",
-  "description": "Highlight and annotate web pages with JSON/Markdown export and LogSeq sync.",
+  "name": "MyZ 网页标注智能助理",
+  "description": "All in one knowledge assistant for your web browsing powered by AI.",
   "version": "0.1.5",
   "icons": {
     "16": "assets/icon-128.png",
@@ -41,9 +41,6 @@
   "options_page": "src/dashboard/index.html",
   "side_panel": {
     "default_path": "src/sidepanel/sidepanel.html"
-  },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
   "web_accessible_resources": [
     {

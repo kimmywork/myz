@@ -82,6 +82,11 @@ export interface VectorSettings {
   enabled: boolean;
   target: AIAgentModelRef | null;
   lastTest: VectorSearchLastTestStatus | null;
+  /**
+   * Only show matches whose similarity score >= matchThreshold.
+   * Stored as a fraction (0.0 - 1.0). UI exposes 40% - 100%.
+   */
+  matchThreshold: number;
 }
 
 export interface VectorSearchLastTestStatus {

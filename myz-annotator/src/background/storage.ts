@@ -155,6 +155,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       enabled: false,
       target: null,
       lastTest: null,
+      matchThreshold: 0.5,
     }
   } else {
     vectorSearch.enabled = Boolean(vectorSearch.enabled)
@@ -185,6 +186,13 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     } else {
       vectorSearch.lastTest = null
     }
+
+    const rawThreshold = vectorSearch.matchThreshold
+    const threshold =
+      typeof rawThreshold === "number" && Number.isFinite(rawThreshold)
+        ? rawThreshold
+        : 0.5
+    vectorSearch.matchThreshold = Math.min(1, Math.max(0.4, threshold))
   }
 
   ;(settings as any).colorPalette = Array.isArray((settings as any).colorPalette)

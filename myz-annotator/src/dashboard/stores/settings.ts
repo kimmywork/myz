@@ -31,6 +31,7 @@ export const useSettingsStore = defineStore("settings", () => {
       enabled: false,
       target: null,
       lastTest: null,
+      matchThreshold: 0.5,
     },
     lastUsedColor: DEFAULT_COLOR,
     lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
@@ -132,6 +133,13 @@ export const useSettingsStore = defineStore("settings", () => {
                 enabled: Boolean(result.vectorSearch.enabled),
                 target: result.vectorSearch.target || null,
                 lastTest: result.vectorSearch.lastTest || null,
+                matchThreshold:
+                  typeof (result.vectorSearch as any).matchThreshold === "number"
+                    ? Math.min(
+                        1,
+                        Math.max(0.4, (result.vectorSearch as any).matchThreshold),
+                      )
+                    : settings.vectorSearch.matchThreshold,
               }
             : settings.vectorSearch,
         socialImport:
