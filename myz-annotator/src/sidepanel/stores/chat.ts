@@ -28,6 +28,8 @@ interface SidePanelCommunicationMessage {
     matches?: VectoriaSearchResult[];
     prompt?: string;
     attachments?: ImageAttachment[];
+    selectionText?: string;
+    selectionAttachment?: ImageAttachment;
   };
   data?: MessageStreamData;
 }
@@ -102,6 +104,32 @@ export const useChatStore = defineStore("chat", () => {
     () => aiConfig.assistantEnabled && aiConfig.configured && aiConfig.supportsVision,
   );
 
+  const draftContext = reactive<{
+    present: boolean;
+    enabled: boolean;
+    kind: "selection" | null;
+    text: string;
+    attachments: ImageAttachment[];
+  }>({
+    present: false,
+    enabled: false,
+    kind: null,
+    text: "",
+    attachments: [],
+  });
+
+  function clearDraftContext() {
+    draftContext.present = false;
+    draftContext.enabled = false;
+    draftContext.kind = null;
+    draftContext.text = "";
+    draftContext.attachments = [];
+  }
+
+  function removeDraftAttachment(index: number) {
+    draftContext.attachments = draftContext.attachments.filter((_, i) => i !== index);
+  }
+
   function resetAttachments() {
     attachments.value = [];
   }
@@ -169,8 +197,9 @@ export const useChatStore = defineStore("chat", () => {
     };
   }
 
-  async function prepareAttachmentsForSend(): Promise<ImageAttachment[]> {
-    const list = attachments.value.slice(0);
+  async function prepareAttachmentsForSend(
+    list: ImageAttachment[],
+  ): Promise<ImageAttachment[]> {
     if (!list.length) {
       return [];
     }
@@ -341,7 +370,17 @@ export const useChatStore = defineStore("chat", () => {
 
   async function sendUserMessage(content: string) {
     const trimmed = (content || "").trim();
-    if ((!trimmed && !attachments.value.length) || isLoading.value) {
+    const draftEnabled = Boolean(draftContext.present && draftContext.enabled);
+    const draftText = draftEnabled ? (draftContext.text || "").trim() : "";
+    const draftAttachments = draftEnabled
+      ? draftContext.attachments.slice(0)
+      : [];
+    const combinedAttachments = [
+      ...(draftEnabled ? draftAttachments : []),
+      ...attachments.value,
+    ];
+
+    if ((!trimmed && !combinedAttachments.length && !draftText) || isLoading.value) {
       return;
     }
 
@@ -364,12 +403,16 @@ export const useChatStore = defineStore("chat", () => {
         // For now, let's assume UI handles confirmation and calls a compress action
       }
 
-      const nextAttachments = await prepareAttachmentsForSend();
+      const nextAttachments = await prepareAttachmentsForSend(combinedAttachments);
+      const finalContent =
+        draftEnabled && draftText
+          ? `${draftContext.kind === "selection" ? "选中内容（上下文）" : "上下文"}:\n${draftText}\n\n${trimmed || ""}`.trim()
+          : trimmed;
       const userMsg: Message = {
         id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         conversationId: conversationId.value,
         role: "user",
-        content: trimmed,
+        content: finalContent,
         timestamp: new Date().toISOString(),
         metadata: nextAttachments.length ? { attachments: nextAttachments } : undefined,
       };
@@ -377,11 +420,12 @@ export const useChatStore = defineStore("chat", () => {
       messages.value.push(userMsg);
       userInput.value = "";
       resetAttachments();
+      clearDraftContext();
 
       // Send to background (streaming via runtime messages)
       void sendMessage("myz:aiStreamRequest", {
         conversationId: conversationId.value,
-        message: trimmed,
+        message: finalContent,
         action: "custom",
         attachments: nextAttachments,
         context: {
@@ -640,14 +684,37 @@ export const useChatStore = defineStore("chat", () => {
     }
     if (action === "interpret_image") {
       const payload = lastSidePanelAction.value || {};
+      clearDraftContext();
+      resetAttachments();
       if (Array.isArray(payload.attachments) && payload.attachments.length) {
         attachments.value = payload.attachments;
       }
-      const prompt =
+      userInput.value =
         typeof payload.prompt === "string" && payload.prompt.trim()
           ? payload.prompt.trim()
           : "请解读这张图片的内容";
-      await sendUserMessage(prompt);
+      return;
+    }
+    if (action === "interpret_selection") {
+      const payload = lastSidePanelAction.value || {};
+      resetAttachments();
+      const selectionText =
+        typeof payload.selectionText === "string" ? payload.selectionText.trim() : "";
+      const selectionAttachment =
+        payload.selectionAttachment && payload.selectionAttachment.type === "image"
+          ? payload.selectionAttachment
+          : null;
+
+      draftContext.present = true;
+      draftContext.enabled = true;
+      draftContext.kind = "selection";
+      draftContext.text = selectionText;
+      draftContext.attachments = selectionAttachment ? [selectionAttachment] : [];
+
+      userInput.value =
+        typeof payload.prompt === "string" && payload.prompt.trim()
+          ? payload.prompt.trim()
+          : "请解读选中内容";
       return;
     }
     if (action === "custom") {
@@ -716,6 +783,9 @@ export const useChatStore = defineStore("chat", () => {
     removeAttachment,
     resetAttachments,
     refreshAiConfig,
+    draftContext,
+    clearDraftContext,
+    removeDraftAttachment,
     activeStream,
     hasActiveStream,
     autoInsights,

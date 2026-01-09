@@ -12,6 +12,8 @@ import InputComposer from "./components/InputComposer.jsx";
 import InterestsPanel from "./components/InterestsPanel.jsx";
 import PageContextCard from "./components/PageContextCard.jsx";
 import ToolResponseModal from "./components/ToolResponseModal.jsx";
+import ImagePreviewModal from "./components/ImagePreviewModal.jsx";
+import DraftContextCard from "./components/DraftContextCard.jsx";
 import HistoryView from "./HistoryView.jsx";
 import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
@@ -82,6 +84,7 @@ export default defineComponent({
               )}
 
             <PageContextCard />
+            <DraftContextCard />
 
             <section class="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white/80 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
               {chatStore.autoInsights.active &&
@@ -100,6 +103,7 @@ export default defineComponent({
           </>
         )}
         <ToolResponseModal />
+        <ImagePreviewModal />
       </div>
     );
   },

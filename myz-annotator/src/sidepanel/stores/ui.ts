@@ -21,6 +21,12 @@ export interface ToolResponseViewerState {
   invocationDetails: ToolInvocationDetails[];
 }
 
+export interface ImagePreviewState {
+  visible: boolean;
+  dataUrl: string;
+  title: string;
+}
+
 export const useUIStore = defineStore("ui", () => {
   const view = ref<"chat" | "history" | "related">("chat");
   const isComposing = ref(false);
@@ -41,6 +47,12 @@ export const useUIStore = defineStore("ui", () => {
     timestamp: "",
     args: "",
     invocationDetails: [],
+  });
+
+  const imagePreview = reactive<ImagePreviewState>({
+    visible: false,
+    dataUrl: "",
+    title: "",
   });
 
   function setView(newView: "chat" | "history" | "related") {
@@ -176,12 +188,27 @@ export const useUIStore = defineStore("ui", () => {
     toolResponseViewer.visible = false;
   }
 
+  function openImagePreview(payload: { dataUrl: string; title?: string }) {
+    const dataUrl = typeof payload?.dataUrl === "string" ? payload.dataUrl : "";
+    if (!dataUrl) return;
+    imagePreview.visible = true;
+    imagePreview.dataUrl = dataUrl;
+    imagePreview.title = typeof payload?.title === "string" ? payload.title : "图片预览";
+  }
+
+  function closeImagePreview() {
+    imagePreview.visible = false;
+    imagePreview.dataUrl = "";
+    imagePreview.title = "";
+  }
+
   return {
     view,
     isComposing,
     isSavingHighlight,
     saveModal,
     toolResponseViewer,
+    imagePreview,
     messageListRef,
     setView,
     setComposing,
@@ -194,5 +221,7 @@ export const useUIStore = defineStore("ui", () => {
     openToolInvocationDetails,
     openToolViewer,
     closeToolViewer,
+    openImagePreview,
+    closeImagePreview,
   };
 });

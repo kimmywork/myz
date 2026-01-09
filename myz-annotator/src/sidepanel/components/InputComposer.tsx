@@ -48,10 +48,19 @@ export default defineComponent({
                   src={item.dataUrl}
                   class="h-full w-full object-cover"
                   alt={item.name || `image-${index + 1}`}
+                  onClick={() =>
+                    uiStore.openImagePreview({
+                      dataUrl: item.dataUrl,
+                      title: item.name || "图片预览",
+                    })
+                  }
                 />
                 <button
                   class="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/70 text-xs text-white hover:bg-slate-900"
-                  onClick={() => chatStore.removeAttachment(index)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    chatStore.removeAttachment(index);
+                  }}
                   title="移除图片"
                 >
                   ×
@@ -98,7 +107,14 @@ export default defineComponent({
             class="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500 disabled:opacity-60"
             onClick={handleSend}
             disabled={
-              (!chatStore.userInput?.trim() && chatStore.attachments.length === 0) ||
+              (!chatStore.userInput?.trim() &&
+                chatStore.attachments.length === 0 &&
+                !(
+                  chatStore.draftContext.present &&
+                  chatStore.draftContext.enabled &&
+                  ((chatStore.draftContext.text || "").trim() ||
+                    chatStore.draftContext.attachments.length > 0)
+                )) ||
               chatStore.isLoading
             }
           >

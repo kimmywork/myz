@@ -215,6 +215,50 @@ export function initializeAIMessageHandlers() {
   );
 
   registerMessageHandler(
+    "myz:openSidePanelDraft",
+    async (
+      payload: {
+        action: "interpret_selection";
+        prompt?: string;
+        selectionText?: string;
+        selectionAttachment?: ImageAttachment | null;
+      },
+      sender: chrome.runtime.MessageSender,
+    ) => {
+      const tabId = sender?.tab?.id;
+      const windowId = sender?.tab?.windowId;
+      try {
+        if (typeof tabId === "number") {
+          await chrome.sidePanel.open({ tabId });
+        } else if (typeof windowId === "number") {
+          await chrome.sidePanel.open({ windowId });
+        }
+      } catch (error) {
+        console.warn("Failed to open sidepanel", error);
+      }
+
+      const draftPayload = {
+        action: payload?.action,
+        prompt: payload?.prompt,
+        selectionText: payload?.selectionText,
+        selectionAttachment: payload?.selectionAttachment || null,
+        tabId,
+      };
+
+      try {
+        await chrome.runtime.sendMessage({
+          type: "myz:openSidePanelWithAction",
+          payload: draftPayload,
+        });
+      } catch (error) {
+        console.warn("Forward sidepanel draft failed", error);
+      }
+
+      return { ok: true };
+    },
+  );
+
+  registerMessageHandler(
     "myz:createConversation",
     async (payload: { url: string; title: string }) => {
       const settings = await readSettings();

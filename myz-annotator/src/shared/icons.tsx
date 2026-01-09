@@ -109,6 +109,14 @@ export const IconCamera = makeIcon("IconCamera", () => (
   </g>
 ));
 
+export const IconSparkles = makeIcon("IconSparkles", () => (
+  <g>
+    <path d="M12 2l1.2 3.6L17 7l-3.8 1.4L12 12l-1.2-3.6L7 7l3.8-1.4L12 2z" />
+    <path d="M19 12l0.8 2.4L22 15l-2.2 0.6L19 18l-0.8-2.4L16 15l2.2-0.6L19 12z" />
+    <path d="M4 13l0.7 2.1L7 16l-2.3 0.9L4 19l-0.7-2.1L1 16l2.3-0.9L4 13z" />
+  </g>
+));
+
 export const IconSlider = makeIcon("IconSlider", () => (
   <g>
     <path d="M5 7.5h14" />

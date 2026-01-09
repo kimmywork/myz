@@ -1,6 +1,7 @@
 import { defineComponent } from "vue";
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
 import type { ImageAttachment } from "@/background/ai/types.js";
+import { useUIStore } from "../../stores/ui.js";
 
 interface UserMessage {
   id: string;
@@ -25,22 +26,28 @@ export default defineComponent({
     },
   },
   setup(props: UserMessageBubbleProps) {
+    const uiStore = useUIStore();
+
     const renderAttachments = (items: ImageAttachment[]) => (
       <div class="mt-3 flex flex-wrap gap-2">
         {items.map((item, index) => (
-          <a
+          <button
+            type="button"
             class="block h-28 w-28 overflow-hidden rounded-xl border border-white/20 bg-white/10"
-            href={item.dataUrl}
-            target="_blank"
-            rel="noreferrer"
-            title={item.name || "图片"}
+            title={item.name || "图片预览"}
+            onClick={() =>
+              uiStore.openImagePreview({
+                dataUrl: item.dataUrl,
+                title: item.name || "图片预览",
+              })
+            }
           >
             <img
               src={item.dataUrl}
               class="h-full w-full object-cover"
               alt={item.name || `image-${index + 1}`}
             />
-          </a>
+          </button>
         ))}
       </div>
     );
