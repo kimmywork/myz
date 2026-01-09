@@ -369,6 +369,23 @@ export const useChatStore = defineStore("chat", () => {
     }
   }
 
+  async function findLatestConversationForUrl(
+    url: string,
+  ): Promise<ConversationInfo | null> {
+    const targetUrl = normalizeUrlForMatch(url || "");
+    if (!targetUrl) return null;
+    try {
+      const conversations = await listConversations(200);
+      const found = conversations.find(
+        (conv) => normalizeUrlForMatch(conv.url || "") === targetUrl,
+      );
+      return found || null;
+    } catch (e) {
+      console.warn("Failed to find conversation for url", e);
+      return null;
+    }
+  }
+
   async function switchToLatestConversationForCurrentContext(options?: {
     createIfMissing?: boolean;
   }) {
@@ -380,21 +397,14 @@ export const useChatStore = defineStore("chat", () => {
       return;
     }
 
-    try {
-      const conversations = await listConversations(100);
-      const found = conversations.find(
-        (conv) => normalizeUrlForMatch(conv.url || "") === currentUrl,
-      );
-      if (found) {
-        userInput.value = "";
-        resetAttachments();
-        clearDraftContext();
-        error.value = "";
-        await loadConversation(found.id);
-        return;
-      }
-    } catch (e) {
-      console.warn("Failed to match conversation for current context", e);
+    const found = await findLatestConversationForUrl(currentUrl);
+    if (found) {
+      userInput.value = "";
+      resetAttachments();
+      clearDraftContext();
+      error.value = "";
+      await loadConversation(found.id);
+      return;
     }
 
     if (options?.createIfMissing) {
@@ -940,5 +950,6 @@ export const useChatStore = defineStore("chat", () => {
     cleanup,
     startNewConversationForContext,
     switchToLatestConversationForCurrentContext,
+    findLatestConversationForUrl,
   };
 });

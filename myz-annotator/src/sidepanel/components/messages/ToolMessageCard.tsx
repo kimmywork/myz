@@ -40,7 +40,7 @@ export default defineComponent({
   },
   setup(props: ToolMessageCardProps) {
     return () => (
-      <div class="flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div class="flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
         <div class="flex flex-1 items-center gap-2 text-sm">
           <span class="text-lg">🔧</span>
           <div class="flex flex-col">
@@ -53,7 +53,7 @@ export default defineComponent({
           </div>
         </div>
         <div class="flex items-center gap-4">
-          <span class="text-xs text-slate-400">
+          <span class="text-xs text-slate-400 dark:text-slate-500">
             {new Date(
               props.message?.timestamp || Date.now(),
             ).toLocaleTimeString()}

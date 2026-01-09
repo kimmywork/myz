@@ -31,7 +31,7 @@ export default defineComponent({
         </div>
         {props.message?.content && (
           <div
-            class="prose prose-xs max-w-none"
+            class="prose prose-xs max-w-none dark:prose-invert"
             v-html={renderMarkdown(props.message?.content)}
           />
         )}

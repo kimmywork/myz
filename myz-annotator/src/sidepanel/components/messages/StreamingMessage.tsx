@@ -47,7 +47,7 @@ export default defineComponent({
             </button>
             {showReasoning.value && (
               <div
-                class="prose prose-sm mt-2 max-w-none text-indigo-800 dark:prose-invert"
+                class="prose prose-sm mt-2 max-w-none dark:prose-invert"
                 v-html={renderMarkdown(reasoningText.value)}
               />
             )}
@@ -55,11 +55,13 @@ export default defineComponent({
         )}
         {props.stream?.content ? (
           <div
-            class="prose prose-sm max-w-none text-slate-700 dark:prose-invert"
+            class="prose prose-sm max-w-none dark:prose-invert"
             v-html={renderMarkdown(props.stream?.content)}
           />
         ) : (
-          <div class="text-xs text-slate-500">AI 正在生成回答...</div>
+          <div class="text-xs text-slate-500 dark:text-slate-300">
+            AI 正在生成回答...
+          </div>
         )}
       </div>
     );
