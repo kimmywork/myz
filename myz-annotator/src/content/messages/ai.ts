@@ -68,4 +68,38 @@ export function initializeAiMessageHandlers() {
     const text = selection ? selection.toString().trim() : "";
     return { text };
   });
+
+  registerMessageHandler(
+    "myz:fetchImageAsDataUrl",
+    async (payload: { srcUrl?: string }) => {
+      const srcUrl =
+        typeof payload?.srcUrl === "string" ? payload.srcUrl.trim() : "";
+      if (!srcUrl) {
+        throw new Error("srcUrl is required");
+      }
+      if (srcUrl.startsWith("data:")) {
+        const mimeType = srcUrl.slice(5).split(";")[0] || "";
+        return { dataUrl: srcUrl, mimeType };
+      }
+
+      const response = await fetch(srcUrl, { credentials: "include" });
+      if (!response.ok) {
+        throw new Error(
+          `fetch image failed: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Failed to read image blob"));
+        reader.readAsDataURL(blob);
+      });
+      if (!dataUrl.startsWith("data:")) {
+        throw new Error("Failed to convert image to data URL");
+      }
+      return { dataUrl, mimeType: blob.type || "" };
+    },
+  );
 }

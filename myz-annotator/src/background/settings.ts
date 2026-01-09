@@ -52,6 +52,7 @@ export interface AIAgentModelRef {
 export interface AIAgentConfig {
   target: AIAgentModelRef | null;
   temperature: number;
+  compressImages?: boolean;
 }
 
 export interface AIAgentsSettings {

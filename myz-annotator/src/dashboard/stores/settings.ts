@@ -17,7 +17,7 @@ export const useSettingsStore = defineStore("settings", () => {
     aiAssistantEnabled: false,
     aiProviders: [],
     aiAgents: {
-      conversation: { target: null, temperature: 0.7 },
+      conversation: { target: null, temperature: 0.7, compressImages: false },
       insights: { target: null, temperature: 0.7 },
     },
     aiMcpServers: [],
@@ -87,6 +87,10 @@ export const useSettingsStore = defineStore("settings", () => {
                     typeof result.aiAgents.conversation?.temperature === "number"
                       ? result.aiAgents.conversation.temperature
                       : 0.7,
+                  compressImages:
+                    typeof result.aiAgents.conversation?.compressImages === "boolean"
+                      ? result.aiAgents.conversation.compressImages
+                      : false,
                 },
                 insights: {
                   target: result.aiAgents.insights?.target || null,

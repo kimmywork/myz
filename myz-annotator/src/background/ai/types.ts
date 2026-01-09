@@ -40,6 +40,19 @@ export interface Message {
   }
 }
 
+export interface ImageAttachment {
+  type: "image"
+  dataUrl: string
+  mimeType?: string
+  name?: string
+}
+
+export type OpenAIMessageContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+
+export type MessageContent = string | OpenAIMessageContentPart[]
+
 export type ToolParamaterDefinition =
   | {
       type: "object"
@@ -78,7 +91,7 @@ export interface ChatCompletionRequestPayload {
 
 export interface MessageInPayload {
   role: Role
-  content: string
+  content: MessageContent
   tool_calls?: ToolCall[]
   tool_call_id?: string
 }
@@ -137,6 +150,7 @@ export interface ProcessConversationOptions {
   includePageContext?: boolean
   metadata?: Record<string, any>
   toolExecutionTimeoutMs?: number
+  attachments?: ImageAttachment[]
   stream?: boolean
   streamId?: string
   temperature?: number

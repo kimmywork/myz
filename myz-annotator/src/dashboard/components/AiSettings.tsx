@@ -56,7 +56,7 @@ export default defineComponent({
     const aiAssistantEnabled = ref(false)
     const providers = ref<AIProviderSetting[]>([])
     const agents = ref<AIAgentsSettings>({
-      conversation: { target: null, temperature: 0.7 },
+      conversation: { target: null, temperature: 0.7, compressImages: false },
       insights: { target: null, temperature: 0.7 },
     })
     const mcpServers = ref<McpServerSetting[]>([])

@@ -4,7 +4,9 @@ import {
   Message,
   MessageStream,
   MessageStreamData,
+  ImageAttachment,
 } from "@/background/ai/types.js";
+import type { Settings } from "@/background/settings.js";
 import {
   saveConversation,
   saveMessage,
@@ -21,7 +23,12 @@ import { VectoriaSearchResult } from "@/background/vectoria-index.js";
 
 interface SidePanelCommunicationMessage {
   type: string;
-  payload?: { action: string; matches: VectoriaSearchResult[] };
+  payload?: {
+    action?: string;
+    matches?: VectoriaSearchResult[];
+    prompt?: string;
+    attachments?: ImageAttachment[];
+  };
   data?: MessageStreamData;
 }
 
@@ -46,6 +53,13 @@ export const useChatStore = defineStore("chat", () => {
   const userInput = ref("");
   const pendingRequestId = ref<string | null>(null);
   const sendContext = ref(true);
+  const attachments: Ref<ImageAttachment[]> = ref([]);
+  const aiConfig = reactive({
+    assistantEnabled: false,
+    supportsVision: false,
+    compressImages: false,
+    configured: false,
+  });
   const contextInfo = reactive({
     size: 0,
     maxSize: 32768,
@@ -83,6 +97,123 @@ export const useChatStore = defineStore("chat", () => {
   });
 
   const hasActiveStream = computed(() => Boolean(activeStream.id));
+
+  const canAttachImages = computed(
+    () => aiConfig.assistantEnabled && aiConfig.configured && aiConfig.supportsVision,
+  );
+
+  function resetAttachments() {
+    attachments.value = [];
+  }
+
+  function inferMimeTypeFromDataUrl(dataUrl: string) {
+    const match = /^data:([^;]+);base64,/.exec(dataUrl || "");
+    return match?.[1] || "";
+  }
+
+  async function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("图片加载失败"));
+      img.src = dataUrl;
+    });
+  }
+
+  async function maybeCompressImage(
+    attachment: ImageAttachment,
+    maxSize = 640,
+  ): Promise<ImageAttachment> {
+    if (!aiConfig.compressImages) {
+      return attachment;
+    }
+    const dataUrl = attachment.dataUrl || "";
+    if (!dataUrl.startsWith("data:")) {
+      return attachment;
+    }
+
+    const img = await loadImage(dataUrl);
+    const width = img.naturalWidth || img.width;
+    const height = img.naturalHeight || img.height;
+    const maxDim = Math.max(width, height);
+    if (!maxDim || maxDim <= maxSize) {
+      return attachment;
+    }
+
+    const scale = maxSize / maxDim;
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return attachment;
+    }
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+    const mimeType =
+      attachment.mimeType || inferMimeTypeFromDataUrl(dataUrl) || "image/png";
+    const outputMime =
+      mimeType === "image/jpeg" || mimeType === "image/webp" ? mimeType : "image/png";
+    const nextDataUrl =
+      outputMime === "image/jpeg" || outputMime === "image/webp"
+        ? canvas.toDataURL(outputMime, 0.9)
+        : canvas.toDataURL(outputMime);
+
+    return {
+      ...attachment,
+      dataUrl: nextDataUrl,
+      mimeType: outputMime,
+    };
+  }
+
+  async function prepareAttachmentsForSend(): Promise<ImageAttachment[]> {
+    const list = attachments.value.slice(0);
+    if (!list.length) {
+      return [];
+    }
+    if (!canAttachImages.value) {
+      throw new Error("当前模型不支持 Vision，无法发送图片");
+    }
+    return Promise.all(list.map((item) => maybeCompressImage(item)));
+  }
+
+  async function addImageFiles(files: FileList | null | undefined) {
+    const list = files ? Array.from(files) : [];
+    if (!list.length) return;
+    if (!canAttachImages.value) {
+      error.value = "当前模型不支持 Vision，无法添加图片";
+      return;
+    }
+
+    const next: ImageAttachment[] = [];
+    for (const file of list) {
+      if (!file || !file.type || !file.type.startsWith("image/")) continue;
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("读取图片失败"));
+        reader.readAsDataURL(file);
+      });
+      if (!dataUrl.startsWith("data:")) continue;
+      next.push({
+        type: "image",
+        dataUrl,
+        mimeType: file.type,
+        name: file.name,
+      });
+    }
+
+    if (next.length) {
+      attachments.value = [...attachments.value, ...next];
+    }
+  }
+
+  function removeAttachment(index: number) {
+    attachments.value = attachments.value.filter((_, i) => i !== index);
+  }
 
   function resetActiveStream() {
     activeStream.id = null;
@@ -210,7 +341,7 @@ export const useChatStore = defineStore("chat", () => {
 
   async function sendUserMessage(content: string) {
     const trimmed = (content || "").trim();
-    if (!trimmed || isLoading.value) {
+    if ((!trimmed && !attachments.value.length) || isLoading.value) {
       return;
     }
 
@@ -233,22 +364,26 @@ export const useChatStore = defineStore("chat", () => {
         // For now, let's assume UI handles confirmation and calls a compress action
       }
 
+      const nextAttachments = await prepareAttachmentsForSend();
       const userMsg: Message = {
         id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         conversationId: conversationId.value,
         role: "user",
         content: trimmed,
         timestamp: new Date().toISOString(),
+        metadata: nextAttachments.length ? { attachments: nextAttachments } : undefined,
       };
 
       messages.value.push(userMsg);
       userInput.value = "";
+      resetAttachments();
 
       // Send to background (streaming via runtime messages)
       void sendMessage("myz:aiStreamRequest", {
         conversationId: conversationId.value,
         message: trimmed,
         action: "custom",
+        attachments: nextAttachments,
         context: {
           url: pageStore.currentUrl,
           title: pageStore.pageTitle,
@@ -471,10 +606,48 @@ export const useChatStore = defineStore("chat", () => {
     pendingRequestId.value = null;
   }
 
+  const lastSidePanelAction = ref<SidePanelCommunicationMessage["payload"] | null>(
+    null,
+  );
+
+  async function refreshAiConfig() {
+    try {
+      const settings = (await sendMessage<any, Settings>("myz:getSettings")) as any;
+      aiConfig.assistantEnabled = Boolean(settings?.aiAssistantEnabled);
+
+      const target = settings?.aiAgents?.conversation?.target;
+      const providerId = target?.providerId;
+      const modelId = target?.modelId;
+      const provider = (settings?.aiProviders || []).find((p: any) => p.id === providerId);
+      const model = (provider?.models || []).find((m: any) => m.id === modelId);
+
+      aiConfig.configured = Boolean(provider && model);
+      aiConfig.supportsVision = Boolean(model?.capabilities?.vision);
+      aiConfig.compressImages = Boolean(settings?.aiAgents?.conversation?.compressImages);
+    } catch {
+      aiConfig.assistantEnabled = false;
+      aiConfig.supportsVision = false;
+      aiConfig.compressImages = false;
+      aiConfig.configured = false;
+    }
+  }
+
   async function handleAutoAction(action: string) {
     if (isLoading.value) return;
     if (action === "summarize" || action === "key_points") {
       await runAutoInsights(action);
+      return;
+    }
+    if (action === "interpret_image") {
+      const payload = lastSidePanelAction.value || {};
+      if (Array.isArray(payload.attachments) && payload.attachments.length) {
+        attachments.value = payload.attachments;
+      }
+      const prompt =
+        typeof payload.prompt === "string" && payload.prompt.trim()
+          ? payload.prompt.trim()
+          : "请解读这张图片的内容";
+      await sendUserMessage(prompt);
       return;
     }
     if (action === "custom") {
@@ -491,7 +664,8 @@ export const useChatStore = defineStore("chat", () => {
       const uiStore = useUIStore();
       
       if (message.type === "myz:openSidePanelWithAction" && message.payload?.action) {
-        setTimeout(() => handleAutoAction(message.payload!.action), 100);
+        lastSidePanelAction.value = message.payload || null;
+        setTimeout(() => handleAutoAction(message.payload!.action as any), 100);
       } else if (message.type === "myz:newMessage" && message.data?.message) {
         const incoming = message.data.message;
         if (conversationId.value && incoming.conversationId === conversationId.value) {
@@ -512,6 +686,8 @@ export const useChatStore = defineStore("chat", () => {
       }
     };
     chrome.runtime.onMessage.addListener(runtimeListener);
+
+    await refreshAiConfig();
     
     // Load initial conversation if needed? 
     // App.tsx didn't seem to do it explicitly in initialize(), but maybe it relied on user interaction or default state.
@@ -533,7 +709,13 @@ export const useChatStore = defineStore("chat", () => {
     error,
     userInput,
     sendContext,
+    attachments,
     contextInfo,
+    canAttachImages,
+    addImageFiles,
+    removeAttachment,
+    resetAttachments,
+    refreshAiConfig,
     activeStream,
     hasActiveStream,
     autoInsights,

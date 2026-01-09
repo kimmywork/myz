@@ -12,6 +12,7 @@ export interface ResolvedAgentTarget {
   provider: AIProviderSetting
   model: AIModelSetting
   temperature: number
+  compressImages: boolean
 }
 
 function findProvider(settings: AIAssistantSettings, providerId: string) {
@@ -51,6 +52,10 @@ export function resolveAgentTarget(
   const temperature =
     typeof agentConfig?.temperature === "number" ? agentConfig.temperature : 0.7
 
-  return { provider, model, temperature }
-}
+  const compressImages =
+    agent === "conversation"
+      ? Boolean(agentConfig?.compressImages)
+      : false
 
+  return { provider, model, temperature, compressImages }
+}

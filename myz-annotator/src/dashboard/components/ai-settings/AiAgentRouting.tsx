@@ -111,6 +111,23 @@ export default defineComponent({
               />
             </label>
           </div>
+          {key === "conversation" && (
+            <div class="mt-3">
+              <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
+                  checked={Boolean(agent.compressImages)}
+                  onChange={(e) =>
+                    updateAgent("conversation", {
+                      compressImages: (e.target as HTMLInputElement).checked,
+                    })
+                  }
+                />
+                <span>发送前压缩图片（最长边 ≤ 640px）</span>
+              </label>
+            </div>
+          )}
         </div>
       )
     }

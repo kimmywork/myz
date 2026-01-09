@@ -13,7 +13,7 @@ export interface ProviderToolCall {
 
 export interface ProviderMessage {
   role: ProviderRole
-  content: string
+  content: string | any[]
   tool_calls?: ProviderToolCall[]
   tool_call_id?: string
   extra_content?: Record<string, any>

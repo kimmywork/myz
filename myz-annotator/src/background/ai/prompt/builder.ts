@@ -1,4 +1,4 @@
-import type { MessageInPayload, ToolCall } from "../types.js"
+import type { MessageContent, MessageInPayload, ToolCall } from "../types.js"
 
 export class PromptBuilder {
   private messages: MessageInPayload[]
@@ -16,7 +16,7 @@ export class PromptBuilder {
     return this.addMessage({ role: "system", content })
   }
 
-  addUser(content: string) {
+  addUser(content: MessageContent) {
     return this.addMessage({ role: "user", content })
   }
 

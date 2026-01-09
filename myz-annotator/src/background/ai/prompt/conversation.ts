@@ -1,7 +1,57 @@
-import type { Message, MessageInPayload } from "../types.js"
+import type {
+  ImageAttachment,
+  Message,
+  MessageContent,
+  MessageInPayload,
+  OpenAIMessageContentPart,
+} from "../types.js"
 import { PromptBuilder } from "./builder.js"
 
-function appendStoredMessage(builder: PromptBuilder, message: Message) {
+function normalizeAttachments(value: any): ImageAttachment[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => ({
+      type: "image" as const,
+      dataUrl: typeof item?.dataUrl === "string" ? item.dataUrl : "",
+      mimeType: typeof item?.mimeType === "string" ? item.mimeType : undefined,
+      name: typeof item?.name === "string" ? item.name : undefined,
+    }))
+    .filter((item) => item.dataUrl)
+}
+
+function buildUserContent(
+  message: Message,
+  includeVision: boolean,
+): MessageContent {
+  const text = typeof message?.content === "string" ? message.content : ""
+  if (!includeVision) {
+    return text
+  }
+
+  const attachments = normalizeAttachments(message?.metadata?.attachments)
+  if (!attachments.length) {
+    return text
+  }
+
+  const parts: OpenAIMessageContentPart[] = []
+  if (text.trim()) {
+    parts.push({ type: "text", text })
+  }
+  attachments.forEach((attachment) => {
+    parts.push({
+      type: "image_url",
+      image_url: { url: attachment.dataUrl },
+    })
+  })
+
+  return parts.length ? parts : text
+}
+
+function appendStoredMessage(
+  builder: PromptBuilder,
+  message: Message,
+  options: { includeVision: boolean },
+) {
   const content = typeof message?.content === "string" ? message.content : ""
 
   switch (message?.role) {
@@ -9,7 +59,7 @@ function appendStoredMessage(builder: PromptBuilder, message: Message) {
       builder.addSystem(content)
       return
     case "user":
-      builder.addUser(content)
+      builder.addUser(buildUserContent(message, options.includeVision))
       return
     case "assistant":
       builder.addAssistant(content, message.tool_calls)
@@ -28,9 +78,12 @@ function appendStoredMessage(builder: PromptBuilder, message: Message) {
 
 export function buildConversationPromptMessages(
   messages: Message[] = [],
+  options: { includeVision?: boolean } = {},
 ): MessageInPayload[] {
   const builder = new PromptBuilder()
-  messages.forEach((message) => appendStoredMessage(builder, message))
+  const includeVision = Boolean(options.includeVision)
+  messages.forEach((message) =>
+    appendStoredMessage(builder, message, { includeVision }),
+  )
   return builder.build()
 }
-

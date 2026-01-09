@@ -12,6 +12,7 @@ import {
   applyVectorSearchSettings,
   getVectoria,
 } from "./background/vectoria-index.js";
+import { resolveAgentTarget } from "./background/ai/runtime/agentSelection.js";
 
 (async function initializeAiHeaderRules() {
   try {
@@ -60,7 +61,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     chrome.contextMenus.create({
       id: "myz-ai-assistant",
       title: "打开AI助手",
-      contexts: ["page", "selection"],
+      contexts: ["page", "selection", "image"],
     });
 
     // Add AI Assistant submenu actions
@@ -87,10 +88,107 @@ chrome.runtime.onInstalled.addListener(async () => {
       title: "打开面板",
       contexts: ["page", "selection"],
     });
+
+    await chrome.contextMenus.remove("myz-ai-interpret-image").catch(() => {});
+    chrome.contextMenus.create({
+      id: "myz-ai-interpret-image",
+      parentId: "myz-ai-assistant",
+      title: "解读图片内容",
+      contexts: ["image"],
+      visible: false,
+    });
   } catch (e) {
     // ignore menu creation failures
   }
 });
+
+async function refreshAiImageMenuVisibility() {
+  try {
+    const settings = await readSettings();
+    if (!settings?.aiAssistantEnabled) {
+      await chrome.contextMenus.update("myz-ai-interpret-image", { visible: false });
+      return;
+    }
+    const target = resolveAgentTarget(settings as any, "conversation");
+    const visible = Boolean(target?.model?.capabilities?.vision);
+    await chrome.contextMenus.update("myz-ai-interpret-image", { visible });
+  } catch {
+    await chrome.contextMenus.update("myz-ai-interpret-image", { visible: false }).catch(() => {});
+  }
+}
+
+const contextMenusAny = chrome.contextMenus as any;
+if (contextMenusAny?.onShown?.addListener) {
+  contextMenusAny.onShown.addListener(() => {
+    refreshAiImageMenuVisibility()
+      .then(() => contextMenusAny.refresh?.())
+      .catch(() => {});
+  });
+}
+
+const runtimeAny = chrome.runtime as any;
+runtimeAny?.onStartup?.addListener(() => {
+  refreshAiImageMenuVisibility().catch(() => {});
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local") return;
+  if (!changes || !(SETTINGS_KEY in changes)) return;
+  refreshAiImageMenuVisibility().catch(() => {});
+});
+
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function parseMimeType(value: string) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized) return "";
+  return normalized.split(";")[0].trim();
+}
+
+async function fetchImageDataUrl(
+  srcUrl: string,
+  tabId: number,
+): Promise<{ dataUrl: string; mimeType: string }> {
+  if (!srcUrl) {
+    throw new Error("srcUrl is required");
+  }
+  if (srcUrl.startsWith("data:")) {
+    const mimeType = parseMimeType(srcUrl.slice(5).split(";")[0] || "");
+    return { dataUrl: srcUrl, mimeType };
+  }
+
+  try {
+    const response = await fetch(srcUrl, { credentials: "include" as RequestCredentials });
+    if (!response.ok) {
+      throw new Error(`fetch failed: ${response.status}`);
+    }
+    const mimeType = parseMimeType(response.headers.get("content-type") || "");
+    const buffer = await response.arrayBuffer();
+    const base64 = arrayBufferToBase64(buffer);
+    const safeMimeType = mimeType || "image/png";
+    return { dataUrl: `data:${safeMimeType};base64,${base64}`, mimeType: safeMimeType };
+  } catch (error) {
+    const result = await chrome.tabs.sendMessage(tabId, {
+      type: "myz:fetchImageAsDataUrl",
+      payload: { srcUrl },
+    });
+    const data = (result && (result.data || result)) || {};
+    const dataUrl = typeof data?.dataUrl === "string" ? data.dataUrl : "";
+    const mimeType = typeof data?.mimeType === "string" ? data.mimeType : "";
+    if (!dataUrl.startsWith("data:")) {
+      throw error as any;
+    }
+    return { dataUrl, mimeType: mimeType || "image/png" };
+  }
+}
 
 chrome.contextMenus.onClicked.addListener(
   async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
@@ -176,6 +274,36 @@ chrome.contextMenus.onClicked.addListener(
             e,
           );
         }
+      }
+      else if (info.menuItemId === "myz-ai-interpret-image") {
+        if (!info.srcUrl) {
+          return;
+        }
+        await chrome.sidePanel.open({ windowId: tab.windowId });
+
+        const { dataUrl, mimeType } = await fetchImageDataUrl(info.srcUrl, tab.id);
+
+        setTimeout(async () => {
+          try {
+            await chrome.runtime.sendMessage({
+              type: "myz:openSidePanelWithAction",
+              payload: {
+                action: "interpret_image",
+                tabId: tab.id,
+                prompt: "请解读这张图片的内容",
+                attachments: [
+                  {
+                    type: "image",
+                    dataUrl,
+                    mimeType,
+                  },
+                ],
+              },
+            });
+          } catch (e) {
+            console.warn("Could not send side panel action message:", e);
+          }
+        }, 500);
       }
     } catch (e) {
       // ignore

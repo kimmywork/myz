@@ -27,7 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aiAssistantEnabled: false,
   aiProviders: [],
   aiAgents: {
-    conversation: { target: null, temperature: 0.7 },
+    conversation: { target: null, temperature: 0.7, compressImages: false },
     insights: { target: null, temperature: 0.7 },
   },
   aiMcpServers: [],

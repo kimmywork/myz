@@ -31,6 +31,7 @@ export interface ConversationCallConfig {
   provider: AIProviderSetting
   model: AIModelSetting
   temperature: number
+  compressImages: boolean
 }
 
 export class ConversationAgent {
@@ -187,10 +188,22 @@ export class ConversationAgent {
     const {
       includePageContext = true,
       metadata = {},
+      attachments = [],
       stream = false,
       streamId,
       ...restOptions
     } = options
+
+    const normalizedAttachments = Array.isArray(attachments)
+      ? attachments.filter((item: any) => item?.type === "image" && typeof item?.dataUrl === "string" && item.dataUrl)
+      : []
+
+    if (
+      normalizedAttachments.length > 0 &&
+      !deps.callConfig.model.capabilities.vision
+    ) {
+      throw new Error("当前模型不支持 Vision，无法发送图片")
+    }
 
     const userMessage: Message = {
       id: generateId(),
@@ -198,7 +211,11 @@ export class ConversationAgent {
       role: "user",
       content,
       timestamp: new Date().toISOString(),
-      metadata: { action, ...metadata },
+      metadata: {
+        action,
+        ...metadata,
+        ...(normalizedAttachments.length ? { attachments: normalizedAttachments } : {}),
+      },
     }
     await saveMessage(userMessage)
 
@@ -207,7 +224,9 @@ export class ConversationAgent {
       includePageContext,
     )
     const historyPayload: MessageInPayload[] =
-      buildConversationPromptMessages(historyMessages)
+      buildConversationPromptMessages(historyMessages, {
+        includeVision: deps.callConfig.model.capabilities.vision,
+      })
 
     let streamMessageId: string | null = null
     if (stream) {

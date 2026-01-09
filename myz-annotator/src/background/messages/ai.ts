@@ -7,7 +7,11 @@ import {
   saveAiGeneratedHighlight,
   writeAiConversations,
 } from "../ai";
-import type { PageInsightPayload, ProcessConversationOptions } from "../ai/types.js";
+import type {
+  ImageAttachment,
+  PageInsightPayload,
+  ProcessConversationOptions,
+} from "../ai/types.js";
 import { testMcpConnection } from "../mcp";
 import type {
   AIProviderSetting,
@@ -125,8 +129,9 @@ export function initializeAIMessageHandlers() {
     "myz:aiStreamRequest",
     async (payload: {
       conversationId: string;
-      message: string;
+      message?: string;
       action?: string;
+      attachments?: ImageAttachment[];
       context?: {
         url?: string;
         title?: string;
@@ -139,11 +144,19 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const { conversationId, message, action, context, options } = payload || ({} as any);
+      const { conversationId, message, action, context, options, attachments } =
+        payload || ({} as any);
       if (!conversationId) {
         throw new Error("conversationId is required");
       }
-      if (!message) {
+      const normalizedMessage = typeof message === "string" ? message : "";
+      const normalizedAttachments = Array.isArray(attachments)
+        ? attachments.filter(
+            (item: any) =>
+              item?.type === "image" && typeof item?.dataUrl === "string" && item.dataUrl,
+          )
+        : [];
+      if (!normalizedMessage.trim() && !normalizedAttachments.length) {
         throw new Error("message is required");
       }
 
@@ -172,11 +185,12 @@ export function initializeAIMessageHandlers() {
         return await agent.processConversation(
           conversationId,
           action || "custom",
-          message,
+          normalizedMessage,
           {
             ...(options || {}),
             includePageContext:
               includePageContext ?? options?.includePageContext ?? true,
+            attachments: normalizedAttachments,
             stream: true,
             metadata: {
               ...(options?.metadata || {}),
