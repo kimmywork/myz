@@ -35,6 +35,19 @@ export default defineComponent({
       required: true,
       default: () => ({}),
     },
+    onSave: {
+      type: Function,
+      required: false,
+    },
+    onToolDetails: {
+      type: Function,
+      required: false,
+    },
+    isSaving: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
   },
   setup(props: AssistantMessageBubbleProps) {
     const hasToolCalls = (message?: AssistantMessage) =>
