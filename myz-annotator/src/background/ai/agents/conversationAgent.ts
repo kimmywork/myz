@@ -307,6 +307,7 @@ export class ConversationAgent {
       response = await deps.client.createCompletion(
         request,
         {
+          enableGeminiThinking: Boolean(deps.callConfig.model.capabilities.reasoning),
           onStreamDelta: stream
             ? (delta: any) => {
                 if (!delta) return

@@ -273,17 +273,6 @@ export const useChatStore = defineStore("chat", () => {
     autoInsights.generatedAt = "";
   }
 
-  async function readActiveConversationId(): Promise<string> {
-    try {
-      const result = await chrome.storage.local.get(ACTIVE_CONVERSATION_ID_KEY);
-      return typeof result?.[ACTIVE_CONVERSATION_ID_KEY] === "string"
-        ? String(result[ACTIVE_CONVERSATION_ID_KEY])
-        : "";
-    } catch {
-      return "";
-    }
-  }
-
   async function writeActiveConversationId(convId: string) {
     if (!convId) return;
     try {
@@ -364,9 +353,8 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   async function startNewConversationForContext() {
-    userInput.value = "";
-    resetAttachments();
-    clearDraftContext();
+    // Preserve InputComposer state (userInput / attachments / draftContext) when
+    // creating a new conversation so users can keep editing and send in the new thread.
     error.value = "";
     await createNewConversation();
   }
@@ -414,7 +402,7 @@ export const useChatStore = defineStore("chat", () => {
     }
   }
 
-  async function loadConversation(convId: string) {
+  async function loadConversation(convId: string): Promise<boolean> {
     try {
       const conv = await getConversation(convId);
       if (conv) {
@@ -437,10 +425,12 @@ export const useChatStore = defineStore("chat", () => {
         }
         
         await checkContext();
+        return true;
       }
     } catch (e) {
       console.error("Failed to load conversation:", e);
     }
+    return false;
   }
 
   async function checkContext() {
@@ -876,6 +866,9 @@ export const useChatStore = defineStore("chat", () => {
 
     await refreshAiConfig();
 
+    // Establish initial context (URL/title) before creating a new conversation.
+    // - If opened from a draft action, use its originating tab.
+    // - Otherwise use the current active tab.
     try {
       const pending: any = await sendMessage("myz:popSidePanelAction");
       if (pending?.action) {
@@ -885,24 +878,18 @@ export const useChatStore = defineStore("chat", () => {
           await pageStore.loadPageContext(tabId, { includeContent: false });
         }
         setTimeout(() => handleAutoAction(pending.action as any), 80);
+      } else {
+        await pageStore.loadPageContext(undefined, { includeContent: false });
       }
     } catch {
-      // ignore
+      try {
+        await pageStore.loadPageContext(undefined, { includeContent: false });
+      } catch {}
     }
 
-    try {
-      const lastConvId = await readActiveConversationId();
-      if (lastConvId) {
-        await loadConversation(lastConvId);
-      } else {
-        const recent = await listConversations(1);
-        if (recent?.[0]?.id) {
-          await loadConversation(recent[0].id);
-        }
-      }
-    } catch {
-      // ignore
-    }
+    // On each SidePanel open/reload, start a fresh conversation.
+    // Keep InputComposer state (drafts/attachments/text) intact.
+    await createNewConversation();
   }
 
   function cleanup() {

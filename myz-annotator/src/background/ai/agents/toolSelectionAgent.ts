@@ -109,7 +109,9 @@ export class ToolSelectionAgent {
       request.max_tokens = maxOutputTokens
     }
 
-    const response = await options.client.createCompletion(request)
+    const response = await options.client.createCompletion(request, {
+      enableGeminiThinking: Boolean(options.model.capabilities.reasoning),
+    })
     const text = String(response?.choices?.[0]?.message?.content || "").trim()
     const parsed = extractFirstJsonObject(text)
 
@@ -122,4 +124,3 @@ export class ToolSelectionAgent {
     return Array.from(new Set(normalized))
   }
 }
-

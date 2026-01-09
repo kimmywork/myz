@@ -202,7 +202,9 @@ CHUNK 1: myz-chunk-miy0603t-000
         request.max_tokens = maxOutputTokens
       }
 
-      const response = await this.deps.client.createCompletion(request)
+      const response = await this.deps.client.createCompletion(request, {
+        enableGeminiThinking: Boolean(deps.callConfig.model.capabilities.reasoning),
+      })
 
       const normalizedResponse = normalizeMessagePayload(
         response?.choices?.[0]?.message,

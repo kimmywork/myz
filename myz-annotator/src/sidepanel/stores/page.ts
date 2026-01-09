@@ -9,6 +9,10 @@ export const usePageStore = defineStore("page", () => {
   const pageContent = ref("");
   const relatedMatches = ref<VectoriaSearchResult[]>([]);
 
+  let tabActivatedListener: ((info: any) => void) | null = null;
+  let tabUpdatedListener: ((tabId: number, changeInfo: any, tab: any) => void) | null =
+    null;
+
   async function loadPageContext(
     tabId?: number,
     options?: { includeContent?: boolean },
@@ -63,6 +67,36 @@ export const usePageStore = defineStore("page", () => {
     }
   }
 
+  function startTabTracking() {
+    if (tabActivatedListener || tabUpdatedListener) {
+      return;
+    }
+    tabActivatedListener = ({ tabId }) => {
+      void loadPageContext(tabId, { includeContent: false });
+    };
+    tabUpdatedListener = (tabId, changeInfo) => {
+      if (changeInfo?.status !== "complete") {
+        return;
+      }
+      if (typeof currentTabId.value === "number" && tabId === currentTabId.value) {
+        void loadPageContext(tabId, { includeContent: false });
+      }
+    };
+    chrome.tabs.onActivated.addListener(tabActivatedListener);
+    chrome.tabs.onUpdated.addListener(tabUpdatedListener);
+  }
+
+  function stopTabTracking() {
+    if (tabActivatedListener) {
+      chrome.tabs.onActivated.removeListener(tabActivatedListener);
+      tabActivatedListener = null;
+    }
+    if (tabUpdatedListener) {
+      chrome.tabs.onUpdated.removeListener(tabUpdatedListener);
+      tabUpdatedListener = null;
+    }
+  }
+
   async function clearPageChunkAnchors() {
     if (!currentTabId.value) return;
     try {
@@ -110,6 +144,8 @@ export const usePageStore = defineStore("page", () => {
     pageContent,
     relatedMatches,
     loadPageContext,
+    startTabTracking,
+    stopTabTracking,
     clearPageChunkAnchors,
     getSelection,
     scrollToCitation,

@@ -66,6 +66,13 @@ export interface ProviderStreamOptions {
   onStreamDelta?: (delta: ProviderStreamDelta) => void
   onToolCallMessage?: (message: ProviderMessage) => void | Promise<void>
   onToolResultMessage?: (message: ProviderMessage) => void | Promise<void>
+  /**
+   * Gemini OpenAI-compatible "thinking" output is controlled by
+   * `extra_body.google.thinking_config.include_thoughts`.
+   *
+   * Only enable it when the selected model is configured to support reasoning.
+   */
+  enableGeminiThinking?: boolean
 }
 
 export interface ChatCompletionClient {

@@ -39,10 +39,12 @@ export default defineComponent({
       if (!pageStore.currentTabId) {
         await pageStore.loadPageContext();
       }
+      pageStore.startTabTracking();
     });
 
     onBeforeUnmount(() => {
       chatStore.cleanup();
+      pageStore.stopTabTracking();
       pageStore.clearPageChunkAnchors();
     });
 

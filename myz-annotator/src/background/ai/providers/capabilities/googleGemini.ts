@@ -1,12 +1,20 @@
 import type { Capability } from "../capability.js"
 import type { ProviderChatCompletionRequest } from "../types.js"
+import type { ProviderStreamOptions } from "../types.js"
 
 function isGeminiModel(model: unknown) {
   return typeof model === "string" && /^gemini/i.test(model)
 }
 
-function patchGeminiThinkingConfig(request: ProviderChatCompletionRequest) {
+function patchGeminiThinkingConfig(
+  request: ProviderChatCompletionRequest,
+  options?: ProviderStreamOptions,
+) {
   if (!isGeminiModel(request.model)) {
+    return request
+  }
+
+  if (!options?.enableGeminiThinking) {
     return request
   }
 
@@ -36,8 +44,7 @@ function patchGeminiThinkingConfig(request: ProviderChatCompletionRequest) {
 export function createGoogleGeminiThinkingCapability(): Capability {
   return (client) => ({
     async createCompletion(request, options) {
-      return client.createCompletion(patchGeminiThinkingConfig(request), options)
+      return client.createCompletion(patchGeminiThinkingConfig(request, options), options)
     },
   })
 }
-
