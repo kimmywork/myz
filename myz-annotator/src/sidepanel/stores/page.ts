@@ -9,16 +9,30 @@ export const usePageStore = defineStore("page", () => {
   const pageContent = ref("");
   const relatedMatches = ref<VectoriaSearchResult[]>([]);
 
-  async function loadPageContext() {
+  async function loadPageContext(
+    tabId?: number,
+    options?: { includeContent?: boolean },
+  ) {
+    const includeContent = options?.includeContent !== false;
     try {
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
+      const tab =
+        typeof tabId === "number"
+          ? await chrome.tabs.get(tabId).catch(() => null)
+          : (
+              await chrome.tabs.query({
+                active: true,
+                currentWindow: true,
+              })
+            )?.[0] || null;
       if (tab) {
         currentTabId.value = tab.id || null;
         currentUrl.value = tab.url || "";
         pageTitle.value = tab.title || "";
+
+        if (!includeContent) {
+          pageContent.value = "";
+          return;
+        }
 
         try {
           const result = await chrome.tabs

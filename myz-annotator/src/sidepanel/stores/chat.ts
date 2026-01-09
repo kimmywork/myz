@@ -11,21 +11,26 @@ import {
   saveConversation,
   saveMessage,
   getConversation,
+  listConversations,
   getMessagesForConversation,
   checkContextSize,
   compressContext,
   deleteMessagesByConversationAndType,
+  ConversationInfo,
 } from "../aiStorage.js";
 import { usePageStore } from "./page.js";
 import { useUIStore } from "./ui.js";
 import { sendMessage } from "@/shared/messaging.js";
 import { VectoriaSearchResult } from "@/background/vectoria-index.js";
 
+const ACTIVE_CONVERSATION_ID_KEY = "myz::activeConversationId";
+
 interface SidePanelCommunicationMessage {
   type: string;
   payload?: {
     action?: string;
     draftId?: string;
+    tabId?: number;
     matches?: VectoriaSearchResult[];
     prompt?: string;
     attachments?: ImageAttachment[];
@@ -50,6 +55,7 @@ export const useChatStore = defineStore("chat", () => {
   const pageStore = usePageStore();
 
   const conversationId = ref<string | null>(null);
+  const activeConversation = ref<ConversationInfo | null>(null);
   const messages: Ref<Message[]> = ref([]);
   const isLoading = ref(false);
   const error = ref("");
@@ -98,6 +104,9 @@ export const useChatStore = defineStore("chat", () => {
         msg.metadata?.type !== "page_context" && msg.role !== "system",
     );
   });
+
+  const conversationUrl = computed(() => activeConversation.value?.url || "");
+  const conversationTitle = computed(() => activeConversation.value?.title || "");
 
   const hasActiveStream = computed(() => Boolean(activeStream.id));
 
@@ -264,48 +273,144 @@ export const useChatStore = defineStore("chat", () => {
     autoInsights.generatedAt = "";
   }
 
+  async function readActiveConversationId(): Promise<string> {
+    try {
+      const result = await chrome.storage.local.get(ACTIVE_CONVERSATION_ID_KEY);
+      return typeof result?.[ACTIVE_CONVERSATION_ID_KEY] === "string"
+        ? String(result[ACTIVE_CONVERSATION_ID_KEY])
+        : "";
+    } catch {
+      return "";
+    }
+  }
+
+  async function writeActiveConversationId(convId: string) {
+    if (!convId) return;
+    try {
+      await chrome.storage.local.set({ [ACTIVE_CONVERSATION_ID_KEY]: convId });
+    } catch {
+      // ignore
+    }
+  }
+
   function buildPageContextMessage(convId: string): Message | null {
     if (!pageStore.pageContent) {
       return null;
     }
+    const baseTimestamp =
+      activeConversation.value?.createdAt || new Date().toISOString();
     return {
-      id: `msg-${Date.now()}`,
+      id: `page-context-${convId}`,
       conversationId: convId,
       role: "system",
       content: `页面上下文:\n标题: ${pageStore.pageTitle}\nURL: ${pageStore.currentUrl}\n\n内容:\n${pageStore.pageContent.substring(0, 2000)}`,
-      timestamp: new Date().toISOString(),
+      timestamp: baseTimestamp,
       metadata: { type: "page_context", url: pageStore.currentUrl },
     };
+  }
+
+  async function ensurePageContextMessage(convId: string) {
+    if (!convId) return;
+    if (!sendContext.value) return;
+
+    if (!pageStore.pageContent) {
+      await pageStore.loadPageContext(pageStore.currentTabId ?? undefined, {
+        includeContent: true,
+      });
+    }
+    const contextMessage = buildPageContextMessage(convId);
+    if (!contextMessage) return;
+
+    await deleteMessagesByConversationAndType(convId, "page_context");
+    await saveMessage(contextMessage);
+    messages.value = [
+      contextMessage,
+      ...messages.value.filter(
+        (msg) => msg.metadata?.type !== "page_context" && msg.role !== "system",
+      ),
+    ];
   }
 
   async function createNewConversation() {
     try {
       const convId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const conversationData = {
+      const url = pageStore.currentUrl || "";
+      const title = pageStore.pageTitle || "新对话";
+      const conversationData: ConversationInfo & Record<string, any> = {
         id: convId,
-        url: pageStore.currentUrl,
-        title: pageStore.pageTitle || "新对话",
+        url,
+        title,
         messages: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isAiGenerated: false,
         sendContextEnabled: sendContext.value,
+        metadata: {},
       };
 
       await saveConversation(conversationData);
       conversationId.value = convId;
+      activeConversation.value = conversationData;
       messages.value = [];
+      await writeActiveConversationId(convId);
 
       if (sendContext.value) {
-        const systemMessage = buildPageContextMessage(convId);
-        if (systemMessage) {
-          await saveMessage(systemMessage);
-          messages.value.push(systemMessage);
-        }
+        await ensurePageContextMessage(convId);
       }
     } catch (e) {
       console.error("Failed to create conversation:", e);
       error.value = "创建对话失败: " + (e as Error).message;
+    }
+  }
+
+  async function startNewConversationForContext() {
+    userInput.value = "";
+    resetAttachments();
+    clearDraftContext();
+    error.value = "";
+    await createNewConversation();
+  }
+
+  function normalizeUrlForMatch(url: string) {
+    try {
+      const parsed = new URL(url);
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return (url || "").split("#")[0] || "";
+    }
+  }
+
+  async function switchToLatestConversationForCurrentContext(options?: {
+    createIfMissing?: boolean;
+  }) {
+    const currentUrl = normalizeUrlForMatch(pageStore.currentUrl || "");
+    if (!currentUrl) {
+      if (options?.createIfMissing) {
+        await startNewConversationForContext();
+      }
+      return;
+    }
+
+    try {
+      const conversations = await listConversations(100);
+      const found = conversations.find(
+        (conv) => normalizeUrlForMatch(conv.url || "") === currentUrl,
+      );
+      if (found) {
+        userInput.value = "";
+        resetAttachments();
+        clearDraftContext();
+        error.value = "";
+        await loadConversation(found.id);
+        return;
+      }
+    } catch (e) {
+      console.warn("Failed to match conversation for current context", e);
+    }
+
+    if (options?.createIfMissing) {
+      await startNewConversationForContext();
     }
   }
 
@@ -314,6 +419,8 @@ export const useChatStore = defineStore("chat", () => {
       const conv = await getConversation(convId);
       if (conv) {
         conversationId.value = conv.id;
+        activeConversation.value = conv;
+        await writeActiveConversationId(conv.id);
         const msgs = await getMessagesForConversation(convId, 1000);
         messages.value = msgs;
         
@@ -364,6 +471,7 @@ export const useChatStore = defineStore("chat", () => {
       }
       conversation.sendContextEnabled = enabled;
       await saveConversation(conversation);
+      activeConversation.value = conversation;
     } catch (e) {
       console.warn("Failed to persist sendContext preference:", e);
     }
@@ -402,6 +510,10 @@ export const useChatStore = defineStore("chat", () => {
       if (contextInfo.needsCompression) {
         // Logic for compression handled in UI or here? 
         // For now, let's assume UI handles confirmation and calls a compress action
+      }
+
+      if (sendContext.value && conversationId.value) {
+        await ensurePageContextMessage(conversationId.value);
       }
 
       const nextAttachments = await prepareAttachmentsForSend(combinedAttachments);
@@ -533,22 +645,12 @@ export const useChatStore = defineStore("chat", () => {
             msg.metadata?.type !== "page_context" && msg.role !== "system",
         );
       } else if (!pageStore.pageContent) {
-         // If no page content, maybe we can't build context?
-         // Original logic checked !hasPageContextMessage() && pageContent.value
-         const contextMessage = buildPageContextMessage(conversationId.value);
-         if (contextMessage) {
-           await saveMessage(contextMessage);
-           messages.value = [...messages.value, contextMessage];
-         }
+         await ensurePageContextMessage(conversationId.value);
       } else {
          // Check if we already have it?
          const hasContext = messages.value.some(m => m.metadata?.type === "page_context");
          if (!hasContext && pageStore.pageContent) {
-            const contextMessage = buildPageContextMessage(conversationId.value);
-            if (contextMessage) {
-              await saveMessage(contextMessage);
-              messages.value = [...messages.value, contextMessage];
-            }
+            await ensurePageContextMessage(conversationId.value);
          }
       }
 
@@ -740,6 +842,11 @@ export const useChatStore = defineStore("chat", () => {
       
       if (message.type === "myz:openSidePanelWithAction" && message.payload?.action) {
         lastSidePanelAction.value = message.payload || null;
+        const tabId =
+          typeof message.payload?.tabId === "number" ? message.payload.tabId : null;
+        if (typeof tabId === "number") {
+          void pageStore.loadPageContext(tabId, { includeContent: false });
+        }
         if (message.payload?.draftId) {
           void sendMessage("myz:ackSidePanelAction", {
             draftId: message.payload.draftId,
@@ -773,15 +880,29 @@ export const useChatStore = defineStore("chat", () => {
       const pending: any = await sendMessage("myz:popSidePanelAction");
       if (pending?.action) {
         lastSidePanelAction.value = pending;
+        const tabId = typeof pending?.tabId === "number" ? pending.tabId : null;
+        if (typeof tabId === "number") {
+          await pageStore.loadPageContext(tabId, { includeContent: false });
+        }
         setTimeout(() => handleAutoAction(pending.action as any), 80);
       }
     } catch {
       // ignore
     }
-    
-    // Load initial conversation if needed? 
-    // App.tsx didn't seem to do it explicitly in initialize(), but maybe it relied on user interaction or default state.
-    // We'll leave it as is.
+
+    try {
+      const lastConvId = await readActiveConversationId();
+      if (lastConvId) {
+        await loadConversation(lastConvId);
+      } else {
+        const recent = await listConversations(1);
+        if (recent?.[0]?.id) {
+          await loadConversation(recent[0].id);
+        }
+      }
+    } catch {
+      // ignore
+    }
   }
 
   function cleanup() {
@@ -793,6 +914,9 @@ export const useChatStore = defineStore("chat", () => {
 
   return {
     conversationId,
+    activeConversation,
+    conversationUrl,
+    conversationTitle,
     messages,
     visibleMessages,
     isLoading,
@@ -827,5 +951,7 @@ export const useChatStore = defineStore("chat", () => {
     toggleContext,
     initialize,
     cleanup,
+    startNewConversationForContext,
+    switchToLatestConversationForCurrentContext,
   };
 });

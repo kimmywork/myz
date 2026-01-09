@@ -68,14 +68,18 @@ async function queueSidePanelAction(payload: any) {
 async function ensureContextMenus() {
   try {
     // Remove existing if present to avoid duplicate id error
-    await chrome.contextMenus.remove("myz-zen-mode").catch(() => {});
+    try {
+      await chrome.contextMenus.remove("myz-zen-mode");
+    } catch {}
     chrome.contextMenus.create({
       id: "myz-zen-mode",
       title: "禅定模式 (仅显示文章)",
       contexts: ["page", "selection"],
     });
     // Add capture as image when in zen mode
-    await chrome.contextMenus.remove("myz-zen-capture").catch(() => {});
+    try {
+      await chrome.contextMenus.remove("myz-zen-capture");
+    } catch {}
     chrome.contextMenus.create({
       id: "myz-zen-capture",
       title: "保存文章为图片",
@@ -84,7 +88,9 @@ async function ensureContextMenus() {
     });
 
     // Add AI Assistant menu
-    await chrome.contextMenus.remove("myz-ai-assistant").catch(() => {});
+    try {
+      await chrome.contextMenus.remove("myz-ai-assistant");
+    } catch {}
     chrome.contextMenus.create({
       id: "myz-ai-assistant",
       title: "打开AI助手",
@@ -92,7 +98,9 @@ async function ensureContextMenus() {
     });
 
     // Add AI Assistant submenu actions
-    await chrome.contextMenus.remove("myz-ai-summarize").catch(() => {});
+    try {
+      await chrome.contextMenus.remove("myz-ai-summarize");
+    } catch {}
     chrome.contextMenus.create({
       id: "myz-ai-summarize",
       parentId: "myz-ai-assistant",
@@ -100,7 +108,9 @@ async function ensureContextMenus() {
       contexts: ["page", "selection"],
     });
 
-    await chrome.contextMenus.remove("myz-ai-keypoints").catch(() => {});
+    try {
+      await chrome.contextMenus.remove("myz-ai-keypoints");
+    } catch {}
     chrome.contextMenus.create({
       id: "myz-ai-keypoints",
       parentId: "myz-ai-assistant",
@@ -108,7 +118,9 @@ async function ensureContextMenus() {
       contexts: ["page", "selection"],
     });
 
-    await chrome.contextMenus.remove("myz-ai-custom").catch(() => {});
+    try {
+      await chrome.contextMenus.remove("myz-ai-custom");
+    } catch {}
     chrome.contextMenus.create({
       id: "myz-ai-custom",
       parentId: "myz-ai-assistant",
@@ -116,7 +128,9 @@ async function ensureContextMenus() {
       contexts: ["page", "selection"],
     });
 
-    await chrome.contextMenus.remove("myz-ai-interpret-image").catch(() => {});
+    try {
+      await chrome.contextMenus.remove("myz-ai-interpret-image");
+    } catch {}
     chrome.contextMenus.create({
       id: "myz-ai-interpret-image",
       parentId: "myz-ai-assistant",
@@ -147,25 +161,29 @@ async function refreshAiImageMenuVisibility() {
   try {
     const settings = await readSettings();
     if (!settings?.aiAssistantEnabled) {
-      await chrome.contextMenus.update("myz-ai-interpret-image", {
-        enabled: false,
-        title: "解读图片内容（未启用 AI 助手）",
-      });
+      try {
+        await chrome.contextMenus.update("myz-ai-interpret-image", {
+          enabled: false,
+          title: "解读图片内容（未启用 AI 助手）",
+        });
+      } catch {}
       return;
     }
     const target = resolveAgentTarget(settings as any, "conversation");
     const enabled = Boolean(target?.model?.capabilities?.vision);
-    await chrome.contextMenus.update("myz-ai-interpret-image", {
-      enabled,
-      title: enabled ? "解读图片内容" : "解读图片内容（需 Vision 模型）",
-    });
+    try {
+      await chrome.contextMenus.update("myz-ai-interpret-image", {
+        enabled,
+        title: enabled ? "解读图片内容" : "解读图片内容（需 Vision 模型）",
+      });
+    } catch {}
   } catch {
-    await chrome.contextMenus
-      .update("myz-ai-interpret-image", {
+    try {
+      await chrome.contextMenus.update("myz-ai-interpret-image", {
         enabled: false,
         title: "解读图片内容（未配置）",
-      })
-      .catch(() => {});
+      });
+    } catch {}
   }
 }
 
@@ -358,11 +376,13 @@ chrome.contextMenus.onClicked.addListener(
 async function refreshZenMenuForTab(tabId: number) {
   if (!tabId) return;
   try {
-    await chrome.contextMenus.update("myz-zen-mode", {
-      title: "禅定模式 (仅显示文章)",
-      visible: false,
-    });
-    await chrome.contextMenus.update("myz-zen-capture", { visible: false });
+    try {
+      await chrome.contextMenus.update("myz-zen-mode", {
+        title: "禅定模式 (仅显示文章)",
+        visible: false,
+      });
+      await chrome.contextMenus.update("myz-zen-capture", { visible: false });
+    } catch {}
     const canResp = await chrome.tabs.sendMessage(tabId, {
       type: "myz:canEnterZenMode",
     });
@@ -372,23 +392,21 @@ async function refreshZenMenuForTab(tabId: number) {
     const canEnter = Boolean(canResp?.data?.canEnter);
     const enabled = Boolean(stateResp?.data?.enabled);
     const title = enabled ? "退出禅定模式" : "禅定模式 (仅显示文章)";
-    await chrome.contextMenus.update("myz-zen-mode", {
-      title,
-      visible: canEnter || enabled,
-    });
-    await chrome.contextMenus.update("myz-zen-capture", { visible: enabled });
+    try {
+      await chrome.contextMenus.update("myz-zen-mode", {
+        title,
+        visible: canEnter || enabled,
+      });
+      await chrome.contextMenus.update("myz-zen-capture", { visible: enabled });
+    } catch {}
   } catch (e) {
-    await Promise.all([
-      chrome.contextMenus
-        .update("myz-zen-mode", {
-          title: "禅定模式 (仅显示文章)",
-          visible: false,
-        })
-        .catch(() => {}),
-      chrome.contextMenus
-        .update("myz-zen-capture", { visible: false })
-        .catch(() => {}),
-    ]);
+    try {
+      await chrome.contextMenus.update("myz-zen-mode", {
+        title: "禅定模式 (仅显示文章)",
+        visible: false,
+      });
+      await chrome.contextMenus.update("myz-zen-capture", { visible: false });
+    } catch {}
   }
 }
 

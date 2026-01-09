@@ -12,6 +12,7 @@ import InputComposer from "./components/InputComposer.jsx";
 import InterestsPanel from "./components/InterestsPanel.jsx";
 import ToolResponseModal from "./components/ToolResponseModal.jsx";
 import ImagePreviewModal from "./components/ImagePreviewModal.jsx";
+import ContextStatusBar from "./components/ContextStatusBar.jsx";
 import HistoryView from "./HistoryView.jsx";
 import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
@@ -29,9 +30,15 @@ export default defineComponent({
       chatStore.closeAutoInsights();
     }
 
+    async function startNewConversation() {
+      await chatStore.startNewConversationForContext();
+    }
+
     onMounted(async () => {
-      await pageStore.loadPageContext();
       await chatStore.initialize();
+      if (!pageStore.currentTabId) {
+        await pageStore.loadPageContext();
+      }
     });
 
     onBeforeUnmount(() => {
@@ -60,6 +67,13 @@ export default defineComponent({
                 <ThemeToggle size="sm" />
                 <button
                   class="inline-flex items-center rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+                  onClick={startNewConversation}
+                  title="为当前页面开启新对话"
+                >
+                  新对话
+                </button>
+                <button
+                  class="inline-flex items-center rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
                   onClick={showHistory}
                   title="查看对话历史"
                 >
@@ -67,6 +81,7 @@ export default defineComponent({
                 </button>
               </div>
             </header>
+            <ContextStatusBar />
             {chatStore.autoInsights.active && chatStore.autoInsights.loading && (
               <p class="mt-2 text-xs text-indigo-600 dark:text-indigo-300">
                 正在生成
