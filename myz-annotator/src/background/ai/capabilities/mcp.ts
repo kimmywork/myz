@@ -15,10 +15,14 @@ export interface McpCapabilityOptions {
 export class McpCapability {
   private clients: Map<string, McpClient>
   private getServers: () => McpServerSetting[]
+  private localToolAllowlist: Set<string> | null
+  private activeToolFilter: Set<string> | null
 
   constructor(options: McpCapabilityOptions) {
     this.clients = new Map()
     this.getServers = options.getServers
+    this.localToolAllowlist = null
+    this.activeToolFilter = null
   }
 
   getClientCount() {
@@ -29,11 +33,83 @@ export class McpCapability {
     return this.clients
   }
 
+  /**
+   * Restricts which local tools are exposed/executable.
+   * Pass `null` to allow all local tools.
+   */
+  setLocalToolAllowlist(toolNames: string[] | null) {
+    if (!toolNames) {
+      this.localToolAllowlist = null
+      return
+    }
+    this.localToolAllowlist = new Set(
+      toolNames
+        .filter((name) => typeof name === "string" && name.trim())
+        .map((name) => name.trim()),
+    )
+  }
+
+  /**
+   * Restricts which tools (local + MCP) are exposed/executable for the current
+   * request. Pass `null` to disable this per-request filter.
+   */
+  setActiveToolFilter(toolNames: string[] | null) {
+    if (!toolNames) {
+      this.activeToolFilter = null
+      return
+    }
+    this.activeToolFilter = new Set(
+      toolNames
+        .filter((name) => typeof name === "string" && name.trim())
+        .map((name) => name.trim()),
+    )
+  }
+
+  private filterTools(tools: Tool[]) {
+    const localAllowlist = this.localToolAllowlist
+    const activeFilter = this.activeToolFilter
+    return (tools || []).filter((tool: any) => {
+      const name = typeof tool?.name === "string" ? tool.name : ""
+      if (!name) return false
+      const server = typeof tool?.server === "string" ? tool.server : ""
+      if (server === "myz-local" && localAllowlist && !localAllowlist.has(name)) {
+        return false
+      }
+      if (activeFilter && !activeFilter.has(name)) {
+        return false
+      }
+      return true
+    })
+  }
+
   listTools(): Tool[] {
-    return listAvailableTools(this.clients)
+    const allTools = listAvailableTools(this.clients)
+    return this.filterTools(allTools)
+  }
+
+  private buildToolCandidates(rawName: string) {
+    const fallbackName =
+      typeof rawName === "string" && rawName.includes(":")
+        ? rawName.split(":").pop() || rawName
+        : rawName
+    return Array.from(
+      new Set(
+        [rawName, fallbackName].filter(
+          (value): value is string =>
+            typeof value === "string" && value.trim().length > 0,
+        ),
+      ),
+    )
   }
 
   async executeToolCall(toolCall: ToolCallLike): Promise<ToolExecutionResult> {
+    const rawName = toolCall?.function?.name || ""
+    const allowed = new Set(this.listTools().map((tool: any) => tool.name))
+    const candidates = this.buildToolCandidates(rawName)
+    const isAllowed = candidates.some((candidate) => allowed.has(candidate))
+    if (!isAllowed) {
+      throw new Error(`Tool not enabled: ${rawName}`)
+    }
     return executeToolCall(this.clients, toolCall)
   }
 

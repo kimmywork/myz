@@ -34,6 +34,19 @@ export interface ConversationCallConfig {
   compressImages: boolean
 }
 
+export interface ConversationToolControl {
+  listTools: () => Array<{ name: string; description?: string; server?: string }>
+  setActiveToolFilter: (toolNames: string[] | null) => void
+}
+
+export interface ConversationToolSelector {
+  enabled: boolean
+  selectToolNames: (
+    prompt: string,
+    tools: Array<{ name: string; description?: string; server?: string }>,
+  ) => Promise<string[]>
+}
+
 export class ConversationAgent {
   private notifyNewMessage(conversationId: string | null, message: Message) {
     notifyRuntime("myz:newMessage", {
@@ -179,7 +192,13 @@ export class ConversationAgent {
     action: string,
     content: string,
     options: ProcessConversationOptions = {},
-    deps: { client: ChatCompletionClient; isEnabled: boolean; callConfig: ConversationCallConfig },
+    deps: {
+      client: ChatCompletionClient
+      isEnabled: boolean
+      callConfig: ConversationCallConfig
+      toolControl?: ConversationToolControl
+      toolSelector?: ConversationToolSelector
+    },
   ): Promise<ProcessConversationResult> {
     if (!deps.isEnabled) {
       throw new Error("AI Assistant is not enabled")
@@ -203,6 +222,24 @@ export class ConversationAgent {
       !deps.callConfig.model.capabilities.vision
     ) {
       throw new Error("当前模型不支持 Vision，无法发送图片")
+    }
+
+    if (deps.toolControl) {
+      deps.toolControl.setActiveToolFilter(null)
+      if (deps.toolSelector?.enabled) {
+        try {
+          const tools = (deps.toolControl.listTools() || []).map((tool) => ({
+            name: tool?.name || "",
+            description: tool?.description || "",
+            server: tool?.server || "",
+          }))
+          const selected = await deps.toolSelector.selectToolNames(content, tools)
+          deps.toolControl.setActiveToolFilter(selected)
+        } catch (error) {
+          console.warn("Tool selection failed, disabling tools for this request", error)
+          deps.toolControl.setActiveToolFilter([])
+        }
+      }
     }
 
     const userMessage: Message = {
@@ -303,6 +340,10 @@ export class ConversationAgent {
         } as any)
       }
       throw error
+    } finally {
+      if (deps.toolControl) {
+        deps.toolControl.setActiveToolFilter(null)
+      }
     }
 
     const message = response?.choices?.[0]?.message

@@ -1,5 +1,6 @@
 import type { Settings } from "./settings.js";
 import { HIGHLIGHT_STYLES } from "@/shared/types";
+import { LOCAL_TOOL_NAMES } from "./ai/tools/localDefinitions.js";
 
 export const STORAGE_KEY = "myz::highlights";
 export const SETTINGS_KEY = "myz::settings";
@@ -31,6 +32,11 @@ export const DEFAULT_SETTINGS: Settings = {
     insights: { target: null, temperature: 0.7 },
   },
   aiMcpServers: [],
+  aiLocalTools: {
+    enabledToolNames: LOCAL_TOOL_NAMES.slice(),
+    mode: "manual",
+    autoSelectorTarget: null,
+  },
   // Vector search / Vectoria
   vectorSearch: {
     enabled: false,

@@ -3,6 +3,7 @@ import { reactive, ref } from "vue";
 import { Settings } from "@/background/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
 import { DEFAULT_COLOR, DEFAULT_HIGHLIGHT_STYLE } from "@/shared/types.js";
+import { LOCAL_TOOL_NAMES } from "@/background/ai/tools/localDefinitions.js";
 
 export const useSettingsStore = defineStore("settings", () => {
   const settings: Settings = reactive({
@@ -21,6 +22,11 @@ export const useSettingsStore = defineStore("settings", () => {
       insights: { target: null, temperature: 0.7 },
     },
     aiMcpServers: [],
+    aiLocalTools: {
+      enabledToolNames: LOCAL_TOOL_NAMES.slice(),
+      mode: "manual",
+      autoSelectorTarget: null,
+    },
     vectorSearch: {
       enabled: false,
       target: null,
@@ -104,6 +110,22 @@ export const useSettingsStore = defineStore("settings", () => {
         aiMcpServers: Array.isArray(result.aiMcpServers)
           ? result.aiMcpServers.map((s) => ({ ...s }))
           : [],
+        aiLocalTools:
+          result.aiLocalTools && typeof result.aiLocalTools === "object"
+            ? {
+                enabledToolNames: Array.isArray(result.aiLocalTools.enabledToolNames)
+                  ? result.aiLocalTools.enabledToolNames
+                      .filter((name) => typeof name === "string" && name.trim())
+                      .map((name) => name.trim())
+                  : settings.aiLocalTools.enabledToolNames,
+                mode: result.aiLocalTools.mode === "auto" ? "auto" : "manual",
+                autoSelectorTarget:
+                  result.aiLocalTools.autoSelectorTarget &&
+                  typeof result.aiLocalTools.autoSelectorTarget === "object"
+                    ? result.aiLocalTools.autoSelectorTarget
+                    : null,
+              }
+            : settings.aiLocalTools,
         vectorSearch:
           result.vectorSearch && typeof result.vectorSearch === "object"
             ? {
@@ -160,6 +182,9 @@ export const useSettingsStore = defineStore("settings", () => {
         }
         if (Array.isArray(updated.aiMcpServers)) {
           settings.aiMcpServers = updated.aiMcpServers.map((s) => ({ ...s }));
+        }
+        if ("aiLocalTools" in updated && updated.aiLocalTools) {
+          settings.aiLocalTools = updated.aiLocalTools as any;
         }
         if ("vectorSearch" in updated && updated.vectorSearch) {
           settings.vectorSearch = updated.vectorSearch as any;

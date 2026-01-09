@@ -49,6 +49,24 @@ export interface AIAgentModelRef {
   modelId: string;
 }
 
+export type AIToolSelectionMode = "manual" | "auto";
+
+export interface AILocalToolsSettings {
+  /**
+   * Allowlist of local tool names. Tools not listed here are never exposed to models.
+   */
+  enabledToolNames: string[];
+  /**
+   * Manual: always expose all allowed tools.
+   * Auto: per-message tool selection via a dedicated selector model.
+   */
+  mode: AIToolSelectionMode;
+  /**
+   * Provider+model used for tool selection when `mode === "auto"`.
+   */
+  autoSelectorTarget: AIAgentModelRef | null;
+}
+
 export interface AIAgentConfig {
   target: AIAgentModelRef | null;
   temperature: number;
@@ -94,6 +112,7 @@ export interface AIAssistantSettings {
   aiProviders: Array<AIProviderSetting>;
   aiAgents: AIAgentsSettings;
   aiMcpServers: McpServerSetting[];
+  aiLocalTools: AILocalToolsSettings;
   vectorSearch: VectorSettings;
 }
 

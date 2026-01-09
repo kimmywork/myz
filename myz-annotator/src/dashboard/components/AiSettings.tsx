@@ -4,6 +4,7 @@ import type {
   AIAgentsSettings,
   AIModelSetting,
   AIProviderSetting,
+  AILocalToolsSettings,
   McpServerSetting,
 } from "@/background/settings.js"
 import { sendMessage } from "@/shared/messaging.js"
@@ -11,6 +12,7 @@ import AiProviderList from "./ai-settings/AiProviderList.jsx"
 import AiProviderEditor from "./ai-settings/AiProviderEditor.jsx"
 import AiAgentRouting from "./ai-settings/AiAgentRouting.jsx"
 import AiMcpServersEditor from "./ai-settings/AiMcpServersEditor.jsx"
+import AiLocalToolsSection from "./ai-settings/AiLocalToolsSection.jsx"
 import AiVectorSearchSection from "./ai-settings/AiVectorSearchSection.jsx"
 import { createProviderSetting, createModelSetting } from "./ai-settings/factories.js"
 
@@ -60,6 +62,11 @@ export default defineComponent({
       insights: { target: null, temperature: 0.7 },
     })
     const mcpServers = ref<McpServerSetting[]>([])
+    const localTools = ref<AILocalToolsSettings>({
+      enabledToolNames: [],
+      mode: "manual",
+      autoSelectorTarget: null,
+    })
 
     const selectedProviderId = ref<string | null>(null)
     const isFetchingModels = ref(false)
@@ -69,6 +76,7 @@ export default defineComponent({
     const providerSaveNotice = ref("")
     const agentSaveNotice = ref("")
     const mcpSaveNotice = ref("")
+    const localToolsSaveNotice = ref("")
 
     const usedByMap = computed(() => {
       const map: Record<string, string[]> = {}
@@ -106,6 +114,9 @@ export default defineComponent({
       }
       agents.value = deepClone(store.settings.aiAgents)
       mcpServers.value = (store.settings.aiMcpServers || []).map((s) => ({ ...s }))
+      localTools.value = store.settings.aiLocalTools
+        ? deepClone(store.settings.aiLocalTools)
+        : localTools.value
 
       if (!selectedProviderId.value || !providers.value.some((p) => p.id === selectedProviderId.value)) {
         selectedProviderId.value = providers.value[0]?.id || null
@@ -259,6 +270,11 @@ export default defineComponent({
       setTimedNotice(mcpSaveNotice, "已保存")
     }
 
+    const saveLocalToolsSection = async () => {
+      await store.saveSettings({ aiLocalTools: localTools.value as any })
+      setTimedNotice(localToolsSaveNotice, "已保存")
+    }
+
     return () => (
       <section class="settings__group">
         <div class="settings__group-header">
@@ -376,6 +392,31 @@ export default defineComponent({
             <AiMcpServersEditor
               servers={mcpServers.value}
               onChange={(next) => (mcpServers.value = next)}
+            />
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm dark:border-white/10 dark:bg-slate-800/40">
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <p class="text-sm font-medium text-slate-900 dark:text-white">
+                本地 Tools
+              </p>
+              <div class="flex items-center gap-2">
+                {localToolsSaveNotice.value ? (
+                  <span class="text-xs text-emerald-600">{localToolsSaveNotice.value}</span>
+                ) : null}
+                <button
+                  type="button"
+                  class="btn btn-primary whitespace-nowrap"
+                  onClick={saveLocalToolsSection}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+            <AiLocalToolsSection
+              providers={providers.value}
+              value={localTools.value}
+              onChange={(next) => (localTools.value = next)}
             />
           </div>
 

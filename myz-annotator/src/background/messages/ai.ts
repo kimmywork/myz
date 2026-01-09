@@ -22,7 +22,7 @@ import { generateId, readSettings, saveHighlight } from "../storage";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import { deleteConversation } from "@/sidepanel/aiStorage";
-import { resolveAgentTarget } from "../ai/runtime/agentSelection.js";
+import { resolveAgentTarget, resolveModelRef } from "../ai/runtime/agentSelection.js";
 import { acquireProviderRuntime } from "../ai/runtime/providerRuntime.js";
 import {
   buildModelsUrl,
@@ -33,6 +33,8 @@ import {
 import { McpCapability } from "../ai/capabilities/mcp.js";
 import { ConversationAgent } from "../ai/agents/conversationAgent.js";
 import { InsightsAgent } from "../ai/agents/insightsAgent.js";
+import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
+import { LOCAL_TOOL_NAMES } from "../ai/tools/localDefinitions.js";
 
 /**
  * Stores a "draft action" so the SidePanel can pick it up even if the runtime
@@ -233,6 +235,15 @@ export function initializeAIMessageHandlers() {
           await runtime.connectMcp();
         }
 
+        if (enableTools) {
+          const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
+            ? ((settings as any).aiLocalTools.enabledToolNames as any[])
+                .filter((name: any) => typeof name === "string" && name.trim())
+                .map((name: string) => name.trim())
+            : LOCAL_TOOL_NAMES.slice()
+          runtime.session.mcp.setLocalToolAllowlist(enabledToolNames)
+        }
+
         const includePageContext =
           typeof context?.includePageContext === "boolean"
             ? context?.includePageContext
@@ -242,6 +253,10 @@ export function initializeAIMessageHandlers() {
         const client = enableTools
           ? runtime.session.clientWithTools
           : runtime.session.client;
+
+        const aiLocalTools = (settings as any)?.aiLocalTools
+        const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
+        const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
 
         return await agent.processConversation(
           conversationId,
@@ -264,9 +279,72 @@ export function initializeAIMessageHandlers() {
             client: client as any,
             isEnabled: Boolean(settings.aiAssistantEnabled),
             callConfig: target as any,
+            ...(enableTools
+              ? {
+                  toolControl: {
+                    listTools: () =>
+                      (runtime.session.mcp.listTools() as any[]).map((tool: any) => ({
+                        name: tool?.name || "",
+                        description: tool?.description || "",
+                        server: tool?.server || "",
+                      })),
+                    setActiveToolFilter: (toolNames: string[] | null) =>
+                      runtime.session.mcp.setActiveToolFilter(toolNames),
+                  },
+                }
+              : {}),
+            ...(toolSelectorRequested
+              ? {
+                  toolSelector: {
+                    enabled: true,
+                    selectToolNames: async (
+                      prompt: string,
+                      tools: Array<{ name: string; description?: string; server?: string }>,
+                    ) => {
+                      const normalizedPrompt =
+                        typeof prompt === "string" ? prompt.trim() : ""
+                      const candidates = Array.isArray(tools)
+                        ? tools.filter((t) => t?.name)
+                        : []
+                      if (!normalizedPrompt || candidates.length === 0) {
+                        return []
+                      }
+
+                      if (!toolSelectorTarget?.providerId || !toolSelectorTarget?.modelId) {
+                        return []
+                      }
+
+                      try {
+                        const resolved = resolveModelRef(settings as any, toolSelectorTarget)
+                        const selectorRuntime = await acquireProviderRuntime(
+                          resolved.provider as any,
+                          [],
+                        )
+                        try {
+                          const selector = new ToolSelectionAgent()
+                          return await selector.selectToolNames({
+                            prompt: normalizedPrompt,
+                            tools: candidates,
+                            client: selectorRuntime.session.client as any,
+                            model: resolved.model as any,
+                          })
+                        } finally {
+                          await selectorRuntime.release()
+                        }
+                      } catch (error) {
+                        console.warn("Tool selector failed", error)
+                        return []
+                      }
+                    },
+                  },
+                }
+              : {}),
           },
         );
       } finally {
+        try {
+          runtime.session.mcp.setActiveToolFilter(null)
+        } catch {}
         if (target.model.capabilities.toolCalling) {
           await runtime.disconnectMcp();
         }
@@ -384,10 +462,22 @@ export function initializeAIMessageHandlers() {
         }
         const { conversationId, action, content, options = {} } = payload || {};
 
+        if (enableTools) {
+          const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
+            ? ((settings as any).aiLocalTools.enabledToolNames as any[])
+                .filter((name: any) => typeof name === "string" && name.trim())
+                .map((name: string) => name.trim())
+            : LOCAL_TOOL_NAMES.slice()
+          runtime.session.mcp.setLocalToolAllowlist(enabledToolNames)
+        }
+
         const agent = new ConversationAgent();
         const client = enableTools
           ? runtime.session.clientWithTools
           : runtime.session.client;
+        const aiLocalTools = (settings as any)?.aiLocalTools
+        const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
+        const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
         const result = await agent.processConversation(
           conversationId,
           action,
@@ -397,15 +487,79 @@ export function initializeAIMessageHandlers() {
             client: client as any,
             isEnabled: Boolean(settings.aiAssistantEnabled),
             callConfig: target as any,
+            ...(enableTools
+              ? {
+                  toolControl: {
+                    listTools: () =>
+                      (runtime.session.mcp.listTools() as any[]).map((tool: any) => ({
+                        name: tool?.name || "",
+                        description: tool?.description || "",
+                        server: tool?.server || "",
+                      })),
+                    setActiveToolFilter: (toolNames: string[] | null) =>
+                      runtime.session.mcp.setActiveToolFilter(toolNames),
+                  },
+                }
+              : {}),
+            ...(toolSelectorRequested
+              ? {
+                  toolSelector: {
+                    enabled: true,
+                    selectToolNames: async (
+                      prompt: string,
+                      tools: Array<{ name: string; description?: string; server?: string }>,
+                    ) => {
+                      const normalizedPrompt =
+                        typeof prompt === "string" ? prompt.trim() : ""
+                      const candidates = Array.isArray(tools)
+                        ? tools.filter((t) => t?.name)
+                        : []
+                      if (!normalizedPrompt || candidates.length === 0) {
+                        return []
+                      }
+
+                      if (!toolSelectorTarget?.providerId || !toolSelectorTarget?.modelId) {
+                        return []
+                      }
+
+                      try {
+                        const resolved = resolveModelRef(settings as any, toolSelectorTarget)
+                        const selectorRuntime = await acquireProviderRuntime(
+                          resolved.provider as any,
+                          [],
+                        )
+                        try {
+                          const selector = new ToolSelectionAgent()
+                          return await selector.selectToolNames({
+                            prompt: normalizedPrompt,
+                            tools: candidates,
+                            client: selectorRuntime.session.client as any,
+                            model: resolved.model as any,
+                          })
+                        } finally {
+                          await selectorRuntime.release()
+                        }
+                      } catch (error) {
+                        console.warn("Tool selector failed", error)
+                        return []
+                      }
+                    },
+                  },
+                }
+              : {}),
           },
         );
 
         if (enableTools) {
+          runtime.session.mcp.setActiveToolFilter(null)
           result.availableTools = runtime.session.mcp.listTools();
         }
 
         return result;
       } finally {
+        try {
+          runtime.session.mcp.setActiveToolFilter(null)
+        } catch {}
         if (target.model.capabilities.toolCalling) {
           await runtime.disconnectMcp();
         }

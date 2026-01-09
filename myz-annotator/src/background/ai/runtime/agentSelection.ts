@@ -23,6 +23,33 @@ function findModel(provider: AIProviderSetting, modelId: string) {
   return (provider.models || []).find((m) => m.id === modelId) || null
 }
 
+export function resolveModelRef(
+  settings: AIAssistantSettings,
+  target: AIAgentModelRef,
+): { provider: AIProviderSetting; model: AIModelSetting } {
+  if (!target?.providerId || !target.modelId) {
+    throw new Error("Target model is not configured")
+  }
+
+  const provider = findProvider(settings, target.providerId)
+  if (!provider) {
+    throw new Error(`Provider not found: ${target.providerId}`)
+  }
+  if (!provider.enabled || !provider.lastTest?.ok) {
+    throw new Error(`Provider is not enabled or not tested: ${provider.name}`)
+  }
+
+  const model = findModel(provider, target.modelId)
+  if (!model) {
+    throw new Error(`Model not found in provider: ${provider.name}`)
+  }
+  if (!model.enabled) {
+    throw new Error(`Model is not enabled: ${provider.name} (${model.model})`)
+  }
+
+  return { provider, model }
+}
+
 export function resolveAgentTarget(
   settings: AIAssistantSettings,
   agent: AgentName,

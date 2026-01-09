@@ -2,6 +2,7 @@ import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 
 import { Settings } from "./settings.js";
+import { LOCAL_TOOL_NAMES } from "./ai/tools/localDefinitions.js";
 import { applyVectorSearchSettings } from "./vectoria-index.js";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { MyZRecord } from "@/shared/types.js";
@@ -118,6 +119,36 @@ function normalizeSettings<T extends Settings>(settings: T): T {
           return normalized
         })
     : [];
+  const aiLocalTools = (settings as any).aiLocalTools
+  if (!aiLocalTools || typeof aiLocalTools !== "object") {
+    ;(settings as any).aiLocalTools = {
+      enabledToolNames: LOCAL_TOOL_NAMES.slice(),
+      mode: "manual",
+      autoSelectorTarget: null,
+    }
+  } else {
+    aiLocalTools.enabledToolNames = Array.isArray(aiLocalTools.enabledToolNames)
+      ? aiLocalTools.enabledToolNames
+          .filter((name: any) => typeof name === "string" && name.trim())
+          .map((name: string) => name.trim())
+          .filter((name: string) => LOCAL_TOOL_NAMES.includes(name))
+      : LOCAL_TOOL_NAMES.slice()
+    aiLocalTools.mode = aiLocalTools.mode === "auto" ? "auto" : "manual"
+    const target = aiLocalTools.autoSelectorTarget
+    if (
+      target &&
+      typeof target === "object" &&
+      typeof target.providerId === "string" &&
+      typeof target.modelId === "string"
+    ) {
+      aiLocalTools.autoSelectorTarget = {
+        providerId: target.providerId,
+        modelId: target.modelId,
+      }
+    } else {
+      aiLocalTools.autoSelectorTarget = null
+    }
+  }
   const vectorSearch = (settings as any).vectorSearch
   if (!vectorSearch || typeof vectorSearch !== "object") {
     ;(settings as any).vectorSearch = {
