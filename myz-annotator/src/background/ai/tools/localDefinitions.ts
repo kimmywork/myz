@@ -105,7 +105,56 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
       },
     },
   },
+  {
+    name: "myz-web-search",
+    description:
+      "通过浏览器打开搜索引擎页面进行网页搜索，并返回前几条结果（标题/链接/摘要）。",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      properties: {
+        query: {
+          type: "string",
+          description: "搜索关键词。",
+        },
+        engine: {
+          type: "string",
+          enum: ["bing", "google"],
+          default: "bing",
+          description: "搜索引擎（默认 bing）。",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          default: 5,
+          description: "返回的搜索结果数量上限，默认 5。",
+        },
+      },
+    },
+  },
+  {
+    name: "myz-fetch-page",
+    description:
+      "通过浏览器打开指定 URL，启发式提取网页主体内容详情（适用于访问搜索结果详情并进一步阅读/总结）。",
+    inputSchema: {
+      type: "object",
+      required: ["url"],
+      properties: {
+        url: {
+          type: "string",
+          description: "要访问的网页 URL（仅支持 http/https）。",
+        },
+        maxChars: {
+          type: "integer",
+          minimum: 1000,
+          maximum: 60000,
+          default: 15000,
+          description: "返回内容最大字符数（默认 15000）。",
+        },
+      },
+    },
+  },
 ]
 
 export const LOCAL_TOOL_NAMES = LOCAL_TOOL_DEFINITIONS.map((tool) => tool.name)
-
