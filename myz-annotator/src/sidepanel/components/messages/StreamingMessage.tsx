@@ -25,7 +25,7 @@ export default defineComponent({
     return () => (
       <div class="w-full max-w-[85%] rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
         <div class="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-          <span>AI助手</span>
+          <span>AI助理</span>
           <span>
             {props.stream?.timestamp
               ? new Date(props.stream?.timestamp).toLocaleString()

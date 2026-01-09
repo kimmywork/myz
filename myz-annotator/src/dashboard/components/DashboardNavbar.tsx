@@ -21,7 +21,7 @@ export default defineComponent({
 
     return () => (
       <nav class="flex flex-wrap items-center gap-4 rounded-3xl border border-slate-200 bg-white/80 px-6 py-4 text-slate-900 shadow-sm dark:border-white/10 dark:bg-slate-900/70 dark:text-white">
-        <div class="text-lg font-semibold">MyZ 标注</div>
+        <div class="text-lg font-semibold">MyZ 智能助理</div>
         <div class="flex flex-1 flex-wrap items-center gap-2">
           {tabs.map((tab) => {
             const active = uiStore.panel === tab.key;

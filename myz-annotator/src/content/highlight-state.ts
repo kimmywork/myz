@@ -332,7 +332,7 @@ function attemptHighlightReapply() {
     cleanupHighlightReapply();
     if (!highlightReapplyState.failureNotified && remaining > 0) {
       highlightReapplyState.failureNotified = true;
-      console.warn("MyZ Annotator: failed to reapply highlights", {
+      console.warn("MyZ 智能助理: failed to reapply highlights", {
         remaining,
       });
       const message =

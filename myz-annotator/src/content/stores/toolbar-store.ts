@@ -173,7 +173,7 @@ export const useToolbarStore = defineStore("toolbar", () => {
       });
     } catch (error) {
       notificationStore.notify({
-        message: `打开 AI 助手失败：${(error as Error).message}`,
+        message: `打开 AI 助理失败：${(error as Error).message}`,
       });
     } finally {
       try {

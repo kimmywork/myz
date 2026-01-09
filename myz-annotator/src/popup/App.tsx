@@ -223,7 +223,7 @@ export default defineComponent({
           <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-2">
               <h1 class="text-base font-semibold text-slate-900 dark:text-white">
-                MyZ 标注助手
+                MyZ 智能助理
               </h1>
               <ThemeToggle size="sm" />
             </div>

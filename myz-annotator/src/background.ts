@@ -93,7 +93,7 @@ async function ensureContextMenus() {
     } catch {}
     chrome.contextMenus.create({
       id: "myz-ai-assistant",
-      title: "打开AI助手",
+      title: "打开AI助理",
       contexts: ["page", "selection", "image"],
     });
 
@@ -164,7 +164,7 @@ async function refreshAiImageMenuVisibility() {
       try {
         await chrome.contextMenus.update("myz-ai-interpret-image", {
           enabled: false,
-          title: "解读图片内容（未启用 AI 助手）",
+          title: "解读图片内容（未启用 AI 助理）",
         });
       } catch {}
       return;

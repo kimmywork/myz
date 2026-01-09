@@ -46,7 +46,7 @@ export function buildActionTitle({
   highlightCount,
   savedCount,
 }: BadgeCount): string {
-  const base = "MyZ Annotator";
+  const base = "MyZ 智能助理";
   if (!total) {
     return `${base} · 暂无条目`;
   }

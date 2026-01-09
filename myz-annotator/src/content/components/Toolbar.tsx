@@ -46,7 +46,7 @@ export default defineComponent({
         <button type="button" aria-label="截取选区截图" onClick={handleCapture}>
           <IconCamera size={18} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="发送到AI助手" onClick={handleSendToAi}>
+        <button type="button" aria-label="发送到AI助理" onClick={handleSendToAi}>
           <IconSparkles size={18} aria-hidden="true" />
         </button>
       </div>

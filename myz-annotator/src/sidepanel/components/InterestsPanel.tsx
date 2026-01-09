@@ -92,7 +92,7 @@ export default defineComponent({
             class="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-300"
             onClick={handleBackToChat}
           >
-            返回助手
+            返回助理
           </button>
         </header>
         <div class="flex-1 space-y-3 overflow-auto pr-1">

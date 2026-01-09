@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MyZ 网页标注智能助理",
-  "description": "All in one knowledge assistant for your web browsing powered by AI.",
+  "description": "高亮网页，添加注解，保存摘录，自动发现兴趣点，AI助理一键解答。",
   "version": "0.1.5",
   "icons": {
     "16": "assets/icon-128.png",
@@ -36,7 +36,7 @@
       "32": "assets/icon-128.png"
     },
     "default_popup": "src/popup/popup.html",
-    "default_title": "MyZ Annotator"
+    "default_title": "MyZ 智能助理"
   },
   "options_page": "src/dashboard/index.html",
   "side_panel": {
