@@ -24,16 +24,35 @@ function buildUserContent(
   includeVision: boolean,
 ): MessageContent {
   const text = typeof message?.content === "string" ? message.content : ""
+  const selectionContextText =
+    typeof (message as any)?.metadata?.selectionContextText === "string"
+      ? String((message as any).metadata.selectionContextText).trim()
+      : ""
   if (!includeVision) {
-    return text
+    return selectionContextText
+      ? `选中内容（上下文）:\n${selectionContextText}\n\n${text}`.trim()
+      : text
   }
 
   const attachments = normalizeAttachments(message?.metadata?.attachments)
   if (!attachments.length) {
-    return text
+    const parts: OpenAIMessageContentPart[] = []
+    if (selectionContextText) {
+      parts.push({
+        type: "text",
+        text: `选中内容（上下文）:\n${selectionContextText}`,
+      })
+    }
+    if (text.trim()) {
+      parts.push({ type: "text", text })
+    }
+    return parts.length ? parts : text
   }
 
   const parts: OpenAIMessageContentPart[] = []
+  if (selectionContextText) {
+    parts.push({ type: "text", text: `选中内容（上下文）:\n${selectionContextText}` })
+  }
   if (text.trim()) {
     parts.push({ type: "text", text })
   }

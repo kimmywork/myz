@@ -25,6 +25,7 @@ interface SidePanelCommunicationMessage {
   type: string;
   payload?: {
     action?: string;
+    draftId?: string;
     matches?: VectoriaSearchResult[];
     prompt?: string;
     attachments?: ImageAttachment[];
@@ -54,7 +55,7 @@ export const useChatStore = defineStore("chat", () => {
   const error = ref("");
   const userInput = ref("");
   const pendingRequestId = ref<string | null>(null);
-  const sendContext = ref(true);
+  const sendContext = ref(false);
   const attachments: Ref<ImageAttachment[]> = ref([]);
   const aiConfig = reactive({
     assistantEnabled: false,
@@ -404,17 +405,17 @@ export const useChatStore = defineStore("chat", () => {
       }
 
       const nextAttachments = await prepareAttachmentsForSend(combinedAttachments);
-      const finalContent =
-        draftEnabled && draftText
-          ? `${draftContext.kind === "selection" ? "选中内容（上下文）" : "上下文"}:\n${draftText}\n\n${trimmed || ""}`.trim()
-          : trimmed;
+      const selectionContextText = draftEnabled && draftText ? draftText : "";
       const userMsg: Message = {
         id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         conversationId: conversationId.value,
         role: "user",
-        content: finalContent,
+        content: trimmed,
         timestamp: new Date().toISOString(),
-        metadata: nextAttachments.length ? { attachments: nextAttachments } : undefined,
+        metadata: {
+          ...(nextAttachments.length ? { attachments: nextAttachments } : {}),
+          ...(selectionContextText ? { selectionContextText } : {}),
+        },
       };
 
       messages.value.push(userMsg);
@@ -425,9 +426,16 @@ export const useChatStore = defineStore("chat", () => {
       // Send to background (streaming via runtime messages)
       void sendMessage("myz:aiStreamRequest", {
         conversationId: conversationId.value,
-        message: finalContent,
+        message: trimmed,
         action: "custom",
         attachments: nextAttachments,
+        options: selectionContextText
+          ? {
+              metadata: {
+                selectionContextText,
+              },
+            }
+          : undefined,
         context: {
           url: pageStore.currentUrl,
           title: pageStore.pageTitle,
@@ -732,6 +740,11 @@ export const useChatStore = defineStore("chat", () => {
       
       if (message.type === "myz:openSidePanelWithAction" && message.payload?.action) {
         lastSidePanelAction.value = message.payload || null;
+        if (message.payload?.draftId) {
+          void sendMessage("myz:ackSidePanelAction", {
+            draftId: message.payload.draftId,
+          }).catch(() => {});
+        }
         setTimeout(() => handleAutoAction(message.payload!.action as any), 100);
       } else if (message.type === "myz:newMessage" && message.data?.message) {
         const incoming = message.data.message;
@@ -755,6 +768,16 @@ export const useChatStore = defineStore("chat", () => {
     chrome.runtime.onMessage.addListener(runtimeListener);
 
     await refreshAiConfig();
+
+    try {
+      const pending: any = await sendMessage("myz:popSidePanelAction");
+      if (pending?.action) {
+        lastSidePanelAction.value = pending;
+        setTimeout(() => handleAutoAction(pending.action as any), 80);
+      }
+    } catch {
+      // ignore
+    }
     
     // Load initial conversation if needed? 
     // App.tsx didn't seem to do it explicitly in initialize(), but maybe it relied on user interaction or default state.

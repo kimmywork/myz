@@ -14,6 +14,38 @@ import {
 } from "./background/vectoria-index.js";
 import { resolveAgentTarget } from "./background/ai/runtime/agentSelection.js";
 
+const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
+
+function generateDraftId(prefix = "draft") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Queues a SidePanel action so it can be delivered even if the SidePanel page
+ * is not yet ready to receive runtime messages.
+ */
+async function queueSidePanelAction(payload: any) {
+  const nextPayload = payload && typeof payload === "object" ? payload : {};
+  if (!nextPayload.draftId) {
+    nextPayload.draftId = generateDraftId();
+  }
+
+  try {
+    await chrome.storage.session.set({ [PENDING_SIDEPANEL_ACTION_KEY]: nextPayload });
+  } catch {
+    await chrome.storage.local.set({ [PENDING_SIDEPANEL_ACTION_KEY]: nextPayload });
+  }
+
+  try {
+    await chrome.runtime.sendMessage({
+      type: "myz:openSidePanelWithAction",
+      payload: nextPayload,
+    });
+  } catch {
+    // ignore
+  }
+}
+
 (async function initializeAiHeaderRules() {
   try {
     const settings = await readSettings();
@@ -33,12 +65,7 @@ import { resolveAgentTarget } from "./background/ai/runtime/agentSelection.js";
   }
 })();
 
-chrome.runtime.onInstalled.addListener(async () => {
-  const { [SETTINGS_KEY]: existingSettings } =
-    await chrome.storage.local.get(SETTINGS_KEY);
-  if (!existingSettings) {
-    await chrome.storage.local.set({ [SETTINGS_KEY]: DEFAULT_SETTINGS });
-  }
+async function ensureContextMenus() {
   try {
     // Remove existing if present to avoid duplicate id error
     await chrome.contextMenus.remove("myz-zen-mode").catch(() => {});
@@ -93,27 +120,52 @@ chrome.runtime.onInstalled.addListener(async () => {
     chrome.contextMenus.create({
       id: "myz-ai-interpret-image",
       parentId: "myz-ai-assistant",
-      title: "解读图片内容",
+      title: "解读图片内容（需 Vision 模型）",
       contexts: ["image"],
-      visible: false,
-    });
+      visible: true,
+      enabled: false,
+    } as any);
   } catch (e) {
     // ignore menu creation failures
   }
+
+  refreshAiImageMenuVisibility().catch(() => {});
+}
+
+void ensureContextMenus();
+
+chrome.runtime.onInstalled.addListener(async () => {
+  const { [SETTINGS_KEY]: existingSettings } =
+    await chrome.storage.local.get(SETTINGS_KEY);
+  if (!existingSettings) {
+    await chrome.storage.local.set({ [SETTINGS_KEY]: DEFAULT_SETTINGS });
+  }
+  await ensureContextMenus();
 });
 
 async function refreshAiImageMenuVisibility() {
   try {
     const settings = await readSettings();
     if (!settings?.aiAssistantEnabled) {
-      await chrome.contextMenus.update("myz-ai-interpret-image", { visible: false });
+      await chrome.contextMenus.update("myz-ai-interpret-image", {
+        enabled: false,
+        title: "解读图片内容（未启用 AI 助手）",
+      });
       return;
     }
     const target = resolveAgentTarget(settings as any, "conversation");
-    const visible = Boolean(target?.model?.capabilities?.vision);
-    await chrome.contextMenus.update("myz-ai-interpret-image", { visible });
+    const enabled = Boolean(target?.model?.capabilities?.vision);
+    await chrome.contextMenus.update("myz-ai-interpret-image", {
+      enabled,
+      title: enabled ? "解读图片内容" : "解读图片内容（需 Vision 模型）",
+    });
   } catch {
-    await chrome.contextMenus.update("myz-ai-interpret-image", { visible: false }).catch(() => {});
+    await chrome.contextMenus
+      .update("myz-ai-interpret-image", {
+        enabled: false,
+        title: "解读图片内容（未配置）",
+      })
+      .catch(() => {});
   }
 }
 
@@ -283,27 +335,18 @@ chrome.contextMenus.onClicked.addListener(
 
         const { dataUrl, mimeType } = await fetchImageDataUrl(info.srcUrl, tab.id);
 
-        setTimeout(async () => {
-          try {
-            await chrome.runtime.sendMessage({
-              type: "myz:openSidePanelWithAction",
-              payload: {
-                action: "interpret_image",
-                tabId: tab.id,
-                prompt: "请解读这张图片的内容",
-                attachments: [
-                  {
-                    type: "image",
-                    dataUrl,
-                    mimeType,
-                  },
-                ],
-              },
-            });
-          } catch (e) {
-            console.warn("Could not send side panel action message:", e);
-          }
-        }, 500);
+        await queueSidePanelAction({
+          action: "interpret_image",
+          tabId: tab.id,
+          prompt: "请解读这张图片的内容",
+          attachments: [
+            {
+              type: "image",
+              dataUrl,
+              mimeType,
+            },
+          ],
+        });
       }
     } catch (e) {
       // ignore

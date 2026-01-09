@@ -2,6 +2,9 @@ import { defineComponent } from "vue";
 import { storeToRefs } from "pinia";
 import { useUIStore } from "../stores/ui.js";
 
+/**
+ * SidePanel modal for previewing a selected image (keeps original aspect ratio).
+ */
 export default defineComponent({
   name: "ImagePreviewModal",
   setup() {
@@ -45,4 +48,3 @@ export default defineComponent({
       ) : null;
   },
 });
-

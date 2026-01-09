@@ -9,6 +9,7 @@ interface UserMessage {
   timestamp: string;
   metadata?: {
     attachments?: ImageAttachment[];
+    selectionContextText?: string;
   };
 }
 
@@ -60,6 +61,17 @@ export default defineComponent({
             {new Date(props.message?.timestamp || "").toLocaleString()}
           </span>
         </div>
+        {typeof props.message?.metadata?.selectionContextText === "string" &&
+          props.message.metadata.selectionContextText.trim() && (
+            <div class="mb-3 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/90">
+              <div class="mb-1 text-[11px] font-semibold text-white/80">
+                选中内容（上下文）
+              </div>
+              <div class="max-h-40 overflow-auto whitespace-pre-wrap">
+                {props.message.metadata.selectionContextText}
+              </div>
+            </div>
+          )}
         {props.message?.content && (
           <div
             class="prose prose-sm max-w-none text-white"

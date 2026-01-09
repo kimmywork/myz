@@ -34,6 +34,67 @@ import { McpCapability } from "../ai/capabilities/mcp.js";
 import { ConversationAgent } from "../ai/agents/conversationAgent.js";
 import { InsightsAgent } from "../ai/agents/insightsAgent.js";
 
+/**
+ * Stores a "draft action" so the SidePanel can pick it up even if the runtime
+ * message fires before the SidePanel page is ready.
+ */
+const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
+
+function generateDraftId(prefix = "draft") {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Prefer session storage to avoid persistence beyond the current browser session.
+ * Fall back to local storage if `chrome.storage.session` is unavailable.
+ */
+async function writePendingSidePanelAction(payload: any) {
+  try {
+    await chrome.storage.session.set({ [PENDING_SIDEPANEL_ACTION_KEY]: payload });
+  } catch {
+    await chrome.storage.local.set({ [PENDING_SIDEPANEL_ACTION_KEY]: payload });
+  }
+}
+
+/**
+ * Returns and clears the pending draft action.
+ */
+async function popPendingSidePanelAction() {
+  try {
+    const result = await chrome.storage.session.get(PENDING_SIDEPANEL_ACTION_KEY);
+    await chrome.storage.session.remove(PENDING_SIDEPANEL_ACTION_KEY);
+    return result?.[PENDING_SIDEPANEL_ACTION_KEY] || null;
+  } catch {
+    const result = await chrome.storage.local.get(PENDING_SIDEPANEL_ACTION_KEY);
+    await chrome.storage.local.remove(PENDING_SIDEPANEL_ACTION_KEY);
+    return result?.[PENDING_SIDEPANEL_ACTION_KEY] || null;
+  }
+}
+
+/**
+ * Clears the pending draft action only if the `draftId` matches (prevents
+ * wiping a newer action if the SidePanel is already open).
+ */
+async function clearPendingSidePanelActionIfMatch(draftId: string) {
+  if (!draftId) return;
+  const read = async (area: "session" | "local") => {
+    const store = area === "session" ? chrome.storage.session : chrome.storage.local;
+    const result = await store.get(PENDING_SIDEPANEL_ACTION_KEY);
+    const current = result?.[PENDING_SIDEPANEL_ACTION_KEY];
+    if (current?.draftId && current.draftId === draftId) {
+      await store.remove(PENDING_SIDEPANEL_ACTION_KEY);
+      return true;
+    }
+    return false;
+  };
+  try {
+    if (await read("session")) return;
+  } catch {}
+  try {
+    await read("local");
+  } catch {}
+}
+
 export function initializeAIMessageHandlers() {
   // AI Assistant handlers
   registerMessageHandler(
@@ -222,6 +283,7 @@ export function initializeAIMessageHandlers() {
         prompt?: string;
         selectionText?: string;
         selectionAttachment?: ImageAttachment | null;
+        draftId?: string;
       },
       sender: chrome.runtime.MessageSender,
     ) => {
@@ -243,7 +305,10 @@ export function initializeAIMessageHandlers() {
         selectionText: payload?.selectionText,
         selectionAttachment: payload?.selectionAttachment || null,
         tabId,
+        draftId: payload?.draftId || generateDraftId(),
       };
+
+      await writePendingSidePanelAction(draftPayload);
 
       try {
         await chrome.runtime.sendMessage({
@@ -254,6 +319,20 @@ export function initializeAIMessageHandlers() {
         console.warn("Forward sidepanel draft failed", error);
       }
 
+      return { ok: true };
+    },
+  );
+
+  registerMessageHandler("myz:popSidePanelAction", async () => {
+    return popPendingSidePanelAction();
+  });
+
+  registerMessageHandler(
+    "myz:ackSidePanelAction",
+    async (payload: { draftId?: string }) => {
+      const draftId =
+        typeof payload?.draftId === "string" ? payload.draftId.trim() : "";
+      await clearPendingSidePanelActionIfMatch(draftId);
       return { ok: true };
     },
   );

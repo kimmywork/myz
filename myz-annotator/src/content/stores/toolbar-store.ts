@@ -169,6 +169,7 @@ export const useToolbarStore = defineStore("toolbar", () => {
         prompt: "请解读选中内容",
         selectionText: selectedText,
         selectionAttachment,
+        draftId: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       });
     } catch (error) {
       notificationStore.notify({
