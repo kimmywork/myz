@@ -1,1 +1,1 @@
-../../website/tos-en.md
+../../website/en/tos.md

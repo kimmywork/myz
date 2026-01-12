@@ -1,14 +1,18 @@
-# MyZ Annotator
+# MyZ AI Annotator
+
+中文名：MyZ 高亮智能助理
 
 [Chrome 安装](https://chromewebstore.google.com/detail/myz-annotator/mhakfcbobhdemicjelhjjpmgibhnnplg)
 [Edge 安装](https://microsoftedge.microsoft.com/addons/detail/myz-annotator/fepakkoggnancnpcclldodfbpgobkabj)
 
-MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、撰写批注、截图收集，并在本地管理这些资料。它支持导出 JSON / Markdown，以及与本地 LogSeq graph 进行安全的增量同步。
+**MyZ 高亮智能助理** 是一款 Chrome 扩展，帮助你在任意网页高亮文本、撰写批注、截图收集，并在本地管理这些资料。它支持导出 JSON / Markdown，并提供可选的 AI 智能助理（SidePanel）用于基于网页上下文进行对话探索。
+
+> 说明：AI 能力通过你自行配置的 OpenAI 兼容 Provider / MCP Server 实现。扩展不提供任何远程服务；请注意隐私数据保护与费用风险（自定义 Provider 可能消耗大量 token 并产生高额收费）。
 
 ## 主要特性
 
 - ✍️ **即时高亮**：选中文本自动出现浮动工具条，可一键添加批注或使用 📸 按钮截取选区图片。
-- 🖊️ **多样标注样式**：支持高亮、下划线、波浪线三种样式，切换器使用全新 SVG 图标（马克笔、带下划线的字母 U、波浪线）清晰区分，并记忆最近使用的颜色与样式，在 LogSeq / Markdown 导出时带出描述。
+- 🖊️ **多样标注样式**：支持高亮、下划线、波浪线三种样式，切换器使用全新 SVG 图标（马克笔、带下划线的字母 U、波浪线）清晰区分，并记忆最近使用的颜色与样式，在 Markdown 导出时带出描述。
 - 🌙 **暗色友好调色板**：重制 5 色调色板，确保在暗色模式下仍保持足够的对比度，同时保留自定义与最近使用记忆。
 - 📝 **快速保存文本**：浮动工具条新增 📝 按钮可将选中文字存入收集箱而不在页面上呈现标注，Popup 与 Dashboard 会使用独立的样式区分保存项并提供一键降级 / 升级。
 - 🎨 **可定制调色板**：提供 5 色调色板并记忆最近使用的颜色，支持快速编辑颜色值。
@@ -19,7 +23,8 @@ MyZ Annotator 是一款 Chrome 扩展，帮助你在任意网页高亮文本、�
 - 📑 **富文本保真**：采集时保留链接、列表、引用、代码块等基础结构，展示与导出时按需转换为 Markdown。
 - 🧰 **管理中心**：Dashboard 支持卡片 / 列表视图（记忆上次选择）、标签多选、全文搜索、日期范围与网站筛选，并采用懒加载保障性能；同时提供 JSON 导入，支持「跳过 / 覆盖 / 保留最新」三种冲突策略并显示导入摘要，设置页齿轮按钮增大字号并加上外轮廓更醒目。
 - 🗂️ **侧边详情面板**：点击任意高亮即可在页面右侧打开固定位置的详情面板，支持复制 Markdown、编辑、删除。
-- 🔄 **LogSeq 增量同步**：通过官方 HTTP API 在目标页面插入或恢复缺失块，自动追踪 `logseqBlockUuid`，仅同步新增或丢失的标注，并在写入前将 HTML 转换为 Markdown（含 `<pre>` 代码块）。
+- 🤖 **AI 智能助理（SidePanel）**：支持发送网页上下文、选中内容、图片/截图与模型对话；支持 Vision 模型与发送前压缩图片（最长边 ≤ 640px）；支持 Tool Calling（MCP Server + 本地 tools）与向量检索（Vectoria）。
+- 🌐 **社区导入（X/Mastodon）**：通过打开网页并抓取内容的方式导入数据（无需官方 API）。
 - ℤ **统一图标集**：扩展图标与操作栏图标统一为带有「ℤ」符号的视觉语言，浮动工具条、Popup、Dashboard 按钮全面改用自研 SVG 图标，跨浏览器保持一致并提供亮/暗色双版本资源。
 - 🧘 **禅定模式（Zen Mode）**：在包含文章主体的页面一键进入沉浸式阅读，仅保留文章区域并优化打印样式；不改变 DOM 结构，确保高亮路径与恢复不受影响。支持右键菜单一键切换，并在启用后显示「保存文章为图片」的上下文菜单以便导出。
 
@@ -97,22 +102,8 @@ npx playwright test tests --config=tests/playwright.config.ts
 - **保存文本**：选中文本 → 点击 📝 → 直接保存为纯文本记录，可在 Popup / Dashboard 中继续编辑或转换为标注。
 - **截图选区**：选中文本 → 点击 📸 → 自动去除系统选区高亮后保存 PNG。
 - **查看 / 编辑**：点击高亮或在 Popup、Dashboard 中查看详情，支持 Markdown 复制与快速定位。
-- **导出 / 导入**：Dashboard 左侧导出面板可生成 JSON 与 Markdown；开启 LogSeq 同步后出现同步按钮。设置页新增 JSON 导入入口，可选择冲突策略并查看导入统计。
-
-## LogSeq 同步配置
-
-1. 在 LogSeq 桌面端开启 Developer Mode 与 HTTP API（默认端口 `http://127.0.0.1:12315/api`）。
-2. 打开 Dashboard → ⚙️ 设置页，启用同步开关并填写：
-   - **Endpoint**：LogSeq API 地址（自动记忆最近成功的端点）。
-   - **Token**：如启用鉴权，请使用 `Bearer <token>` 或直接填入 token。
-   - **Page**：目标页面名称（默认 `MyZ Inbox`）。
-3. 点击「同步 LogSeq」按钮后，后台会：
-   - 确认页面存在或自动创建根块；
-   - 仅为缺失的高亮调用 `logseq.Editor.insertBatchBlock`；
-   - 将 HTML 转成 Markdown，代码块保持为三反引号围栏；
-   - 写回返回的 `uuid` 与 `logseqSyncedAt`，确保后续增量。
-
-> 若目标块在 LogSeq 端被删除，下一次同步会重新写入并更新本地 UUID。
+- **导出 / 导入**：Dashboard 可生成 JSON 与 Markdown；设置页提供 JSON 导入入口，可选择冲突策略并查看导入统计。
+- **AI 对话**：在 Dashboard → 设置中配置 AI Provider、Agent 模型与工具（MCP / 本地 tools）后，通过 SidePanel 与模型对话；向量检索可用于发现与你历史标注相似的内容。
 
 ## 数据结构（节选）
 
@@ -137,9 +128,7 @@ npx playwright test tests --config=tests/playwright.config.ts
             "end": { ... }
          },
       "createdAt": "2025-10-24T08:00:00.000Z",
-      "updatedAt": "2025-10-24T08:05:00.000Z",
-      "logseqBlockUuid": "5fb4...",
-      "logseqSyncedAt": "2025-10-24T09:00:00.000Z"
+      "updatedAt": "2025-10-24T08:05:00.000Z"
     }
   },
    "order": ["myz_123", "myz_456"]
@@ -160,16 +149,16 @@ npx playwright test tests --config=tests/playwright.config.ts
    - 产品截图（最少 1 张，建议多尺寸）与 1024×500 宣传横幅。
 2. **隐私与政策**：
    - 起草隐私政策说明数据仅存储于本地，不与远端共享；在 CWS 提交时提供可访问的链接。
-   - 检查扩展是否涉及受限权限（当前仅 `storage`、`tabs`、`activeTab`）。
+   - 检查扩展权限与 `host_permissions` 是否符合政策（例如 `storage`、`tabs`、`activeTab`、`sidePanel`、`scripting`、`<all_urls>` 等），并在隐私政策中说明可选网络能力会连接用户自行配置的第三方服务器（AI Provider / MCP / 社区站点）。
 3. **打包上传**：
-   - 在仓库根目录运行 `zip -r myz-extension.zip myz-annotator/*`（不可包含 `.git` 等多余文件）。
-   - 登录 CWS Dashboard，创建条目并上传压缩包。
+   - 在 `myz-annotator/` 内运行 `npm run build`，产物位于 `myz-annotator/dist/`，并会生成打包文件 `myz-annotator/release/crx-myz-annotator-<version>.zip`。
+   - 登录 CWS Dashboard，创建条目并上传 `crx-myz-annotator-<version>.zip`。
 4. **填写商店信息**：
    - 产品名称、简介、详细介绍（可参考本 README）。
-   - 声明该扩展在本地存储数据，并说明可选的 LogSeq 连接需要用户自有服务器。
+   - 声明该扩展在本地存储数据；可选 AI 功能会请求用户自行配置的第三方服务器（Provider/MCP），并提示用户注意隐私与费用风险。
 5. **发布前检查**：
    - 通过 Chrome Beta / Stable 实机 smoke test。
-   - 确认 Popup、Dashboard、LogSeq 同步在无 Token / 有 Token 场景下均可使用。
+   - 确认 Popup、Dashboard、SidePanel 与可选 AI 功能在常用场景下均可使用。
    - 检查 `manifest_version`, `service_worker` 中未使用 DOM API（已全部替换）。
 
 ## 架构与本地开发提示
@@ -180,7 +169,7 @@ npx playwright test tests --config=tests/playwright.config.ts
 - 背景脚本运行在 MV3 Service Worker 环境：避免使用 DOM API（例如 `document`、`window` 的 DOM 操作），并确保异步 API 的错误被妥善捕获与记录。
 - 当修改背景脚本或 content script 时，手动在 `chrome://extensions/` 中重新加载扩展或点击 Service Worker 的 "更新"。UI 更改（Popup/Dashboard）在开发模式下可通过 Vite 的 HMR 快速查看。
 
-更多实现细节请参考仓库内的 `docs/knowledges/` 文档（例如 `docs/knowledges/logseq-http-api.md`）。
+更多实现细节请参考仓库内的 `docs/` 与 `website/annotator/` 文档。
 
 ## 支持
 
