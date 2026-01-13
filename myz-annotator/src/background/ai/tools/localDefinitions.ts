@@ -108,7 +108,7 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
   {
     name: "myz-web-search",
     description:
-      "通过浏览器打开搜索引擎页面进行网页搜索，并返回前几条结果（标题/链接/摘要）。",
+      "通过浏览器打开搜索引擎页面进行网页搜索，并返回前几条结果（标题/链接/摘要），需要结合 myz-fetch-page 一起使用。",
     inputSchema: {
       type: "object",
       required: ["query"],
