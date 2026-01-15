@@ -128,6 +128,7 @@ export class ConversationAgent {
       content: [
         "你是一个 AI 智能助理，辅助用户完成网页浏览时的各种任务。",
         "你正在浏览器扩展（Chrome Extension / MV3 Service Worker）环境中运行。",
+        "你可以充分利用浏览器的能力（比如搜索）等来获取最新的信息。如果用户咨询近况，你可以尝试使用搜索工具来检索相关内容。",
         `当前时间: ${injectedAtLocal} (${timeZone}, ${utcOffset})`,
         `本次对话创建时是否启用网页上下文: ${includePageContext ? "是" : "否"}`,
         `当前线程是否已保存网页上下文: ${hasSavedPageContext ? "是" : "否"}`,
@@ -336,17 +337,33 @@ export class ConversationAgent {
       includePageContext,
     )
 
+    let dynamicToolSelection: any = null
     if (deps.toolControl) {
       deps.toolControl.setActiveToolFilter(null)
       if (deps.toolSelector?.enabled) {
         try {
-          const tools = (deps.toolControl.listTools() || []).map((tool) => ({
+          const allTools = deps.toolControl.listTools() || []
+          const toolCandidates = allTools
+            .filter((tool) => tool?.name && tool.name !== "myz-select-tools")
+            .map((tool) => ({
             name: tool?.name || "",
             description: tool?.description || "",
             server: tool?.server || "",
           }))
-          const selected = await deps.toolSelector.selectToolNames(content, tools)
-          deps.toolControl.setActiveToolFilter(selected)
+
+          const selected = await deps.toolSelector.selectToolNames(content, toolCandidates)
+          const activeToolNames =
+            selected.length > 0
+              ? Array.from(new Set(["myz-select-tools", ...selected]))
+              : ["myz-select-tools"]
+          deps.toolControl.setActiveToolFilter(activeToolNames)
+
+          dynamicToolSelection = {
+            enabled: true,
+            candidates: toolCandidates,
+            selectToolNames: deps.toolSelector.selectToolNames,
+            setActiveToolFilter: deps.toolControl.setActiveToolFilter,
+          }
         } catch (error) {
           console.warn("Tool selection failed, disabling tools for this request", error)
           deps.toolControl.setActiveToolFilter([])
@@ -431,6 +448,7 @@ export class ConversationAgent {
         request,
         {
           enableGeminiThinking: Boolean(deps.callConfig.model.capabilities.reasoning),
+          dynamicToolSelection,
           onStreamDelta: stream
             ? (delta: any) => {
                 if (!delta) return

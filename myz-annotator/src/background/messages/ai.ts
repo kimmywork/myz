@@ -235,13 +235,23 @@ export function initializeAIMessageHandlers() {
           await runtime.connectMcp();
         }
 
+        const aiLocalTools = (settings as any)?.aiLocalTools
         if (enableTools) {
           const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
             ? ((settings as any).aiLocalTools.enabledToolNames as any[])
                 .filter((name: any) => typeof name === "string" && name.trim())
                 .map((name: string) => name.trim())
             : LOCAL_TOOL_NAMES.slice()
-          runtime.session.mcp.setLocalToolAllowlist(enabledToolNames)
+          const normalizedToolNames =
+            aiLocalTools?.mode === "auto"
+              ? (() => {
+                  if (!enabledToolNames.includes("myz-select-tools")) {
+                    enabledToolNames.push("myz-select-tools")
+                  }
+                  return enabledToolNames
+                })()
+              : enabledToolNames.filter((name: string) => name !== "myz-select-tools")
+          runtime.session.mcp.setLocalToolAllowlist(normalizedToolNames)
         }
 
         const includePageContext =
@@ -254,7 +264,6 @@ export function initializeAIMessageHandlers() {
           ? runtime.session.clientWithTools
           : runtime.session.client;
 
-        const aiLocalTools = (settings as any)?.aiLocalTools
         const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
         const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
 
@@ -462,20 +471,29 @@ export function initializeAIMessageHandlers() {
         }
         const { conversationId, action, content, options = {} } = payload || {};
 
+        const aiLocalTools = (settings as any)?.aiLocalTools
         if (enableTools) {
           const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
             ? ((settings as any).aiLocalTools.enabledToolNames as any[])
                 .filter((name: any) => typeof name === "string" && name.trim())
                 .map((name: string) => name.trim())
             : LOCAL_TOOL_NAMES.slice()
-          runtime.session.mcp.setLocalToolAllowlist(enabledToolNames)
+          const normalizedToolNames =
+            aiLocalTools?.mode === "auto"
+              ? (() => {
+                  if (!enabledToolNames.includes("myz-select-tools")) {
+                    enabledToolNames.push("myz-select-tools")
+                  }
+                  return enabledToolNames
+                })()
+              : enabledToolNames.filter((name: string) => name !== "myz-select-tools")
+          runtime.session.mcp.setLocalToolAllowlist(normalizedToolNames)
         }
 
         const agent = new ConversationAgent();
         const client = enableTools
           ? runtime.session.clientWithTools
           : runtime.session.client;
-        const aiLocalTools = (settings as any)?.aiLocalTools
         const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
         const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
         const result = await agent.processConversation(

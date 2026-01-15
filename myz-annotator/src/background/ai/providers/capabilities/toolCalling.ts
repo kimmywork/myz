@@ -7,6 +7,19 @@ export interface ToolCallingCapabilityOptions {
   executeToolCall: (toolCall: any) => Promise<any>
 }
 
+const TOOL_SELECT_NAME = "myz-select-tools"
+const TOOL_SELECT_CANDIDATES = new Set([TOOL_SELECT_NAME, `myz-local:${TOOL_SELECT_NAME}`])
+
+function isToolSelectName(rawName: unknown) {
+  const name = typeof rawName === "string" ? rawName : ""
+  if (!name) return false
+  if (TOOL_SELECT_CANDIDATES.has(name)) return true
+  if (name.includes(":") && name.split(":").pop() === TOOL_SELECT_NAME) {
+    return true
+  }
+  return false
+}
+
 function sanitizeAssistantContent(message: any) {
   const rawContent = message?.content
   const rawThoughtFlag = Boolean(message?.extra_content?.google?.thought)
@@ -20,6 +33,17 @@ function sanitizeAssistantContent(message: any) {
   }
 
   return splitGeminiThoughtTaggedContent(rawContent).text || ""
+}
+
+function parseToolArgs(raw: any) {
+  if (raw == null) return {}
+  if (typeof raw === "object") return raw
+  if (typeof raw !== "string") return {}
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return {}
+  }
 }
 
 function serializeToolResult(result: any) {
@@ -46,13 +70,17 @@ export function createToolCallingCapability(
 ): Capability {
   return (client) => ({
     async createCompletion(request, completionOptions: any = {}) {
-      const tools = await options.getTools()
       let currentRequest: ProviderChatCompletionRequest = {
         ...request,
-        tools: tools?.length ? tools : request.tools,
       }
 
       while (true) {
+        const tools = await options.getTools()
+        currentRequest = {
+          ...currentRequest,
+          tools: tools?.length ? tools : currentRequest.tools,
+        }
+
         const response = await client.createCompletion(
           currentRequest,
           completionOptions,
@@ -80,6 +108,62 @@ export function createToolCallingCapability(
         ]
 
         for (const toolCall of toolCalls) {
+          const toolName = String(toolCall?.function?.name || "")
+          if (isToolSelectName(toolName)) {
+            const dynamic = completionOptions?.dynamicToolSelection
+            if (!dynamic?.enabled) {
+              const toolMessage: ProviderMessage = {
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: "Error: dynamic tool selection is not available",
+                metadata: { toolName },
+              }
+              completionOptions.onToolResultMessage?.(toolMessage)
+              followUpMessages.push(toolMessage)
+              continue
+            }
+
+            const args = parseToolArgs(toolCall?.function?.arguments)
+            const need = typeof args?.need === "string" ? args.need.trim() : ""
+            const candidates = Array.isArray(dynamic?.candidates)
+              ? dynamic.candidates
+              : []
+
+            let selected: string[] = []
+            try {
+              selected = await dynamic.selectToolNames(need, candidates)
+            } catch (error) {
+              const toolMessage: ProviderMessage = {
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: `Error: ${(error as Error).message}`,
+                metadata: { toolName, need },
+              }
+              completionOptions.onToolResultMessage?.(toolMessage)
+              followUpMessages.push(toolMessage)
+              continue
+            }
+
+            const nextToolNames = Array.from(
+              new Set([TOOL_SELECT_NAME, ...selected].filter(Boolean)),
+            )
+            try {
+              dynamic.setActiveToolFilter(nextToolNames)
+            } catch {
+              // ignore filter failures; tool execution will validate allowlist later.
+            }
+
+            const toolMessage: ProviderMessage = {
+              role: "tool",
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({ tool_names: selected }, null, 2),
+              metadata: { toolName, selectedToolNames: selected, need },
+            }
+            completionOptions.onToolResultMessage?.(toolMessage)
+            followUpMessages.push(toolMessage)
+            continue
+          }
+
           try {
             const result = await options.executeToolCall(toolCall)
             const contentText = serializeToolResult(result)

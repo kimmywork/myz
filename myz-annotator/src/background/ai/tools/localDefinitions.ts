@@ -9,6 +9,21 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js"
  */
 export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
   {
+    name: "myz-select-tools",
+    description:
+      "当你需要调用工具但不确定该用哪些工具时，先调用这个工具：用中文描述你的信息需求，系统会选择并启用最相关的工具（在后续 tool call 中可用），以减少工具定义占用的 token。",
+    inputSchema: {
+      type: "object",
+      required: ["need"],
+      properties: {
+        need: {
+          type: "string",
+          description: "用中文描述你需要通过工具完成的具体需求/目标。",
+        },
+      },
+    },
+  },
+  {
     name: "myz-list-hosts",
     description:
       "列出所有保存过的站点 host 以及对应的标注数量，按数量降序排序。",
