@@ -48,6 +48,108 @@ export interface ConversationToolSelector {
 }
 
 export class ConversationAgent {
+  /**
+   * Ensure each conversation starts with a stable environment/system prompt so
+   * the model understands it is running inside a browser extension.
+   *
+   * Notes:
+   * - Stored once per conversation (idempotent).
+   * - Timestamp is forced to be earlier than any existing message so it stays
+   *   at the top of the chronological history (important when page_context is
+   *   inserted during conversation creation).
+   */
+  private async ensureSystemPrompt(
+    conversationId: string,
+    includePageContext: boolean,
+  ): Promise<Message | null> {
+    const existing = await getMessagesForConversation(conversationId, 1000)
+    const alreadyExists = existing.some(
+      (msg) => msg.role === "system" && msg.metadata?.type === "system_prompt",
+    )
+    if (alreadyExists) return null
+
+    const nowDate = new Date()
+    let timeZone = "UTC"
+    try {
+      timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+    } catch {
+      timeZone = "UTC"
+    }
+    const offsetMinutes = -nowDate.getTimezoneOffset()
+    const absOffsetMinutes = Math.abs(offsetMinutes)
+    const offsetSign = offsetMinutes >= 0 ? "+" : "-"
+    const offsetHours = String(Math.floor(absOffsetMinutes / 60)).padStart(2, "0")
+    const offsetMins = String(absOffsetMinutes % 60).padStart(2, "0")
+    const utcOffset = `UTC${offsetSign}${offsetHours}:${offsetMins}`
+    const injectedAtLocal = (() => {
+      try {
+        const parts = new Intl.DateTimeFormat("zh-CN", {
+          timeZone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        }).formatToParts(nowDate)
+        const map: Record<string, string> = {}
+        for (const part of parts) {
+          if (part.type !== "literal") {
+            map[part.type] = part.value
+          }
+        }
+        const datePart = `${map.year || "0000"}-${map.month || "00"}-${map.day || "00"}`
+        const timePart = `${map.hour || "00"}:${map.minute || "00"}:${map.second || "00"}`
+        return `${datePart} ${timePart}`
+      } catch {
+        return nowDate.toLocaleString("zh-CN", { hour12: false })
+      }
+    })()
+
+    const hasSavedPageContext = existing.some(
+      (msg) =>
+        msg.metadata?.type === "page_context" ||
+        (msg.role === "system" && typeof msg.content === "string" && msg.content.startsWith("页面上下文:")),
+    )
+
+    const injectedAt = nowDate.toISOString()
+    const now = Date.now()
+    const earliestTsMs = existing.reduce((min, msg) => {
+      const value = Date.parse(msg.timestamp)
+      return Number.isFinite(value) ? Math.min(min, value) : min
+    }, now)
+    const timestamp = new Date(Math.max(0, earliestTsMs - 1)).toISOString()
+
+    const systemPrompt: Message = {
+      id: generateId("sys"),
+      conversationId,
+      role: "system",
+      content: [
+        "你是一个 AI 智能助理，辅助用户完成网页浏览时的各种任务。",
+        "你正在浏览器扩展（Chrome Extension / MV3 Service Worker）环境中运行。",
+        `当前时间: ${injectedAtLocal} (${timeZone}, ${utcOffset})`,
+        `本次对话创建时是否启用网页上下文: ${includePageContext ? "是" : "否"}`,
+        `当前线程是否已保存网页上下文: ${hasSavedPageContext ? "是" : "否"}`,
+      ].join("\n"),
+      timestamp,
+      metadata: {
+        type: "system_prompt",
+        injectedAt,
+        injectedAtLocal,
+        timeZone,
+        utcOffset,
+        utcOffsetMinutes: offsetMinutes,
+        includePageContextAtCreation: includePageContext,
+        hasSavedPageContext,
+      },
+    }
+
+    await saveMessage(systemPrompt)
+    this.notifyNewMessage(conversationId, systemPrompt)
+    return systemPrompt
+  }
+
   private notifyNewMessage(conversationId: string | null, message: Message) {
     notifyRuntime("myz:newMessage", {
       data: {
@@ -101,7 +203,9 @@ export class ConversationAgent {
 
     if (!includePageContext) {
       messages = messages.filter(
-        (msg) => msg.metadata?.type !== "page_context" && msg.role !== "system",
+        (msg) =>
+          msg.metadata?.type !== "page_context" &&
+          (msg.role !== "system" || msg.metadata?.type === "system_prompt"),
       )
     }
 
@@ -111,7 +215,10 @@ export class ConversationAgent {
       if (conv?.messages?.length) {
         const legacyMessages = includePageContext
           ? conv.messages
-          : conv.messages.filter((msg: Message) => msg.role !== "system")
+          : conv.messages.filter(
+              (msg: Message) =>
+                msg.role !== "system" || msg.metadata?.type === "system_prompt",
+            )
         return legacyMessages
       }
     }
@@ -224,6 +331,11 @@ export class ConversationAgent {
       throw new Error("当前模型不支持 Vision，无法发送图片")
     }
 
+    const injectedSystemPrompt = await this.ensureSystemPrompt(
+      conversationId,
+      includePageContext,
+    )
+
     if (deps.toolControl) {
       deps.toolControl.setActiveToolFilter(null)
       if (deps.toolSelector?.enabled) {
@@ -242,6 +354,16 @@ export class ConversationAgent {
       }
     }
 
+    // Build the payload history before persisting the new user message so we
+    // don't depend on IndexedDB write visibility timing.
+    const historyMessages = await this.getConversationMessages(
+      conversationId,
+      includePageContext,
+    )
+    const historyHasSystemPrompt = historyMessages.some(
+      (msg) => msg.role === "system" && msg.metadata?.type === "system_prompt",
+    )
+
     const userMessage: Message = {
       id: generateId(),
       conversationId,
@@ -256,12 +378,13 @@ export class ConversationAgent {
     }
     await saveMessage(userMessage)
 
-    const historyMessages = await this.getConversationMessages(
-      conversationId,
-      includePageContext,
-    )
+    const payloadMessages: Message[] = []
+    if (!historyHasSystemPrompt && injectedSystemPrompt) {
+      payloadMessages.push(injectedSystemPrompt)
+    }
+    payloadMessages.push(...historyMessages, userMessage)
     const historyPayload: MessageInPayload[] =
-      buildConversationPromptMessages(historyMessages, {
+      buildConversationPromptMessages(payloadMessages, {
         includeVision: deps.callConfig.model.capabilities.vision,
       })
 
