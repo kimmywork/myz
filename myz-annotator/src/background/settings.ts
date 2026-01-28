@@ -83,6 +83,10 @@ export interface AIAgentConfig {
   target: AIAgentModelRef | null;
   temperature: number;
   compressImages?: boolean;
+  /**
+   * Optional fallback model for Vision when the primary model lacks it.
+   */
+  multimodalTarget?: AIAgentModelRef | null;
 }
 
 export interface AIAgentsSettings {

@@ -41,6 +41,31 @@ export default defineComponent({
       return items
     })
 
+    const visionOptions = computed(() => {
+      const items: Array<{ label: string; providerId: string; modelId: string }> = []
+      props.providers
+        .filter((p) => p.enabled && p.lastTest?.ok)
+        .forEach((provider) => {
+          provider.models
+            .filter((m) => m.enabled && m.model && m.capabilities?.vision)
+            .forEach((model) => {
+              items.push({
+                label: `${provider.name} (${model.model})`,
+                providerId: provider.id,
+                modelId: model.id,
+              })
+            })
+        })
+      return items
+    })
+
+    const resolveTargetModel = (target?: { providerId?: string; modelId?: string } | null) => {
+      if (!target?.providerId || !target?.modelId) return null
+      const provider = props.providers.find((p) => p.id === target.providerId)
+      if (!provider) return null
+      return (provider.models || []).find((model) => model.id === target.modelId) || null
+    }
+
     const updateAgent = (
       key: "conversation" | "insights",
       patch: Partial<AIAgentConfig>,
@@ -57,6 +82,14 @@ export default defineComponent({
     const renderAgentRow = (key: "conversation" | "insights", label: string) => {
       const agent = props.agents[key]
       const currentKey = agent.target ? `${agent.target.providerId}:${agent.target.modelId}` : ""
+      const supportsVision =
+        key === "conversation"
+          ? Boolean(resolveTargetModel(agent.target)?.capabilities?.vision)
+          : false
+      const multimodalKey =
+        key === "conversation" && agent.multimodalTarget
+          ? `${agent.multimodalTarget.providerId}:${agent.multimodalTarget.modelId}`
+          : ""
       return (
         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
           <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -111,6 +144,35 @@ export default defineComponent({
               />
             </label>
           </div>
+          {key === "conversation" && agent.target && !supportsVision && (
+            <div class="mt-3">
+              <label class="field">
+                <span>多模态模型（支持 Vision）</span>
+                <select
+                  value={multimodalKey}
+                  onChange={(e) => {
+                    const value = (e.target as HTMLSelectElement).value
+                    const [providerId, modelId] = value.split(":")
+                    if (!providerId || !modelId) {
+                      updateAgent("conversation", { multimodalTarget: null })
+                      return
+                    }
+                    updateAgent("conversation", {
+                      multimodalTarget: { providerId, modelId },
+                    })
+                  }}
+                >
+                  <option value="">未选择</option>
+                  {visionOptions.value.map((opt) => (
+                    <option value={`${opt.providerId}:${opt.modelId}`}>{opt.label}</option>
+                  ))}
+                </select>
+              </label>
+              <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                当主模型不支持 Vision 且输入包含图片时，将自动切换到该模型。
+              </div>
+            </div>
+          )}
           {key === "conversation" && (
             <div class="mt-3">
               <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">

@@ -23,7 +23,11 @@ import { generateId, readSettings, saveHighlight } from "../storage";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import { deleteConversation } from "@/sidepanel/aiStorage";
-import { resolveAgentTarget, resolveModelRef } from "../ai/runtime/agentSelection.js";
+import {
+  resolveAgentTarget,
+  resolveConversationMultimodalTarget,
+  resolveModelRef,
+} from "../ai/runtime/agentSelection.js";
 import { acquireProviderRuntime } from "../ai/runtime/providerRuntime.js";
 import {
   buildModelsUrl,
@@ -310,7 +314,15 @@ export function initializeAIMessageHandlers() {
         throw new Error("message is required");
       }
 
-      const target = resolveAgentTarget(settings as any, "conversation");
+      const baseTarget = resolveAgentTarget(settings as any, "conversation");
+      let target = baseTarget;
+      if (normalizedAttachments.length > 0 && !baseTarget.model.capabilities?.vision) {
+        const multimodalTarget = resolveConversationMultimodalTarget(settings as any);
+        if (!multimodalTarget) {
+          throw new Error("当前模型不支持 Vision，且未配置多模态模型");
+        }
+        target = multimodalTarget;
+      }
       const runtime = await acquireProviderRuntime(
         target.provider as any,
         (settings.aiMcpServers || []) as any,

@@ -35,7 +35,9 @@ function clearMissingTargets(
 
   const normalize = (key: "conversation" | "insights") => {
     const agent = agents[key]
-    if (!agent?.target) return agent
+    if (!agent?.target) {
+      return key === "conversation" ? { ...agent, multimodalTarget: null } : agent
+    }
     const provider = providerById.get(agent.target.providerId)
     if (!provider?.enabled || !provider.lastTest?.ok) {
       return { ...agent, target: null }
@@ -43,6 +45,26 @@ function clearMissingTargets(
     const model = (provider.models || []).find((m) => m.id === agent.target?.modelId)
     if (!model?.enabled) {
       return { ...agent, target: null }
+    }
+    if (key !== "conversation") {
+      return agent
+    }
+    if (model.capabilities?.vision) {
+      return { ...agent, multimodalTarget: null }
+    }
+    const multimodalTarget = agent.multimodalTarget
+    if (!multimodalTarget?.providerId || !multimodalTarget?.modelId) {
+      return { ...agent, multimodalTarget: null }
+    }
+    const multimodalProvider = providerById.get(multimodalTarget.providerId)
+    if (!multimodalProvider?.enabled || !multimodalProvider.lastTest?.ok) {
+      return { ...agent, multimodalTarget: null }
+    }
+    const multimodalModel = (multimodalProvider.models || []).find(
+      (item) => item.id === multimodalTarget.modelId,
+    )
+    if (!multimodalModel?.enabled || !multimodalModel.capabilities?.vision) {
+      return { ...agent, multimodalTarget: null }
     }
     return agent
   }
@@ -60,7 +82,12 @@ export default defineComponent({
     const aiAssistantEnabled = ref(false)
     const providers = ref<AIProviderSetting[]>([])
     const agents = ref<AIAgentsSettings>({
-      conversation: { target: null, temperature: 0.7, compressImages: false },
+      conversation: {
+        target: null,
+        temperature: 0.7,
+        compressImages: false,
+        multimodalTarget: null,
+      },
       insights: { target: null, temperature: 0.7 },
     })
     const mcpServers = ref<McpServerSetting[]>([])

@@ -13,7 +13,10 @@ import {
   applyVectorSearchSettings,
   getVectoria,
 } from "./background/vectoria-index.js";
-import { resolveAgentTarget } from "./background/ai/runtime/agentSelection.js";
+import {
+  resolveAgentTarget,
+  resolveConversationMultimodalTarget,
+} from "./background/ai/runtime/agentSelection.js";
 
 const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
 
@@ -171,7 +174,15 @@ async function refreshAiImageMenuVisibility() {
       return;
     }
     const target = resolveAgentTarget(settings as any, "conversation");
-    const enabled = Boolean(target?.model?.capabilities?.vision);
+    let enabled = Boolean(target?.model?.capabilities?.vision);
+    if (!enabled) {
+      try {
+        const multimodal = resolveConversationMultimodalTarget(settings as any);
+        enabled = Boolean(multimodal?.model?.capabilities?.vision);
+      } catch {
+        enabled = false;
+      }
+    }
     try {
       await chrome.contextMenus.update("myz-ai-interpret-image", {
         enabled,

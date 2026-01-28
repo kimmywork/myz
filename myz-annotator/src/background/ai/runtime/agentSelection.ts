@@ -86,3 +86,21 @@ export function resolveAgentTarget(
 
   return { provider, model, temperature, compressImages }
 }
+
+export function resolveConversationMultimodalTarget(
+  settings: AIAssistantSettings,
+): ResolvedAgentTarget | null {
+  const agentConfig: AIAgentConfig | undefined = (settings.aiAgents as any)?.conversation
+  const target: AIAgentModelRef | null | undefined = (agentConfig as any)?.multimodalTarget
+  if (!target?.providerId || !target.modelId) {
+    return null
+  }
+  const { provider, model } = resolveModelRef(settings, target)
+  if (!model.capabilities?.vision) {
+    throw new Error(`Multimodal model does not support Vision: ${provider.name} (${model.model})`)
+  }
+  const temperature =
+    typeof agentConfig?.temperature === "number" ? agentConfig.temperature : 0.7
+  const compressImages = Boolean(agentConfig?.compressImages)
+  return { provider, model, temperature, compressImages }
+}

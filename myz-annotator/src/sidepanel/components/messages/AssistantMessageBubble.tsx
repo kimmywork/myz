@@ -11,6 +11,7 @@ export interface AssistantMessageMetadata {
   streaming?: boolean;
   toolNames?: string[] | string;
   toolCallCount?: number;
+  model?: string;
 }
 
 export interface AssistantMessage {
@@ -53,6 +54,7 @@ export default defineComponent({
     const hasToolCalls = (message?: AssistantMessage) =>
       Boolean(message?.metadata?.hasToolCalls);
     const showReasoning = ref(false);
+    const modelName = computed(() => String(props.message?.metadata?.model || "").trim());
     const reasoningText = computed(() =>
       (props.message?.metadata?.reasoning || "").trim(),
     );
@@ -61,7 +63,9 @@ export default defineComponent({
     return () => (
       <div class="w-full max-w-[85%] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
         <div class="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-          <span>AI助理</span>
+          <span>
+            AI助理{modelName.value ? ` · ${modelName.value}` : ""}
+          </span>
           <span>
             {new Date(props.message?.timestamp || "").toLocaleString()}
           </span>

@@ -91,7 +91,52 @@ function normalizeSettings<T extends Settings>(settings: T): T {
   settings.aiAgents =
     settings.aiAgents && typeof settings.aiAgents === "object"
       ? settings.aiAgents
-      : ({ conversation: { target: null, temperature: 0.7 }, insights: { target: null, temperature: 0.7 } } as any);
+      : ({
+          conversation: {
+            target: null,
+            temperature: 0.7,
+            compressImages: false,
+            multimodalTarget: null,
+          },
+          insights: { target: null, temperature: 0.7 },
+        } as any);
+  const aiAgents = settings.aiAgents as any
+  const normalizeAgentTarget = (target: any) => {
+    if (
+      target &&
+      typeof target === "object" &&
+      typeof target.providerId === "string" &&
+      typeof target.modelId === "string"
+    ) {
+      return { providerId: target.providerId, modelId: target.modelId }
+    }
+    return null
+  }
+  if (!aiAgents.conversation || typeof aiAgents.conversation !== "object") {
+    aiAgents.conversation = {
+      target: null,
+      temperature: 0.7,
+      compressImages: false,
+      multimodalTarget: null,
+    }
+  } else {
+    aiAgents.conversation.target = normalizeAgentTarget(aiAgents.conversation.target)
+    aiAgents.conversation.temperature =
+      typeof aiAgents.conversation.temperature === "number"
+        ? aiAgents.conversation.temperature
+        : 0.7
+    aiAgents.conversation.compressImages = Boolean(aiAgents.conversation.compressImages)
+    aiAgents.conversation.multimodalTarget = normalizeAgentTarget(
+      aiAgents.conversation.multimodalTarget,
+    )
+  }
+  if (!aiAgents.insights || typeof aiAgents.insights !== "object") {
+    aiAgents.insights = { target: null, temperature: 0.7 }
+  } else {
+    aiAgents.insights.target = normalizeAgentTarget(aiAgents.insights.target)
+    aiAgents.insights.temperature =
+      typeof aiAgents.insights.temperature === "number" ? aiAgents.insights.temperature : 0.7
+  }
   settings.aiMcpServers = Array.isArray(settings.aiMcpServers)
     ? settings.aiMcpServers
         .filter((s) => s && typeof s === "object")

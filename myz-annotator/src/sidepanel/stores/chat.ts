@@ -771,15 +771,33 @@ export const useChatStore = defineStore("chat", () => {
       const settings = (await sendMessage<any, Settings>("myz:getSettings")) as any;
       aiConfig.assistantEnabled = Boolean(settings?.aiAssistantEnabled);
 
-      const target = settings?.aiAgents?.conversation?.target;
+      const conversation = settings?.aiAgents?.conversation;
+      const target = conversation?.target;
       const providerId = target?.providerId;
       const modelId = target?.modelId;
       const provider = (settings?.aiProviders || []).find((p: any) => p.id === providerId);
       const model = (provider?.models || []).find((m: any) => m.id === modelId);
 
       aiConfig.configured = Boolean(provider && model);
-      aiConfig.supportsVision = Boolean(model?.capabilities?.vision);
-      aiConfig.compressImages = Boolean(settings?.aiAgents?.conversation?.compressImages);
+      const baseVision = Boolean(model?.capabilities?.vision);
+      const multimodalTarget = conversation?.multimodalTarget;
+      let multimodalVision = false;
+      if (multimodalTarget?.providerId && multimodalTarget?.modelId) {
+        const multimodalProvider = (settings?.aiProviders || []).find(
+          (p: any) => p.id === multimodalTarget.providerId,
+        );
+        const multimodalModel = (multimodalProvider?.models || []).find(
+          (m: any) => m.id === multimodalTarget.modelId,
+        );
+        multimodalVision = Boolean(
+          multimodalProvider?.enabled &&
+            multimodalProvider?.lastTest?.ok &&
+            multimodalModel?.enabled &&
+            multimodalModel?.capabilities?.vision,
+        );
+      }
+      aiConfig.supportsVision = baseVision || multimodalVision;
+      aiConfig.compressImages = Boolean(conversation?.compressImages);
     } catch {
       aiConfig.assistantEnabled = false;
       aiConfig.supportsVision = false;

@@ -124,13 +124,14 @@ async function waitForHttpTabReady(options: { tabId: number; timeoutMs?: number 
   while (Date.now() - startedAt < timeoutMs) {
     const tab = await chrome.tabs.get(tabId).catch(() => null)
     const url = typeof tab?.url === "string" ? tab.url : ""
-    const status = tab?.status || ""
-    if (status === "complete" && url.startsWith("http")) {
+    const pendingUrl = typeof tab?.pendingUrl === "string" ? tab.pendingUrl : ""
+    const resolvedUrl = url || pendingUrl
+    if (resolvedUrl.startsWith("http")) {
       return
     }
     await delay(200)
   }
-  throw new Error("Page load timeout")
+  throw new Error("Page navigation timeout")
 }
 
 async function requestPrimaryContentFromTab(options: {
@@ -139,7 +140,7 @@ async function requestPrimaryContentFromTab(options: {
 }) {
   const { tabId, maxChars } = options
   let lastError: any = null
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let attempt = 0; attempt < 18; attempt += 1) {
     try {
       return await chrome.tabs.sendMessage(tabId, {
         type: "myz:extractPrimaryContent",
