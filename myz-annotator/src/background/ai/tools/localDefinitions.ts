@@ -24,103 +24,6 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
-    name: "myz-list-hosts",
-    description:
-      "列出所有保存过的站点 host 以及对应的标注数量，按数量降序排序。",
-    inputSchema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
-    name: "myz-popular-tags",
-    description: "列出最常用的标签及其出现次数，按次数降序排序。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        limit: {
-          type: "integer",
-          minimum: 1,
-          maximum: 50,
-          default: 20,
-          description: "返回的标签数量上限，默认 20。",
-        },
-      },
-    },
-  },
-  {
-    name: "myz-search-highlights",
-    description:
-      "按关键词搜索已保存的标注，匹配文本、笔记或标签，返回最近的匹配项。",
-    inputSchema: {
-      type: "object",
-      required: ["query"],
-      properties: {
-        query: {
-          type: "string",
-          description: "要搜索的关键词。",
-        },
-        limit: {
-          type: "integer",
-          minimum: 1,
-          maximum: 50,
-          default: 10,
-          description: "返回的匹配数量上限，默认 10。",
-        },
-      },
-    },
-  },
-  {
-    name: "myz-filter-by-date",
-    description: "按日期范围筛选标注，返回最近的标注，日期格式 YYYY-MM-DD。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        from: {
-          type: "string",
-          description: "开始日期（包含），格式 YYYY-MM-DD。",
-        },
-        to: {
-          type: "string",
-          description: "结束日期（包含），格式 YYYY-MM-DD。",
-        },
-        limit: {
-          type: "integer",
-          minimum: 1,
-          maximum: 50,
-          default: 20,
-          description: "返回的标注数量上限，默认 20。",
-        },
-      },
-    },
-  },
-  {
-    name: "myz-filter-by-tag-or-host",
-    description:
-      "按标签或站点 host 筛选标注，可同时指定多个标签，返回最近的标注。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        tags: {
-          type: "array",
-          items: { type: "string" },
-          description: "要匹配的标签列表，全部匹配才会返回。",
-        },
-        host: {
-          type: "string",
-          description: "要匹配的站点 host。",
-        },
-        limit: {
-          type: "integer",
-          minimum: 1,
-          maximum: 50,
-          default: 20,
-          description: "返回的标注数量上限，默认 20。",
-        },
-      },
-    },
-  },
-  {
     name: "myz-web-search",
     description:
       "通过浏览器打开搜索引擎页面进行网页搜索，并返回前几条结果（标题/链接/摘要），需要结合 myz-fetch-page 一起使用。",
@@ -166,6 +69,35 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
           maximum: 60000,
           default: 15000,
           description: "返回内容最大字符数（默认 15000）。",
+        },
+      },
+    },
+  },
+  {
+    name: "myz-code-execution",
+    description:
+      "在扩展沙箱 iframe 中执行 JavaScript 代码并返回结果（无扩展权限，适合轻量计算/文本处理）。",
+    inputSchema: {
+      type: "object",
+      required: ["code"],
+      properties: {
+        code: {
+          type: "string",
+          description: "要执行的 JavaScript 代码（建议返回表达式结果）。",
+        },
+        timeoutMs: {
+          type: "integer",
+          minimum: 100,
+          maximum: 5000,
+          default: 1000,
+          description: "执行超时时间（毫秒），默认 1000。",
+        },
+        maxResultChars: {
+          type: "integer",
+          minimum: 200,
+          maximum: 8000,
+          default: 2000,
+          description: "返回结果最大字符数，超出将截断。",
         },
       },
     },

@@ -33,6 +33,8 @@ const ALLOWED_HTML_TAGS = new Set([
   "th",
 ]);
 
+const IGNORED_TEXT_TAGS = new Set(["STYLE", "SCRIPT", "NOSCRIPT", "TEMPLATE"]);
+
 const ALLOWED_HTML_ATTRS: { [key: string]: Set<string> } = {
   a: new Set<string>(["href", "title"]),
   td: new Set<string>(["colspan", "rowspan"]),
@@ -175,9 +177,13 @@ export function isElementInViewport(el: Element): boolean {
 
 export function normalizeParagraphText(node: Element): string {
   if (!node) return "";
-  return ((node as HTMLElement).innerText || node.textContent || "")
-    .replace(/\s+/g, " ")
-    .trim();
+  if (isIgnoredTextTag(node)) return "";
+  const fromInnerText = (node as HTMLElement).innerText;
+  const raw =
+    fromInnerText && fromInnerText.trim()
+      ? fromInnerText
+      : collectTextFromNode(node);
+  return raw.replace(/\s+/g, " ").trim();
 }
 
 export function getElementPageRect(el: Element): ElementPosition | null {
@@ -221,6 +227,33 @@ function isBlockElement(el: Element): boolean {
   return BLOCK_DISPLAY_SET.has(display);
 }
 
+function isIgnoredTextTag(el: Element | null): boolean {
+  if (!el) return false;
+  return IGNORED_TEXT_TAGS.has(el.tagName);
+}
+
+function isWithinIgnoredTag(el: Element | null): boolean {
+  let current = el;
+  while (current) {
+    if (isIgnoredTextTag(current)) return true;
+    current = current.parentElement;
+  }
+  return false;
+}
+
+function collectTextFromNode(root: Element): string {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const parts: string[] = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const parent = node.parentElement;
+    if (!parent || isWithinIgnoredTag(parent)) continue;
+    const text = node.textContent || "";
+    if (text.trim()) parts.push(text);
+  }
+  return parts.join(" ");
+}
+
 function extractInlineText(el: Element): string {
   const parts: string[] = [];
   el.childNodes.forEach((node) => {
@@ -230,6 +263,9 @@ function extractInlineText(el: Element): string {
     }
     if (node.nodeType === Node.ELEMENT_NODE) {
       const child = node as Element;
+      if (isIgnoredTextTag(child)) {
+        return;
+      }
       if (isBlockElement(child)) {
         return;
       }

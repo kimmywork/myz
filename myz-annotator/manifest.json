@@ -15,7 +15,8 @@
     "activeTab",
     "contextMenus",
     "sidePanel",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "offscreen"
   ],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -41,6 +42,13 @@
   "options_page": "src/dashboard/index.html",
   "side_panel": {
     "default_path": "src/sidepanel/sidepanel.html"
+  },
+  "sandbox": {
+    "pages": ["src/sandbox/code-execution.html"]
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';",
+    "sandbox": "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-eval'; child-src 'self' blob:; worker-src 'self' blob:;"
   },
   "web_accessible_resources": [
     {

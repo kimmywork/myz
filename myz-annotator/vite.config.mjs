@@ -37,6 +37,8 @@ export default defineConfig({
       input: {
         popup: resolve(rootDir, "src/popup/popup.html"),
         dashboard: resolve(rootDir, "src/dashboard/index.html"),
+        offscreen: resolve(rootDir, "src/offscreen/code-execution.html"),
+        sandbox: resolve(rootDir, "src/sandbox/code-execution.html"),
       },
     },
   },
