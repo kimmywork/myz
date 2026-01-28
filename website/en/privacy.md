@@ -1,60 +1,56 @@
-# MyZ Annotator & MyZ Danmaku Privacy Policy
+# MyZ AI Annotator & MyZ Danmaku Viewer Privacy Policy
 
-**Effective date:** 2025-11-04
+**Effective date:** 2026-01-12
 
-MyZ Annotator helps you highlight, annotate, optionally archive pages to the Internet Archive, and sync content to your own LogSeq graph. MyZ Danmaku fetches timestamped YouTube comments and renders an on-device floating danmaku layer. This policy explains what data these extensions access, how it is used, and the choices you have.
+MyZ AI Annotator helps you highlight and annotate in your browser, and (optionally) enables AI chat, tool calling, and vector search. MyZ Danmaku Viewer fetches timestamped YouTube comments and renders an on-device floating danmaku layer. This policy explains what data these extensions access, how it is used, and the choices you have.
 
 ## Data We Store Locally
 
 - Highlighted text, associated notes, tags, colors, and capture metadata
-- Extension settings (color palette, view preferences, Internet Archive preferences, LogSeq endpoint/page/token, YouTube caption style)
+- Extension settings (color palette, view preferences, AI Provider configuration, model capabilities/limits, MCP server configuration, local tools toggles, vector search settings, social import settings, YouTube caption style)
 - Generated screenshots when you choose to download them (images are saved directly to your device and never leave the browser)
-- Internet Archive queue state and history so the extension can retry or display the status of your own save requests
-- For MyZ Danmaku: parsed comment details (author, timestamp, like count, text) kept locally so the danmaku overlay can work offline
+- For MyZ Danmaku Viewer: parsed comment details (author, timestamp, like count, text) kept locally so the danmaku overlay can work offline
 
-All of the above is kept in browser-local storage that is scoped to your profile. We do not transmit, back up, or otherwise share this information with any external service. The MyZ Annotator / MyZ Danmaku project and maintainers never receive copies of your highlights, danmaku caches, queue entries, or settings.
+All of the above is kept in browser-local storage that is scoped to your profile. We do not transmit, back up, or otherwise share this information with any external service. The MyZ AI Annotator / MyZ Danmaku Viewer project and maintainers never receive copies of your highlights, danmaku caches, or settings.
 
-### Notes Specific to MyZ Danmaku
+### Notes Specific to MyZ Danmaku Viewer
 
 - The extension uses YouTube’s private interfaces to read public comments for the current video so it can detect timestamps. Requests are sent directly from your browser; we do not proxy, inspect, or store responses.
 - Parsed danmaku results and related metadata remain inside your browser for offline reuse. They are not uploaded or synced anywhere.
 - We do not collect your viewing history or account information. Danmaku parsing runs entirely on your device.
 
-## Optional LogSeq Synchronization
+## Optional AI Providers and MCP Servers
 
-If you enable LogSeq sync, the extension sends the selected highlights and notes to the LogSeq HTTP API endpoint that **you** configure (typically running on `http://127.0.0.1`). This data travels only between your browser and your local LogSeq server. We do not operate any servers, receive any copies, or log these requests.
+If you enable AI features, you may configure:
 
-The sync payload includes:
+- **Custom AI Providers** (OpenAI-compatible Base URL / API key / headers / models)
+- **MCP Servers** (external tool servers)
 
-- Highlight content converted to Markdown
-- Metadata such as highlight ID, created timestamp, and optional tags
-- Your configured authentication token (if provided) so LogSeq can accept the request
+When enabled, the extension sends requests **directly from your browser** to the servers you configure. The data you choose to send may include your prompt, optional page context, attached images/screenshots, and tool-call parameters.
 
-You may disable sync at any time from the extension’s settings panel, which immediately stops all network requests to LogSeq.
+Important notes:
 
-## Optional Internet Archive Snapshots
+- We operate **no remote service** to receive, store, or process your AI requests. All network traffic goes directly to the third-party servers you configure.
+- Your custom AI Provider / MCP Server may log, retain, or process your data per their own policies. You must evaluate the privacy and security implications yourself.
+- A custom AI Provider may consume a large amount of tokens and incur significant charges. You are solely responsible for understanding pricing and paying any fees.
+- Do not send sensitive or private data to third-party servers unless you fully understand and accept their data-handling practices.
 
-If you enable Internet Archive support, the extension can submit snapshot requests for the current page to `https://web.archive.org`. The data sent is limited to the page URL plus optional credentials (access key/secret) that you supply. Requests go directly from your browser to the Internet Archive; we do not proxy, inspect, or retain any portion of the payload.
+## Optional Social Import (X / Mastodon)
 
-For MyZ Danmaku, calling YouTube’s private interface relies on an unofficial channel. Google may rate-limit or block accounts or IPs that issue these requests frequently. If that happens, you are responsible for any access restrictions or playback issues that arise. We cannot compensate or mediate with Google.
+If you enable social import, the extension will open and access relevant pages on X (Twitter) and Mastodon in your browser and import content by scraping the page (no official API).
 
-What is stored locally:
+Important notes:
 
-- A queue of URLs you asked the extension to archive
-- The latest status returned by the Internet Archive CDX API and save endpoints
-- Timestamps of attempts and any error messages returned by the Internet Archive
+- Availability, scope, and quality can change due to third-party site policies, anti-abuse controls, and layout changes.
+- You are responsible for deciding whether to enable this feature and for any consequences (including account limitations, access restrictions, partial results, or failures).
+- We operate **no remote service**. Scraping/import runs directly between your browser and the third-party sites, and imported results are stored only in your local browser storage.
 
-Important limitations and risks:
-
-- Submitting a URL to the Internet Archive will expose that URL (and possibly the page contents) to a public service that we do not control.
-- Any access keys or secrets are stored only in your browser’s local storage and are sent directly to the Internet Archive when you request a snapshot. We never receive or log these credentials.
-- You are solely responsible for verifying that you have the right to archive the content and for complying with the Internet Archive’s terms and policies.
+For MyZ Danmaku Viewer, calling YouTube’s private interface relies on an unofficial channel. Google may rate-limit or block accounts or IPs that issue these requests frequently. If that happens, you are responsible for any access restrictions or playback issues that arise. We cannot compensate or mediate with Google.
 
 ## Permissions Explained
 
-- `activeTab` and `tabs`: MyZ Annotator reads the current selection and captures screenshots; MyZ Danmaku identifies which YouTube video is playing.
-- `<all_urls>` content script: MyZ Annotator uses this to render the toolbar and highlights; MyZ Danmaku runs only on YouTube pages to display the danmaku overlay.
-- `https://web.archive.org/*`: Required so the extension can submit snapshot requests and query status information from the Internet Archive when you enable that feature.
+- `activeTab` and `tabs`: MyZ AI Annotator reads the current selection and captures screenshots; MyZ Danmaku Viewer identifies which YouTube video is playing.
+- `<all_urls>` content script: MyZ AI Annotator uses this to render the toolbar and highlights; MyZ Danmaku Viewer runs only on YouTube pages to display the danmaku overlay.
 - YouTube page access: Lets MyZ Danmaku read public comments for the active video so it can produce danmaku locally.
 - `storage`: Required to keep your highlights, danmaku caches, and settings on-device.
 - `scripting`: Used by MyZ Danmaku to add the overlay UI and styles on the page.
@@ -66,7 +62,7 @@ All logic ships with the extension package. The extension never loads or execute
 ## Your Choices
 
 - Remove highlights, notes, or screenshots at any time via the dashboard UI.
-- Disable LogSeq sync whenever you do not want data sent to your local server.
+- Disable AI features / MCP tools / social import whenever you do not want data sent to your configured servers or third-party sites.
 - Uninstall the extension to delete all stored data automatically.
 
 ## Changes to This Policy
@@ -79,4 +75,4 @@ Questions or concerns? Open an issue on the [project repository](https://github.
 
 ## No Data Collection by Maintainers
 
-MyZ Annotator is a client-side extension. The maintainers operate no backend that receives, aggregates, or analyzes user data. All network requests triggered by the extension go directly from your browser to services that you configure (for example, your local LogSeq instance or the Internet Archive). By using these optional integrations, you acknowledge that you understand the associated privacy implications and accept any risks.
+MyZ AI Annotator is a client-side extension. The maintainers operate no backend that receives, aggregates, or analyzes user data. All network requests triggered by the extension go directly from your browser to services that you configure or access (for example, your custom AI Provider, your MCP server, or YouTube). By using these optional network features, you acknowledge that you understand the associated privacy implications and accept any risks and costs.

@@ -2,6 +2,16 @@
 
 Highlights from recent extension updates.
 
+## v0.1.5 - AI Assistant integration
+
+- Integrated with AI Assistant:
+  - Using AI models analyse page,
+  - Conversation with AI models using page context,
+  - Support customized AI Providers and MCP servers,
+  - Discover interests using vector indexes.
+- Remove LogSeq sync.
+- Integrated with social network - X (Twitter), Mastodon.
+
 ## v0.1.4 — Unified icons & SPA fixes
 - Replaced all toolbar/popup/dashboard emoji buttons with custom SVG icons for consistent rendering across platforms.
 - Restored the marker-style highlight icon and added an underlined “U” icon so the three text styles are instantly recognizable.

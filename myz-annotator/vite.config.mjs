@@ -20,9 +20,14 @@ export default defineConfig({
       outDir: "release",
       outFileName: `crx-myz-annotator-${manifest.version}.zip`,
       filter: (filePath) =>
-        !filePath.endsWith(".map") && !filePath.includes(".vite"),
+        !filePath.endsWith(".map") && !filePath.includes(".vite") && !filePath.endsWith(".wasm"),
     }),
   ],
+  resolve: {
+    alias: {
+      "@": resolve(rootDir, "src"),
+    },
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,
@@ -32,6 +37,8 @@ export default defineConfig({
       input: {
         popup: resolve(rootDir, "src/popup/popup.html"),
         dashboard: resolve(rootDir, "src/dashboard/index.html"),
+        offscreen: resolve(rootDir, "src/offscreen/code-execution.html"),
+        sandbox: resolve(rootDir, "src/sandbox/code-execution.html"),
       },
     },
   },

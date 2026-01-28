@@ -1,4 +1,5 @@
 import { IndexerClient } from './client';
+import { populateModelSelect } from './utils';
 
 // UI Logic
 const statusEl = document.getElementById('status')!;
@@ -16,6 +17,9 @@ const localConfigEl = document.getElementById('localConfig') as HTMLDivElement;
 const localModelSelectEl = document.getElementById('localModelSelect') as HTMLSelectElement;
 const customLocalModelContainerEl = document.getElementById('customLocalModelContainer') as HTMLDivElement;
 const customLocalModelEl = document.getElementById('customLocalModel') as HTMLInputElement;
+
+// Populate model select
+populateModelSelect(localModelSelectEl);
 
 // OpenAI Config Elements
 const openaiConfigEl = document.getElementById('openaiConfig') as HTMLDivElement;

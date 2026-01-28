@@ -33,6 +33,8 @@ export default defineConfig(({ mode }) => {
     };
   }
 
+  const isThin = mode === 'thin';
+
   return {
     plugins: [
       dts({
@@ -41,14 +43,16 @@ export default defineConfig(({ mode }) => {
       })
     ],
     build: {
+      sourcemap: true,
       lib: {
         entry: resolve(__dirname, 'src/index.ts'),
         name: 'Vectoria',
-        fileName: 'vectoria',
+        fileName: isThin ? 'vectoria.thin' : 'vectoria',
       },
       rollupOptions: {
-        external: [], 
+        external: isThin ? ['@huggingface/transformers'] : [], 
       },
+      emptyOutDir: !isThin, // Don't clear if building thin after normal
     },
     optimizeDeps: {
       exclude: ["@huggingface/transformers"],

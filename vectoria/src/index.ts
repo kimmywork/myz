@@ -23,7 +23,7 @@ export class Vectoria {
     if (config.customEmbedder) {
       this.embedder = config.customEmbedder;
     } else if (config.useLocalModel !== false) {
-      this.embedder = new TransformersEmbedder(config.modelName);
+      this.embedder = new TransformersEmbedder(config.modelName, config.device, config.wasmPaths);
     } else {
       throw new Error("No embedder configured. Provide a customEmbedder or enable useLocalModel.");
     }

@@ -1,7 +1,0 @@
-{
-    "chat.editing.autoAcceptDelay": 1,
-    "chat.tools.terminal.autoApprove": {
-        "npm install": true,
-        "npm test": true
-    }
-}

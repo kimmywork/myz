@@ -4,6 +4,7 @@
 - `service/`: Nuxt 4 web service (Vue 3.5 + JSX, TypeScript). Source in `service/src`, pages under `service/src/pages/**`, layouts in `service/src/layouts/**`, shared logic in `service/src/lib/**`, assets in `service/public/`.
 - `myz-annotator/`: Chrome MV3 extension bundled with Vite + `@crxjs/vite-plugin`. Background modules live in `myz-annotator/src/background/**`, content scripts and DOM helpers in `myz-annotator/src/content/**`, UI components in `myz-annotator/src/popup/**` and `myz-annotator/src/dashboard/**`, shared composables/utilities in `myz-annotator/src/shared/**`.
 - `myz-danmaku/`: Chrome MV3 extension built with Vite + `@crxjs/vite-plugin` and TypeScript. Background worker in `myz-danmaku/src/background.ts`, content script and overlay styles in `myz-danmaku/src/content.ts` / `myz-danmaku/src/content.css`, popup UI in `myz-danmaku/src/popup/**`, manifest in `myz-danmaku/src/manifest.ts`.
+- `vectoria/`: Client-side vector search engine library. Source in `vectoria/src`, demo UI in `vectoria/ui`, built with Vite in library mode.
 - `tests/`: Root docs and URL helpers; package-specific suites live alongside each project (e.g., `myz-annotator/tests/**`, `service/tests/**`).
 - `docs/` and `docs/knowledges/`: Design notes, prompts, and technical references.
 
@@ -26,6 +27,11 @@ Danmaku (`cd myz-danmaku`):
 - `npm run build` — Bundle MV3 extension to `dist/`.
 - `npm run lint` / `npm run typecheck` — ESLint and TypeScript checks.
 - `npm run icons` — Generate multi-size PNG icons from `assets/icons/icon-template.svg`.
+
+Vectoria (`cd vectoria`):
+- `npm run dev` — Start Vite dev server for the demo.
+- `npm run build` — Build the library in library mode (outputs to `dist/`).
+- `npm run build:docs` — Build the static documentation site (demo + perf test) to `docs/` for GitHub Pages.
 
 ## Coding Style & Naming Conventions
 - Indentation: 2 spaces; avoid semicolons in JS; TypeScript in `service/` and selective areas of `myz-annotator/`.
@@ -111,6 +117,30 @@ Danmaku (`cd myz-danmaku`):
 - Avoid blocking the YouTube player's event loop; schedule overlay updates efficiently.
 - Ensure timecode parsing is robust to various formats; ignore comments without valid timestamps.
 - Respect MV3 lifecycle: reinitialise listeners on worker restart; do not rely on long-lived globals.
+
+## Vectoria Playbook
+
+### Architecture Overview
+- Client-side vector search engine using HNSW (Hierarchical Navigable Small World) algorithm and IndexedDB for persistence.
+- Supports local embeddings via `@huggingface/transformers` (ONNX/WASM) and remote embeddings (OpenAI).
+- Built as a standalone library with a demo UI for testing and performance benchmarking.
+- The demo UI runs the `Vectoria` instance inside a Service Worker (`ui/sw.ts`) to keep the main thread responsive.
+
+### Patterns to Follow
+- Use `Vectoria` class as the main entry point.
+- Configuration is persisted in `localStorage` for the demo UI (`vectoria_local_config`, `vectoria_openai_config`).
+- The demo UI (`ui/main.ts`, `ui/perf-test.ts`) communicates with the core library via a `IndexerClient` wrapper.
+- `ui/sw.ts` handles the `Vectoria` instance and message passing.
+
+### Workflows & Testing
+- `npm run dev` to run the local demo.
+- `npm run build:docs` to generate the static site for deployment.
+- Use `perf-test.html` to benchmark indexing and search performance with different models and batch sizes.
+
+### Common Pitfalls
+- Large models (e.g., >500MB) may require significant download time and memory; handle loading states gracefully.
+- Ensure `optimizeDeps.exclude` in `vite.config.ts` includes `@huggingface/transformers` to avoid bundling issues with WASM.
+- The `docs/` folder is the build artifact for GitHub Pages; do not edit files in `docs/` directly.
 
 ## MyZ Sync Service Playbook
 
