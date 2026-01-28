@@ -37,6 +37,10 @@ export const DEFAULT_SETTINGS: Settings = {
     mode: "manual",
     autoSelectorTarget: null,
   },
+  aiSkills: {
+    mode: "manual",
+    autoSelectorTarget: null,
+  },
   // Vector search / Vectoria
   vectorSearch: {
     enabled: false,

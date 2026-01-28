@@ -5,6 +5,7 @@ import type {
   AIModelSetting,
   AIProviderSetting,
   AILocalToolsSettings,
+  AISkillsSettings,
   McpServerSetting,
 } from "@/background/settings.js"
 import { sendMessage } from "@/shared/messaging.js"
@@ -13,6 +14,7 @@ import AiProviderEditor from "./ai-settings/AiProviderEditor.jsx"
 import AiAgentRouting from "./ai-settings/AiAgentRouting.jsx"
 import AiMcpServersEditor from "./ai-settings/AiMcpServersEditor.jsx"
 import AiLocalToolsSection from "./ai-settings/AiLocalToolsSection.jsx"
+import AiSkillsSection from "./ai-settings/AiSkillsSection.jsx"
 import AiVectorSearchSection from "./ai-settings/AiVectorSearchSection.jsx"
 import { createProviderSetting, createModelSetting } from "./ai-settings/factories.js"
 
@@ -67,6 +69,10 @@ export default defineComponent({
       mode: "manual",
       autoSelectorTarget: null,
     })
+    const skillsSettings = ref<AISkillsSettings>({
+      mode: "manual",
+      autoSelectorTarget: null,
+    })
 
     const selectedProviderId = ref<string | null>(null)
     const isFetchingModels = ref(false)
@@ -77,6 +83,7 @@ export default defineComponent({
     const agentSaveNotice = ref("")
     const mcpSaveNotice = ref("")
     const localToolsSaveNotice = ref("")
+    const skillsSaveNotice = ref("")
 
     const usedByMap = computed(() => {
       const map: Record<string, string[]> = {}
@@ -117,6 +124,9 @@ export default defineComponent({
       localTools.value = store.settings.aiLocalTools
         ? deepClone(store.settings.aiLocalTools)
         : localTools.value
+      skillsSettings.value = store.settings.aiSkills
+        ? deepClone(store.settings.aiSkills)
+        : skillsSettings.value
 
       if (!selectedProviderId.value || !providers.value.some((p) => p.id === selectedProviderId.value)) {
         selectedProviderId.value = providers.value[0]?.id || null
@@ -275,6 +285,11 @@ export default defineComponent({
       setTimedNotice(localToolsSaveNotice, "已保存")
     }
 
+    const saveSkillsSection = async () => {
+      await store.saveSettings({ aiSkills: skillsSettings.value as any })
+      setTimedNotice(skillsSaveNotice, "已保存")
+    }
+
     return () => (
       <section class="settings__group">
         <div class="settings__group-header">
@@ -417,6 +432,31 @@ export default defineComponent({
               providers={providers.value}
               value={localTools.value}
               onChange={(next) => (localTools.value = next)}
+            />
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm dark:border-white/10 dark:bg-slate-800/40">
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <p class="text-sm font-medium text-slate-900 dark:text-white">
+                Agent Skills
+              </p>
+              <div class="flex items-center gap-2">
+                {skillsSaveNotice.value ? (
+                  <span class="text-xs text-emerald-600">{skillsSaveNotice.value}</span>
+                ) : null}
+                <button
+                  type="button"
+                  class="btn btn-primary whitespace-nowrap"
+                  onClick={saveSkillsSection}
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+            <AiSkillsSection
+              providers={providers.value}
+              value={skillsSettings.value}
+              onChange={(next) => (skillsSettings.value = next)}
             />
           </div>
 

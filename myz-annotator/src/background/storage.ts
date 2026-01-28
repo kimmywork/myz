@@ -149,6 +149,29 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       aiLocalTools.autoSelectorTarget = null
     }
   }
+  const aiSkills = settings.aiSkills
+  if (!aiSkills || typeof aiSkills !== "object") {
+    ;(settings as any).aiSkills = {
+      mode: "manual",
+      autoSelectorTarget: null,
+    }
+  } else {
+    aiSkills.mode = aiSkills.mode === "auto" ? "auto" : "manual"
+    const target = aiSkills.autoSelectorTarget
+    if (
+      target &&
+      typeof target === "object" &&
+      typeof target.providerId === "string" &&
+      typeof target.modelId === "string"
+    ) {
+      aiSkills.autoSelectorTarget = {
+        providerId: target.providerId,
+        modelId: target.modelId,
+      }
+    } else {
+      aiSkills.autoSelectorTarget = null
+    }
+  }
   const vectorSearch = (settings as any).vectorSearch
   if (!vectorSearch || typeof vectorSearch !== "object") {
     ;(settings as any).vectorSearch = {

@@ -5,6 +5,7 @@ import { initializeCaptureMessageHandlers } from "./background/messages/capture.
 import { handleMessage } from "./background/messages/handler.js";
 import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
+import { initializeSkillMessageHandlers } from "./background/messages/skills.js";
 import { initializeSocialImportMessageHandlers } from "./background/messages/social-import.js";
 import { initializeVectoriaMessageHandlers } from "./background/messages/vectoria.js";
 import { readSettings } from "./background/storage.js";
@@ -432,6 +433,7 @@ initializeAIMessageHandlers();
 initializeCaptureMessageHandlers();
 initializeHighlightMessageHandlers();
 initializeSettingsMessageHandlers();
+initializeSkillMessageHandlers();
 initializeSocialImportMessageHandlers();
 initializeVectoriaMessageHandlers();
 

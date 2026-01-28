@@ -529,6 +529,7 @@ export const useChatStore = defineStore("chat", () => {
           ...(selectionContextText ? { selectionContextText } : {}),
         },
       };
+      const clientMessageId = userMsg.id;
 
       messages.value.push(userMsg);
       userInput.value = "";
@@ -541,6 +542,7 @@ export const useChatStore = defineStore("chat", () => {
         message: trimmed,
         action: "custom",
         attachments: nextAttachments,
+        clientMessageId,
         options: selectionContextText
           ? {
               metadata: {
@@ -859,6 +861,31 @@ export const useChatStore = defineStore("chat", () => {
         if (conversationId.value && incoming.conversationId === conversationId.value) {
           messages.value.push(incoming);
           uiStore.scrollToBottom();
+        }
+      } else if (message.type === "myz:aiSkillSelection" && message.data) {
+        const data = message.data;
+        if (!data.conversationId || data.conversationId !== conversationId.value) {
+          return;
+        }
+        if (!data.clientMessageId) {
+          return;
+        }
+        const skillNames = Array.isArray(data.skillNames)
+          ? data.skillNames.map((name) => String(name).trim()).filter(Boolean)
+          : [];
+        if (skillNames.length === 0) {
+          return;
+        }
+        const index = messages.value.findIndex((msg) => msg.id === data.clientMessageId);
+        if (index >= 0) {
+          const existing = messages.value[index];
+          messages.value[index] = {
+            ...existing,
+            metadata: {
+              ...(existing.metadata || {}),
+              skillNames,
+            },
+          };
         }
       } else if (message.type === "myz:aiStreamStart" && message.data) {
         handleStreamStartEvent(message.data);

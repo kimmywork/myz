@@ -172,6 +172,8 @@ export interface MessageStreamData {
   reasoning?: string
   metadata?: Record<string, any>
   error?: string
+  clientMessageId?: string
+  skillNames?: string[]
 }
 
 export interface MessageStream {

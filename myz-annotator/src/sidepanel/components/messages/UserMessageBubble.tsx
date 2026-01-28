@@ -1,4 +1,5 @@
 import { defineComponent } from "vue";
+import ToolInlineNotice from "./ToolInlineNotice.jsx";
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
 import type { ImageAttachment } from "@/background/ai/types.js";
 import { useUIStore } from "../../stores/ui.js";
@@ -10,6 +11,7 @@ interface UserMessage {
   metadata?: {
     attachments?: ImageAttachment[];
     selectionContextText?: string;
+    skillNames?: string[] | string;
   };
 }
 
@@ -28,6 +30,16 @@ export default defineComponent({
   },
   setup(props: UserMessageBubbleProps) {
     const uiStore = useUIStore();
+    const resolveSkillNames = () => {
+      const raw = props.message?.metadata?.skillNames;
+      if (Array.isArray(raw)) {
+        return raw.map((name) => String(name).trim()).filter(Boolean);
+      }
+      if (typeof raw === "string" && raw.trim()) {
+        return [raw.trim()];
+      }
+      return [];
+    };
 
     const renderAttachments = (items: ImageAttachment[]) => (
       <div class="mt-3 flex flex-wrap gap-2">
@@ -53,35 +65,48 @@ export default defineComponent({
       </div>
     );
 
-    return () => (
-      <div class="ml-auto w-full max-w-[85%] rounded-2xl border border-indigo-500 bg-indigo-500 px-4 py-3 text-sm text-white shadow-md dark:border-indigo-600">
-        <div class="mb-2 flex items-center justify-between text-xs font-semibold text-white/80">
-          <span>用户</span>
-          <span>
-            {new Date(props.message?.timestamp || "").toLocaleString()}
-          </span>
-        </div>
-        {typeof props.message?.metadata?.selectionContextText === "string" &&
-          props.message.metadata.selectionContextText.trim() && (
-            <div class="mb-3 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/90">
-              <div class="mb-1 text-[11px] font-semibold text-white/80">
-                选中内容（上下文）
-              </div>
-              <div class="max-h-40 overflow-auto whitespace-pre-wrap">
-                {props.message.metadata.selectionContextText}
-              </div>
+    return () => {
+      const skillNames = resolveSkillNames();
+      return (
+        <div class="ml-auto w-full max-w-[85%] rounded-2xl border border-indigo-500 bg-indigo-500 px-4 py-3 text-sm text-white shadow-md dark:border-indigo-600">
+          <div class="mb-2 flex items-center justify-between text-xs font-semibold text-white/80">
+            <span>用户</span>
+            <span>
+              {new Date(props.message?.timestamp || "").toLocaleString()}
+            </span>
+          </div>
+          {skillNames.length > 0 && (
+            <div class="mb-3">
+              <ToolInlineNotice
+                text={`使用技能：${skillNames.join("、")}`}
+                timestamp=""
+                showButton={false}
+                size="sm"
+              />
             </div>
           )}
-        {props.message?.content && (
-          <div
-            class="prose prose-sm max-w-none text-white"
-            v-html={renderMarkdown(props.message?.content)}
-          />
-        )}
-        {Array.isArray(props.message?.metadata?.attachments) &&
-          props.message.metadata.attachments.length > 0 &&
-          renderAttachments(props.message.metadata.attachments)}
-      </div>
-    );
+          {typeof props.message?.metadata?.selectionContextText === "string" &&
+            props.message.metadata.selectionContextText.trim() && (
+              <div class="mb-3 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/90">
+                <div class="mb-1 text-[11px] font-semibold text-white/80">
+                  选中内容（上下文）
+                </div>
+                <div class="max-h-40 overflow-auto whitespace-pre-wrap">
+                  {props.message.metadata.selectionContextText}
+                </div>
+              </div>
+            )}
+          {props.message?.content && (
+            <div
+              class="prose prose-sm max-w-none text-white"
+              v-html={renderMarkdown(props.message?.content)}
+            />
+          )}
+          {Array.isArray(props.message?.metadata?.attachments) &&
+            props.message.metadata.attachments.length > 0 &&
+            renderAttachments(props.message.metadata.attachments)}
+        </div>
+      );
+    };
   },
 });

@@ -49,6 +49,7 @@
     "pinia": "^3.0.4",
     "tailwindcss": "^4.1.17",
     "vectoria": "file:../vectoria",
+    "fflate": "^0.8.2",
     "vue": "^3.5.22",
     "zod": "^4.2.1"
   }

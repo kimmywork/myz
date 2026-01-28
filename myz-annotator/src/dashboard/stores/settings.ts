@@ -27,6 +27,10 @@ export const useSettingsStore = defineStore("settings", () => {
       mode: "manual",
       autoSelectorTarget: null,
     },
+    aiSkills: {
+      mode: "manual",
+      autoSelectorTarget: null,
+    },
     vectorSearch: {
       enabled: false,
       target: null,
@@ -127,6 +131,17 @@ export const useSettingsStore = defineStore("settings", () => {
                     : null,
               }
             : settings.aiLocalTools,
+        aiSkills:
+          result.aiSkills && typeof result.aiSkills === "object"
+            ? {
+                mode: result.aiSkills.mode === "auto" ? "auto" : "manual",
+                autoSelectorTarget:
+                  result.aiSkills.autoSelectorTarget &&
+                  typeof result.aiSkills.autoSelectorTarget === "object"
+                    ? result.aiSkills.autoSelectorTarget
+                    : null,
+              }
+            : settings.aiSkills,
         vectorSearch:
           result.vectorSearch && typeof result.vectorSearch === "object"
             ? {
@@ -193,6 +208,9 @@ export const useSettingsStore = defineStore("settings", () => {
         }
         if ("aiLocalTools" in updated && updated.aiLocalTools) {
           settings.aiLocalTools = updated.aiLocalTools as any;
+        }
+        if ("aiSkills" in updated && updated.aiSkills) {
+          settings.aiSkills = updated.aiSkills as any;
         }
         if ("vectorSearch" in updated && updated.vectorSearch) {
           settings.vectorSearch = updated.vectorSearch as any;

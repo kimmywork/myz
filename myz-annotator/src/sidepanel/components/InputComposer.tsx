@@ -1,6 +1,8 @@
-import { defineComponent, ref } from "vue";
+import { computed, defineComponent, nextTick, onMounted, ref } from "vue";
 import { useChatStore } from "../stores/chat.js";
 import { useUIStore } from "../stores/ui.js";
+import { sendMessage } from "@/shared/messaging.js";
+import type { SkillMetadata } from "@/background/ai/skills/types.js";
 
 export default defineComponent({
   name: "InputComposer",
@@ -8,10 +10,68 @@ export default defineComponent({
     const chatStore = useChatStore();
     const uiStore = useUIStore();
     const fileInputRef = ref<HTMLInputElement | null>(null);
+    const textareaRef = ref<HTMLTextAreaElement | null>(null);
+    const skillList = ref<SkillMetadata[]>([]);
+    const mentionQuery = ref("");
+    const mentionStart = ref(0);
+    const mentionEnd = ref(0);
+    const mentionOpen = ref(false);
+
+    const filteredSkills = computed(() => {
+      const query = mentionQuery.value.trim();
+      const enabled = skillList.value.filter((skill) => skill.enabled);
+      if (!query) return enabled.slice(0, 6);
+      return enabled
+        .filter((skill) => skill.name.startsWith(query))
+        .slice(0, 6);
+    });
+
+    const refreshSkills = async () => {
+      try {
+        const result = await sendMessage("myz:listSkills");
+        skillList.value = Array.isArray(result) ? result : [];
+      } catch {
+        skillList.value = [];
+      }
+    };
+
+    const closeMentions = () => {
+      mentionOpen.value = false;
+      mentionQuery.value = "";
+    };
+
+    const applyMention = async (name: string) => {
+      if (!textareaRef.value) return;
+      const value = chatStore.userInput || "";
+      const before = value.slice(0, mentionStart.value);
+      const after = value.slice(mentionEnd.value);
+      const nextValue = `${before}@${name} ${after}`;
+      chatStore.userInput = nextValue;
+      closeMentions();
+      await nextTick();
+      const cursor = before.length + name.length + 2;
+      textareaRef.value.selectionStart = cursor;
+      textareaRef.value.selectionEnd = cursor;
+      textareaRef.value.focus();
+    };
 
     const handleInput = (event: Event) => {
-      const target = event.target as HTMLInputElement;
+      const target = event.target as HTMLTextAreaElement;
       chatStore.userInput = target.value;
+      const caret = target.selectionStart ?? target.value.length;
+      const before = target.value.slice(0, caret);
+      const match = /(?:^|\s)@([a-z0-9-]*)$/.exec(before);
+      if (match) {
+        mentionQuery.value = match[1] || "";
+        mentionEnd.value = caret;
+        mentionStart.value = caret - (match[1]?.length || 0) - 1;
+        mentionOpen.value = true;
+        if (skillList.value.length === 0) {
+          void refreshSkills();
+        }
+      } else {
+        closeMentions();
+      }
     };
 
     const handlePickImages = () => {
@@ -28,15 +88,32 @@ export default defineComponent({
       if (uiStore.isComposing) {
         return;
       }
+      if (mentionOpen.value && filteredSkills.value.length) {
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          await applyMention(filteredSkills.value[0].name);
+          return;
+        }
+        if (e.key === "Escape") {
+          closeMentions();
+          return;
+        }
+      }
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
+        closeMentions();
         await chatStore.sendMessage(chatStore.userInput);
       }
     };
 
     const handleSend = async () => {
+      closeMentions();
       await chatStore.sendMessage(chatStore.userInput);
     };
+
+    onMounted(() => {
+      void refreshSkills();
+    });
 
     return () => (
       <div class="border-t border-slate-200/80 bg-white/80 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/80">
@@ -130,7 +207,9 @@ export default defineComponent({
             ))}
           </div>
         )}
-        <textarea
+        <div class="relative">
+          <textarea
+            ref={textareaRef}
           class="min-h-[120px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
           value={chatStore.userInput}
           placeholder="请输入您的消息..."
@@ -140,7 +219,24 @@ export default defineComponent({
           onKeydown={handleKeydown}
           onCompositionstart={() => uiStore.setComposing(true)}
           onCompositionend={() => uiStore.setComposing(false)}
-        />
+          />
+          {mentionOpen.value && filteredSkills.value.length > 0 && (
+            <div class="absolute left-2 right-2 top-full z-10 mt-2 max-h-40 overflow-auto rounded-xl border border-slate-200 bg-white p-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">
+              {filteredSkills.value.map((skill) => (
+                <button
+                  type="button"
+                  class="flex w-full items-start justify-between gap-2 rounded-lg px-2 py-1 text-left text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                  onClick={() => applyMention(skill.name)}
+                >
+                  <span class="font-medium">@{skill.name}</span>
+                  <span class="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                    {skill.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
           <div class="flex items-center gap-2">
             {chatStore.canAttachImages && (

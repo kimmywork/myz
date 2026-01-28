@@ -18,6 +18,7 @@ import type {
   MaxOutputTokenParam,
   McpServerSetting,
 } from "../settings";
+import type { Settings } from "../settings";
 import { generateId, readSettings, saveHighlight } from "../storage";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
@@ -34,7 +35,10 @@ import { McpCapability } from "../ai/capabilities/mcp.js";
 import { ConversationAgent } from "../ai/agents/conversationAgent.js";
 import { InsightsAgent } from "../ai/agents/insightsAgent.js";
 import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
+import { SkillSelectionAgent } from "../ai/agents/skillSelectionAgent.js";
 import { LOCAL_TOOL_NAMES } from "../ai/tools/localDefinitions.js";
+import { extractSkillMentions } from "../ai/skills/mentions.js";
+import { getSkillInstruction, listSkills } from "../ai/skills/storage.js";
 
 /**
  * Stores a "draft action" so the SidePanel can pick it up even if the runtime
@@ -44,6 +48,88 @@ const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
 
 function generateDraftId(prefix = "draft") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function notifySidePanel(type: string, data?: any) {
+  try {
+    chrome.runtime
+      .sendMessage(data ? { type, data } : { type })
+      .catch(() => {})
+  } catch (error) {
+    console.warn(`Failed to notify sidepanel: ${type}`, error)
+  }
+}
+
+function buildSkillContextBlock(skill: { name: string; description: string; body: string }) {
+  const parts = [`【Skill: ${skill.name}】`]
+  if (skill.description) {
+    parts.push(`描述: ${skill.description}`)
+  }
+  if (skill.body) {
+    parts.push(skill.body)
+  }
+  return parts.join("\n").trim()
+}
+
+async function resolveSkillContext(options: {
+  message: string
+  settings: Settings
+}) {
+  const message = typeof options.message === "string" ? options.message : ""
+  const skills = await listSkills()
+  const enabledSkills = skills.filter((skill) => skill.enabled)
+  if (!enabledSkills.length) {
+    return { skillNames: [], skillContext: "" }
+  }
+
+  const available = new Set(enabledSkills.map((skill) => skill.name))
+  const explicit = extractSkillMentions(message, available)
+  const selected = new Set(explicit)
+
+  const skillSettings = (options.settings as any)?.aiSkills
+  const selectorTarget = skillSettings?.autoSelectorTarget
+  const shouldAutoSelect = skillSettings?.mode === "auto"
+
+  if (shouldAutoSelect && selectorTarget?.providerId && selectorTarget?.modelId && message.trim()) {
+    try {
+      const resolved = resolveModelRef(options.settings as any, selectorTarget)
+      const selectorRuntime = await acquireProviderRuntime(resolved.provider as any, [])
+      try {
+        const selector = new SkillSelectionAgent()
+        const autoSelected = await selector.selectSkillNames({
+          prompt: message,
+          skills: enabledSkills.map((skill) => ({
+            name: skill.name,
+            description: skill.description,
+          })),
+          client: selectorRuntime.session.client as any,
+          model: resolved.model as any,
+        })
+        autoSelected.forEach((name) => selected.add(name))
+      } finally {
+        await selectorRuntime.release()
+      }
+    } catch (error) {
+      console.warn("Skill selector failed", error)
+    }
+  }
+
+  if (!selected.size) {
+    return { skillNames: [], skillContext: "" }
+  }
+
+  const instructions = await Promise.all(
+    Array.from(selected).map((name) => getSkillInstruction(name)),
+  )
+  const resolved = instructions.filter((skill): skill is NonNullable<typeof skill> => Boolean(skill))
+  if (!resolved.length) {
+    return { skillNames: [], skillContext: "" }
+  }
+  const skillContext = resolved.map(buildSkillContextBlock).join("\n\n").trim()
+  return {
+    skillNames: resolved.map((skill) => skill.name),
+    skillContext,
+  }
 }
 
 /**
@@ -195,6 +281,7 @@ export function initializeAIMessageHandlers() {
       message?: string;
       action?: string;
       attachments?: ImageAttachment[];
+      clientMessageId?: string;
       context?: {
         url?: string;
         title?: string;
@@ -207,7 +294,7 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const { conversationId, message, action, context, options, attachments } =
+      const { conversationId, message, action, context, options, attachments, clientMessageId } =
         payload || ({} as any);
       if (!conversationId) {
         throw new Error("conversationId is required");
@@ -266,6 +353,24 @@ export function initializeAIMessageHandlers() {
 
         const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
         const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
+        const skillPayload = await resolveSkillContext({
+          message: normalizedMessage,
+          settings: settings as any,
+        })
+        const skillMetadata =
+          skillPayload.skillContext && skillPayload.skillNames.length
+            ? {
+                skillContext: skillPayload.skillContext,
+                skillNames: skillPayload.skillNames,
+              }
+            : {}
+        if (clientMessageId && skillPayload.skillNames.length > 0) {
+          notifySidePanel("myz:aiSkillSelection", {
+            conversationId,
+            clientMessageId,
+            skillNames: skillPayload.skillNames,
+          })
+        }
 
         return await agent.processConversation(
           conversationId,
@@ -282,6 +387,7 @@ export function initializeAIMessageHandlers() {
               ...(context?.url ? { url: context.url } : {}),
               ...(context?.title ? { title: context.title } : {}),
               source: "sidepanel",
+              ...skillMetadata,
             },
           },
           {
@@ -496,11 +602,28 @@ export function initializeAIMessageHandlers() {
           : runtime.session.client;
         const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
         const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
+        const skillPayload = await resolveSkillContext({
+          message: content,
+          settings: settings as any,
+        })
+        const skillMetadata =
+          skillPayload.skillContext && skillPayload.skillNames.length
+            ? {
+                skillContext: skillPayload.skillContext,
+                skillNames: skillPayload.skillNames,
+              }
+            : {}
         const result = await agent.processConversation(
           conversationId,
           action,
           content,
-          options,
+          {
+            ...(options || {}),
+            metadata: {
+              ...(options?.metadata || {}),
+              ...skillMetadata,
+            },
+          },
           {
             client: client as any,
             isEnabled: Boolean(settings.aiAssistantEnabled),

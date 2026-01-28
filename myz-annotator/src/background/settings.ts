@@ -67,6 +67,18 @@ export interface AILocalToolsSettings {
   autoSelectorTarget: AIAgentModelRef | null;
 }
 
+export interface AISkillsSettings {
+  /**
+   * Manual: only explicit @skill will be injected.
+   * Auto: per-message skill selection via a dedicated selector model.
+   */
+  mode: AIToolSelectionMode;
+  /**
+   * Provider+model used for skill selection when `mode === "auto"`.
+   */
+  autoSelectorTarget: AIAgentModelRef | null;
+}
+
 export interface AIAgentConfig {
   target: AIAgentModelRef | null;
   temperature: number;
@@ -118,6 +130,7 @@ export interface AIAssistantSettings {
   aiAgents: AIAgentsSettings;
   aiMcpServers: McpServerSetting[];
   aiLocalTools: AILocalToolsSettings;
+  aiSkills: AISkillsSettings;
   vectorSearch: VectorSettings;
 }
 

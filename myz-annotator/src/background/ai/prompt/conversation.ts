@@ -28,10 +28,17 @@ function buildUserContent(
     typeof (message as any)?.metadata?.selectionContextText === "string"
       ? String((message as any).metadata.selectionContextText).trim()
       : ""
+  const skillContext =
+    typeof (message as any)?.metadata?.skillContext === "string"
+      ? String((message as any).metadata.skillContext).trim()
+      : ""
+  const skillBlock = skillContext ? `技能说明:\n${skillContext}` : ""
+  const baseText = [text, skillBlock].filter(Boolean).join("\n\n").trim()
   if (!includeVision) {
-    return selectionContextText
-      ? `选中内容（上下文）:\n${selectionContextText}\n\n${text}`.trim()
-      : text
+    const plain = selectionContextText
+      ? `选中内容（上下文）:\n${selectionContextText}\n\n${baseText}`.trim()
+      : baseText
+    return plain
   }
 
   const attachments = normalizeAttachments(message?.metadata?.attachments)
@@ -43,8 +50,8 @@ function buildUserContent(
         text: `选中内容（上下文）:\n${selectionContextText}`,
       })
     }
-    if (text.trim()) {
-      parts.push({ type: "text", text })
+    if (baseText.trim()) {
+      parts.push({ type: "text", text: baseText })
     }
     return parts.length ? parts : text
   }
@@ -53,8 +60,8 @@ function buildUserContent(
   if (selectionContextText) {
     parts.push({ type: "text", text: `选中内容（上下文）:\n${selectionContextText}` })
   }
-  if (text.trim()) {
-    parts.push({ type: "text", text })
+  if (baseText.trim()) {
+    parts.push({ type: "text", text: baseText })
   }
   attachments.forEach((attachment) => {
     parts.push({
