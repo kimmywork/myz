@@ -1,0 +1,164 @@
+import { waitForNextPaint } from "./html.ts";
+
+export interface ImageCropResult {
+  canvas: HTMLCanvasElement;
+  scaleX: number;
+  scaleY: number;
+  sw: number;
+  sh: number;
+}
+
+export interface CropRect {
+  left: number;
+  right?: number;
+  top: number;
+  bottom?: number;
+  width: number;
+  height: number;
+}
+
+export function getSelectionBoundingRect(
+  range: Range,
+): Partial<CropRect> | null {
+  const rects = Array.from(range.getClientRects()).filter(
+    (rect) => rect.width && rect.height,
+  );
+  if (!rects.length) {
+    const fallback = range.getBoundingClientRect();
+    if (!fallback || !fallback.width || !fallback.height) {
+      return null;
+    }
+    return {
+      top: fallback.top,
+      left: fallback.left,
+      right: fallback.right,
+      bottom: fallback.bottom,
+      width: fallback.width,
+      height: fallback.height,
+    };
+  }
+  const bounds = rects.reduce(
+    (acc, rect) => ({
+      top: Math.min(acc.top, rect.top),
+      left: Math.min(acc.left, rect.left),
+      right: Math.max(acc.right, rect.right),
+      bottom: Math.max(acc.bottom, rect.bottom),
+    }),
+    {
+      top: rects[0].top,
+      left: rects[0].left,
+      right: rects[0].right,
+      bottom: rects[0].bottom,
+    },
+  );
+  return {
+    top: bounds.top,
+    left: bounds.left,
+    right: bounds.right,
+    bottom: bounds.bottom,
+    width: bounds.right - bounds.left,
+    height: bounds.bottom - bounds.top,
+  };
+}
+
+export async function cropAndDownloadSelection(
+  dataUrl: string,
+  rect: CropRect,
+  captureViewport?: { width: number; height: number },
+) {
+  const image = await loadImage(dataUrl);
+
+  const viewportWidth = captureViewport?.width ?? image.width;
+  const viewportHeight = captureViewport?.height ?? image.height;
+  const scaleX = image.width / viewportWidth;
+  const scaleY = image.height / viewportHeight;
+  const sx = Math.max(0, Math.floor(rect.left * scaleX));
+  const sy = Math.max(0, Math.floor(rect.top * scaleY));
+  const sw = Math.min(image.width - sx, Math.floor(rect.width * scaleX));
+  const sh = Math.min(image.height - sy, Math.floor(rect.height * scaleY));
+  if (sw <= 0 || sh <= 0) {
+    throw new Error("Selection bounds are outside the captured area");
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = sw;
+  canvas.height = sh;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Canvas context is unavailable");
+  }
+  context.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
+  const cropped = canvas.toDataURL("image/png");
+  downloadImage(cropped, `myz-selection-${Date.now()}.png`);
+}
+
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load screenshot"));
+    image.src = dataUrl;
+  });
+}
+
+export function downloadImage(dataUrl: string, filename: string) {
+  const anchor = document.createElement("a");
+  anchor.href = dataUrl;
+  anchor.download = filename;
+  anchor.click();
+}
+
+export async function cropToCanvas(
+  dataUrl: string,
+  rect: CropRect,
+  captureViewport?: { width: number; height: number },
+): Promise<ImageCropResult> {
+  const image = await loadImage(dataUrl);
+  const viewportWidth = captureViewport?.width ?? image.width;
+  const viewportHeight = captureViewport?.height ?? image.height;
+  const scaleX = image.width / viewportWidth;
+  const scaleY = image.height / viewportHeight;
+  const sx = Math.max(0, Math.floor(rect.left * scaleX));
+  const sy = Math.max(0, Math.floor(rect.top * scaleY));
+  const sw = Math.min(image.width - sx, Math.floor(rect.width * scaleX));
+  const sh = Math.min(image.height - sy, Math.floor(rect.height * scaleY));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, sw);
+  canvas.height = Math.max(1, sh);
+  const context = canvas.getContext("2d");
+  context?.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh);
+  return { canvas, scaleX, scaleY, sw, sh };
+}
+
+let __myzLastCaptureAt = 0;
+
+function sleep(ms: number) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+export async function captureVisiblePngWithThrottle(maxRetries = 4) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const now = Date.now();
+    const since = now - __myzLastCaptureAt;
+    const minGap = 650; // ms, stay under rate limit
+    if (since < minGap) {
+      await sleep(minGap - since);
+    }
+    await waitForNextPaint();
+    const resp = (await new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(
+          { type: "myz:captureSelection", payload: { format: "png" } },
+          (r) => resolve(r),
+        );
+      } catch (e) {
+        resolve(null);
+      }
+    })) as { ok: boolean; data?: { dataUrl: string } } | null;
+    __myzLastCaptureAt = Date.now();
+    if (resp && resp.ok && resp.data && resp.data.dataUrl) {
+      return resp.data.dataUrl;
+    }
+    await sleep(700 + attempt * 250);
+  }
+  throw new Error("capture throttled or failed");
+}

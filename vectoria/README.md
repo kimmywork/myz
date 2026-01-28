@@ -18,6 +18,29 @@ A lightweight, client-side vector search engine for the browser, built with HNSW
 npm install vectoria
 ```
 
+## Thin Build & Custom WASM Paths
+
+For advanced use cases where you want to exclude `@huggingface/transformers` from the bundle or serve ONNX WASM files from a custom location (e.g., for offline support).
+
+### Using the Thin Build
+
+Import from `vectoria/thin` to use the version that externalizes `@huggingface/transformers`. You must ensure `@huggingface/transformers` is installed in your project.
+
+```typescript
+import { Vectoria } from 'vectoria/thin';
+```
+
+### Configuring Custom WASM Paths
+
+You can specify the location of the ONNX Runtime WASM files using the `wasmPaths` option. This is useful if you want to serve them from your own server instead of the default CDN.
+
+```typescript
+const indexer = new Vectoria({
+  useLocalModel: true,
+  wasmPaths: '/assets/wasm/', // URL prefix or object mapping
+});
+```
+
 ## Usage
 
 ### 1. Basic Usage (Local Embeddings)

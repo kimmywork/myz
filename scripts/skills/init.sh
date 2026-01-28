@@ -1,0 +1,1 @@
+git remote add -f skills git@github.com:myz-suite/skills.git
