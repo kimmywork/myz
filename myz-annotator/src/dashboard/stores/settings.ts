@@ -23,6 +23,7 @@ export const useSettingsStore = defineStore("settings", () => {
         temperature: 0.7,
         compressImages: false,
         multimodalTarget: null,
+        contextCompressionThreshold: 80,
       },
       insights: { target: null, temperature: 0.7 },
     },
@@ -112,6 +113,11 @@ export const useSettingsStore = defineStore("settings", () => {
                     typeof result.aiAgents.conversation.multimodalTarget === "object"
                       ? result.aiAgents.conversation.multimodalTarget
                       : null,
+                  contextCompressionThreshold:
+                    typeof result.aiAgents.conversation?.contextCompressionThreshold ===
+                    "number"
+                      ? result.aiAgents.conversation.contextCompressionThreshold
+                      : 80,
                 },
                 insights: {
                   target: result.aiAgents.insights?.target || null,

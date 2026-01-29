@@ -190,6 +190,33 @@ export default defineComponent({
               </label>
             </div>
           )}
+          {key === "conversation" && (
+            <div class="mt-3">
+              <label class="field">
+                <span>上下文压缩阈值（%）</span>
+                <input
+                  type="number"
+                  min="50"
+                  max="95"
+                  step="1"
+                  value={agent.contextCompressionThreshold ?? 80}
+                  onInput={(e) =>
+                    updateAgent("conversation", {
+                      contextCompressionThreshold: clamp(
+                        (e.target as HTMLInputElement).value,
+                        50,
+                        95,
+                        80,
+                      ),
+                    })
+                  }
+                />
+              </label>
+              <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                当对话上下文估算占用达到该百分比时，自动触发压缩。
+              </div>
+            </div>
+          )}
         </div>
       )
     }

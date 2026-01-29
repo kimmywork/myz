@@ -14,7 +14,6 @@ import {
   listConversations,
   getMessagesForConversation,
   checkContextSize,
-  compressContext,
   deleteMessagesByConversationAndType,
   ConversationInfo,
 } from "../aiStorage.js";
@@ -66,14 +65,18 @@ export const useChatStore = defineStore("chat", () => {
   const aiConfig = reactive({
     assistantEnabled: false,
     supportsVision: false,
+    baseSupportsVision: false,
     compressImages: false,
     configured: false,
+    baseContextWindow: 32768,
+    multimodalContextWindow: null as number | null,
   });
   const contextInfo = reactive({
     size: 0,
     maxSize: 32768,
     percentage: 0,
     needsCompression: false,
+    threshold: 80,
   });
 
   const activeStream: MessageStream = reactive({
@@ -96,13 +99,14 @@ export const useChatStore = defineStore("chat", () => {
   });
 
   const visibleMessages = computed(() => {
-    if (sendContext.value) {
-      return messages.value;
-    }
-    return messages.value.filter(
-      (msg: Message) =>
-        msg.metadata?.type !== "page_context" && msg.role !== "system",
-    );
+    const base = sendContext.value
+      ? messages.value
+      : messages.value.filter(
+          (msg: Message) =>
+            msg.metadata?.type !== "page_context" &&
+            (msg.role !== "system" || msg.metadata?.type === "system_event"),
+        );
+    return base.filter((msg: Message) => msg.metadata?.type !== "compression_summary");
   });
 
   const conversationUrl = computed(() => activeConversation.value?.url || "");
@@ -315,7 +319,9 @@ export const useChatStore = defineStore("chat", () => {
     messages.value = [
       contextMessage,
       ...messages.value.filter(
-        (msg) => msg.metadata?.type !== "page_context" && msg.role !== "system",
+        (msg) =>
+          msg.metadata?.type !== "page_context" &&
+          (msg.role !== "system" || msg.metadata?.type === "system_event"),
       ),
     ];
   }
@@ -451,6 +457,7 @@ export const useChatStore = defineStore("chat", () => {
         contextInfo.maxSize,
         {
           includePageContext: sendContext.value,
+          threshold: contextInfo.threshold,
         },
       );
       contextInfo.size = result.estimatedTokens;
@@ -507,13 +514,31 @@ export const useChatStore = defineStore("chat", () => {
     pendingRequestId.value = requestId;
 
     try {
-      if (contextInfo.needsCompression) {
-        // Logic for compression handled in UI or here? 
-        // For now, let's assume UI handles confirmation and calls a compress action
-      }
-
       if (sendContext.value && conversationId.value) {
         await ensurePageContextMessage(conversationId.value);
+      }
+
+      const useMultimodal =
+        combinedAttachments.length > 0 &&
+        !aiConfig.baseSupportsVision &&
+        typeof aiConfig.multimodalContextWindow === "number";
+      const effectiveMaxSize = useMultimodal
+        ? (aiConfig.multimodalContextWindow as number)
+        : aiConfig.baseContextWindow;
+      contextInfo.maxSize = effectiveMaxSize;
+      const contextCheck = await checkContextSize(
+        conversationId.value,
+        effectiveMaxSize,
+        {
+          includePageContext: sendContext.value,
+          threshold: contextInfo.threshold,
+        },
+      );
+      contextInfo.size = contextCheck.estimatedTokens;
+      contextInfo.percentage = contextCheck.percentage;
+      contextInfo.needsCompression = contextCheck.needsCompression;
+      if (contextCheck.needsCompression) {
+        await compressConversationContext();
       }
 
       const nextAttachments = await prepareAttachmentsForSend(combinedAttachments);
@@ -576,12 +601,12 @@ export const useChatStore = defineStore("chat", () => {
 
   async function compressConversationContext() {
     if (!conversationId.value) return;
-    const compressed = await compressContext(
-      conversationId.value,
-      contextInfo.maxSize * 0.5,
-    );
-    if (compressed.compressed) {
-      messages.value = compressed.messages!;
+    const compressed: any = await sendMessage("myz:compactConversation", {
+      conversationId: conversationId.value,
+      targetTokens: contextInfo.maxSize * 0.5,
+    });
+    if (compressed?.compressed && Array.isArray(compressed.messages)) {
+      messages.value = compressed.messages;
       await checkContext();
     }
   }
@@ -644,7 +669,8 @@ export const useChatStore = defineStore("chat", () => {
         );
         messages.value = messages.value.filter(
           (msg) =>
-            msg.metadata?.type !== "page_context" && msg.role !== "system",
+            msg.metadata?.type !== "page_context" &&
+            (msg.role !== "system" || msg.metadata?.type === "system_event"),
         );
       } else if (!pageStore.pageContent) {
          await ensurePageContextMessage(conversationId.value);
@@ -768,7 +794,7 @@ export const useChatStore = defineStore("chat", () => {
 
   async function refreshAiConfig() {
     try {
-      const settings = (await sendMessage<any, Settings>("myz:getSettings")) as any;
+      const settings = (await sendMessage<any, Settings>("myz:getSettings")) as Settings;
       aiConfig.assistantEnabled = Boolean(settings?.aiAssistantEnabled);
 
       const conversation = settings?.aiAgents?.conversation;
@@ -780,8 +806,14 @@ export const useChatStore = defineStore("chat", () => {
 
       aiConfig.configured = Boolean(provider && model);
       const baseVision = Boolean(model?.capabilities?.vision);
+      aiConfig.baseSupportsVision = baseVision;
+      aiConfig.baseContextWindow =
+        typeof model?.limits?.contextWindow === "number"
+          ? Math.floor(model.limits.contextWindow)
+          : 32768;
       const multimodalTarget = conversation?.multimodalTarget;
       let multimodalVision = false;
+      let multimodalContextWindow: number | null = null;
       if (multimodalTarget?.providerId && multimodalTarget?.modelId) {
         const multimodalProvider = (settings?.aiProviders || []).find(
           (p: any) => p.id === multimodalTarget.providerId,
@@ -795,14 +827,31 @@ export const useChatStore = defineStore("chat", () => {
             multimodalModel?.enabled &&
             multimodalModel?.capabilities?.vision,
         );
+        if (typeof multimodalModel?.limits?.contextWindow === "number") {
+          multimodalContextWindow = Math.floor(multimodalModel.limits.contextWindow);
+        }
       }
       aiConfig.supportsVision = baseVision || multimodalVision;
+      aiConfig.multimodalContextWindow = multimodalContextWindow;
       aiConfig.compressImages = Boolean(conversation?.compressImages);
+      contextInfo.maxSize = aiConfig.baseContextWindow || 32768;
+      if (typeof conversation?.contextCompressionThreshold === "number") {
+        contextInfo.threshold = Math.max(
+          50,
+          Math.min(95, Math.round(conversation.contextCompressionThreshold)),
+        );
+      } else {
+        contextInfo.threshold = 80;
+      }
     } catch {
       aiConfig.assistantEnabled = false;
       aiConfig.supportsVision = false;
+      aiConfig.baseSupportsVision = false;
       aiConfig.compressImages = false;
       aiConfig.configured = false;
+      aiConfig.baseContextWindow = 32768;
+      aiConfig.multimodalContextWindow = null;
+      contextInfo.threshold = 80;
     }
   }
 

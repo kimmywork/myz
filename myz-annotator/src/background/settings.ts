@@ -87,6 +87,10 @@ export interface AIAgentConfig {
    * Optional fallback model for Vision when the primary model lacks it.
    */
   multimodalTarget?: AIAgentModelRef | null;
+  /**
+   * Trigger context compaction when the estimated usage reaches this percentage.
+   */
+  contextCompressionThreshold?: number;
 }
 
 export interface AIAgentsSettings {

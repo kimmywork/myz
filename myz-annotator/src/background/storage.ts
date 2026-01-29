@@ -84,6 +84,11 @@ function getAllFromStore<T>(storeName: string): Promise<T[]> {
 }
 
 function normalizeSettings<T extends Settings>(settings: T): T {
+  const clampPercent = (value: any, min: number, max: number, fallback: number) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback
+    return Math.max(min, Math.min(max, Math.round(parsed)))
+  }
   settings.aiAssistantEnabled = Boolean(settings.aiAssistantEnabled);
   settings.aiProviders = Array.isArray(settings.aiProviders)
     ? settings.aiProviders.filter((p) => p && typeof p === "object")
@@ -118,6 +123,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       temperature: 0.7,
       compressImages: false,
       multimodalTarget: null,
+      contextCompressionThreshold: 80,
     }
   } else {
     aiAgents.conversation.target = normalizeAgentTarget(aiAgents.conversation.target)
@@ -128,6 +134,12 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     aiAgents.conversation.compressImages = Boolean(aiAgents.conversation.compressImages)
     aiAgents.conversation.multimodalTarget = normalizeAgentTarget(
       aiAgents.conversation.multimodalTarget,
+    )
+    aiAgents.conversation.contextCompressionThreshold = clampPercent(
+      aiAgents.conversation.contextCompressionThreshold,
+      50,
+      95,
+      80,
     )
   }
   if (!aiAgents.insights || typeof aiAgents.insights !== "object") {

@@ -69,6 +69,7 @@ Import shared AI types from `@/background/ai/types.js`.
    - Resolves `aiAgents.conversation.target` via `resolveAgentTarget(settings, "conversation")`.
    - Acquires a cached provider runtime via `acquireProviderRuntime(target.provider, settings.aiMcpServers)`.
    - Connects MCP only when `target.model.capabilities.toolCalling === true`.
+   - Resolves Skill selection (explicit `@skill` + auto selection) and injects only `{ name, description }` into the user message metadata.
 3. `ConversationAgent.processConversation()`:
    - Persists the user message.
    - Loads history from IndexedDB; falls back to legacy storage when empty.
@@ -81,6 +82,17 @@ Import shared AI types from `@/background/ai/types.js`.
      - extracted reasoning/thinking in `reasoning_content` and `metadata.reasoning` (if available)
    - Persists tool messages as `role: "tool"` and emits `myz:newMessage` for tool-call/tool-result updates.
 4. Handler `finally` disconnects MCP (ref-counted) and releases the provider runtime.
+
+## Context Compaction (Sidepanel)
+
+- Triggered automatically when estimated context usage exceeds `aiAgents.conversation.contextCompressionThreshold`.
+- Sidepanel calls `myz:compactConversation` before sending a new user message.
+- Compaction is done in background using the conversation model:
+  - Summarizes older messages.
+  - Creates a new first user message: `原始请求 + 上下文总结`.
+  - Preserves the most recent N user/assistant turns.
+  - Emits a `system_event` message ("上下文已压缩") for UI only.
+  - Resets `skillContextInjected` so skills can be re-injected after compaction.
 
 ## Google Gemini (OpenAI-Compatible) Notes
 
@@ -100,6 +112,15 @@ Gemini’s OpenAI-compatible API differs from typical providers:
 - Tool loop is implemented by `toolCalling.ts` capability.
 - Follow-up requests should **not** forward any `reasoning_content` or `<thought>` output back to the model.
   - The tool-calling capability sanitizes assistant content using Gemini thought tag splitting.
+
+## Skill + Local Tools
+
+- Skill storage lives in IndexedDB and is exposed via `/skills/...` paths:
+  - The prompt injects `<available_skills>` blocks with locations like `/skills/{name}/SKILL.md`.
+  - The model should call `read-file` to load skill content.
+- Virtual file system for agent memory is implemented in a separate IndexedDB and exposed via:
+  - `list-files`, `read-file`, `write-file`
+  - `/skills` paths are routed to skill storage; `/skills` is read-only.
 
 ## UI Integration Notes (Sidepanel)
 

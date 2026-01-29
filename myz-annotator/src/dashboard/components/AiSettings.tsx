@@ -87,6 +87,7 @@ export default defineComponent({
         temperature: 0.7,
         compressImages: false,
         multimodalTarget: null,
+        contextCompressionThreshold: 80,
       },
       insights: { target: null, temperature: 0.7 },
     })
