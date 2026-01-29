@@ -1,0 +1,1 @@
+git remote add -f sync git@github.com:myz-suite/sync.git
