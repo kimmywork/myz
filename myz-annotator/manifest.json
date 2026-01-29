@@ -11,6 +11,8 @@
   },
   "permissions": [
     "storage",
+    "alarms",
+    "notifications",
     "tabs",
     "activeTab",
     "contextMenus",
@@ -47,7 +49,7 @@
     "pages": ["src/sandbox/code-execution.html"]
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self';",
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
     "sandbox": "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-eval'; child-src 'self' blob:; worker-src 'self' blob:;"
   },
   "web_accessible_resources": [

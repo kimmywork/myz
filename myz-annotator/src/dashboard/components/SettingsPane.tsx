@@ -3,6 +3,7 @@ import { useUIStore } from "../stores/ui.js";
 import AiSettings from "./AiSettings.jsx";
 import ImportHighlightsSection from "./settings/ImportHighlightsSection.jsx";
 import SocialImportSection from "./settings/SocialImportSection.jsx";
+import SyncSection from "./settings/SyncSection.jsx";
 
 export default defineComponent({
   name: "SettingsPane",
@@ -39,6 +40,7 @@ export default defineComponent({
         <div class="mt-4 space-y-4">
           <ImportHighlightsSection />
           <SocialImportSection />
+          <SyncSection />
           <AiSettings />
         </div>
       </section>

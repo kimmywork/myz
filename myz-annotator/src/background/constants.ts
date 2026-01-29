@@ -63,4 +63,17 @@ export const DEFAULT_SETTINGS: Settings = {
       profileUrl: "",
     },
   },
+  // E2EE sync
+  sync: {
+    enabled: false,
+    s3: {
+      endpoint: "",
+      region: "",
+      bucket: "",
+      accessKeyId: "",
+      secretAccessKey: "",
+      sessionToken: "",
+      prefix: "",
+    },
+  },
 };

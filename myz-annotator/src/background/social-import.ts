@@ -5,6 +5,7 @@ import {
   getHighlightsForUrl,
   saveHighlight,
 } from "./storage.js";
+import { recordHighlightDeletion } from "./sync/deletions";
 import { indexRecord, removeRecordFromIndex } from "./vectoria-index.js";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import {
@@ -716,6 +717,7 @@ export async function clearTweetImports() {
   );
   for (const record of tweetRecords) {
     try {
+      await recordHighlightDeletion(record.id);
       await deleteHighlight(record.id);
     } catch (error) {
       // ignore individual failures

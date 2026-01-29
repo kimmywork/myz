@@ -7,7 +7,9 @@ import { initializeHighlightMessageHandlers } from "./background/messages/highli
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
 import { initializeSkillMessageHandlers } from "./background/messages/skills.js";
 import { initializeSocialImportMessageHandlers } from "./background/messages/social-import.js";
+import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
 import { initializeVectoriaMessageHandlers } from "./background/messages/vectoria.js";
+import { initializeSyncScheduler } from "./background/sync/scheduler.js";
 import { readSettings } from "./background/storage.js";
 import {
   applyVectorSearchSettings,
@@ -446,7 +448,9 @@ initializeHighlightMessageHandlers();
 initializeSettingsMessageHandlers();
 initializeSkillMessageHandlers();
 initializeSocialImportMessageHandlers();
+initializeSyncMessageHandlers();
 initializeVectoriaMessageHandlers();
+initializeSyncScheduler();
 
 chrome.runtime.onMessage.addListener(
   (message: { type: string; payload: any }, sender, sendResponse) => {

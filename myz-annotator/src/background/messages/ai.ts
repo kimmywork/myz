@@ -30,6 +30,7 @@ import {
   replaceConversationMessages,
   updateConversationMetadata,
 } from "@/sidepanel/aiStorage";
+import { recordConversationDeletion } from "../sync/deletions";
 import {
   resolveAgentTarget,
   resolveConversationMultimodalTarget,
@@ -1062,6 +1063,7 @@ export function initializeAIMessageHandlers() {
     "myz:deleteConversation",
     async (payload: { conversationId: string }) => {
       const { conversationId } = payload || {};
+      await recordConversationDeletion(conversationId);
       await deleteConversation(conversationId);
       return { success: true };
     },

@@ -53,6 +53,18 @@ export const useSettingsStore = defineStore("settings", () => {
         profileUrl: "",
       },
     },
+    sync: {
+      enabled: false,
+      s3: {
+        endpoint: "",
+        region: "",
+        bucket: "",
+        accessKeyId: "",
+        secretAccessKey: "",
+        sessionToken: "",
+        prefix: "",
+      },
+    },
   });
 
   const settingsStatus = ref("");
@@ -190,6 +202,45 @@ export const useSettingsStore = defineStore("settings", () => {
                 },
               }
             : settings.socialImport,
+        sync:
+          result.sync && typeof result.sync === "object"
+            ? {
+                enabled: Boolean(result.sync.enabled),
+                s3:
+                  result.sync.s3 && typeof result.sync.s3 === "object"
+                    ? {
+                        endpoint:
+                          typeof result.sync.s3.endpoint === "string"
+                            ? result.sync.s3.endpoint
+                            : settings.sync.s3.endpoint,
+                        region:
+                          typeof result.sync.s3.region === "string"
+                            ? result.sync.s3.region
+                            : settings.sync.s3.region,
+                        bucket:
+                          typeof result.sync.s3.bucket === "string"
+                            ? result.sync.s3.bucket
+                            : settings.sync.s3.bucket,
+                        accessKeyId:
+                          typeof result.sync.s3.accessKeyId === "string"
+                            ? result.sync.s3.accessKeyId
+                            : settings.sync.s3.accessKeyId,
+                        secretAccessKey:
+                          typeof result.sync.s3.secretAccessKey === "string"
+                            ? result.sync.s3.secretAccessKey
+                            : settings.sync.s3.secretAccessKey,
+                        sessionToken:
+                          typeof result.sync.s3.sessionToken === "string"
+                            ? result.sync.s3.sessionToken
+                            : settings.sync.s3.sessionToken,
+                        prefix:
+                          typeof result.sync.s3.prefix === "string"
+                            ? result.sync.s3.prefix
+                            : settings.sync.s3.prefix,
+                      }
+                    : settings.sync.s3,
+              }
+            : settings.sync,
       });
     } catch (error) {
       console.error("Failed to load settings", error);
@@ -251,6 +302,47 @@ export const useSettingsStore = defineStore("settings", () => {
                   },
                 }
               : settings.socialImport;
+        }
+        if ("sync" in updated) {
+          settings.sync =
+            updated.sync && typeof updated.sync === "object"
+              ? {
+                  enabled: Boolean(updated.sync.enabled),
+                  s3:
+                    updated.sync.s3 && typeof updated.sync.s3 === "object"
+                      ? {
+                          endpoint:
+                            typeof updated.sync.s3.endpoint === "string"
+                              ? updated.sync.s3.endpoint
+                              : settings.sync.s3.endpoint,
+                          region:
+                            typeof updated.sync.s3.region === "string"
+                              ? updated.sync.s3.region
+                              : settings.sync.s3.region,
+                          bucket:
+                            typeof updated.sync.s3.bucket === "string"
+                              ? updated.sync.s3.bucket
+                              : settings.sync.s3.bucket,
+                          accessKeyId:
+                            typeof updated.sync.s3.accessKeyId === "string"
+                              ? updated.sync.s3.accessKeyId
+                              : settings.sync.s3.accessKeyId,
+                          secretAccessKey:
+                            typeof updated.sync.s3.secretAccessKey === "string"
+                              ? updated.sync.s3.secretAccessKey
+                              : settings.sync.s3.secretAccessKey,
+                          sessionToken:
+                            typeof updated.sync.s3.sessionToken === "string"
+                              ? updated.sync.s3.sessionToken
+                              : settings.sync.s3.sessionToken,
+                          prefix:
+                            typeof updated.sync.s3.prefix === "string"
+                              ? updated.sync.s3.prefix
+                              : settings.sync.s3.prefix,
+                        }
+                      : settings.sync.s3,
+                }
+              : settings.sync;
         }
       }
       setTimedStatus(settingsStatus, "设置已保存", 3000);

@@ -151,10 +151,26 @@ export interface SocialImportSettings {
   mastodon: SocialImportProviderSettings;
 }
 
+export interface SyncS3Settings {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+  prefix?: string;
+}
+
+export interface SyncSettings {
+  enabled: boolean;
+  s3: SyncS3Settings;
+}
+
 export interface Settings extends AIAssistantSettings {
   dashboardView: "cards" | "list";
   colorPalette: string[];
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;
   socialImport: SocialImportSettings;
+  sync: SyncSettings;
 }

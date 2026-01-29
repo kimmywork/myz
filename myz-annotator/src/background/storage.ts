@@ -300,6 +300,50 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     socialImport.mastodon.profileUrl = "";
   }
 
+  const sync = (settings as any).sync;
+  if (!sync || typeof sync !== "object") {
+    (settings as any).sync = {
+      enabled: false,
+      s3: {
+        endpoint: "",
+        region: "",
+        bucket: "",
+        accessKeyId: "",
+        secretAccessKey: "",
+        sessionToken: "",
+        prefix: "",
+      },
+    };
+  } else {
+    sync.enabled = Boolean(sync.enabled);
+    if (!sync.s3 || typeof sync.s3 !== "object") {
+      sync.s3 = {
+        endpoint: "",
+        region: "",
+        bucket: "",
+        accessKeyId: "",
+        secretAccessKey: "",
+        sessionToken: "",
+        prefix: "",
+      };
+    } else {
+      sync.s3.endpoint =
+        typeof sync.s3.endpoint === "string" ? sync.s3.endpoint : "";
+      sync.s3.region =
+        typeof sync.s3.region === "string" ? sync.s3.region : "";
+      sync.s3.bucket =
+        typeof sync.s3.bucket === "string" ? sync.s3.bucket : "";
+      sync.s3.accessKeyId =
+        typeof sync.s3.accessKeyId === "string" ? sync.s3.accessKeyId : "";
+      sync.s3.secretAccessKey =
+        typeof sync.s3.secretAccessKey === "string" ? sync.s3.secretAccessKey : "";
+      sync.s3.sessionToken =
+        typeof sync.s3.sessionToken === "string" ? sync.s3.sessionToken : "";
+      sync.s3.prefix =
+        typeof sync.s3.prefix === "string" ? sync.s3.prefix : "";
+    }
+  }
+
   return settings;
 }
 
