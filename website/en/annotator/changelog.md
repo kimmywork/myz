@@ -2,6 +2,14 @@
 
 Highlights from recent extension updates.
 
+## v0.3.1 — UX & settings stability
+
+- Fixed the Inspector not appearing after clicking a highlight, and redesigned it as a toolbar-style popover (notes show above; edit closes the panel).
+- Replaced the highlight flash with a softer pulse/halo animation for better visibility in dark/paint styles.
+- Interests now only appear when vector search is enabled and a model is configured; cleaned up indicators and reduced their footprint.
+- Unified new SVG icons in the shared icon library, updating popup/sidepanel/inspector buttons.
+- Fixed AiProviderEditor model list mis-selection during reorder; disabling a model now auto-selects the next item for editing.
+
 ## v0.3.0 — End-to-end encrypted sync (E2EE)
 
 - Added encrypted sync with S3-compatible storage (bring your own storage configuration).
