@@ -2,6 +2,20 @@
 
 Highlights from recent extension updates.
 
+## v0.3.0 — End-to-end encrypted sync (E2EE)
+
+- Added encrypted sync with S3-compatible storage (bring your own storage configuration).
+- The sync secret stays local; only ciphertext and minimal metadata are stored remotely.
+- Added sync status and manual sync actions (KeyId, manifest version, last sync time).
+
+## v0.2.0 — Agent Skills
+
+- Introduced Agent Skills:
+  - Built-in and custom skills (import via zip/folder).
+  - Explicit skill invocation via `@skill-name`.
+  - Auto mode that uses a selector model to pick skills per message.
+- Added skill management and editor in Dashboard → AI settings.
+
 ## v0.1.5 - AI Assistant integration
 
 - Integrated with AI Assistant:

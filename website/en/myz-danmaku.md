@@ -4,7 +4,9 @@ title: MyZ Danmaku
 hero:
   name: MyZ Danmaku
   text: YouTube <span class="myz-web-danmaku">danmaku</span>
-  tagline: Turn timestamped comments into <span class="myz-web-danmaku">danmaku</span> and enjoy <span class="myz-web-danmaku">live-style reactions</span> inside YouTube.
+  tagline: >
+    Turn timestamped comments into <span class="myz-web-danmaku">danmaku</span> and enjoy <span class="myz-web-danmaku">live-style reactions</span> inside YouTube.<br/>
+    <a href="https://chromewebstore.google.com/detail/ignagkboleblnlgpadmpjpccocgpghpa"><img style="display: inline" src="https://img.shields.io/chrome-web-store/users/ignagkboleblnlgpadmpjpccocgpghpa?label=Chrome users"/></a> &nbsp; <a href="https://microsoftedge.microsoft.com/addons/detail/lmeklchkknhmflgjdpemkgdgaceihimk"><img style="display: inline" src="https://img.shields.io/badge/dynamic/json?label=MSEdge%20users&query=$.activeInstallCount&url=https://microsoftedge.microsoft.com/addons/getproductdetailsbycrxid/lmeklchkknhmflgjdpemkgdgaceihimk"></a>
   image:
     src: /youtube-screenshot.png
     alt: MyZ Danmaku overlay preview

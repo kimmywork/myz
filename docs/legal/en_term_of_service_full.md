@@ -19,11 +19,12 @@ For clarity, the following definitions apply:
 - **“You”, “User”**: the individual using the Extensions or the organization you represent.
 - **“Extensions”**: the browser extensions listed above and any updates.
 - **“Local Data”**: data stored locally in your browser by the Extensions, including highlights, notes, tags, screenshot metadata, danmaku caches, and settings.
-- **“Optional Network Features”**: any feature that initiates network requests when you enable or use it (for example: custom AI Provider, MCP Servers, social import, and interactions with third-party sites).
+- **“Optional Network Features”**: any feature that initiates network requests when you enable or use it (for example: custom AI Provider, MCP Servers, social import, encrypted sync, and interactions with third-party sites).
 - **“Custom AI Provider”**: an OpenAI-compatible API endpoint you configure (Base URL, API key, headers, models).
 - **“MCP Server”**: an external tool server you configure (URL, headers) for listing and invoking tools.
 - **“Social Import”**: importing content by opening and scraping X (Twitter) or Mastodon pages in your browser (no official API).
-- **“Third-Party Services / Sites”**: any service or website not operated or controlled by us (for example: your custom AI Provider, MCP Servers, X/Mastodon, YouTube).
+- **“Encrypted Sync (E2EE Sync)”**: end-to-end encrypted sync that uses your S3-compatible storage and a local sync secret derived from your password.
+- **“Third-Party Services / Sites”**: any service or website not operated or controlled by us (for example: your custom AI Provider, MCP Servers, S3-compatible storage providers, X/Mastodon, YouTube).
 
 ## 2. Eligibility
 
@@ -56,7 +57,8 @@ For clarity, the following definitions apply:
 1. The Extensions are designed to operate primarily with **local-first storage**. Local Data is stored in your browser storage (for example, `chrome.storage.local`).
 2. We operate **no remote service** to receive, store, or process your Local Data. We do not run servers that collect or aggregate your highlights, messages, or caches.
 3. You are responsible for safeguarding your device and browser profile, and for backing up or exporting your data if needed.
-4. Privacy details (data types, permissions) are described in `docs/legal/en_privacy_policy.md`.
+4. If you enable encrypted sync, only ciphertext and minimal metadata are stored remotely. The sync secret is derived from the password you enter and we do not store that password. If you forget the password, new clients cannot decrypt old data and you must re-encrypt and re-sync.
+5. Privacy details (data types, permissions) are described in `docs/legal/en_privacy_policy.md`.
 
 ## 6. Optional Network Features and Third-Party Services (Important)
 
@@ -96,6 +98,15 @@ If you enable Optional Network Features, the Extensions will send requests **dir
    - these interfaces may change, be rate-limited, or be blocked at any time;
    - you are responsible for any resulting access restrictions, playback failures, or account limitations.
 
+### 6.5 Encrypted Sync (S3-compatible)
+
+1. You may configure S3-compatible storage (endpoint, region, bucket, access key, secret key, etc.) and set a sync secret. Requests are sent directly from your browser to your configured storage.
+2. You acknowledge and agree that:
+   - the sync secret is derived from the password you enter and we do not store that password; if you forget it, new clients cannot decrypt old data and you must re-encrypt and re-sync;
+   - only ciphertext and minimal metadata are stored remotely; the sync implementation is end-to-end encrypted (E2EE) and does not expose plaintext to the storage platform;
+   - storage provider security, availability, billing, and compliance are your responsibility; we are not responsible for third-party outages or disputes.
+3. The encrypted sync implementation is publicly auditable at <https://github.com/myz-suite/sync/>.
+
 ## 7. Third-Party Content and Rights
 
 1. The Extensions allow you to highlight, annotate, export, or reuse content from websites. Such content may be protected by copyright, privacy, contractual terms, or other rights.
@@ -123,6 +134,7 @@ TO THE MAXIMUM EXTENT PERMITTED BY LAW:
 2. WE ARE NOT LIABLE FOR ANY LOSS ARISING FROM OR RELATED TO OPTIONAL NETWORK FEATURES OR THIRD-PARTY SERVICES, INCLUDING:
    - third-party downtime, rate limits, or interface changes;
    - privacy leaks, billing disputes, compliance issues, or incorrect outputs from Custom AI Providers / MCP Servers;
+   - storage outages, data loss, or billing disputes with S3-compatible providers;
    - account limitations or access restrictions caused by social import or YouTube private interface usage.
 
 ## 11. Indemnification

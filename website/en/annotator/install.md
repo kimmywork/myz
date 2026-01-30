@@ -86,6 +86,26 @@ Use embeddings to find semantically similar highlights and show them in the in-p
 - **Match threshold (40% - 100%)**: only show matches with score above the threshold (default: **50%**)
 - **Rebuild index**: recommended after first enable or when switching models (re-indexes your existing highlights)
 
+#### 7) Agent Skills (optional)
+
+Agent Skills are reusable instruction/workflow bundles injected into prompts before each model call.
+
+- **Import**: Zip or folder (Dashboard → AI settings → Agent Skills)
+- **Enablement**: manual toggle or Auto mode with a selector model
+- **Explicit invocation**: use `@skill-name` in the input to force a skill
+
+### Encrypted Sync (E2EE)
+
+Encrypted sync uses your own S3-compatible storage; we do not run any online service. Only ciphertext and minimal metadata are stored remotely. The sync secret is derived from the password you enter, and we do not store that password.
+
+- Recommended: **AWS S3**, **Cloudflare R2**, or any other **S3-compatible** provider.
+- Fill Endpoint / Region / Bucket / Access Key / Secret Key (Session Token and Prefix are optional).
+- Save settings, test the connection, then set the sync secret and enable sync.
+
+::: warning
+The sync secret stays local and cannot be recovered. If you forget the password, new clients cannot decrypt old data and you must re-encrypt and re-sync.
+:::
+
 ## FAQ highlights
 
 - **How do I export to Markdown?** Use the detail panel or the dashboard’s “Copy Markdown” action.

@@ -2,6 +2,24 @@
 
 以下内容摘自扩展的变更记录，便于用户快速了解版本更新。
 
+当前商店版本：
+- [![](https://img.shields.io/chrome-web-store/v/mhakfcbobhdemicjelhjjpmgibhnnplg)](https://chromewebstore.google.com/detail/mhakfcbobhdemicjelhjjpmgibhnnplg) 
+- [![](https://img.shields.io/badge/dynamic/json?label=edge%20add-on&prefix=v&query=$.version&url=https://microsoftedge.microsoft.com/addons/getproductdetailsbycrxid/fepakkoggnancnpcclldodfbpgobkabj)](https://microsoftedge.microsoft.com/addons/detail/fepakkoggnancnpcclldodfbpgobkabj)
+
+## v0.3.0 — 端到端加密同步（E2EE）
+
+- 新增加密同步（S3 兼容）：由你自行填写对象存储信息并发起同步。
+- 同步密钥仅保存在本地，云端只存储密文与必要的元信息。
+- 新增同步状态展示与手动同步入口（KeyId、Manifest 版本、上次同步时间等）。
+
+## v0.2.0 — Agent Skills
+
+- 加入 Agent Skills 能力：
+  - 支持内置技能与自定义技能（Zip/文件夹导入）。
+  - 支持 `@skill-name` 显式引用技能。
+  - 支持“自动”模式，用选择器模型为每次输入挑选技能。
+- 新增技能管理与编辑入口（Dashboard → AI 设置）。
+
 ## v0.1.5 — 集成 AI
 
 - 加入 AI Assistant 集成：
@@ -40,4 +58,3 @@
 
 ## v0.1.0 — 初始发布
 MyZ Annotator 帮助你在任意网页高亮文本、撰写批注、截图收集，并在本地管理这些资料。支持导出 JSON/Markdown 与 LogSeq 增量同步。
-

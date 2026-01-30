@@ -13,6 +13,12 @@ MyZ AI Annotator helps you highlight and annotate in your browser, and (optional
 
 All of the above is kept in browser-local storage that is scoped to your profile. We do not transmit, back up, or otherwise share this information with any external service. The MyZ AI Annotator / MyZ Danmaku Viewer project and maintainers never receive copies of your highlights, danmaku caches, or settings.
 
+If you enable encrypted sync:
+
+- You supply your own third-party S3-compatible storage (for example AWS S3, Cloudflare R2, or other compatible providers).
+- Only ciphertext and minimal metadata are stored remotely; the sync secret is derived from the password you enter, we do not store that password, and the secret stays on your device and is never uploaded.
+- Any outages, billing disputes, or compliance issues with the storage provider must be resolved between you and that provider; we are not responsible.
+
 ### Notes Specific to MyZ Danmaku Viewer
 
 - The extension uses YouTube’s private interfaces to read public comments for the current video so it can detect timestamps. Requests are sent directly from your browser; we do not proxy, inspect, or store responses.
@@ -34,6 +40,10 @@ Important notes:
 - Your custom AI Provider / MCP Server may log, retain, or process your data per their own policies. You must evaluate the privacy and security implications yourself.
 - A custom AI Provider may consume a large amount of tokens and incur significant charges. You are solely responsible for understanding pricing and paying any fees.
 - Do not send sensitive or private data to third-party servers unless you fully understand and accept their data-handling practices.
+
+## End-to-End Encrypted Sync (E2EE)
+
+All synced data is end-to-end encrypted (E2EE) and never exposes plaintext to the storage platform. If you forget the password, new clients cannot decrypt old data and you must re-encrypt and re-sync. The encryption sync implementation is publicly auditable at <https://github.com/myz-suite/sync/>.
 
 ## Optional Social Import (X / Mastodon)
 
