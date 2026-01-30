@@ -37,6 +37,7 @@ export interface InterestIndicator {
 }
 
 export const useInterestsStore = defineStore("interests", () => {
+  const vectorSearchEnabled = ref(false);
   const popupCollapsed = ref(false);
 
   const dockPosition = ref<DockPosition>({
@@ -96,6 +97,10 @@ export const useInterestsStore = defineStore("interests", () => {
     dockPosition.value = position;
   };
 
+  const setVectorSearchEnabled = (enabled: boolean) => {
+    vectorSearchEnabled.value = Boolean(enabled);
+  };
+
   function openMatchesInSidepanel(matches: VectoriaSearchResult[]): void {
     const aggregated = Array.from(interestMatchesByRecord.value.values()).map(
       (item) => item.match,
@@ -123,6 +128,8 @@ export const useInterestsStore = defineStore("interests", () => {
   installPopupCollapsedSync();
 
   return {
+    vectorSearchEnabled: computed(() => vectorSearchEnabled.value),
+    setVectorSearchEnabled,
     popupCollapsed,
     setPopupCollapsed,
     dockPosition,

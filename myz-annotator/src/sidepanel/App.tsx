@@ -2,6 +2,8 @@ import {
   defineComponent,
   onMounted,
   onBeforeUnmount,
+  ref,
+  watch,
 } from "vue";
 import { useChatStore } from "./stores/chat.js";
 import { usePageStore } from "./stores/page.js";
@@ -18,12 +20,37 @@ import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 import { IconChatPlus, IconHistory, IconSettings } from "@/shared/icons.js";
 
+const SETTINGS_STORAGE_KEY = "myz::settings";
+
 export default defineComponent({
   name: "SidePanelApp",
   setup() {
     const chatStore = useChatStore();
     const pageStore = usePageStore();
     const uiStore = useUIStore();
+    const vectorSearchEnabled = ref(false);
+    let settingsListener: ((changes: any, areaName: string) => void) | null = null;
+
+    const resolveVectorSearchEnabled = (settings: any) => {
+      const target = settings?.vectorSearch?.target;
+      return Boolean(
+        settings?.vectorSearch?.enabled &&
+          target &&
+          typeof target?.modelId === "string" &&
+          target.modelId.trim(),
+      );
+    };
+
+    const loadVectorSearchEnabled = async () => {
+      try {
+        const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
+        vectorSearchEnabled.value = resolveVectorSearchEnabled(
+          stored?.[SETTINGS_STORAGE_KEY],
+        );
+      } catch {
+        vectorSearchEnabled.value = false;
+      }
+    };
 
     function showHistory() {
       uiStore.setView("history");
@@ -45,17 +72,45 @@ export default defineComponent({
         await pageStore.loadPageContext();
       }
       pageStore.startTabTracking();
+      void loadVectorSearchEnabled();
+      settingsListener = (changes, areaName) => {
+        if (areaName !== "local") return;
+        const change = changes?.[SETTINGS_STORAGE_KEY];
+        if (!change) return;
+        vectorSearchEnabled.value = resolveVectorSearchEnabled(change.newValue);
+      };
+      try {
+        chrome.storage.onChanged.addListener(settingsListener);
+      } catch {
+        // ignore
+      }
     });
 
     onBeforeUnmount(() => {
       chatStore.cleanup();
       pageStore.stopTabTracking();
       pageStore.clearPageChunkAnchors();
+      if (settingsListener) {
+        try {
+          chrome.storage.onChanged.removeListener(settingsListener);
+        } catch {
+          // ignore
+        }
+      }
+      settingsListener = null;
+    });
+
+    watch(vectorSearchEnabled, (enabled) => {
+      if (!enabled && uiStore.view === "related") {
+        uiStore.setView("chat");
+      }
     });
 
     return () => (
       <div class="flex h-screen flex-col bg-slate-50 px-4 py-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-        {uiStore.view === "related" && pageStore.relatedMatches.length ? (
+        {uiStore.view === "related" &&
+        vectorSearchEnabled.value &&
+        pageStore.relatedMatches.length ? (
           <InterestsPanel />
         ) : uiStore.view === "history" ? (
           <HistoryView />
