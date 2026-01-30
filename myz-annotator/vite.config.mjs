@@ -7,18 +7,22 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import manifest from "./manifest.json" with { type: "json" };
 import tailwindcss from "@tailwindcss/vite";
+import { ta } from "zod/locales";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
+
+const target = process.env.TARGET !== 'firefox' ? "chrome" : "firefox";
 
 export default defineConfig({
   plugins: [
     tailwindcss(),
     vue(),
     vueJsx(),
-    crx({ manifest }),
+    crx({ manifest, browser: target }),
     zip({
+      inDir: target === 'firefox' ? `dist-${target}` : 'dist',
       outDir: "release",
-      outFileName: `crx-myz-annotator-${manifest.version}.zip`,
+      outFileName: `crx-myz-annotator-${manifest.version}-${target}.zip`,
       filter: (filePath) =>
         !filePath.endsWith(".map") && !filePath.includes(".vite") && !filePath.endsWith(".wasm"),
     }),
@@ -29,9 +33,9 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "dist",
+    outDir: target === 'firefox' ? `dist-${target}` : 'dist',
     emptyOutDir: true,
-    target: "chrome110",
+    target: target === "firefox" ? "firefox110" : "chrome110",
     sourcemap: true,
     rollupOptions: {
       input: {

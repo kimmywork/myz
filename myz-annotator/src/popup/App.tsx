@@ -5,6 +5,7 @@ import {
   recordToMarkdown,
 } from "@/dashboard/utils/records.js";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
+import { IconSettings } from "@/shared/icons.js";
 import { normalizeWhitespace } from "@/shared/highlightUtils.js";
 
 import { sendMessage } from "@/shared/messaging.js";
@@ -233,20 +234,7 @@ export default defineComponent({
               type="button"
               onClick={openDashboard}
             >
-              <svg
-                class="h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M3 13h8V3H3z" />
-                <path d="M13 21h8V11h-8z" />
-                <path d="M13 3h8v5h-8z" />
-                <path d="M3 21h8v-5H3z" />
-              </svg>
+              <IconSettings size={20} aria-hidden="true" />
             </button>
           </div>
           <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">

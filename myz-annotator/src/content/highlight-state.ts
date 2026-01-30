@@ -406,7 +406,7 @@ export function focusHighlight(id?: string) {
   }
   node.scrollIntoView({ behavior: "smooth", block: "center" });
   node.classList.add("myz-highlight--flash");
-  setTimeout(() => node.classList.remove("myz-highlight--flash"), 1400);
+  setTimeout(() => node.classList.remove("myz-highlight--flash"), 1200);
   return true;
 }
 

@@ -16,6 +16,7 @@ import ContextStatusBar from "./components/ContextStatusBar.jsx";
 import HistoryView from "./HistoryView.jsx";
 import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
+import { IconChatPlus, IconHistory, IconSettings } from "@/shared/icons.js";
 
 export default defineComponent({
   name: "SidePanelApp",
@@ -28,6 +29,10 @@ export default defineComponent({
       uiStore.setView("history");
       chatStore.resetActiveStream();
       chatStore.closeAutoInsights();
+    }
+
+    function openDashboard() {
+      chrome.runtime.openOptionsPage();
     }
 
     async function startNewConversation() {
@@ -68,18 +73,28 @@ export default defineComponent({
               <div class="flex items-center gap-2">
                 <ThemeToggle size="sm" />
                 <button
-                  class="inline-flex items-center rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
                   onClick={startNewConversation}
                   title="为当前页面开启新对话"
+                  aria-label="新对话"
                 >
-                  新对话
+                  <IconChatPlus size={20} aria-hidden="true" />
                 </button>
                 <button
-                  class="inline-flex items-center rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
                   onClick={showHistory}
                   title="查看对话历史"
+                  aria-label="历史"
                 >
-                  历史
+                  <IconHistory size={20} aria-hidden="true" />
+                </button>
+                <button
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+                  onClick={openDashboard}
+                  title="打开 Dashboard"
+                  aria-label="打开 Dashboard"
+                >
+                  <IconSettings size={20} aria-hidden="true" />
                 </button>
               </div>
             </header>
