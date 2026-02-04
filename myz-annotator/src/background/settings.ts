@@ -1,4 +1,4 @@
-import { HIGHLIGHT_STYLES } from "@/shared/types";
+import { AUTO_HIGHLIGHT_CATEGORIES, HIGHLIGHT_STYLES } from "@/shared/types";
 
 export type AIProviderType = "openai_compatible";
 
@@ -83,15 +83,37 @@ export interface AIAgentConfig {
   target: AIAgentModelRef | null;
   temperature: number;
   compressImages?: boolean;
+  maxHighlights?: number;
   /**
    * Optional fallback model for Vision when the primary model lacks it.
    */
   multimodalTarget?: AIAgentModelRef | null;
+  /**
+   * Trigger context compaction when the estimated usage reaches this percentage.
+   */
+  contextCompressionThreshold?: number;
+}
+
+export type AutoHighlightCategory = `${AUTO_HIGHLIGHT_CATEGORIES}`;
+
+export interface AutoHighlightCategoryStyle {
+  style: HIGHLIGHT_STYLES;
+  color: string;
+}
+
+export type AutoHighlightCategoryStyles = Record<
+  AutoHighlightCategory,
+  AutoHighlightCategoryStyle
+>;
+
+export interface AutoHighlightAgentConfig extends AIAgentConfig {
+  categoryStyles?: AutoHighlightCategoryStyles;
 }
 
 export interface AIAgentsSettings {
   conversation: AIAgentConfig;
   insights: AIAgentConfig;
+  autoHighlight: AutoHighlightAgentConfig;
 }
 
 export interface VectorSettings {
@@ -147,10 +169,26 @@ export interface SocialImportSettings {
   mastodon: SocialImportProviderSettings;
 }
 
+export interface SyncS3Settings {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+  prefix?: string;
+}
+
+export interface SyncSettings {
+  enabled: boolean;
+  s3: SyncS3Settings;
+}
+
 export interface Settings extends AIAssistantSettings {
   dashboardView: "cards" | "list";
   colorPalette: string[];
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;
   socialImport: SocialImportSettings;
+  sync: SyncSettings;
 }

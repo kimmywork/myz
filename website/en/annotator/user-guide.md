@@ -4,8 +4,9 @@ This document explains how to use MyZ AI Annotator’s core highlighting feature
 
 > Important (AI / network features)
 >
-> - The extension provides **no remote service**. Any optional network requests are sent **directly from your browser** to third-party services you configure or visit (for example: a custom AI Provider, MCP Servers, X/Mastodon, YouTube).
+> - The extension provides **no remote service**. Any optional network requests are sent **directly from your browser** to third-party services you configure or visit (for example: a custom AI Provider, MCP Servers, S3-compatible storage, X/Mastodon, YouTube).
 > - A custom AI Provider can consume a large amount of tokens and incur significant charges. Make sure you understand pricing and accept the cost risk.
+> - Encrypted sync is end-to-end encrypted (E2EE): only ciphertext and minimal metadata go to your storage; the sync secret stays local.
 > - Be careful with sensitive/private data. Do not send content to third-party servers unless you understand and accept their data-handling policies.
 
 > UI language note
@@ -43,6 +44,8 @@ In the Dashboard top navigation, open **Settings** (Chinese UI: `设置`). Main 
 - **Import highlights** (Chinese UI: `导入标注`): import a JSON file and choose a conflict strategy (skip/overwrite/keep latest).
 - **Social import** (Chinese UI: `社区导入`): import from X (Twitter) / Mastodon via in-browser page scraping (no official API; typically requires you to be logged in; subject to rate limits / policies / layout changes).
 - **AI Assistant** (Chinese UI: `AI 智能助理`): configure Providers, model capabilities, conversation models, MCP servers, local tools, and vector search (Vectoria).
+- **Agent Skills**: import/enable skills and choose manual or auto selection.
+- **Encrypted Sync**: configure S3-compatible storage and a local sync secret.
 
 ## 4. Configure the AI Side Panel
 
@@ -84,7 +87,21 @@ To connect external tool servers:
 - Add an MCP Server URL (and headers if needed)
 - Test the connection first, then enable it
 
-### 4.6 Configure Local Tools (optional)
+### 4.6 Configure Agent Skills (optional)
+
+Agent Skills are reusable instruction bundles that are injected into the prompt before each model call. You can enable them manually or let a selector model pick the best skills per message.
+
+- **Built-in skills**: shipped with the extension, cannot be deleted but can be enabled/disabled.
+- **Custom skills**: import via Zip or folder in Dashboard → AI settings → Agent Skills.
+- **Explicit invocation**: use `@skill-name` in the input to force a specific skill.
+- **Auto mode**: enable `自动` and choose a selector model to pick skills from the enabled list.
+- **Editing**: UTF-8 text files (like `SKILL.md`) are editable; binary files are read-only.
+
+::: tip Practical usage
+Pack team workflows or response formats into individual skills and reuse them with `@skill-name` or Auto mode.
+:::
+
+### 4.7 Configure Local Tools (optional)
 
 Local tools can access extension-local data (for example your saved highlights). Enable only the tools you need to reduce data exposure.
 
@@ -93,7 +110,7 @@ Local tools can access extension-local data (for example your saved highlights).
 
 Common local tools include: searching your highlights, listing popular tags, web search, and fetching a page’s primary content (useful for reading a search result in detail).
 
-### 4.7 Vector search (Vectoria, optional)
+### 4.8 Vector search (Vectoria, optional)
 
 Vectoria finds semantically similar highlights from your history and shows them in the in-page overlay and the Side Panel “Related” view.
 
@@ -101,9 +118,38 @@ Vectoria finds semantically similar highlights from your history and shows them 
 - After enabling, it’s recommended to click `重建索引` (Rebuild index), especially on first setup or when switching models
 - Configure **Match threshold (40% - 100%)** (`匹配阈值`) — only matches with score ≥ threshold are shown (default: 50%)
 
-## 5. Use the AI Side Panel
+## 5. Encrypted Sync (E2EE Sync)
 
-### 5.1 Ways to open the Side Panel
+Encrypted sync uses your own S3-compatible storage; we do not run any online service. Only ciphertext and minimal metadata are stored remotely, and the sync secret stays on your device. The sync secret is derived from the password you enter, and we do not store that password.
+
+Recommended storage: **AWS S3**, **Cloudflare R2**, or any other **S3-compatible** storage provider.
+
+### 5.1 Setup steps
+
+1. Open Dashboard → Settings → **Encrypted Sync** (`加密同步`).
+2. Fill in the S3 settings:
+   - **Endpoint**: the S3-compatible endpoint URL
+   - **Region / Bucket**
+   - **Access Key ID / Secret Access Key**
+   - **Session Token** (optional)
+   - **Prefix** (optional): isolate data across devices/projects
+3. Click **Save settings** (`保存设置`), then **Test connection** (`测试连接`).
+4. Set the **Sync secret** (`同步密钥`) — it stays local; use a strong passphrase.
+5. Enable **Sync** (`启用同步`) and click **Sync now** (`立即同步`) once.
+
+The status panel shows KeyId, Manifest version, last sync time, and key updated time.
+
+::: warning Important
+The sync secret cannot be recovered. If you forget the password, new clients cannot decrypt old data; you must re-encrypt and re-sync from scratch.
+:::
+
+::: tip Public audit
+The E2EE implementation is open for review at <https://github.com/myz-suite/sync/>.
+:::
+
+## 6. Use the AI Side Panel
+
+### 6.1 Ways to open the Side Panel
 
 - **Floating toolbar**: select text and click `发送到AI助理`
   - Opens the Side Panel and attaches the selected text as “context” in the input area
@@ -113,7 +159,7 @@ Vectoria finds semantically similar highlights from your history and shows them 
   - Right-click page: `打开AI助理` → `总结页面内容` / `发现关键要点`
   - Right-click image: `打开AI助理` → `解读图片内容` (requires a Vision-enabled Conversation model)
 
-### 5.2 Context shown in the Input Composer
+### 6.2 Context shown in the Input Composer
 
 When you open the Side Panel via any of the actions above, the context is shown in the input area “like attachments”, including:
 
@@ -127,7 +173,7 @@ Before sending, you can:
 - Decide whether to include `页面上下文` (page context) — it is **off by default**
 - Remove any context or images you don’t want to send
 
-### 5.3 After sending: display and image preview
+### 6.3 After sending: display and image preview
 
 - If your message includes text context, the user bubble shows both:
   - your typed prompt
@@ -136,7 +182,7 @@ Before sending, you can:
   - thumbnails appear in the message
   - clicking a thumbnail opens an in-Side-Panel preview (keeps the original aspect ratio)
 
-### 5.4 Conversation threads and history
+### 6.4 Conversation threads and history
 
 - Side Panel header:
   - `新对话` (New conversation): starts a new conversation for the current page (keeps your Input Composer draft/attachments)
@@ -144,7 +190,7 @@ Before sending, you can:
 - Each time the Side Panel is reopened/reloaded, it starts a **new** conversation (to avoid long contexts).
 - While the Side Panel stays open, switching browser tabs updates the page title and marks the conversation as cross-page when applicable.
 
-## 6. Related highlights (Vectoria Interests)
+## 7. Related highlights (Vectoria Interests)
 
 When vector search is enabled, the extension monitors what you’re reading and finds similar items from your highlight history:
 
@@ -157,7 +203,7 @@ Tips:
 - If you see too many or too few results, adjust `匹配阈值` in Dashboard → Settings → Vector search (Vectoria)
 - After switching embeddings models, rebuild the index for better results
 
-## 7. Social import (X / Mastodon)
+## 8. Social import (X / Mastodon)
 
 In Dashboard → Settings → Social import (`社区导入`), enter a profile URL and choose what types to import.
 
@@ -171,7 +217,7 @@ Risk notes:
 - This feature depends on third-party websites and may be affected by policies, anti-abuse controls, rate limits, and layout changes
 - You decide whether to enable it and accept the risk of account limitations, access restrictions, failures, or partial results
 
-## 8. Zen Mode
+## 9. Zen Mode
 
 On pages with a detectable article body, you can use the right-click menu:
 
@@ -180,21 +226,20 @@ On pages with a detectable article body, you can use the right-click menu:
 
 If you don’t see the menu, the extension couldn’t detect a suitable article container on that page.
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
-### 9.1 AI entries are disabled / missing
+### 10.1 AI entries are disabled / missing
 
 - `解读图片内容` is disabled or says “Vision model required”: enable **Vision** for your Conversation model in Dashboard settings
 - Tools are not used: enable **Tool Calling**, and configure MCP servers and/or local tools
 
-### 9.2 Vector search shows no results
+### 10.2 Vector search shows no results
 
 - Make sure vector search is enabled and the model test succeeded
 - Rebuild the index on first enable or after switching models
 - Try lowering the match threshold
 
-### 9.3 Social import fails
+### 10.3 Social import fails
 
 - Ensure you are logged in (especially for bookmarks/private pages)
 - Third-party sites may rate-limit or change layouts; try again later or reduce the import volume
-

@@ -1,5 +1,6 @@
 import { Settings } from "../settings";
 import { readSettings, writeSettings } from "../storage";
+import { ensureSyncAlarm } from "../sync/scheduler";
 import { registerMessageHandler } from "./handler";
 
 export function initializeSettingsMessageHandlers() {
@@ -12,6 +13,9 @@ export function initializeSettingsMessageHandlers() {
     async (payload: Partial<Settings>) => {
       const patch: Partial<Settings> = payload ? { ...payload } : {};
       const updated = await writeSettings(patch);
+      if (patch.sync) {
+        await ensureSyncAlarm();
+      }
       return updated;
     },
   );

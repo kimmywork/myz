@@ -154,6 +154,7 @@ export interface ProcessConversationOptions {
   stream?: boolean
   streamId?: string
   temperature?: number
+  requiredToolNames?: string[]
 }
 
 export interface ContextChunk {

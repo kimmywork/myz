@@ -4,6 +4,39 @@ import { useInspectorStore } from "./stores/inspector-store.ts";
 import { useModalStore } from "./stores/modal-store.ts";
 import { useToolbarStore } from "./stores/toolbar-store.ts";
 
+const SCROLL_SETTLE_TIMEOUT = 1000;
+const SCROLL_SETTLE_IDLE = 120;
+
+function waitForScrollToSettle(
+  timeout = SCROLL_SETTLE_TIMEOUT,
+  idle = SCROLL_SETTLE_IDLE,
+) {
+  return new Promise<void>((resolve) => {
+    let lastX = window.scrollX || 0;
+    let lastY = window.scrollY || 0;
+    let lastChange = performance.now();
+    const startedAt = lastChange;
+
+    const step = () => {
+      const now = performance.now();
+      const currentX = window.scrollX || 0;
+      const currentY = window.scrollY || 0;
+      if (currentX !== lastX || currentY !== lastY) {
+        lastX = currentX;
+        lastY = currentY;
+        lastChange = now;
+      }
+      if (now - lastChange >= idle || now - startedAt >= timeout) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(step);
+    };
+
+    requestAnimationFrame(step);
+  });
+}
+
 export function maybeShowToolbarForActiveSelection() {
   try {
     const toolbarStore = useToolbarStore();
@@ -48,28 +81,44 @@ export function handleSelectionTrigger(event: MouseEvent | KeyboardEvent) {
   toolbarStore.show(rect);
 }
 
-export function handleDocumentClick(event: MouseEvent) {
+export async function handleDocumentClick(event: MouseEvent) {
   const toolbarStore = useToolbarStore();
   const inspectorStore = useInspectorStore();
-  const highlightEl = (event.target as Element).closest(".myz-highlight");
+  const targetNode = event.target as Node | null;
+  const targetElement =
+    targetNode instanceof Element ? targetNode : targetNode?.parentElement;
+  const highlightEl =
+    targetElement?.closest?.(".myz-highlight") ||
+    (event.composedPath?.().find(
+      (node) =>
+        node instanceof Element && node.classList?.contains("myz-highlight"),
+    ) as Element | undefined);
   if (highlightEl) {
     const el = highlightEl as HTMLElement;
     event.stopPropagation();
     const highlightId = el.dataset.highlightId;
     const record = getFromHighlightCache(highlightId);
     if (record) {
-      inspectorStore.showRecord(record);
       focusHighlight(highlightId);
+      await waitForScrollToSettle();
+      const anchorEl = document.querySelector(
+        `[data-highlight-id="${highlightId}"]`,
+      ) as HTMLElement | null;
+      inspectorStore.showRecord(
+        record,
+        (anchorEl || el).getBoundingClientRect(),
+      );
     }
     return;
   }
 
-  const targetNode = event.target as Element;
+  const targetElementFallback = targetElement as Element | null;
   const insideMyzHost =
-    (targetNode?.closest && targetNode.closest("[data-myz-host]")) ||
-    (targetNode?.getRootNode &&
-      (targetNode.getRootNode() as ShadowRoot).host &&
-      (targetNode.getRootNode() as ShadowRoot).host.matches?.(
+    (targetElementFallback?.closest &&
+      targetElementFallback.closest("[data-myz-host]")) ||
+    (targetElementFallback?.getRootNode &&
+      (targetElementFallback.getRootNode() as ShadowRoot).host &&
+      (targetElementFallback.getRootNode() as ShadowRoot).host.matches?.(
         "[data-myz-host]",
       ));
   if (insideMyzHost) {

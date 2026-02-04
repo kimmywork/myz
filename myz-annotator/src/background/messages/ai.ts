@@ -9,6 +9,7 @@ import {
 } from "../ai";
 import type {
   ImageAttachment,
+  Message,
   PageInsightPayload,
   ProcessConversationOptions,
 } from "../ai/types.js";
@@ -22,7 +23,14 @@ import type { Settings } from "../settings";
 import { generateId, readSettings, saveHighlight } from "../storage";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
-import { deleteConversation } from "@/sidepanel/aiStorage";
+import {
+  deleteConversation,
+  getConversation,
+  getMessagesForConversation,
+  replaceConversationMessages,
+  updateConversationMetadata,
+} from "@/sidepanel/aiStorage";
+import { recordConversationDeletion } from "../sync/deletions";
 import {
   resolveAgentTarget,
   resolveConversationMultimodalTarget,
@@ -38,17 +46,19 @@ import {
 import { McpCapability } from "../ai/capabilities/mcp.js";
 import { ConversationAgent } from "../ai/agents/conversationAgent.js";
 import { InsightsAgent } from "../ai/agents/insightsAgent.js";
+import { AutoHighlightAgent } from "../ai/agents/autoHighlightAgent.js";
 import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
 import { SkillSelectionAgent } from "../ai/agents/skillSelectionAgent.js";
 import { LOCAL_TOOL_NAMES } from "../ai/tools/localDefinitions.js";
 import { extractSkillMentions } from "../ai/skills/mentions.js";
-import { getSkillInstruction, listSkills } from "../ai/skills/storage.js";
+import { listSkills } from "../ai/skills/storage.js";
 
 /**
  * Stores a "draft action" so the SidePanel can pick it up even if the runtime
  * message fires before the SidePanel page is ready.
  */
 const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
+const DEFAULT_CONTEXT_COMPACTION_RECENT_COUNT = 10;
 
 function generateDraftId(prefix = "draft") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -64,18 +74,8 @@ function notifySidePanel(type: string, data?: any) {
   }
 }
 
-function buildSkillContextBlock(skill: { name: string; description: string; body: string }) {
-  const parts = [`【Skill: ${skill.name}】`]
-  if (skill.description) {
-    parts.push(`描述: ${skill.description}`)
-  }
-  if (skill.body) {
-    parts.push(skill.body)
-  }
-  return parts.join("\n").trim()
-}
-
 async function resolveSkillContext(options: {
+  conversationId?: string
   message: string
   settings: Settings
 }) {
@@ -83,7 +83,7 @@ async function resolveSkillContext(options: {
   const skills = await listSkills()
   const enabledSkills = skills.filter((skill) => skill.enabled)
   if (!enabledSkills.length) {
-    return { skillNames: [], skillContext: "" }
+    return { skillNames: [], skillList: [] }
   }
 
   const available = new Set(enabledSkills.map((skill) => skill.name))
@@ -119,21 +119,159 @@ async function resolveSkillContext(options: {
   }
 
   if (!selected.size) {
-    return { skillNames: [], skillContext: "" }
+    return { skillNames: [], skillList: [] }
   }
 
-  const instructions = await Promise.all(
-    Array.from(selected).map((name) => getSkillInstruction(name)),
-  )
-  const resolved = instructions.filter((skill): skill is NonNullable<typeof skill> => Boolean(skill))
+  const resolved = enabledSkills.filter((skill) => selected.has(skill.name))
   if (!resolved.length) {
-    return { skillNames: [], skillContext: "" }
+    return { skillNames: [], skillList: [] }
   }
-  const skillContext = resolved.map(buildSkillContextBlock).join("\n\n").trim()
+
+  const skillNames = resolved.map((skill) => skill.name)
+  let injectList = resolved.map((skill) => ({
+    name: skill.name,
+    description: skill.description || "",
+  }))
+
+  const conversationId = options.conversationId
+  if (conversationId) {
+    try {
+      const conversation = await getConversation(conversationId)
+      const injected = Array.isArray(conversation?.metadata?.skillContextInjected)
+        ? conversation?.metadata?.skillContextInjected
+            .map((name: any) => (typeof name === "string" ? name.trim() : ""))
+            .filter(Boolean)
+        : []
+      const injectedSet = new Set(injected)
+      injectList = injectList.filter((skill) => !injectedSet.has(skill.name))
+      if (injectList.length > 0) {
+        const nextInjected = Array.from(
+          new Set([...injectedSet, ...injectList.map((skill) => skill.name)]),
+        )
+        await updateConversationMetadata(conversationId, {
+          skillContextInjected: nextInjected,
+        })
+      }
+    } catch (error) {
+      console.warn("Failed to update skill injection metadata", error)
+    }
+  }
+
   return {
-    skillNames: resolved.map((skill) => skill.name),
-    skillContext,
+    skillNames,
+    skillList: injectList,
   }
+}
+
+function normalizeText(value: any) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function buildUserContextText(message: Message) {
+  const baseText = normalizeText(message?.content);
+  const selectionContextText = normalizeText(message?.metadata?.selectionContextText);
+  const parts = [];
+  if (selectionContextText) {
+    parts.push(`选中内容（上下文）:\n${selectionContextText}`);
+  }
+  if (baseText) {
+    parts.push(baseText);
+  }
+  return parts.join("\n\n").trim();
+}
+
+function formatTranscriptMessage(message: Message) {
+  const role = message?.role || "user";
+  const label =
+    role === "user"
+      ? "用户"
+      : role === "assistant"
+        ? "助手"
+        : role === "tool"
+          ? "工具"
+          : "消息";
+  const text =
+    role === "user" ? buildUserContextText(message) : normalizeText(message?.content);
+  if (!text) return "";
+  return `${label}: ${text}`;
+}
+
+function buildCompressionTranscript(messages: Message[]) {
+  return (messages || [])
+    .map((message) => formatTranscriptMessage(message))
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function normalizeSummaryMaxTokens(
+  model: AIProviderSetting["models"][number],
+  targetTokens?: number,
+) {
+  const modelMax =
+    typeof model?.limits?.maxOutputTokens === "number" ? model.limits.maxOutputTokens : 1024;
+  let desired =
+    typeof targetTokens === "number" && targetTokens > 0
+      ? Math.floor(targetTokens / 16)
+      : 512;
+  desired = Math.max(256, Math.min(1024, desired));
+  return Math.max(64, Math.min(modelMax, desired));
+}
+
+async function generateContextSummary(options: {
+  messages: Message[];
+  client: any;
+  model: AIProviderSetting["models"][number];
+  targetTokens?: number;
+}) {
+  const transcript = buildCompressionTranscript(options.messages || []);
+  if (!transcript) {
+    return "";
+  }
+
+  const systemPrompt = [
+    "你是一个“上下文压缩助手”，负责把对话记录浓缩为可继续对话的摘要。",
+    "",
+    "要求：",
+    "- 聚焦用户目标、关键信息、已做决策、未解决问题、下一步。",
+    "- 保留名称、数字、约束、偏好、重要结论。",
+    "- 忽略寒暄、重复、无关细节。",
+    "- 用中文输出要点列表。",
+  ].join("\n");
+
+  const userPrompt = [
+    "请根据以下对话记录生成摘要：",
+    "",
+    transcript,
+    "",
+    "请输出摘要。",
+  ].join("\n");
+
+  const maxOutputTokens = normalizeSummaryMaxTokens(options.model, options.targetTokens);
+  const maxOutputTokenParam: MaxOutputTokenParam =
+    options.model?.limits?.maxOutputTokenParam === "max_completion_tokens"
+      ? "max_completion_tokens"
+      : "max_tokens";
+
+  const request: any = {
+    model: options.model.model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.2,
+    stream: false,
+  };
+  if (maxOutputTokenParam === "max_completion_tokens") {
+    request.max_completion_tokens = maxOutputTokens;
+  } else {
+    request.max_tokens = maxOutputTokens;
+  }
+
+  const response = await options.client.createCompletion(request, {
+    enableGeminiThinking: Boolean(options.model.capabilities.reasoning),
+  });
+
+  return normalizeText(response?.choices?.[0]?.message?.content);
 }
 
 /**
@@ -335,13 +473,18 @@ export function initializeAIMessageHandlers() {
         }
 
         const aiLocalTools = (settings as any)?.aiLocalTools
+        const skillPayload = await resolveSkillContext({
+          conversationId,
+          message: normalizedMessage,
+          settings: settings as any,
+        })
         if (enableTools) {
           const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
             ? ((settings as any).aiLocalTools.enabledToolNames as any[])
                 .filter((name: any) => typeof name === "string" && name.trim())
                 .map((name: string) => name.trim())
             : LOCAL_TOOL_NAMES.slice()
-          const normalizedToolNames =
+          let normalizedToolNames =
             aiLocalTools?.mode === "auto"
               ? (() => {
                   if (!enabledToolNames.includes("myz-select-tools")) {
@@ -365,15 +508,11 @@ export function initializeAIMessageHandlers() {
 
         const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
         const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
-        const skillPayload = await resolveSkillContext({
-          message: normalizedMessage,
-          settings: settings as any,
-        })
         const skillMetadata =
-          skillPayload.skillContext && skillPayload.skillNames.length
+          skillPayload.skillNames.length > 0
             ? {
-                skillContext: skillPayload.skillContext,
                 skillNames: skillPayload.skillNames,
+                ...(skillPayload.skillList.length ? { skillList: skillPayload.skillList } : {}),
               }
             : {}
         if (clientMessageId && skillPayload.skillNames.length > 0) {
@@ -475,6 +614,153 @@ export function initializeAIMessageHandlers() {
         if (target.model.capabilities.toolCalling) {
           await runtime.disconnectMcp();
         }
+        await runtime.release();
+      }
+    },
+  );
+
+  registerMessageHandler(
+    "myz:compactConversation",
+    async (payload: {
+      conversationId: string;
+      keepRecentCount?: number;
+      targetTokens?: number;
+    }) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+
+      const conversationId = payload?.conversationId;
+      if (!conversationId) {
+        throw new Error("conversationId is required");
+      }
+
+      const keepRecentCount =
+        typeof payload?.keepRecentCount === "number" && payload.keepRecentCount > 0
+          ? Math.floor(payload.keepRecentCount)
+          : DEFAULT_CONTEXT_COMPACTION_RECENT_COUNT;
+
+      const messages = await getMessagesForConversation(conversationId, 2000);
+      const normalizedMessages = messages.filter(
+        (msg) => msg.metadata?.type !== "system_event",
+      );
+      if (!normalizedMessages.length) {
+        return { compressed: false, messages: [] };
+      }
+
+      const systemMessages = normalizedMessages.filter(
+        (msg) => msg.role === "system",
+      );
+      const nonSystemMessages = normalizedMessages.filter(
+        (msg) => msg.role !== "system",
+      );
+
+      const userAssistantIndexes = nonSystemMessages
+        .map((msg, index) =>
+          msg.role === "user" || msg.role === "assistant" ? index : -1,
+        )
+        .filter((index) => index >= 0);
+
+      if (userAssistantIndexes.length <= keepRecentCount) {
+        return { compressed: false, messages: normalizedMessages };
+      }
+
+      const boundaryIndex =
+        userAssistantIndexes[userAssistantIndexes.length - keepRecentCount];
+      const oldMessages = nonSystemMessages.slice(0, boundaryIndex);
+      const recentMessages = nonSystemMessages.slice(boundaryIndex);
+
+      if (!oldMessages.length) {
+        return { compressed: false, messages: normalizedMessages };
+      }
+
+      const conversation = await getConversation(conversationId);
+      let originalRequest = normalizeText(
+        conversation?.metadata?.originalUserRequest,
+      );
+      if (!originalRequest) {
+        const firstUser = normalizedMessages.find(
+          (msg) => msg.role === "user",
+        );
+        originalRequest = firstUser ? buildUserContextText(firstUser) : "";
+      }
+
+      const target = resolveAgentTarget(settings as any, "conversation");
+      const runtime = await acquireProviderRuntime(
+        target.provider as any,
+        [],
+      );
+
+      try {
+        const summary = await generateContextSummary({
+          messages: oldMessages,
+          client: runtime.session.client as any,
+          model: target.model as any,
+          targetTokens: payload?.targetTokens,
+        });
+
+        if (!summary) {
+          throw new Error("上下文压缩失败：无法生成摘要");
+        }
+
+        const firstRecentTimestamp = recentMessages.length
+          ? Date.parse(recentMessages[0].timestamp)
+          : Date.now();
+        const summaryTimestamp = new Date(
+          Math.max(0, firstRecentTimestamp - 1),
+        ).toISOString();
+        const summaryContent = [
+          originalRequest ? `原始请求:\n${originalRequest}` : "",
+          summary ? `上下文总结:\n${summary}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
+        const summaryMessage: Message = {
+          id: generateId(),
+          conversationId,
+          role: "user",
+          content: summaryContent,
+          timestamp: summaryTimestamp,
+          metadata: {
+            type: "compression_summary",
+            ...(originalRequest ? { originalRequest } : {}),
+            summary,
+          },
+        };
+
+        const eventMessage: Message = {
+          id: generateId(),
+          conversationId,
+          role: "system",
+          content: "上下文已压缩",
+          timestamp: new Date().toISOString(),
+          metadata: { type: "system_event", event: "context_compaction" },
+        };
+
+        const compressedMessages = [
+          ...systemMessages,
+          summaryMessage,
+          ...recentMessages,
+          eventMessage,
+        ];
+
+        await replaceConversationMessages(conversationId, compressedMessages);
+        await updateConversationMetadata(conversationId, {
+          lastCompactionAt: new Date().toISOString(),
+          skillContextInjected: [],
+          ...(originalRequest ? { originalUserRequest: originalRequest } : {}),
+        });
+
+        return {
+          compressed: true,
+          originalCount: normalizedMessages.length,
+          compressedCount: compressedMessages.length,
+          messages: compressedMessages,
+          summary,
+        };
+      } finally {
         await runtime.release();
       }
     },
@@ -590,13 +876,18 @@ export function initializeAIMessageHandlers() {
         const { conversationId, action, content, options = {} } = payload || {};
 
         const aiLocalTools = (settings as any)?.aiLocalTools
+        const skillPayload = await resolveSkillContext({
+          conversationId,
+          message: content,
+          settings: settings as any,
+        })
         if (enableTools) {
           const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
             ? ((settings as any).aiLocalTools.enabledToolNames as any[])
                 .filter((name: any) => typeof name === "string" && name.trim())
                 .map((name: string) => name.trim())
             : LOCAL_TOOL_NAMES.slice()
-          const normalizedToolNames =
+          let normalizedToolNames =
             aiLocalTools?.mode === "auto"
               ? (() => {
                   if (!enabledToolNames.includes("myz-select-tools")) {
@@ -614,15 +905,11 @@ export function initializeAIMessageHandlers() {
           : runtime.session.client;
         const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
         const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
-        const skillPayload = await resolveSkillContext({
-          message: content,
-          settings: settings as any,
-        })
         const skillMetadata =
-          skillPayload.skillContext && skillPayload.skillNames.length
+          skillPayload.skillNames.length > 0
             ? {
-                skillContext: skillPayload.skillContext,
                 skillNames: skillPayload.skillNames,
+                ...(skillPayload.skillList.length ? { skillList: skillPayload.skillList } : {}),
               }
             : {}
         const result = await agent.processConversation(
@@ -747,6 +1034,53 @@ export function initializeAIMessageHandlers() {
   );
 
   registerMessageHandler(
+    "myz:generateAutoHighlights",
+    async (
+      payload: {
+        text?: string;
+        title?: string;
+        url?: string;
+        maxHighlights?: number;
+        temperature?: number;
+      },
+    ) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+
+      const target = resolveAgentTarget(settings, "autoHighlight");
+      const agentConfig = settings.aiAgents?.autoHighlight || {};
+      const mergedPayload = {
+        ...payload,
+        maxHighlights:
+          typeof payload?.maxHighlights === "number"
+            ? payload.maxHighlights
+            : agentConfig.maxHighlights,
+      };
+      const runtime = await acquireProviderRuntime(
+        target.provider as any,
+        (settings.aiMcpServers || []) as any,
+      );
+      try {
+        const agent = new AutoHighlightAgent({
+          client: runtime.session.client as any,
+        });
+        const result = await agent.generateAutoHighlightsWithConfig(mergedPayload || {}, {
+          isEnabled: Boolean(settings.aiAssistantEnabled),
+          callConfig: target as any,
+        });
+        return {
+          ...result,
+          categoryStyles: agentConfig.categoryStyles || {},
+        };
+      } finally {
+        await runtime.release();
+      }
+    },
+  );
+
+  registerMessageHandler(
     "myz:getConversationHistory",
     async (payload: { conversationId: string; limit?: number }) => {
       const { conversationId, limit } = payload || {};
@@ -777,6 +1111,7 @@ export function initializeAIMessageHandlers() {
     "myz:deleteConversation",
     async (payload: { conversationId: string }) => {
       const { conversationId } = payload || {};
+      await recordConversationDeletion(conversationId);
       await deleteConversation(conversationId);
       return { success: true };
     },

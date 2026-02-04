@@ -181,12 +181,17 @@ async function requestSseCompletion(
   request: ProviderChatCompletionRequest,
   options: ProviderStreamOptions = {},
 ): Promise<ProviderChatCompletionResponse> {
+  let usage: any = null
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify({
       ...request,
       stream: true,
+      stream_options: {
+        ...((request as any).stream_options || {}),
+        include_usage: true,
+      },
     }),
   })
 
@@ -248,6 +253,11 @@ async function requestSseCompletion(
           continue
         }
 
+        if (parsed?.usage) {
+          usage = parsed.usage
+          continue
+        }
+
         const delta = parsed?.choices?.[0]?.delta
         if (!delta) continue
 
@@ -280,6 +290,7 @@ async function requestSseCompletion(
 
   return {
     choices: [{ index: 0, message }],
+    ...(usage ? { usage } : {}),
   }
 }
 

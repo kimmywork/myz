@@ -18,6 +18,7 @@ import {
   deleteHighlight,
   getAllHighlights,
 } from "../storage";
+import { recordHighlightDeletion } from "../sync/deletions";
 import {
   removeRecordFromIndex,
   indexRecord,
@@ -152,6 +153,7 @@ export function initializeHighlightMessageHandlers() {
       if (!payload?.id) {
         throw new Error("Missing highlight id");
       }
+      await recordHighlightDeletion(payload.id);
       await deleteHighlight(payload.id);
       await removeRecordFromIndex(payload.id);
       return { success: true };
@@ -173,6 +175,7 @@ export function initializeHighlightMessageHandlers() {
         return { removed: 0 };
       }
       for (const id of unique) {
+        await recordHighlightDeletion(id);
         await deleteHighlight(id);
         await removeRecordFromIndex(id);
       }

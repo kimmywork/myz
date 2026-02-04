@@ -23,6 +23,7 @@ export default defineComponent({
     const manualModel = ref("")
     const listFilter = ref("")
     const selectedName = ref("")
+    const pendingSelection = ref("")
 
     const modelByName = computed(() => {
       const map = new Map<string, AIModelSetting>()
@@ -119,6 +120,14 @@ export default defineComponent({
     watch(
       () => mergedNames.value,
       (items) => {
+        if (pendingSelection.value) {
+          const next = pendingSelection.value
+          pendingSelection.value = ""
+          if (items.some((item) => item.name === next)) {
+            selectedName.value = next
+            return
+          }
+        }
         if (selectedName.value && items.some((item) => item.name === selectedName.value)) {
           return
         }
@@ -260,6 +269,7 @@ export default defineComponent({
                 {mergedNames.value.map((entry) => (
                   <button
                     type="button"
+                    key={entry.name}
                     class={[
                       "flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition",
                       entry.name === selectedName.value
@@ -288,6 +298,17 @@ export default defineComponent({
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => {
                           const nextEnabled = (e.target as HTMLInputElement).checked
+                          if (!nextEnabled && entry.name === selectedName.value) {
+                            const items = mergedNames.value
+                            const index = items.findIndex((item) => item.name === entry.name)
+                            const nextItem =
+                              (index >= 0 ? items[index + 1] : null) ||
+                              (index > 0 ? items[index - 1] : null)
+                            if (nextItem) {
+                              pendingSelection.value = nextItem.name
+                              selectedName.value = nextItem.name
+                            }
+                          }
                           ensureModelConfig(entry.name, nextEnabled)
                         }}
                       />

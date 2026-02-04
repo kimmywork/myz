@@ -177,6 +177,51 @@ export async function saveMessage(message: Message) {
   });
 }
 
+export async function replaceConversationMessages(
+  conversationId: string,
+  messages: Message[],
+) {
+  const db = await initDB();
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction([MESSAGES_STORE], "readwrite");
+    const store = transaction.objectStore(MESSAGES_STORE);
+    const index = store.index("conversationId");
+    const request = index.openCursor(IDBKeyRange.only(conversationId));
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      } else {
+        messages.forEach((message) => store.put(message));
+      }
+    };
+
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+export async function updateConversationMetadata(
+  conversationId: string,
+  patch: Record<string, any>,
+) {
+  const conversation = await getConversation(conversationId);
+  if (!conversation) return null;
+  const next = {
+    ...conversation,
+    metadata: {
+      ...(conversation.metadata || {}),
+      ...(patch || {}),
+    },
+    updatedAt: new Date().toISOString(),
+  };
+  await saveConversation(next);
+  return next;
+}
+
 export async function deleteMessagesByConversationAndType(
   conversationId: string,
   metadataType: string,
@@ -267,70 +312,65 @@ export async function getConversationStats(
 export async function checkContextSize(
   conversationId: string,
   maxTokens: number,
-  options = { includePageContext: true },
+  options: { includePageContext?: boolean; threshold?: number } = {},
 ) {
-  const { includePageContext = true } = options;
+  const { includePageContext = true, threshold = 80 } = options;
   let messages = await getMessagesForConversation(conversationId, 1000);
 
   if (!includePageContext) {
     messages = messages.filter((msg) => msg.metadata?.type !== "page_context");
   }
+  messages = messages.filter((msg) => msg.metadata?.type !== "system_event");
 
-  // Estimate token count (rough approximation: 1 token ~ 4 chars)
-  let totalChars = 0;
-  for (const msg of messages) {
-    totalChars += JSON.stringify(msg).length;
+  const usageTokens = (() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      if (msg.role !== "assistant") continue;
+      const includeFlag =
+        typeof msg.metadata?.includePageContext === "boolean"
+          ? msg.metadata.includePageContext
+          : null;
+      if (includeFlag !== null && includeFlag !== includePageContext) {
+        continue;
+      }
+      const usage = msg.metadata?.usage || {};
+      const total =
+        typeof usage?.total_tokens === "number"
+          ? usage.total_tokens
+          : typeof usage?.totalTokens === "number"
+            ? usage.totalTokens
+            : null;
+      const prompt =
+        typeof usage?.prompt_tokens === "number"
+          ? usage.prompt_tokens
+          : typeof usage?.promptTokens === "number"
+            ? usage.promptTokens
+            : null;
+      const candidate = total ?? prompt;
+      if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+        return Math.floor(candidate);
+      }
+    }
+    return null;
+  })();
+
+  let estimatedTokens = 0;
+  if (usageTokens) {
+    estimatedTokens = usageTokens;
+  } else {
+    // Estimate token count (rough approximation: 1 token ~ 4 chars)
+    let totalChars = 0;
+    for (const msg of messages) {
+      totalChars += JSON.stringify(msg).length;
+    }
+    estimatedTokens = Math.floor(totalChars / 4);
   }
-
-  const estimatedTokens = Math.floor(totalChars / 4);
   const percentage = (estimatedTokens / maxTokens) * 100;
 
   return {
     estimatedTokens,
     maxTokens,
     percentage,
-    needsCompression: percentage >= 80,
-  };
-}
-
-interface CompressionResult {
-  compressed: boolean;
-  originalCount?: number;
-  compressedCount?: number;
-  messages?: Message[];
-}
-
-export async function compressContext(
-  conversationId: string,
-  targetTokens: number,
-): Promise<CompressionResult> {
-  const messages = await getMessagesForConversation(conversationId, 1000);
-
-  if (messages.length === 0) return { compressed: false };
-
-  // Simple compression: keep system and recent messages, summarize older ones
-  const systemMessages = messages.filter((m) => m.role === "system");
-  const recentMessages = messages.slice(-10); // Keep last 10 messages
-  const oldMessages = messages.slice(0, -10);
-
-  if (oldMessages.length === 0) return { compressed: false, messages };
-
-  // Create summary of old messages (use assistant role, not system)
-  const summary: Message = {
-    id: `summary-${Date.now()}`,
-    conversationId,
-    role: "assistant",
-    content: `[对话上下文已压缩] 前面有 ${oldMessages.length} 条历史消息被压缩，以节省token空间。`,
-    timestamp: new Date().toISOString(),
-    metadata: { type: "compression_summary" },
-  };
-
-  const compressedMessages = [...systemMessages, summary, ...recentMessages];
-
-  return {
-    compressed: true,
-    originalCount: messages.length,
-    compressedCount: compressedMessages.length,
-    messages: compressedMessages,
+    needsCompression: percentage >= threshold,
   };
 }

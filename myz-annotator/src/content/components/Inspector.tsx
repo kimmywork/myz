@@ -1,151 +1,144 @@
-import { defineComponent, computed, type Ref } from "vue";
+import { storeToRefs } from "pinia";
+import {
+  defineComponent,
+  computed,
+  ref,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+  watch,
+} from "vue";
 import { useInspectorStore } from "@/content/stores/inspector-store.js";
-import { highlightStyleIconMap } from "@/shared/icons.js";
-import { HIGHLIGHT_STYLES } from "@/shared/types.js";
+import { IconClose, IconEdit, IconTrash } from "@/shared/icons.js";
 
 export default defineComponent({
   name: "MyZInspector",
-  setup({}) {
+  setup() {
     const store = useInspectorStore();
+    const { visible, record, inspectorAnchor } = storeToRefs(store);
+    const inspectorRef = ref<HTMLElement | null>(null);
+    const inspectorHeight = ref(0);
+    const inspectorFontSize = ref(16);
+    let resizeObserver: ResizeObserver | null = null;
 
-    const visible = store.visible;
-    const record = store.record;
-
-    const title: Ref<string> = computed(() => record.title || "标注详情");
-    const metaText = computed(() => {
-      const parts = Array.isArray(record.metaParts)
-        ? record.metaParts.filter(Boolean)
-        : [];
-      return parts.join(" · ");
-    });
-    const tags = computed(() =>
-      Array.isArray(record.tags) ? record.tags : [],
-    );
-    const hasTags = computed(() => tags.value.length > 0);
     const noteText = computed(() => {
-      const value = typeof record.note === "string" ? record.note.trim() : "";
-      return value || "无批注";
+      const value =
+        typeof record.value.note === "string"
+          ? record.value.note.trim()
+          : "";
+      return value;
     });
-    const kind = computed(() => record.kind || "highlight");
-    const isHighlight = computed(() => kind.value === "highlight");
-    const styleIconKey = computed(() =>
-      isHighlight.value ? record.styleIconKey || "" : "",
-    );
-    const StyleIconComponent = computed(() =>
-      isHighlight.value
-        ? highlightStyleIconMap[styleIconKey.value as HIGHLIGHT_STYLES]
-        : null,
-    );
-    const styleLabel = computed(() =>
-      isHighlight.value ? record.styleLabel || "" : "",
-    );
-    const styleValue = computed(() =>
-      isHighlight.value ? record.style || "" : "",
-    );
-    const color = computed(() => (isHighlight.value ? record.color || "" : ""));
-    const quoteHtml = computed(() =>
-      typeof record.html === "string" ? record.html : "",
-    );
-    const quoteText = computed(() =>
-      typeof record.text === "string" ? record.text : "",
+    const hasNote = computed(() => noteText.value.length > 0);
+
+    const inspectorStyle = computed(() => {
+      const anchor = inspectorAnchor.value;
+      if (!anchor) {
+        return undefined;
+      }
+      const spacing = inspectorFontSize.value || 16;
+      const topAbove = anchor.top - spacing - inspectorHeight.value;
+      const minTop = 8;
+      const showAbove = topAbove >= minTop;
+      const topPosition = showAbove
+        ? topAbove
+        : anchor.top + anchor.height + spacing;
+      return {
+        top: `${topPosition}px`,
+        left: `${anchor.left + anchor.width / 2}px`,
+        right: "auto",
+        transform: "translateX(-50%)",
+      };
+    });
+
+    const updateInspectorMetrics = () => {
+      if (!inspectorRef.value) {
+        inspectorHeight.value = 0;
+        inspectorFontSize.value = 16;
+        return;
+      }
+      inspectorHeight.value = inspectorRef.value.offsetHeight || 0;
+      const fontSize = Number.parseFloat(
+        window.getComputedStyle(inspectorRef.value).fontSize || "16",
+      );
+      if (Number.isFinite(fontSize) && fontSize > 0) {
+        inspectorFontSize.value = fontSize;
+      }
+    };
+
+    onMounted(() => {
+      updateInspectorMetrics();
+      if (typeof ResizeObserver !== "undefined") {
+        resizeObserver = new ResizeObserver(() => {
+          updateInspectorMetrics();
+        });
+        if (inspectorRef.value) {
+          resizeObserver.observe(inspectorRef.value);
+        }
+      }
+    });
+
+    watch(
+      () => [visible.value, noteText.value],
+      async ([isVisible]) => {
+        if (!isVisible) {
+          return;
+        }
+        await nextTick();
+        updateInspectorMetrics();
+      },
     );
 
-    return () => {
-      return (
-        <aside class={["myz-inspector", visible ? "" : "myz-hidden"]}>
-          <div class="myz-inspector__header">
-            <div class="myz-inspector__title">{title.value}</div>
-            <button
-              type="button"
-              class="myz-inspector__close"
-              onClick={() => store.hide()}
-            >
-              ×
-            </button>
-          </div>
+    onBeforeUnmount(() => {
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+    });
 
+    return () => (
+      <aside
+        class={[
+          "myz-inspector",
+          visible.value ? "" : "myz-hidden",
+          hasNote.value ? "" : "myz-inspector--toolbar",
+        ]}
+        style={inspectorStyle.value}
+        ref={inspectorRef}
+      >
+        {hasNote.value ? (
           <div class="myz-inspector__body">
-            <div class="myz-inspector__info">
-              <span
-                class={[
-                  "myz-inspector__style",
-                  isHighlight.value ? "" : "myz-hidden",
-                ]}
-                data-style={isHighlight.value ? styleValue.value : null}
-                style={
-                  isHighlight.value && color.value
-                    ? { "--myz-highlight-color": color.value }
-                    : undefined
-                }
-                title={
-                  isHighlight.value && styleLabel.value && color.value
-                    ? `${styleLabel.value} · ${color.value}`
-                    : undefined
-                }
-              >
-                {(() => {
-                  const IconComponent = StyleIconComponent.value;
-                  return IconComponent ? (
-                    <IconComponent
-                      class="myz-inspector__style-icon"
-                      size={18}
-                      aria-hidden="true"
-                    />
-                  ) : null;
-                })()}
-              </span>
-              <div class="myz-inspector__meta">{metaText.value}</div>
-            </div>
-
-            <div
-              class={["myz-inspector__tags", hasTags.value ? "" : "myz-hidden"]}
-            >
-              {tags.value.map((tag) => (
-                <span class="myz-tag" key={tag}>
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            {quoteHtml.value ? (
-              <blockquote
-                class="myz-inspector__quote"
-                innerHTML={quoteHtml.value}
-              />
-            ) : (
-              <blockquote class="myz-inspector__quote">
-                {quoteText.value}
-              </blockquote>
-            )}
-
             <div class="myz-inspector__note">{noteText.value}</div>
           </div>
+        ) : null}
 
-          <div class="myz-inspector__actions">
-            <button
-              type="button"
-              class="myz-btn-secondary"
-              onClick={() => store.copy()}
-            >
-              复制
-            </button>
-            <button
-              type="button"
-              class="myz-btn-primary"
-              onClick={() => store.edit()}
-            >
-              编辑
-            </button>
-            <button
-              type="button"
-              class="myz-btn-danger"
-              onClick={() => store.deleteRecord()}
-            >
-              删除
-            </button>
-          </div>
-        </aside>
-      );
-    };
+        <div class="myz-inspector__actions">
+          <button
+            type="button"
+            class="myz-inspector__icon-btn myz-inspector__icon-btn--edit"
+            aria-label="编辑标注"
+            onClick={() => {
+              store.edit();
+              store.hide();
+            }}
+          >
+            <IconEdit size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="myz-inspector__icon-btn myz-inspector__icon-btn--delete"
+            aria-label="删除标注"
+            onClick={() => store.deleteRecord()}
+          >
+            <IconTrash size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="myz-inspector__icon-btn myz-inspector__icon-btn--close"
+            aria-label="关闭"
+            onClick={() => store.hide()}
+          >
+            <IconClose size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </aside>
+    );
   },
 });

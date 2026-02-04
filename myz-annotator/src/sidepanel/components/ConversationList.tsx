@@ -5,6 +5,7 @@ import ConversationEmptyState from "./messages/ConversationEmptyState.jsx";
 import { resolveToolNames } from "./messages/messageUtils.jsx";
 import StreamingMessage from "./messages/StreamingMessage.jsx";
 import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
+import SystemEventMessageBubble from "./messages/SystemEventMessageBubble.jsx";
 import ToolInlineNotice from "./messages/ToolInlineNotice.jsx";
 import ToolMessageCard from "./messages/ToolMessageCard.jsx";
 import UserMessageBubble from "./messages/UserMessageBubble.jsx";
@@ -83,6 +84,9 @@ export default defineComponent({
     const renderMessage = (msg: Message) => {
       if (msg.metadata?.type === "page_context") {
         return <SystemMessageBubble key={msg.id} message={msg} />;
+      }
+      if (msg.metadata?.type === "system_event") {
+        return <SystemEventMessageBubble key={msg.id} message={msg} />;
       }
 
       if (msg.role === "user") {

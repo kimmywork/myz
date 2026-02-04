@@ -49,8 +49,14 @@ export const useInspectorStore = defineStore("inspector", () => {
   const inspectingId = ref<string | null>(null);
   const visible = ref(false);
   const record = ref<InspectorRecord>({ ...DEFAULT_RECORD });
+  const inspectorAnchor = ref<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
-  function showRecord(rawRecord: Partial<MyZRecord>) {
+  function showRecord(rawRecord: Partial<MyZRecord>, position?: DOMRect) {
     const computedKind =
       getRecordKind(rawRecord as MyZRecord) || RECORD_KINDS.HIGHLIGHT;
     const createdAt = rawRecord.createdAt
@@ -98,6 +104,14 @@ export const useInspectorStore = defineStore("inspector", () => {
       color: resolvedColor,
       kind: computedKind,
     };
+    if (position) {
+      inspectorAnchor.value = {
+        top: position.top,
+        left: position.left,
+        width: position.width,
+        height: position.height,
+      };
+    }
     visible.value = true;
     inspectingId.value = rawRecord.id || null;
   }
@@ -109,6 +123,7 @@ export const useInspectorStore = defineStore("inspector", () => {
     visible.value = false;
     inspectingId.value = null;
     record.value = { ...DEFAULT_RECORD };
+    inspectorAnchor.value = null;
   }
 
   function deleteRecord() {
@@ -171,6 +186,7 @@ export const useInspectorStore = defineStore("inspector", () => {
     copy,
     visible: computed(() => visible.value),
     record: computed(() => record.value),
+    inspectorAnchor: computed(() => inspectorAnchor.value),
     isInspecting,
   };
 });

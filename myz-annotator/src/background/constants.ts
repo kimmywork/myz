@@ -1,5 +1,5 @@
 import type { Settings } from "./settings.js";
-import { HIGHLIGHT_STYLES } from "@/shared/types";
+import { DEFAULT_COLORS, HIGHLIGHT_STYLES } from "@/shared/types";
 import { LOCAL_TOOL_NAMES } from "./ai/tools/localDefinitions.js";
 
 export const STORAGE_KEY = "myz::highlights";
@@ -33,8 +33,28 @@ export const DEFAULT_SETTINGS: Settings = {
       temperature: 0.7,
       compressImages: false,
       multimodalTarget: null,
+      contextCompressionThreshold: 80,
     },
     insights: { target: null, temperature: 0.7 },
+    autoHighlight: {
+      target: null,
+      temperature: 0.4,
+      maxHighlights: 15,
+      categoryStyles: {
+        conceptual: {
+          style: HIGHLIGHT_STYLES.PAINT,
+          color: DEFAULT_COLORS[0],
+        },
+        structural: {
+          style: HIGHLIGHT_STYLES.UNDERLINE,
+          color: DEFAULT_COLORS[3] || DEFAULT_COLORS[0],
+        },
+        behavioural: {
+          style: HIGHLIGHT_STYLES.WAVY,
+          color: DEFAULT_COLORS[1] || DEFAULT_COLORS[0],
+        },
+      },
+    },
   },
   aiMcpServers: [],
   aiLocalTools: {
@@ -60,6 +80,19 @@ export const DEFAULT_SETTINGS: Settings = {
     },
     mastodon: {
       profileUrl: "",
+    },
+  },
+  // E2EE sync
+  sync: {
+    enabled: false,
+    s3: {
+      endpoint: "",
+      region: "",
+      bucket: "",
+      accessKeyId: "",
+      secretAccessKey: "",
+      sessionToken: "",
+      prefix: "",
     },
   },
 };
