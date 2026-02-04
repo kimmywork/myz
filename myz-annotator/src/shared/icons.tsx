@@ -92,6 +92,8 @@ export const IconPencil = makeIcon(
   { filled: true },
 );
 
+export const IconEdit = IconPencil;
+
 export const IconNotebook = makeIcon("IconNotebook", () => (
   <g>
     <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
@@ -162,6 +164,66 @@ export const IconSun = makeIcon("IconSun", () => (
 export const IconMoon = makeIcon("IconMoon", () => (
   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
 ));
+
+export const IconSettings = makeIcon(
+  "IconSettings",
+  () => (
+    <g>
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.7l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.6 1.6 0 0 0-1.7-.3 1.6 1.6 0 0 0-1 1.45V22a2 2 0 1 1-4 0v-.08a1.6 1.6 0 0 0-1-1.45 1.6 1.6 0 0 0-1.7.3l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.6 1.6 0 0 0 .3-1.7 1.6 1.6 0 0 0-1.45-1H2a2 2 0 1 1 0-4h.08a1.6 1.6 0 0 0 1.45-1 1.6 1.6 0 0 0-.3-1.7l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.6 1.6 0 0 0 1.7.3 1.6 1.6 0 0 0 1-1.45V2a2 2 0 1 1 4 0v.08a1.6 1.6 0 0 0 1 1.45 1.6 1.6 0 0 0 1.7-.3l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.6 1.6 0 0 0-.3 1.7 1.6 1.6 0 0 0 1.45 1H22a2 2 0 1 1 0 4h-.08a1.6 1.6 0 0 0-1.45 1z" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconChatPlus = makeIcon(
+  "IconChatPlus",
+  () => (
+    <g>
+      <path d="M6.4 4.8h10.3a5 5 0 0 1 5 5v1.6a5 5 0 0 1-5 5H12.3L7.3 19v-3.2H6.4a5 5 0 0 1-5-5V9.8a5 5 0 0 1 5-5z" />
+      <path d="M18.4 16.5v4.5" />
+      <path d="M16.2 18.8h4.5" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconHistory = makeIcon(
+  "IconHistory",
+  () => (
+    <g>
+      <path d="M4 12a8 8 0 1 0 2.4-5.7" />
+      <path d="M4 4v4h4" />
+      <path d="M12 7v5l3 2" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconTrash = makeIcon(
+  "IconTrash",
+  () => (
+    <g>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <rect x="6.5" y="6" width="11" height="14" rx="2" ry="2" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </g>
+  ),
+  { strokeWidth: 1.6 },
+);
+
+export const IconClose = makeIcon(
+  "IconClose",
+  () => (
+    <g>
+      <path d="M18 6L6 18" />
+      <path d="M6 6l12 12" />
+    </g>
+  ),
+  { strokeWidth: 2 },
+);
 
 export const IconHighlightPaint = makeIcon("IconHighlightPaint", () => (
   <g>

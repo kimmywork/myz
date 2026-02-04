@@ -6,7 +6,7 @@ import type {
   AIAgentConfig,
 } from "../../settings.js"
 
-export type AgentName = "conversation" | "insights"
+export type AgentName = "conversation" | "insights" | "autoHighlight"
 
 export interface ResolvedAgentTarget {
   provider: AIProviderSetting

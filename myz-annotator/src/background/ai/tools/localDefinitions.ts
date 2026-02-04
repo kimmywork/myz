@@ -102,6 +102,69 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
       },
     },
   },
+  {
+    name: "list-files",
+    description:
+      "列出虚拟文件系统中的文件列表（用于管理记忆）；支持 /skills 路径查看已启用的技能文件。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dir: {
+          type: "string",
+          description: "目录路径（相对路径，默认根目录）。",
+        },
+      },
+    },
+  },
+  {
+    name: "read-file",
+    description:
+      "读取虚拟文件系统中的文件内容；支持 /skills/{skill}/... 路径读取技能文件。",
+    inputSchema: {
+      type: "object",
+      required: ["file_path"],
+      properties: {
+        file_path: {
+          type: "string",
+          description: "文件路径（相对路径）。",
+        },
+        line: {
+          type: "integer",
+          minimum: 1,
+          description: "起始行（1-based，可选）。",
+        },
+        lines: {
+          type: "integer",
+          minimum: 1,
+          description: "读取行数（可选，默认 20）。",
+        },
+      },
+    },
+  },
+  {
+    name: "write-file",
+    description:
+      "写入虚拟文件系统中的文件内容；未指定行号则覆盖，指定行号则插入（/skills 路径不可写）。",
+    inputSchema: {
+      type: "object",
+      required: ["file_path", "text"],
+      properties: {
+        file_path: {
+          type: "string",
+          description: "文件路径（相对路径）。",
+        },
+        text: {
+          type: "string",
+          description: "要写入的文本内容。",
+        },
+        line: {
+          type: "integer",
+          minimum: 1,
+          description: "插入的起始行（1-based，可选）。",
+        },
+      },
+    },
+  },
 ]
 
 export const LOCAL_TOOL_NAMES = LOCAL_TOOL_DEFINITIONS.map((tool) => tool.name)

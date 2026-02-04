@@ -1,4 +1,5 @@
 import { defineComponent, ref, FunctionalComponent, computed } from "vue";
+import { storeToRefs } from "pinia";
 
 import {
   isInHighlightCache,
@@ -165,6 +166,7 @@ export default defineComponent({
   name: "MyZInterests",
   setup() {
     const store = useInterestsStore();
+    const { vectorSearchEnabled } = storeToRefs(store);
     const interestResults = computed(() =>
       Array.from(store.interestMatchesByRecord.values()),
     );
@@ -197,6 +199,9 @@ export default defineComponent({
     });
 
     return () => {
+      if (!vectorSearchEnabled.value) {
+        return null;
+      }
       return (
         <div
           id="myz-interest-popup"

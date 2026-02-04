@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 import { Settings } from "./settings.js";
 import { LOCAL_TOOL_NAMES } from "./ai/tools/localDefinitions.js";
 import { applyVectorSearchSettings } from "./vectoria-index.js";
-import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
+import { normalizeColor, normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { MyZRecord } from "@/shared/types.js";
 
 const DB_NAME = "myz_db";
@@ -84,6 +84,11 @@ function getAllFromStore<T>(storeName: string): Promise<T[]> {
 }
 
 function normalizeSettings<T extends Settings>(settings: T): T {
+  const clampPercent = (value: any, min: number, max: number, fallback: number) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return fallback
+    return Math.max(min, Math.min(max, Math.round(parsed)))
+  }
   settings.aiAssistantEnabled = Boolean(settings.aiAssistantEnabled);
   settings.aiProviders = Array.isArray(settings.aiProviders)
     ? settings.aiProviders.filter((p) => p && typeof p === "object")
@@ -99,6 +104,11 @@ function normalizeSettings<T extends Settings>(settings: T): T {
             multimodalTarget: null,
           },
           insights: { target: null, temperature: 0.7 },
+          autoHighlight: {
+            target: null,
+            temperature: 0.4,
+            maxHighlights: 15,
+          },
         } as any);
   const aiAgents = settings.aiAgents as any
   const normalizeAgentTarget = (target: any) => {
@@ -118,6 +128,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       temperature: 0.7,
       compressImages: false,
       multimodalTarget: null,
+      contextCompressionThreshold: 80,
     }
   } else {
     aiAgents.conversation.target = normalizeAgentTarget(aiAgents.conversation.target)
@@ -129,6 +140,12 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     aiAgents.conversation.multimodalTarget = normalizeAgentTarget(
       aiAgents.conversation.multimodalTarget,
     )
+    aiAgents.conversation.contextCompressionThreshold = clampPercent(
+      aiAgents.conversation.contextCompressionThreshold,
+      50,
+      95,
+      80,
+    )
   }
   if (!aiAgents.insights || typeof aiAgents.insights !== "object") {
     aiAgents.insights = { target: null, temperature: 0.7 }
@@ -136,6 +153,52 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     aiAgents.insights.target = normalizeAgentTarget(aiAgents.insights.target)
     aiAgents.insights.temperature =
       typeof aiAgents.insights.temperature === "number" ? aiAgents.insights.temperature : 0.7
+  }
+  if (!aiAgents.autoHighlight || typeof aiAgents.autoHighlight !== "object") {
+    aiAgents.autoHighlight = {
+      target: null,
+      temperature: 0.4,
+      maxHighlights: 15,
+      categoryStyles:
+        (DEFAULT_SETTINGS.aiAgents as any)?.autoHighlight?.categoryStyles || {},
+    }
+  } else {
+    aiAgents.autoHighlight.target = normalizeAgentTarget(aiAgents.autoHighlight.target)
+    aiAgents.autoHighlight.temperature =
+      typeof aiAgents.autoHighlight.temperature === "number"
+        ? aiAgents.autoHighlight.temperature
+        : 0.4
+    const maxCount =
+      typeof aiAgents.autoHighlight.maxHighlights === "number"
+        ? aiAgents.autoHighlight.maxHighlights
+        : 15
+    const maxHighlights = clampPercent(maxCount, 5, 30, 15)
+    aiAgents.autoHighlight.maxHighlights = maxHighlights
+
+    const defaultCategoryStyles =
+      (DEFAULT_SETTINGS.aiAgents as any)?.autoHighlight?.categoryStyles || {}
+    const rawCategoryStyles = (aiAgents.autoHighlight as any).categoryStyles || {}
+    const normalizeCategoryStyle = (value: any, fallback: any) => ({
+      style: normalizeHighlightStyle(value?.style ?? fallback?.style),
+      color: normalizeColor(
+        typeof value?.color === "string" ? value.color : "",
+        typeof fallback?.color === "string" ? fallback.color : "#b58900",
+      ),
+    })
+    ;(aiAgents.autoHighlight as any).categoryStyles = {
+      conceptual: normalizeCategoryStyle(
+        rawCategoryStyles.conceptual,
+        defaultCategoryStyles.conceptual,
+      ),
+      structural: normalizeCategoryStyle(
+        rawCategoryStyles.structural,
+        defaultCategoryStyles.structural,
+      ),
+      behavioural: normalizeCategoryStyle(
+        rawCategoryStyles.behavioural,
+        defaultCategoryStyles.behavioural,
+      ),
+    }
   }
   settings.aiMcpServers = Array.isArray(settings.aiMcpServers)
     ? settings.aiMcpServers
@@ -288,6 +351,50 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     socialImport.mastodon.profileUrl = "";
   }
 
+  const sync = (settings as any).sync;
+  if (!sync || typeof sync !== "object") {
+    (settings as any).sync = {
+      enabled: false,
+      s3: {
+        endpoint: "",
+        region: "",
+        bucket: "",
+        accessKeyId: "",
+        secretAccessKey: "",
+        sessionToken: "",
+        prefix: "",
+      },
+    };
+  } else {
+    sync.enabled = Boolean(sync.enabled);
+    if (!sync.s3 || typeof sync.s3 !== "object") {
+      sync.s3 = {
+        endpoint: "",
+        region: "",
+        bucket: "",
+        accessKeyId: "",
+        secretAccessKey: "",
+        sessionToken: "",
+        prefix: "",
+      };
+    } else {
+      sync.s3.endpoint =
+        typeof sync.s3.endpoint === "string" ? sync.s3.endpoint : "";
+      sync.s3.region =
+        typeof sync.s3.region === "string" ? sync.s3.region : "";
+      sync.s3.bucket =
+        typeof sync.s3.bucket === "string" ? sync.s3.bucket : "";
+      sync.s3.accessKeyId =
+        typeof sync.s3.accessKeyId === "string" ? sync.s3.accessKeyId : "";
+      sync.s3.secretAccessKey =
+        typeof sync.s3.secretAccessKey === "string" ? sync.s3.secretAccessKey : "";
+      sync.s3.sessionToken =
+        typeof sync.s3.sessionToken === "string" ? sync.s3.sessionToken : "";
+      sync.s3.prefix =
+        typeof sync.s3.prefix === "string" ? sync.s3.prefix : "";
+    }
+  }
+
   return settings;
 }
 
@@ -345,9 +452,9 @@ export async function getAllHighlights(): Promise<MyZRecord[]> {
   });
 }
 
-export async function readSettings() {
+export async function readSettings(): Promise<Settings> {
   const { [SETTINGS_KEY]: stored } =
-    await chrome.storage.local.get(SETTINGS_KEY);
+    await chrome.storage.local.get(SETTINGS_KEY) as { [SETTINGS_KEY]?: Partial<Settings> };
   if (!stored) {
     return normalizeSettings({ ...DEFAULT_SETTINGS });
   }
@@ -356,8 +463,8 @@ export async function readSettings() {
   return merged;
 }
 
-export async function writeSettings(patch: Partial<Settings>) {
-  const current = (await readSettings()) as Settings;
+export async function writeSettings(patch: Partial<Settings>): Promise<Settings> {
+  const current = await readSettings();
   const updated = normalizeSettings({ ...current, ...patch });
   updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
   await chrome.storage.local.set({ [SETTINGS_KEY]: updated });

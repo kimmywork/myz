@@ -31,6 +31,10 @@ export interface ProviderToolSpec {
   function: ProviderToolDefinition
 }
 
+type ReasoningEffort = "low" | "medium" | "high";
+
+type ResponseFormat = "text" | { "type": "json_object" } | { "type": "json_schema"; "json_schema": any };
+
 export interface ProviderChatCompletionRequest {
   model: string
   messages: ProviderMessage[]
@@ -38,6 +42,8 @@ export interface ProviderChatCompletionRequest {
   temperature?: number
   tools?: ProviderToolSpec[]
   stream?: boolean
+  response_format?: ResponseFormat
+  reasoning_effort?: ReasoningEffort
   extra_body?: Record<string, any>
   [key: string]: any
 }

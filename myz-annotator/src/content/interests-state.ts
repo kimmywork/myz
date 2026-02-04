@@ -19,7 +19,9 @@ const DEFAULT_MATCH_THRESHOLD = 0.5;
 const SETTINGS_STORAGE_KEY = "myz::settings";
 
 let interestMatchThreshold = DEFAULT_MATCH_THRESHOLD;
-let thresholdSyncInstalled = false;
+let settingsSyncInstalled = false;
+let vectorSearchEnabled = false;
+let monitoringActive = false;
 
 function normalizeMatchThreshold(value: any): number {
   const n =
@@ -27,30 +29,47 @@ function normalizeMatchThreshold(value: any): number {
   return Math.min(1, Math.max(0.4, n));
 }
 
-async function loadMatchThresholdFromSettings(): Promise<void> {
+function resolveVectorSearchEnabled(settings: any): boolean {
+  const target = settings?.vectorSearch?.target;
+  return Boolean(
+    settings?.vectorSearch?.enabled &&
+      target &&
+      typeof target?.modelId === "string" &&
+      target.modelId.trim(),
+  );
+}
+
+async function loadVectorSearchEnabled(): Promise<boolean> {
   try {
     const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
     const settings = stored?.[SETTINGS_STORAGE_KEY];
     interestMatchThreshold = normalizeMatchThreshold(settings?.vectorSearch?.matchThreshold);
+    const enabled = resolveVectorSearchEnabled(settings);
+    updateVectorSearchEnabled(enabled);
+    return enabled;
   } catch {
-    // ignore
+    updateVectorSearchEnabled(false);
+    return false;
   }
 }
 
-function installMatchThresholdSync(): void {
-  if (thresholdSyncInstalled) return;
-  thresholdSyncInstalled = true;
+function installSettingsSync(): void {
+  if (settingsSyncInstalled) return;
+  settingsSyncInstalled = true;
   try {
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== "local") return;
       const change = changes?.[SETTINGS_STORAGE_KEY];
       if (!change) return;
-      const next = normalizeMatchThreshold(
-        change.newValue?.vectorSearch?.matchThreshold,
+      const settings = change.newValue;
+      const nextThreshold = normalizeMatchThreshold(
+        settings?.vectorSearch?.matchThreshold,
       );
-      if (next === interestMatchThreshold) return;
-      interestMatchThreshold = next;
-      pruneMatchesBelowThreshold(next);
+      if (nextThreshold !== interestMatchThreshold) {
+        interestMatchThreshold = nextThreshold;
+        pruneMatchesBelowThreshold(nextThreshold);
+      }
+      updateVectorSearchEnabled(resolveVectorSearchEnabled(settings));
     });
   } catch {
     // ignore
@@ -72,10 +91,56 @@ let interestIndicatorsHost: HTMLElement | null = null;
 let indicatorUpdateScheduled = false;
 let interestTempRectKeyId = 0;
 
-export function startInterestMonitoring(): void {
+function cleanupInterestState(): void {
   const interestStore = useInterestsStore();
-  void loadMatchThresholdFromSettings();
-  installMatchThresholdSync();
+  monitoringActive = false;
+  if (interestRescanTimer) {
+    clearTimeout(interestRescanTimer);
+    interestRescanTimer = null;
+  }
+  if (interestObserver) {
+    try {
+      interestObserver.disconnect();
+    } catch {}
+  }
+  interestObserver = null;
+  if (interestMutationObserver) {
+    try {
+      interestMutationObserver.disconnect();
+    } catch {}
+  }
+  interestMutationObserver = null;
+  interestStore.interestState.forEach((state) => {
+    if (state.timer) {
+      clearTimeout(state.timer);
+      state.timer = null;
+    }
+    state.searching = false;
+  });
+  interestStore.interestState.clear();
+  interestStore.interestMatchesByRecord.clear();
+  interestStore.interestElementIndicators.forEach(({ el }) => {
+    if (el?.parentNode) {
+      el.parentNode.removeChild(el);
+    }
+  });
+  interestStore.interestElementIndicators.clear();
+  if (interestIndicatorsHost?.parentNode) {
+    interestIndicatorsHost.parentNode.removeChild(interestIndicatorsHost);
+  }
+  interestIndicatorsHost = null;
+}
+
+function stopInterestMonitoring(): void {
+  if (!monitoringActive) return;
+  monitoringActive = false;
+  cleanupInterestState();
+}
+
+function startInterestObservers(): void {
+  if (monitoringActive) return;
+  monitoringActive = true;
+  const interestStore = useInterestsStore();
   if (!interestObserver) {
     interestObserver = new IntersectionObserver(handleInterestEntries, {
       threshold: 0.6,
@@ -103,6 +168,29 @@ export function startInterestMonitoring(): void {
       },
     );
   }
+}
+
+function updateVectorSearchEnabled(next: boolean): void {
+  const interestStore = useInterestsStore();
+  const enabled = Boolean(next);
+  interestStore.setVectorSearchEnabled(enabled);
+  if (enabled === vectorSearchEnabled) {
+    if (enabled && !monitoringActive) {
+      startInterestObservers();
+    }
+    return;
+  }
+  vectorSearchEnabled = enabled;
+  if (!enabled) {
+    stopInterestMonitoring();
+  } else {
+    startInterestObservers();
+  }
+}
+
+export function startInterestMonitoring(): void {
+  void loadVectorSearchEnabled();
+  installSettingsSync();
 }
 
 function scheduleInterestRescan(): void {
@@ -294,14 +382,14 @@ function ensureInterestIndicatorsHost(): HTMLElement {
     :host { all: initial; }
     .indicator {
     position: absolute;
-    width: 12px;
-    height: 12px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     background: #f59e0b;
-    box-shadow: 0 0 0 2px rgba(255,255,255,0.8);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
     pointer-events: none;
     z-index: 2147483644;
-    opacity: 0.95;
+    opacity: 0.9;
     }
   `;
   const layer = document.createElement("div");
@@ -319,21 +407,12 @@ function ensureInterestIndicatorsHost(): HTMLElement {
 }
 
 function updateInterestIndicators(): void {
+  if (!vectorSearchEnabled) return;
   const interestStore = useInterestsStore();
   const host = ensureInterestIndicatorsHost();
   const layer = host.shadowRoot?.lastChild;
   if (!layer) return;
-  // Cleanup removed elements and stale indicators
-  Array.from(interestStore.interestElementIndicators.entries()).forEach(
-    ([key, indicator]) => {
-      if (key instanceof Element && !document.contains(key)) {
-        if (indicator.el?.parentNode) {
-          indicator.el.parentNode.removeChild(indicator.el);
-        }
-        interestStore.interestElementIndicators.delete(key);
-      }
-    },
-  );
+  const activeKeys = new Set<unknown>();
 
   Array.from(interestStore.interestMatchesByRecord.entries()).forEach(
     ([mapKey, { element, rect, rectKey }]) => {
@@ -354,6 +433,7 @@ function updateInterestIndicators(): void {
         return;
       }
       const indicatorKey = element || rectKey || mapKey;
+      activeKeys.add(indicatorKey);
       let indicator = interestStore.interestElementIndicators.get(indicatorKey);
       if (!indicator) {
         const dot = document.createElement("div");
@@ -362,9 +442,23 @@ function updateInterestIndicators(): void {
         indicator = { el: dot };
         interestStore.interestElementIndicators.set(indicatorKey, indicator);
       }
-      const x = targetRect.left - 6;
-      const y = targetRect.top - 6;
+      const x = targetRect.left - 2;
+      const y = targetRect.top - 2;
       indicator.el.style.transform = `translate(${x}px, ${y}px)`;
+    },
+  );
+
+  // Cleanup removed elements and stale indicators
+  Array.from(interestStore.interestElementIndicators.entries()).forEach(
+    ([key, indicator]) => {
+      const isElementKey = key instanceof Element;
+      const isValidElement = !isElementKey || document.contains(key);
+      if (!activeKeys.has(key) || !isValidElement) {
+        if (indicator.el?.parentNode) {
+          indicator.el.parentNode.removeChild(indicator.el);
+        }
+        interestStore.interestElementIndicators.delete(key);
+      }
     },
   );
 }
@@ -379,30 +473,6 @@ export function scheduleIndicatorUpdate(): void {
 }
 
 export function resetInterestStateForNavigation(): void {
-  const interestStore = useInterestsStore();
-  interestStore.interestMatchesByRecord.clear();
-  interestStore.interestElementIndicators.forEach(({ el }) => {
-    if (el?.parentNode) {
-      el.parentNode.removeChild(el);
-    }
-  });
-  interestStore.interestElementIndicators.clear();
-  if (interestIndicatorsHost?.parentNode) {
-    interestIndicatorsHost.parentNode.removeChild(interestIndicatorsHost);
-  }
-  interestIndicatorsHost = null;
-  if (interestObserver) {
-    try {
-      interestObserver.disconnect();
-    } catch {}
-  }
-  interestObserver = null;
-  if (interestMutationObserver) {
-    try {
-      interestMutationObserver.disconnect();
-    } catch {}
-  }
-  interestMutationObserver = null;
-  interestStore.interestState.clear();
+  cleanupInterestState();
   startInterestMonitoring();
 }

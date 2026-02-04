@@ -1,6 +1,8 @@
 import { ContentBlock } from "../../mcp_schema.js"
 import { LOCAL_TOOL_DEFINITIONS } from "./localDefinitions.js"
 import { executeSandboxedCode } from "./codeExecution.js"
+import { getSkillFile, listSkillFiles, listSkills } from "../skills/storage.js"
+import { listFiles, readFile, writeFile } from "../vfs.js"
 
 export interface ToolExecutionResult {
   content: ContentBlock[]
@@ -42,6 +44,59 @@ function normalizeHttpUrl(value: any) {
   } catch {
     return ""
   }
+}
+
+function normalizeSkillName(value: any) {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function normalizePath(input: any): string {
+  const raw = typeof input === "string" ? input.trim() : ""
+  if (!raw) return ""
+  const cleaned = raw.replace(/\\/g, "/")
+  const parts = cleaned.split("/").filter(Boolean)
+  const stack: string[] = []
+  for (const part of parts) {
+    if (part === "." || part === "") continue
+    if (part === "..") {
+      stack.pop()
+      continue
+    }
+    stack.push(part)
+  }
+  return stack.join("/")
+}
+
+function parseSkillsPath(input: any): {
+  kind: "root" | "skill"
+  skillName?: string
+  filePath?: string
+} | null {
+  const normalized = normalizePath(input)
+  if (!normalized) return null
+  if (!normalized.startsWith("skills")) return null
+  const rest = normalized.slice("skills".length).replace(/^\/+/, "")
+  if (!rest) {
+    return { kind: "root" }
+  }
+  const parts = rest.split("/").filter(Boolean)
+  if (!parts.length) {
+    return { kind: "root" }
+  }
+  const skillName = parts[0]
+  const filePath = parts.slice(1).join("/")
+  return { kind: "skill", skillName, filePath }
+}
+
+async function resolveEnabledSkill(input: any) {
+  const name = normalizeSkillName(input)
+  if (!name) return null
+  const skills = await listSkills()
+  const enabled = skills.filter((skill) => skill.enabled)
+  const match =
+    enabled.find((skill) => skill.id === name) ||
+    enabled.find((skill) => skill.name === name)
+  return match || null
 }
 
 function delay(ms: number) {
@@ -307,6 +362,211 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
           data: { error: message },
           isError: true,
         }
+      }
+    },
+    "list-files": async (args: any = {}) => {
+      const dir = typeof args.dir === "string" ? args.dir.trim() : ""
+      const skillsDir = parseSkillsPath(dir)
+      if (skillsDir) {
+        const enabledSkills = (await listSkills()).filter((skill) => skill.enabled)
+        if (skillsDir.kind === "root") {
+          const data = await Promise.all(
+            enabledSkills.map(async (skill) => {
+              const file = await getSkillFile(skill.id, "SKILL.md")
+              const content = file?.content || ""
+              const lines = content ? content.split(/\r?\n/).length : 0
+              return {
+                path: `/skills/${skill.name}/SKILL.md`,
+                updatedAt: file?.updatedAt || skill.updatedAt,
+                size: content.length,
+                lines,
+              }
+            }),
+          )
+          const filtered = data.filter((item) => item.size > 0)
+          const text =
+            filtered.length > 0
+              ? `技能文件列表：\n${filtered
+                  .map(
+                    (file, index) =>
+                      `${index + 1}. ${file.path} (${file.size} chars, ${file.lines} lines)`,
+                  )
+                  .join("\n")}`
+              : "当前没有可用的技能文件。"
+          return { content: [{ type: "text", text }], data: filtered }
+        }
+
+        const skill = enabledSkills.find(
+          (item) => item.id === skillsDir.skillName || item.name === skillsDir.skillName,
+        )
+        if (!skill) {
+          return {
+            content: [{ type: "text", text: "未找到指定的技能。" }],
+            data: null,
+            isError: true,
+          }
+        }
+        const files = await listSkillFiles(skill.id)
+        const prefix = skillsDir.filePath ? `${skillsDir.filePath.replace(/\/+$/, "")}/` : ""
+        const filtered = files.filter((file) =>
+          prefix ? file.path.startsWith(prefix) : true,
+        )
+        const data = filtered.map((file) => ({
+          path: `/skills/${skill.name}/${file.path}`,
+          updatedAt: file.updatedAt,
+          size: file.content.length,
+          lines: file.content ? file.content.split(/\r?\n/).length : 0,
+        }))
+        const text =
+          data.length > 0
+            ? `技能文件列表：\n${data
+                .map(
+                  (file, index) =>
+                    `${index + 1}. ${file.path} (${file.size} chars, ${file.lines} lines)`,
+                )
+                .join("\n")}`
+            : "当前目录没有文件。"
+        return { content: [{ type: "text", text }], data }
+      }
+
+      const files = await listFiles(dir)
+      const data = files.map((file) => ({
+        path: file.path,
+        updatedAt: file.updatedAt,
+        size: file.content.length,
+        lines: file.content ? file.content.split(/\r?\n/).length : 0,
+      }))
+      const text =
+        data.length > 0
+          ? `文件列表：\n${data
+              .map(
+                (file, index) =>
+                  `${index + 1}. ${file.path} (${file.size} chars, ${file.lines} lines)`,
+              )
+              .join("\n")}`
+          : "当前目录没有文件。"
+      return { content: [{ type: "text", text }], data }
+    },
+    "read-file": async (args: any = {}) => {
+      const filePath = typeof args.file_path === "string" ? args.file_path.trim() : ""
+      if (!filePath) {
+        return {
+          content: [{ type: "text", text: "file_path 是必填项。" }],
+          data: null,
+          isError: true,
+        }
+      }
+      const skillsPath = parseSkillsPath(filePath)
+      if (skillsPath) {
+        if (skillsPath.kind === "root" || !skillsPath.skillName) {
+          return {
+            content: [{ type: "text", text: "请提供 /skills/{skill}/... 路径。" }],
+            data: null,
+            isError: true,
+          }
+        }
+        const skill = await resolveEnabledSkill(skillsPath.skillName)
+        if (!skill) {
+          return {
+            content: [{ type: "text", text: "未找到指定的技能。" }],
+            data: null,
+            isError: true,
+          }
+        }
+        const resolvedPath = skillsPath.filePath || "SKILL.md"
+        const record = await getSkillFile(skill.id, resolvedPath)
+        if (!record) {
+          return {
+            content: [{ type: "text", text: "未找到指定的技能文件。" }],
+            data: null,
+            isError: true,
+          }
+        }
+        const allLines = record.content.split(/\r?\n/)
+        const startLine =
+          typeof args.line === "number" && Number.isFinite(args.line) && args.line > 0
+            ? Math.floor(args.line)
+            : 1
+        const lineCount =
+          typeof args.lines === "number" && Number.isFinite(args.lines) && args.lines > 0
+            ? Math.floor(args.lines)
+            : allLines.length
+        const slice = allLines.slice(startLine - 1, startLine - 1 + lineCount)
+        const text = slice.join("\n")
+        return {
+          content: [{ type: "text", text }],
+          data: {
+            path: `/skills/${skill.name}/${record.path}`,
+            content: text,
+            startLine,
+            endLine: Math.min(allLines.length, startLine - 1 + lineCount),
+            totalLines: allLines.length,
+            updatedAt: record.updatedAt,
+          },
+        }
+      }
+
+      const record = await readFile(filePath)
+      if (!record) {
+        return {
+          content: [{ type: "text", text: "未找到指定的文件。" }],
+          data: null,
+          isError: true,
+        }
+      }
+      const allLines = record.content.split(/\r?\n/)
+      const startLine =
+        typeof args.line === "number" && Number.isFinite(args.line) && args.line > 0
+          ? Math.floor(args.line)
+          : 1
+      const lineCount =
+        typeof args.lines === "number" && Number.isFinite(args.lines) && args.lines > 0
+          ? Math.floor(args.lines)
+          : allLines.length
+      const slice = allLines.slice(startLine - 1, startLine - 1 + lineCount)
+      const text = slice.join("\n")
+      return {
+        content: [{ type: "text", text }],
+        data: {
+          path: record.path,
+          content: text,
+          startLine,
+          endLine: Math.min(allLines.length, startLine - 1 + lineCount),
+          totalLines: allLines.length,
+          updatedAt: record.updatedAt,
+        },
+      }
+    },
+    "write-file": async (args: any = {}) => {
+      const filePath = typeof args.file_path === "string" ? args.file_path.trim() : ""
+      const text = typeof args.text === "string" ? args.text : ""
+      const line =
+        typeof args.line === "number" && Number.isFinite(args.line) && args.line > 0
+          ? Math.floor(args.line)
+          : undefined
+      if (!filePath) {
+        return {
+          content: [{ type: "text", text: "file_path 是必填项。" }],
+          data: null,
+          isError: true,
+        }
+      }
+      if (parseSkillsPath(filePath)) {
+        return {
+          content: [{ type: "text", text: "不允许修改 /skills 下的文件。" }],
+          data: null,
+          isError: true,
+        }
+      }
+      const record = await writeFile(filePath, text, line)
+      return {
+        content: [
+          {
+            type: "text",
+            text: `写入成功：${record.path} (${record.content.length} chars)`,
+          },
+        ],
+        data: record,
       }
     },
   }

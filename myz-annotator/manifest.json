@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "MyZ 网页标注智能助理",
   "description": "高亮网页，添加注解，保存摘录，自动发现兴趣点，AI助理一键解答。",
-  "version": "0.2.0",
+  "version": "0.3.2",
+  "language": "zh-CN",
   "icons": {
     "16": "assets/icon-128.png",
     "32": "assets/icon-128.png",
@@ -11,6 +12,8 @@
   },
   "permissions": [
     "storage",
+    "alarms",
+    "notifications",
     "tabs",
     "activeTab",
     "contextMenus",
@@ -21,6 +24,7 @@
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "src/background.js",
+    "scripts": ["src/background.js"],
     "type": "module"
   },
   "content_scripts": [
@@ -47,7 +51,7 @@
     "pages": ["src/sandbox/code-execution.html"]
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self';",
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
     "sandbox": "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-eval'; child-src 'self' blob:; worker-src 'self' blob:;"
   },
   "web_accessible_resources": [

@@ -2,12 +2,12 @@
 
 中文名：MyZ 高亮智能助理
 
-[Chrome 安装](https://chromewebstore.google.com/detail/myz-annotator/mhakfcbobhdemicjelhjjpmgibhnnplg)
-[Edge 安装](https://microsoftedge.microsoft.com/addons/detail/myz-annotator/fepakkoggnancnpcclldodfbpgobkabj)
+[Chrome 安装](https://chromewebstore.google.com/detail/mhakfcbobhdemicjelhjjpmgibhnnplg)
+[Edge 安装](https://microsoftedge.microsoft.com/addons/detail/fepakkoggnancnpcclldodfbpgobkabj)
 
-**MyZ 高亮智能助理** 是一款 Chrome 扩展，帮助你在任意网页高亮文本、撰写批注、截图收集，并在本地管理这些资料。它支持导出 JSON / Markdown，并提供可选的 AI 智能助理（SidePanel）用于基于网页上下文进行对话探索。
+**MyZ 高亮智能助理** 是一款 Chrome 扩展，帮助你在任意网页高亮文本、撰写批注、截图收集，并在本地管理这些资料。它支持导出 JSON / Markdown，并提供可选的 AI 智能助理（SidePanel）用于基于网页上下文进行对话探索与 Skills 注入。
 
-> 说明：AI 能力通过你自行配置的 OpenAI 兼容 Provider / MCP Server 实现。扩展不提供任何远程服务；请注意隐私数据保护与费用风险（自定义 Provider 可能消耗大量 token 并产生高额收费）。
+> 说明：AI 能力通过你自行配置的 OpenAI 兼容 Provider / MCP Server 实现。加密同步使用你自己的 S3 兼容对象存储；同步密钥由你输入的密码派生，我们不保存你的密码，遗忘后需重新全量加密并同步。扩展不提供任何远程服务；请注意隐私数据保护与费用风险（自定义 Provider 可能消耗大量 token 并产生高额收费）。
 
 ## 主要特性
 
@@ -24,6 +24,8 @@
 - 🧰 **管理中心**：Dashboard 支持卡片 / 列表视图（记忆上次选择）、标签多选、全文搜索、日期范围与网站筛选，并采用懒加载保障性能；同时提供 JSON 导入，支持「跳过 / 覆盖 / 保留最新」三种冲突策略并显示导入摘要，设置页齿轮按钮增大字号并加上外轮廓更醒目。
 - 🗂️ **侧边详情面板**：点击任意高亮即可在页面右侧打开固定位置的详情面板，支持复制 Markdown、编辑、删除。
 - 🤖 **AI 智能助理（SidePanel）**：支持发送网页上下文、选中内容、图片/截图与模型对话；支持 Vision 模型与发送前压缩图片（最长边 ≤ 640px）；支持 Tool Calling（MCP Server + 本地 tools）与向量检索（Vectoria）。
+- 🧩 **Agent Skills**：支持内置技能与自定义技能（Zip/文件夹导入），可通过 `@skill-name` 显式调用或使用“自动”模式由选择器模型挑选。
+- 🔐 **端到端加密同步（E2EE）**：使用你自己的 S3 兼容对象存储，同步密钥由密码派生且仅保存在本地；遗忘密码需重新全量加密并同步。
 - 🌐 **社区导入（X/Mastodon）**：通过打开网页并抓取内容的方式导入数据（无需官方 API）。
 - ℤ **统一图标集**：扩展图标与操作栏图标统一为带有「ℤ」符号的视觉语言，浮动工具条、Popup、Dashboard 按钮全面改用自研 SVG 图标，跨浏览器保持一致并提供亮/暗色双版本资源。
 - 🧘 **禅定模式（Zen Mode）**：在包含文章主体的页面一键进入沉浸式阅读，仅保留文章区域并优化打印样式；不改变 DOM 结构，确保高亮路径与恢复不受影响。支持右键菜单一键切换，并在启用后显示「保存文章为图片」的上下文菜单以便导出。

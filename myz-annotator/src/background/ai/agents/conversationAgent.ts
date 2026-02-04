@@ -202,6 +202,8 @@ export class ConversationAgent {
   ): Promise<Message[]> {
     let messages = await getMessagesForConversation(conversationId, 1000)
 
+    messages = messages.filter((msg) => msg.metadata?.type !== "system_event")
+
     if (!includePageContext) {
       messages = messages.filter(
         (msg) =>
@@ -337,12 +339,23 @@ export class ConversationAgent {
       includePageContext,
     )
 
+    const requiredToolNames = Array.isArray(options.requiredToolNames)
+      ? options.requiredToolNames
+          .map((name: any) => (typeof name === "string" ? name.trim() : ""))
+          .filter(Boolean)
+      : []
+
     let dynamicToolSelection: any = null
     if (deps.toolControl) {
       deps.toolControl.setActiveToolFilter(null)
       if (deps.toolSelector?.enabled) {
         try {
           const allTools = deps.toolControl.listTools() || []
+          const availableToolNames = new Set(
+            allTools
+              .map((tool) => (typeof tool?.name === "string" ? tool.name.trim() : ""))
+              .filter(Boolean),
+          )
           const toolCandidates = allTools
             .filter((tool) => tool?.name && tool.name !== "myz-select-tools")
             .map((tool) => ({
@@ -352,9 +365,14 @@ export class ConversationAgent {
           }))
 
           const selected = await deps.toolSelector.selectToolNames(content, toolCandidates)
+          const normalizedRequired = requiredToolNames.filter((name) =>
+            availableToolNames.has(name),
+          )
           const activeToolNames =
-            selected.length > 0
-              ? Array.from(new Set(["myz-select-tools", ...selected]))
+            selected.length > 0 || normalizedRequired.length > 0
+              ? Array.from(
+                  new Set(["myz-select-tools", ...selected, ...normalizedRequired]),
+                )
               : ["myz-select-tools"]
           deps.toolControl.setActiveToolFilter(activeToolNames)
 
@@ -366,7 +384,13 @@ export class ConversationAgent {
           }
         } catch (error) {
           console.warn("Tool selection failed, disabling tools for this request", error)
-          deps.toolControl.setActiveToolFilter([])
+          if (requiredToolNames.length > 0) {
+            deps.toolControl.setActiveToolFilter(
+              Array.from(new Set(["myz-select-tools", ...requiredToolNames])),
+            )
+          } else {
+            deps.toolControl.setActiveToolFilter([])
+          }
         }
       }
     }
@@ -429,6 +453,7 @@ export class ConversationAgent {
     const maxOutputTokenParam: MaxOutputTokenParam =
       deps.callConfig.model.limits.maxOutputTokenParam
     const temperature = deps.callConfig.temperature
+    const requestStartedAt = Date.now()
 
     let response: any
     try {
@@ -489,6 +514,9 @@ export class ConversationAgent {
     }
 
     const message = response?.choices?.[0]?.message
+    const usage = response?.usage
+    const requestCompletedAt = Date.now()
+    const requestDurationMs = Math.max(0, requestCompletedAt - requestStartedAt)
     const { content: normalizedContent, reasoning: reasoningContent } =
       normalizeMessagePayload(message)
     let assistantContent = normalizedContent || ""
@@ -527,6 +555,12 @@ export class ConversationAgent {
         toolCallDetails,
         toolInvocationOnly: !assistantHadContent && toolNamesList.length > 0,
         reasoning: reasoningContent || undefined,
+        includePageContext,
+        contextWindow: deps.callConfig.model.limits.contextWindow,
+        requestStartedAt,
+        requestCompletedAt,
+        requestDurationMs,
+        ...(usage ? { usage } : {}),
         ...metadata,
       },
     }
@@ -545,6 +579,11 @@ export class ConversationAgent {
           toolNames: toolNamesList,
           toolCallDetails,
           reasoning: reasoningContent || "",
+          contextWindow: deps.callConfig.model.limits.contextWindow,
+          requestStartedAt,
+          requestCompletedAt,
+          requestDurationMs,
+          ...(usage ? { usage } : {}),
         },
         message: assistantMessage,
       } as any)

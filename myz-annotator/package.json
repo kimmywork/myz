@@ -1,6 +1,6 @@
 {
   "name": "myz-annotator",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "type": "module",
   "scripts": {
     "build": "vue-tsc -b && vite build",
@@ -44,13 +44,16 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.24.3",
+    "@noble/curves": "^1.9.7",
     "@tailwindcss/vite": "^4.1.17",
+    "fflate": "^0.8.2",
+    "hash-wasm": "^4.12.0",
     "markdown-it": "^14.1.0",
     "pinia": "^3.0.4",
     "tailwindcss": "^4.1.17",
     "vectoria": "file:../vectoria",
-    "fflate": "^0.8.2",
     "vue": "^3.5.22",
+    "vue-router": "^4.6.4",
     "zod": "^4.2.1"
   }
 }

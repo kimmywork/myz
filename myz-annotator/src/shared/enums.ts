@@ -35,6 +35,12 @@ export enum HIGHLIGHT_STYLES {
   WAVY = "wavy",
 }
 
+export enum AUTO_HIGHLIGHT_CATEGORIES {
+  CONCEPTUAL = "conceptual",
+  STRUCTURAL = "structural",
+  BEHAVIOURAL = "behavioural",
+}
+
 export interface HighlightStyleOption {
   icon: HIGHLIGHT_STYLES[keyof HIGHLIGHT_STYLES];
   label: string;

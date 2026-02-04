@@ -4,7 +4,9 @@ title: MyZ Danmaku
 hero:
   name: MyZ Danmaku
   text: Youtube<span class="myz-web-danmaku">弹幕扩展</span>
-  tagline: 将时间码评论转化为<span class="myz-web-danmaku">同步弹幕</span>，在 YouTube 中体验<span class="myz-web-danmaku">实时互动</span>
+  tagline: >
+    将时间码评论转化为<span class="myz-web-danmaku">同步弹幕</span>，在 YouTube 中体验<span class="myz-web-danmaku">实时互动</span><br/>
+    <a href="https://chromewebstore.google.com/detail/ignagkboleblnlgpadmpjpccocgpghpa"><img style="display: inline" src="https://img.shields.io/chrome-web-store/users/ignagkboleblnlgpadmpjpccocgpghpa?label=Chrome users"/></a> &nbsp; <a href="https://microsoftedge.microsoft.com/addons/detail/lmeklchkknhmflgjdpemkgdgaceihimk"><img style="display: inline" src="https://img.shields.io/badge/dynamic/json?label=MSEdge%20users&query=$.activeInstallCount&url=https://microsoftedge.microsoft.com/addons/getproductdetailsbycrxid/lmeklchkknhmflgjdpemkgdgaceihimk"></a>
   image:
     src: ./youtube-screenshot.png
     alt: MyZ Danmaku 扩展示意图

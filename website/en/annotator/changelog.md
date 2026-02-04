@@ -2,6 +2,28 @@
 
 Highlights from recent extension updates.
 
+## v0.3.1 — UX & settings stability
+
+- Fixed the Inspector not appearing after clicking a highlight, and redesigned it as a toolbar-style popover (notes show above; edit closes the panel).
+- Replaced the highlight flash with a softer pulse/halo animation for better visibility in dark/paint styles.
+- Interests now only appear when vector search is enabled and a model is configured; cleaned up indicators and reduced their footprint.
+- Unified new SVG icons in the shared icon library, updating popup/sidepanel/inspector buttons.
+- Fixed AiProviderEditor model list mis-selection during reorder; disabling a model now auto-selects the next item for editing.
+
+## v0.3.0 — End-to-end encrypted sync (E2EE)
+
+- Added encrypted sync with S3-compatible storage (bring your own storage configuration).
+- The sync secret stays local; only ciphertext and minimal metadata are stored remotely.
+- Added sync status and manual sync actions (KeyId, manifest version, last sync time).
+
+## v0.2.0 — Agent Skills
+
+- Introduced Agent Skills:
+  - Built-in and custom skills (import via zip/folder).
+  - Explicit skill invocation via `@skill-name`.
+  - Auto mode that uses a selector model to pick skills per message.
+- Added skill management and editor in Dashboard → AI settings.
+
 ## v0.1.5 - AI Assistant integration
 
 - Integrated with AI Assistant:
