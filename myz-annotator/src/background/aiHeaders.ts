@@ -37,7 +37,8 @@ function pickProviderIdsFromAgents(settings: Partial<Settings> = {}) {
   const agents: any = (settings as any).aiAgents || {};
   const conversationProvider = agents?.conversation?.target?.providerId;
   const insightsProvider = agents?.insights?.target?.providerId;
-  [conversationProvider, insightsProvider].forEach((value) => {
+  const autoHighlightProvider = agents?.autoHighlight?.target?.providerId;
+  [conversationProvider, insightsProvider, autoHighlightProvider].forEach((value) => {
     if (typeof value === "string" && value.trim()) {
       ids.add(value.trim());
     }

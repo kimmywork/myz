@@ -103,6 +103,16 @@ async function ensureContextMenus() {
       contexts: ["page", "selection", "image"],
     });
 
+    // Add AI Key Points menu (standalone)
+    try {
+      await chrome.contextMenus.remove("myz-ai-keypoints");
+    } catch {}
+    chrome.contextMenus.create({
+      id: "myz-ai-keypoints",
+      title: "发现关键要点",
+      contexts: ["page", "selection"],
+    });
+
     // Add AI Assistant submenu actions
     try {
       await chrome.contextMenus.remove("myz-ai-summarize");
@@ -111,16 +121,6 @@ async function ensureContextMenus() {
       id: "myz-ai-summarize",
       parentId: "myz-ai-assistant",
       title: "总结页面内容",
-      contexts: ["page", "selection"],
-    });
-
-    try {
-      await chrome.contextMenus.remove("myz-ai-keypoints");
-    } catch {}
-    chrome.contextMenus.create({
-      id: "myz-ai-keypoints",
-      parentId: "myz-ai-assistant",
-      title: "发现关键要点",
       contexts: ["page", "selection"],
     });
 
@@ -293,8 +293,7 @@ chrome.contextMenus.onClicked.addListener(
         // Open side panel only (no auto-trigger for parent menu and "打开面板")
         await chrome.sidePanel.open({ windowId: tab.windowId });
       } else if (
-        info.menuItemId === "myz-ai-summarize" ||
-        info.menuItemId === "myz-ai-keypoints"
+        info.menuItemId === "myz-ai-summarize"
       ) {
         // Open side panel with AI assistant
         await chrome.sidePanel.open({ windowId: tab.windowId });
@@ -335,8 +334,6 @@ chrome.contextMenus.onClicked.addListener(
             // Extract action type from menu ID
             let action = "custom";
             if (info.menuItemId === "myz-ai-summarize") action = "summarize";
-            else if (info.menuItemId === "myz-ai-keypoints")
-              action = "key_points";
 
             // Send message to side panel with the selected action
             setTimeout(async () => {
@@ -359,7 +356,16 @@ chrome.contextMenus.onClicked.addListener(
           );
         }
       }
-      else if (info.menuItemId === "myz-ai-interpret-image") {
+      else if (info.menuItemId === "myz-ai-keypoints") {
+        try {
+          await chrome.tabs.sendMessage(tab.id, {
+            type: "myz:runAutoHighlight",
+            payload: {},
+          });
+        } catch (error) {
+          console.warn("Failed to run auto highlight", error);
+        }
+      } else if (info.menuItemId === "myz-ai-interpret-image") {
         if (!info.srcUrl) {
           return;
         }

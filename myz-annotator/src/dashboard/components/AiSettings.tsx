@@ -17,6 +17,7 @@ import AiLocalToolsSection from "./ai-settings/AiLocalToolsSection.jsx"
 import AiSkillsSection from "./ai-settings/AiSkillsSection.jsx"
 import AiVectorSearchSection from "./ai-settings/AiVectorSearchSection.jsx"
 import { createProviderSetting, createModelSetting } from "./ai-settings/factories.js"
+import { DEFAULT_COLORS, HIGHLIGHT_STYLES } from "@/shared/types.js"
 
 function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value))
@@ -33,7 +34,7 @@ function clearMissingTargets(
 ): AIAgentsSettings {
   const providerById = new Map(providers.map((p) => [p.id, p]))
 
-  const normalize = (key: "conversation" | "insights") => {
+  const normalize = (key: "conversation" | "insights" | "autoHighlight") => {
     const agent = agents[key]
     if (!agent?.target) {
       return key === "conversation" ? { ...agent, multimodalTarget: null } : agent
@@ -72,6 +73,7 @@ function clearMissingTargets(
   return {
     conversation: normalize("conversation"),
     insights: normalize("insights"),
+    autoHighlight: normalize("autoHighlight"),
   }
 }
 
@@ -90,6 +92,25 @@ export default defineComponent({
         contextCompressionThreshold: 80,
       },
       insights: { target: null, temperature: 0.7 },
+      autoHighlight: {
+        target: null,
+        temperature: 0.4,
+        maxHighlights: 15,
+        categoryStyles: {
+          conceptual: {
+            style: HIGHLIGHT_STYLES.PAINT,
+            color: DEFAULT_COLORS[0],
+          },
+          structural: {
+            style: HIGHLIGHT_STYLES.UNDERLINE,
+            color: DEFAULT_COLORS[3] || DEFAULT_COLORS[0],
+          },
+          behavioural: {
+            style: HIGHLIGHT_STYLES.WAVY,
+            color: DEFAULT_COLORS[1] || DEFAULT_COLORS[0],
+          },
+        },
+      },
     })
     const mcpServers = ref<McpServerSetting[]>([])
     const localTools = ref<AILocalToolsSettings>({
@@ -118,6 +139,7 @@ export default defineComponent({
       const targets = [
         { key: "Conversation", target: agents.value.conversation?.target },
         { key: "Insights", target: agents.value.insights?.target },
+        { key: "Auto Highlight", target: agents.value.autoHighlight?.target },
       ]
       targets.forEach(({ key, target }) => {
         if (!target?.providerId) return
@@ -193,6 +215,10 @@ export default defineComponent({
           agents.value.insights.target?.providerId === id
             ? { ...agents.value.insights, target: null }
             : agents.value.insights,
+        autoHighlight:
+          agents.value.autoHighlight.target?.providerId === id
+            ? { ...agents.value.autoHighlight, target: null }
+            : agents.value.autoHighlight,
       }
       if (selectedProviderId.value === id) {
         selectedProviderId.value = providers.value[0]?.id || null

@@ -1,5 +1,13 @@
 # Changelog
 
+# v0.3.2 自动高亮与分类标注
+
+- 新增 Auto Highlight Agent：基于页面主体内容自动生成高亮，并创建对应 MyZRecord 与 “AI生成标注” 标签。
+- “发现关键要点”改为独立右键菜单入口，可直接触发自动高亮。
+- Dashboard AI 设置支持 Auto Highlight 模型选择、最大高亮条数与分类（conceptual / structural / behavioural）样式/颜色映射，并显示图标与样式预览。
+- Popup 空状态增加“一键自动高亮”按钮。
+- 自动高亮范围匹配增加标点容错与重叠过滤，提升生成稳定性。
+
 # v0.3.1 交互与设置稳定性
 
 - 修复高亮点击后 Inspector 不显示的问题，并将其改为贴近高亮的工具条式展示（有批注则上方展示，编辑时自动关闭）。

@@ -1,4 +1,4 @@
-import { HIGHLIGHT_STYLES } from "@/shared/types";
+import { AUTO_HIGHLIGHT_CATEGORIES, HIGHLIGHT_STYLES } from "@/shared/types";
 
 export type AIProviderType = "openai_compatible";
 
@@ -83,6 +83,7 @@ export interface AIAgentConfig {
   target: AIAgentModelRef | null;
   temperature: number;
   compressImages?: boolean;
+  maxHighlights?: number;
   /**
    * Optional fallback model for Vision when the primary model lacks it.
    */
@@ -93,9 +94,26 @@ export interface AIAgentConfig {
   contextCompressionThreshold?: number;
 }
 
+export type AutoHighlightCategory = `${AUTO_HIGHLIGHT_CATEGORIES}`;
+
+export interface AutoHighlightCategoryStyle {
+  style: HIGHLIGHT_STYLES;
+  color: string;
+}
+
+export type AutoHighlightCategoryStyles = Record<
+  AutoHighlightCategory,
+  AutoHighlightCategoryStyle
+>;
+
+export interface AutoHighlightAgentConfig extends AIAgentConfig {
+  categoryStyles?: AutoHighlightCategoryStyles;
+}
+
 export interface AIAgentsSettings {
   conversation: AIAgentConfig;
   insights: AIAgentConfig;
+  autoHighlight: AutoHighlightAgentConfig;
 }
 
 export interface VectorSettings {

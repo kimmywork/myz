@@ -2,7 +2,12 @@ import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
 import { Settings } from "@/background/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
-import { DEFAULT_COLOR, DEFAULT_HIGHLIGHT_STYLE } from "@/shared/types.js";
+import {
+  DEFAULT_COLOR,
+  DEFAULT_COLORS,
+  DEFAULT_HIGHLIGHT_STYLE,
+  HIGHLIGHT_STYLES,
+} from "@/shared/types.js";
 import { LOCAL_TOOL_NAMES } from "@/background/ai/tools/localDefinitions.js";
 
 export const useSettingsStore = defineStore("settings", () => {
@@ -26,6 +31,25 @@ export const useSettingsStore = defineStore("settings", () => {
         contextCompressionThreshold: 80,
       },
       insights: { target: null, temperature: 0.7 },
+      autoHighlight: {
+        target: null,
+        temperature: 0.4,
+        maxHighlights: 15,
+        categoryStyles: {
+          conceptual: {
+            style: HIGHLIGHT_STYLES.PAINT,
+            color: DEFAULT_COLORS[0],
+          },
+          structural: {
+            style: HIGHLIGHT_STYLES.UNDERLINE,
+            color: DEFAULT_COLORS[3] || DEFAULT_COLORS[0],
+          },
+          behavioural: {
+            style: HIGHLIGHT_STYLES.WAVY,
+            color: DEFAULT_COLORS[1] || DEFAULT_COLORS[0],
+          },
+        },
+      },
     },
     aiMcpServers: [],
     aiLocalTools: {
@@ -137,6 +161,47 @@ export const useSettingsStore = defineStore("settings", () => {
                     typeof result.aiAgents.insights?.temperature === "number"
                       ? result.aiAgents.insights.temperature
                       : 0.7,
+                },
+                autoHighlight: {
+                  target: result.aiAgents.autoHighlight?.target || null,
+                  temperature:
+                    typeof result.aiAgents.autoHighlight?.temperature === "number"
+                      ? result.aiAgents.autoHighlight.temperature
+                      : 0.4,
+                  maxHighlights:
+                    typeof result.aiAgents.autoHighlight?.maxHighlights === "number"
+                      ? result.aiAgents.autoHighlight.maxHighlights
+                      : 15,
+                  categoryStyles: {
+                    conceptual: {
+                      style:
+                        result.aiAgents.autoHighlight?.categoryStyles?.conceptual
+                          ?.style || HIGHLIGHT_STYLES.PAINT,
+                      color:
+                        result.aiAgents.autoHighlight?.categoryStyles?.conceptual
+                          ?.color || DEFAULT_COLORS[0],
+                    },
+                    structural: {
+                      style:
+                        result.aiAgents.autoHighlight?.categoryStyles?.structural
+                          ?.style || HIGHLIGHT_STYLES.UNDERLINE,
+                      color:
+                        result.aiAgents.autoHighlight?.categoryStyles?.structural
+                          ?.color ||
+                        DEFAULT_COLORS[3] ||
+                        DEFAULT_COLORS[0],
+                    },
+                    behavioural: {
+                      style:
+                        result.aiAgents.autoHighlight?.categoryStyles?.behavioural
+                          ?.style || HIGHLIGHT_STYLES.WAVY,
+                      color:
+                        result.aiAgents.autoHighlight?.categoryStyles?.behavioural
+                          ?.color ||
+                        DEFAULT_COLORS[1] ||
+                        DEFAULT_COLORS[0],
+                    },
+                  },
                 },
               }
             : settings.aiAgents,

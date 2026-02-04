@@ -46,6 +46,7 @@ import {
 import { McpCapability } from "../ai/capabilities/mcp.js";
 import { ConversationAgent } from "../ai/agents/conversationAgent.js";
 import { InsightsAgent } from "../ai/agents/insightsAgent.js";
+import { AutoHighlightAgent } from "../ai/agents/autoHighlightAgent.js";
 import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
 import { SkillSelectionAgent } from "../ai/agents/skillSelectionAgent.js";
 import { LOCAL_TOOL_NAMES } from "../ai/tools/localDefinitions.js";
@@ -1026,6 +1027,53 @@ export function initializeAIMessageHandlers() {
           isEnabled: Boolean(settings.aiAssistantEnabled),
           callConfig: target as any,
         });
+      } finally {
+        await runtime.release();
+      }
+    },
+  );
+
+  registerMessageHandler(
+    "myz:generateAutoHighlights",
+    async (
+      payload: {
+        text?: string;
+        title?: string;
+        url?: string;
+        maxHighlights?: number;
+        temperature?: number;
+      },
+    ) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+
+      const target = resolveAgentTarget(settings, "autoHighlight");
+      const agentConfig = settings.aiAgents?.autoHighlight || {};
+      const mergedPayload = {
+        ...payload,
+        maxHighlights:
+          typeof payload?.maxHighlights === "number"
+            ? payload.maxHighlights
+            : agentConfig.maxHighlights,
+      };
+      const runtime = await acquireProviderRuntime(
+        target.provider as any,
+        (settings.aiMcpServers || []) as any,
+      );
+      try {
+        const agent = new AutoHighlightAgent({
+          client: runtime.session.client as any,
+        });
+        const result = await agent.generateAutoHighlightsWithConfig(mergedPayload || {}, {
+          isEnabled: Boolean(settings.aiAssistantEnabled),
+          callConfig: target as any,
+        });
+        return {
+          ...result,
+          categoryStyles: agentConfig.categoryStyles || {},
+        };
       } finally {
         await runtime.release();
       }
