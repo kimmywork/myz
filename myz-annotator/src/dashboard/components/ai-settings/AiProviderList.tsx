@@ -1,6 +1,7 @@
 import { defineComponent } from "vue"
 import type { PropType } from "vue"
 import type { AIProviderSetting } from "@/background/settings.js"
+import { getProviderTypeMeta } from "./providerCatalog.js"
 
 function statusLabel(provider: AIProviderSetting) {
   if (provider.enabled) return "已启用"
@@ -83,7 +84,7 @@ export default defineComponent({
                       }
                     />
                     <div class="text-xs text-slate-500 dark:text-slate-400">
-                      {statusLabel(provider)}
+                      {getProviderTypeMeta(provider.type).label} · {statusLabel(provider)}
                       {provider.lastTest?.model ? ` · ${provider.lastTest.model}` : ""}
                       {props.usedByMap?.[provider.id]?.length
                         ? ` · 使用中: ${props.usedByMap[provider.id].join(", ")}`

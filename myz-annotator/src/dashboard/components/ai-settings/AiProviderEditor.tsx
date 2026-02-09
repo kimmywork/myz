@@ -3,6 +3,7 @@ import type { PropType } from "vue"
 import type { AIModelSetting, AIProviderSetting } from "@/background/settings.js"
 import AiHeadersEditor from "./AiHeadersEditor.jsx"
 import AiModelListEditor from "./AiModelListEditor.jsx"
+import { getProviderTypeMeta, PROVIDER_TYPE_OPTIONS } from "./providerCatalog.js"
 
 function normalizeUrl(value: string) {
   return value.trim().replace(/\/+$/, "")
@@ -82,6 +83,30 @@ export default defineComponent({
       )
     }
 
+    const onChangeType = (nextType: AIProviderSetting["type"]) => {
+      const currentMeta = getProviderTypeMeta(props.provider.type)
+      const nextMeta = getProviderTypeMeta(nextType)
+      const shouldRename =
+        !props.provider.name || props.provider.name === currentMeta.defaultName
+      const shouldResetBaseUrl =
+        !props.provider.baseUrl ||
+        props.provider.baseUrl === currentMeta.defaultBaseUrl
+      updateProvider({
+        type: nextType,
+        name: shouldRename ? nextMeta.defaultName : props.provider.name,
+        baseUrl: shouldResetBaseUrl ? nextMeta.defaultBaseUrl : props.provider.baseUrl,
+        enabled: false,
+        lastTest: null,
+      })
+    }
+
+    const canTest = computed(() => {
+      const meta = getProviderTypeMeta(props.provider.type)
+      if (!props.provider.baseUrl) return false
+      if (meta.requiresApiKey && !props.provider.apiKey) return false
+      return true
+    })
+
     return () => (
       <div class="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
         <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -109,11 +134,24 @@ export default defineComponent({
         </div>
 
         <label class="field">
+          <span>Provider 类型</span>
+          <select
+            class="input"
+            value={props.provider.type}
+            onChange={(e) => onChangeType((e.target as HTMLSelectElement).value as any)}
+          >
+            {PROVIDER_TYPE_OPTIONS.map((item) => (
+              <option value={item.type}>{item.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label class="field">
           <span>Base URL</span>
           <input
             type="url"
             value={props.provider.baseUrl}
-            placeholder="https://api.openai.com/v1"
+            placeholder={getProviderTypeMeta(props.provider.type).baseUrlPlaceholder}
             onInput={(e) =>
               updateProvider({
                 baseUrl: (e.target as HTMLInputElement).value,
@@ -181,8 +219,7 @@ export default defineComponent({
                 disabled={
                   props.isTesting ||
                   !selectedTestModel.value ||
-                  !props.provider.baseUrl ||
-                  !props.provider.apiKey
+                  !canTest.value
                 }
                 onClick={() => {
                   if (selectedTestModel.value) {

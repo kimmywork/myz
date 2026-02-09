@@ -39,11 +39,20 @@ export class OpenAICompatibleJsonClient implements ChatCompletionClient {
       throw new Error("API endpoint not configured")
     }
 
+    const normalizedRequest = {
+      ...request,
+      messages: shouldUseDeveloperRole(request?.model)
+        ? request.messages.map((message) =>
+            message.role === "system" ? { ...message, role: "developer" } : message,
+          )
+        : request.messages,
+    }
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers: resolveValue(this.buildHeaders),
       body: JSON.stringify({
-        ...request,
+        ...normalizedRequest,
         stream: false,
       }),
     })
@@ -59,3 +68,14 @@ export class OpenAICompatibleJsonClient implements ChatCompletionClient {
   }
 }
 
+export function shouldUseDeveloperRole(model: unknown): boolean {
+  const raw = typeof model === "string" ? model.trim().toLowerCase() : ""
+  if (!raw.startsWith("gpt-")) return false
+  if (raw.startsWith("gpt-o1")) return true
+  const rest = raw.slice(4)
+  const digitMatch = rest.match(/\d/)
+  if (!digitMatch) return false
+  const digit = Number(digitMatch[0])
+  if (!Number.isFinite(digit)) return false
+  return digit >= 4
+}

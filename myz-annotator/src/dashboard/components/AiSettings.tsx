@@ -17,6 +17,7 @@ import AiLocalToolsSection from "./ai-settings/AiLocalToolsSection.jsx"
 import AiSkillsSection from "./ai-settings/AiSkillsSection.jsx"
 import AiVectorSearchSection from "./ai-settings/AiVectorSearchSection.jsx"
 import { createProviderSetting, createModelSetting } from "./ai-settings/factories.js"
+import { getProviderTypeMeta } from "./ai-settings/providerCatalog.js"
 import { DEFAULT_COLORS, HIGHLIGHT_STYLES } from "@/shared/types.js"
 
 function deepClone<T>(value: T): T {
@@ -89,6 +90,7 @@ export default defineComponent({
         temperature: 0.7,
         compressImages: false,
         multimodalTarget: null,
+        superpowerMode: false,
         contextCompressionThreshold: 80,
       },
       insights: { target: null, temperature: 0.7 },
@@ -232,6 +234,7 @@ export default defineComponent({
       isFetchingModels.value = true
       try {
         const result = await sendMessage("myz:aiProviderFetchModels", {
+          type: provider.type,
           baseUrl: provider.baseUrl,
           apiKey: provider.apiKey,
           headers: provider.headers || "",
@@ -257,11 +260,19 @@ export default defineComponent({
 
       isTesting.value = true
       try {
+        const meta = getProviderTypeMeta(provider.type)
+        if (!provider.baseUrl) {
+          throw new Error("Base URL is required")
+        }
+        if (meta.requiresApiKey && !provider.apiKey) {
+          throw new Error("API key is required")
+        }
         const result = await sendMessage("myz:aiProviderTestConnection", {
           provider: {
             baseUrl: provider.baseUrl,
             apiKey: provider.apiKey,
             headers: provider.headers || "",
+            type: provider.type,
           },
           model: model.model,
           maxOutputTokens: model.limits?.maxOutputTokens,

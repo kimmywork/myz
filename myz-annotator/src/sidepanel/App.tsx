@@ -15,6 +15,7 @@ import InterestsPanel from "./components/InterestsPanel.jsx";
 import ToolResponseModal from "./components/ToolResponseModal.jsx";
 import ImagePreviewModal from "./components/ImagePreviewModal.jsx";
 import ContextStatusBar from "./components/ContextStatusBar.jsx";
+import TaskPlanPanel from "./components/TaskPlanPanel.jsx";
 import HistoryView from "./HistoryView.jsx";
 import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
@@ -154,6 +155,7 @@ export default defineComponent({
               </div>
             </header>
             <ContextStatusBar />
+            <TaskPlanPanel />
             {chatStore.autoInsights.active && chatStore.autoInsights.loading && (
               <p class="mt-2 text-xs text-indigo-600 dark:text-indigo-300">
                 正在生成

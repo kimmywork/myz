@@ -38,18 +38,28 @@ import {
 } from "../ai/runtime/agentSelection.js";
 import { acquireProviderRuntime } from "../ai/runtime/providerRuntime.js";
 import {
-  buildModelsUrl,
-  buildProviderHeaders,
-  buildChatCompletionsUrl,
-  extractOpenAICompatibleModels,
-} from "../ai/runtime/openaiCompatible.js";
+  fetchProviderModels,
+  testProviderConnection,
+} from "../ai/providers/registry.js";
 import { McpCapability } from "../ai/capabilities/mcp.js";
 import { ConversationAgent } from "../ai/agents/conversationAgent.js";
 import { InsightsAgent } from "../ai/agents/insightsAgent.js";
 import { AutoHighlightAgent } from "../ai/agents/autoHighlightAgent.js";
 import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
 import { SkillSelectionAgent } from "../ai/agents/skillSelectionAgent.js";
-import { LOCAL_TOOL_NAMES } from "../ai/tools/localDefinitions.js";
+import { PlanningAgent } from "../ai/agents/planningAgent.js";
+import { QuickStartAgent } from "../ai/agents/quickStartAgent.js";
+import { PlanReviewAgent } from "../ai/agents/planReviewAgent.js";
+import { ValidatorAgent } from "../ai/agents/validatorAgent.js";
+import {
+  getTaskPlan,
+  initTaskPlan,
+  startTaskPlanExecution,
+  TaskPlanReview,
+  updatePlanReviewResult,
+  updateValidationResult,
+} from "../ai/tasks/taskManager.js";
+import { LOCAL_TOOL_NAMES, SUPERPOWER_TOOL_NAMES } from "../ai/tools/localDefinitions.js";
 import { extractSkillMentions } from "../ai/skills/mentions.js";
 import { listSkills } from "../ai/skills/storage.js";
 
@@ -64,6 +74,25 @@ function generateDraftId(prefix = "draft") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function buildPreflightTask(review?: { issues?: string[]; missingInfo?: string[] }) {
+  const issues = Array.isArray(review?.issues) ? review?.issues : []
+  const missingInfo = Array.isArray(review?.missingInfo) ? review?.missingInfo : []
+  const deliverables = [...issues, ...missingInfo]
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean)
+    .map((item) => ({ description: `补齐/确认：${item}` }))
+  if (deliverables.length === 0) {
+    deliverables.push({ description: "补齐目标、约束、验收标准或账号权限" })
+  }
+  return {
+    title: "补齐执行前提与关键信息",
+    deliverables,
+    priority: "high",
+    owner: "executor",
+    category: "quick",
+  }
+}
+
 function notifySidePanel(type: string, data?: any) {
   try {
     chrome.runtime
@@ -74,16 +103,68 @@ function notifySidePanel(type: string, data?: any) {
   }
 }
 
+async function finalizeSkillContext(options: {
+  conversationId?: string
+  skills: Array<{ name: string; description?: string }>
+}) {
+  if (!options.skills.length) {
+    return { skillNames: [], skillList: [] }
+  }
+
+  const skillNames = options.skills.map((skill) => skill.name)
+  let injectList = options.skills.map((skill) => ({
+    name: skill.name,
+    description: skill.description || "",
+  }))
+
+  const conversationId = options.conversationId
+  if (conversationId) {
+    try {
+      const conversation = await getConversation(conversationId)
+      const injected = Array.isArray(conversation?.metadata?.skillContextInjected)
+        ? conversation?.metadata?.skillContextInjected
+            .map((name: any) => (typeof name === "string" ? name.trim() : ""))
+            .filter(Boolean)
+        : []
+      const injectedSet = new Set(injected)
+      injectList = injectList.filter((skill) => !injectedSet.has(skill.name))
+      if (injectList.length > 0) {
+        const nextInjected = Array.from(
+          new Set([...injectedSet, ...injectList.map((skill) => skill.name)]),
+        )
+        await updateConversationMetadata(conversationId, {
+          skillContextInjected: nextInjected,
+        })
+      }
+    } catch (error) {
+      console.warn("Failed to update skill injection metadata", error)
+    }
+  }
+
+  return {
+    skillNames,
+    skillList: injectList,
+  }
+}
+
 async function resolveSkillContext(options: {
   conversationId?: string
   message: string
   settings: Settings
+  forceAllSkills?: boolean
 }) {
   const message = typeof options.message === "string" ? options.message : ""
   const skills = await listSkills()
   const enabledSkills = skills.filter((skill) => skill.enabled)
   if (!enabledSkills.length) {
     return { skillNames: [], skillList: [] }
+  }
+
+  if (options.forceAllSkills) {
+    return await finalizeSkillContext({
+      conversationId: options.conversationId,
+      skills: enabledSkills,
+    })
   }
 
   const available = new Set(enabledSkills.map((skill) => skill.name))
@@ -127,40 +208,10 @@ async function resolveSkillContext(options: {
     return { skillNames: [], skillList: [] }
   }
 
-  const skillNames = resolved.map((skill) => skill.name)
-  let injectList = resolved.map((skill) => ({
-    name: skill.name,
-    description: skill.description || "",
-  }))
-
-  const conversationId = options.conversationId
-  if (conversationId) {
-    try {
-      const conversation = await getConversation(conversationId)
-      const injected = Array.isArray(conversation?.metadata?.skillContextInjected)
-        ? conversation?.metadata?.skillContextInjected
-            .map((name: any) => (typeof name === "string" ? name.trim() : ""))
-            .filter(Boolean)
-        : []
-      const injectedSet = new Set(injected)
-      injectList = injectList.filter((skill) => !injectedSet.has(skill.name))
-      if (injectList.length > 0) {
-        const nextInjected = Array.from(
-          new Set([...injectedSet, ...injectList.map((skill) => skill.name)]),
-        )
-        await updateConversationMetadata(conversationId, {
-          skillContextInjected: nextInjected,
-        })
-      }
-    } catch (error) {
-      console.warn("Failed to update skill injection metadata", error)
-    }
-  }
-
-  return {
-    skillNames,
-    skillList: injectList,
-  }
+  return await finalizeSkillContext({
+    conversationId: options.conversationId,
+    skills: resolved,
+  })
 }
 
 function normalizeText(value: any) {
@@ -329,90 +380,312 @@ export function initializeAIMessageHandlers() {
   // AI Assistant handlers
   registerMessageHandler(
     "myz:aiProviderFetchModels",
-    async (payload: { baseUrl: string; apiKey: string; headers?: string }) => {
-      const { baseUrl, apiKey, headers = "" } = payload || ({} as any);
-      const url = buildModelsUrl(baseUrl);
-      if (!url) {
+    async (payload: {
+      type: AIProviderSetting["type"];
+      baseUrl: string;
+      apiKey: string;
+      headers?: string;
+    }) => {
+      const { type, baseUrl, apiKey, headers = "" } = payload || ({} as any);
+      if (!baseUrl) {
         throw new Error("Base URL is required");
       }
-      const response = await fetch(url, {
-        method: "GET",
-        headers: buildProviderHeaders(apiKey, headers),
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Fetch models failed: ${response.status} ${response.statusText} - ${errorText}`,
-        );
-      }
-      const data = await response.json();
-      return { models: extractOpenAICompatibleModels(data) };
+      const models = await fetchProviderModels({ type, baseUrl, apiKey, headers });
+      return { models };
     },
   );
 
   registerMessageHandler(
     "myz:aiProviderTestConnection",
     async (payload: {
-      provider: Pick<AIProviderSetting, "baseUrl" | "apiKey" | "headers">;
+      provider: Pick<AIProviderSetting, "baseUrl" | "apiKey" | "headers" | "type">;
       model: string;
       maxOutputTokens?: number;
       maxOutputTokenParam?: MaxOutputTokenParam;
     }) => {
-      const provider = payload?.provider;
-      const model = typeof payload?.model === "string" ? payload.model.trim() : "";
-      if (!provider?.baseUrl) {
-        throw new Error("Base URL is required");
-      }
-      if (!provider?.apiKey) {
-        throw new Error("API key is required");
-      }
-      if (!model) {
-        throw new Error("Model is required");
-      }
+      return testProviderConnection(payload as any);
+    },
+  );
 
-      const endpoint = buildChatCompletionsUrl(provider.baseUrl);
-      const maxOutputTokens =
-        typeof payload?.maxOutputTokens === "number" && payload.maxOutputTokens > 0
-          ? Math.floor(payload.maxOutputTokens)
-          : 64;
-      const maxOutputTokenParam: MaxOutputTokenParam =
-        payload?.maxOutputTokenParam === "max_completion_tokens"
-          ? "max_completion_tokens"
-          : "max_tokens";
-
-      const request: any = {
-        model,
-        messages: [
-          {
-            role: "user",
-            content:
-              "Please respond with 'Connection successful' to confirm the API is working.",
-          },
-        ],
-        temperature: 0.0,
-      };
-      if (maxOutputTokenParam === "max_completion_tokens") {
-        request.max_completion_tokens = maxOutputTokens;
-      } else {
-        request.max_tokens = maxOutputTokens;
+  registerMessageHandler(
+    "myz:aiPlanRequest",
+    async (payload: {
+      conversationId: string
+      message?: string
+      options?: { quickStart?: boolean; autoStart?: boolean }
+    }) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+      const superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode);
+      if (!superpowerEnabled) {
+        throw new Error("Superpower Mode is not enabled");
       }
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: buildProviderHeaders(provider.apiKey, provider.headers || ""),
-        body: JSON.stringify(request),
-      });
+      const conversationId = payload?.conversationId;
+      const normalizedMessage = typeof payload?.message === "string" ? payload.message.trim() : "";
+      if (!conversationId) {
+        throw new Error("conversationId is required");
+      }
+      if (!normalizedMessage) {
+        throw new Error("message is required");
+      }
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        return {
-          success: false,
-          error: `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
+      const existingPlan = await getTaskPlan(conversationId);
+      const quickStart = Boolean(payload?.options?.quickStart)
+      const originalUserRequest = existingPlan?.originalUserRequest || normalizedMessage;
+      const reviewStatus = existingPlan?.planReview?.status;
+      const reviewIssues = Array.isArray(existingPlan?.planReview?.issues)
+        ? existingPlan?.planReview?.issues
+        : [];
+      const reviewMissing = Array.isArray(existingPlan?.planReview?.missingInfo)
+        ? existingPlan?.planReview?.missingInfo
+        : [];
+      const isRevision = reviewStatus === "needs_revision";
+      const planningPrompt = isRevision
+        ? [
+            "请根据原始需求与补充信息重新规划任务。",
+            "要求：保持原始目标，补齐缺失信息或转为前置任务；输出新的完整任务计划。",
+            "",
+            `原始需求：${originalUserRequest}`,
+            `补充信息：${normalizedMessage}`,
+            reviewIssues.length ? `审核问题：${reviewIssues.join("；")}` : "审核问题：无",
+            reviewMissing.length ? `缺失信息：${reviewMissing.join("；")}` : "缺失信息：无",
+          ].join("\n")
+        : normalizedMessage;
+
+      const target = resolveAgentTarget(settings as any, "conversation");
+      const runtime = await acquireProviderRuntime(target.provider as any, []);
+      try {
+        const planner = quickStart ? new QuickStartAgent() : new PlanningAgent();
+        const result = await planner.createPlan({
+          prompt: planningPrompt,
+          client: runtime.session.client as any,
+          model: target.model as any,
+        });
+
+        let plan = await initTaskPlan({
+          conversationId,
+          originalUserRequest,
+          tasks: result.tasks,
+          mode: (result as any)?.mode,
+          assumptions: Array.isArray(result.assumptions) ? result.assumptions : [],
+        });
+
+        const reviewer = new PlanReviewAgent();
+        let reviewResult: TaskPlanReview | null = null;
+        const reviewPlan = async (currentPlan: typeof plan) => {
+          try {
+            return await reviewer.review({
+              originalUserRequest,
+              taskPlan: currentPlan,
+              client: runtime.session.client as any,
+              model: target.model as any,
+            });
+          } catch (error) {
+            console.warn("Plan review failed", error);
+            return null;
+          }
         };
+
+        reviewResult = await reviewPlan(plan);
+
+        if (reviewResult?.status === "needs_revision") {
+          const revisionPrompt = [
+            "请根据原始需求、补充信息、现有计划与审核意见重新生成完整任务计划。",
+            "要求：不要向用户提问；缺失信息转为前置任务；必要时做合理假设并写入 assumptions。",
+            "仅输出 JSON。",
+            "",
+            `原始需求：${originalUserRequest}`,
+            `补充信息：${normalizedMessage}`,
+            "现有计划：",
+            JSON.stringify(
+              {
+                tasks: plan.tasks,
+                assumptions: Array.isArray(plan.assumptions) ? plan.assumptions : [],
+              },
+              null,
+              2,
+            ),
+            reviewResult.issues?.length
+              ? `审核问题：${reviewResult.issues.join("；")}`
+              : "审核问题：无",
+            reviewResult.missingInfo?.length
+              ? `缺失信息：${reviewResult.missingInfo.join("；")}`
+              : "缺失信息：无",
+          ].join("\n");
+          const revised = await planner.createPlan({
+            prompt: revisionPrompt,
+            client: runtime.session.client as any,
+            model: target.model as any,
+          });
+          if (Array.isArray(revised.tasks) && revised.tasks.length > 0) {
+            plan = await initTaskPlan({
+              conversationId,
+              originalUserRequest,
+              tasks: revised.tasks,
+              mode: (revised as any)?.mode ?? (result as any)?.mode,
+              assumptions: Array.isArray(revised.assumptions)
+                ? revised.assumptions
+                : Array.isArray(result.assumptions)
+                  ? result.assumptions
+                  : [],
+            });
+            const revisedReview = await reviewPlan(plan);
+            if (revisedReview) {
+              reviewResult = revisedReview;
+            }
+          }
+        }
+
+        if (reviewResult?.status === "needs_revision") {
+          const preflight = buildPreflightTask(reviewResult);
+          plan = await initTaskPlan({
+            conversationId,
+            originalUserRequest,
+            tasks: [preflight, ...plan.tasks],
+            mode: plan.mode,
+            assumptions: Array.isArray(plan.assumptions) ? plan.assumptions : [],
+          });
+          reviewResult = { status: "pass", issues: [], missingInfo: [] };
+        }
+
+        if (reviewResult) {
+          await updatePlanReviewResult({
+            conversationId,
+            review: reviewResult,
+          });
+        }
+
+        if (payload?.options?.autoStart && reviewResult?.status === "pass") {
+          const started = await startTaskPlanExecution(conversationId)
+          if (started) {
+            plan = started
+          }
+        }
+
+        return { plan, review: reviewResult, result };
+      } finally {
+        await runtime.release();
       }
-      const data = await response.json();
-      const text = data?.choices?.[0]?.message?.content || "";
-      return { success: true, response: text };
+    },
+  );
+
+  registerMessageHandler(
+    "myz:aiValidateRequest",
+    async (payload: { conversationId: string }) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+      const superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode);
+      if (!superpowerEnabled) {
+        throw new Error("Superpower Mode is not enabled");
+      }
+
+      const conversationId = payload?.conversationId;
+      if (!conversationId) {
+        throw new Error("conversationId is required");
+      }
+
+      const plan = await getTaskPlan(conversationId);
+      if (!plan) {
+        throw new Error("No task plan found for this conversation");
+      }
+      if (plan.planReview?.status !== "pass") {
+        throw new Error("Plan review has not passed yet");
+      }
+      const allDone = plan.tasks.every((task) => task.status === "done");
+      if (!allDone) {
+        throw new Error("Tasks are not completed yet");
+      }
+
+      const target = resolveAgentTarget(settings as any, "conversation");
+      const runtime = await acquireProviderRuntime(target.provider as any, []);
+      try {
+        const validator = new ValidatorAgent();
+        const result = await validator.validate({
+          originalUserRequest: plan.originalUserRequest,
+          taskPlan: plan,
+          client: runtime.session.client as any,
+          model: target.model as any,
+        });
+        await updateValidationResult({ conversationId, validation: result });
+        return result;
+      } finally {
+        await runtime.release();
+      }
+    },
+  );
+
+  registerMessageHandler(
+    "myz:aiPlanReviewRequest",
+    async (payload: { conversationId: string }) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+      const superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode);
+      if (!superpowerEnabled) {
+        throw new Error("Superpower Mode is not enabled");
+      }
+
+      const conversationId = payload?.conversationId;
+      if (!conversationId) {
+        throw new Error("conversationId is required");
+      }
+      const plan = await getTaskPlan(conversationId);
+      if (!plan) {
+        throw new Error("No task plan found for this conversation");
+      }
+
+      const target = resolveAgentTarget(settings as any, "conversation");
+      const runtime = await acquireProviderRuntime(target.provider as any, []);
+      try {
+        const reviewer = new PlanReviewAgent();
+        const review = await reviewer.review({
+          originalUserRequest: plan.originalUserRequest,
+          taskPlan: plan,
+          client: runtime.session.client as any,
+          model: target.model as any,
+        });
+        await updatePlanReviewResult({ conversationId, review });
+        return review;
+      } finally {
+        await runtime.release();
+      }
+    },
+  );
+
+  registerMessageHandler(
+    "myz:taskPlanStart",
+    async (payload: { conversationId: string }) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+      const superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode);
+      if (!superpowerEnabled) {
+        throw new Error("Superpower Mode is not enabled");
+      }
+
+      const conversationId = payload?.conversationId;
+      if (!conversationId) {
+        throw new Error("conversationId is required");
+      }
+      const existing = await getTaskPlan(conversationId);
+      if (!existing) {
+        throw new Error("No task plan found for this conversation");
+      }
+      if (existing.planReview?.status !== "pass") {
+        throw new Error("Plan review has not passed yet");
+      }
+      const plan = await startTaskPlanExecution(conversationId);
+      if (!plan) {
+        throw new Error("No task plan found for this conversation");
+      }
+      return plan;
     },
   );
 
@@ -471,28 +744,38 @@ export function initializeAIMessageHandlers() {
         if (enableTools) {
           await runtime.connectMcp();
         }
+        runtime.session.mcp.setConversationContext({ conversationId })
 
         const aiLocalTools = (settings as any)?.aiLocalTools
-        const skillPayload = await resolveSkillContext({
-          conversationId,
-          message: normalizedMessage,
-          settings: settings as any,
-        })
+        const superpowerEnabled = Boolean(
+          (settings as any)?.aiAgents?.conversation?.superpowerMode,
+        )
+        const skillPayload = superpowerEnabled
+          ? { skillNames: [], skillList: [] }
+          : await resolveSkillContext({
+              conversationId,
+              message: normalizedMessage,
+              settings: settings as any,
+            })
         if (enableTools) {
           const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
             ? ((settings as any).aiLocalTools.enabledToolNames as any[])
                 .filter((name: any) => typeof name === "string" && name.trim())
                 .map((name: string) => name.trim())
             : LOCAL_TOOL_NAMES.slice()
-          let normalizedToolNames =
-            aiLocalTools?.mode === "auto"
+          const gatedToolNames = superpowerEnabled
+            ? enabledToolNames
+            : enabledToolNames.filter((name) => !SUPERPOWER_TOOL_NAMES.includes(name))
+          let normalizedToolNames = superpowerEnabled
+            ? gatedToolNames.filter((name: string) => name !== "SelectTools")
+            : aiLocalTools?.mode === "auto"
               ? (() => {
-                  if (!enabledToolNames.includes("myz-select-tools")) {
-                    enabledToolNames.push("myz-select-tools")
+                  if (!gatedToolNames.includes("SelectTools")) {
+                    gatedToolNames.push("SelectTools")
                   }
-                  return enabledToolNames
+                  return gatedToolNames
                 })()
-              : enabledToolNames.filter((name: string) => name !== "myz-select-tools")
+              : gatedToolNames.filter((name: string) => name !== "SelectTools")
           runtime.session.mcp.setLocalToolAllowlist(normalizedToolNames)
         }
 
@@ -507,7 +790,8 @@ export function initializeAIMessageHandlers() {
           : runtime.session.client;
 
         const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
-        const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
+        const toolSelectorRequested =
+          !superpowerEnabled && enableTools && aiLocalTools?.mode === "auto"
         const skillMetadata =
           skillPayload.skillNames.length > 0
             ? {
@@ -532,7 +816,12 @@ export function initializeAIMessageHandlers() {
             includePageContext:
               includePageContext ?? options?.includePageContext ?? true,
             attachments: normalizedAttachments,
-            stream: true,
+            stream:
+              typeof options?.stream === "boolean"
+                ? options.stream
+                : superpowerEnabled
+                  ? target.provider.type === "openai_responses"
+                  : true,
             metadata: {
               ...(options?.metadata || {}),
               ...(context?.url ? { url: context.url } : {}),
@@ -610,6 +899,9 @@ export function initializeAIMessageHandlers() {
       } finally {
         try {
           runtime.session.mcp.setActiveToolFilter(null)
+        } catch {}
+        try {
+          runtime.session.mcp.setConversationContext(null)
         } catch {}
         if (target.model.capabilities.toolCalling) {
           await runtime.disconnectMcp();
@@ -873,13 +1165,18 @@ export function initializeAIMessageHandlers() {
         if (enableTools) {
           await runtime.connectMcp();
         }
+        runtime.session.mcp.setConversationContext({ conversationId: payload?.conversationId })
         const { conversationId, action, content, options = {} } = payload || {};
 
         const aiLocalTools = (settings as any)?.aiLocalTools
+        const superpowerEnabled = Boolean(
+          (settings as any)?.aiAgents?.conversation?.superpowerMode,
+        )
         const skillPayload = await resolveSkillContext({
           conversationId,
           message: content,
           settings: settings as any,
+          forceAllSkills: superpowerEnabled,
         })
         if (enableTools) {
           const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
@@ -887,15 +1184,19 @@ export function initializeAIMessageHandlers() {
                 .filter((name: any) => typeof name === "string" && name.trim())
                 .map((name: string) => name.trim())
             : LOCAL_TOOL_NAMES.slice()
-          let normalizedToolNames =
-            aiLocalTools?.mode === "auto"
+          const gatedToolNames = superpowerEnabled
+            ? enabledToolNames
+            : enabledToolNames.filter((name) => !SUPERPOWER_TOOL_NAMES.includes(name))
+          let normalizedToolNames = superpowerEnabled
+            ? gatedToolNames.filter((name: string) => name !== "SelectTools")
+            : aiLocalTools?.mode === "auto"
               ? (() => {
-                  if (!enabledToolNames.includes("myz-select-tools")) {
-                    enabledToolNames.push("myz-select-tools")
+                  if (!gatedToolNames.includes("SelectTools")) {
+                    gatedToolNames.push("SelectTools")
                   }
-                  return enabledToolNames
+                  return gatedToolNames
                 })()
-              : enabledToolNames.filter((name: string) => name !== "myz-select-tools")
+              : gatedToolNames.filter((name: string) => name !== "SelectTools")
           runtime.session.mcp.setLocalToolAllowlist(normalizedToolNames)
         }
 
@@ -904,7 +1205,8 @@ export function initializeAIMessageHandlers() {
           ? runtime.session.clientWithTools
           : runtime.session.client;
         const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
-        const toolSelectorRequested = enableTools && aiLocalTools?.mode === "auto"
+        const toolSelectorRequested =
+          !superpowerEnabled && enableTools && aiLocalTools?.mode === "auto"
         const skillMetadata =
           skillPayload.skillNames.length > 0
             ? {
@@ -999,6 +1301,9 @@ export function initializeAIMessageHandlers() {
       } finally {
         try {
           runtime.session.mcp.setActiveToolFilter(null)
+        } catch {}
+        try {
+          runtime.session.mcp.setConversationContext(null)
         } catch {}
         if (target.model.capabilities.toolCalling) {
           await runtime.disconnectMcp();

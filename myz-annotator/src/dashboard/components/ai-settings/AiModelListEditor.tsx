@@ -76,6 +76,62 @@ export default defineComponent({
       )
     }
 
+    const normalizeTooling = (tooling: any) => {
+      const toolChoice = tooling?.toolChoice || {}
+      const mode = typeof toolChoice?.mode === "string" ? toolChoice.mode : "auto"
+      return {
+        toolChoice: {
+          mode,
+          toolName: typeof toolChoice?.toolName === "string" ? toolChoice.toolName : "",
+        },
+        strict:
+          tooling?.strict === "on" || tooling?.strict === "off" || tooling?.strict === "auto"
+            ? tooling.strict
+            : "auto",
+        parallelToolCalls:
+          tooling?.parallelToolCalls === "on" ||
+          tooling?.parallelToolCalls === "off" ||
+          tooling?.parallelToolCalls === "auto"
+            ? tooling.parallelToolCalls
+            : "auto",
+      }
+    }
+
+    const updateToolChoice = (id: string, patch: any) => {
+      props.onChange(
+        props.models.map((m) => {
+          if (m.id !== id) return m
+          const tooling = normalizeTooling(m.tooling)
+          return {
+            ...m,
+            tooling: {
+              ...tooling,
+              toolChoice: {
+                ...tooling.toolChoice,
+                ...patch,
+              },
+            },
+          }
+        }),
+      )
+    }
+
+    const updateTooling = (id: string, patch: any) => {
+      props.onChange(
+        props.models.map((m) => {
+          if (m.id !== id) return m
+          const tooling = normalizeTooling(m.tooling)
+          return {
+            ...m,
+            tooling: {
+              ...tooling,
+              ...patch,
+            },
+          }
+        }),
+      )
+    }
+
     const catalogNames = computed(() => {
       const raw = Array.isArray(props.catalog) ? props.catalog : []
       return raw
@@ -421,6 +477,75 @@ export default defineComponent({
                         </option>
                       </select>
                     </label>
+                  </div>
+
+                  <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
+                    <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Tool Calling 配置
+                    </div>
+                    <label class="field">
+                      <span>tool_choice</span>
+                      <select
+                        value={normalizeTooling(selectedModel.value!.tooling).toolChoice.mode}
+                        onChange={(e) => {
+                          const mode = (e.target as HTMLSelectElement).value
+                          updateToolChoice(selectedModel.value!.id, { mode })
+                        }}
+                      >
+                        <option value="auto">auto（默认）</option>
+                        <option value="none">none（不调用工具）</option>
+                        <option value="required">required（必须调用工具）</option>
+                        <option value="tool">指定工具</option>
+                      </select>
+                    </label>
+                    {normalizeTooling(selectedModel.value!.tooling).toolChoice.mode === "tool" ? (
+                      <label class="field">
+                        <span>指定工具名</span>
+                        <input
+                          type="text"
+                          value={normalizeTooling(selectedModel.value!.tooling).toolChoice.toolName}
+                          placeholder="例如 GetPageContext"
+                          onInput={(e) =>
+                            updateToolChoice(selectedModel.value!.id, {
+                              toolName: (e.target as HTMLInputElement).value,
+                            })
+                          }
+                        />
+                      </label>
+                    ) : null}
+                    <label class="field">
+                      <span>strict</span>
+                      <select
+                        value={normalizeTooling(selectedModel.value!.tooling).strict}
+                        onChange={(e) =>
+                          updateTooling(selectedModel.value!.id, {
+                            strict: (e.target as HTMLSelectElement).value,
+                          })
+                        }
+                      >
+                        <option value="auto">auto（默认）</option>
+                        <option value="on">on</option>
+                        <option value="off">off</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>parallel_tool_calls</span>
+                      <select
+                        value={normalizeTooling(selectedModel.value!.tooling).parallelToolCalls}
+                        onChange={(e) =>
+                          updateTooling(selectedModel.value!.id, {
+                            parallelToolCalls: (e.target as HTMLSelectElement).value,
+                          })
+                        }
+                      >
+                        <option value="auto">auto（默认）</option>
+                        <option value="on">on</option>
+                        <option value="off">off</option>
+                      </select>
+                    </label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                      注：部分 Provider 可能忽略 tool_choice / strict / parallel_tool_calls。
+                    </p>
                   </div>
                 </div>
               </div>

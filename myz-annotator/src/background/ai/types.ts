@@ -77,6 +77,8 @@ export interface ChatCompletionRequestPayload {
   max_tokens?: number
   temperature?: number
   tools?: { type: "function"; function: ToolDefinition }[]
+  tool_choice?: any
+  parallel_tool_calls?: boolean
   stream?: boolean
   extra_body?: {
     google?: {
@@ -100,6 +102,7 @@ export interface ToolDefinition {
   name: string
   description: string
   parameters: ToolParamaterDefinition
+  strict?: boolean
 }
 
 export interface ToolCall {

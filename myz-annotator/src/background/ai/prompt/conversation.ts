@@ -51,7 +51,7 @@ function buildUserContent(
       : ""
   const skillBlock = skillList.length
     ? [
-        "提示：可通过 read-file 获取 skill 详情以使用该技能。",
+        "提示：可通过 Read 获取 skill 详情以使用该技能。",
         "<available_skills>",
         ...skillList.map(
           (skill) =>

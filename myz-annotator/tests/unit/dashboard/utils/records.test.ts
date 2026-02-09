@@ -45,15 +45,26 @@ describe("records", () => {
   });
 
   describe("normalizeRecord", () => {
+    const baseRecord = {
+      id: "1",
+      text: "",
+      createdAt: "2024-01-01T00:00:00.000Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
+      url: "https://example.com",
+    };
+
     it("should return null for invalid record", () => {
       expect(normalizeRecord(null as any)).toBeNull();
       expect(normalizeRecord("string" as any)).toBeNull();
     });
 
     it("should normalize record with correct kind", () => {
-      const record = { id: "1", kind: "unknown" } as any;
+      const record = { ...baseRecord, kind: "unknown" } as any;
       const normalized = normalizeRecord(record);
-      expect(normalized).toEqual({ id: "1", kind: RECORD_KINDS.HIGHLIGHT });
+      expect(normalized).toEqual({
+        ...baseRecord,
+        kind: RECORD_KINDS.HIGHLIGHT,
+      });
     });
   });
 
@@ -63,6 +74,8 @@ describe("records", () => {
         total: 0,
         highlightCount: 0,
         savedCount: 0,
+        aiCount: 0,
+        tweetCount: 0,
       });
     });
 
@@ -71,16 +84,15 @@ describe("records", () => {
         { kind: RECORD_KINDS.HIGHLIGHT },
         { kind: RECORD_KINDS.CLIP },
         { kind: RECORD_KINDS.HIGHLIGHT },
-        { kind: RECORD_KINDS.AI_GENERATED }, // Treated as highlight in stats logic? Let's check implementation
+        { kind: RECORD_KINDS.AI_GENERATED },
       ] as MyZRecord[];
-
-      // Based on implementation: if (getRecordKind(item) === RECORD_KINDS.CLIP) savedCount += 1 else highlightCount += 1
-      // So AI_GENERATED falls into highlightCount
 
       expect(computeRecordStats(records)).toEqual({
         total: 4,
-        highlightCount: 3,
+        highlightCount: 2,
         savedCount: 1,
+        aiCount: 1,
+        tweetCount: 0,
       });
     });
   });

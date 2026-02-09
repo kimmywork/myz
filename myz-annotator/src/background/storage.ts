@@ -89,10 +89,69 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     if (!Number.isFinite(parsed)) return fallback
     return Math.max(min, Math.min(max, Math.round(parsed)))
   }
+  const normalizeToolFlag = (value: any) => {
+    if (value === "on" || value === "off" || value === "auto") return value
+    return "auto"
+  }
+  const normalizeToolChoice = (value: any) => {
+    const mode = typeof value?.mode === "string" ? value.mode : "auto"
+    if (mode === "none" || mode === "required" || mode === "auto") {
+      return { mode }
+    }
+    if (mode === "tool") {
+      const toolName = typeof value?.toolName === "string" ? value.toolName : ""
+      return { mode, toolName }
+    }
+    return { mode: "auto" }
+  }
+  const normalizeTooling = (value: any) => ({
+    toolChoice: normalizeToolChoice(value?.toolChoice),
+    strict: normalizeToolFlag(value?.strict),
+    parallelToolCalls: normalizeToolFlag(value?.parallelToolCalls),
+  })
+  const normalizeModelSetting = (model: any) => {
+    const limits = model?.limits || {}
+    const capabilities = model?.capabilities || {}
+    return {
+      ...model,
+      id: typeof model?.id === "string" ? model.id : "",
+      model: typeof model?.model === "string" ? model.model : "",
+      enabled: Boolean(model?.enabled),
+      capabilities: {
+        vision: Boolean(capabilities?.vision),
+        imageOutput: Boolean(capabilities?.imageOutput),
+        toolCalling:
+          typeof capabilities?.toolCalling === "boolean" ? capabilities.toolCalling : true,
+        reasoning: Boolean(capabilities?.reasoning),
+      },
+      limits: {
+        contextWindow:
+          typeof limits?.contextWindow === "number" && Number.isFinite(limits.contextWindow)
+            ? Math.max(1, Math.floor(limits.contextWindow))
+            : 32768,
+        maxOutputTokens:
+          typeof limits?.maxOutputTokens === "number" && Number.isFinite(limits.maxOutputTokens)
+            ? Math.max(1, Math.floor(limits.maxOutputTokens))
+            : 4096,
+        maxOutputTokenParam:
+          limits?.maxOutputTokenParam === "max_completion_tokens"
+            ? "max_completion_tokens"
+            : "max_tokens",
+      },
+      tooling: normalizeTooling(model?.tooling),
+    }
+  }
   settings.aiAssistantEnabled = Boolean(settings.aiAssistantEnabled);
   settings.aiProviders = Array.isArray(settings.aiProviders)
     ? settings.aiProviders.filter((p) => p && typeof p === "object")
     : [];
+  settings.aiProviders = settings.aiProviders.map((provider: any) => ({
+    ...provider,
+    type: typeof provider?.type === "string" ? provider.type : "openai_compatible",
+    models: Array.isArray(provider?.models)
+      ? provider.models.map((model: any) => normalizeModelSetting(model))
+      : [],
+  }))
   settings.aiAgents =
     settings.aiAgents && typeof settings.aiAgents === "object"
       ? settings.aiAgents
@@ -102,6 +161,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
             temperature: 0.7,
             compressImages: false,
             multimodalTarget: null,
+            superpowerMode: false,
           },
           insights: { target: null, temperature: 0.7 },
           autoHighlight: {
@@ -128,6 +188,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       temperature: 0.7,
       compressImages: false,
       multimodalTarget: null,
+      superpowerMode: false,
       contextCompressionThreshold: 80,
     }
   } else {
@@ -137,6 +198,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
         ? aiAgents.conversation.temperature
         : 0.7
     aiAgents.conversation.compressImages = Boolean(aiAgents.conversation.compressImages)
+    aiAgents.conversation.superpowerMode = Boolean(aiAgents.conversation.superpowerMode)
     aiAgents.conversation.multimodalTarget = normalizeAgentTarget(
       aiAgents.conversation.multimodalTarget,
     )
@@ -235,12 +297,32 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       autoSelectorTarget: null,
     }
   } else {
+    const toolNameMigrations: Record<string, string> = {
+      "list-files": "List",
+      "read-file": "Read",
+      "write-file": "Write",
+      "myz-web-search": "WebSearch",
+      "myz-fetch-page": "WebFetch",
+      "myz-task-init": "Task",
+      "myz-task-update": "Task",
+      "myz-task-attach-deliverable": "Task",
+      "myz-task-get": "Task",
+      "myz-task-complete-all": "Task",
+      "myz-select-tools": "SelectTools",
+      "myz-code-execution": "CodeExecution",
+      "myz-list-tabs": "ListTabs",
+      "myz-activate-tab": "ActivateTab",
+      "myz-run-dom-actions": "RunDomActions",
+      "myz-get-page-context": "GetPageContext",
+      "myz-eval-in-page": "EvalInPage",
+    }
     aiLocalTools.enabledToolNames = Array.isArray(aiLocalTools.enabledToolNames)
       ? aiLocalTools.enabledToolNames
           .filter((name: any) => typeof name === "string" && name.trim())
-          .map((name: string) => name.trim())
+          .map((name: string) => toolNameMigrations[name.trim()] || name.trim())
           .filter((name: string) => LOCAL_TOOL_NAMES.includes(name))
       : LOCAL_TOOL_NAMES.slice()
+    aiLocalTools.enabledToolNames = Array.from(new Set(aiLocalTools.enabledToolNames))
     aiLocalTools.mode = aiLocalTools.mode === "auto" ? "auto" : "manual"
     const target = aiLocalTools.autoSelectorTarget
     if (

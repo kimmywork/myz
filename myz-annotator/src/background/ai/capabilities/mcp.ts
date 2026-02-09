@@ -17,12 +17,14 @@ export class McpCapability {
   private getServers: () => McpServerSetting[]
   private localToolAllowlist: Set<string> | null
   private activeToolFilter: Set<string> | null
+  private conversationContext: { conversationId?: string } | null
 
   constructor(options: McpCapabilityOptions) {
     this.clients = new Map()
     this.getServers = options.getServers
     this.localToolAllowlist = null
     this.activeToolFilter = null
+    this.conversationContext = null
   }
 
   getClientCount() {
@@ -63,6 +65,16 @@ export class McpCapability {
         .filter((name) => typeof name === "string" && name.trim())
         .map((name) => name.trim()),
     )
+  }
+
+  setConversationContext(context: { conversationId?: string } | null) {
+    if (!context) {
+      this.conversationContext = null
+      return
+    }
+    const conversationId =
+      typeof context.conversationId === "string" ? context.conversationId.trim() : ""
+    this.conversationContext = conversationId ? { conversationId } : null
   }
 
   private filterTools(tools: Tool[]) {
@@ -109,6 +121,29 @@ export class McpCapability {
     const isAllowed = candidates.some((candidate) => allowed.has(candidate))
     if (!isAllowed) {
       throw new Error(`Tool not enabled: ${rawName}`)
+    }
+    const contextId = this.conversationContext?.conversationId
+    if (contextId && candidates.includes("Task")) {
+      const rawArgs = toolCall?.function?.arguments
+      let parsed: any = {}
+      if (typeof rawArgs === "string") {
+        try {
+          parsed = JSON.parse(rawArgs)
+        } catch {
+          parsed = {}
+        }
+      } else if (rawArgs && typeof rawArgs === "object") {
+        parsed = { ...(rawArgs as Record<string, any>) }
+      }
+      parsed.conversationId = contextId
+      const nextArgs = JSON.stringify(parsed)
+      toolCall = {
+        ...toolCall,
+        function: {
+          ...toolCall.function,
+          arguments: nextArgs,
+        },
+      }
     }
     return executeToolCall(this.clients, toolCall)
   }

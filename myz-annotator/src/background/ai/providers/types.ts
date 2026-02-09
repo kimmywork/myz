@@ -1,4 +1,4 @@
-export type ProviderRole = "system" | "user" | "assistant" | "tool"
+export type ProviderRole = "system" | "developer" | "user" | "assistant" | "tool"
 
 export interface ProviderToolCall {
   id: string
@@ -24,6 +24,7 @@ export interface ProviderToolDefinition {
   name: string
   description: string
   parameters: any
+  strict?: boolean
 }
 
 export interface ProviderToolSpec {
@@ -35,12 +36,21 @@ type ReasoningEffort = "low" | "medium" | "high";
 
 type ResponseFormat = "text" | { "type": "json_object" } | { "type": "json_schema"; "json_schema": any };
 
+export type ProviderToolChoice =
+  | "auto"
+  | "none"
+  | "required"
+  | { type: "function"; function: { name: string } }
+  | { type: "function"; name: string }
+
 export interface ProviderChatCompletionRequest {
   model: string
   messages: ProviderMessage[]
   max_tokens?: number
   temperature?: number
   tools?: ProviderToolSpec[]
+  tool_choice?: ProviderToolChoice
+  parallel_tool_calls?: boolean
   stream?: boolean
   response_format?: ResponseFormat
   reasoning_effort?: ReasoningEffort
@@ -72,6 +82,11 @@ export interface ProviderStreamOptions {
   onStreamDelta?: (delta: ProviderStreamDelta) => void
   onToolCallMessage?: (message: ProviderMessage) => void | Promise<void>
   onToolResultMessage?: (message: ProviderMessage) => void | Promise<void>
+  tooling?: {
+    toolChoice?: ProviderToolChoice
+    parallelToolCalls?: boolean
+    strict?: boolean
+  }
   /**
    * Gemini OpenAI-compatible "thinking" output is controlled by
    * `extra_body.google.thinking_config.include_thoughts`.

@@ -1,18 +1,15 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js"
 import type { AIProviderSetting, McpServerSetting } from "../../settings.js"
 import type { ToolDefinition } from "../types.js"
+import type { ChatCompletionClient } from "../providers/types.js"
 import { McpCapability } from "../capabilities/mcp.js"
-import { createOpenAICompatibleClients } from "../providers/factory.js"
-import {
-  buildChatCompletionsUrl,
-  buildProviderHeaders,
-} from "./openaiCompatible.js"
+import { createProviderClients } from "../providers/registry.js"
 
 export interface ProviderSession {
   provider: AIProviderSetting
   mcp: McpCapability
-  client: ReturnType<typeof createOpenAICompatibleClients>["client"]
-  clientWithTools: ReturnType<typeof createOpenAICompatibleClients>["clientWithTools"]
+  client: ChatCompletionClient
+  clientWithTools: ChatCompletionClient
   connectMcp: () => Promise<void>
   disconnectMcp: () => Promise<void>
   listTools: () => Tool[]
@@ -35,25 +32,16 @@ export function createProviderSession(
   provider: AIProviderSetting,
   mcpServers: McpServerSetting[] = [],
 ): ProviderSession {
-  const chatEndpoint = buildChatCompletionsUrl(provider.baseUrl)
-  const headers = buildProviderHeaders(provider.apiKey, provider.headers)
-
   const mcp = new McpCapability({
     getServers: () => mcpServers,
   })
 
   const getToolSpecs = async () => toToolSpecs(mcp.listTools())
 
-  const clients = createOpenAICompatibleClients(
-    {
-      endpoint: () => chatEndpoint,
-      buildHeaders: () => headers,
-    },
-    {
-      getTools: getToolSpecs,
-      executeToolCall: (toolCall) => mcp.executeToolCall(toolCall as any),
-    },
-  )
+  const clients = createProviderClients(provider, {
+    getTools: getToolSpecs,
+    executeToolCall: (toolCall) => mcp.executeToolCall(toolCall as any),
+  })
 
   return {
     provider,
@@ -65,4 +53,3 @@ export function createProviderSession(
     listTools: () => mcp.listTools(),
   }
 }
-

@@ -251,15 +251,15 @@ function buildSystemPrompt(options: {
   maxHighlights: number
 }) {
   return [
-    "你是一个标注文本重点内容的智能助理，按照核心知识与认知价值（conceptual）、逻辑框架与组织形式（structural）、相关的行动指导（behavioural）这三个类目来提取文本中的重点，生成对应的文本摘录用于标注。",
-    "避免长篇幅地覆盖全文内容，同时也能覆盖主题以及核心观点，遵循 MECE 原则与金字塔原理，做到相互独立且上下文相关。",
-    "仅输出 JSON，无其他文本。",
+    "你是自动标注助手。",
+    "目标：从文本中提取重点句，分类为 conceptual / structural / behavioural。",
+    "仅输出 JSON。",
     '格式：{ "highlights": [{ "start": 0, "end": 0, "text": "...", "tags": ["标签"], "category": "conceptual" }] }',
     "规则：",
-    `- 片段数量 ≤ ${options.maxHighlights}，为完整句子，且不重叠、不重复。`,
+    `- 数量 ≤ ${options.maxHighlights}，完整句子，互不重叠、不重复。`,
     "- start/end 为 0-based 且 end 为排除；text 必须与 [start, end) 完全一致。",
-    "- category 只能是 conceptual / structural / behavioural。",
-    "- tags 为中文短语（2-5 个），不带 #，不包含“AI生成标注”。",
+    "- category 仅可 conceptual / structural / behavioural。",
+    "- tags 为中文短语（2-5 个），不带 #，不含“AI生成标注”。",
   ].join("\n")
 }
 

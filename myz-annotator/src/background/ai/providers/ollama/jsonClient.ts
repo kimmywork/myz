@@ -1,0 +1,184 @@
+import type {
+  ChatCompletionClient,
+  ProviderChatCompletionRequest,
+  ProviderChatCompletionResponse,
+  ProviderMessage,
+  ProviderStreamOptions,
+} from "../types.js"
+import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js"
+import { coerceContentToText, normalizeBaseUrl } from "../utils.js"
+
+type ValueOrGetter<T> = T | (() => T)
+
+function resolveValue<T>(value: ValueOrGetter<T>): T {
+  return typeof value === "function" ? (value as () => T)() : value
+}
+
+export interface OllamaClientOptions {
+  baseUrl: ValueOrGetter<string>
+  headers: ValueOrGetter<string>
+  syncHeaders?: () => Promise<void>
+}
+
+function buildOllamaGenerateUrl(baseUrl: string): string {
+  const normalized = normalizeBaseUrl(baseUrl)
+  if (!normalized) return ""
+  if (normalized.endsWith("/api/generate")) return normalized
+  if (normalized.endsWith("/api")) return `${normalized}/generate`
+  return `${normalized}/api/generate`
+}
+
+function buildOllamaTagsUrl(baseUrl: string): string {
+  const normalized = normalizeBaseUrl(baseUrl)
+  if (!normalized) return ""
+  if (normalized.endsWith("/api/tags")) return normalized
+  if (normalized.endsWith("/api")) return `${normalized}/tags`
+  return `${normalized}/api/tags`
+}
+
+function buildOllamaHeaders(headers: string): Record<string, string> {
+  const customHeaders = parseAiRequestHeaders(headers)
+  const headerNamesLower = new Set(
+    Object.keys(customHeaders).map((key) => key.toLowerCase()),
+  )
+  const merged: Record<string, string> = {}
+  if (!headerNamesLower.has("content-type")) {
+    merged["Content-Type"] = "application/json"
+  }
+  return {
+    ...merged,
+    ...customHeaders,
+  }
+}
+
+function buildPromptFromMessages(messages: ProviderMessage[]): { system: string; prompt: string } {
+  const systemParts: string[] = []
+  const promptParts: string[] = []
+
+  messages.forEach((message) => {
+    if (!message) return
+    const text = coerceContentToText(message.content)
+    if (message.role === "system" || message.role === "developer") {
+      if (text) systemParts.push(text)
+      return
+    }
+
+    if (message.role === "user") {
+      promptParts.push(`User: ${text}`)
+      return
+    }
+
+    if (message.role === "assistant") {
+      promptParts.push(`Assistant: ${text}`)
+      if (Array.isArray(message.tool_calls) && message.tool_calls.length) {
+        promptParts.push(
+          `Assistant tool calls: ${JSON.stringify(
+            message.tool_calls.map((call) => ({
+              name: call.function?.name,
+              arguments: call.function?.arguments,
+            })),
+          )}`,
+        )
+      }
+      return
+    }
+
+    if (message.role === "tool") {
+      promptParts.push(`Tool: ${text}`)
+    }
+  })
+
+  return {
+    system: systemParts.join("\n\n"),
+    prompt: promptParts.join("\n"),
+  }
+}
+
+export class OllamaJsonClient implements ChatCompletionClient {
+  private baseUrl: ValueOrGetter<string>
+  private headers: ValueOrGetter<string>
+  private syncHeaders?: () => Promise<void>
+
+  constructor(options: OllamaClientOptions) {
+    this.baseUrl = options.baseUrl
+    this.headers = options.headers
+    this.syncHeaders = options.syncHeaders
+  }
+
+  async createCompletion(
+    request: ProviderChatCompletionRequest,
+    _options: ProviderStreamOptions = {},
+  ): Promise<ProviderChatCompletionResponse> {
+    await this.syncHeaders?.()
+
+    const endpoint = buildOllamaGenerateUrl(resolveValue(this.baseUrl))
+    if (!endpoint) {
+      throw new Error("API endpoint not configured")
+    }
+
+    const { system, prompt } = buildPromptFromMessages(request.messages || [])
+    const maxTokens =
+      typeof request.max_tokens === "number"
+        ? request.max_tokens
+        : typeof request.max_completion_tokens === "number"
+          ? request.max_completion_tokens
+          : undefined
+    const payload: any = {
+      model: request.model,
+      prompt,
+      stream: false,
+      ...(system ? { system } : {}),
+    }
+    if (typeof request.temperature === "number" || typeof maxTokens === "number") {
+      payload.options = {
+        ...(typeof request.temperature === "number"
+          ? { temperature: request.temperature }
+          : {}),
+        ...(typeof maxTokens === "number" ? { num_predict: maxTokens } : {}),
+      }
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: buildOllamaHeaders(resolveValue(this.headers) || ""),
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(
+        `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
+      )
+    }
+
+    const data = await response.json()
+    const message: ProviderMessage = {
+      role: "assistant",
+      content: typeof data?.response === "string" ? data.response : "",
+    }
+    if (typeof data?.thinking === "string" && data.thinking.trim()) {
+      message.reasoning_content = data.thinking
+    }
+    return {
+      choices: [
+        {
+          index: 0,
+          message,
+        },
+      ],
+      ...data,
+    }
+  }
+}
+
+export function extractOllamaModels(payload: any): string[] {
+  const items = Array.isArray(payload?.models) ? payload.models : []
+  return items
+    .map((item: any) => item?.name)
+    .filter(
+      (name: any): name is string =>
+        typeof name === "string" && name.trim().length > 0,
+    )
+}
+
+export { buildOllamaTagsUrl, buildOllamaHeaders }

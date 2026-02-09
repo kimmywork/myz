@@ -34,15 +34,10 @@ function normalizeMaxOutput(
 
 function buildSystemPrompt() {
   return [
-    "你是一个“Skill 选择器”，负责根据用户输入，从候选 Skill 中选择本次对话需要启用的技能。",
-    "",
-    "原则：",
-    "- 默认不启用 Skill；只有在确实需要、且能明显提升回答质量时才选择。",
-    "- 只允许从候选列表中选择；不要发明 skill 名称。",
-    "- 可以输出空数组。",
-    "",
-    "输出格式：只输出 JSON，不要输出其他文本。",
-    'JSON 结构：{ "skill_names": ["skill-a", "skill-b"] }',
+    "你是 Skill 选择器。",
+    "任务：从候选 Skill 中选出本次对话需要启用的最小集合。",
+    "原则：默认空；只从候选列表选择；用户明确要求时优先启用对应 Skill。",
+    "仅输出 JSON：{ \"skill_names\": [\"...\"] }",
   ].join("\n")
 }
 

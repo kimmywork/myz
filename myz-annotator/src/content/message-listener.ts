@@ -3,12 +3,14 @@ import { initializeAiMessageHandlers } from "./messages/ai";
 import { initializeHighlightMessageHandlers } from "./messages/highlights";
 import { initializeSocialMessageHandlers } from "./messages/social";
 import { initializeZenMessageHandlers } from "./messages/zen";
+import { initializeSuperpowerMessageHandlers } from "./messages/superpower";
 
 // Initialize handlers
 initializeAiMessageHandlers();
 initializeHighlightMessageHandlers();
 initializeSocialMessageHandlers();
 initializeZenMessageHandlers();
+initializeSuperpowerMessageHandlers();
 
 export interface MessagePayload {
   type: string;
