@@ -29,6 +29,7 @@ import {
   getMessagesForConversation,
   replaceConversationMessages,
   updateConversationMetadata,
+  saveConversation,
 } from "@/sidepanel/aiStorage";
 import { recordConversationDeletion } from "../sync/deletions";
 import {
@@ -43,6 +44,7 @@ import {
 } from "../ai/providers/registry.js";
 import { McpCapability } from "../ai/capabilities/mcp.js";
 import { ConversationAgent } from "../ai/agents/conversationAgent.js";
+import { ConversationTitleAgent } from "../ai/agents/conversationTitleAgent.js";
 import { InsightsAgent } from "../ai/agents/insightsAgent.js";
 import { AutoHighlightAgent } from "../ai/agents/autoHighlightAgent.js";
 import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
@@ -955,6 +957,106 @@ export function initializeAIMessageHandlers() {
         if (target.model.capabilities.toolCalling) {
           await runtime.disconnectMcp();
         }
+        await runtime.release();
+      }
+    },
+  );
+
+  registerMessageHandler(
+    "myz:aiTitleRequest",
+    async (payload: {
+      conversationId: string;
+      request?: string;
+      pageTitle?: string;
+      url?: string;
+    }) => {
+      const settings = await readSettings();
+      if (!settings.aiAssistantEnabled) {
+        throw new Error("AI Assistant is not enabled");
+      }
+
+      const conversationId = payload?.conversationId;
+      if (!conversationId) {
+        throw new Error("conversationId is required");
+      }
+
+      const conversation = await getConversation(conversationId);
+      if (!conversation) {
+        throw new Error("conversation not found");
+      }
+
+      const meta = conversation.metadata || {};
+      const titleGenerated = meta?.titleGenerated;
+      if (titleGenerated !== false) {
+        return conversation;
+      }
+
+      const requestText = normalizeText(payload?.request);
+      if (!requestText) {
+        const failed = {
+          ...conversation,
+          metadata: {
+            ...meta,
+            titleGenerated: "failed",
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        await saveConversation(failed);
+        return failed;
+      }
+
+      const target = resolveAgentTarget(settings as any, "conversation");
+      const runtime = await acquireProviderRuntime(
+        target.provider as any,
+        [],
+      );
+
+      try {
+        const agent = new ConversationTitleAgent({
+          client: runtime.session.client as any,
+        });
+        const title = await agent.generateTitleWithConfig(
+          {
+            request: requestText,
+            pageTitle: payload?.pageTitle,
+            url: payload?.url,
+          },
+          {
+            isEnabled: Boolean(settings.aiAssistantEnabled),
+            callConfig: target as any,
+          },
+        );
+
+        const nextMeta = {
+          ...meta,
+          pageTitle:
+            typeof payload?.pageTitle === "string" && payload.pageTitle.trim()
+              ? payload.pageTitle.trim()
+              : meta?.pageTitle,
+          titleGenerated: title ? true : "failed",
+          originalUserRequest: meta?.originalUserRequest || requestText,
+        };
+        const updated = {
+          ...conversation,
+          title: title || "",
+          metadata: nextMeta,
+          updatedAt: new Date().toISOString(),
+        };
+        await saveConversation(updated);
+        return updated;
+      } catch (error) {
+        console.warn("Conversation title generation failed", error);
+        const failed = {
+          ...conversation,
+          metadata: {
+            ...meta,
+            titleGenerated: "failed",
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        await saveConversation(failed);
+        return failed;
+      } finally {
         await runtime.release();
       }
     },

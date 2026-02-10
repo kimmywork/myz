@@ -120,7 +120,15 @@ export const useChatStore = defineStore("chat", () => {
   });
 
   const conversationUrl = computed(() => activeConversation.value?.url || "");
-  const conversationTitle = computed(() => activeConversation.value?.title || "");
+  const conversationTitle = computed(() => {
+    const title = activeConversation.value?.title || "";
+    if (title.trim()) return title;
+    const pageTitle =
+      typeof activeConversation.value?.metadata?.pageTitle === "string"
+        ? activeConversation.value?.metadata?.pageTitle || ""
+        : "";
+    return pageTitle;
+  });
 
   const hasActiveStream = computed(() => Boolean(activeStream.id));
 
@@ -148,6 +156,27 @@ export const useChatStore = defineStore("chat", () => {
 
   function resolveConversationMode(value: any) {
     return aiConfig.superpowerMode ? normalizeConversationMode(value) : "chat";
+  }
+
+  async function maybeGenerateConversationTitle(input: string) {
+    if (!conversationId.value) return;
+    const current = activeConversation.value;
+    if (!current) return;
+    const titleGenerated = current?.metadata?.titleGenerated;
+    if (titleGenerated !== false) return;
+    try {
+      const updated = await sendMessage("myz:aiTitleRequest", {
+        conversationId: current.id,
+        request: input,
+        pageTitle: pageStore.pageTitle,
+        url: pageStore.currentUrl,
+      });
+      if (updated?.id === current.id) {
+        activeConversation.value = updated;
+      }
+    } catch (e) {
+      console.warn("Failed to generate conversation title", e);
+    }
   }
 
   async function setConversationMode(mode: "agent" | "chat") {
@@ -365,7 +394,8 @@ export const useChatStore = defineStore("chat", () => {
     try {
       const convId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const url = pageStore.currentUrl || "";
-      const title = pageStore.pageTitle || "新对话";
+      const title = "";
+      const pageTitle = pageStore.pageTitle || "";
       const defaultMode = resolveConversationMode("agent");
       const conversationData: ConversationInfo & Record<string, any> = {
         id: convId,
@@ -376,7 +406,11 @@ export const useChatStore = defineStore("chat", () => {
         updatedAt: new Date().toISOString(),
         isAiGenerated: false,
         sendContextEnabled: sendContext.value,
-        metadata: { assistantMode: defaultMode },
+        metadata: {
+          assistantMode: defaultMode,
+          pageTitle,
+          titleGenerated: false,
+        },
       };
 
       await saveConversation(conversationData);
@@ -607,6 +641,7 @@ export const useChatStore = defineStore("chat", () => {
       const clientMessageId = userMsg.id;
 
       messages.value.push(userMsg);
+      void maybeGenerateConversationTitle(trimmed);
       userInput.value = "";
       resetAttachments();
       clearDraftContext();

@@ -61,6 +61,7 @@ export default defineComponent({
     const taskPlanStore = useTaskPlanStore();
     const plan = computed(() => taskPlanStore.taskPlan);
     const expanded = ref(false);
+    const hovering = ref(false);
     const isStarting = ref(false);
     const isReviewing = ref(false);
 
@@ -84,7 +85,14 @@ export default defineComponent({
         tasks.find((task: any) => task.status === "pending") ||
         tasks[0] ||
         null;
-      const visibleTasks = expanded.value ? tasks : currentTask ? [currentTask] : [];
+      const showDetails = expanded.value || hovering.value;
+      const visibleTasks = showDetails
+        ? expanded.value
+          ? tasks
+          : currentTask
+            ? [currentTask]
+            : []
+        : [];
       const showToggle = tasks.length > 1;
 
       const statusLabel = STATUS_LABELS[current.status] || current.status;
@@ -108,33 +116,39 @@ export default defineComponent({
       const reviewLabel = planReview?.status === "pending" ? "发起审核" : "重新审核";
 
       return (
-        <section class="mt-3 rounded-2xl border border-slate-200 bg-white/80 p-3 text-sm text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200">
+        <section
+          class="mt-3 rounded-2xl border border-slate-200 bg-white/80 p-3 text-sm text-slate-700 shadow-sm transition dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200"
+          onMouseenter={() => {
+            hovering.value = true;
+          }}
+          onMouseleave={() => {
+            if (!expanded.value) {
+              hovering.value = false;
+            }
+          }}
+        >
           <div class="flex items-center justify-between">
-            <div class="font-semibold">任务进度</div>
-            <div class="flex items-center gap-2">
-              {showToggle && (
-                <button
-                  class="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                  onClick={() => {
-                    expanded.value = !expanded.value;
-                  }}
-                >
-                  {expanded.value ? "收起列表" : "展开列表"}
-                </button>
-              )}
+            <div class="flex items-center gap-2 font-semibold">
+              <span>
+                任务进度（{progress.value.done}/{progress.value.total}）
+              </span>
               <span class="rounded-full border border-slate-200 px-2 py-0.5 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
                 {statusLabel}
               </span>
             </div>
+            {showToggle && showDetails && (
+              <button
+                class="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                onClick={() => {
+                  expanded.value = !expanded.value;
+                }}
+              >
+                {expanded.value ? "收起列表" : "展开列表"}
+              </button>
+            )}
           </div>
 
-          <div class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            {progress.value.total
-              ? `已完成 ${progress.value.done}/${progress.value.total} 个任务`
-              : "暂无任务"}
-          </div>
-
-          {(canReview || canStart || canResume) && (
+          {showDetails && (canReview || canStart || canResume) && (
             <div class="mt-3 flex items-center gap-2">
               {canReview && (
                 <button
@@ -179,7 +193,7 @@ export default defineComponent({
             </div>
           )}
 
-          {hasTasks && (
+          {showDetails && hasTasks && (
             <div class="mt-3 space-y-2">
               {!expanded.value && currentTask && (
                 <div class="text-[11px] text-slate-400 dark:text-slate-500">
@@ -192,79 +206,79 @@ export default defineComponent({
                   1 ||
                   index + 1;
                 return (
-                <div
-                  class="rounded-xl border border-slate-200 bg-slate-50/60 p-2 text-xs dark:border-white/10 dark:bg-slate-900/40"
-                  key={task.id || index}
-                >
-                  <div class="flex items-center justify-between">
-                    <div class="font-medium">
-                      {displayIndex}. {task.title}
+                  <div
+                    class="rounded-xl border border-slate-200 bg-slate-50/60 p-2 text-xs dark:border-white/10 dark:bg-slate-900/40"
+                    key={task.id || index}
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="font-medium">
+                        {displayIndex}. {task.title}
+                      </div>
+                      <span class="text-[11px] text-slate-500 dark:text-slate-400">
+                        {TASK_STATUS_LABELS[task.status] || task.status}
+                      </span>
                     </div>
-                    <span class="text-[11px] text-slate-500 dark:text-slate-400">
-                      {TASK_STATUS_LABELS[task.status] || task.status}
-                    </span>
-                  </div>
-                  <div class="mt-1 flex flex-wrap gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                    {task.owner && (
-                      <span class="rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-700">
-                        {task.owner}
-                      </span>
-                    )}
-                    {task.category && (
-                      <span class="rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-700">
-                        {task.category}
-                      </span>
-                    )}
-                    {Array.isArray(task.skills) &&
-                      task.skills.map((skill: string) => (
-                        <span
-                          class="rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-700"
-                          key={`${task.id || index}-skill-${skill}`}
-                        >
-                          {skill}
+                    <div class="mt-1 flex flex-wrap gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                      {task.owner && (
+                        <span class="rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-700">
+                          {task.owner}
                         </span>
-                      ))}
-                  </div>
-                  {Array.isArray(task.deliverables) && task.deliverables.length > 0 && (
-                    <ul class="mt-2 list-disc pl-4 text-[11px] text-slate-500 dark:text-slate-400">
-                      {task.deliverables.map((deliverable: any, dIndex: number) => (
-                        <li key={deliverable.id || `${task.id}-d-${dIndex}`}>
-                          <span>
-                            {deliverable.description || "交付物"}
+                      )}
+                      {task.category && (
+                        <span class="rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-700">
+                          {task.category}
+                        </span>
+                      )}
+                      {Array.isArray(task.skills) &&
+                        task.skills.map((skill: string) => (
+                          <span
+                            class="rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-700"
+                            key={`${task.id || index}-skill-${skill}`}
+                          >
+                            {skill}
                           </span>
-                          {deliverable.status === "done" ? (
-                            <span class="ml-2 text-emerald-600 dark:text-emerald-300">已完成</span>
-                          ) : (
-                            <span class="ml-2 text-slate-400">未完成</span>
-                          )}
-                          {Array.isArray(deliverable.artifacts) &&
-                            deliverable.artifacts.length > 0 && (
-                              <ul class="mt-1 list-disc pl-4 text-[10px] text-slate-400 dark:text-slate-500">
-                                {deliverable.artifacts.map(
-                                  (artifact: any, aIndex: number) => (
-                                    <li
-                                      key={
-                                        artifact.id ||
-                                        `${task.id}-d-${dIndex}-a-${aIndex}`
-                                      }
-                                    >
-                                      {describeArtifact(artifact)}
-                                    </li>
-                                  ),
-                                )}
-                              </ul>
+                        ))}
+                    </div>
+                    {Array.isArray(task.deliverables) && task.deliverables.length > 0 && (
+                      <ul class="mt-2 list-disc pl-4 text-[11px] text-slate-500 dark:text-slate-400">
+                        {task.deliverables.map((deliverable: any, dIndex: number) => (
+                          <li key={deliverable.id || `${task.id}-d-${dIndex}`}>
+                            <span>
+                              {deliverable.description || "交付物"}
+                            </span>
+                            {deliverable.status === "done" ? (
+                              <span class="ml-2 text-emerald-600 dark:text-emerald-300">已完成</span>
+                            ) : (
+                              <span class="ml-2 text-slate-400">未完成</span>
                             )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                            {Array.isArray(deliverable.artifacts) &&
+                              deliverable.artifacts.length > 0 && (
+                                <ul class="mt-1 list-disc pl-4 text-[10px] text-slate-400 dark:text-slate-500">
+                                  {deliverable.artifacts.map(
+                                    (artifact: any, aIndex: number) => (
+                                      <li
+                                        key={
+                                          artifact.id ||
+                                          `${task.id}-d-${dIndex}-a-${aIndex}`
+                                        }
+                                      >
+                                        {describeArtifact(artifact)}
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 );
               })}
             </div>
           )}
 
-          {planReview?.status === "needs_revision" && (
+          {showDetails && planReview?.status === "needs_revision" && (
             <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
               <div class="font-semibold">计划需调整</div>
               {reviewIssues.length === 0 && reviewMissing.length === 0 && (
@@ -295,13 +309,13 @@ export default defineComponent({
             </div>
           )}
 
-          {planReview?.status === "pass" && current.status === "reviewing" && (
+          {showDetails && planReview?.status === "pass" && current.status === "reviewing" && (
             <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
               计划已通过审核，可开始执行
             </div>
           )}
 
-          {validation?.status === "fail" && (
+          {showDetails && validation?.status === "fail" && (
             <div class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
               <div class="font-semibold">验证未通过</div>
               {issues.length > 0 && (
@@ -327,7 +341,7 @@ export default defineComponent({
             </div>
           )}
 
-          {validation?.status === "pass" && (
+          {showDetails && validation?.status === "pass" && (
             <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
               已通过验证
             </div>
