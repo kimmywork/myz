@@ -13,6 +13,7 @@ import { readAiConversations } from "../../ai.js"
 import { readSettings } from "../../storage.js"
 import { normalizeMessagePayload } from "../normalize/message.js"
 import { buildConversationPromptMessages } from "../prompt/conversation.js"
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
 import { listSkills } from "../skills/storage.js"
 
 const AUTO_CONTINUE_MAX_TURNS = 4
@@ -53,6 +54,10 @@ function escapeXml(value: string) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
+}
+
+function normalizeConversationMode(value: any): "agent" | "chat" {
+  return value === "chat" ? "chat" : "agent"
 }
 
 function buildTaskPlanSummary(plan: any) {
@@ -190,6 +195,52 @@ function getRoleToolAllowlist(owner: string) {
     return ["Task"]
   }
   return null
+}
+
+function getCategoryToolAllowlist(category: string) {
+  switch (category) {
+    case "research":
+    case "reasoning":
+      return [
+        "Task",
+        "Read",
+        "Glob",
+        "ListTabs",
+        "GetPageContext",
+        "WebSearch",
+        "WebFetch",
+      ]
+    case "automation":
+      return [
+        "Task",
+        "ListTabs",
+        "ActivateTab",
+        "GotoPage",
+        "NewTab",
+        "RunDomActions",
+        "EvalInPage",
+        "GetPageContext",
+      ]
+    default:
+      return null
+  }
+}
+
+function resolveCategoryTemperature(category: string, baseTemperature: number) {
+  const base =
+    typeof baseTemperature === "number" && Number.isFinite(baseTemperature)
+      ? baseTemperature
+      : 0.2
+  switch (category) {
+    case "automation":
+      return Math.min(base, 0.1)
+    case "research":
+      return Math.min(base, 0.2)
+    case "reasoning":
+      return Math.min(base, 0.3)
+    default:
+      return base
+  }
 }
 
 function notifyRuntime(type: string, payload: any) {
@@ -346,6 +397,7 @@ export class ConversationAgent {
   private async ensureSystemPrompt(
     conversationId: string,
     includePageContext: boolean,
+    options: { superpowerEnabled?: boolean } = {},
   ): Promise<Message | null> {
     const existing = await getMessagesForConversation(conversationId, 1000)
     const alreadyExists = existing.some(
@@ -407,11 +459,15 @@ export class ConversationAgent {
     const timestamp = new Date(Math.max(0, earliestTsMs - 1)).toISOString()
 
     let superpowerEnabled = false
-    try {
-      const settings = await readSettings()
-      superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode)
-    } catch {
-      superpowerEnabled = false
+    if (typeof options.superpowerEnabled === "boolean") {
+      superpowerEnabled = options.superpowerEnabled
+    } else {
+      try {
+        const settings = await readSettings()
+        superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode)
+      } catch {
+        superpowerEnabled = false
+      }
     }
     let skillBlock = ""
     if (superpowerEnabled) {
@@ -656,9 +712,32 @@ export class ConversationAgent {
       throw new Error("当前模型不支持 Vision，无法发送图片")
     }
 
+    const conversationSnapshot = await getConversation(conversationId)
+    const requestedMode =
+      typeof options.conversationMode === "string"
+        ? normalizeConversationMode(options.conversationMode)
+        : null
+    const storedMode =
+      typeof conversationSnapshot?.metadata?.assistantMode === "string"
+        ? normalizeConversationMode(conversationSnapshot?.metadata?.assistantMode)
+        : null
+    const conversationMode = requestedMode || storedMode || "agent"
+
+    let superpowerEnabled = false
+    try {
+      const settings = await readSettings()
+      superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode)
+    } catch {
+      superpowerEnabled = false
+    }
+    if (conversationMode === "chat") {
+      superpowerEnabled = false
+    }
+
     const injectedSystemPrompt = await this.ensureSystemPrompt(
       conversationId,
       includePageContext,
+      { superpowerEnabled },
     )
 
     const requiredToolNames = Array.isArray(options.requiredToolNames)
@@ -747,15 +826,8 @@ export class ConversationAgent {
     }
     payloadMessages.push(...historyMessages, userMessage)
 
-    const conversation = await getConversation(conversationId)
+    const conversation = conversationSnapshot || (await getConversation(conversationId))
     const taskPlan = conversation?.metadata?.taskPlan
-    let superpowerEnabled = false
-    try {
-      const settings = await readSettings()
-      superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode)
-    } catch {
-      superpowerEnabled = false
-    }
     let skillBlock = ""
     if (superpowerEnabled) {
       try {
@@ -773,19 +845,40 @@ export class ConversationAgent {
     }
 
     const shouldExecuteTasks =
-      taskPlan && ["executing", "needs_rework"].includes(taskPlan.status)
+      superpowerEnabled &&
+      taskPlan &&
+      ["executing", "needs_rework"].includes(taskPlan.status)
+    const currentTask = shouldExecuteTasks ? getCurrentTask(taskPlan) : null
+    const owner = typeof currentTask?.owner === "string" ? currentTask.owner : ""
+    const category =
+      typeof currentTask?.category === "string" ? currentTask.category : ""
+    const categoryTemperature = shouldExecuteTasks
+      ? resolveCategoryTemperature(category, deps.callConfig.temperature)
+      : null
     if (shouldExecuteTasks && deps.toolControl) {
-      const currentTask = getCurrentTask(taskPlan)
-      const owner = typeof currentTask?.owner === "string" ? currentTask.owner : ""
       const allowlist = getRoleToolAllowlist(owner)
-      if (allowlist) {
+      const categoryAllowlist = getCategoryToolAllowlist(category)
+      let filtered: string[] | null = null
+      if (allowlist && categoryAllowlist) {
+        const intersection = allowlist.filter((name) =>
+          categoryAllowlist.includes(name),
+        )
+        filtered = intersection.length ? intersection : allowlist
+      } else if (categoryAllowlist) {
+        filtered = categoryAllowlist
+      } else if (allowlist) {
+        filtered = allowlist
+      }
+
+      if (filtered) {
         const available = new Set(
           (deps.toolControl.listTools?.() || [])
             .map((tool: any) => (typeof tool?.name === "string" ? tool.name : ""))
             .filter(Boolean),
         )
-        const filtered = allowlist.filter((name) => available.has(name))
-        deps.toolControl.setActiveToolFilter(filtered)
+        deps.toolControl.setActiveToolFilter(
+          filtered.filter((name) => available.has(name)),
+        )
       } else {
         deps.toolControl.setActiveToolFilter(null)
       }
@@ -814,6 +907,7 @@ export class ConversationAgent {
       const superpowerPrompt = [
         "Superpower Mode 已启用。",
         "必须使用 Task 跟踪任务与交付物。",
+        "调用 Task 时必须提供 action 字段，例如 {\"action\":\"get\"}。",
         "默认启用全部技能，可用 Read 访问 /skills/。",
         "优先遵循 /skills/browser-operations/SKILL.md。",
         "截图用 RunDomActions.captureViewport，谨慎使用。",
@@ -853,6 +947,7 @@ export class ConversationAgent {
         "Superpower Mode 已启用。",
         "任务计划是唯一执行依据；严格按顺序执行。",
         "开始执行前必须 Task.get 获取完整任务列表。",
+        "调用 Task 时必须提供 action 字段，例如 {\"action\":\"get\"}。",
         "需要工具时必须实际发起 tool call，不得只描述。",
         `仅在确需用户输入时提问，且问题前必须输出 ${REQUIRE_USER_INPUT_MARKER}。`,
         "默认启用全部技能，可用 Read 访问 /skills/。",
@@ -893,9 +988,12 @@ export class ConversationAgent {
       extraMetadata?: Record<string, any>
     }) => {
       const historyPayload: MessageInPayload[] =
-        buildConversationPromptMessages(options.messages, {
-          includeVision: deps.callConfig.model.capabilities.vision,
-        })
+        injectSystemPromptAsUserMessage(
+          buildConversationPromptMessages(options.messages, {
+            includeVision: deps.callConfig.model.capabilities.vision,
+          }),
+          Boolean(deps.callConfig.model?.systemPromptInUserMessage),
+        )
 
       let streamMessageId: string | null = null
       if (options.stream) {
@@ -941,11 +1039,16 @@ export class ConversationAgent {
 
       let response: any
       try {
+        const requestTemperature =
+          typeof restOptions.temperature === "number"
+            ? restOptions.temperature
+            : typeof categoryTemperature === "number"
+              ? categoryTemperature
+              : temperature
         const request: any = {
           model,
           messages: historyPayload,
-          temperature:
-            typeof restOptions.temperature === "number" ? restOptions.temperature : temperature,
+          temperature: requestTemperature,
           stream: options.stream,
         }
         if (maxOutputTokenParam === "max_completion_tokens") {
@@ -1095,43 +1198,45 @@ export class ConversationAgent {
       streamId,
     })
 
-    let autoContinueTurns = 0
-    while (autoContinueTurns < AUTO_CONTINUE_MAX_TURNS) {
-      const latestConversation = await getConversation(conversationId)
-      const latestPlan = latestConversation?.metadata?.taskPlan
-      if (
-        !shouldAutoContinue(
-          latestPlan,
-          finalResult.content,
-          finalResult.reasoning,
-          finalResult.toolCallCount || 0,
+    if (superpowerEnabled) {
+      let autoContinueTurns = 0
+      while (autoContinueTurns < AUTO_CONTINUE_MAX_TURNS) {
+        const latestConversation = await getConversation(conversationId)
+        const latestPlan = latestConversation?.metadata?.taskPlan
+        if (
+          !shouldAutoContinue(
+            latestPlan,
+            finalResult.content,
+            finalResult.reasoning,
+            finalResult.toolCallCount || 0,
+          )
+        ) {
+          break
+        }
+
+        const continuationPrompt = [
+          "继续执行任务，不要等待用户输入。",
+          "如需工具，立即发起 tool call，并及时更新任务与交付物状态。",
+          "当前任务计划概要:",
+          buildTaskPlanSummary(latestPlan),
+        ].join("\n")
+
+        const historyMessages = await this.getConversationMessages(
+          conversationId,
+          includePageContext,
         )
-      ) {
-        break
+        const continuationMessages = applyContinuationPrompt(
+          historyMessages,
+          continuationPrompt,
+        )
+
+        autoContinueTurns += 1
+        finalResult = await runCompletion({
+          messages: continuationMessages,
+          stream: false,
+          extraMetadata: { autoContinueTurn: autoContinueTurns },
+        })
       }
-
-      const continuationPrompt = [
-        "继续执行任务，不要等待用户输入。",
-        "如需工具，立即发起 tool call，并及时更新任务与交付物状态。",
-        "当前任务计划概要:",
-        buildTaskPlanSummary(latestPlan),
-      ].join("\n")
-
-      const historyMessages = await this.getConversationMessages(
-        conversationId,
-        includePageContext,
-      )
-      const continuationMessages = applyContinuationPrompt(
-        historyMessages,
-        continuationPrompt,
-      )
-
-      autoContinueTurns += 1
-      finalResult = await runCompletion({
-        messages: continuationMessages,
-        stream: false,
-        extraMetadata: { autoContinueTurn: autoContinueTurns },
-      })
     }
 
     return finalResult

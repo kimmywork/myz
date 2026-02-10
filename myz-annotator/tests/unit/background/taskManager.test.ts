@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  attachDeliverableArtifact,
   getTaskPlan,
   initTaskPlan,
   listUnblockedTasks,
@@ -127,5 +128,61 @@ describe("taskManager v2", () => {
     const ids = list.map((task) => task.id);
     expect(ids).toContain("t-1");
     expect(ids).not.toContain("t-2");
+  });
+
+  it("breaks cyclic dependencies to avoid deadlock", async () => {
+    const plan = await initTaskPlan({
+      conversationId: "c1",
+      originalUserRequest: "do something",
+      tasks: [
+        {
+          id: "t-1",
+          title: "Task A",
+          blockedBy: ["t-2"],
+          deliverables: [{ description: "Deliver A" }],
+        },
+        {
+          id: "t-2",
+          title: "Task B",
+          blockedBy: ["t-1"],
+          deliverables: [{ description: "Deliver B" }],
+        },
+      ],
+    });
+
+    const unblocked = plan.tasks.filter((task) => task.status !== "blocked");
+    expect(unblocked.length).toBeGreaterThan(0);
+  });
+
+  it("truncates oversized artifacts", async () => {
+    await initTaskPlan({
+      conversationId: "c1",
+      originalUserRequest: "do something",
+      tasks: [{ id: "t-1", title: "Task A", deliverables: [{ description: "Deliver A" }] }],
+    });
+
+    const bigText = "x".repeat(40000);
+    const updated = await attachDeliverableArtifact({
+      conversationId: "c1",
+      taskId: "t-1",
+      deliverableIndex: 0,
+      artifact: { type: "note", payload: bigText },
+    });
+
+    const payload = updated?.tasks?.[0]?.deliverables?.[0]?.artifacts?.[0]?.payload;
+    expect(typeof payload).toBe("string");
+    expect(payload.length).toBeLessThanOrEqual(32000);
+
+    const updatedObj = await attachDeliverableArtifact({
+      conversationId: "c1",
+      taskId: "t-1",
+      deliverableIndex: 0,
+      artifact: { type: "json", payload: { text: bigText } },
+    });
+
+    const payloadObj =
+      updatedObj?.tasks?.[0]?.deliverables?.[0]?.artifacts?.[1]?.payload;
+    expect(payloadObj?.truncated).toBe(true);
+    expect(payloadObj?.content?.length).toBeLessThanOrEqual(32000);
   });
 });

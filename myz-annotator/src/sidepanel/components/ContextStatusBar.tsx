@@ -32,6 +32,7 @@ export default defineComponent({
     const threadUrl = computed(() => chatStore.conversationUrl || "")
     const threadTitle = computed(() => chatStore.conversationTitle || "")
     const contextUrl = computed(() => pageStore.currentUrl || "")
+    const isAgentMode = computed(() => chatStore.conversationMode === "agent")
 
     const isCrossContext = computed(() => {
       if (!threadUrl.value || !contextUrl.value) return false
@@ -102,6 +103,35 @@ export default defineComponent({
                 切换当前页面对话
               </button>
             )}
+          </div>
+        )}
+        {chatStore.superpowerEnabled && (
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-[11px] text-slate-500 dark:text-slate-400">模式</span>
+            <div class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-0.5 text-[11px] dark:border-slate-700 dark:bg-slate-900">
+              <button
+                class={[
+                  "rounded-full px-2 py-1 transition",
+                  isAgentMode.value
+                    ? "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                    : "bg-indigo-600 text-white shadow-sm",
+                ].join(" ")}
+                onClick={() => chatStore.setConversationMode("chat")}
+              >
+                对话模式
+              </button>
+              <button
+                class={[
+                  "rounded-full px-2 py-1 transition",
+                  isAgentMode.value
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                ].join(" ")}
+                onClick={() => chatStore.setConversationMode("agent")}
+              >
+                Agent模式
+              </button>
+            </div>
           </div>
         )}
       </div>

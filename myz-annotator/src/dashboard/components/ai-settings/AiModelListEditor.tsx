@@ -481,6 +481,27 @@ export default defineComponent({
 
                   <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
                     <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Prompt 注入
+                    </div>
+                    <label class="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
+                      <span>系统提示改为用户消息</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selectedModel.value!.systemPromptInUserMessage)}
+                        onChange={(e) =>
+                          updateModel(selectedModel.value!.id, {
+                            systemPromptInUserMessage: (e.target as HTMLInputElement).checked,
+                          })
+                        }
+                      />
+                    </label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                      当代理屏蔽 system prompt 时启用，系统提示会作为首条 user 消息注入。
+                    </p>
+                  </div>
+
+                  <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
+                    <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Tool Calling 配置
                     </div>
                     <label class="field">

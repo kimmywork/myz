@@ -227,7 +227,7 @@ planning -> reviewing -> executing -> done -> validating -> validated
 
 ### Task Manager v2
 - **Schema guarantees**
-  - 依赖在初始化时会被规范化，但不强制检测循环依赖。
+  - 依赖在初始化时会被规范化；检测到循环依赖会自动断开冲突边。
   - Each task has at least one deliverable.
   - Each deliverable has an `artifacts` array (can be empty).
 - **Task selection**
@@ -235,7 +235,7 @@ planning -> reviewing -> executing -> done -> validating -> validated
   - Executor picks highest priority first.
 - **Artifacts**
   - `type` values: `page-context`, `screenshot`, `dom-html`, `url`, `note`, `json`.
-  - Artifact payloads 目前不做统一大小限制（由调用方控制体积）。
+  - Artifact payloads 统一限制在 32KB（超过会被截断并标记 `truncated`）。
 
 ### Task Tool Schema (v2)
 **Tool name**: `Task`
@@ -372,12 +372,13 @@ planning -> reviewing -> executing -> done -> validating -> validated
 }
 
 // complete_all
-{ "action": "complete_all", "payload": {} }
+{ "action": "complete_all", "payload": { "reason": "string", "role": "validator" } }
 ```
 
 **Validation rules**
 - `update` cannot skip directly from `pending` to `done` if deliverables are empty.
 - `attach` 默认将 deliverable 标记为 `done`；当全部 deliverables 完成时，任务也会被标记为 `done`。
+- `complete_all` 需要 `reason` 且 `role=validator`。
 
 ### PromptingAgent Tool
 - 面向主 Agent 的一次性子任务代理：自动组装提示词，可选择工具与技能并返回结果。
@@ -438,7 +439,7 @@ Plan Review returns JSON only:
 ```
 
 ### Category + Skill Routing (现状)
-- 目前未做基于 category 的模型/温度/工具切换。
+- 基于 category 做执行期温度与工具白名单调整（模型不切换）。
 - Superpower 模式下默认注入全部技能，技能选择与 tool selection 不生效（可通过 Read 访问 /skills）。
 - `category/skills` 主要用于任务标注与展示。
 
@@ -470,11 +471,7 @@ Plan Review returns JSON only:
 - Auto-continue 最多 4 轮，若检测到仍有待办任务会继续。
 
 ### Current Gaps / Not Implemented Yet
-- 未做依赖环检测与拓扑校验（仅做格式规范化）。
-- 未统一限制 artifact 体积（由调用方控制）。
-- 未基于 category 做模型/温度/工具路由。
-- `complete_all` 暂无角色/理由校验。
-- 自动验证只在助手响应结束时触发；若仅通过工具更新完成状态，需下一轮响应触发。
+- 暂无（已完成当前列表项）。
 
 ### 角色 Prompt 模板（系统提示）
 用于各角色系统提示，需保持简洁、可执行、仅输出指定格式。
@@ -611,3 +608,4 @@ Plan Review returns JSON only:
 - 2026-02-06: Added PromptingAgent tool for one-off sub tasks with auto tool/skill selection.
 - 2026-02-06: Fixed task dependency resolution for blockedBy/blocks using indices/titles.
 - 2026-02-06: Added Sidepanel plan start/resume UX polish and updated unit tests (task tool, plan review, task manager, records/import).
+- 2026-02-09: Added dependency cycle breaking, artifact size truncation, category-based temperature/tool routing, complete_all guards, and auto validation trigger on task updates.

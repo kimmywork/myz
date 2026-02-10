@@ -4,6 +4,7 @@ import type {
   ProviderChatCompletionResponse,
   ProviderMessage,
   ProviderStreamOptions,
+  ProviderToolCall,
 } from "../types.js"
 import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js"
 import { coerceContentToText, normalizeBaseUrl, parseDataUrl, safeJsonParse } from "../utils.js"
@@ -236,6 +237,157 @@ function extractAnthropicMessage(payload: any): ProviderMessage {
   return message
 }
 
+async function parseAnthropicStream(
+  response: Response,
+  options: ProviderStreamOptions,
+): Promise<ProviderChatCompletionResponse> {
+  if (!response.body) {
+    throw new Error("Empty streaming response body")
+  }
+
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+  let content = ""
+  let usage: any = null
+  const toolBlocks = new Map<
+    number,
+    { id: string; name: string; argsText: string }
+  >()
+
+  const appendContent = (text: string) => {
+    if (!text) return
+    content += text
+    options.onStreamDelta?.({ content })
+  }
+
+  const ensureToolBlock = (index: number) => {
+    if (!toolBlocks.has(index)) {
+      toolBlocks.set(index, {
+        id: `tool-${index + 1}`,
+        name: "",
+        argsText: "",
+      })
+    }
+    return toolBlocks.get(index)!
+  }
+
+  const handlePayload = (payload: any) => {
+    const type = typeof payload?.type === "string" ? payload.type : ""
+    if (type === "message_start") {
+      if (payload?.message?.usage) {
+        usage = payload.message.usage
+      }
+      return
+    }
+    if (type === "content_block_start") {
+      const index = typeof payload?.index === "number" ? payload.index : 0
+      const block = payload?.content_block || {}
+      if (block.type === "text" && typeof block.text === "string") {
+        appendContent(block.text)
+      }
+      if (block.type === "tool_use") {
+        const toolBlock = ensureToolBlock(index)
+        if (typeof block.id === "string" && block.id) {
+          toolBlock.id = block.id
+        }
+        if (typeof block.name === "string") {
+          toolBlock.name = block.name
+        }
+        if (block.input && typeof block.input === "object") {
+          const keys = Object.keys(block.input)
+          if (keys.length) {
+            toolBlock.argsText = JSON.stringify(block.input)
+          }
+        } else if (typeof block.input === "string" && block.input.trim()) {
+          toolBlock.argsText = block.input
+        }
+      }
+      return
+    }
+    if (type === "content_block_delta") {
+      const index = typeof payload?.index === "number" ? payload.index : 0
+      const delta = payload?.delta || {}
+      if (delta.type === "text_delta" && typeof delta.text === "string") {
+        appendContent(delta.text)
+        return
+      }
+      if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") {
+        const toolBlock = ensureToolBlock(index)
+        toolBlock.argsText += delta.partial_json
+      }
+      return
+    }
+    if (payload?.usage) {
+      usage = payload.usage
+    }
+  }
+
+  const reader = response.body.getReader()
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    buffer = buffer.replace(/\r\n/g, "\n")
+    let boundary = buffer.indexOf("\n\n")
+    while (boundary >= 0) {
+      const rawEvent = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+      const dataLines = rawEvent
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .filter(Boolean)
+      if (dataLines.length) {
+        const dataStr = dataLines.join("\n")
+        if (dataStr === "[DONE]") {
+          boundary = -1
+          break
+        }
+        const parsed = safeJsonParse(dataStr)
+        if (parsed) {
+          handlePayload(parsed)
+        }
+      }
+      boundary = buffer.indexOf("\n\n")
+    }
+  }
+
+  const toolCalls: ProviderToolCall[] = Array.from(toolBlocks.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([index, block]) => {
+      let argsText = block.argsText.trim()
+      if (!argsText) {
+        argsText = "{}"
+      } else {
+        const parsed = safeJsonParse(argsText)
+        if (parsed) {
+          argsText = JSON.stringify(parsed)
+        }
+      }
+      return {
+        id: block.id || `tool-${index + 1}`,
+        type: "function",
+        function: {
+          name: block.name || "",
+          arguments: argsText,
+        },
+      }
+    })
+
+  const message: ProviderMessage = {
+    role: "assistant",
+    content,
+  }
+  if (toolCalls.length) {
+    message.tool_calls = toolCalls
+  }
+
+  return {
+    choices: [{ index: 0, message }],
+    ...(usage ? { usage } : {}),
+  }
+}
+
 export class AnthropicJsonClient implements ChatCompletionClient {
   private baseUrl: ValueOrGetter<string>
   private apiKey: ValueOrGetter<string>
@@ -251,7 +403,7 @@ export class AnthropicJsonClient implements ChatCompletionClient {
 
   async createCompletion(
     request: ProviderChatCompletionRequest,
-    _options: ProviderStreamOptions = {},
+    options: ProviderStreamOptions = {},
   ): Promise<ProviderChatCompletionResponse> {
     await this.syncHeaders?.()
 
@@ -260,7 +412,10 @@ export class AnthropicJsonClient implements ChatCompletionClient {
       throw new Error("API endpoint not configured")
     }
 
-    const payload = buildAnthropicPayload(request)
+    const payload = {
+      ...buildAnthropicPayload(request),
+      ...(request.stream ? { stream: true } : {}),
+    }
     const response = await fetch(endpoint, {
       method: "POST",
       headers: buildAnthropicHeaders(
@@ -275,6 +430,13 @@ export class AnthropicJsonClient implements ChatCompletionClient {
       throw new Error(
         `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
       )
+    }
+
+    if (request.stream) {
+      const contentType = response.headers.get("content-type") || ""
+      if (response.body && contentType.includes("text/event-stream")) {
+        return parseAnthropicStream(response, options)
+      }
     }
 
     const data = await response.json()

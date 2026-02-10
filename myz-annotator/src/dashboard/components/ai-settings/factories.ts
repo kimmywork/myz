@@ -16,6 +16,7 @@ export function createModelSetting(model = ""): AIModelSetting {
     id: createId("model"),
     model,
     enabled: true,
+    systemPromptInUserMessage: false,
     capabilities: {
       vision: false,
       imageOutput: false,
@@ -48,6 +49,7 @@ export function createProviderSetting(
     name: meta.defaultName,
     type,
     enabled: false,
+    streamingEnabled: true,
     baseUrl: "",
     apiKey: "",
     headers: "",

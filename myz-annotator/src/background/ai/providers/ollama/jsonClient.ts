@@ -107,7 +107,7 @@ export class OllamaJsonClient implements ChatCompletionClient {
 
   async createCompletion(
     request: ProviderChatCompletionRequest,
-    _options: ProviderStreamOptions = {},
+    options: ProviderStreamOptions = {},
   ): Promise<ProviderChatCompletionResponse> {
     await this.syncHeaders?.()
 
@@ -126,7 +126,7 @@ export class OllamaJsonClient implements ChatCompletionClient {
     const payload: any = {
       model: request.model,
       prompt,
-      stream: false,
+      stream: Boolean(request.stream),
       ...(system ? { system } : {}),
     }
     if (typeof request.temperature === "number" || typeof maxTokens === "number") {
@@ -149,6 +149,64 @@ export class OllamaJsonClient implements ChatCompletionClient {
       throw new Error(
         `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
       )
+    }
+
+    if (request.stream) {
+      if (!response.body) {
+        throw new Error("Empty streaming response body")
+      }
+      const decoder = new TextDecoder("utf-8")
+      let buffer = ""
+      let content = ""
+      let reasoning = ""
+      let finalPayload: any = null
+      const reader = response.body.getReader()
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let boundary = buffer.indexOf("\n")
+        while (boundary >= 0) {
+          const line = buffer.slice(0, boundary).trim()
+          buffer = buffer.slice(boundary + 1)
+          if (line) {
+            try {
+              const payloadLine = JSON.parse(line)
+              if (typeof payloadLine?.response === "string") {
+                content += payloadLine.response
+                options.onStreamDelta?.({ content, reasoning })
+              }
+              if (typeof payloadLine?.thinking === "string") {
+                reasoning += payloadLine.thinking
+                options.onStreamDelta?.({ content, reasoning })
+              }
+              if (payloadLine?.done) {
+                finalPayload = payloadLine
+              }
+            } catch {
+              // ignore invalid lines
+            }
+          }
+          boundary = buffer.indexOf("\n")
+        }
+      }
+
+      const message: ProviderMessage = {
+        role: "assistant",
+        content,
+      }
+      if (reasoning.trim()) {
+        message.reasoning_content = reasoning
+      }
+      return {
+        choices: [
+          {
+            index: 0,
+            message,
+          },
+        ],
+        ...(finalPayload ? finalPayload : {}),
+      }
     }
 
     const data = await response.json()

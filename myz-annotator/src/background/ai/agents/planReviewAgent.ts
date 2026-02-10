@@ -1,5 +1,6 @@
 import type { ChatCompletionClient } from "../providers/types.js"
 import type { AIModelSetting, MaxOutputTokenParam } from "../../settings.js"
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
 import type { TaskPlan, TaskPlanReview } from "../tasks/taskManager.js"
 
 function extractFirstJsonObject(text: string) {
@@ -96,9 +97,8 @@ export class PlanReviewAgent {
         ? "max_completion_tokens"
         : "max_tokens"
 
-    const request: any = {
-      model: options.model.model,
-      messages: [
+    const messages = injectSystemPromptAsUserMessage(
+      [
         { role: "system", content: buildSystemPrompt() },
         {
           role: "user",
@@ -108,6 +108,11 @@ export class PlanReviewAgent {
           }),
         },
       ],
+      Boolean(options.model?.systemPromptInUserMessage),
+    )
+    const request: any = {
+      model: options.model.model,
+      messages,
       temperature: 0.1,
       stream: false,
     }

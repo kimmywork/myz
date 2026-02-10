@@ -158,6 +158,7 @@ export interface ProcessConversationOptions {
   streamId?: string
   temperature?: number
   requiredToolNames?: string[]
+  conversationMode?: "agent" | "chat"
 }
 
 export interface ContextChunk {

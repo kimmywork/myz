@@ -7,6 +7,7 @@ import type {
 } from "../../settings.js"
 import { normalizeMessagePayload } from "../normalize/message.js"
 import { PromptBuilder } from "../prompt/builder.js"
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
 import { AUTO_HIGHLIGHT_CATEGORIES } from "@/shared/types.js"
 
 export interface AutoHighlightPayload {
@@ -321,7 +322,10 @@ export class AutoHighlightAgent {
 
     const request: ProviderChatCompletionRequest = {
       model: deps.callConfig.model.model,
-      messages: prompt.build(),
+      messages: injectSystemPromptAsUserMessage(
+        prompt.build(),
+        Boolean(deps.callConfig.model?.systemPromptInUserMessage),
+      ),
       temperature:
         typeof payload.temperature === "number"
           ? payload.temperature

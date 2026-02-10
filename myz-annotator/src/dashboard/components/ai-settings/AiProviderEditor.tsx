@@ -188,6 +188,27 @@ export default defineComponent({
           onChange={(headers) => updateProvider({ headers })}
         />
 
+        <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
+          <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+            Streaming
+          </div>
+          <label class="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
+            <span>启用 Streaming</span>
+            <input
+              type="checkbox"
+              checked={props.provider.streamingEnabled !== false}
+              onChange={(e) =>
+                updateProvider({
+                  streamingEnabled: (e.target as HTMLInputElement).checked,
+                })
+              }
+            />
+          </label>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            关闭后将使用非流式请求；默认启用。
+          </p>
+        </div>
+
         <AiModelListEditor
           models={props.provider.models}
           catalog={props.catalog}

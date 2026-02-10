@@ -17,6 +17,8 @@ export type TaskOwner = "planner" | "executor" | "research" | "automation" | "re
 export type TaskCategory = "quick" | "research" | "automation" | "reasoning"
 export type TaskPlanMode = "quick" | "orchestrated"
 
+const MAX_ARTIFACT_CHARS = 32000
+
 export interface TaskArtifact {
   type: "page-context" | "screenshot" | "dom-html" | "url" | "note" | "json"
   payload: any
@@ -124,6 +126,39 @@ function normalizeStringArray(value: any): string[] {
     .filter(Boolean)
 }
 
+function truncateArtifactPayload(payload: any) {
+  if (payload == null) return ""
+  if (typeof payload === "string") {
+    return payload.length > MAX_ARTIFACT_CHARS
+      ? payload.slice(0, MAX_ARTIFACT_CHARS)
+      : payload
+  }
+  let rawText = ""
+  try {
+    rawText = JSON.stringify(payload)
+  } catch {
+    rawText = String(payload)
+  }
+  if (rawText.length <= MAX_ARTIFACT_CHARS) {
+    return payload
+  }
+  return {
+    truncated: true,
+    content: rawText.slice(0, MAX_ARTIFACT_CHARS),
+    originalType: typeof payload,
+    size: rawText.length,
+  }
+}
+
+function enforceArtifactSize(artifact: any) {
+  if (!artifact || typeof artifact !== "object") return artifact
+  if (!("payload" in artifact)) return artifact
+  return {
+    ...artifact,
+    payload: truncateArtifactPayload((artifact as any).payload),
+  }
+}
+
 function normalizeArtifacts(value: any): TaskArtifact[] {
   if (!Array.isArray(value)) return []
   return value
@@ -144,10 +179,57 @@ function normalizeArtifacts(value: any): TaskArtifact[] {
       }
       return {
         type: type as TaskArtifact["type"],
-        payload: item.payload ?? "",
+        payload: truncateArtifactPayload(item.payload ?? ""),
       }
     })
     .filter(Boolean) as TaskArtifact[]
+}
+
+function rebuildTaskBlocks(plan: TaskPlan) {
+  plan.tasks.forEach((task) => {
+    task.blocks = []
+  })
+  plan.tasks.forEach((task) => {
+    task.blockedBy.forEach((blockedId) => {
+      const blocker = plan.tasks.find((item) => item.id === blockedId)
+      if (!blocker) return
+      if (!blocker.blocks.includes(task.id)) {
+        blocker.blocks.push(task.id)
+      }
+    })
+  })
+}
+
+function breakCyclicDependencies(plan: TaskPlan) {
+  const taskMap = new Map(plan.tasks.map((task) => [task.id, task]))
+  const visiting = new Set<string>()
+  const visited = new Set<string>()
+
+  const dfs = (taskId: string) => {
+    if (visited.has(taskId)) return
+    if (visiting.has(taskId)) return
+    const task = taskMap.get(taskId)
+    if (!task) return
+    visiting.add(taskId)
+    const deps = Array.isArray(task.blockedBy) ? [...task.blockedBy] : []
+    deps.forEach((dep) => {
+      if (!taskMap.has(dep)) return
+      if (visiting.has(dep)) {
+        task.blockedBy = task.blockedBy.filter((id) => id !== dep)
+        console.warn("Task plan has cyclic dependency, dropping edge", {
+          from: taskId,
+          to: dep,
+        })
+        return
+      }
+      dfs(dep)
+    })
+    task.blockedBy = Array.from(new Set(task.blockedBy))
+    visiting.delete(taskId)
+    visited.add(taskId)
+  }
+
+  plan.tasks.forEach((task) => dfs(task.id))
 }
 
 function resolveTaskDependencies(plan: TaskPlan) {
@@ -207,15 +289,9 @@ function resolveTaskDependencies(plan: TaskPlan) {
     task.blocks = Array.from(new Set(resolvedBlocks))
   })
 
-  plan.tasks.forEach((task) => {
-    task.blocks.forEach((blockedId) => {
-      const target = plan.tasks.find((item) => item.id === blockedId)
-      if (!target) return
-      if (!target.blockedBy.includes(task.id)) {
-        target.blockedBy.push(task.id)
-      }
-    })
-  })
+  rebuildTaskBlocks(plan)
+  breakCyclicDependencies(plan)
+  rebuildTaskBlocks(plan)
 }
 
 function computePlanStatus(plan: TaskPlan): TaskPlanStatus {
@@ -640,7 +716,7 @@ export async function attachDeliverableArtifact(options: {
       : []
   if (incoming.length > 0) {
     incoming.forEach((item) => {
-      deliverable?.artifacts.push(item as TaskArtifact)
+      deliverable?.artifacts.push(enforceArtifactSize(item) as TaskArtifact)
     })
   }
   deliverable.status = normalizeDeliverableStatus(options.status || "done")
@@ -705,6 +781,7 @@ export async function completeAllTasks(conversationId: string) {
     })
   })
   plan.currentTaskId = null
+  plan.status = "done"
   plan.status = computePlanStatus(plan)
   plan.updatedAt = new Date().toISOString()
   const updated = await updateConversationMetadata(conversationId, {

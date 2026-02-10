@@ -48,6 +48,7 @@ export interface AIModelSetting {
   capabilities: AIModelCapabilities;
   limits: AIModelLimits;
   tooling: AIToolControlSettings;
+  systemPromptInUserMessage?: boolean;
 }
 
 export interface AIProviderLastTestStatus {
@@ -62,6 +63,7 @@ export interface AIProviderSetting {
   name: string;
   type: AIProviderType;
   enabled: boolean;
+  streamingEnabled?: boolean;
   baseUrl: string;
   apiKey: string;
   headers: string;

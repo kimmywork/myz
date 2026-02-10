@@ -1,5 +1,6 @@
 import type { ChatCompletionClient } from "../providers/types.js"
 import type { AIModelSetting, MaxOutputTokenParam } from "../../settings.js"
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
 
 export interface SkillSelectionCandidate {
   name: string
@@ -85,15 +86,19 @@ export class SkillSelectionAgent {
         ? "max_completion_tokens"
         : "max_tokens"
 
-    const request: any = {
-      model: options.model.model,
-      messages: [
+    const messages = injectSystemPromptAsUserMessage(
+      [
         { role: "system", content: buildSystemPrompt() },
         {
           role: "user",
           content: buildUserPrompt(options.prompt, options.skills || []),
         },
       ],
+      Boolean(options.model?.systemPromptInUserMessage),
+    )
+    const request: any = {
+      model: options.model.model,
+      messages,
       temperature: 0.0,
       stream: false,
     }

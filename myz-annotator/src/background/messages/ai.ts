@@ -74,6 +74,41 @@ function generateDraftId(prefix = "draft") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function normalizeConversationMode(value: any): "agent" | "chat" | null {
+  if (value === "chat") return "chat"
+  if (value === "agent") return "agent"
+  return null
+}
+
+function resolveConversationMode(
+  requested: any,
+  stored: any,
+): "agent" | "chat" {
+  return (
+    normalizeConversationMode(requested) ||
+    normalizeConversationMode(stored) ||
+    "agent"
+  )
+}
+
+function supportsProviderStreaming(provider: AIProviderSetting) {
+  if (provider?.streamingEnabled === false) return false
+  switch (provider?.type) {
+    case "openai_compatible":
+    case "openai_responses":
+    case "gemini":
+    case "anthropic":
+    case "moonshot":
+    case "qwen":
+    case "vllm":
+    case "llama_cpp":
+    case "ollama":
+      return true
+    default:
+      return false
+  }
+}
+
 function buildPreflightTask(review?: { issues?: string[]; missingInfo?: string[] }) {
   const issues = Array.isArray(review?.issues) ? review?.issues : []
   const missingInfo = Array.isArray(review?.missingInfo) ? review?.missingInfo : []
@@ -412,7 +447,7 @@ export function initializeAIMessageHandlers() {
     async (payload: {
       conversationId: string
       message?: string
-      options?: { quickStart?: boolean; autoStart?: boolean }
+      options?: { quickStart?: boolean; autoStart?: boolean; selectionContextText?: string }
     }) => {
       const settings = await readSettings();
       if (!settings.aiAssistantEnabled) {
@@ -434,7 +469,14 @@ export function initializeAIMessageHandlers() {
 
       const existingPlan = await getTaskPlan(conversationId);
       const quickStart = Boolean(payload?.options?.quickStart)
-      const originalUserRequest = existingPlan?.originalUserRequest || normalizedMessage;
+      const selectionContextText =
+        typeof payload?.options?.selectionContextText === "string"
+          ? payload.options.selectionContextText.trim()
+          : ""
+      const baseRequest = selectionContextText
+        ? [normalizedMessage, `选中内容:\n${selectionContextText}`].filter(Boolean).join("\n\n")
+        : normalizedMessage
+      const originalUserRequest = existingPlan?.originalUserRequest || baseRequest;
       const reviewStatus = existingPlan?.planReview?.status;
       const reviewIssues = Array.isArray(existingPlan?.planReview?.issues)
         ? existingPlan?.planReview?.issues
@@ -450,10 +492,11 @@ export function initializeAIMessageHandlers() {
             "",
             `原始需求：${originalUserRequest}`,
             `补充信息：${normalizedMessage}`,
+            selectionContextText ? `补充选中内容：\n${selectionContextText}` : "补充选中内容：无",
             reviewIssues.length ? `审核问题：${reviewIssues.join("；")}` : "审核问题：无",
             reviewMissing.length ? `缺失信息：${reviewMissing.join("；")}` : "缺失信息：无",
           ].join("\n")
-        : normalizedMessage;
+        : baseRequest;
 
       const target = resolveAgentTarget(settings as any, "conversation");
       const runtime = await acquireProviderRuntime(target.provider as any, []);
@@ -499,6 +542,7 @@ export function initializeAIMessageHandlers() {
             "",
             `原始需求：${originalUserRequest}`,
             `补充信息：${normalizedMessage}`,
+            selectionContextText ? `补充选中内容：\n${selectionContextText}` : "补充选中内容：无",
             "现有计划：",
             JSON.stringify(
               {
@@ -725,6 +769,12 @@ export function initializeAIMessageHandlers() {
         throw new Error("message is required");
       }
 
+      const conversation = await getConversation(conversationId)
+      const conversationMode = resolveConversationMode(
+        options?.conversationMode,
+        conversation?.metadata?.assistantMode,
+      )
+
       const baseTarget = resolveAgentTarget(settings as any, "conversation");
       let target = baseTarget;
       if (normalizedAttachments.length > 0 && !baseTarget.model.capabilities?.vision) {
@@ -747,9 +797,9 @@ export function initializeAIMessageHandlers() {
         runtime.session.mcp.setConversationContext({ conversationId })
 
         const aiLocalTools = (settings as any)?.aiLocalTools
-        const superpowerEnabled = Boolean(
-          (settings as any)?.aiAgents?.conversation?.superpowerMode,
-        )
+        const superpowerEnabled =
+          Boolean((settings as any)?.aiAgents?.conversation?.superpowerMode) &&
+          conversationMode !== "chat"
         const skillPayload = superpowerEnabled
           ? { skillNames: [], skillList: [] }
           : await resolveSkillContext({
@@ -815,13 +865,12 @@ export function initializeAIMessageHandlers() {
             ...(options || {}),
             includePageContext:
               includePageContext ?? options?.includePageContext ?? true,
+            conversationMode,
             attachments: normalizedAttachments,
             stream:
               typeof options?.stream === "boolean"
                 ? options.stream
-                : superpowerEnabled
-                  ? target.provider.type === "openai_responses"
-                  : true,
+                : supportsProviderStreaming(target.provider),
             metadata: {
               ...(options?.metadata || {}),
               ...(context?.url ? { url: context.url } : {}),
@@ -1169,9 +1218,14 @@ export function initializeAIMessageHandlers() {
         const { conversationId, action, content, options = {} } = payload || {};
 
         const aiLocalTools = (settings as any)?.aiLocalTools
-        const superpowerEnabled = Boolean(
-          (settings as any)?.aiAgents?.conversation?.superpowerMode,
+        const conversation = await getConversation(conversationId)
+        const conversationMode = resolveConversationMode(
+          options?.conversationMode,
+          conversation?.metadata?.assistantMode,
         )
+        const superpowerEnabled =
+          Boolean((settings as any)?.aiAgents?.conversation?.superpowerMode) &&
+          conversationMode !== "chat"
         const skillPayload = await resolveSkillContext({
           conversationId,
           message: content,
@@ -1224,6 +1278,11 @@ export function initializeAIMessageHandlers() {
               ...(options?.metadata || {}),
               ...skillMetadata,
             },
+            stream:
+              typeof options?.stream === "boolean"
+                ? options.stream
+                : supportsProviderStreaming(target.provider),
+            conversationMode,
           },
           {
             client: client as any,

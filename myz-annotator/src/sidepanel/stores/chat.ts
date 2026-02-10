@@ -15,6 +15,7 @@ import {
   getMessagesForConversation,
   checkContextSize,
   deleteMessagesByConversationAndType,
+  updateConversationMetadata,
   ConversationInfo,
 } from "../aiStorage.js";
 import { usePageStore } from "./page.js";
@@ -75,6 +76,11 @@ export const useChatStore = defineStore("chat", () => {
     baseContextWindow: 32768,
     multimodalContextWindow: null as number | null,
   });
+  const conversationMode = ref<"agent" | "chat">("chat");
+  const superpowerEnabled = computed(() => aiConfig.superpowerMode);
+  const isAgentMode = computed(
+    () => aiConfig.superpowerMode && conversationMode.value === "agent",
+  );
   const contextInfo = reactive({
     size: 0,
     maxSize: 32768,
@@ -135,6 +141,31 @@ export const useChatStore = defineStore("chat", () => {
     text: "",
     attachments: [],
   });
+
+  function normalizeConversationMode(value: any): "agent" | "chat" {
+    return value === "chat" ? "chat" : "agent";
+  }
+
+  function resolveConversationMode(value: any) {
+    return aiConfig.superpowerMode ? normalizeConversationMode(value) : "chat";
+  }
+
+  async function setConversationMode(mode: "agent" | "chat") {
+    const nextMode = resolveConversationMode(mode);
+    if (conversationMode.value === nextMode) return;
+    conversationMode.value = nextMode;
+    if (!conversationId.value) return;
+    try {
+      const updated = await updateConversationMetadata(conversationId.value, {
+        assistantMode: nextMode,
+      });
+      if (updated) {
+        activeConversation.value = updated;
+      }
+    } catch (e) {
+      console.warn("Failed to update conversation mode", e);
+    }
+  }
 
   function clearDraftContext() {
     draftContext.present = false;
@@ -335,6 +366,7 @@ export const useChatStore = defineStore("chat", () => {
       const convId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const url = pageStore.currentUrl || "";
       const title = pageStore.pageTitle || "新对话";
+      const defaultMode = resolveConversationMode("agent");
       const conversationData: ConversationInfo & Record<string, any> = {
         id: convId,
         url,
@@ -344,12 +376,13 @@ export const useChatStore = defineStore("chat", () => {
         updatedAt: new Date().toISOString(),
         isAiGenerated: false,
         sendContextEnabled: sendContext.value,
-        metadata: {},
+        metadata: { assistantMode: defaultMode },
       };
 
       await saveConversation(conversationData);
       conversationId.value = convId;
       activeConversation.value = conversationData;
+      conversationMode.value = defaultMode;
       messages.value = [];
       await writeActiveConversationId(convId);
       await taskPlanStore.loadPlan(convId);
@@ -429,6 +462,7 @@ export const useChatStore = defineStore("chat", () => {
       if (conv) {
         conversationId.value = conv.id;
         activeConversation.value = conv;
+        conversationMode.value = resolveConversationMode(conv.metadata?.assistantMode);
         await writeActiveConversationId(conv.id);
         await taskPlanStore.loadPlan(conv.id);
         const msgs = await getMessagesForConversation(convId, 1000);
@@ -492,7 +526,7 @@ export const useChatStore = defineStore("chat", () => {
 
   async function sendUserMessage(content: string) {
     const trimmed = (content || "").trim();
-    const autoMode = aiConfig.superpowerMode;
+    const autoMode = isAgentMode.value;
     const cleanedMessage = trimmed.replace(/\b(ulw|ultrawork)\b/gi, "").replace(/\s+/g, " ").trim();
     const effectiveMessage = cleanedMessage || trimmed;
     const draftEnabled = Boolean(draftContext.present && draftContext.enabled);
@@ -504,6 +538,9 @@ export const useChatStore = defineStore("chat", () => {
       ...(draftEnabled ? draftAttachments : []),
       ...attachments.value,
     ];
+    const resolvedConversationMode = aiConfig.superpowerMode
+      ? conversationMode.value
+      : "chat";
 
     if ((!trimmed && !combinedAttachments.length && !draftText) || isLoading.value) {
       return;
@@ -576,7 +613,7 @@ export const useChatStore = defineStore("chat", () => {
 
       const plan = taskPlanStore.taskPlan;
       const needsPlanning =
-        aiConfig.superpowerMode && (!plan || plan.status === "needs_revision");
+        autoMode && (!plan || plan.status === "needs_revision");
       if (needsPlanning) {
         try {
           const planResult: any = await sendMessage("myz:aiPlanRequest", {
@@ -585,6 +622,7 @@ export const useChatStore = defineStore("chat", () => {
             options: {
               quickStart: autoMode,
               autoStart: autoMode,
+              selectionContextText,
             },
           });
           await taskPlanStore.loadPlan(conversationId.value);
@@ -650,11 +688,12 @@ export const useChatStore = defineStore("chat", () => {
         clientMessageId,
         options: selectionContextText
           ? {
+              conversationMode: resolvedConversationMode,
               metadata: {
                 selectionContextText,
               },
             }
-          : undefined,
+          : { conversationMode: resolvedConversationMode },
         context: {
           url: pageStore.currentUrl,
           title: pageStore.pageTitle,
@@ -855,26 +894,30 @@ export const useChatStore = defineStore("chat", () => {
     isLoading.value = false;
     pendingRequestId.value = null;
 
-    if (aiConfig.superpowerMode && conversationId.value && !isValidating.value) {
-      const plan = taskPlanStore.taskPlan;
-      const reviewPassed = plan?.planReview?.status === "pass";
-      if (reviewPassed && plan?.status === "done" && plan?.validation?.status !== "pass") {
-        isValidating.value = true;
-        void sendMessage("myz:aiValidateRequest", {
-          conversationId: conversationId.value,
-        })
-          .catch((e) => {
-            console.warn("Validation failed", e);
-          })
-          .finally(() => {
-            isValidating.value = false;
-          });
-      }
-    }
+    maybeTriggerValidation(taskPlanStore.taskPlan);
     
     const uiStore = useUIStore();
     uiStore.scrollToBottom();
     checkContext();
+  }
+
+  function maybeTriggerValidation(plan: any) {
+    if (!isAgentMode.value || !conversationId.value || isValidating.value) {
+      return;
+    }
+    const reviewPassed = plan?.planReview?.status === "pass";
+    if (reviewPassed && plan?.status === "done" && plan?.validation?.status !== "pass") {
+      isValidating.value = true;
+      void sendMessage("myz:aiValidateRequest", {
+        conversationId: conversationId.value,
+      })
+        .catch((e) => {
+          console.warn("Validation failed", e);
+        })
+        .finally(() => {
+          isValidating.value = false;
+        });
+    }
   }
 
   function handleStreamErrorEvent(data: MessageStreamData) {
@@ -941,6 +984,9 @@ export const useChatStore = defineStore("chat", () => {
       } else {
         contextInfo.threshold = 80;
       }
+      if (!aiConfig.superpowerMode) {
+        conversationMode.value = "chat";
+      }
     } catch {
       aiConfig.assistantEnabled = false;
       aiConfig.supportsVision = false;
@@ -951,6 +997,7 @@ export const useChatStore = defineStore("chat", () => {
       aiConfig.baseContextWindow = 32768;
       aiConfig.multimodalContextWindow = null;
       contextInfo.threshold = 80;
+      conversationMode.value = "chat";
     }
   }
 
@@ -1036,6 +1083,7 @@ export const useChatStore = defineStore("chat", () => {
         const payload = message.data as any;
         if (payload?.conversationId === conversationId.value) {
           taskPlanStore.setPlan(payload.plan);
+          maybeTriggerValidation(payload.plan);
         }
       } else if (message.type === "myz:aiSkillSelection" && message.data) {
         const data = message.data! as MessageStreamData;
@@ -1140,6 +1188,9 @@ export const useChatStore = defineStore("chat", () => {
     attachments,
     contextInfo,
     canAttachImages,
+    superpowerEnabled,
+    conversationMode,
+    isAgentMode,
     addImageFiles,
     removeAttachment,
     resetAttachments,
@@ -1163,6 +1214,7 @@ export const useChatStore = defineStore("chat", () => {
     runAutoInsights,
     closeAutoInsights,
     toggleContext,
+    setConversationMode,
     initialize,
     cleanup,
     startNewConversationForContext,

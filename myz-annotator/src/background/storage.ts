@@ -117,6 +117,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       id: typeof model?.id === "string" ? model.id : "",
       model: typeof model?.model === "string" ? model.model : "",
       enabled: Boolean(model?.enabled),
+      systemPromptInUserMessage: Boolean(model?.systemPromptInUserMessage),
       capabilities: {
         vision: Boolean(capabilities?.vision),
         imageOutput: Boolean(capabilities?.imageOutput),
@@ -148,6 +149,8 @@ function normalizeSettings<T extends Settings>(settings: T): T {
   settings.aiProviders = settings.aiProviders.map((provider: any) => ({
     ...provider,
     type: typeof provider?.type === "string" ? provider.type : "openai_compatible",
+    streamingEnabled:
+      typeof provider?.streamingEnabled === "boolean" ? provider.streamingEnabled : true,
     models: Array.isArray(provider?.models)
       ? provider.models.map((model: any) => normalizeModelSetting(model))
       : [],

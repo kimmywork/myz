@@ -8,6 +8,7 @@ import { resolveAgentTarget } from "../runtime/agentSelection.js"
 import { createProviderSession } from "../runtime/providerSession.js"
 import { ToolSelectionAgent } from "../agents/toolSelectionAgent.js"
 import { SkillSelectionAgent } from "../agents/skillSelectionAgent.js"
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
 import {
   attachDeliverableArtifact,
   completeAllTasks,
@@ -37,6 +38,75 @@ function normalizeSearchEngine(value: any): "bing" | "google" {
 
 function normalizeSearchQuery(value: any) {
   return typeof value === "string" ? value.trim() : ""
+}
+
+function normalizeTaskAction(value: any) {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : ""
+  if (!raw) return ""
+  const normalized = raw.replace(/[\s-]+/g, "_")
+  const aliases: Record<string, string> = {
+    completeall: "complete_all",
+    complete_all: "complete_all",
+    list_tasks: "list",
+    get_tasks: "get",
+    update_task: "update",
+    attach_task: "attach",
+    init_plan: "init",
+  }
+  const mapped = aliases[normalized] || normalized
+  const allowed = new Set(["init", "update", "attach", "get", "list", "complete_all"])
+  return allowed.has(mapped) ? mapped : ""
+}
+
+function normalizeCompatText(value: any) {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function resolveCompatTaskPayload(payload: any) {
+  const subagentType = normalizeCompatText(
+    payload?.subagent_type ||
+      payload?.subagentType ||
+      payload?.agent ||
+      payload?.agent_type ||
+      payload?.role,
+  )
+  const prompt = normalizeCompatText(
+    payload?.prompt || payload?.task || payload?.instructions || payload?.input,
+  )
+  const description = normalizeCompatText(
+    payload?.description || payload?.title || payload?.summary,
+  )
+  const taskId = normalizeCompatText(payload?.task_id || payload?.taskId)
+  const command = normalizeCompatText(payload?.command)
+  const model = payload?.model && typeof payload.model === "object" ? payload.model : null
+  const managementSignals = [
+    payload?.taskId,
+    payload?.status,
+    payload?.patch,
+    payload?.currentTaskId,
+    payload?.originalUserRequest,
+    payload?.tasks,
+    payload?.assumptions,
+    payload?.deliverableId,
+    payload?.deliverableIndex,
+    payload?.artifact,
+    payload?.artifacts,
+  ]
+  const hasManagementSignals = managementSignals.some((item) => typeof item !== "undefined")
+  const shouldDelegate =
+    Boolean(subagentType || prompt || command) ||
+    (Boolean(description) && !hasManagementSignals)
+
+  if (!shouldDelegate) return null
+
+  return {
+    subagentType,
+    prompt: prompt || description,
+    description,
+    taskId,
+    command,
+    model,
+  }
 }
 
 function buildSearchUrl(engine: "bing" | "google", query: string) {
@@ -952,17 +1022,68 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
     },
     "Task": async (args: any = {}) => {
       const payload = args && typeof args.payload === "object" && args.payload ? args.payload : args
-      const action =
-        typeof payload.action === "string"
-          ? payload.action.trim().toLowerCase().replace(/-/g, "_")
-          : ""
+      const payloadKeys = payload && typeof payload === "object" ? Object.keys(payload) : []
+      const meaningfulKeys = payloadKeys.filter((key) => key !== "conversationId")
+      const isEmptyPayload = meaningfulKeys.length === 0
+      let action =
+        normalizeTaskAction(payload.action) ||
+        normalizeTaskAction(payload.op) ||
+        normalizeTaskAction(payload.operation) ||
+        normalizeTaskAction(payload.type) ||
+        normalizeTaskAction(payload.method)
       const conversationId =
         typeof args.conversationId === "string" ? args.conversationId.trim() : ""
       if (!action) {
-        return {
-          content: [{ type: "text", text: "action 是必填项。" }],
-          data: null,
-          isError: true,
+        const compat = resolveCompatTaskPayload(payload)
+        if (compat) {
+          if (!conversationId) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "当前会话上下文不可用，无法执行 Task。",
+                },
+              ],
+              data: null,
+              isError: true,
+            }
+          }
+
+          if (!compat.prompt) {
+            return {
+              content: [{ type: "text", text: "Task 兼容模式缺少 prompt/description。" }],
+              data: null,
+              isError: true,
+            }
+          }
+
+          const systemLines = [
+            "Task 兼容模式：请作为子代理执行以下任务。",
+            compat.subagentType ? `子代理类型: ${compat.subagentType}` : "",
+            compat.description ? `任务摘要: ${compat.description}` : "",
+            compat.taskId ? `续跑 task_id: ${compat.taskId}` : "",
+            compat.command ? `触发命令: ${compat.command}` : "",
+          ].filter(Boolean)
+
+          const result = await LOCAL_TOOL_HANDLERS.PromptingAgent({
+            conversationId,
+            payload: {
+              prompt: compat.prompt,
+              system: systemLines.join("\n"),
+              outputFormat: "text",
+            },
+          })
+          const data = {
+            ...(result.data || {}),
+            compat: {
+              subagent_type: compat.subagentType,
+              task_id: compat.taskId,
+              description: compat.description,
+              command: compat.command,
+              model: compat.model,
+            },
+          }
+          return { ...result, data }
         }
       }
       if (!conversationId) {
@@ -975,6 +1096,43 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
           ],
           data: null,
           isError: true,
+        }
+      }
+
+      if (!action) {
+        if (
+          typeof payload.originalUserRequest === "string" ||
+          Array.isArray(payload.tasks) ||
+          Array.isArray(payload.assumptions)
+        ) {
+          action = "init"
+        } else if (
+          typeof payload.status === "string" ||
+          typeof payload.currentTaskId === "string" ||
+          (payload.patch && typeof payload.patch === "object")
+        ) {
+          action = "update"
+        } else if (
+          typeof payload.deliverableId === "string" ||
+          typeof payload.deliverableIndex === "number" ||
+          typeof payload.description === "string" ||
+          payload.artifact ||
+          payload.artifacts
+        ) {
+          action = "attach"
+        } else if (typeof payload.taskId === "string") {
+          action = "update"
+        } else if (typeof payload.reason === "string" || typeof payload.role === "string") {
+          action = "complete_all"
+        } else if (
+          typeof payload.onlyUnblocked === "boolean" ||
+          Array.isArray(payload.statusList) ||
+          Array.isArray(payload.status)
+        ) {
+          action = "list"
+        } else {
+          const existing = await getTaskPlan(conversationId)
+          action = existing ? "list" : "get"
         }
       }
 
@@ -1075,8 +1233,11 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
 
       if (action === "get") {
         const plan = await getTaskPlan(conversationId)
+        const hint = isEmptyPayload
+          ? "提示: 调用 Task 时请提供 action 字段，例如 {\"action\":\"get\"}。"
+          : ""
         const contentText = appendToolData(
-          plan ? "已获取任务计划。" : "未找到任务计划。",
+          [hint, plan ? "已获取任务计划。" : "未找到任务计划。"].filter(Boolean).join("\n"),
           plan,
           6000,
         )
@@ -1098,8 +1259,13 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
               status: statusList.length ? statusList : undefined,
             })
           : (await getTaskPlan(conversationId))?.tasks || []
+        const hint = isEmptyPayload
+          ? "提示: 调用 Task 时请提供 action 字段，例如 {\"action\":\"list\"}。"
+          : ""
         const contentText = appendToolData(
-          data.length ? `已获取 ${data.length} 个任务。` : "未找到任务。",
+          [hint, data.length ? `已获取 ${data.length} 个任务。` : "未找到任务。"]
+            .filter(Boolean)
+            .join("\n"),
           data,
           6000,
         )
@@ -1107,6 +1273,37 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
       }
 
       if (action === "complete_all") {
+        const reason = typeof payload.reason === "string" ? payload.reason.trim() : ""
+        const role = typeof payload.role === "string" ? payload.role.trim() : ""
+        if (!reason) {
+          return {
+            content: [{ type: "text", text: "complete_all 需要提供 reason。" }],
+            data: null,
+            isError: true,
+          }
+        }
+        if (!role) {
+          return {
+            content: [{ type: "text", text: "complete_all 需要提供 role=validator。" }],
+            data: null,
+            isError: true,
+          }
+        }
+        if (role !== "validator") {
+          return {
+            content: [{ type: "text", text: "complete_all 仅允许 validator 调用。" }],
+            data: null,
+            isError: true,
+          }
+        }
+        const existingPlan = await getTaskPlan(conversationId)
+        if (existingPlan?.planReview?.status !== "pass") {
+          return {
+            content: [{ type: "text", text: "complete_all 需要 Plan Review 通过。" }],
+            data: null,
+            isError: true,
+          }
+        }
         const plan = await completeAllTasks(conversationId)
         const contentText = appendToolData("所有任务已标记完成。", plan, 6000)
         return { content: [{ type: "text", text: contentText }], data: plan }
@@ -1242,10 +1439,13 @@ const LOCAL_TOOL_HANDLERS: Record<string, (args?: any) => Promise<ToolExecutionR
 
         const request: any = {
           model: target.model.model,
-          messages: [
-            { role: "system", content: systemLines.join("\n") },
-            { role: "user", content: prompt },
-          ],
+          messages: injectSystemPromptAsUserMessage(
+            [
+              { role: "system", content: systemLines.join("\n") },
+              { role: "user", content: prompt },
+            ],
+            Boolean(target.model?.systemPromptInUserMessage),
+          ),
           temperature: outputFormat === "json" ? 0.1 : 0.2,
           stream: false,
         }

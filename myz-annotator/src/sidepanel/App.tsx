@@ -155,7 +155,7 @@ export default defineComponent({
               </div>
             </header>
             <ContextStatusBar />
-            <TaskPlanPanel />
+            {chatStore.isAgentMode && <TaskPlanPanel />}
             {chatStore.autoInsights.active && chatStore.autoInsights.loading && (
               <p class="mt-2 text-xs text-indigo-600 dark:text-indigo-300">
                 正在生成

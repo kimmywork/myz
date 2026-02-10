@@ -375,10 +375,6 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
           type: "integer",
           description: "交付物序号（可选，0-based）。",
         },
-        description: {
-          type: "string",
-          description: "交付物描述（可选，用于匹配或新增）。",
-        },
         artifact: {
           type: "object",
           description: "交付物产出摘要或结构化内容。",
@@ -396,6 +392,15 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
           type: "array",
           description: "list 动作：按状态过滤。",
           items: { type: "string" },
+        },
+        reason: {
+          type: "string",
+          description: "complete_all 动作用：说明原因。",
+        },
+        role: {
+          type: "string",
+          enum: ["validator"],
+          description: "complete_all 动作用：调用角色。",
         },
       },
     },

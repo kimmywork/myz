@@ -2,6 +2,7 @@ import type { ChatCompletionClient } from "../providers/types.js"
 import type { ContextChunk, PageInsightPayload } from "../types.js"
 import { normalizeMessagePayload } from "../normalize/message.js"
 import { PromptBuilder } from "../prompt/builder.js"
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
 import type { AIModelSetting, AIProviderSetting, MaxOutputTokenParam } from "../../settings.js"
 
 export interface InsightsAgentDeps {
@@ -168,7 +169,10 @@ export class InsightsAgent {
       })
     })
 
-    const conversationMessages = prompt.build()
+    const conversationMessages = injectSystemPromptAsUserMessage(
+      prompt.build(),
+      Boolean(deps.callConfig.model?.systemPromptInUserMessage),
+    )
     const markdownParts = []
     const rawResponses = []
     let attempts = 0

@@ -4,6 +4,7 @@ import type {
   ProviderChatCompletionResponse,
   ProviderMessage,
   ProviderStreamOptions,
+  ProviderToolCall,
 } from "../types.js"
 import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js"
 import { coerceContentToText, normalizeBaseUrl, parseDataUrl, safeJsonParse } from "../utils.js"
@@ -39,6 +40,19 @@ function buildGeminiGenerateUrl(baseUrl: string, model: string): string {
     ? trimmedModel
     : `models/${trimmedModel}`
   return `${base}/${modelPath}:generateContent`
+}
+
+function buildGeminiStreamUrl(baseUrl: string, model: string): string {
+  const normalized = normalizeBaseUrl(baseUrl)
+  if (!normalized) return ""
+  const base = normalized.endsWith("/models")
+    ? normalized.slice(0, -"/models".length)
+    : normalized
+  const trimmedModel = typeof model === "string" ? model.trim() : ""
+  const modelPath = trimmedModel.startsWith("models/")
+    ? trimmedModel
+    : `models/${trimmedModel}`
+  return `${base}/${modelPath}:streamGenerateContent?alt=sse`
 }
 
 function buildGeminiHeaders(apiKey: string, headers: string): Record<string, string> {
@@ -290,6 +304,140 @@ function extractGeminiMessage(payload: any): ProviderMessage {
   return message
 }
 
+async function parseGeminiStream(
+  response: Response,
+  options: ProviderStreamOptions,
+): Promise<ProviderChatCompletionResponse> {
+  if (!response.body) {
+    throw new Error("Empty streaming response body")
+  }
+
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+  let content = ""
+  let usage: any = null
+  const toolCalls = new Map<
+    string,
+    { id: string; name: string; argsText: string; thoughtSignature?: string }
+  >()
+
+  const appendContent = (text: string) => {
+    if (!text) return
+    content += text
+    options.onStreamDelta?.({ content })
+  }
+
+  const ensureToolCall = (id: string) => {
+    if (!toolCalls.has(id)) {
+      toolCalls.set(id, { id, name: "", argsText: "" })
+    }
+    return toolCalls.get(id)!
+  }
+
+  const handleParts = (parts: any[]) => {
+    parts.forEach((part: any, index: number) => {
+      if (!part) return
+      if (typeof part.text === "string") {
+        appendContent(part.text)
+        return
+      }
+      if (part.functionCall) {
+        const call = part.functionCall
+        const callId = call.id || `call-${index + 1}`
+        const entry = ensureToolCall(callId)
+        entry.name = call.name || entry.name
+        if (typeof call.args === "string") {
+          entry.argsText += call.args
+        } else if (call.args && typeof call.args === "object") {
+          entry.argsText = JSON.stringify(call.args)
+        }
+        if (part.thoughtSignature) {
+          entry.thoughtSignature = part.thoughtSignature
+        }
+      }
+    })
+  }
+
+  const handlePayload = (payload: any) => {
+    if (!payload) return
+    if (payload?.usageMetadata) {
+      usage = payload.usageMetadata
+    }
+    const candidates = Array.isArray(payload?.candidates) ? payload.candidates : []
+    const candidate = candidates[0] || {}
+    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []
+    if (parts.length) {
+      handleParts(parts)
+    }
+  }
+
+  const reader = response.body.getReader()
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    buffer = buffer.replace(/\r\n/g, "\n")
+    let boundary = buffer.indexOf("\n\n")
+    while (boundary >= 0) {
+      const rawEvent = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+      const dataLines = rawEvent
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .filter(Boolean)
+      if (dataLines.length) {
+        const dataStr = dataLines.join("\n")
+        if (dataStr === "[DONE]") {
+          boundary = -1
+          break
+        }
+        const parsed = safeJsonParse(dataStr)
+        if (parsed) {
+          handlePayload(parsed)
+        }
+      }
+      boundary = buffer.indexOf("\n\n")
+    }
+  }
+
+  const toolCallsArray: ProviderToolCall[] = Array.from(toolCalls.values()).map((call) => {
+    let argsText = call.argsText.trim()
+    if (!argsText) {
+      argsText = "{}"
+    } else {
+      const parsed = safeJsonParse(argsText)
+      if (parsed) {
+        argsText = JSON.stringify(parsed)
+      }
+    }
+    return {
+      id: call.id,
+      type: "function",
+      function: {
+        name: call.name || "unknown",
+        arguments: argsText,
+      },
+      ...(call.thoughtSignature
+        ? { extra_content: { google: { thoughtSignature: call.thoughtSignature } } }
+        : {}),
+    }
+  })
+
+  const message: ProviderMessage = {
+    role: "assistant",
+    content,
+  }
+  if (toolCallsArray.length) {
+    message.tool_calls = toolCallsArray
+  }
+
+  return {
+    choices: [{ index: 0, message }],
+    ...(usage ? { usage } : {}),
+  }
+}
+
 export class GeminiJsonClient implements ChatCompletionClient {
   private baseUrl: ValueOrGetter<string>
   private apiKey: ValueOrGetter<string>
@@ -305,11 +453,13 @@ export class GeminiJsonClient implements ChatCompletionClient {
 
   async createCompletion(
     request: ProviderChatCompletionRequest,
-    _options: ProviderStreamOptions = {},
+    options: ProviderStreamOptions = {},
   ): Promise<ProviderChatCompletionResponse> {
     await this.syncHeaders?.()
 
-    const endpoint = buildGeminiGenerateUrl(resolveValue(this.baseUrl), request.model)
+    const endpoint = request.stream
+      ? buildGeminiStreamUrl(resolveValue(this.baseUrl), request.model)
+      : buildGeminiGenerateUrl(resolveValue(this.baseUrl), request.model)
     if (!endpoint) {
       throw new Error("API endpoint not configured")
     }
@@ -329,6 +479,13 @@ export class GeminiJsonClient implements ChatCompletionClient {
       throw new Error(
         `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
       )
+    }
+
+    if (request.stream) {
+      const contentType = response.headers.get("content-type") || ""
+      if (response.body && contentType.includes("text/event-stream")) {
+        return parseGeminiStream(response, options)
+      }
     }
 
     const payload = await response.json()
