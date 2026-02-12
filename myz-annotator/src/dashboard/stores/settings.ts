@@ -308,9 +308,17 @@ export const useSettingsStore = defineStore("settings", () => {
                             ? result.sync.s3.prefix
                             : settings.sync.s3.prefix,
                       }
-                    : settings.sync.s3,
-              }
-            : settings.sync,
+                      : settings.sync.s3,
+                }
+              : settings.sync,
+        lastUsedColor:
+          typeof result.lastUsedColor === "string" && result.lastUsedColor.trim()
+            ? result.lastUsedColor
+            : settings.lastUsedColor,
+        lastUsedStyle:
+          result.lastUsedStyle && Object.values(HIGHLIGHT_STYLES).includes(result.lastUsedStyle)
+            ? result.lastUsedStyle
+            : settings.lastUsedStyle,
       });
     } catch (error) {
       console.error("Failed to load settings", error);

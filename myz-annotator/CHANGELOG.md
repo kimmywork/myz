@@ -1,5 +1,12 @@
 # Changelog
 
+# v0.4.1 Dashboard 路由与导入增强
+
+- 重构了 Dashboard（docs/plan/vuerouter-refactoring.md）。
+- 设置页面加入了 sidebar。
+- 加入了 Dashboard 的聊天页面。
+- 加入了 RainDrop 和 Chrome 书签的导入支持。
+
 # v0.4.0 Superpower Mode 与多 Agent 协作
 
 - 实现 Superpower Mode，加入多 Agent 协作流程（规划 → 审核 → 执行 → 验证）与任务编排。

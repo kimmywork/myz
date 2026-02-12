@@ -488,7 +488,6 @@ export class ConversationAgent {
     const baseLines = [
       "你是浏览器智能助理，运行于 Chrome Extension / MV3。",
       "优先用工具获取事实；需要最新信息时使用 WebSearch/WebFetch。",
-      `只有在确需用户输入时才可提问，且问题前必须输出 ${REQUIRE_USER_INPUT_MARKER}。`,
       `当前时间: ${injectedAtLocal} (${timeZone}, ${utcOffset})`,
       `本次对话创建时是否启用网页上下文: ${includePageContext ? "是" : "否"}`,
       `当前线程是否已保存网页上下文: ${hasSavedPageContext ? "是" : "否"}`,
@@ -497,6 +496,7 @@ export class ConversationAgent {
     const superpowerLines = superpowerEnabled
       ? [
           "Superpower Mode 已启用：可控制标签页与页面元素。",
+          `只有在确需用户输入时才可提问，且问题前必须输出 ${REQUIRE_USER_INPUT_MARKER}。`,
           "截图成本高，仅在必要时使用。",
           "必须使用 Task 跟踪任务与交付物。",
           "Superpower Mode 默认启用全部技能，可用 Read 访问 /skills/。",
@@ -908,6 +908,7 @@ export class ConversationAgent {
         "Superpower Mode 已启用。",
         "必须使用 Task 跟踪任务与交付物。",
         "调用 Task 时必须提供 action 字段，例如 {\"action\":\"get\"}。",
+        `仅在确需用户输入时提问，且问题前必须输出 ${REQUIRE_USER_INPUT_MARKER}。`,
         "默认启用全部技能，可用 Read 访问 /skills/。",
         "优先遵循 /skills/browser-operations/SKILL.md。",
         "截图用 RunDomActions.captureViewport，谨慎使用。",

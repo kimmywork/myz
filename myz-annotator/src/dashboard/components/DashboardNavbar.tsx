@@ -14,6 +14,12 @@ export default defineComponent({
         isActive: (path: string) => path.startsWith("/highlights"),
       },
       {
+        key: "chat",
+        label: "聊天",
+        to: "/chat",
+        isActive: (path: string) => path.startsWith("/chat"),
+      },
+      {
         key: "settings",
         label: "设置",
         to: "/settings",

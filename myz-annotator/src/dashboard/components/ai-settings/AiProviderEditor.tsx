@@ -53,7 +53,24 @@ export default defineComponent({
       { deep: true, immediate: true },
     )
 
-    const canEnable = computed(() => Boolean(props.provider.lastTest?.ok))
+    const canEnable = computed(() => {
+      if (!props.provider.lastTest?.ok) return false
+      const models = props.provider.models || []
+      const enabledModels = models.filter((m) => m.enabled)
+      if (!enabledModels.length) return false
+      const testedModel = String(props.provider.lastTest?.model || "").trim()
+      if (!testedModel) return false
+      return enabledModels.some((model) => String(model.model || "").trim() === testedModel)
+    })
+
+    watch(
+      () => canEnable.value,
+      (enabled) => {
+        if (!enabled && props.provider.enabled) {
+          updateProvider({ enabled: false })
+        }
+      },
+    )
 
     const selectedTestModel = computed(
       () => availableModels.value.find((m) => m.id === testModelId.value) || null,
@@ -70,6 +87,13 @@ export default defineComponent({
     const renderTestHint = () => {
       if (!props.provider.lastTest) {
         return <p class="text-xs text-slate-500">未测试，无法启用</p>
+      }
+      if (props.provider.lastTest.ok && !canEnable.value) {
+        return (
+          <p class="text-xs text-amber-600">
+            已测试通过，请启用对应模型后再启用 Provider
+          </p>
+        )
       }
       return (
         <p

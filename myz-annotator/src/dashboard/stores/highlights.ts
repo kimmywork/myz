@@ -3,7 +3,7 @@ import { computed, reactive, ref, Ref } from "vue";
 import { IMPORT_MAX_BYTES } from "../constants.js";
 import { ImportStrategy } from "@/background/import.js";
 import { downloadFile } from "@/dashboard/utils/download.js";
-import { normalizeImportedPayload } from "@/dashboard/utils/import.js";
+import { appendImportedTag, parseImportFile } from "@/dashboard/utils/import.js";
 import { normalizeRecord, recordToMarkdown } from "@/dashboard/utils/records.js";
 import { sendMessage } from "@/shared/messaging.js";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
@@ -335,7 +335,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
     strategy: ImportStrategy,
   ) {
     if (!file) {
-      setTimedImportStatus("请先选择 JSON 文件", "error");
+      setTimedImportStatus("请先选择导入文件", "error");
       return;
     }
     if (file.size > IMPORT_MAX_BYTES) {
@@ -349,12 +349,15 @@ export const useHighlightsStore = defineStore("highlights", () => {
     const text = await file.text();
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      ({ records: parsed } = parseImportFile(file, text));
     } catch (error) {
-      setTimedImportStatus("JSON 格式无效", "error");
+      setTimedImportStatus(
+        (error as Error).message || "导入文件解析失败",
+        "error",
+      );
       throw error;
     }
-    const records = normalizeImportedPayload(parsed);
+    const records = appendImportedTag(parsed);
     if (!records.length) {
       const message = "文件中未找到有效的标注数据";
       setTimedImportStatus(message, "error");

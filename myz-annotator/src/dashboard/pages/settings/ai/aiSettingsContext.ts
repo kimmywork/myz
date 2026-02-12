@@ -147,6 +147,10 @@ export const createAiSettingsContext = () => {
     return map
   })
 
+  const hasEnabledProvider = computed(() =>
+    providers.value.some((provider) => provider.enabled),
+  )
+
   const selectedProvider = computed(
     () => providers.value.find((p) => p.id === selectedProviderId.value) || null,
   )
@@ -189,6 +193,12 @@ export const createAiSettingsContext = () => {
     () => setFormFromStore(),
     { deep: true, immediate: true },
   )
+
+  watch(hasEnabledProvider, (enabled) => {
+    if (!enabled && aiAssistantEnabled.value) {
+      aiAssistantEnabled.value = false
+    }
+  })
 
   const replaceProvider = (next: AIProviderSetting) => {
     providers.value = providers.value.map((p) => (p.id === next.id ? next : p))
@@ -310,7 +320,14 @@ export const createAiSettingsContext = () => {
 
   const buildProvidersForSave = () => {
     const nextProviders = providers.value.map((p) => {
-      if (!p.lastTest?.ok && p.enabled) {
+      const testedModel = String(p.lastTest?.model || "").trim()
+      const enabledModels = (p.models || []).filter((m) => m.enabled)
+      const hasEnabledModel = enabledModels.length > 0
+      const hasTestedEnabledModel =
+        Boolean(p.lastTest?.ok) &&
+        Boolean(testedModel) &&
+        enabledModels.some((model) => String(model.model || "").trim() === testedModel)
+      if ((!p.lastTest?.ok || !hasEnabledModel || !hasTestedEnabledModel) && p.enabled) {
         return { ...p, enabled: false }
       }
       return p
@@ -373,6 +390,7 @@ export const createAiSettingsContext = () => {
     mcpSaveNotice,
     localToolsSaveNotice,
     skillsSaveNotice,
+    hasEnabledProvider,
     replaceProvider,
     renameProvider,
     addProvider,

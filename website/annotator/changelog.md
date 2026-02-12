@@ -6,6 +6,28 @@
 - [![](https://img.shields.io/chrome-web-store/v/mhakfcbobhdemicjelhjjpmgibhnnplg)](https://chromewebstore.google.com/detail/mhakfcbobhdemicjelhjjpmgibhnnplg) 
 - [![](https://img.shields.io/badge/dynamic/json?label=edge%20add-on&prefix=v&query=$.version&url=https://microsoftedge.microsoft.com/addons/getproductdetailsbycrxid/fepakkoggnancnpcclldodfbpgobkabj)](https://microsoftedge.microsoft.com/addons/detail/fepakkoggnancnpcclldodfbpgobkabj)
 
+## v0.4.1 — Dashboard 体验升级
+
+- Dashboard 结构升级，更清晰易用。
+- 设置页面新增侧边导航，快速跳转到不同设置区域。
+- 新增 Dashboard 内的聊天页面，便于集中管理对话。
+- 导入能力增强：支持 RainDrop CSV 和 Chrome 书签 HTML。
+
+## v0.4.0 — Superpower 模式与多 Agent 协作
+
+- 新增 Superpower 模式，支持多 Agent 协作式的任务流程。
+- 对话侧边栏界面更清爽，信息更集中。
+- 对话标题与历史列表展示优化，浏览更直观。
+- 修复调色板颜色编辑无法打开的问题。
+
+## v0.3.2 — 自动高亮与分类标注
+
+- 新增自动高亮能力，自动生成关键内容标注。
+- 关键要点发现改为独立入口，操作更便捷。
+- AI 设置新增自动高亮的模型与分类样式配置。
+- Popup 空状态新增“一键自动高亮”按钮。
+- 高亮匹配更稳健，降低误差与重叠。
+
 ## v0.3.1 — 交互与设置稳定性
 
 - 修复高亮点击后 Inspector 不显示的问题，并改为贴近高亮的工具条式展示（有批注则上方展示，编辑时自动关闭）。

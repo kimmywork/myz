@@ -213,7 +213,7 @@ export default defineComponent({
             ref={textareaRef}
             class={[
               "w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500",
-              isFocused.value ? "min-h-[120px]" : "min-h-[44px]",
+              isFocused.value ? "min-h-[120px]" : "min-h-11",
               "overflow-auto",
             ].join(" ")}
             value={chatStore.userInput}

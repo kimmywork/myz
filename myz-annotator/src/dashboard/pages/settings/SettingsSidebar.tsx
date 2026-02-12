@@ -1,5 +1,6 @@
-import { defineComponent } from "vue"
+import { computed, defineComponent } from "vue"
 import { RouterLink, useRoute } from "vue-router"
+import { useSettingsStore } from "../../stores/settings.js"
 
 const groups = [
   {
@@ -32,8 +33,14 @@ export default defineComponent({
   name: "SettingsSidebar",
   setup() {
     const route = useRoute()
+    const settingsStore = useSettingsStore()
     const isActive = (path: string, to: string) => path === to
     const isAiActive = (path: string) => path.startsWith("/settings/ai")
+    const visibleAiItems = computed(() =>
+      settingsStore.settings.aiAssistantEnabled
+        ? aiItems
+        : aiItems.filter((item) => item.to === "/settings/ai/providers"),
+    )
 
     return () => (
       <aside class="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
@@ -76,7 +83,7 @@ export default defineComponent({
                 isAiActive(route.path) ? "opacity-100" : "opacity-90",
               ].join(" ")}
             >
-              {aiItems.map((item) => {
+              {visibleAiItems.value.map((item) => {
                 const active = isActive(route.path, item.to)
                 return (
                   <RouterLink
