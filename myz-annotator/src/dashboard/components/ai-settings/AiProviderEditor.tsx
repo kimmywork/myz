@@ -4,6 +4,7 @@ import type { AIModelSetting, AIProviderSetting } from "@/background/settings.js
 import AiHeadersEditor from "./AiHeadersEditor.jsx"
 import AiModelListEditor from "./AiModelListEditor.jsx"
 import { getProviderTypeMeta, PROVIDER_TYPE_OPTIONS } from "./providerCatalog.js"
+import ToggleSwitch from "../ToggleSwitch.jsx"
 
 function normalizeUrl(value: string) {
   return value.trim().replace(/\/+$/, "")
@@ -118,19 +119,19 @@ export default defineComponent({
               {props.provider.baseUrl || "未配置 Base URL"}
             </div>
           </div>
-          <label class="toggle shrink-0">
-            <input
-              type="checkbox"
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-slate-700 dark:text-slate-200">启用 Provider</span>
+            <ToggleSwitch
               checked={props.provider.enabled}
               disabled={!canEnable.value}
+              ariaLabel="启用 Provider"
               onChange={(e) =>
                 updateProvider({
                   enabled: (e.target as HTMLInputElement).checked,
                 })
               }
             />
-            <span>启用 Provider</span>
-          </label>
+          </div>
         </div>
 
         <label class="field">
@@ -192,18 +193,18 @@ export default defineComponent({
           <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
             Streaming
           </div>
-          <label class="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
+          <div class="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
             <span>启用 Streaming</span>
-            <input
-              type="checkbox"
+            <ToggleSwitch
               checked={props.provider.streamingEnabled !== false}
+              ariaLabel="启用 Streaming"
               onChange={(e) =>
                 updateProvider({
                   streamingEnabled: (e.target as HTMLInputElement).checked,
                 })
               }
             />
-          </label>
+          </div>
           <p class="text-xs text-slate-500 dark:text-slate-400">
             关闭后将使用非流式请求；默认启用。
           </p>

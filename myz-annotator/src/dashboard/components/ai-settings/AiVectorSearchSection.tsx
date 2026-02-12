@@ -3,6 +3,7 @@ import type { PropType } from "vue"
 import type { AIProviderSetting, VectorSettings } from "@/background/settings.js"
 import { sendMessage } from "@/shared/messaging.js"
 import { useSettingsStore } from "../../stores/settings.js"
+import ToggleSwitch from "../ToggleSwitch.jsx"
 
 function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value))
@@ -202,8 +203,8 @@ export default defineComponent({
         </div>
 
         <div class="space-y-3">
-          <div class="space-y-2">
-            <label class="field">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label class="field flex-1">
               <span>模型</span>
               <select
                 value={targetKey.value}
@@ -226,12 +227,12 @@ export default defineComponent({
                 ))}
               </select>
             </label>
-
-            <label class="toggle shrink-0">
-              <input
-                type="checkbox"
+            <div class="flex items-center gap-2 sm:pb-1">
+              <span class="text-sm text-slate-600 dark:text-slate-300">启用</span>
+              <ToggleSwitch
                 checked={draft.value.enabled}
                 disabled={!canEnable.value}
+                ariaLabel="启用向量检索"
                 onChange={(e) =>
                   (draft.value = {
                     ...draft.value,
@@ -239,8 +240,7 @@ export default defineComponent({
                   })
                 }
               />
-              <span>启用</span>
-            </label>
+            </div>
           </div>
 
           <label class="field">

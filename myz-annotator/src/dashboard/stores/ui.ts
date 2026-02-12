@@ -41,7 +41,6 @@ export const useUIStore = defineStore("ui", () => {
   const highlightsStore = useHighlightsStore();
 
   const view: Ref<"cards" | "list"> = ref("cards");
-  const panel: Ref<"settings" | "highlights"> = ref("highlights");
   const renderedCount = ref(0);
   const filters: SearchFilters = reactive({
     search: "",
@@ -223,14 +222,6 @@ export const useUIStore = defineStore("ui", () => {
     }
   }
 
-  function showSettings() {
-    panel.value = "settings";
-  }
-
-  function showHighlights() {
-    panel.value = "highlights";
-  }
-
   function loadMore() {
     if (hasMoreHighlights.value) {
       renderedCount.value = Math.min(
@@ -319,7 +310,6 @@ export const useUIStore = defineStore("ui", () => {
 
   return {
     view,
-    panel,
     filters,
     modalState,
     searchTerms,
@@ -331,8 +321,6 @@ export const useUIStore = defineStore("ui", () => {
     setFilter,
     resetFilters,
     setView,
-    showSettings,
-    showHighlights,
     loadMore,
     openModal,
     closeModal,

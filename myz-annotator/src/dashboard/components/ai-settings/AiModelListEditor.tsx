@@ -2,6 +2,7 @@ import { computed, defineComponent, ref, watch } from "vue"
 import type { PropType } from "vue"
 import type { AIModelSetting } from "@/background/settings.js"
 import { createModelSetting } from "./factories.js"
+import ToggleSwitch from "../ToggleSwitch.jsx"
 
 function clampNumber(value: any, min: number, max: number, fallback: number) {
   const parsed = Number(value)
@@ -283,13 +284,10 @@ export default defineComponent({
           </div>
         </div>
 
-        <div class="grid gap-3 md:grid-cols-2">
-          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900/60">
-            <div class="flex items-center justify-between gap-2">
-              <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                模型列表
-              </div>
-              <div class="relative">
+        <div class="flex flex-col gap-3 md:flex-row md:items-stretch">
+          <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900/60">
+            <div class="flex items-center justify-end gap-2">
+              <div class="relative w-full">
                 <span class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">
                   <svg
                     class="h-4 w-4"
@@ -312,7 +310,7 @@ export default defineComponent({
                   </svg>
                 </span>
                 <input
-                  class="input pl-8"
+                  class="input w-full pl-8"
                   type="text"
                   value={listFilter.value}
                   placeholder="筛选模型名称…"
@@ -320,7 +318,7 @@ export default defineComponent({
                 />
               </div>
             </div>
-            <div class="mt-2 max-h-72 overflow-auto pr-1">
+            <div class="mt-2 max-h-[45em] overflow-auto pr-1">
               <div class="space-y-1">
                 {mergedNames.value.map((entry) => (
                   <button
@@ -347,11 +345,14 @@ export default defineComponent({
                         {entry.exists ? "已配置" : "未配置"}
                       </div>
                     </div>
-                    <label class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                      <input
-                        type="checkbox"
+                    <div
+                      class="shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                      onMousedown={(e) => e.stopPropagation()}
+                    >
+                      <ToggleSwitch
                         checked={entry.enabled}
-                        onClick={(e) => e.stopPropagation()}
+                        ariaLabel={`启用模型 ${entry.name}`}
                         onChange={(e) => {
                           const nextEnabled = (e.target as HTMLInputElement).checked
                           if (!nextEnabled && entry.name === selectedName.value) {
@@ -368,15 +369,14 @@ export default defineComponent({
                           ensureModelConfig(entry.name, nextEnabled)
                         }}
                       />
-                      启用
-                    </label>
+                    </div>
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+          <div class="flex-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
             {selectedModel.value ? (
               <div class="space-y-3">
                 <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -397,7 +397,7 @@ export default defineComponent({
                   </button>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-2">
+                <div class="space-y-3">
                   <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
                     <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       能力
