@@ -6,7 +6,7 @@ This folder contains the MV3 service worker background logic. The AI integration
 - **Agents (application layer)**: Conversation + Insights workflows built on top of providers.
 - **Runtime (selection + caching)**: Resolves agent→(provider, model, temperature), creates sessions (provider + MCP), caches them globally, and ref-counts MCP connect/disconnect.
 
-Import shared AI types from `@/background/ai/types.js`.
+Import shared AI types from `@/background/ai/types.ts`.
 
 ## Key Entry Points
 
@@ -128,7 +128,7 @@ Gemini’s OpenAI-compatible API differs from typical providers:
   - `myz:aiStreamStart` / `myz:aiStreamChunk` / `myz:aiStreamComplete` / `myz:aiStreamError`
 - Tool calls and tool results are pushed as normal messages via:
   - `myz:newMessage`
-- UI should import types from `@/background/ai/types.js`.
+- UI should import types from `@/background/ai/types.ts`.
 
 ## Debugging Checklist
 

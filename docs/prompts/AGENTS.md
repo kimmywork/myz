@@ -1,4 +1,4 @@
-# Prompt Histories
+# Prompt Histories (deprecated)
 
 Here is a list of prompt history files, contains most of the input I feeded to Agents.
 

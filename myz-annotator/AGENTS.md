@@ -10,6 +10,10 @@ All new code should be written in TypeScript to ensure type safety and improve m
 
 Reuse existing types and utility functions wherever possible to avoid duplication and ensure consistency.
 
+## Schema-first data modeling
+
+Update shared schemas/types first (e.g., `src/shared/schemas.ts`, `src/shared/types.ts`), then apply changes to storage and UI.
+
 ## Refactoring brutally and fearlessly
 
 If you see code that can be improved, refactor it without hesitation. Clean and efficient code is a priority.
@@ -29,3 +33,7 @@ All new modules and functions should be well-documented with comments explaining
 ## Testing
 
 All new features and significant changes should include appropriate tests to ensure functionality and prevent regressions.
+
+## AGENTS.md upkeep
+
+If you change folder responsibilities or key flows, update the nearest `AGENTS.md` in the same scope.
