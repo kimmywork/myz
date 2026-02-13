@@ -1,0 +1,51 @@
+{
+  "projectName": "auto-highlight",
+  "outlinePath": "../../resources/scripts/auto-highlight.md",
+  "videoRoot": "../../resources/screen-recording",
+  "outputDir": "./output/auto-highlight",
+  "mode": "outline-tts",
+  "profiles": [
+    {
+      "id": "landscape1080",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "aspectStrategy": "blur"
+    },
+    {
+      "id": "portrait1080",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "aspectStrategy": "blur"
+    }
+  ],
+  "render": {
+    "profiles": ["landscape1080"],
+    "burnSubtitles": true
+  },
+  "script": {
+    "includeOcrKeywords": false
+  },
+  "tts": {
+    "engine": "qwen-tts",
+    "model": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
+    "speaker": "Serena",
+    "language": "Chinese",
+    "device": "cpu",
+    "dtype": "float32",
+    "python": "/ABS/PATH/python3"
+  },
+  "stt": {
+    "command": "whisper-cli -m /Users/qliu23/workspace/ml/whisper/whisper.cpp/models/ggml-large-v3-turbo.bin -f {input} -osrt -of {outputBase}"
+  },
+  "ocr": {
+    "engine": "tesseract",
+    "lang": "chi_sim+eng",
+    "intervalSec": 2
+  },
+  "sceneDetect": {
+    "enable": true,
+    "threshold": 30
+  }
+}

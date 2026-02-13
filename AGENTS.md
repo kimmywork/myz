@@ -10,6 +10,8 @@ This repo is a multi‑module suite (extensions + website + libraries). Keep cha
   - `src/shared/` shared utilities/types.
 - `website/` — VitePress site (user‑facing docs). Content lives in Markdown under `website/annotator/`, `website/danmaku/`, `website/en/`, `website/guide/`.
 - `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/track/research/legal/archives).
+- `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).
+  - `workflow/video-pipeline/skills/screen-recording-narrator/scripts/` — command/script templates for the video pipeline.
 - `myz-danmaku/` — MV3 extension for danmaku overlay.
 - `vectoria/` — client‑side vector search library + demo UI.
 

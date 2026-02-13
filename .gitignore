@@ -1,1 +1,4 @@
 .DS_Store
+workflow/video-pipeline/output/
+
+node_modules
