@@ -132,9 +132,9 @@ Fail-safe:
 
 ### Naming
 
-- Use a stable, versionless name: `myz-<verb>-<noun>`
-- Keep names lowercase, hyphen-separated.
-- Do not rename existing tool names unless you also preserve compatibility (renames break user settings allowlists).
+- Use stable, versionless names aligned with standard agent tool conventions (e.g. `Read`, `Write`, `Edit`, `Glob`, `List`, `WebSearch`, `WebFetch`, `Task`, `RunDomActions`).
+- Keep names consistent and avoid gratuitous prefixes unless the tool is MyZ-specific.
+- When renaming tool names, update settings normalization so existing allowlists migrate to the new names.
 
 ### Input schema
 
@@ -156,4 +156,3 @@ Fail-safe:
 - Tools run in MV3 service worker: keep handlers async and non-blocking.
 - Handle large storage reads carefully; reduce work with early exits and limits.
 - Return friendly error messages; do not throw unless it’s a true execution failure.
-

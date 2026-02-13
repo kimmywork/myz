@@ -1,6 +1,15 @@
 import { AUTO_HIGHLIGHT_CATEGORIES, HIGHLIGHT_STYLES } from "@/shared/types";
 
-export type AIProviderType = "openai_compatible";
+export type AIProviderType =
+  | "openai_compatible"
+  | "openai_responses"
+  | "gemini"
+  | "anthropic"
+  | "moonshot"
+  | "qwen"
+  | "ollama"
+  | "vllm"
+  | "llama_cpp";
 
 export type MaxOutputTokenParam = "max_tokens" | "max_completion_tokens";
 
@@ -17,12 +26,29 @@ export interface AIModelLimits {
   maxOutputTokenParam: MaxOutputTokenParam;
 }
 
+export type AIToolChoiceMode = "auto" | "none" | "required" | "tool";
+
+export interface AIToolChoiceSetting {
+  mode: AIToolChoiceMode;
+  toolName?: string;
+}
+
+export type AIToolFlagSetting = "auto" | "on" | "off";
+
+export interface AIToolControlSettings {
+  toolChoice: AIToolChoiceSetting;
+  strict: AIToolFlagSetting;
+  parallelToolCalls: AIToolFlagSetting;
+}
+
 export interface AIModelSetting {
   id: string;
   model: string;
   enabled: boolean;
   capabilities: AIModelCapabilities;
   limits: AIModelLimits;
+  tooling: AIToolControlSettings;
+  systemPromptInUserMessage?: boolean;
 }
 
 export interface AIProviderLastTestStatus {
@@ -37,6 +63,7 @@ export interface AIProviderSetting {
   name: string;
   type: AIProviderType;
   enabled: boolean;
+  streamingEnabled?: boolean;
   baseUrl: string;
   apiKey: string;
   headers: string;
@@ -83,6 +110,11 @@ export interface AIAgentConfig {
   target: AIAgentModelRef | null;
   temperature: number;
   compressImages?: boolean;
+  /**
+   * Enable Superpower Mode for advanced tools and agent workflow.
+   * Only applicable to Conversation agent.
+   */
+  superpowerMode?: boolean;
   maxHighlights?: number;
   /**
    * Optional fallback model for Vision when the primary model lacks it.

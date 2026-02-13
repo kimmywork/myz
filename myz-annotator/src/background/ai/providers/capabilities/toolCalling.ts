@@ -7,7 +7,7 @@ export interface ToolCallingCapabilityOptions {
   executeToolCall: (toolCall: any) => Promise<any>
 }
 
-const TOOL_SELECT_NAME = "myz-select-tools"
+const TOOL_SELECT_NAME = "SelectTools"
 const TOOL_SELECT_CANDIDATES = new Set([TOOL_SELECT_NAME, `myz-local:${TOOL_SELECT_NAME}`])
 
 function isToolSelectName(rawName: unknown) {
@@ -74,11 +74,34 @@ export function createToolCallingCapability(
         ...request,
       }
 
+      const toolingOverrides = completionOptions?.tooling || null
+      const toolChoice = toolingOverrides?.toolChoice
+      const parallelToolCalls = toolingOverrides?.parallelToolCalls
+      const strictSchema =
+        typeof toolingOverrides?.strict === "boolean" ? toolingOverrides.strict : undefined
+
       while (true) {
-        const tools = await options.getTools()
+        const rawTools = await options.getTools()
+        const tools =
+          typeof strictSchema === "boolean"
+            ? rawTools.map((tool: any) => {
+                if (!tool || tool.type !== "function") return tool
+                return {
+                  ...tool,
+                  function: {
+                    ...tool.function,
+                    strict: strictSchema,
+                  },
+                }
+              })
+            : rawTools
         currentRequest = {
           ...currentRequest,
           tools: tools?.length ? tools : currentRequest.tools,
+          ...(toolChoice ? { tool_choice: toolChoice } : {}),
+          ...(typeof parallelToolCalls === "boolean"
+            ? { parallel_tool_calls: parallelToolCalls }
+            : {}),
         }
 
         const response = await client.createCompletion(
@@ -107,6 +130,8 @@ export function createToolCallingCapability(
           sanitizedAssistantMessage,
         ]
 
+        const toolMessages: ProviderMessage[] = []
+
         for (const toolCall of toolCalls) {
           const toolName = String(toolCall?.function?.name || "")
           if (isToolSelectName(toolName)) {
@@ -119,7 +144,7 @@ export function createToolCallingCapability(
                 metadata: { toolName },
               }
               completionOptions.onToolResultMessage?.(toolMessage)
-              followUpMessages.push(toolMessage)
+              toolMessages.push(toolMessage)
               continue
             }
 
@@ -140,7 +165,7 @@ export function createToolCallingCapability(
                 metadata: { toolName, need },
               }
               completionOptions.onToolResultMessage?.(toolMessage)
-              followUpMessages.push(toolMessage)
+              toolMessages.push(toolMessage)
               continue
             }
 
@@ -160,7 +185,7 @@ export function createToolCallingCapability(
               metadata: { toolName, selectedToolNames: selected, need },
             }
             completionOptions.onToolResultMessage?.(toolMessage)
-            followUpMessages.push(toolMessage)
+            toolMessages.push(toolMessage)
             continue
           }
 
@@ -179,7 +204,7 @@ export function createToolCallingCapability(
             }
 
             completionOptions.onToolResultMessage?.(toolMessage)
-            followUpMessages.push(toolMessage)
+            toolMessages.push(toolMessage)
           } catch (error) {
             const errorText = `Error: ${(error as Error).message}`
             const toolMessage: ProviderMessage = {
@@ -193,9 +218,11 @@ export function createToolCallingCapability(
               },
             }
             completionOptions.onToolResultMessage?.(toolMessage)
-            followUpMessages.push(toolMessage)
+            toolMessages.push(toolMessage)
           }
         }
+
+        followUpMessages.push(...toolMessages)
 
         currentRequest = {
           ...currentRequest,

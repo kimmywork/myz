@@ -1,10 +1,28 @@
-import { composeCapabilities } from "./capability.js"
-import type { ChatCompletionClient } from "./types.js"
+import { composeCapabilities, type Capability } from "./capability.js"
+import type { ChatCompletionClient, ProviderChatCompletionRequest } from "./types.js"
 import { createGoogleGeminiThinkingCapability } from "./capabilities/googleGemini.js"
 import { createReasoningNormalizationCapability } from "./capabilities/reasoning.js"
 import { createSseStreamingCapability } from "./capabilities/sseStreaming.js"
 import { createToolCallingCapability } from "./capabilities/toolCalling.js"
-import { OpenAICompatibleJsonClient } from "./openaiCompatible/jsonClient.js"
+import { OpenAICompatibleJsonClient, shouldUseDeveloperRole } from "./openaiCompatible/jsonClient.js"
+
+function mapDeveloperRole(request: ProviderChatCompletionRequest): ProviderChatCompletionRequest {
+  if (!shouldUseDeveloperRole(request?.model)) return request
+  return {
+    ...request,
+    messages: request.messages.map((message) =>
+      message.role === "system" ? { ...message, role: "developer" } : message,
+    ),
+  }
+}
+
+function createDeveloperRoleCapability() {
+  return (client: ChatCompletionClient) => ({
+    async createCompletion(request: ProviderChatCompletionRequest, options?: any) {
+      return client.createCompletion(mapDeveloperRole(request), options)
+    },
+  })
+}
 
 type ValueOrGetter<T> = T | (() => T)
 
@@ -24,9 +42,15 @@ export interface ProviderClients {
   clientWithTools: ChatCompletionClient
 }
 
+export interface OpenAICompatibleClientOptions {
+  extraCapabilities?: Capability[]
+  enableStreaming?: boolean
+}
+
 export function createOpenAICompatibleClients(
   transport: ProviderTransportOptions,
   tooling?: ProviderToolingOptions,
+  options: OpenAICompatibleClientOptions = {},
 ): ProviderClients {
   const baseClient = new OpenAICompatibleJsonClient({
     endpoint: transport.endpoint,
@@ -34,15 +58,23 @@ export function createOpenAICompatibleClients(
     syncHeaders: transport.syncHeaders,
   })
 
-  const client = composeCapabilities(baseClient, [
-    createSseStreamingCapability({
-      endpoint: transport.endpoint,
-      buildHeaders: transport.buildHeaders,
-      syncHeaders: transport.syncHeaders,
-    }),
+  const baseCapabilities: Capability[] = [
+    ...(options.enableStreaming === false
+      ? []
+      : [
+          createSseStreamingCapability({
+            endpoint: transport.endpoint,
+            buildHeaders: transport.buildHeaders,
+            syncHeaders: transport.syncHeaders,
+          }),
+        ]),
     createGoogleGeminiThinkingCapability(),
     createReasoningNormalizationCapability(),
-  ])
+    createDeveloperRoleCapability(),
+    ...(options.extraCapabilities || []),
+  ]
+
+  const client = composeCapabilities(baseClient, baseCapabilities)
 
   const clientWithTools = tooling
     ? composeCapabilities(client, [
@@ -55,4 +87,3 @@ export function createOpenAICompatibleClients(
 
   return { client, clientWithTools }
 }
-

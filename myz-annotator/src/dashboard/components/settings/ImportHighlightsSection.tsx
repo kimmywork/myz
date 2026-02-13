@@ -34,14 +34,14 @@ export default defineComponent({
         </div>
         <div class="settings__fields">
           <p class="settings__hint">
-            选择先前导出的 JSON 文件，或导入他人分享的标注。
+            支持导入 MyZ JSON、RainDrop CSV、Chrome 书签 HTML。
           </p>
           <label class="field">
-            <span>JSON 文件</span>
+            <span>导入文件</span>
             <input
               ref={importFileRef}
               type="file"
-              accept="application/json"
+              accept="application/json,text/csv,text/html,.json,.csv,.html,.htm"
             />
           </label>
           <label class="field">
@@ -66,7 +66,7 @@ export default defineComponent({
               disabled={isImporting.value}
               onClick={handleImport}
             >
-              {isImporting.value ? "导入中…" : "导入 JSON"}
+              {isImporting.value ? "导入中…" : "开始导入"}
             </button>
             <p
               class={[

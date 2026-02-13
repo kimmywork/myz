@@ -62,6 +62,8 @@ export default defineComponent({
       switch (kind) {
         case RECORD_KINDS.CLIP:
           return "保存文字";
+        case RECORD_KINDS.BOOKMARK:
+          return "网页书签";
         case RECORD_KINDS.AI_GENERATED:
           return "AI摘录";
         case RECORD_KINDS.TWEET_POST:

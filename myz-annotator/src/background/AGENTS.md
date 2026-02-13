@@ -117,9 +117,9 @@ Gemini’s OpenAI-compatible API differs from typical providers:
 
 - Skill storage lives in IndexedDB and is exposed via `/skills/...` paths:
   - The prompt injects `<available_skills>` blocks with locations like `/skills/{name}/SKILL.md`.
-  - The model should call `read-file` to load skill content.
+  - The model should call `Read` to load skill content.
 - Virtual file system for agent memory is implemented in a separate IndexedDB and exposed via:
-  - `list-files`, `read-file`, `write-file`
+  - `List`, `Read`, `Write`, `Edit`, `Glob`
   - `/skills` paths are routed to skill storage; `/skills` is read-only.
 
 ## UI Integration Notes (Sidepanel)

@@ -8,6 +8,8 @@ export function getRecordKindLabel(record: MyZRecord) {
       return "划线标注";
     case RECORD_KINDS.CLIP:
       return "保存文字";
+    case RECORD_KINDS.BOOKMARK:
+      return "网页书签";
     case RECORD_KINDS.AI_GENERATED:
       return "AI摘录";
     case RECORD_KINDS.TWEET_POST:
@@ -60,7 +62,7 @@ export function computeRecordStats(records: MyZRecord[] = []) {
       return;
     }
     const kind = getRecordKind(item);
-    if (kind === RECORD_KINDS.CLIP) {
+    if (kind === RECORD_KINDS.CLIP || kind === RECORD_KINDS.BOOKMARK) {
       savedCount += 1;
       return;
     }

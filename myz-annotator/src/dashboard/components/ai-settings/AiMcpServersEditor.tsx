@@ -3,6 +3,7 @@ import type { PropType } from "vue"
 import type { McpServerSetting } from "@/background/settings.js"
 import { sendMessage } from "@/shared/messaging.js"
 import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js"
+import ToggleSwitch from "../ToggleSwitch.jsx"
 
 function stringifyHeaders(headers?: Record<string, string>) {
   if (!headers || typeof headers !== "object") return ""
@@ -242,19 +243,21 @@ export default defineComponent({
                       {selectedServer.value.url || "未配置 URL"}
                     </div>
                   </div>
-                  <label class="toggle shrink-0">
-                    <input
-                      type="checkbox"
+                  <div class="flex items-center gap-3">
+                    <span class="text-sm text-slate-700 dark:text-slate-200">
+                      启用
+                    </span>
+                    <ToggleSwitch
                       checked={selectedServer.value.enabled}
                       disabled={!canEnableSelected.value}
+                      ariaLabel="启用 MCP 服务器"
                       onChange={(e) =>
                         updateServer(selectedServer.value!.id, {
                           enabled: (e.target as HTMLInputElement).checked,
                         })
                       }
                     />
-                    <span>启用</span>
-                  </label>
+                  </div>
                 </div>
 
                 <label class="field">

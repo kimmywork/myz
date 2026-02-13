@@ -1,5 +1,19 @@
 # Changelog
 
+# v0.4.1 Dashboard 路由与导入增强
+
+- 重构了 Dashboard（docs/plan/vuerouter-refactoring.md）。
+- 设置页面加入了 sidebar。
+- 加入了 Dashboard 的聊天页面。
+- 加入了 RainDrop 和 Chrome 书签的导入支持。
+
+# v0.4.0 Superpower Mode 与多 Agent 协作
+
+- 实现 Superpower Mode，加入多 Agent 协作流程（规划 → 审核 → 执行 → 验证）与任务编排。
+- 对话侧边栏 UI 收敛信息密度：顶部控制区合并为图标按钮，任务面板默认折叠为进度行并支持悬浮预览。
+- 新增对话标题生成与历史列表展示优化：基于原始请求生成标题，展示页面标题/域名/时间；历史或失败统一显示“未命名对话”。
+- 修复内容脚本编辑弹窗中调色板颜色编辑无法打开颜色选择器的问题。
+
 # v0.3.2 自动高亮与分类标注
 
 - 新增 Auto Highlight Agent：基于页面主体内容自动生成高亮，并创建对应 MyZRecord 与 “AI生成标注” 标签。

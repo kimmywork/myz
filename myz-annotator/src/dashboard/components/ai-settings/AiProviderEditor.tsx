@@ -3,6 +3,8 @@ import type { PropType } from "vue"
 import type { AIModelSetting, AIProviderSetting } from "@/background/settings.js"
 import AiHeadersEditor from "./AiHeadersEditor.jsx"
 import AiModelListEditor from "./AiModelListEditor.jsx"
+import { getProviderTypeMeta, PROVIDER_TYPE_OPTIONS } from "./providerCatalog.js"
+import ToggleSwitch from "../ToggleSwitch.jsx"
 
 function normalizeUrl(value: string) {
   return value.trim().replace(/\/+$/, "")
@@ -51,7 +53,24 @@ export default defineComponent({
       { deep: true, immediate: true },
     )
 
-    const canEnable = computed(() => Boolean(props.provider.lastTest?.ok))
+    const canEnable = computed(() => {
+      if (!props.provider.lastTest?.ok) return false
+      const models = props.provider.models || []
+      const enabledModels = models.filter((m) => m.enabled)
+      if (!enabledModels.length) return false
+      const testedModel = String(props.provider.lastTest?.model || "").trim()
+      if (!testedModel) return false
+      return enabledModels.some((model) => String(model.model || "").trim() === testedModel)
+    })
+
+    watch(
+      () => canEnable.value,
+      (enabled) => {
+        if (!enabled && props.provider.enabled) {
+          updateProvider({ enabled: false })
+        }
+      },
+    )
 
     const selectedTestModel = computed(
       () => availableModels.value.find((m) => m.id === testModelId.value) || null,
@@ -69,6 +88,13 @@ export default defineComponent({
       if (!props.provider.lastTest) {
         return <p class="text-xs text-slate-500">未测试，无法启用</p>
       }
+      if (props.provider.lastTest.ok && !canEnable.value) {
+        return (
+          <p class="text-xs text-amber-600">
+            已测试通过，请启用对应模型后再启用 Provider
+          </p>
+        )
+      }
       return (
         <p
           class={[
@@ -82,6 +108,30 @@ export default defineComponent({
       )
     }
 
+    const onChangeType = (nextType: AIProviderSetting["type"]) => {
+      const currentMeta = getProviderTypeMeta(props.provider.type)
+      const nextMeta = getProviderTypeMeta(nextType)
+      const shouldRename =
+        !props.provider.name || props.provider.name === currentMeta.defaultName
+      const shouldResetBaseUrl =
+        !props.provider.baseUrl ||
+        props.provider.baseUrl === currentMeta.defaultBaseUrl
+      updateProvider({
+        type: nextType,
+        name: shouldRename ? nextMeta.defaultName : props.provider.name,
+        baseUrl: shouldResetBaseUrl ? nextMeta.defaultBaseUrl : props.provider.baseUrl,
+        enabled: false,
+        lastTest: null,
+      })
+    }
+
+    const canTest = computed(() => {
+      const meta = getProviderTypeMeta(props.provider.type)
+      if (!props.provider.baseUrl) return false
+      if (meta.requiresApiKey && !props.provider.apiKey) return false
+      return true
+    })
+
     return () => (
       <div class="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
         <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -93,27 +143,40 @@ export default defineComponent({
               {props.provider.baseUrl || "未配置 Base URL"}
             </div>
           </div>
-          <label class="toggle shrink-0">
-            <input
-              type="checkbox"
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-slate-700 dark:text-slate-200">启用 Provider</span>
+            <ToggleSwitch
               checked={props.provider.enabled}
               disabled={!canEnable.value}
+              ariaLabel="启用 Provider"
               onChange={(e) =>
                 updateProvider({
                   enabled: (e.target as HTMLInputElement).checked,
                 })
               }
             />
-            <span>启用 Provider</span>
-          </label>
+          </div>
         </div>
+
+        <label class="field">
+          <span>Provider 类型</span>
+          <select
+            class="input"
+            value={props.provider.type}
+            onChange={(e) => onChangeType((e.target as HTMLSelectElement).value as any)}
+          >
+            {PROVIDER_TYPE_OPTIONS.map((item) => (
+              <option value={item.type}>{item.label}</option>
+            ))}
+          </select>
+        </label>
 
         <label class="field">
           <span>Base URL</span>
           <input
             type="url"
             value={props.provider.baseUrl}
-            placeholder="https://api.openai.com/v1"
+            placeholder={getProviderTypeMeta(props.provider.type).baseUrlPlaceholder}
             onInput={(e) =>
               updateProvider({
                 baseUrl: (e.target as HTMLInputElement).value,
@@ -150,6 +213,27 @@ export default defineComponent({
           onChange={(headers) => updateProvider({ headers })}
         />
 
+        <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
+          <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+            Streaming
+          </div>
+          <div class="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
+            <span>启用 Streaming</span>
+            <ToggleSwitch
+              checked={props.provider.streamingEnabled !== false}
+              ariaLabel="启用 Streaming"
+              onChange={(e) =>
+                updateProvider({
+                  streamingEnabled: (e.target as HTMLInputElement).checked,
+                })
+              }
+            />
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            关闭后将使用非流式请求；默认启用。
+          </p>
+        </div>
+
         <AiModelListEditor
           models={props.provider.models}
           catalog={props.catalog}
@@ -181,8 +265,7 @@ export default defineComponent({
                 disabled={
                   props.isTesting ||
                   !selectedTestModel.value ||
-                  !props.provider.baseUrl ||
-                  !props.provider.apiKey
+                  !canTest.value
                 }
                 onClick={() => {
                   if (selectedTestModel.value) {

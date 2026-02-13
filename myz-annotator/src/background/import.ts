@@ -86,8 +86,8 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     result.updatedAt = updatedAt;
   }
 
-
-  if (!result.text && !result.html) {
+  const allowEmptyContent = kind === RECORD_KINDS.BOOKMARK;
+  if (!result.text && !result.html && !allowEmptyContent) {
     return null;
   }
 
@@ -106,7 +106,7 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
   if (!result.title) {
     delete result.title;
   }
-  if (!result.text) {
+  if (!result.text && !allowEmptyContent) {
     delete result.text;
   }
   if (!result.hostname) {

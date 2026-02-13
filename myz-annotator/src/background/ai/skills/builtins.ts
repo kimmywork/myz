@@ -14,6 +14,7 @@ import sixHatsSkill from "@/skills/builtin/six-thinking-hats/SKILL.md?raw"
 import socraticSkill from "@/skills/builtin/socratic/SKILL.md?raw"
 import taskingSkill from "@/skills/builtin/tasking/SKILL.md?raw"
 import thinkingToolsSkill from "@/skills/builtin/thinking-tools/SKILL.md?raw"
+import browserOperationsSkill from "@/skills/builtin/browser-operations/SKILL.md?raw"
 
 type BuiltinSkillSeed = {
   id: string
@@ -88,6 +89,16 @@ const BUILTIN_SKILL_SOURCES = [
       {
         path: "SKILL.md",
         content: thinkingToolsSkill,
+        encoding: "utf-8" as const,
+      },
+    ],
+  },
+  {
+    rootDir: "browser-operations",
+    files: [
+      {
+        path: "SKILL.md",
+        content: browserOperationsSkill,
         encoding: "utf-8" as const,
       },
     ],

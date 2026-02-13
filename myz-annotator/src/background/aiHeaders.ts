@@ -3,14 +3,13 @@ import { getAiHeaderValue } from "@/shared/aiHeaderUtils.js";
 
 type ResourceType = chrome.declarativeNetRequest.ResourceType;
 
-const ResourceType = chrome.declarativeNetRequest.ResourceType;
+const ResourceType = globalThis.chrome?.declarativeNetRequest?.ResourceType;
 
 const AI_USER_AGENT_RULE_BASE_ID = 1100;
 const AI_USER_AGENT_RULE_MAX = 20;
-const HEADER_RESOURCE_TYPES: ResourceType[] = [
-  ResourceType.XMLHTTPREQUEST,
-  ResourceType.OTHER,
-];
+const HEADER_RESOURCE_TYPES: ResourceType[] = ResourceType
+  ? [ResourceType.XMLHTTPREQUEST, ResourceType.OTHER]
+  : [];
 
 function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

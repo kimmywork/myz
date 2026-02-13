@@ -11,6 +11,7 @@ export default defineComponent({
     const uiStore = useUIStore();
     const fileInputRef = ref<HTMLInputElement | null>(null);
     const textareaRef = ref<HTMLTextAreaElement | null>(null);
+    const isFocused = ref(false);
     const skillList = ref<SkillMetadata[]>([]);
     const mentionQuery = ref("");
     const mentionStart = ref(0);
@@ -210,15 +211,25 @@ export default defineComponent({
         <div class="relative">
           <textarea
             ref={textareaRef}
-          class="min-h-[120px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-          value={chatStore.userInput}
-          placeholder="请输入您的消息..."
-          rows={3}
-          disabled={chatStore.isLoading}
-          onInput={handleInput}
-          onKeydown={handleKeydown}
-          onCompositionstart={() => uiStore.setComposing(true)}
-          onCompositionend={() => uiStore.setComposing(false)}
+            class={[
+              "w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500",
+              isFocused.value ? "min-h-[120px]" : "min-h-11",
+              "overflow-auto",
+            ].join(" ")}
+            value={chatStore.userInput}
+            placeholder="请输入您的消息..."
+            rows={isFocused.value ? 3 : 1}
+            disabled={chatStore.isLoading}
+            onInput={handleInput}
+            onKeydown={handleKeydown}
+            onFocus={() => {
+              isFocused.value = true;
+            }}
+            onBlur={() => {
+              isFocused.value = false;
+            }}
+            onCompositionstart={() => uiStore.setComposing(true)}
+            onCompositionend={() => uiStore.setComposing(false)}
           />
           {mentionOpen.value && filteredSkills.value.length > 0 && (
             <div class="absolute left-2 right-2 top-full z-10 mt-2 max-h-40 overflow-auto rounded-xl border border-slate-200 bg-white p-2 text-xs shadow-lg dark:border-slate-700 dark:bg-slate-900">

@@ -2,6 +2,7 @@ import { computed, defineComponent, ref, watch } from "vue"
 import type { PropType } from "vue"
 import type { AIModelSetting } from "@/background/settings.js"
 import { createModelSetting } from "./factories.js"
+import ToggleSwitch from "../ToggleSwitch.jsx"
 
 function clampNumber(value: any, min: number, max: number, fallback: number) {
   const parsed = Number(value)
@@ -73,6 +74,62 @@ export default defineComponent({
         props.models.map((m) =>
           m.id === id ? { ...m, limits: { ...m.limits, ...patch } } : m,
         ),
+      )
+    }
+
+    const normalizeTooling = (tooling: any) => {
+      const toolChoice = tooling?.toolChoice || {}
+      const mode = typeof toolChoice?.mode === "string" ? toolChoice.mode : "auto"
+      return {
+        toolChoice: {
+          mode,
+          toolName: typeof toolChoice?.toolName === "string" ? toolChoice.toolName : "",
+        },
+        strict:
+          tooling?.strict === "on" || tooling?.strict === "off" || tooling?.strict === "auto"
+            ? tooling.strict
+            : "auto",
+        parallelToolCalls:
+          tooling?.parallelToolCalls === "on" ||
+          tooling?.parallelToolCalls === "off" ||
+          tooling?.parallelToolCalls === "auto"
+            ? tooling.parallelToolCalls
+            : "auto",
+      }
+    }
+
+    const updateToolChoice = (id: string, patch: any) => {
+      props.onChange(
+        props.models.map((m) => {
+          if (m.id !== id) return m
+          const tooling = normalizeTooling(m.tooling)
+          return {
+            ...m,
+            tooling: {
+              ...tooling,
+              toolChoice: {
+                ...tooling.toolChoice,
+                ...patch,
+              },
+            },
+          }
+        }),
+      )
+    }
+
+    const updateTooling = (id: string, patch: any) => {
+      props.onChange(
+        props.models.map((m) => {
+          if (m.id !== id) return m
+          const tooling = normalizeTooling(m.tooling)
+          return {
+            ...m,
+            tooling: {
+              ...tooling,
+              ...patch,
+            },
+          }
+        }),
       )
     }
 
@@ -227,13 +284,10 @@ export default defineComponent({
           </div>
         </div>
 
-        <div class="grid gap-3 md:grid-cols-2">
-          <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900/60">
-            <div class="flex items-center justify-between gap-2">
-              <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                模型列表
-              </div>
-              <div class="relative">
+        <div class="flex flex-col gap-3 md:flex-row md:items-stretch">
+          <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900/60">
+            <div class="flex items-center justify-end gap-2">
+              <div class="relative w-full">
                 <span class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">
                   <svg
                     class="h-4 w-4"
@@ -256,7 +310,7 @@ export default defineComponent({
                   </svg>
                 </span>
                 <input
-                  class="input pl-8"
+                  class="input w-full pl-8"
                   type="text"
                   value={listFilter.value}
                   placeholder="筛选模型名称…"
@@ -264,7 +318,7 @@ export default defineComponent({
                 />
               </div>
             </div>
-            <div class="mt-2 max-h-72 overflow-auto pr-1">
+            <div class="mt-2 max-h-[45em] overflow-auto pr-1">
               <div class="space-y-1">
                 {mergedNames.value.map((entry) => (
                   <button
@@ -291,11 +345,14 @@ export default defineComponent({
                         {entry.exists ? "已配置" : "未配置"}
                       </div>
                     </div>
-                    <label class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                      <input
-                        type="checkbox"
+                    <div
+                      class="shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                      onMousedown={(e) => e.stopPropagation()}
+                    >
+                      <ToggleSwitch
                         checked={entry.enabled}
-                        onClick={(e) => e.stopPropagation()}
+                        ariaLabel={`启用模型 ${entry.name}`}
                         onChange={(e) => {
                           const nextEnabled = (e.target as HTMLInputElement).checked
                           if (!nextEnabled && entry.name === selectedName.value) {
@@ -312,15 +369,14 @@ export default defineComponent({
                           ensureModelConfig(entry.name, nextEnabled)
                         }}
                       />
-                      启用
-                    </label>
+                    </div>
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+          <div class="flex-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
             {selectedModel.value ? (
               <div class="space-y-3">
                 <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -341,7 +397,7 @@ export default defineComponent({
                   </button>
                 </div>
 
-                <div class="grid gap-3 md:grid-cols-2">
+                <div class="space-y-3">
                   <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
                     <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       能力
@@ -421,6 +477,96 @@ export default defineComponent({
                         </option>
                       </select>
                     </label>
+                  </div>
+
+                  <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
+                    <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Prompt 注入
+                    </div>
+                    <label class="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
+                      <span>系统提示改为用户消息</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selectedModel.value!.systemPromptInUserMessage)}
+                        onChange={(e) =>
+                          updateModel(selectedModel.value!.id, {
+                            systemPromptInUserMessage: (e.target as HTMLInputElement).checked,
+                          })
+                        }
+                      />
+                    </label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                      当代理屏蔽 system prompt 时启用，系统提示会作为首条 user 消息注入。
+                    </p>
+                  </div>
+
+                  <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
+                    <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Tool Calling 配置
+                    </div>
+                    <label class="field">
+                      <span>tool_choice</span>
+                      <select
+                        value={normalizeTooling(selectedModel.value!.tooling).toolChoice.mode}
+                        onChange={(e) => {
+                          const mode = (e.target as HTMLSelectElement).value
+                          updateToolChoice(selectedModel.value!.id, { mode })
+                        }}
+                      >
+                        <option value="auto">auto（默认）</option>
+                        <option value="none">none（不调用工具）</option>
+                        <option value="required">required（必须调用工具）</option>
+                        <option value="tool">指定工具</option>
+                      </select>
+                    </label>
+                    {normalizeTooling(selectedModel.value!.tooling).toolChoice.mode === "tool" ? (
+                      <label class="field">
+                        <span>指定工具名</span>
+                        <input
+                          type="text"
+                          value={normalizeTooling(selectedModel.value!.tooling).toolChoice.toolName}
+                          placeholder="例如 GetPageContext"
+                          onInput={(e) =>
+                            updateToolChoice(selectedModel.value!.id, {
+                              toolName: (e.target as HTMLInputElement).value,
+                            })
+                          }
+                        />
+                      </label>
+                    ) : null}
+                    <label class="field">
+                      <span>strict</span>
+                      <select
+                        value={normalizeTooling(selectedModel.value!.tooling).strict}
+                        onChange={(e) =>
+                          updateTooling(selectedModel.value!.id, {
+                            strict: (e.target as HTMLSelectElement).value,
+                          })
+                        }
+                      >
+                        <option value="auto">auto（默认）</option>
+                        <option value="on">on</option>
+                        <option value="off">off</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>parallel_tool_calls</span>
+                      <select
+                        value={normalizeTooling(selectedModel.value!.tooling).parallelToolCalls}
+                        onChange={(e) =>
+                          updateTooling(selectedModel.value!.id, {
+                            parallelToolCalls: (e.target as HTMLSelectElement).value,
+                          })
+                        }
+                      >
+                        <option value="auto">auto（默认）</option>
+                        <option value="on">on</option>
+                        <option value="off">off</option>
+                      </select>
+                    </label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                      注：部分 Provider 可能忽略 tool_choice / strict / parallel_tool_calls。
+                    </p>
                   </div>
                 </div>
               </div>
