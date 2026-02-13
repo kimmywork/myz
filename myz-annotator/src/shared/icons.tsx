@@ -188,6 +188,43 @@ export const IconChatPlus = makeIcon(
   { strokeWidth: 1.8 },
 );
 
+export const IconChat = makeIcon(
+  "IconChat",
+  () => (
+    <g>
+      <path d="M6.4 4.8h10.3a5 5 0 0 1 5 5v1.6a5 5 0 0 1-5 5H12.3L7.3 19v-3.2H6.4a5 5 0 0 1-5-5V9.8a5 5 0 0 1 5-5z" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconAgent = makeIcon(
+  "IconAgent",
+  () => (
+    <g>
+      <rect x="6" y="7" width="12" height="9" rx="2" />
+      <circle cx="10" cy="11.5" r="1" />
+      <circle cx="14" cy="11.5" r="1" />
+      <path d="M12 3v4" />
+      <path d="M9 20h6" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconSwitch = makeIcon(
+  "IconSwitch",
+  () => (
+    <g>
+      <path d="M4 7h12" />
+      <path d="M12 4l4 3-4 3" />
+      <path d="M20 17H8" />
+      <path d="M12 14l-4 3 4 3" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
 export const IconHistory = makeIcon(
   "IconHistory",
   () => (

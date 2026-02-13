@@ -28,6 +28,7 @@ export const useSettingsStore = defineStore("settings", () => {
         temperature: 0.7,
         compressImages: false,
         multimodalTarget: null,
+        superpowerMode: false,
         contextCompressionThreshold: 80,
       },
       insights: { target: null, temperature: 0.7 },
@@ -143,6 +144,10 @@ export const useSettingsStore = defineStore("settings", () => {
                   compressImages:
                     typeof result.aiAgents.conversation?.compressImages === "boolean"
                       ? result.aiAgents.conversation.compressImages
+                      : false,
+                  superpowerMode:
+                    typeof result.aiAgents.conversation?.superpowerMode === "boolean"
+                      ? result.aiAgents.conversation.superpowerMode
                       : false,
                   multimodalTarget:
                     result.aiAgents.conversation?.multimodalTarget &&
@@ -303,9 +308,17 @@ export const useSettingsStore = defineStore("settings", () => {
                             ? result.sync.s3.prefix
                             : settings.sync.s3.prefix,
                       }
-                    : settings.sync.s3,
-              }
-            : settings.sync,
+                      : settings.sync.s3,
+                }
+              : settings.sync,
+        lastUsedColor:
+          typeof result.lastUsedColor === "string" && result.lastUsedColor.trim()
+            ? result.lastUsedColor
+            : settings.lastUsedColor,
+        lastUsedStyle:
+          result.lastUsedStyle && Object.values(HIGHLIGHT_STYLES).includes(result.lastUsedStyle)
+            ? result.lastUsedStyle
+            : settings.lastUsedStyle,
       });
     } catch (error) {
       console.error("Failed to load settings", error);

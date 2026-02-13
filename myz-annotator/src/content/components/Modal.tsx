@@ -326,34 +326,20 @@ export default defineComponent({
                         aria-pressed={isActive ? "true" : "false"}
                         onClick={() => handleSelectColor(index)}
                       />
-                      <button
-                        type="button"
+                      <label
                         class="myz-color-edit"
                         aria-label={`编辑颜色 ${color}`}
-                        onClick={() => {
-                          const input = containerRef.value?.querySelector(
-                            `input[data-color-index="${index}"]`,
-                          );
-                          if (input) {
-                            const el = input as HTMLInputElement;
-                            if (typeof el.showPicker === "function") {
-                              el.showPicker();
-                            } else {
-                              el.focus();
-                              el.click();
-                            }
-                          }
-                        }}
+                        title={`编辑颜色 ${color}`}
                       >
                         <IconPencil size={12} aria-hidden="true" />
-                      </button>
-                      <input
-                        type="color"
-                        class="myz-color-editor"
-                        data-color-index={index}
-                        value={color}
-                        onInput={(event) => handlePaletteInput(index, event)}
-                      />
+                        <input
+                          type="color"
+                          class="myz-color-editor"
+                          data-color-index={index}
+                          value={color}
+                          onInput={(event) => handlePaletteInput(index, event)}
+                        />
+                      </label>
                     </div>
                   );
                 })}

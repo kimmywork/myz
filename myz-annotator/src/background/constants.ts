@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS: Settings = {
       temperature: 0.7,
       compressImages: false,
       multimodalTarget: null,
+      superpowerMode: false,
       contextCompressionThreshold: 80,
     },
     insights: { target: null, temperature: 0.7 },

@@ -1,6 +1,7 @@
 import { defineComponent, onMounted, ref, watchEffect } from "vue";
 import { useSettingsStore } from "../../stores/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
+import ToggleSwitch from "../ToggleSwitch.jsx";
 
 type StatusTone = "info" | "error" | "success";
 
@@ -162,16 +163,16 @@ export default defineComponent({
             仅密文存储到 S3。请先保存 S3 配置，再设置同步密钥。
           </p>
 
-          <label class="field">
+          <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 p-3 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-300">
             <span>启用同步</span>
-            <input
-              type="checkbox"
+            <ToggleSwitch
               checked={enabled.value}
+              ariaLabel="启用同步"
               onChange={(event: Event) =>
                 (enabled.value = (event.target as HTMLInputElement).checked)
               }
             />
-          </label>
+          </div>
 
           <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-950/40">
             <label class="field">

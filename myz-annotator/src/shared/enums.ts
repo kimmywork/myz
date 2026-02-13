@@ -1,6 +1,7 @@
 export enum RECORD_KINDS {
   HIGHLIGHT = "highlight",
   CLIP = "clip",
+  BOOKMARK = "bookmark",
   AI_GENERATED = "ai-generated",
   TWEET_POST = "tweet:post",
   TWEET_REPLY = "tweet:reply",

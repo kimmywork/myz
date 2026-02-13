@@ -38,9 +38,13 @@ export default defineComponent({
       }
     }
 
-    function truncate(text: string, length = 100) {
-      if (!text) return "";
-      return text.length > length ? text.slice(0, length) + "..." : text;
+    function extractHost(url: string) {
+      if (!url) return "";
+      try {
+        return new URL(url).host;
+      } catch {
+        return "";
+      }
     }
 
     onMounted(() => {
@@ -81,15 +85,37 @@ export default defineComponent({
                   class="flex-1 cursor-pointer overflow-hidden"
                   onClick={() => selectConversation(conv)}
                 >
-                  <div class="truncate text-base font-semibold text-slate-900 dark:text-white">
-                    {conv.title || "未命名对话"}
-                  </div>
-                  <div class="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {truncate(conv.url)}
-                  </div>
-                  <div class="mt-2 text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                    {formatDate(conv.updatedAt)}
-                  </div>
+                  {(() => {
+                    const titleGenerated = conv?.metadata?.titleGenerated === true;
+                    const generatedTitle =
+                      titleGenerated && typeof conv.title === "string"
+                        ? conv.title.trim()
+                        : "";
+                    const displayTitle = generatedTitle || "未命名对话";
+                    const pageTitle =
+                      typeof conv?.metadata?.pageTitle === "string" &&
+                      conv.metadata.pageTitle.trim()
+                        ? conv.metadata.pageTitle.trim()
+                        : titleGenerated
+                          ? "未记录"
+                          : typeof conv.title === "string" && conv.title.trim()
+                            ? conv.title.trim()
+                            : "未记录";
+                    const host = extractHost(conv.url || "") || "未知地址";
+                    return (
+                      <>
+                        <div class="truncate text-base font-semibold text-slate-900 dark:text-white">
+                          {displayTitle}
+                        </div>
+                        <div class="truncate text-xs text-slate-500 dark:text-slate-400">
+                          页面：{pageTitle}
+                        </div>
+                        <div class="mt-2 text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                          {host}·{formatDate(conv.updatedAt)}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
                 <button
                   class="rounded-full border border-rose-200 px-3 py-1 text-xs font-medium text-rose-500 transition hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-300 dark:hover:bg-rose-500/10"

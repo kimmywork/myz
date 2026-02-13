@@ -250,6 +250,26 @@ export default defineComponent({
                 <input
                   type="checkbox"
                   class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
+                  checked={Boolean(agent.superpowerMode)}
+                  onChange={(e) =>
+                    updateAgent("conversation", {
+                      superpowerMode: (e.target as HTMLInputElement).checked,
+                    })
+                  }
+                />
+                <span>Superpower Mode（高级能力）</span>
+              </label>
+              <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                开启后允许使用高级工具（标签页/DOM 操作/任务管理），并启用计划 → 执行 → 验证流程。
+              </div>
+            </div>
+          )}
+          {key === "conversation" && (
+            <div class="mt-3">
+              <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
                   checked={Boolean(agent.compressImages)}
                   onChange={(e) =>
                     updateAgent("conversation", {

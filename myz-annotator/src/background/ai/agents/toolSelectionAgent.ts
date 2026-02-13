@@ -1,5 +1,6 @@
 import type { ChatCompletionClient } from "../providers/types.js"
 import type { AIModelSetting, MaxOutputTokenParam } from "../../settings.js"
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
 
 export interface ToolSelectionCandidate {
   name: string
@@ -34,16 +35,11 @@ function normalizeMaxOutput(
 
 function buildSystemPrompt() {
   return [
-    "你是一个“工具选择器”，负责根据用户输入，从候选工具中选择本次对话需要暴露给主模型的工具。",
-    "",
-    "原则：",
-    "- 默认不启用工具；只有在确实需要、且能明显提升回答质量时才选择工具。",
-    "- 只允许从候选列表中选择；不要发明工具名。",
-    "- 避免不必要的数据访问：能不用就不用。",
-    "- 注意工具间的依赖，确保能完成组合完成任务。比如，myz-web-search 需要同时返回 myz-fetch-page。",
-    "",
-    "输出格式：只输出 JSON，不要输出其他文本。",
-    'JSON 结构：{ "tool_names": ["tool-a", "tool-b"] }',
+    "你是工具选择器。",
+    "任务：从候选工具中选出本次对话需要暴露给主模型的最小集合。",
+    "原则：默认空；只从候选列表选择；避免不必要的数据访问。",
+    "依赖规则：若需要联网检索，必须同时选择 WebSearch 与 WebFetch。",
+    "仅输出 JSON：{ \"tool_names\": [\"...\"] }",
   ].join("\n")
 }
 
@@ -92,15 +88,19 @@ export class ToolSelectionAgent {
         ? "max_completion_tokens"
         : "max_tokens"
 
-    const request: any = {
-      model: options.model.model,
-      messages: [
+    const messages = injectSystemPromptAsUserMessage(
+      [
         { role: "system", content: buildSystemPrompt() },
         {
           role: "user",
           content: buildUserPrompt(options.prompt, options.tools || []),
         },
       ],
+      Boolean(options.model?.systemPromptInUserMessage),
+    )
+    const request: any = {
+      model: options.model.model,
+      messages,
       temperature: 0.0,
       stream: false,
     }

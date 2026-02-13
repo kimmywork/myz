@@ -1,6 +1,7 @@
 import { createApp } from "vue";
 import App from "./App.jsx";
 import { pinia } from "./stores/pinia.js";
+import { router } from "./router.js";
 import "./styles.css";
 
 const mountApp = () => {
@@ -11,6 +12,7 @@ const mountApp = () => {
   }
   const app = createApp(App);
   app.use(pinia);
+  app.use(router);
   app.mount(container);
 };
 

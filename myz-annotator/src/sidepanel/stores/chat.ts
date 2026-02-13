@@ -15,10 +15,12 @@ import {
   getMessagesForConversation,
   checkContextSize,
   deleteMessagesByConversationAndType,
+  updateConversationMetadata,
   ConversationInfo,
 } from "../aiStorage.js";
 import { usePageStore } from "./page.js";
 import { useUIStore } from "./ui.js";
+import { useTaskPlanStore } from "./taskPlan.js";
 import { sendMessage } from "@/shared/messaging.js";
 import { VectoriaSearchResult } from "@/background/vectoria-index.js";
 
@@ -36,7 +38,7 @@ interface SidePanelCommunicationMessage {
     selectionText?: string;
     selectionAttachment?: ImageAttachment;
   };
-  data?: MessageStreamData;
+  data?: MessageStreamData | { conversationId?: string; plan?: any };
 }
 
 export interface AutoInsightsState {
@@ -52,11 +54,13 @@ export interface AutoInsightsState {
 
 export const useChatStore = defineStore("chat", () => {
   const pageStore = usePageStore();
+  const taskPlanStore = useTaskPlanStore();
 
   const conversationId = ref<string | null>(null);
   const activeConversation = ref<ConversationInfo | null>(null);
   const messages: Ref<Message[]> = ref([]);
   const isLoading = ref(false);
+  const isValidating = ref(false);
   const error = ref("");
   const userInput = ref("");
   const pendingRequestId = ref<string | null>(null);
@@ -68,9 +72,15 @@ export const useChatStore = defineStore("chat", () => {
     baseSupportsVision: false,
     compressImages: false,
     configured: false,
+    superpowerMode: false,
     baseContextWindow: 32768,
     multimodalContextWindow: null as number | null,
   });
+  const conversationMode = ref<"agent" | "chat">("chat");
+  const superpowerEnabled = computed(() => aiConfig.superpowerMode);
+  const isAgentMode = computed(
+    () => aiConfig.superpowerMode && conversationMode.value === "agent",
+  );
   const contextInfo = reactive({
     size: 0,
     maxSize: 32768,
@@ -110,7 +120,15 @@ export const useChatStore = defineStore("chat", () => {
   });
 
   const conversationUrl = computed(() => activeConversation.value?.url || "");
-  const conversationTitle = computed(() => activeConversation.value?.title || "");
+  const conversationTitle = computed(() => {
+    const title = activeConversation.value?.title || "";
+    if (title.trim()) return title;
+    const pageTitle =
+      typeof activeConversation.value?.metadata?.pageTitle === "string"
+        ? activeConversation.value?.metadata?.pageTitle || ""
+        : "";
+    return pageTitle;
+  });
 
   const hasActiveStream = computed(() => Boolean(activeStream.id));
 
@@ -131,6 +149,52 @@ export const useChatStore = defineStore("chat", () => {
     text: "",
     attachments: [],
   });
+
+  function normalizeConversationMode(value: any): "agent" | "chat" {
+    return value === "chat" ? "chat" : "agent";
+  }
+
+  function resolveConversationMode(value: any) {
+    return aiConfig.superpowerMode ? normalizeConversationMode(value) : "chat";
+  }
+
+  async function maybeGenerateConversationTitle(input: string) {
+    if (!conversationId.value) return;
+    const current = activeConversation.value;
+    if (!current) return;
+    const titleGenerated = current?.metadata?.titleGenerated;
+    if (titleGenerated !== false) return;
+    try {
+      const updated = await sendMessage("myz:aiTitleRequest", {
+        conversationId: current.id,
+        request: input,
+        pageTitle: pageStore.pageTitle,
+        url: pageStore.currentUrl,
+      });
+      if (updated?.id === current.id) {
+        activeConversation.value = updated;
+      }
+    } catch (e) {
+      console.warn("Failed to generate conversation title", e);
+    }
+  }
+
+  async function setConversationMode(mode: "agent" | "chat") {
+    const nextMode = resolveConversationMode(mode);
+    if (conversationMode.value === nextMode) return;
+    conversationMode.value = nextMode;
+    if (!conversationId.value) return;
+    try {
+      const updated = await updateConversationMetadata(conversationId.value, {
+        assistantMode: nextMode,
+      });
+      if (updated) {
+        activeConversation.value = updated;
+      }
+    } catch (e) {
+      console.warn("Failed to update conversation mode", e);
+    }
+  }
 
   function clearDraftContext() {
     draftContext.present = false;
@@ -330,7 +394,9 @@ export const useChatStore = defineStore("chat", () => {
     try {
       const convId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const url = pageStore.currentUrl || "";
-      const title = pageStore.pageTitle || "新对话";
+      const title = "";
+      const pageTitle = pageStore.pageTitle || "";
+      const defaultMode = resolveConversationMode("agent");
       const conversationData: ConversationInfo & Record<string, any> = {
         id: convId,
         url,
@@ -340,14 +406,20 @@ export const useChatStore = defineStore("chat", () => {
         updatedAt: new Date().toISOString(),
         isAiGenerated: false,
         sendContextEnabled: sendContext.value,
-        metadata: {},
+        metadata: {
+          assistantMode: defaultMode,
+          pageTitle,
+          titleGenerated: false,
+        },
       };
 
       await saveConversation(conversationData);
       conversationId.value = convId;
       activeConversation.value = conversationData;
+      conversationMode.value = defaultMode;
       messages.value = [];
       await writeActiveConversationId(convId);
+      await taskPlanStore.loadPlan(convId);
 
       if (sendContext.value) {
         await ensurePageContextMessage(convId);
@@ -424,7 +496,9 @@ export const useChatStore = defineStore("chat", () => {
       if (conv) {
         conversationId.value = conv.id;
         activeConversation.value = conv;
+        conversationMode.value = resolveConversationMode(conv.metadata?.assistantMode);
         await writeActiveConversationId(conv.id);
+        await taskPlanStore.loadPlan(conv.id);
         const msgs = await getMessagesForConversation(convId, 1000);
         messages.value = msgs;
         
@@ -486,6 +560,9 @@ export const useChatStore = defineStore("chat", () => {
 
   async function sendUserMessage(content: string) {
     const trimmed = (content || "").trim();
+    const autoMode = isAgentMode.value;
+    const cleanedMessage = trimmed.replace(/\b(ulw|ultrawork)\b/gi, "").replace(/\s+/g, " ").trim();
+    const effectiveMessage = cleanedMessage || trimmed;
     const draftEnabled = Boolean(draftContext.present && draftContext.enabled);
     const draftText = draftEnabled ? (draftContext.text || "").trim() : "";
     const draftAttachments = draftEnabled
@@ -495,8 +572,15 @@ export const useChatStore = defineStore("chat", () => {
       ...(draftEnabled ? draftAttachments : []),
       ...attachments.value,
     ];
+    const resolvedConversationMode = aiConfig.superpowerMode
+      ? conversationMode.value
+      : "chat";
 
     if ((!trimmed && !combinedAttachments.length && !draftText) || isLoading.value) {
+      return;
+    }
+    if (autoMode && !cleanedMessage && !combinedAttachments.length && !draftText) {
+      error.value = "请提供一句话任务描述";
       return;
     }
 
@@ -557,24 +641,94 @@ export const useChatStore = defineStore("chat", () => {
       const clientMessageId = userMsg.id;
 
       messages.value.push(userMsg);
+      void maybeGenerateConversationTitle(trimmed);
       userInput.value = "";
       resetAttachments();
       clearDraftContext();
 
+      const plan = taskPlanStore.taskPlan;
+      const needsPlanning =
+        autoMode && (!plan || plan.status === "needs_revision");
+      if (needsPlanning) {
+        try {
+          const planResult: any = await sendMessage("myz:aiPlanRequest", {
+            conversationId: conversationId.value,
+            message: effectiveMessage,
+            options: {
+              quickStart: autoMode,
+              autoStart: autoMode,
+              selectionContextText,
+            },
+          });
+          await taskPlanStore.loadPlan(conversationId.value);
+          const plan = taskPlanStore.taskPlan;
+          const review = plan?.planReview || planResult?.review;
+          const reviewStatus = review?.status || "pending";
+          const issues = Array.isArray(review?.issues) ? review.issues : [];
+          const missingInfo = Array.isArray(review?.missingInfo) ? review.missingInfo : [];
+          const contentLines = [];
+          if (reviewStatus === "pass") {
+            contentLines.push(
+              autoMode
+                ? "已生成任务计划并进入自动执行。"
+                : "已生成任务计划并通过审核。请在任务面板点击“开始执行”。",
+            );
+          } else if (reviewStatus === "needs_revision") {
+            contentLines.push("任务计划需调整，请根据以下问题补充或修改需求后再试：");
+            if (issues.length === 0 && missingInfo.length === 0) {
+              contentLines.push("审核未给出具体问题，请补充目标、约束或验收标准，或点击“重新审核”重试。");
+            } else {
+              issues.forEach((issue: string, index: number) => {
+                contentLines.push(`${index + 1}. ${issue}`);
+              });
+              if (missingInfo.length) {
+                contentLines.push("缺失信息：");
+                missingInfo.forEach((item: string, index: number) => {
+                  contentLines.push(`- ${item}`);
+                });
+              }
+            }
+          } else {
+            contentLines.push("已生成任务计划，等待审核。");
+          }
+          const assistantMsg: Message = {
+            id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            conversationId: conversationId.value,
+            role: "assistant",
+            content: contentLines.join("\n"),
+            timestamp: new Date().toISOString(),
+            metadata: { type: "plan_notice" },
+          };
+          await saveMessage(assistantMsg);
+          messages.value.push(assistantMsg);
+          if (!autoMode || reviewStatus !== "pass") {
+            isLoading.value = false;
+            pendingRequestId.value = null;
+            return;
+          }
+        } catch (e) {
+          error.value = "规划失败: " + (e as Error).message;
+          pendingRequestId.value = null;
+          isLoading.value = false;
+          return;
+        }
+      }
+
       // Send to background (streaming via runtime messages)
       void sendMessage("myz:aiStreamRequest", {
         conversationId: conversationId.value,
-        message: trimmed,
+        message: effectiveMessage,
         action: "custom",
         attachments: nextAttachments,
         clientMessageId,
         options: selectionContextText
           ? {
+              conversationMode: resolvedConversationMode,
               metadata: {
                 selectionContextText,
               },
             }
-          : undefined,
+          : { conversationMode: resolvedConversationMode },
         context: {
           url: pageStore.currentUrl,
           title: pageStore.pageTitle,
@@ -774,10 +928,31 @@ export const useChatStore = defineStore("chat", () => {
     messages.value.push(messageToAppend);
     isLoading.value = false;
     pendingRequestId.value = null;
+
+    maybeTriggerValidation(taskPlanStore.taskPlan);
     
     const uiStore = useUIStore();
     uiStore.scrollToBottom();
     checkContext();
+  }
+
+  function maybeTriggerValidation(plan: any) {
+    if (!isAgentMode.value || !conversationId.value || isValidating.value) {
+      return;
+    }
+    const reviewPassed = plan?.planReview?.status === "pass";
+    if (reviewPassed && plan?.status === "done" && plan?.validation?.status !== "pass") {
+      isValidating.value = true;
+      void sendMessage("myz:aiValidateRequest", {
+        conversationId: conversationId.value,
+      })
+        .catch((e) => {
+          console.warn("Validation failed", e);
+        })
+        .finally(() => {
+          isValidating.value = false;
+        });
+    }
   }
 
   function handleStreamErrorEvent(data: MessageStreamData) {
@@ -834,6 +1009,7 @@ export const useChatStore = defineStore("chat", () => {
       aiConfig.supportsVision = baseVision || multimodalVision;
       aiConfig.multimodalContextWindow = multimodalContextWindow;
       aiConfig.compressImages = Boolean(conversation?.compressImages);
+      aiConfig.superpowerMode = Boolean(conversation?.superpowerMode);
       contextInfo.maxSize = aiConfig.baseContextWindow || 32768;
       if (typeof conversation?.contextCompressionThreshold === "number") {
         contextInfo.threshold = Math.max(
@@ -843,15 +1019,20 @@ export const useChatStore = defineStore("chat", () => {
       } else {
         contextInfo.threshold = 80;
       }
+      if (!aiConfig.superpowerMode) {
+        conversationMode.value = "chat";
+      }
     } catch {
       aiConfig.assistantEnabled = false;
       aiConfig.supportsVision = false;
       aiConfig.baseSupportsVision = false;
       aiConfig.compressImages = false;
+      aiConfig.superpowerMode = false;
       aiConfig.configured = false;
       aiConfig.baseContextWindow = 32768;
       aiConfig.multimodalContextWindow = null;
       contextInfo.threshold = 80;
+      conversationMode.value = "chat";
     }
   }
 
@@ -923,18 +1104,28 @@ export const useChatStore = defineStore("chat", () => {
           }).catch(() => {});
         }
         setTimeout(() => handleAutoAction(message.payload!.action as any), 100);
-      } else if (message.type === "myz:newMessage" && message.data?.message) {
-        const incoming = message.data.message;
+      } else if (message.type === "myz:newMessage" && (message.data as MessageStreamData)?.message) {
+        const incoming = (message.data as MessageStreamData).message!;
         if (conversationId.value && incoming.conversationId === conversationId.value) {
           messages.value.push(incoming);
+          if (incoming.role === "assistant") {
+            isLoading.value = false;
+            pendingRequestId.value = null;
+          }
           uiStore.scrollToBottom();
         }
+      } else if (message.type === "myz:taskPlanUpdated" && message.data) {
+        const payload = message.data as any;
+        if (payload?.conversationId === conversationId.value) {
+          taskPlanStore.setPlan(payload.plan);
+          maybeTriggerValidation(payload.plan);
+        }
       } else if (message.type === "myz:aiSkillSelection" && message.data) {
-        const data = message.data;
+        const data = message.data! as MessageStreamData;
         if (!data.conversationId || data.conversationId !== conversationId.value) {
           return;
         }
-        if (!data.clientMessageId) {
+        if (!(data).clientMessageId) {
           return;
         }
         const skillNames = Array.isArray(data.skillNames)
@@ -955,13 +1146,13 @@ export const useChatStore = defineStore("chat", () => {
           };
         }
       } else if (message.type === "myz:aiStreamStart" && message.data) {
-        handleStreamStartEvent(message.data);
+        handleStreamStartEvent(message.data as MessageStreamData);
       } else if (message.type === "myz:aiStreamChunk" && message.data) {
-        handleStreamChunkEvent(message.data);
+        handleStreamChunkEvent(message.data as MessageStreamData);
       } else if (message.type === "myz:aiStreamComplete" && message.data) {
-        handleStreamCompleteEvent(message.data);
+        handleStreamCompleteEvent(message.data as MessageStreamData);
       } else if (message.type === "myz:aiStreamError" && message.data) {
-        handleStreamErrorEvent(message.data);
+        handleStreamErrorEvent(message.data as MessageStreamData);
       } else if (message.type === "myz:showRelatedHighlights" && Array.isArray(message.payload?.matches)) {
         pageStore.relatedMatches = message.payload!.matches;
         uiStore.setView("related");
@@ -1032,6 +1223,9 @@ export const useChatStore = defineStore("chat", () => {
     attachments,
     contextInfo,
     canAttachImages,
+    superpowerEnabled,
+    conversationMode,
+    isAgentMode,
     addImageFiles,
     removeAttachment,
     resetAttachments,
@@ -1055,6 +1249,7 @@ export const useChatStore = defineStore("chat", () => {
     runAutoInsights,
     closeAutoInsights,
     toggleContext,
+    setConversationMode,
     initialize,
     cleanup,
     startNewConversationForContext,

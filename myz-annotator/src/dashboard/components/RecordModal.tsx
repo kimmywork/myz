@@ -107,6 +107,7 @@ export default defineComponent({
                 >
                   {(() => {
                     if (kind.value === RECORD_KINDS.CLIP) return "保存文字";
+                    if (kind.value === RECORD_KINDS.BOOKMARK) return "网页书签";
                     if (kind.value === RECORD_KINDS.AI_GENERATED) return "AI摘录";
                     if (kind.value === RECORD_KINDS.TWEET_POST) return "推文";
                     if (kind.value === RECORD_KINDS.TWEET_REPLY) return "回复";
