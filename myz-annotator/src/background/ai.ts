@@ -1,4 +1,4 @@
-import type { MyZRecord } from "@/shared/types.ts";
+import { CONTENT_TYPES, type MyZRecord } from "@/shared/types.ts";
 
 export const AI_CONVERSATION_KEY = "myz::ai-conversations";
 export const AI_MCP_SERVERS_KEY = "myz::ai-mcp-servers";
@@ -117,6 +117,7 @@ export async function saveAiGeneratedHighlight(
     tags: Array.isArray(highlightData.tags)
       ? highlightData.tags
       : ["ai-generated"],
+    contentType: CONTENT_TYPES.MARKDOWN,
     url: highlightData.url || "",
     title: highlightData.title || "",
     createdAt: now,

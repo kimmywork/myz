@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from "vue-router"
 import HighlightsPage from "./pages/HighlightsPage.jsx"
+import HighlightViewerPage from "./pages/HighlightViewerPage.jsx"
 import ChatPage from "./pages/ChatPage.jsx"
 import SettingsLayout from "./pages/settings/SettingsLayout.jsx"
 import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx"
@@ -17,6 +18,11 @@ import AiVectorSearchPage from "./pages/settings/ai/AiVectorSearchPage.jsx"
 const routes = [
   { path: "/", redirect: "/highlights" },
   { path: "/highlights", name: "highlights", component: HighlightsPage },
+  {
+    path: "/highlights/:id",
+    name: "highlight-viewer",
+    component: HighlightViewerPage,
+  },
   { path: "/chat", name: "chat", component: ChatPage },
   {
     path: "/settings",

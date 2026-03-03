@@ -10,20 +10,24 @@ describe("import", () => {
     updatedAt: "2024-01-01T00:00:00.000Z",
     url: "https://example.com",
   };
+  const normalizedRecord = {
+    ...baseRecord,
+    contentType: "text/plain",
+  };
 
   it("should return array if payload is array", () => {
     const payload = [baseRecord];
-    expect(normalizeImportedPayload(payload)).toEqual(payload);
+    expect(normalizeImportedPayload(payload)).toEqual([normalizedRecord]);
   });
 
   it("should return highlights if payload has highlights array", () => {
     const payload = { highlights: [baseRecord] };
-    expect(normalizeImportedPayload(payload)).toEqual(payload.highlights);
+    expect(normalizeImportedPayload(payload)).toEqual([normalizedRecord]);
   });
 
   it("should return data if payload has data array", () => {
     const payload = { data: [baseRecord] };
-    expect(normalizeImportedPayload(payload)).toEqual(payload.data);
+    expect(normalizeImportedPayload(payload)).toEqual([normalizedRecord]);
   });
 
   it("should return empty array for invalid payload", () => {

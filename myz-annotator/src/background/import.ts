@@ -1,5 +1,10 @@
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
-import { MyZRecord, RECORD_KINDS } from "@/shared/types";
+import {
+  MyZRecord,
+  RECORD_KINDS,
+  normalizeContentType,
+  resolveRecordContentType,
+} from "@/shared/types";
 import { extractHostname } from "@/shared/url.js";
 import {
   SerializedRangeSchema,
@@ -60,6 +65,7 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     text: typeof rawRecord.text === "string" ? rawRecord.text.trim() : "",
     html: typeof rawRecord.html === "string" ? rawRecord.html.trim() : "",
     note: typeof rawRecord.note === "string" ? rawRecord.note.trim() : "",
+    contentType: normalizeContentType((rawRecord as any).contentType),
     tags: SanitizedTagsSchema.parse(rawRecord.tags),
     hostname:
       typeof rawRecord.hostname === "string" && rawRecord.hostname.trim()
@@ -67,6 +73,8 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
         : extractHostname(url),
     kind,
   };
+
+  result.contentType = resolveRecordContentType(result);
 
   if (kind === RECORD_KINDS.HIGHLIGHT) {
     result.range = range!;

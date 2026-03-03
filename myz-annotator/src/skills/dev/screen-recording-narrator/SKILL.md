@@ -77,12 +77,13 @@ description: 编排离线教程视频制作流程（录屏 + 大纲，TTS/口播
    - `voice` 模式：抽取 `audio.wav`，检测静音并可裁剪（如 auto-editor / ffmpeg silencedetect）。
    - 命令模板见 `references/COMMANDS.md`。
 
-3) **分析（可选）**
-   - OCR 关键帧提取 UI 文本。
-   - 做 OCR 清洗与结构化（见 `references/OCR_PROCESSING.md`）。
-   - 关键步骤可使用 Ollama vision 语义 OCR：
-     - Agent 将大纲/口播 + tesseract 文本 **提炼为 <=50 字** 再提示。
-     - Vision 输出可能非 JSON，先存 raw 再人工抽取 UI/动作。
+3) **分析（必做，禁止跳过）**
+- OCR 关键帧提取 UI 文本。
+- 做 OCR 清洗与结构化（见 `references/OCR_PROCESSING.md`）。
+- **必须**使用 Ollama vision 语义 OCR：
+  - Agent 将大纲/口播 + tesseract 文本 **提炼为 <=50 字** 再提示。
+  - Vision 输出可能非 JSON，先存 raw 再人工抽取 UI/动作。
+  - **必须在交互式终端执行，且需要提权/非 sandbox**（见 `references/OCR_PROCESSING.md` 的 CLI 说明）。
 
 4) **脚本扩写（outline + OCR + timecode）**
    - **不要**直接使用大纲 bullets 作为最终旁白。
@@ -129,6 +130,7 @@ description: 编排离线教程视频制作流程（录屏 + 大纲，TTS/口播
   - 无音频 + `voice` → 不能 STT，回退 `outline-tts`（或询问用户）。
   - 无音频 + `outline-tts` → 继续 TTS。
 - **OCR 语言**：缺 `chi_sim` → OCR 低可信，禁用 OCR 驱动脚本。
+- **OCR + Vision 强制**：OCR 与 Vision 步骤不可跳过；若无法在交互式终端 + 提权环境运行 Ollama Vision，必须暂停并请求用户授权（**不得继续后续脚本/渲染**）。
 - **字幕烧录**：ffmpeg 无 `subtitles` filter → 用 mpv 烧录；否则保留 SRT sidecar。
 - **字幕文本规范**：
   - 字幕烧录时去掉句尾标点（逗号、句号等；冒号、顿号保留）。
@@ -140,6 +142,7 @@ description: 编排离线教程视频制作流程（录屏 + 大纲，TTS/口播
 ## 工具使用模式（离线）
 
 完整命令模板见 `references/COMMANDS.md`。
+**Ollama Vision 必须在交互式终端 + 提权环境执行**（CLI 方式需可见 `Added image '/abs/path/to/frame.png'`）。
 
 ## 故障恢复清单
 

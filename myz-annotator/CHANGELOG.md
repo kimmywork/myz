@@ -1,5 +1,11 @@
 # Changelog
 
+# v0.4.2 Dashboard 新查看器与页面聚合
+
+- 新增 `/highlights/:id` 查看器页面，支持同页标注连续阅读、滚动到底自动切换、上一页/下一页导航。
+- Dashboard 高亮列表新增可折叠页面侧边栏，支持按网页筛选与按时间/Range 顺序查看。
+- 标注内容新增 `contentType` 字段，支持 Markdown/HTML/纯文本渲染，AI 摘录默认使用 Markdown。
+
 # v0.4.1 Dashboard 路由与导入增强
 
 - 重构了 Dashboard（docs/plan/vuerouter-refactoring.md）。
