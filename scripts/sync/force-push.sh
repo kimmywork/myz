@@ -4,7 +4,7 @@
 git subtree split --prefix=myz-annotator/src/background/sync -b sync-master
 
 # Force push
-git push -f sync-master sync:master
+git push -f sync sync-master:master
 
 git subtree push --prefix=myz-annotator/src/background/sync sync master
 

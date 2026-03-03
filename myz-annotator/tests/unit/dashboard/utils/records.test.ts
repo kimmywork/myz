@@ -4,6 +4,8 @@ import {
   normalizeRecord,
   computeRecordStats,
   groupHighlightsByDate,
+  groupRecordsByPage,
+  sortRecordsForPage,
   formatDateTime,
 } from "@/dashboard/utils/records";
 import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types";
@@ -64,6 +66,7 @@ describe("records", () => {
       expect(normalized).toEqual({
         ...baseRecord,
         kind: RECORD_KINDS.HIGHLIGHT,
+        contentType: "text/plain",
       });
     });
   });
@@ -119,6 +122,111 @@ describe("records", () => {
       const records = [{ id: "1" }] as MyZRecord[];
       const grouped = groupHighlightsByDate(records);
       expect(grouped[0][0]).toBe("未知日期");
+    });
+  });
+
+  describe("groupRecordsByPage", () => {
+    it("should group records by url and keep latest timestamp", () => {
+      const records = [
+        {
+          id: "1",
+          kind: RECORD_KINDS.HIGHLIGHT,
+          text: "",
+          createdAt: "2024-02-01T10:00:00Z",
+          updatedAt: "2024-02-01T10:00:00Z",
+          url: "https://example.com/a",
+        },
+        {
+          id: "2",
+          kind: RECORD_KINDS.CLIP,
+          text: "",
+          createdAt: "2024-02-02T10:00:00Z",
+          updatedAt: "2024-02-02T10:00:00Z",
+          url: "https://example.com/a",
+        },
+        {
+          id: "3",
+          kind: RECORD_KINDS.AI_GENERATED,
+          text: "",
+          createdAt: "2024-02-03T10:00:00Z",
+          updatedAt: "2024-02-03T10:00:00Z",
+          url: "https://foo.bar/path",
+        },
+      ] as MyZRecord[];
+
+      const groups = groupRecordsByPage(records);
+      expect(groups).toHaveLength(2);
+      expect(groups[0].url).toBe("https://foo.bar/path");
+      expect(groups[0].hostname).toBe("foo.bar");
+      const exampleGroup = groups.find((group) => group.url.includes("example"))!;
+      expect(exampleGroup.count).toBe(2);
+      expect(exampleGroup.latestAt).toBe("2024-02-02T10:00:00.000Z");
+    });
+  });
+
+  describe("sortRecordsForPage", () => {
+    const base = {
+      kind: RECORD_KINDS.HIGHLIGHT,
+      text: "",
+      url: "https://example.com",
+    };
+
+    it("should sort by time when mode is time", () => {
+      const records = [
+        {
+          ...base,
+          id: "1",
+          createdAt: "2024-02-01T10:00:00Z",
+          updatedAt: "2024-02-01T10:00:00Z",
+        },
+        {
+          ...base,
+          id: "2",
+          createdAt: "2024-02-03T10:00:00Z",
+          updatedAt: "2024-02-03T10:00:00Z",
+        },
+      ] as MyZRecord[];
+
+      const sorted = sortRecordsForPage(records, "time");
+      expect(sorted.map((item) => item.id)).toEqual(["2", "1"]);
+    });
+
+    it("should sort by range then fallback to time", () => {
+      const records = [
+        {
+          ...base,
+          id: "1",
+          createdAt: "2024-02-01T10:00:00Z",
+          updatedAt: "2024-02-01T10:00:00Z",
+          range: {
+            start: {
+              charOffset: 5,
+              path: [{ name: "div", index: 0 }, { name: "#text", index: 0 }],
+            },
+          },
+        },
+        {
+          ...base,
+          id: "2",
+          createdAt: "2024-02-02T10:00:00Z",
+          updatedAt: "2024-02-02T10:00:00Z",
+          range: {
+            start: {
+              charOffset: 1,
+              path: [{ name: "div", index: 1 }, { name: "#text", index: 0 }],
+            },
+          },
+        },
+        {
+          ...base,
+          id: "3",
+          createdAt: "2024-02-04T10:00:00Z",
+          updatedAt: "2024-02-04T10:00:00Z",
+        },
+      ] as MyZRecord[];
+
+      const sorted = sortRecordsForPage(records, "range");
+      expect(sorted.map((item) => item.id)).toEqual(["1", "2", "3"]);
     });
   });
 

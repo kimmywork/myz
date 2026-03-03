@@ -20,6 +20,7 @@ import {
 import { sendMessage } from "@/shared/messaging";
 import { serializeRange } from "@/shared/serializer";
 import {
+  CONTENT_TYPES,
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLES,
@@ -194,6 +195,7 @@ export const useModalStore = defineStore("modal", () => {
       tags,
       hostname,
       kind,
+      contentType: CONTENT_TYPES.HTML,
     };
 
     const selection = window.getSelection();

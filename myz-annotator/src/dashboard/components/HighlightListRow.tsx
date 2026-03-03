@@ -1,4 +1,5 @@
 import { computed, defineComponent, ref } from "vue";
+import { useRouter } from "vue-router";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
 import { HighlightItemAction } from "./HighlightCard.jsx";
@@ -17,6 +18,7 @@ export default defineComponent({
   setup(props: { record: MyZRecord }) {
     const highlightsStore = useHighlightsStore();
     const uiStore = useUIStore();
+    const router = useRouter();
     const kind = computed(() => getRecordKind(props.record));
     const isSocial = computed(() => {
       const value = String(kind.value);
@@ -63,7 +65,7 @@ export default defineComponent({
           highlightsStore.deleteHighlight(id);
           break;
         case "view":
-          uiStore.openModal(id, "view");
+          router.push(`/highlights/${id}`);
           break;
         case "edit":
           uiStore.openModal(id, "edit");

@@ -1,5 +1,25 @@
-import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.ts";
+import {
+  CONTENT_TYPES,
+  MyZRecord,
+  RECORD_KINDS,
+  getRecordKind,
+  resolveRecordContentType,
+} from "@/shared/types.ts";
 import { MyZRecordSchema } from "@/shared/schemas";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
+import { extractHostname } from "@/shared/url.js";
+
+export type PageSortMode = "time" | "range";
+
+export interface PageGroup {
+  key: string;
+  url: string;
+  title: string;
+  hostname: string;
+  latestAt: string;
+  count: number;
+  records: MyZRecord[];
+}
 
 export function getRecordKindLabel(record: MyZRecord) {
   const kind = getRecordKind(record);
@@ -42,7 +62,11 @@ export function normalizeRecord(record?: any): MyZRecord | null {
     return null;
   }
   // Ensure kind is set correctly before validation
-  const recordWithKind = { ...record, kind: getRecordKind(record) };
+  const recordWithKind = {
+    ...record,
+    kind: getRecordKind(record),
+  };
+  recordWithKind.contentType = resolveRecordContentType(recordWithKind);
   
   const result = MyZRecordSchema.safeParse(recordWithKind);
   if (result.success) {
@@ -83,6 +107,134 @@ export function computeRecordStats(records: MyZRecord[] = []) {
     aiCount,
     tweetCount,
   };
+}
+
+export function groupRecordsByPage(records: MyZRecord[]): PageGroup[] {
+  const map = new Map<string, PageGroup>();
+
+  records.forEach((record) => {
+    const url = record?.url || record?.sourceUrl;
+    if (!url) {
+      return;
+    }
+    const existing = map.get(url);
+    const latest =
+      Date.parse(record.createdAt || record.updatedAt || "") || 0;
+    if (!existing) {
+      map.set(url, {
+        key: url,
+        url,
+        title: record.title || "",
+        hostname:
+          record.hostname ||
+          (() => {
+            try {
+              return extractHostname(url);
+            } catch {
+              return "";
+            }
+          })(),
+        latestAt: Number.isFinite(latest)
+          ? new Date(latest).toISOString()
+          : record.createdAt || record.updatedAt || "",
+        count: 1,
+        records: [record],
+      });
+      return;
+    }
+    existing.records.push(record);
+    existing.count += 1;
+    if (!existing.title && record.title) {
+      existing.title = record.title;
+    }
+    if (!existing.hostname && record.hostname) {
+      existing.hostname = record.hostname;
+    }
+    const existingLatest = Date.parse(existing.latestAt || "") || 0;
+    if (latest > existingLatest) {
+      existing.latestAt = new Date(latest).toISOString();
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    const timeA = Date.parse(a.latestAt || "");
+    const timeB = Date.parse(b.latestAt || "");
+    return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+  });
+}
+
+function comparePathSegments(
+  left: { name: string; index: number }[],
+  right: { name: string; index: number }[],
+): number {
+  const len = Math.min(left.length, right.length);
+  for (let i = 0; i < len; i += 1) {
+    const a = left[i];
+    const b = right[i];
+    if (a.name !== b.name) {
+      return a.name.localeCompare(b.name);
+    }
+    if (a.index !== b.index) {
+      return a.index - b.index;
+    }
+  }
+  return left.length - right.length;
+}
+
+function buildRangeKey(record: MyZRecord) {
+  const start = record.range?.start || record.range?.end;
+  if (!start || !Array.isArray(start.path) || !start.path.length) {
+    return null;
+  }
+  return {
+    path: start.path,
+    offset:
+      typeof start.charOffset === "number"
+        ? start.charOffset
+        : typeof start.offset === "number"
+          ? start.offset
+          : 0,
+  };
+}
+
+function compareByRange(a: MyZRecord, b: MyZRecord): number {
+  const keyA = buildRangeKey(a);
+  const keyB = buildRangeKey(b);
+  if (!keyA && !keyB) {
+    return 0;
+  }
+  if (!keyA) return 1;
+  if (!keyB) return -1;
+  const pathCompare = comparePathSegments(keyA.path, keyB.path);
+  if (pathCompare !== 0) {
+    return pathCompare;
+  }
+  return keyA.offset - keyB.offset;
+}
+
+export function sortRecordsForPage(
+  records: MyZRecord[],
+  mode: PageSortMode,
+): MyZRecord[] {
+  const sorted = records.slice();
+  if (mode === "range") {
+    sorted.sort((a, b) => {
+      const rangeOrder = compareByRange(a, b);
+      if (rangeOrder !== 0) {
+        return rangeOrder;
+      }
+      const timeA = Date.parse(a.createdAt || a.updatedAt || "");
+      const timeB = Date.parse(b.createdAt || b.updatedAt || "");
+      return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+    });
+    return sorted;
+  }
+  sorted.sort((a, b) => {
+    const timeA = Date.parse(a.createdAt || a.updatedAt || "");
+    const timeB = Date.parse(b.createdAt || b.updatedAt || "");
+    return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+  });
+  return sorted;
 }
 
 export function groupHighlightsByDate(highlights: MyZRecord[]) {
@@ -219,8 +371,15 @@ export function renderHighlightContent(
   record: MyZRecord,
   terms: string[],
 ): string {
-  if (record?.html) {
-    return highlightTermsInHtml(record.html, terms);
+  const contentType = resolveRecordContentType(record);
+  if (contentType === CONTENT_TYPES.MARKDOWN) {
+    const rendered = renderMarkdown(record?.text || "");
+    return highlightTermsInHtml(rendered, terms);
+  }
+  if (contentType === CONTENT_TYPES.HTML) {
+    if (record?.html) {
+      return highlightTermsInHtml(record.html, terms);
+    }
   }
   const escaped = escapeHtml(record?.text || "");
   const withBreaks = escaped.replace(/\r?\n/g, "<br>");
@@ -231,9 +390,8 @@ export function formatNote(value: string, terms: string[]): string {
   if (!value) {
     return "";
   }
-  const escaped = escapeHtml(String(value));
-  const withBreaks = escaped.replace(/\r?\n/g, "<br>");
-  return applySearchHighlights(withBreaks, terms);
+  const rendered = renderMarkdown(String(value));
+  return highlightTermsInHtml(rendered, terms);
 }
 
 export function formatInline(value: string, terms: string[]): string {

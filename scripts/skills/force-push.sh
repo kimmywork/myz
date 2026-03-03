@@ -4,7 +4,7 @@
 git subtree split --prefix=myz-annotator/src/skills -b skills-master
 
 # Force push
-git push -f skills-master skills:master
+git push -f skills skills-master:master
 
 git subtree push --prefix=myz-annotator/src/skills skills master
 

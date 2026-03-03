@@ -1,6 +1,7 @@
 import { defineComponent, Ref, ref } from "vue";
 import { useHighlightsStore } from "../../stores/highlights.js";
 import { ImportStrategy } from "@/background/import";
+import { ImportSource } from "@/dashboard/utils/import.js";
 
 export default defineComponent({
   name: "ImportHighlightsSection",
@@ -9,6 +10,7 @@ export default defineComponent({
     const store = useHighlightsStore();
     const importFileRef: Ref<HTMLInputElement | null> = ref(null);
     const importStrategy: Ref<ImportStrategy> = ref("skip");
+    const importSource: Ref<ImportSource> = ref("auto");
     const isImporting = ref(false);
 
     async function handleImport() {
@@ -16,7 +18,11 @@ export default defineComponent({
       const file = fileInput?.files?.[0];
       isImporting.value = true;
       try {
-        await store.importHighlightsFromFile(file, importStrategy.value);
+        await store.importHighlightsFromFile(
+          file,
+          importStrategy.value,
+          importSource.value,
+        );
         if (fileInput) {
           fileInput.value = "";
         }
@@ -34,7 +40,7 @@ export default defineComponent({
         </div>
         <div class="settings__fields">
           <p class="settings__hint">
-            支持导入 MyZ JSON、RainDrop CSV、Chrome 书签 HTML。
+            支持导入 MyZ JSON、RainDrop CSV、Weava CSV、Chrome 书签 HTML。
           </p>
           <label class="field">
             <span>导入文件</span>
@@ -43,6 +49,23 @@ export default defineComponent({
               type="file"
               accept="application/json,text/csv,text/html,.json,.csv,.html,.htm"
             />
+          </label>
+          <label class="field">
+            <span>导入来源</span>
+            <select
+              value={importSource.value}
+              onChange={(event: Event) =>
+                (importSource.value = (
+                  event.target as HTMLSelectElement
+                ).value as ImportSource)
+              }
+            >
+              <option value="auto">自动识别（推荐）</option>
+              <option value="myz-json">MyZ JSON</option>
+              <option value="raindrop-csv">RainDrop CSV</option>
+              <option value="weava-csv">Weava CSV</option>
+              <option value="chrome-bookmarks">Chrome 书签 HTML</option>
+            </select>
           </label>
           <label class="field">
             <span>冲突处理</span>

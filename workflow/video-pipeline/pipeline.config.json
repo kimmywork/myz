@@ -1,0 +1,49 @@
+{
+  "projectName": "auto-highlight",
+  "outlinePath": "../../resources/scripts/auto-highlight.md",
+  "videoRoot": "../../resources/screen-recording",
+  "outputDir": "./output/auto-highlight",
+  "mode": "outline-tts",
+  "profiles": [
+    {
+      "id": "landscape1080",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "aspectStrategy": "blur"
+    },
+    {
+      "id": "portrait1080",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "aspectStrategy": "blur"
+    }
+  ],
+  "render": {
+    "profiles": ["landscape1080", "portrait1080"],
+    "burnSubtitles": true
+  },
+  "script": {
+    "includeOcrKeywords": false
+  },
+  "tts": {
+    "engine": "qwen-tts",
+    "model": "/Users/qliu23/.cache/huggingface/hub/models--Qwen--Qwen3-TTS-12Hz-1.7B-CustomVoice/snapshots/0c0e3051f131929182e2c023b9537f8b1c68adfe",
+    "speaker": "Serena",
+    "language": "Chinese",
+    "instruct": "Friendly, calm, and warm guiding tutorial narration.",
+    "device": "cpu",
+    "dtype": "float32",
+    "python": "/Users/qliu23/.pyenv/versions/3.13.0/bin/python3"
+  },
+  "ocr": {
+    "engine": "tesseract",
+    "lang": "chi_sim+eng",
+    "intervalSec": 2
+  },
+  "sceneDetect": {
+    "enable": false,
+    "threshold": 30
+  }
+}

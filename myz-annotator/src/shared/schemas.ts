@@ -3,6 +3,7 @@ import {
   RECORD_KINDS,
   HIGHLIGHT_STYLES,
   DEFAULT_HIGHLIGHT_STYLE,
+  CONTENT_TYPES,
 } from "./enums";
 
 const PathSegmentSchema = z.object({
@@ -35,6 +36,7 @@ export const MyZRecordSchema = z.object({
   kind: z.enum(RECORD_KINDS),
   text: z.string(),
   html: z.string().optional(),
+  contentType: z.nativeEnum(CONTENT_TYPES).optional(),
   note: z.string().optional(),
   tags: z.array(z.string()).optional(),
   color: z.string().optional(),
