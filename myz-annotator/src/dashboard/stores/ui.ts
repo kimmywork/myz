@@ -9,7 +9,10 @@ import {
   formatNote,
   getSearchTerms,
   groupHighlightsByDate,
+  groupRecordsByPage,
+  PageSortMode,
   renderHighlightContent,
+  sortRecordsForPage,
 } from "@/dashboard/utils/records.js";
 import { sendMessage } from "@/shared/messaging.js";
 import {
@@ -41,6 +44,10 @@ export const useUIStore = defineStore("ui", () => {
   const highlightsStore = useHighlightsStore();
 
   const view: Ref<"cards" | "list"> = ref("cards");
+  const pageSidebarOpen = ref(false);
+  const pageFilter = ref("");
+  const pageSortMode: Ref<PageSortMode> = ref("time");
+  const quickSearch = ref("");
   const renderedCount = ref(0);
   const filters: SearchFilters = reactive({
     search: "",
@@ -63,7 +70,7 @@ export const useUIStore = defineStore("ui", () => {
   const searchNeedle = computed(() => filters.search.trim().toLowerCase());
   const searchTerms = computed(() => getSearchTerms(filters.search));
 
-  const filteredHighlights = computed(() => {
+  const filteredHighlightsBase = computed(() => {
     const needle = searchNeedle.value;
     const siteFilter = filters.site;
     const tagsFilter = filters.tags;
@@ -106,6 +113,26 @@ export const useUIStore = defineStore("ui", () => {
     });
   });
 
+  const pageGroups = computed(() =>
+    groupRecordsByPage(filteredHighlightsBase.value),
+  );
+
+  const filteredHighlights = computed(() => {
+    let items = filteredHighlightsBase.value;
+    if (pageFilter.value) {
+      items = items.filter(
+        (item) =>
+          (item.url || item.sourceUrl || "") === pageFilter.value,
+      );
+      if (pageSortMode.value === "range") {
+        items = sortRecordsForPage(items, "range");
+      } else {
+        items = sortRecordsForPage(items, "time");
+      }
+    }
+    return items;
+  });
+
   const hasMoreHighlights = computed(
     () => renderedCount.value < filteredHighlights.value.length,
   );
@@ -121,6 +148,30 @@ export const useUIStore = defineStore("ui", () => {
   });
 
   const groupedHighlights = computed(() => {
+    if (pageFilter.value) {
+      const stats = computeRecordStats(visibleHighlights.value);
+      const detail = [];
+      if (stats.highlightCount) {
+        detail.push(`高亮 ${stats.highlightCount}`);
+      }
+      if (stats.savedCount) {
+        detail.push(`保存 ${stats.savedCount}`);
+      }
+      if (stats.aiCount) {
+        detail.push(`AI ${stats.aiCount}`);
+      }
+      if (stats.tweetCount) {
+        detail.push(`社区 ${stats.tweetCount}`);
+      }
+      return [
+        {
+          date: "当前页面",
+          items: visibleHighlights.value,
+          stats,
+          detailText: detail.length ? `（${detail.join(" · ")}）` : "",
+        },
+      ];
+    }
     return groupHighlightsByDate(visibleHighlights.value).map(
       ([date, items]) => {
         const stats = computeRecordStats(items);
@@ -186,6 +237,17 @@ export const useUIStore = defineStore("ui", () => {
     updateRenderedCount({ preserve: true });
   });
 
+  watch(pageGroups, (groups) => {
+    if (!pageFilter.value) {
+      return;
+    }
+    const exists = groups.some((group) => group.url === pageFilter.value);
+    if (!exists) {
+      pageFilter.value = "";
+      updateRenderedCount();
+    }
+  });
+
   function setFilter(key: keyof SearchFilters, value: string | string[]) {
     if (key === "tags") {
       filters.tags = Array.isArray(value) ? value : [];
@@ -195,12 +257,62 @@ export const useUIStore = defineStore("ui", () => {
     updateRenderedCount();
   }
 
-  function resetFilters() {
+  function clearFilterFields() {
     filters.search = "";
     filters.site = "";
     filters.tags = [];
     filters.from = "";
     filters.to = "";
+  }
+
+  function resetFilters() {
+    quickSearch.value = "";
+    clearFilterFields();
+    pageFilter.value = "";
+    updateRenderedCount();
+  }
+
+  function applyQuickSearch(value: string) {
+    quickSearch.value = value;
+    clearFilterFields();
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      updateRenderedCount();
+      return;
+    }
+
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith("site:")) {
+      const candidate = trimmed.slice(5).trim();
+      if (candidate && highlightsStore.availableSites.includes(candidate)) {
+        filters.site = candidate;
+      } else {
+        filters.search = candidate || "";
+      }
+      updateRenderedCount();
+      return;
+    }
+
+    const normalizedTag = trimmed.startsWith("#")
+      ? trimmed.slice(1).trim()
+      : trimmed;
+    if (
+      normalizedTag &&
+      highlightsStore.availableTags.includes(normalizedTag)
+    ) {
+      filters.tags = [normalizedTag];
+      updateRenderedCount();
+      return;
+    }
+
+    if (highlightsStore.availableSites.includes(trimmed)) {
+      filters.site = trimmed;
+      updateRenderedCount();
+      return;
+    }
+
+    filters.search = trimmed.startsWith("#") ? normalizedTag : trimmed;
     updateRenderedCount();
   }
 
@@ -219,6 +331,26 @@ export const useUIStore = defineStore("ui", () => {
     view.value = nextView;
     if (persist) {
       persistDashboardView(nextView);
+    }
+  }
+
+  function togglePageSidebar() {
+    pageSidebarOpen.value = !pageSidebarOpen.value;
+  }
+
+  function setPageFilter(nextUrl: string) {
+    pageFilter.value = nextUrl;
+    updateRenderedCount();
+  }
+
+  function clearPageFilter() {
+    pageFilter.value = "";
+    updateRenderedCount();
+  }
+
+  function setPageSortMode(nextMode: PageSortMode) {
+    if (nextMode && pageSortMode.value !== nextMode) {
+      pageSortMode.value = nextMode;
     }
   }
 
@@ -312,7 +444,12 @@ export const useUIStore = defineStore("ui", () => {
     view,
     filters,
     modalState,
+    pageSidebarOpen,
+    pageFilter,
+    pageSortMode,
+    quickSearch,
     searchTerms,
+    pageGroups,
     filteredHighlights,
     visibleHighlights,
     groupedHighlights,
@@ -320,7 +457,12 @@ export const useUIStore = defineStore("ui", () => {
     hasMoreHighlights,
     setFilter,
     resetFilters,
+    applyQuickSearch,
     setView,
+    togglePageSidebar,
+    setPageFilter,
+    clearPageFilter,
+    setPageSortMode,
     loadMore,
     openModal,
     closeModal,

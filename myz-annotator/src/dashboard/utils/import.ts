@@ -4,7 +4,18 @@ import { z } from "zod";
 
 const IMPORTED_TAG = "imported";
 
-export type ImportFileFormat = "json" | "raindrop" | "chrome-bookmarks";
+export type ImportFileFormat =
+  | "json"
+  | "raindrop"
+  | "chrome-bookmarks"
+  | "weava";
+
+export type ImportSource =
+  | "auto"
+  | "myz-json"
+  | "raindrop-csv"
+  | "chrome-bookmarks"
+  | "weava-csv";
 
 const ImportStructureSchema = z.union([
   z.array(z.unknown()),
@@ -47,8 +58,9 @@ export function appendImportedTag(records: MyZRecord[]): MyZRecord[] {
 export function parseImportFile(
   file: File | undefined,
   text: string,
+  source: ImportSource = "auto",
 ): { format: ImportFileFormat; records: MyZRecord[] } {
-  const format = detectImportFileFormat(file, text);
+  const format = resolveImportFileFormat(file, text, source);
   if (!format) {
     throw new Error("无法识别导入文件格式");
   }
@@ -67,24 +79,36 @@ export function parseImportFile(
     return { format, records: parseRaindropCsv(text) };
   }
 
+  if (format === "weava") {
+    return { format, records: parseWeavaCsv(text) };
+  }
+
   return { format, records: parseChromeBookmarksHtml(text) };
 }
 
-function detectImportFileFormat(
+function resolveImportFileFormat(
   file: File | undefined,
   text: string,
+  source: ImportSource,
 ): ImportFileFormat | null {
+  if (source !== "auto") {
+    if (source === "myz-json") return "json";
+    if (source === "raindrop-csv") return "raindrop";
+    if (source === "weava-csv") return "weava";
+    return "chrome-bookmarks";
+  }
+
   const name = file?.name?.toLowerCase() || "";
   if (name.endsWith(".json")) return "json";
-  if (name.endsWith(".csv")) return "raindrop";
   if (name.endsWith(".html") || name.endsWith(".htm")) {
     return "chrome-bookmarks";
   }
 
   const type = file?.type?.toLowerCase() || "";
   if (type.includes("json")) return "json";
-  if (type.includes("csv")) return "raindrop";
   if (type.includes("html")) return "chrome-bookmarks";
+
+  const isCsv = name.endsWith(".csv") || type.includes("csv");
 
   const trimmed = text.trimStart();
   if (trimmed.startsWith("<!DOCTYPE NETSCAPE-Bookmark-file-1")) {
@@ -95,8 +119,19 @@ function detectImportFileFormat(
   }
 
   const headerLine = trimmed.split(/\r?\n/, 1)[0]?.toLowerCase() || "";
-  if (headerLine.includes("url") && headerLine.includes("created")) {
-    return "raindrop";
+  if (isCsv || headerLine.includes("url")) {
+    if (
+      headerLine.includes("website title") ||
+      headerLine.includes("highlighted text")
+    ) {
+      return "weava";
+    }
+    if (headerLine.includes("url") && headerLine.includes("created")) {
+      return "raindrop";
+    }
+    if (isCsv) {
+      return "raindrop";
+    }
   }
 
   return null;
@@ -235,6 +270,64 @@ function parseRaindropCsv(text: string): MyZRecord[] {
         createdAt,
         updatedAt: createdAt,
       });
+    });
+  });
+
+  return records
+    .map((record) => normalizeRecord(record))
+    .filter((record): record is MyZRecord => record !== null);
+}
+
+function parseWeavaCsv(text: string): MyZRecord[] {
+  const rows = parseCsvRows(text);
+  if (!rows.length) {
+    return [];
+  }
+
+  const header = rows.shift() || [];
+  const headerMap = new Map(
+    header.map((item, index) => [item.trim().toLowerCase(), index]),
+  );
+
+  const urlIndex = headerMap.get("url");
+  if (urlIndex === undefined) {
+    throw new Error("CSV 缺少 URL 列");
+  }
+
+  const dateIndex = headerMap.get("date");
+  const titleIndex = headerMap.get("website title");
+  const textIndex = headerMap.get("highlighted text/image url");
+  const noteIndex = headerMap.get("note");
+
+  const nowIso = new Date().toISOString();
+  const records: MyZRecord[] = [];
+
+  rows.forEach((row) => {
+    const url = (row[urlIndex] || "").trim();
+    if (!url) {
+      return;
+    }
+    const text = textIndex !== undefined ? (row[textIndex] || "").trim() : "";
+    if (!text) {
+      return;
+    }
+    const title =
+      titleIndex !== undefined ? (row[titleIndex] || "").trim() : "";
+    const note = noteIndex !== undefined ? (row[noteIndex] || "").trim() : "";
+    const dateRaw = dateIndex !== undefined ? (row[dateIndex] || "").trim() : "";
+    const createdAt = normalizeTimestamp(dateRaw, nowIso);
+
+    records.push({
+      id: "",
+      kind: RECORD_KINDS.CLIP,
+      url,
+      sourceUrl: url,
+      title: title || undefined,
+      text,
+      html: "",
+      note,
+      createdAt,
+      updatedAt: createdAt,
     });
   });
 

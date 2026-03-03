@@ -3,7 +3,11 @@ import { computed, reactive, ref, Ref } from "vue";
 import { IMPORT_MAX_BYTES } from "../constants.js";
 import { ImportStrategy } from "@/background/import.js";
 import { downloadFile } from "@/dashboard/utils/download.js";
-import { appendImportedTag, parseImportFile } from "@/dashboard/utils/import.js";
+import {
+  appendImportedTag,
+  parseImportFile,
+  ImportSource,
+} from "@/dashboard/utils/import.js";
 import { normalizeRecord, recordToMarkdown } from "@/dashboard/utils/records.js";
 import { sendMessage } from "@/shared/messaging.js";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
@@ -333,6 +337,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
   async function importHighlightsFromFile(
     file: File | undefined,
     strategy: ImportStrategy,
+    source: ImportSource = "auto",
   ) {
     if (!file) {
       setTimedImportStatus("请先选择导入文件", "error");
@@ -349,7 +354,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
     const text = await file.text();
     let parsed;
     try {
-      ({ records: parsed } = parseImportFile(file, text));
+      ({ records: parsed } = parseImportFile(file, text, source));
     } catch (error) {
       setTimedImportStatus(
         (error as Error).message || "导入文件解析失败",

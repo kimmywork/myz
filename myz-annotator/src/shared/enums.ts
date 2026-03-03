@@ -36,6 +36,12 @@ export enum HIGHLIGHT_STYLES {
   WAVY = "wavy",
 }
 
+export enum CONTENT_TYPES {
+  HTML = "text/html",
+  MARKDOWN = "text/markdown",
+  PLAIN = "text/plain",
+}
+
 export enum AUTO_HIGHLIGHT_CATEGORIES {
   CONCEPTUAL = "conceptual",
   STRUCTURAL = "structural",

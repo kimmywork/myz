@@ -26,7 +26,7 @@ import {
 } from "../vectoria-index";
 import { registerMessageHandler } from "./handler";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils";
-import { MyZRecord, RECORD_KINDS } from "@/shared/types";
+import { MyZRecord, RECORD_KINDS, resolveRecordContentType } from "@/shared/types";
 
 export function initializeHighlightMessageHandlers() {
   registerMessageHandler(
@@ -85,6 +85,7 @@ export function initializeHighlightMessageHandlers() {
       createdAt: payload.createdAt || now,
       updatedAt: now,
     };
+    record.contentType = resolveRecordContentType(record);
 
     if (kind !== RECORD_KINDS.HIGHLIGHT) {
       record.range = undefined;
@@ -128,6 +129,7 @@ export function initializeHighlightMessageHandlers() {
         kind: requestedKind,
         updatedAt: now,
       };
+      updated.contentType = resolveRecordContentType(updated);
       if (updated.kind !== RECORD_KINDS.HIGHLIGHT) {
         updated.range = undefined;
         updated.color = undefined;
