@@ -108,10 +108,14 @@
 - 权限不足/不可用：sync 未启用时不得写入 manifest。
 - 网络失败/超时：同步版本读取失败时不得写入新版本。
 
-## Open Questions
-- 版本号命名是否统一为 `major.minor.patch`，还是按日期版本（例如 `2026.03`）。
-- 是否需要为每个 “kind” 拆分独立 record schema（如 `highlight`/`clip`）并分别升级。
+## Decisions
+- 版本号统一为 `major.minor.patch`。
+- 不为每个 “kind” 拆分独立 record schema。
+
+## Status
+- Completed (2026-03-04)
 
 ## Change Log
 - 2026-03-03：根据实际实现更新范围与验收口径，补充 runtime 版本注入与 sync 拒绝策略。
 - 2026-03-04：修复 schema 定义中的 `z.record` 签名以兼容 zod v4；为大部分 `myz:*` 消息补齐 `sendMessage` 结果类型与 payload 约束，新增 `JsonValue/UnknownRecord` 工具与运行时守卫用于类型收敛。未引入新的持久化字段，现有 schema 版本不变。
+- 2026-03-04：补齐 registry 映射单元测试，并关闭版本命名与 record schema 拆分问题。
