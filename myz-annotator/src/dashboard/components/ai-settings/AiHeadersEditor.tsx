@@ -1,11 +1,14 @@
-import { defineComponent } from "vue"
-import type { PropType } from "vue"
+import { defineComponent } from "vue";
+import type { PropType } from "vue";
 
 export default defineComponent({
   name: "AiHeadersEditor",
   props: {
     value: { type: String, default: "" },
-    onChange: { type: Function as PropType<(value: string) => void>, required: true },
+    onChange: {
+      type: Function as PropType<(value: string) => void>,
+      required: true,
+    },
   },
   setup(props) {
     return () => (
@@ -21,7 +24,6 @@ export default defineComponent({
         ></textarea>
         <small class="help-text">每行一个：Header: value</small>
       </label>
-    )
+    );
   },
-})
-
+});

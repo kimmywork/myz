@@ -1,8 +1,8 @@
 import { defineComponent, onMounted } from "vue";
-import { useHistoryStore } from "./stores/history.js";
-import { useChatStore } from "./stores/chat.js";
-import { useUIStore } from "./stores/ui.js";
 import { ConversationInfo } from "./aiStorage.js";
+import { useChatStore } from "./stores/chat.js";
+import { useHistoryStore } from "./stores/history.js";
+import { useUIStore } from "./stores/ui.js";
 
 export default defineComponent({
   name: "HistoryView",
@@ -86,7 +86,8 @@ export default defineComponent({
                   onClick={() => selectConversation(conv)}
                 >
                   {(() => {
-                    const titleGenerated = conv?.metadata?.titleGenerated === true;
+                    const titleGenerated =
+                      conv?.metadata?.titleGenerated === true;
                     const generatedTitle =
                       titleGenerated && typeof conv.title === "string"
                         ? conv.title.trim()

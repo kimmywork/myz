@@ -1,10 +1,26 @@
 import { z } from "zod";
-import { MyZRecordSchema } from "./schemas";
 import { CONTENT_TYPES, RECORD_KINDS } from "./enums";
+import { MyZRecordSchema } from "./schemas";
+import { RECORD_SCHEMA_VERSION, type RecordSchemaVersion } from "./versioning";
 
 export * from "./enums";
 
 export type MyZRecord = z.infer<typeof MyZRecordSchema>;
+
+export const MYZ_RECORD_SCHEMA_VERSION = RECORD_SCHEMA_VERSION;
+export type MyZRecordSchemaVersion = RecordSchemaVersion;
+
+export function ensureRecordSchemaVersion<T extends Partial<MyZRecord>>(
+  record: T,
+): T & { schemaVersion: MyZRecordSchemaVersion } {
+  const schemaVersion =
+    typeof record?.schemaVersion === "string" && record.schemaVersion
+      ? record.schemaVersion
+      : RECORD_SCHEMA_VERSION;
+  return { ...record, schemaVersion } as T & {
+    schemaVersion: MyZRecordSchemaVersion;
+  };
+}
 
 export function getRecordKind(record?: Partial<MyZRecord>): RECORD_KINDS {
   const kind = record?.kind;
@@ -42,7 +58,7 @@ export function normalizeContentType(
 export function resolveRecordContentType(
   record: Partial<MyZRecord>,
 ): CONTENT_TYPES {
-  const normalized = normalizeContentType((record as any)?.contentType);
+  const normalized = normalizeContentType(record?.contentType);
   if (normalized) {
     return normalized;
   }

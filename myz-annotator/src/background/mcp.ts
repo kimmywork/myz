@@ -45,8 +45,8 @@ export class McpClient {
   private pendingRequests: Map<
     number,
     {
-      resolve: (value: any) => void;
-      reject: (reason?: any) => void;
+      resolve: (value: unknown) => void;
+      reject: (reason?: unknown) => void;
       timeoutId: NodeJS.Timeout;
     }
   >;
@@ -208,7 +208,11 @@ export class McpClient {
         reject(new Error(`MCP request timeout: ${method}`));
       }, 30000); // 30 second timeout
 
-      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
+      this.pendingRequests.set(requestId, {
+        resolve: (value) => resolve(value as Result),
+        reject,
+        timeoutId,
+      });
 
       // Send request via HTTP POST
       this.sendHttpRequest(message).catch((error) => {
@@ -343,7 +347,7 @@ export class McpClient {
 
   async callTool(
     name: string,
-    arguments_: Record<string, any> = {},
+    arguments_: Record<string, unknown> = {},
   ): Promise<CallToolResult> {
     const tool = this.tools.find((t) => t.name === name);
     if (!tool) {
@@ -443,10 +447,11 @@ export async function testMcpConnection(serverConfig: ServerConfig) {
       tools: result.tools,
       resources: result.resources,
     };
-  } catch (error: Error | any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
     return {
       success: false,
-      error: error.message,
+      error: message,
     };
   }
 }

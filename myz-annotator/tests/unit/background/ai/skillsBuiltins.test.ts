@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isBuiltinSkill, listBuiltinSkillSeeds } from "@/background/ai/skills/builtins.ts";
+import {
+  isBuiltinSkill,
+  listBuiltinSkillSeeds,
+} from "@/background/ai/skills/builtins.ts";
 
 describe("builtin skills", () => {
   it("lists built-in skill seeds", () => {

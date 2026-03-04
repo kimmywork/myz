@@ -1,4 +1,5 @@
 import { defineComponent } from "vue";
+import type { Message } from "@/background/ai/types";
 
 function getToolPreviewText(content: string): string {
   if (!content) return "（无输出，点击查看详情）";
@@ -10,19 +11,9 @@ function getToolPreviewText(content: string): string {
   return singleLine.slice(0, 77) + "...";
 }
 
-interface ToolMessage {
-  id: string;
-  content: string;
-  timestamp: string;
-  metadata?: {
-    toolName?: string;
-    [key: string]: any;
-  };
-}
-
 interface ToolMessageCardProps {
-  message?: ToolMessage;
-  onView?: (message: any) => void;
+  message?: Message;
+  onView?: (message: Message | undefined) => void;
 }
 
 export default defineComponent({

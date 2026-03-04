@@ -1,19 +1,19 @@
-import { createRouter, createWebHashHistory } from "vue-router"
-import HighlightsPage from "./pages/HighlightsPage.jsx"
-import HighlightViewerPage from "./pages/HighlightViewerPage.jsx"
-import ChatPage from "./pages/ChatPage.jsx"
-import SettingsLayout from "./pages/settings/SettingsLayout.jsx"
-import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx"
-import SettingsSocialPage from "./pages/settings/SettingsSocialPage.jsx"
-import SettingsSyncPage from "./pages/settings/SettingsSyncPage.jsx"
-import HighlightPreferencesPage from "./pages/settings/highlight/HighlightPreferencesPage.jsx"
-import SettingsAiLayout from "./pages/settings/ai/SettingsAiLayout.jsx"
-import AiProvidersPage from "./pages/settings/ai/AiProvidersPage.jsx"
-import AiAgentsPage from "./pages/settings/ai/AiAgentsPage.jsx"
-import AiMcpPage from "./pages/settings/ai/AiMcpPage.jsx"
-import AiLocalToolsPage from "./pages/settings/ai/AiLocalToolsPage.jsx"
-import AiSkillsPage from "./pages/settings/ai/AiSkillsPage.jsx"
-import AiVectorSearchPage from "./pages/settings/ai/AiVectorSearchPage.jsx"
+import { createRouter, createWebHashHistory } from "vue-router";
+import ChatPage from "./pages/ChatPage.jsx";
+import HighlightsPage from "./pages/HighlightsPage.jsx";
+import HighlightViewerPage from "./pages/HighlightViewerPage.jsx";
+import AiAgentsPage from "./pages/settings/ai/AiAgentsPage.jsx";
+import AiLocalToolsPage from "./pages/settings/ai/AiLocalToolsPage.jsx";
+import AiMcpPage from "./pages/settings/ai/AiMcpPage.jsx";
+import AiProvidersPage from "./pages/settings/ai/AiProvidersPage.jsx";
+import AiSkillsPage from "./pages/settings/ai/AiSkillsPage.jsx";
+import AiVectorSearchPage from "./pages/settings/ai/AiVectorSearchPage.jsx";
+import SettingsAiLayout from "./pages/settings/ai/SettingsAiLayout.jsx";
+import HighlightPreferencesPage from "./pages/settings/highlight/HighlightPreferencesPage.jsx";
+import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx";
+import SettingsLayout from "./pages/settings/SettingsLayout.jsx";
+import SettingsSocialPage from "./pages/settings/SettingsSocialPage.jsx";
+import SettingsSyncPage from "./pages/settings/SettingsSyncPage.jsx";
 
 const routes = [
   { path: "/", redirect: "/highlights" },
@@ -88,9 +88,9 @@ const routes = [
       },
     ],
   },
-]
+];
 
 export const router = createRouter({
   history: createWebHashHistory(),
   routes,
-})
+});

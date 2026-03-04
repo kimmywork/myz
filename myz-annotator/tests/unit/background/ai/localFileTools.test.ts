@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { isRecord } from "@/shared/typeUtils";
 
-const vfsStore = new Map<string, { path: string; content: string; updatedAt: string }>();
+const vfsStore = new Map<
+  string,
+  { path: string; content: string; updatedAt: string }
+>();
 
 vi.mock("@/background/ai/vfs.js", () => ({
   listFiles: vi.fn(async (dir) => {
-    const normalizedDir = typeof dir === "string" ? dir.replace(/^\/+/, "") : "";
+    const normalizedDir =
+      typeof dir === "string" ? dir.replace(/^\/+/, "") : "";
     const prefix = normalizedDir ? `${normalizedDir.replace(/\/+$/, "")}/` : "";
     return Array.from(vfsStore.values()).filter((file) =>
       prefix ? file.path.startsWith(prefix) : true,
@@ -20,7 +25,10 @@ vi.mock("@/background/ai/vfs.js", () => ({
     const existing = vfsStore.get(normalized);
     if (typeof line === "number" && Number.isFinite(line) && line > 0) {
       const lines = (existing?.content || "").split(/\r?\n/);
-      const insertAt = Math.min(lines.length, Math.max(0, Math.floor(line) - 1));
+      const insertAt = Math.min(
+        lines.length,
+        Math.max(0, Math.floor(line) - 1),
+      );
       lines.splice(insertAt, 0, ...nextContent.split(/\r?\n/));
       nextContent = lines.join("\n");
     }
@@ -34,7 +42,10 @@ vi.mock("@/background/ai/vfs.js", () => ({
   }),
 }));
 
-const skillFiles: Record<string, { path: string; content: string; updatedAt: string }[]> = {
+const skillFiles: Record<
+  string,
+  { path: string; content: string; updatedAt: string }[]
+> = {
   "skill-a": [
     {
       path: "SKILL.md",
@@ -46,8 +57,18 @@ const skillFiles: Record<string, { path: string; content: string; updatedAt: str
 
 vi.mock("@/background/ai/skills/storage.js", () => ({
   listSkills: vi.fn(async () => [
-    { id: "skill-a", name: "skill-a", enabled: true, updatedAt: "2025-01-01T00:00:00.000Z" },
-    { id: "skill-b", name: "skill-b", enabled: false, updatedAt: "2025-01-01T00:00:00.000Z" },
+    {
+      id: "skill-a",
+      name: "skill-a",
+      enabled: true,
+      updatedAt: "2025-01-01T00:00:00.000Z",
+    },
+    {
+      id: "skill-b",
+      name: "skill-b",
+      enabled: false,
+      updatedAt: "2025-01-01T00:00:00.000Z",
+    },
   ]),
   listSkillFiles: vi.fn(async (skillId) => {
     return (skillFiles[skillId] || []).map((file) => ({
@@ -80,36 +101,56 @@ describe("local file tools", () => {
 
   it("lists skill root files", async () => {
     const result = await LOCAL_TOOL_HANDLERS.List({ path: "/skills" });
-    expect(result.data?.length).toBe(1);
-    expect(result.data?.[0]?.path).toContain("/skills/skill-a/SKILL.md");
+    expect(Array.isArray(result.data)).toBe(true);
+    if (Array.isArray(result.data)) {
+      expect(result.data.length).toBe(1);
+      expect(String(result.data[0]?.path || "")).toContain(
+        "/skills/skill-a/SKILL.md",
+      );
+    }
   });
 
   it("reads skill file content", async () => {
-    const result = await LOCAL_TOOL_HANDLERS.Read({ path: "/skills/skill-a/SKILL.md" });
-    expect(result.data?.content).toContain("description: A");
+    const result = await LOCAL_TOOL_HANDLERS.Read({
+      path: "/skills/skill-a/SKILL.md",
+    });
+    const data = isRecord(result.data) ? result.data : {};
+    expect(String(data.content || "")).toContain("description: A");
   });
 
   it("blocks writing into skills directory", async () => {
-    const result = await LOCAL_TOOL_HANDLERS.Write({ path: "/skills/skill-a/notes.md", content: "x" });
+    const result = await LOCAL_TOOL_HANDLERS.Write({
+      path: "/skills/skill-a/notes.md",
+      content: "x",
+    });
     expect(result.isError).toBe(true);
   });
 
   it("writes and edits files", async () => {
-    const writeResult = await LOCAL_TOOL_HANDLERS.Write({ path: "notes.md", content: "hello" });
-    expect(writeResult.data?.content).toBe("hello");
+    const writeResult = await LOCAL_TOOL_HANDLERS.Write({
+      path: "notes.md",
+      content: "hello",
+    });
+    const writeData = isRecord(writeResult.data) ? writeResult.data : {};
+    expect(writeData.content).toBe("hello");
 
     const editResult = await LOCAL_TOOL_HANDLERS.Edit({
       path: "notes.md",
       old_string: "hello",
       new_string: "hi",
     });
-    expect(editResult.data?.content).toBe("hi");
+    const editData = isRecord(editResult.data) ? editResult.data : {};
+    expect(editData.content).toBe("hi");
   });
 
   it("globs files by pattern", async () => {
     await LOCAL_TOOL_HANDLERS.Write({ path: "docs/a.md", content: "a" });
     await LOCAL_TOOL_HANDLERS.Write({ path: "docs/b.txt", content: "b" });
     const result = await LOCAL_TOOL_HANDLERS.Glob({ pattern: "docs/*.md" });
-    expect(result.data?.some((file: any) => file.path === "docs/a.md")).toBe(true);
+    const data = Array.isArray(result.data) ? result.data : [];
+    const hasMatch = data.some(
+      (file) => isRecord(file) && file.path === "docs/a.md",
+    );
+    expect(hasMatch).toBe(true);
   });
 });

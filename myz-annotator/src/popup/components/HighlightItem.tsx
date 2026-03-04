@@ -1,4 +1,5 @@
 import { defineComponent, computed } from "vue";
+import { getRecordKindLabel } from "@/dashboard/utils/records.js";
 import {
   buildMeta,
   formatNote,
@@ -7,7 +8,6 @@ import {
 } from "@/shared/highlightUtils.js";
 
 import { IconWarning } from "@/shared/icons.js";
-import { getRecordKindLabel } from "@/dashboard/utils/records.js";
 import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";
@@ -46,7 +46,7 @@ export default defineComponent({
             ? AI_COLOR
             : isSocial.value
               ? SOCIAL_COLOR
-          : props.record.color || "#ffe58f",
+              : props.record.color || "#ffe58f",
     }));
 
     const containerClass = computed(() => {

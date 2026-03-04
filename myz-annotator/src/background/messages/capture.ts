@@ -1,5 +1,9 @@
 import { registerMessageHandler } from "./handler";
 
+export interface CaptureSelectionMessageResult {
+  dataUrl: string;
+}
+
 export function initializeCaptureMessageHandlers() {
   registerMessageHandler(
     "myz:captureSelection",

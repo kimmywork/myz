@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { splitGeminiThoughtTaggedContent, extractGeminiThoughtSegments } from "@/background/ai/vendors/googleGemini.ts";
+import {
+  splitGeminiThoughtTaggedContent,
+  extractGeminiThoughtSegments,
+} from "@/background/ai/vendors/googleGemini.ts";
 
 describe("googleGemini helpers", () => {
   it("splits thought tags", () => {

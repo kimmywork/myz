@@ -1,6 +1,6 @@
+import { LOCAL_TOOL_NAMES } from "./ai/tools/localDefinitions.js";
 import type { Settings } from "./settings.js";
 import { DEFAULT_COLORS, HIGHLIGHT_STYLES } from "@/shared/types";
-import { LOCAL_TOOL_NAMES } from "./ai/tools/localDefinitions.js";
 
 export const STORAGE_KEY = "myz::highlights";
 export const SETTINGS_KEY = "myz::settings";

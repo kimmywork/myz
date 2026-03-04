@@ -7,7 +7,13 @@ import {
 } from "./storage.js";
 import { recordHighlightDeletion } from "./sync/deletions";
 import { indexRecord, removeRecordFromIndex } from "./vectoria-index.js";
-import { MyZRecord, RECORD_KINDS } from "@/shared/types";
+import {
+  buildTootRecordTitle,
+  extractHashtagsFromText as extractMastodonHashtagsFromText,
+  getMastodonAuthorFromStatusUrl,
+  normalizeMastodonStatusUrl,
+  parseMastodonProfileUrl,
+} from "@/shared/social/mastodon";
 import {
   buildTweetRecordTitle,
   extractHashtagsFromText,
@@ -16,12 +22,11 @@ import {
   parseTwitterProfileUrl,
 } from "@/shared/social/twitter";
 import {
-  buildTootRecordTitle,
-  extractHashtagsFromText as extractMastodonHashtagsFromText,
-  getMastodonAuthorFromStatusUrl,
-  normalizeMastodonStatusUrl,
-  parseMastodonProfileUrl,
-} from "@/shared/social/mastodon";
+  MyZRecord,
+  RECORD_KINDS,
+  ensureRecordSchemaVersion,
+} from "@/shared/types";
+import type { UnknownRecord } from "@/shared/typeUtils";
 
 /**
  * Social import orchestrator.
@@ -65,7 +70,7 @@ type TwitterScrapePayload = {
   requireBoostContext?: boolean;
 };
 
-async function sendTabMessage<T = any, R = any>(
+async function sendTabMessage<T = unknown, R = unknown>(
   tabId: number,
   type: string,
   payload?: T,
@@ -135,7 +140,11 @@ async function createImportWindow(initialUrl: string) {
   return { windowId: win.id, tabId };
 }
 
-async function ensureImportTabUrl(tabId: number, windowId: number, url: string) {
+async function ensureImportTabUrl(
+  tabId: number,
+  windowId: number,
+  url: string,
+) {
   try {
     await chrome.windows.update(windowId, { focused: true });
   } catch {}
@@ -266,7 +275,7 @@ function buildTweetRecord({
 
   const normalizedUrl = normalizeTweetUrl(url) || url;
 
-  return {
+  return ensureRecordSchemaVersion({
     id: generateId(),
     kind,
     text: text.trim(),
@@ -277,7 +286,7 @@ function buildTweetRecord({
     sourceUrl: normalizedUrl,
     hostname: "x.com",
     title,
-  };
+  }) as MyZRecord;
 }
 
 async function isDuplicateTweetRecord({
@@ -372,7 +381,7 @@ function buildTootRecord({
     }
   })();
 
-  return {
+  return ensureRecordSchemaVersion({
     id: generateId(),
     kind,
     text: text.trim(),
@@ -383,7 +392,7 @@ function buildTootRecord({
     sourceUrl: normalizedUrl,
     hostname,
     title,
-  };
+  }) as MyZRecord;
 }
 
 async function isDuplicateTootRecord({
@@ -402,13 +411,19 @@ async function isDuplicateTootRecord({
 export async function importSocialRecords(
   request: SocialImportRequest,
 ): Promise<SocialImportResult> {
-  if (!request || (request.provider !== "twitter" && request.provider !== "mastodon")) {
+  if (
+    !request ||
+    (request.provider !== "twitter" && request.provider !== "mastodon")
+  ) {
     throw new Error("暂不支持该平台");
   }
 
   const limitPerKind = coercePositiveInt(request.limitPerKind, 60);
   const requestedScrollRounds = coercePositiveInt(request.scrollRounds, 10);
-  const scrollRounds = calculateScrollRounds(limitPerKind, requestedScrollRounds);
+  const scrollRounds = calculateScrollRounds(
+    limitPerKind,
+    requestedScrollRounds,
+  );
 
   if (request.provider === "twitter") {
     const { username } = parseTwitterProfileUrl(request.profileUrl);
@@ -433,7 +448,7 @@ export async function importSocialRecords(
           requireReplyContext: kind === RECORD_KINDS.TWEET_REPLY,
         };
 
-        const scraped = await sendTabMessage<TwitterScrapePayload, any[]>(
+        const scraped = await sendTabMessage<TwitterScrapePayload, UnknownRecord[]>(
           tabId,
           "myz:scrapeTwitterTimeline",
           payload,
@@ -447,8 +462,8 @@ export async function importSocialRecords(
         };
 
         for (const item of items) {
-          const itemUrl = normalizeTweetUrl(String((item as any)?.url || ""));
-          const text = String((item as any)?.text || "").trim();
+          const itemUrl = normalizeTweetUrl(String(item.url || ""));
+          const text = String(item.text || "").trim();
           if (!itemUrl || !text) {
             continue;
           }
@@ -457,7 +472,10 @@ export async function importSocialRecords(
 
           // Fix: reply timelines may contain quoted/original tweets from others.
           if (kind === RECORD_KINDS.TWEET_REPLY) {
-            if (!tweetAuthor || tweetAuthor.toLowerCase() !== username.toLowerCase()) {
+            if (
+              !tweetAuthor ||
+              tweetAuthor.toLowerCase() !== username.toLowerCase()
+            ) {
               continue;
             }
           }
@@ -465,7 +483,7 @@ export async function importSocialRecords(
           // Retweet is a special case on the profile timeline.
           const effectiveKind =
             kind === RECORD_KINDS.TWEET_POST &&
-            (Boolean((item as any)?.isRetweet) ||
+            (Boolean(item.isRetweet) ||
               (tweetAuthor &&
                 tweetAuthor.toLowerCase() !== username.toLowerCase()))
               ? RECORD_KINDS.TWEET_RETWEET
@@ -484,17 +502,18 @@ export async function importSocialRecords(
             }
           }
 
+          const rawHashtags = Array.isArray(item.hashtags) ? item.hashtags : [];
+          const hashtags = rawHashtags
+            .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+            .filter(Boolean);
           const tags = Array.from(
-            new Set([
-              ...(((item as any)?.hashtags as string[]) || []),
-              ...extractHashtagsFromText(text),
-            ]),
+            new Set([...hashtags, ...extractHashtagsFromText(text)]),
           ).filter(Boolean);
 
           const title = (() => {
-            const createdAt = String((item as any)?.createdAt || "");
-            const replyToUsernames = Array.isArray((item as any)?.replyToUsernames)
-              ? ((item as any).replyToUsernames as any[])
+            const createdAt = String(item.createdAt || "");
+            const replyToUsernames = Array.isArray(item.replyToUsernames)
+              ? item.replyToUsernames
                   .map((u) => (typeof u === "string" ? u.trim() : ""))
                   .filter(Boolean)
               : [];
@@ -515,12 +534,14 @@ export async function importSocialRecords(
             kind: effectiveKind,
             url: itemUrl,
             text,
-            createdAt: String((item as any)?.createdAt || ""),
+            createdAt: String(item.createdAt || ""),
             tags,
             title,
           });
 
-          if (await isDuplicateTweetRecord({ url: record.url, kind: record.kind })) {
+          if (
+            await isDuplicateTweetRecord({ url: record.url, kind: record.kind })
+          ) {
             stats.skipped += 1;
             skipped += 1;
             continue;
@@ -564,7 +585,11 @@ export async function importSocialRecords(
   const { windowId, tabId } = await createImportWindow(firstUrl);
   try {
     for (const kind of kinds) {
-      const url = getMastodonTargetUrl(parsed.instanceHost, parsed.username, kind);
+      const url = getMastodonTargetUrl(
+        parsed.instanceHost,
+        parsed.username,
+        kind,
+      );
       await ensureImportTabUrl(tabId, windowId, url);
       const payload: TwitterScrapePayload = {
         limit: limitPerKind,
@@ -574,7 +599,7 @@ export async function importSocialRecords(
         requireBoostContext: kind === RECORD_KINDS.TOOT_BOOST,
       };
 
-      const scraped = await sendTabMessage<TwitterScrapePayload, any[]>(
+      const scraped = await sendTabMessage<TwitterScrapePayload, UnknownRecord[]>(
         tabId,
         "myz:scrapeMastodonTimeline",
         payload,
@@ -588,11 +613,8 @@ export async function importSocialRecords(
       };
 
       for (const item of items) {
-        const itemUrl = normalizeMastodonStatusUrl(
-          String((item as any)?.url || ""),
-          url,
-        );
-        const text = String((item as any)?.text || "").trim();
+        const itemUrl = normalizeMastodonStatusUrl(String(item.url || ""), url);
+        const text = String(item.text || "").trim();
         if (!itemUrl || !text) {
           continue;
         }
@@ -600,17 +622,20 @@ export async function importSocialRecords(
         const author = getMastodonAuthorFromStatusUrl(itemUrl, url);
 
         if (kind === RECORD_KINDS.TOOT_REPLY) {
-          if (!Boolean((item as any)?.isReply)) {
+          if (!Boolean(item.isReply)) {
             continue;
           }
-          if (!author || author.toLowerCase() !== parsed.username.toLowerCase()) {
+          if (
+            !author ||
+            author.toLowerCase() !== parsed.username.toLowerCase()
+          ) {
             continue;
           }
         }
 
         if (kind === RECORD_KINDS.TOOT_BOOST) {
           const shouldBoost =
-            Boolean((item as any)?.isBoost) ||
+            Boolean(item.isBoost) ||
             (author && author.toLowerCase() !== parsed.username.toLowerCase());
           if (!shouldBoost) {
             continue;
@@ -619,27 +644,31 @@ export async function importSocialRecords(
 
         if (kind === RECORD_KINDS.TOOT_POST) {
           const isBoost =
-            Boolean((item as any)?.isBoost) ||
+            Boolean(item.isBoost) ||
             (author && author.toLowerCase() !== parsed.username.toLowerCase());
           if (isBoost) {
             continue;
           }
-          if (!author || author.toLowerCase() !== parsed.username.toLowerCase()) {
+          if (
+            !author ||
+            author.toLowerCase() !== parsed.username.toLowerCase()
+          ) {
             continue;
           }
         }
 
+        const rawHashtags = Array.isArray(item.hashtags) ? item.hashtags : [];
+        const hashtags = rawHashtags
+          .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+          .filter(Boolean);
         const tags = Array.from(
-          new Set([
-            ...(((item as any)?.hashtags as string[]) || []),
-            ...extractMastodonHashtagsFromText(text),
-          ]),
+          new Set([...hashtags, ...extractMastodonHashtagsFromText(text)]),
         ).filter(Boolean);
 
         const title = (() => {
-          const createdAt = String((item as any)?.createdAt || "");
-          const replyToUsernames = Array.isArray((item as any)?.replyToUsernames)
-            ? ((item as any).replyToUsernames as any[])
+          const createdAt = String(item.createdAt || "");
+          const replyToUsernames = Array.isArray(item.replyToUsernames)
+            ? item.replyToUsernames
                 .map((u) => (typeof u === "string" ? u.trim() : ""))
                 .filter(Boolean)
             : [];
@@ -660,12 +689,14 @@ export async function importSocialRecords(
           kind,
           url: itemUrl,
           text,
-          createdAt: String((item as any)?.createdAt || ""),
+          createdAt: String(item.createdAt || ""),
           tags,
           title,
         });
 
-        if (await isDuplicateTootRecord({ url: record.url, kind: record.kind })) {
+        if (
+          await isDuplicateTootRecord({ url: record.url, kind: record.kind })
+        ) {
           stats.skipped += 1;
           skipped += 1;
           continue;
@@ -713,7 +744,8 @@ export async function importSocialRecords(
 export async function clearTweetImports() {
   const records = await getAllHighlights();
   const tweetRecords = records.filter(
-    (record) => typeof record?.kind === "string" && record.kind.startsWith("tweet:"),
+    (record) =>
+      typeof record?.kind === "string" && record.kind.startsWith("tweet:"),
   );
   for (const record of tweetRecords) {
     try {

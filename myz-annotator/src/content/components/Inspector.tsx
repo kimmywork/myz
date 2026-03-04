@@ -23,9 +23,7 @@ export default defineComponent({
 
     const noteText = computed(() => {
       const value =
-        typeof record.value.note === "string"
-          ? record.value.note.trim()
-          : "";
+        typeof record.value.note === "string" ? record.value.note.trim() : "";
       return value;
     });
     const hasNote = computed(() => noteText.value.length > 0);

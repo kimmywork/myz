@@ -1,20 +1,23 @@
-import { defineComponent } from "vue"
-import AiProviderList from "../../../components/ai-settings/AiProviderList.jsx"
-import AiProviderEditor from "../../../components/ai-settings/AiProviderEditor.jsx"
-import { useAiSettingsContext } from "./aiSettingsContext.js"
+import { defineComponent } from "vue";
+import AiProviderEditor from "../../../components/ai-settings/AiProviderEditor.jsx";
+import AiProviderList from "../../../components/ai-settings/AiProviderList.jsx";
+import { useAiSettingsContext } from "./aiSettingsContext.js";
 
 export default defineComponent({
   name: "AiProvidersPage",
   setup() {
-    const context = useAiSettingsContext()
+    const context = useAiSettingsContext();
 
     return () => (
       <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-sm dark:border-white/10 dark:bg-slate-800/40">
         <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p class="text-sm font-medium text-slate-900 dark:text-white">Provider</p>
+            <p class="text-sm font-medium text-slate-900 dark:text-white">
+              Provider
+            </p>
             <p class="text-xs text-slate-500 dark:text-slate-400">
-              需测试通过后才能启用 Provider；模型可从 /models 加载并配置能力与 token 参数。
+              需测试通过后才能启用 Provider；模型可从 /models 加载并配置能力与
+              token 参数。
             </p>
           </div>
           <div class="flex items-center justify-end gap-2">
@@ -64,6 +67,6 @@ export default defineComponent({
           </div>
         </div>
       </div>
-    )
+    );
   },
-})
+});

@@ -1,6 +1,6 @@
+import { storeToRefs } from "pinia";
 import { defineComponent } from "vue";
 import { useUIStore } from "../stores/ui.js";
-import { storeToRefs } from "pinia";
 import { ToolInvocationDetails } from "@/background/ai/types.js";
 
 export interface ToolResponseViewerState {
@@ -40,7 +40,9 @@ export default defineComponent({
                 </div>
                 {toolResponseViewer.value.timestamp && (
                   <div class="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(toolResponseViewer.value.timestamp).toLocaleString()}
+                    {new Date(
+                      toolResponseViewer.value.timestamp,
+                    ).toLocaleString()}
                   </div>
                 )}
               </div>

@@ -1,12 +1,39 @@
 import { readSettings } from "../storage";
 import {
+  buildChunkForRecord,
+  decryptChunkEnvelope,
+  decryptRecordPayload,
+} from "./chunks";
+import {
+  bytesToUtf8,
+  packNoncePayload,
+  splitNoncePayload,
+  sha256,
+  utf8ToBytes,
+} from "./crypto";
+import { runGc } from "./gc";
+import {
   clearKeyset,
   loadKeyset,
   sealPublicKey,
   verifySealedPublicKey,
 } from "./keyring";
-import { S3Client } from "./s3Client";
 import { acquireLock, releaseLock } from "./lock";
+import {
+  decryptManifest,
+  encryptManifest,
+  signManifest,
+  verifyManifest,
+} from "./manifest";
+import {
+  applyRecordPayload,
+  buildRecordHash,
+  collectLocalRecords,
+  deserializeRecordPayload,
+  deleteLocalRecord,
+} from "./records";
+import { parseRotationNotice } from "./rotation";
+import { S3Client } from "./s3Client";
 import {
   clearDeletions,
   clearRecordStates,
@@ -19,31 +46,14 @@ import {
   upsertDeletion,
   writeSyncState,
 } from "./storage";
-import {
-  applyRecordPayload,
-  buildRecordHash,
-  collectLocalRecords,
-  deserializeRecordPayload,
-  deleteLocalRecord,
-} from "./records";
-import { buildChunkForRecord, decryptChunkEnvelope, decryptRecordPayload } from "./chunks";
-import { decryptManifest, encryptManifest, signManifest, verifyManifest } from "./manifest";
-import {
-  bytesToUtf8,
-  packNoncePayload,
-  splitNoncePayload,
-  sha256,
-  utf8ToBytes,
-} from "./crypto";
-import { bytesToBase64, bytesToHex } from "./utils";
-import { parseRotationNotice } from "./rotation";
 import type {
   ManifestData,
   ManifestRecordEntry,
   SyncRecord,
   SyncRecordPayload,
 } from "./types";
-import { runGc } from "./gc";
+import { bytesToBase64, bytesToHex } from "./utils";
+import { SYNC_PROTOCOL_VERSION } from "@/shared/versioning";
 
 const MANIFEST_KEEP_COUNT = 30;
 const LOCK_PATH = "lock/lease.bin";
@@ -60,7 +70,12 @@ export async function syncNow(): Promise<SyncResult> {
     return { ok: true, status: "disabled" };
   }
   const s3 = settings.sync.s3;
-  if (!s3?.endpoint || !s3?.bucket || !s3?.accessKeyId || !s3?.secretAccessKey) {
+  if (
+    !s3?.endpoint ||
+    !s3?.bucket ||
+    !s3?.accessKeyId ||
+    !s3?.secretAccessKey
+  ) {
     return { ok: false, status: "error", message: "Missing S3 configuration" };
   }
   const keyset = await loadKeyset();
@@ -99,7 +114,10 @@ export async function syncNow(): Promise<SyncResult> {
   try {
     const rotationNotice = await client.getObject(`${keyId}/rotation.notice`);
     if (rotationNotice) {
-      const notice = await parseRotationNotice(keyset.masterKey, rotationNotice.body);
+      const notice = await parseRotationNotice(
+        keyset.masterKey,
+        rotationNotice.body,
+      );
       if (notice?.newKeyId === keyId) {
         try {
           await client.deleteObject(`${keyId}/rotation.notice`);
@@ -112,7 +130,9 @@ export async function syncNow(): Promise<SyncResult> {
         return {
           ok: false,
           status: "missing_key",
-          message: notice?.newKeyId ? `Key rotated: ${notice.newKeyId}` : "Key rotated",
+          message: notice?.newKeyId
+            ? `Key rotated: ${notice.newKeyId}`
+            : "Key rotated",
         };
       }
     }
@@ -162,7 +182,9 @@ export async function syncNow(): Promise<SyncResult> {
         latestVersion,
       );
       const localRecords = preflightRecords;
-      const localMap = new Map(localRecords.map((record) => [record.recordId, record]));
+      const localMap = new Map(
+        localRecords.map((record) => [record.recordId, record]),
+      );
       const recordStateMap = preflightRecordStateMap;
       const deletionMap = preflightDeletionMap;
 
@@ -192,7 +214,10 @@ export async function syncNow(): Promise<SyncResult> {
         }
         const local = localMap.get(recordId);
         const deletion = deletionMap.get(recordId);
-        if (deletion && Date.parse(deletion.deletedAt) > Date.parse(entry.updatedAt)) {
+        if (
+          deletion &&
+          Date.parse(deletion.deletedAt) > Date.parse(entry.updatedAt)
+        ) {
           continue;
         }
         if (!local) {
@@ -246,6 +271,7 @@ export async function syncNow(): Promise<SyncResult> {
         const version = (remoteManifest?.manifest.version || 0) + 1;
         const createdAt = new Date().toISOString();
         const manifestData: ManifestData = {
+          protocolVersion: SYNC_PROTOCOL_VERSION,
           version,
           createdAt,
           clientId: state.clientId,
@@ -256,10 +282,16 @@ export async function syncNow(): Promise<SyncResult> {
           chainHeads: {},
         };
 
-        const uploads: Array<{ path: string; payload: Uint8Array; updatedAt: string }> = [];
+        const uploads: Array<{
+          path: string;
+          payload: Uint8Array;
+          updatedAt: string;
+        }> = [];
         for (const record of finalRecords) {
           const remoteEntry = remoteIndex[record.recordId];
-          const remoteChunk = remoteEntry ? remoteChunksIndex[remoteEntry.chunkId] : null;
+          const remoteChunk = remoteEntry
+            ? remoteChunksIndex[remoteEntry.chunkId]
+            : null;
           const remoteChain = remoteChainHeads[record.recordId];
           const unchanged =
             remoteEntry &&
@@ -275,8 +307,15 @@ export async function syncNow(): Promise<SyncResult> {
           }
 
           const prevHash = remoteEntry?.recordHash || "";
-          const built = await buildChunkForRecord(record, keyset.masterKey, prevHash);
-          const chunkPayload = packNoncePayload(built.chunkNonce, built.chunkCipher);
+          const built = await buildChunkForRecord(
+            record,
+            keyset.masterKey,
+            prevHash,
+          );
+          const chunkPayload = packNoncePayload(
+            built.chunkNonce,
+            built.chunkCipher,
+          );
           const chunkHash = bytesToHex(await sha256(chunkPayload));
           const chunkEntry = remoteChunksIndex[built.chunkId];
           if (!chunkEntry || chunkEntry.hash !== chunkHash) {
@@ -309,8 +348,14 @@ export async function syncNow(): Promise<SyncResult> {
           });
         }
 
-        const encryptedManifest = await encryptManifest(manifestData, keyset.masterKey);
-        const signature = await signManifest(encryptedManifest.plainBytes, keyset.privateKey);
+        const encryptedManifest = await encryptManifest(
+          manifestData,
+          keyset.masterKey,
+        );
+        const signature = await signManifest(
+          encryptedManifest.plainBytes,
+          keyset.privateKey,
+        );
         await client.putObject(
           `${keyId}/manifests/${formatManifestVersion(version)}.bin`,
           encryptedManifest.payload,
@@ -363,7 +408,9 @@ async function loadRemoteManifest(
     const key = `${keyId}/manifests/${formatManifestVersion(versionHint)}.bin`;
     const manifestPayload = await client.getObject(key);
     if (manifestPayload) {
-      const signaturePayload = await client.getObject(key.replace(/\.bin$/, ".sig"));
+      const signaturePayload = await client.getObject(
+        key.replace(/\.bin$/, ".sig"),
+      );
       if (!signaturePayload) {
         throw new Error("Missing manifest signature");
       }
@@ -380,6 +427,9 @@ async function loadRemoteManifest(
       if (!valid) {
         throw new Error("Invalid manifest signature");
       }
+      if (manifest.protocolVersion !== SYNC_PROTOCOL_VERSION) {
+        throw new Error("Unsupported sync manifest protocol version");
+      }
       return { manifest };
     }
   }
@@ -393,7 +443,9 @@ async function loadRemoteManifest(
   if (!latest || latest.version === null) return null;
   const manifestPayload = await client.getObject(latest.key);
   if (!manifestPayload) return null;
-  const signaturePayload = await client.getObject(latest.key.replace(/\.bin$/, ".sig"));
+  const signaturePayload = await client.getObject(
+    latest.key.replace(/\.bin$/, ".sig"),
+  );
   if (!signaturePayload) {
     throw new Error("Missing manifest signature");
   }
@@ -409,6 +461,9 @@ async function loadRemoteManifest(
   );
   if (!valid) {
     throw new Error("Invalid manifest signature");
+  }
+  if (manifest.protocolVersion !== SYNC_PROTOCOL_VERSION) {
+    throw new Error("Unsupported sync manifest protocol version");
   }
   return { manifest };
 }
@@ -492,7 +547,10 @@ function parseManifestVersion(key: string): number | null {
 
 function hasLocalPendingChanges(
   records: SyncRecord[],
-  recordStateMap: Map<string, { recordId: string; recordHash: string; updatedAt: string }>,
+  recordStateMap: Map<
+    string,
+    { recordId: string; recordHash: string; updatedAt: string }
+  >,
   deletionMap: Map<string, { recordId: string; deletedAt: string }>,
 ) {
   if (deletionMap.size > 0) return true;

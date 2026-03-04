@@ -1,5 +1,5 @@
-import { createApp } from "vue";
 import { createPinia } from "pinia";
+import { createApp } from "vue";
 import App from "./App.jsx";
 
 const app = createApp(App);

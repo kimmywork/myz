@@ -1,31 +1,43 @@
-import { defineComponent } from "vue"
-import type { PropType } from "vue"
-import type { AIProviderSetting } from "@/background/settings.js"
-import { getProviderTypeMeta } from "./providerCatalog.js"
+import { defineComponent } from "vue";
+import type { PropType } from "vue";
+import { getProviderTypeMeta } from "./providerCatalog.js";
+import type { AIProviderSetting } from "@/background/settings.js";
 
 function statusLabel(provider: AIProviderSetting) {
-  if (provider.enabled) return "已启用"
-  if (provider.lastTest?.ok) return "已测试"
-  if (provider.lastTest) return "测试失败"
-  return "未测试"
+  if (provider.enabled) return "已启用";
+  if (provider.lastTest?.ok) return "已测试";
+  if (provider.lastTest) return "测试失败";
+  return "未测试";
 }
 
 function statusDot(provider: AIProviderSetting) {
-  if (provider.enabled) return "bg-emerald-500"
-  if (provider.lastTest?.ok) return "bg-sky-500"
-  if (provider.lastTest) return "bg-rose-500"
-  return "bg-slate-300 dark:bg-slate-600"
+  if (provider.enabled) return "bg-emerald-500";
+  if (provider.lastTest?.ok) return "bg-sky-500";
+  if (provider.lastTest) return "bg-rose-500";
+  return "bg-slate-300 dark:bg-slate-600";
 }
 
 export default defineComponent({
   name: "AiProviderList",
   props: {
     providers: { type: Array as PropType<AIProviderSetting[]>, required: true },
-    selectedProviderId: { type: String as PropType<string | null>, default: null },
-    usedByMap: { type: Object as PropType<Record<string, string[]>>, default: () => ({}) },
-    onSelect: { type: Function as PropType<(id: string) => void>, required: true },
+    selectedProviderId: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
+    usedByMap: {
+      type: Object as PropType<Record<string, string[]>>,
+      default: () => ({}),
+    },
+    onSelect: {
+      type: Function as PropType<(id: string) => void>,
+      required: true,
+    },
     onAdd: { type: Function as PropType<() => void>, required: true },
-    onRemove: { type: Function as PropType<(id: string) => void>, required: true },
+    onRemove: {
+      type: Function as PropType<(id: string) => void>,
+      required: true,
+    },
     onRename: {
       type: Function as PropType<(id: string, name: string) => void>,
       required: true,
@@ -84,8 +96,11 @@ export default defineComponent({
                       }
                     />
                     <div class="text-xs text-slate-500 dark:text-slate-400">
-                      {getProviderTypeMeta(provider.type).label} · {statusLabel(provider)}
-                      {provider.lastTest?.model ? ` · ${provider.lastTest.model}` : ""}
+                      {getProviderTypeMeta(provider.type).label} ·{" "}
+                      {statusLabel(provider)}
+                      {provider.lastTest?.model
+                        ? ` · ${provider.lastTest.model}`
+                        : ""}
                       {props.usedByMap?.[provider.id]?.length
                         ? ` · 使用中: ${props.usedByMap[provider.id].join(", ")}`
                         : ""}
@@ -104,6 +119,6 @@ export default defineComponent({
           </div>
         )}
       </div>
-    )
+    );
   },
-})
+});

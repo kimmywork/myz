@@ -1,3 +1,7 @@
+import {
+  resolveAgentTarget,
+  resolveConversationMultimodalTarget,
+} from "./background/ai/runtime/agentSelection.js";
 import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
 import { initializeAIMessageHandlers } from "./background/messages/ai.js";
@@ -9,16 +13,13 @@ import { initializeSkillMessageHandlers } from "./background/messages/skills.js"
 import { initializeSocialImportMessageHandlers } from "./background/messages/social-import.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
 import { initializeVectoriaMessageHandlers } from "./background/messages/vectoria.js";
-import { initializeSyncScheduler } from "./background/sync/scheduler.js";
 import { readSettings } from "./background/storage.js";
+import { initializeSyncScheduler } from "./background/sync/scheduler.js";
 import {
   applyVectorSearchSettings,
   getVectoria,
 } from "./background/vectoria-index.js";
-import {
-  resolveAgentTarget,
-  resolveConversationMultimodalTarget,
-} from "./background/ai/runtime/agentSelection.js";
+import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
 
@@ -30,16 +31,20 @@ function generateDraftId(prefix = "draft") {
  * Queues a SidePanel action so it can be delivered even if the SidePanel page
  * is not yet ready to receive runtime messages.
  */
-async function queueSidePanelAction(payload: any) {
-  const nextPayload = payload && typeof payload === "object" ? payload : {};
-  if (!nextPayload.draftId) {
+async function queueSidePanelAction(payload: unknown) {
+  const nextPayload: UnknownRecord = isRecord(payload) ? { ...payload } : {};
+  if (typeof nextPayload.draftId !== "string") {
     nextPayload.draftId = generateDraftId();
   }
 
   try {
-    await chrome.storage.session.set({ [PENDING_SIDEPANEL_ACTION_KEY]: nextPayload });
+    await chrome.storage.session.set({
+      [PENDING_SIDEPANEL_ACTION_KEY]: nextPayload,
+    });
   } catch {
-    await chrome.storage.local.set({ [PENDING_SIDEPANEL_ACTION_KEY]: nextPayload });
+    await chrome.storage.local.set({
+      [PENDING_SIDEPANEL_ACTION_KEY]: nextPayload,
+    });
   }
 
   try {
@@ -64,7 +69,7 @@ async function queueSidePanelAction(payload: any) {
 (async function initializeVectoriaSettings() {
   try {
     const settings = await readSettings();
-    applyVectorSearchSettings(settings as any);
+    applyVectorSearchSettings(settings);
     await getVectoria();
   } catch (error) {
     console.warn("Failed to initialize vector settings", error);
@@ -144,7 +149,7 @@ async function ensureContextMenus() {
       contexts: ["image"],
       visible: true,
       enabled: false,
-    } as any);
+    } as chrome.contextMenus.CreateProperties);
   } catch (e) {
     // ignore menu creation failures
   }
@@ -175,11 +180,11 @@ async function refreshAiImageMenuVisibility() {
       } catch {}
       return;
     }
-    const target = resolveAgentTarget(settings as any, "conversation");
+    const target = resolveAgentTarget(settings, "conversation");
     let enabled = Boolean(target?.model?.capabilities?.vision);
     if (!enabled) {
       try {
-        const multimodal = resolveConversationMultimodalTarget(settings as any);
+        const multimodal = resolveConversationMultimodalTarget(settings);
         enabled = Boolean(multimodal?.model?.capabilities?.vision);
       } catch {
         enabled = false;
@@ -201,17 +206,20 @@ async function refreshAiImageMenuVisibility() {
   }
 }
 
-const contextMenusAny = chrome.contextMenus as any;
-if (contextMenusAny?.onShown?.addListener) {
-  contextMenusAny.onShown.addListener(() => {
+const contextMenus =
+  chrome.contextMenus as typeof chrome.contextMenus & {
+    onShown?: chrome.events.Event<() => void>;
+    refresh?: () => void;
+  };
+if (contextMenus?.onShown?.addListener) {
+  contextMenus.onShown.addListener(() => {
     refreshAiImageMenuVisibility()
-      .then(() => contextMenusAny.refresh?.())
+      .then(() => contextMenus.refresh?.())
       .catch(() => {});
   });
 }
 
-const runtimeAny = chrome.runtime as any;
-runtimeAny?.onStartup?.addListener(() => {
+chrome.runtime?.onStartup?.addListener(() => {
   refreshAiImageMenuVisibility().catch(() => {});
 });
 
@@ -250,7 +258,9 @@ async function fetchImageDataUrl(
   }
 
   try {
-    const response = await fetch(srcUrl, { credentials: "include" as RequestCredentials });
+    const response = await fetch(srcUrl, {
+      credentials: "include" as RequestCredentials,
+    });
     if (!response.ok) {
       throw new Error(`fetch failed: ${response.status}`);
     }
@@ -258,7 +268,10 @@ async function fetchImageDataUrl(
     const buffer = await response.arrayBuffer();
     const base64 = arrayBufferToBase64(buffer);
     const safeMimeType = mimeType || "image/png";
-    return { dataUrl: `data:${safeMimeType};base64,${base64}`, mimeType: safeMimeType };
+    return {
+      dataUrl: `data:${safeMimeType};base64,${base64}`,
+      mimeType: safeMimeType,
+    };
   } catch (error) {
     const result = await chrome.tabs.sendMessage(tabId, {
       type: "myz:fetchImageAsDataUrl",
@@ -268,7 +281,7 @@ async function fetchImageDataUrl(
     const dataUrl = typeof data?.dataUrl === "string" ? data.dataUrl : "";
     const mimeType = typeof data?.mimeType === "string" ? data.mimeType : "";
     if (!dataUrl.startsWith("data:")) {
-      throw error as any;
+      throw error instanceof Error ? error : new Error(String(error));
     }
     return { dataUrl, mimeType: mimeType || "image/png" };
   }
@@ -292,9 +305,7 @@ chrome.contextMenus.onClicked.addListener(
       ) {
         // Open side panel only (no auto-trigger for parent menu and "打开面板")
         await chrome.sidePanel.open({ windowId: tab.windowId });
-      } else if (
-        info.menuItemId === "myz-ai-summarize"
-      ) {
+      } else if (info.menuItemId === "myz-ai-summarize") {
         // Open side panel with AI assistant
         await chrome.sidePanel.open({ windowId: tab.windowId });
 
@@ -355,8 +366,7 @@ chrome.contextMenus.onClicked.addListener(
             e,
           );
         }
-      }
-      else if (info.menuItemId === "myz-ai-keypoints") {
+      } else if (info.menuItemId === "myz-ai-keypoints") {
         try {
           await chrome.tabs.sendMessage(tab.id, {
             type: "myz:runAutoHighlight",
@@ -371,7 +381,10 @@ chrome.contextMenus.onClicked.addListener(
         }
         await chrome.sidePanel.open({ windowId: tab.windowId });
 
-        const { dataUrl, mimeType } = await fetchImageDataUrl(info.srcUrl, tab.id);
+        const { dataUrl, mimeType } = await fetchImageDataUrl(
+          info.srcUrl,
+          tab.id,
+        );
 
         await queueSidePanelAction({
           action: "interpret_image",
@@ -459,7 +472,7 @@ initializeVectoriaMessageHandlers();
 initializeSyncScheduler();
 
 chrome.runtime.onMessage.addListener(
-  (message: { type: string; payload: any }, sender, sendResponse) => {
+  (message: { type: string; payload: unknown }, sender, sendResponse) => {
     if (!message || !message.type) {
       return false;
     }

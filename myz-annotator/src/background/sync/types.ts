@@ -1,17 +1,29 @@
+import type { MyZRecord } from "@/shared/types"
+import type { Message } from "@/background/ai/types"
+import type { ConversationInfo } from "@/sidepanel/aiStorage"
+
 export type SyncRecordType = "highlight" | "ai-conversation";
 
+export interface SyncConversationBundle {
+  conversation: ConversationInfo
+  messages: Message[]
+}
+
+export type SyncRecordData = MyZRecord | SyncConversationBundle
+
 export interface SyncRecordPayload {
+  protocolVersion: string;
   recordId: string;
   type: SyncRecordType;
   updatedAt: string;
-  data: any;
+  data: SyncRecordData;
 }
 
 export interface SyncRecord {
   recordId: string;
   type: SyncRecordType;
   updatedAt: string;
-  data: any;
+  data: SyncRecordData;
   recordHash: string;
 }
 
@@ -34,6 +46,7 @@ export interface ManifestChainHead {
 }
 
 export interface ManifestData {
+  protocolVersion: string;
   version: number;
   createdAt: string;
   clientId: string;
@@ -45,6 +58,7 @@ export interface ManifestData {
 }
 
 export interface ChunkEnvelope {
+  protocolVersion: string;
   recordId: string;
   updatedAt: string;
   prevHash: string;

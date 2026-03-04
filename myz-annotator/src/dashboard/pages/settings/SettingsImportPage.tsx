@@ -1,9 +1,9 @@
-import { defineComponent } from "vue"
-import ImportHighlightsSection from "../../components/settings/ImportHighlightsSection.jsx"
+import { defineComponent } from "vue";
+import ImportHighlightsSection from "../../components/settings/ImportHighlightsSection.jsx";
 
 export default defineComponent({
   name: "SettingsImportPage",
   setup() {
-    return () => <ImportHighlightsSection />
+    return () => <ImportHighlightsSection />;
   },
-})
+});

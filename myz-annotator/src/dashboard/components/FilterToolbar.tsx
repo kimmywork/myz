@@ -71,7 +71,9 @@ export default defineComponent({
                 options={highlightsStore.availableTags}
                 placeholder="输入后按回车或逗号确认"
                 allowNew={false}
-                onUpdate:modelValue={(value) => uiStore.setFilter("tags", value)}
+                onUpdate:modelValue={(value) =>
+                  uiStore.setFilter("tags", value)
+                }
               />
             </label>
           </div>

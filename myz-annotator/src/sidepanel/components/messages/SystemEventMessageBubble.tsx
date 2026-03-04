@@ -10,9 +10,13 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const text = computed(() => (props.message?.content || "").trim() || "系统事件");
+    const text = computed(
+      () => (props.message?.content || "").trim() || "系统事件",
+    );
     const timestamp = computed(() =>
-      props.message?.timestamp ? new Date(props.message.timestamp).toLocaleTimeString() : "",
+      props.message?.timestamp
+        ? new Date(props.message.timestamp).toLocaleTimeString()
+        : "",
     );
 
     return () => (

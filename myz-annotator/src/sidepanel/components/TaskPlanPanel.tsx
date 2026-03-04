@@ -1,6 +1,13 @@
 import { defineComponent, computed, ref } from "vue";
-import { sendMessage } from "@/shared/messaging.js";
 import { useTaskPlanStore } from "../stores/taskPlan.js";
+import { sendMessage } from "@/shared/messaging.js";
+import type {
+  TaskArtifact,
+  TaskDeliverable,
+  TaskItem,
+  TaskPlan,
+} from "@/background/ai/tasks/taskManager";
+import { isRecord } from "@/shared/typeUtils";
 
 const STATUS_LABELS: Record<string, string> = {
   planning: "规划中",
@@ -29,13 +36,14 @@ const ARTIFACT_LABELS: Record<string, string> = {
   json: "JSON",
 };
 
-function truncateText(value: any, maxLen = 36) {
-  const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+function truncateText(value: unknown, maxLen = 36) {
+  const text =
+    typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
   if (!text) return "";
   return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
 }
 
-function describeArtifact(artifact: any) {
+function describeArtifact(artifact: TaskArtifact | null | undefined) {
   if (!artifact || typeof artifact !== "object") return "附件";
   const type = typeof artifact.type === "string" ? artifact.type : "";
   const label = ARTIFACT_LABELS[type] || type || "附件";
@@ -43,7 +51,7 @@ function describeArtifact(artifact: any) {
   let detail = "";
   if (typeof payload === "string") {
     detail = payload;
-  } else if (payload && typeof payload === "object") {
+  } else if (isRecord(payload)) {
     detail =
       (typeof payload.url === "string" && payload.url) ||
       (typeof payload.href === "string" && payload.href) ||
@@ -59,7 +67,7 @@ export default defineComponent({
   name: "TaskPlanPanel",
   setup() {
     const taskPlanStore = useTaskPlanStore();
-    const plan = computed(() => taskPlanStore.taskPlan);
+    const plan = computed<TaskPlan | null>(() => taskPlanStore.taskPlan);
     const expanded = ref(false);
     const hovering = ref(false);
     const isStarting = ref(false);
@@ -68,7 +76,7 @@ export default defineComponent({
     const progress = computed(() => {
       const tasks = plan.value?.tasks || [];
       if (!tasks.length) return { done: 0, total: 0 };
-      const done = tasks.filter((task: any) => task.status === "done").length;
+      const done = tasks.filter((task: TaskItem) => task.status === "done").length;
       return { done, total: tasks.length };
     });
 
@@ -78,11 +86,15 @@ export default defineComponent({
 
       const tasks = Array.isArray(current.tasks) ? current.tasks : [];
       const hasTasks = tasks.length > 0;
-      const currentTaskId = typeof current.currentTaskId === "string" ? current.currentTaskId : "";
+      const currentTaskId =
+        typeof current.currentTaskId === "string" ? current.currentTaskId : "";
       const currentTask =
-        tasks.find((task: any) => task.id && task.id === currentTaskId && task.status !== "blocked") ||
-        tasks.find((task: any) => task.status === "in_progress") ||
-        tasks.find((task: any) => task.status === "pending") ||
+        tasks.find(
+          (task: TaskItem) =>
+            task.id && task.id === currentTaskId && task.status !== "blocked",
+        ) ||
+        tasks.find((task: TaskItem) => task.status === "in_progress") ||
+        tasks.find((task: TaskItem) => task.status === "pending") ||
         tasks[0] ||
         null;
       const showDetails = expanded.value || hovering.value;
@@ -97,7 +109,9 @@ export default defineComponent({
 
       const statusLabel = STATUS_LABELS[current.status] || current.status;
       const planReview = current.planReview || {};
-      const reviewIssues = Array.isArray(planReview.issues) ? planReview.issues : [];
+      const reviewIssues = Array.isArray(planReview.issues)
+        ? planReview.issues
+        : [];
       const reviewMissing = Array.isArray(planReview.missingInfo)
         ? planReview.missingInfo
         : [];
@@ -108,12 +122,15 @@ export default defineComponent({
         : [];
       const reviewPassed = planReview?.status === "pass";
       const canReview =
-        (current.status === "reviewing" || current.status === "needs_revision") &&
+        (current.status === "reviewing" ||
+          current.status === "needs_revision") &&
         planReview?.status !== "pass";
       const canStart =
-        reviewPassed && (current.status === "reviewing" || current.status === "needs_revision");
+        reviewPassed &&
+        (current.status === "reviewing" || current.status === "needs_revision");
       const canResume = reviewPassed && current.status === "needs_rework";
-      const reviewLabel = planReview?.status === "pending" ? "发起审核" : "重新审核";
+      const reviewLabel =
+        planReview?.status === "pending" ? "发起审核" : "重新审核";
 
       return (
         <section
@@ -161,7 +178,9 @@ export default defineComponent({
                       await sendMessage("myz:aiPlanReviewRequest", {
                         conversationId: taskPlanStore.conversationId,
                       });
-                      await taskPlanStore.loadPlan(taskPlanStore.conversationId);
+                      await taskPlanStore.loadPlan(
+                        taskPlanStore.conversationId,
+                      );
                     } finally {
                       isReviewing.value = false;
                     }
@@ -178,10 +197,13 @@ export default defineComponent({
                     if (!taskPlanStore.conversationId) return;
                     isStarting.value = true;
                     try {
-                      const updated = await sendMessage("myz:taskPlanStart", {
+                      const updated = await sendMessage<
+                        { conversationId: string },
+                        TaskPlan
+                      >("myz:taskPlanStart", {
                         conversationId: taskPlanStore.conversationId,
                       });
-                      taskPlanStore.setPlan(updated);
+                      taskPlanStore.setPlan(updated || null);
                     } finally {
                       isStarting.value = false;
                     }
@@ -200,11 +222,11 @@ export default defineComponent({
                   当前任务
                 </div>
               )}
-              {visibleTasks.map((task: any, index: number) => {
+              {visibleTasks.map((task: TaskItem, index: number) => {
                 const displayIndex =
-                  tasks.findIndex((item: any) => item === task || item.id === task.id) +
-                  1 ||
-                  index + 1;
+                  tasks.findIndex(
+                    (item: TaskItem) => item === task || item.id === task.id,
+                  ) + 1 || index + 1;
                 return (
                   <div
                     class="rounded-xl border border-slate-200 bg-slate-50/60 p-2 text-xs dark:border-white/10 dark:bg-slate-900/40"
@@ -239,39 +261,45 @@ export default defineComponent({
                           </span>
                         ))}
                     </div>
-                    {Array.isArray(task.deliverables) && task.deliverables.length > 0 && (
-                      <ul class="mt-2 list-disc pl-4 text-[11px] text-slate-500 dark:text-slate-400">
-                        {task.deliverables.map((deliverable: any, dIndex: number) => (
-                          <li key={deliverable.id || `${task.id}-d-${dIndex}`}>
-                            <span>
-                              {deliverable.description || "交付物"}
-                            </span>
-                            {deliverable.status === "done" ? (
-                              <span class="ml-2 text-emerald-600 dark:text-emerald-300">已完成</span>
-                            ) : (
-                              <span class="ml-2 text-slate-400">未完成</span>
-                            )}
-                            {Array.isArray(deliverable.artifacts) &&
-                              deliverable.artifacts.length > 0 && (
-                                <ul class="mt-1 list-disc pl-4 text-[10px] text-slate-400 dark:text-slate-500">
-                                  {deliverable.artifacts.map(
-                                    (artifact: any, aIndex: number) => (
-                                      <li
-                                        key={
-                                          artifact.id ||
-                                          `${task.id}-d-${dIndex}-a-${aIndex}`
-                                        }
-                                      >
-                                        {describeArtifact(artifact)}
-                                      </li>
-                                    ),
+                    {Array.isArray(task.deliverables) &&
+                      task.deliverables.length > 0 && (
+                        <ul class="mt-2 list-disc pl-4 text-[11px] text-slate-500 dark:text-slate-400">
+                          {task.deliverables.map(
+                            (deliverable: TaskDeliverable, dIndex: number) => (
+                              <li
+                                key={deliverable.id || `${task.id}-d-${dIndex}`}
+                              >
+                                <span>
+                                  {deliverable.description || "交付物"}
+                                </span>
+                                {deliverable.status === "done" ? (
+                                  <span class="ml-2 text-emerald-600 dark:text-emerald-300">
+                                    已完成
+                                  </span>
+                                ) : (
+                                  <span class="ml-2 text-slate-400">
+                                    未完成
+                                  </span>
+                                )}
+                                {Array.isArray(deliverable.artifacts) &&
+                                  deliverable.artifacts.length > 0 && (
+                                    <ul class="mt-1 list-disc pl-4 text-[10px] text-slate-400 dark:text-slate-500">
+                                      {deliverable.artifacts.map(
+                                        (artifact: TaskArtifact, aIndex: number) => (
+                                          <li
+                                            key={`${task.id}-d-${dIndex}-a-${aIndex}`}
+                                          >
+                                            {describeArtifact(artifact)}
+                                          </li>
+                                        ),
+                                      )}
+                                    </ul>
                                   )}
-                                </ul>
-                              )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      )}
                   </div>
                 );
               })}
@@ -309,11 +337,13 @@ export default defineComponent({
             </div>
           )}
 
-          {showDetails && planReview?.status === "pass" && current.status === "reviewing" && (
-            <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
-              计划已通过审核，可开始执行
-            </div>
-          )}
+          {showDetails &&
+            planReview?.status === "pass" &&
+            current.status === "reviewing" && (
+              <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
+                计划已通过审核，可开始执行
+              </div>
+            )}
 
           {showDetails && validation?.status === "fail" && (
             <div class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">

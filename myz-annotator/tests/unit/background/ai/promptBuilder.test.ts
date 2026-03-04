@@ -6,7 +6,11 @@ describe("PromptBuilder", () => {
     const builder = new PromptBuilder();
     builder.addSystem("sys").addUser("user").addAssistant("assistant");
     const messages = builder.build();
-    expect(messages.map((m) => m.role)).toEqual(["system", "user", "assistant"]);
+    expect(messages.map((m) => m.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+    ]);
   });
 
   it("adds tool message with tool_call_id", () => {

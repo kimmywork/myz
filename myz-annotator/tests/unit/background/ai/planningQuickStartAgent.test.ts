@@ -6,7 +6,14 @@ describe("PlanningAgent", () => {
   it("parses plan JSON", async () => {
     const client = {
       createCompletion: vi.fn(async () => ({
-        choices: [{ message: { content: "{\"type\":\"plan\",\"tasks\":[{\"title\":\"t\",\"deliverables\":[{\"description\":\"d\"}]}]}" } }],
+        choices: [
+          {
+            message: {
+              content:
+                '{"type":"plan","tasks":[{"title":"t","deliverables":[{"description":"d"}]}]}',
+            },
+          },
+        ],
       })),
     } as any;
 
@@ -22,7 +29,9 @@ describe("PlanningAgent", () => {
   it("falls back on clarify response", async () => {
     const client = {
       createCompletion: vi.fn(async () => ({
-        choices: [{ message: { content: "{\"type\":\"clarify\",\"questions\":[\"need\"]}" } }],
+        choices: [
+          { message: { content: '{"type":"clarify","questions":["need"]}' } },
+        ],
       })),
     } as any;
 

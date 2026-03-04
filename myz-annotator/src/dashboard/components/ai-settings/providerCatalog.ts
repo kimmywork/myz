@@ -1,12 +1,12 @@
-import type { AIProviderType } from "@/background/settings.js"
+import type { AIProviderType } from "@/background/settings.js";
 
 export interface ProviderTypeMeta {
-  type: AIProviderType
-  label: string
-  defaultName: string
-  baseUrlPlaceholder: string
-  defaultBaseUrl: string
-  requiresApiKey: boolean
+  type: AIProviderType;
+  label: string;
+  defaultName: string;
+  baseUrlPlaceholder: string;
+  defaultBaseUrl: string;
+  requiresApiKey: boolean;
 }
 
 export const PROVIDER_TYPE_OPTIONS: ProviderTypeMeta[] = [
@@ -82,12 +82,11 @@ export const PROVIDER_TYPE_OPTIONS: ProviderTypeMeta[] = [
     defaultBaseUrl: "http://localhost:8080/v1",
     requiresApiKey: false,
   },
-]
+];
 
 export function getProviderTypeMeta(type: AIProviderType): ProviderTypeMeta {
   return (
     PROVIDER_TYPE_OPTIONS.find((item) => item.type === type) ||
     PROVIDER_TYPE_OPTIONS[0]
-  )
+  );
 }
-

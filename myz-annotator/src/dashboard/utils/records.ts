@@ -1,13 +1,15 @@
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
+import { MyZRecordSchema } from "@/shared/schemas";
 import {
   CONTENT_TYPES,
   MyZRecord,
   RECORD_KINDS,
+  ensureRecordSchemaVersion,
   getRecordKind,
   resolveRecordContentType,
 } from "@/shared/types.ts";
-import { MyZRecordSchema } from "@/shared/schemas";
-import { renderMarkdown } from "@/shared/markdownRenderer.js";
 import { extractHostname } from "@/shared/url.js";
+import { isRecord } from "@/shared/typeUtils";
 
 export type PageSortMode = "time" | "range";
 
@@ -57,18 +59,19 @@ export function getRecordKindLabel(record: MyZRecord) {
   }
 }
 
-export function normalizeRecord(record?: any): MyZRecord | null {
-  if (!record || typeof record !== "object") {
+export function normalizeRecord(record?: unknown): MyZRecord | null {
+  if (!isRecord(record)) {
     return null;
   }
   // Ensure kind is set correctly before validation
-  const recordWithKind = {
-    ...record,
-    kind: getRecordKind(record),
+  const recordWithKind: Partial<MyZRecord> = {
+    ...(record as Partial<MyZRecord>),
+    kind: getRecordKind(record as Partial<MyZRecord>),
   };
-  recordWithKind.contentType = resolveRecordContentType(recordWithKind);
-  
-  const result = MyZRecordSchema.safeParse(recordWithKind);
+  const versioned = ensureRecordSchemaVersion(recordWithKind);
+  versioned.contentType = resolveRecordContentType(versioned);
+
+  const result = MyZRecordSchema.safeParse(versioned);
   if (result.success) {
     return result.data;
   }
@@ -118,8 +121,7 @@ export function groupRecordsByPage(records: MyZRecord[]): PageGroup[] {
       return;
     }
     const existing = map.get(url);
-    const latest =
-      Date.parse(record.createdAt || record.updatedAt || "") || 0;
+    const latest = Date.parse(record.createdAt || record.updatedAt || "") || 0;
     if (!existing) {
       map.set(url, {
         key: url,
@@ -159,7 +161,10 @@ export function groupRecordsByPage(records: MyZRecord[]): PageGroup[] {
   return Array.from(map.values()).sort((a, b) => {
     const timeA = Date.parse(a.latestAt || "");
     const timeB = Date.parse(b.latestAt || "");
-    return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+    return (
+      (Number.isFinite(timeB) ? timeB : 0) -
+      (Number.isFinite(timeA) ? timeA : 0)
+    );
   });
 }
 
@@ -225,14 +230,20 @@ export function sortRecordsForPage(
       }
       const timeA = Date.parse(a.createdAt || a.updatedAt || "");
       const timeB = Date.parse(b.createdAt || b.updatedAt || "");
-      return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+      return (
+        (Number.isFinite(timeB) ? timeB : 0) -
+        (Number.isFinite(timeA) ? timeA : 0)
+      );
     });
     return sorted;
   }
   sorted.sort((a, b) => {
     const timeA = Date.parse(a.createdAt || a.updatedAt || "");
     const timeB = Date.parse(b.createdAt || b.updatedAt || "");
-    return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+    return (
+      (Number.isFinite(timeB) ? timeB : 0) -
+      (Number.isFinite(timeA) ? timeA : 0)
+    );
   });
   return sorted;
 }

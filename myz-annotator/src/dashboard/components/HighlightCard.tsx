@@ -2,8 +2,9 @@ import { computed, defineComponent, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
-import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 import { formatDateTime } from "@/dashboard/utils/records.js";
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
+import { isRecord } from "@/shared/typeUtils";
 
 export enum HighlightItemAction {
   "copy" = "copy",
@@ -32,9 +33,20 @@ export default defineComponent({
       return value.startsWith("tweet:") || value.startsWith("toot:");
     });
     const socialKinds = computed(() => {
-      const raw = (props.record as any)?.socialKinds || (props.record as any)?.tweetKinds;
-      if (Array.isArray(raw) && raw.length) {
-        return raw as string[];
+      const legacy =
+        isRecord(props.record) && Array.isArray(props.record.tweetKinds)
+          ? props.record.tweetKinds
+          : undefined;
+      const raw = props.record?.socialKinds || legacy;
+      if (Array.isArray(raw)) {
+        const normalized = raw
+          .map((item) => (typeof item === "string" ? item.trim() : ""))
+          .filter(
+            (item): item is RECORD_KINDS =>
+              Boolean(item) &&
+              Object.values(RECORD_KINDS).includes(item as RECORD_KINDS),
+          );
+        if (normalized.length) return normalized;
       }
       return isSocial.value ? [String(kind.value)] : [];
     });
@@ -163,7 +175,7 @@ export default defineComponent({
                     ? "bg-teal-500 text-white"
                     : isSocial.value
                       ? "bg-sky-500 text-white"
-                    : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+                      : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
               ].join(" ")}
             >
               {kindLabel.value}

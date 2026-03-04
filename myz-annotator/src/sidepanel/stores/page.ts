@@ -9,9 +9,19 @@ export const usePageStore = defineStore("page", () => {
   const pageContent = ref("");
   const relatedMatches = ref<VectoriaSearchResult[]>([]);
 
-  let tabActivatedListener: ((info: any) => void) | null = null;
-  let tabUpdatedListener: ((tabId: number, changeInfo: any, tab: any) => void) | null =
-    null;
+  type TabActivatedInfo = { tabId: number; windowId?: number };
+  type TabChangeInfo = { status?: string };
+
+  let tabActivatedListener:
+    | ((info: TabActivatedInfo) => void)
+    | null = null;
+  let tabUpdatedListener:
+    | ((
+        tabId: number,
+        changeInfo: TabChangeInfo,
+        tab: chrome.tabs.Tab,
+      ) => void)
+    | null = null;
 
   async function loadPageContext(
     tabId?: number,
@@ -78,7 +88,10 @@ export const usePageStore = defineStore("page", () => {
       if (changeInfo?.status !== "complete") {
         return;
       }
-      if (typeof currentTabId.value === "number" && tabId === currentTabId.value) {
+      if (
+        typeof currentTabId.value === "number" &&
+        tabId === currentTabId.value
+      ) {
         void loadPageContext(tabId, { includeContent: false });
       }
     };

@@ -28,7 +28,7 @@ describe("PlanReviewAgent", () => {
           {
             message: {
               content:
-                "好的，以下是结果。\n{\"status\":\"pass\",\"issues\":[],\"missingInfo\":[]}",
+                '好的，以下是结果。\n{"status":"pass","issues":[],"missingInfo":[]}',
             },
           },
         ],
@@ -54,7 +54,7 @@ describe("PlanReviewAgent", () => {
           {
             message: {
               content:
-                "{\"status\":\"fail\",\"issues\":[\"  缺验收标准  \",\"\"],\"missingInfo\":[\"  目标  \",\" \" ]}",
+                '{"status":"fail","issues":["  缺验收标准  ",""],"missingInfo":["  目标  "," " ]}',
             },
           },
         ],

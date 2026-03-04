@@ -1,4 +1,5 @@
 import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate";
+import { isRecord } from "@/shared/typeUtils";
 
 const BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
 
@@ -45,19 +46,19 @@ export function base64ToBytes(value: string): Uint8Array {
   return output;
 }
 
-export function stableStringify(value: any): string {
+export function stableStringify(value: unknown): string {
   return JSON.stringify(stableValue(value));
 }
 
-function stableValue(value: any): any {
+function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => stableValue(item));
   }
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, any>)
+  if (isRecord(value)) {
+    const entries = Object.entries(value)
       .filter(([key]) => key !== undefined)
       .sort(([a], [b]) => a.localeCompare(b));
-    const result: Record<string, any> = {};
+    const result: Record<string, unknown> = {};
     entries.forEach(([key, val]) => {
       result[key] = stableValue(val);
     });
@@ -66,13 +67,13 @@ function stableValue(value: any): any {
   return value;
 }
 
-export function encodeBinaryPayload(value: any): Uint8Array {
+export function encodeBinaryPayload(value: unknown): Uint8Array {
   const json = stableStringify(value);
   const bytes = strToU8(json);
   return deflateSync(bytes, { level: 6 });
 }
 
-export function decodeBinaryPayload(payload: Uint8Array): any {
+export function decodeBinaryPayload(payload: Uint8Array): unknown {
   const inflated = inflateSync(payload);
   const json = strFromU8(inflated);
   return JSON.parse(json);
@@ -97,7 +98,10 @@ export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
     ) {
       return bytes.buffer;
     }
-    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    return bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    );
   }
   return Uint8Array.from(bytes).buffer;
 }

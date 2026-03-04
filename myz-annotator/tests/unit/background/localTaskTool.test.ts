@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LOCAL_TOOL_HANDLERS } from "@/background/ai/tools/local.ts";
 import { updatePlanReviewResult } from "@/background/ai/tasks/taskManager.ts";
+import { LOCAL_TOOL_HANDLERS } from "@/background/ai/tools/local.ts";
 import type { TextContent } from "@/background/mcp_schema";
+import { isRecord } from "@/shared/typeUtils";
 
 type ConversationRecord = { metadata: Record<string, any> };
 let conversationStore: ConversationRecord = { metadata: {} };
@@ -20,13 +21,21 @@ vi.mock("@/sidepanel/aiStorage", () => {
 });
 
 vi.mock("@/background/storage.js", () => ({
-  readSettings: vi.fn(async () => ({ aiAssistantEnabled: true, aiMcpServers: [], aiAgents: { conversation: {} } })),
+  readSettings: vi.fn(async () => ({
+    aiAssistantEnabled: true,
+    aiMcpServers: [],
+    aiAgents: { conversation: {} },
+  })),
 }));
 
 vi.mock("@/background/ai/runtime/agentSelection.js", () => ({
   resolveAgentTarget: vi.fn(() => ({
     provider: { id: "p1" },
-    model: { model: "gpt-4", limits: { maxOutputTokens: 100 }, capabilities: { toolCalling: false } },
+    model: {
+      model: "gpt-4",
+      limits: { maxOutputTokens: 100 },
+      capabilities: { toolCalling: false },
+    },
     temperature: 0.2,
   })),
 }));
@@ -79,15 +88,18 @@ describe("Task tool", () => {
       },
     });
 
-    expect(initResult.data?.status).toBe("reviewing");
-    expect(initResult.data?.tasks?.length).toBe(1);
+    const initData = isRecord(initResult.data) ? initResult.data : {};
+    const initTasks = Array.isArray(initData.tasks) ? initData.tasks : [];
+    expect(initData.status).toBe("reviewing");
+    expect(initTasks.length).toBe(1);
 
     const listResult = await taskTool({
       conversationId: "c1",
       payload: { action: "list", onlyUnblocked: false },
     });
 
-    expect(listResult.data?.length).toBe(1);
+    const listData = Array.isArray(listResult.data) ? listResult.data : [];
+    expect(listData.length).toBe(1);
   });
 
   it("updates task status and deliverables", async () => {
@@ -102,16 +114,26 @@ describe("Task tool", () => {
       },
     });
 
-    const taskId = initResult.data?.tasks?.[0]?.id;
+    const initData = isRecord(initResult.data) ? initResult.data : {};
+    const initTasks = Array.isArray(initData.tasks) ? initData.tasks : [];
+    const firstTask = isRecord(initTasks[0]) ? initTasks[0] : {};
+    const taskId =
+      typeof firstTask.id === "string" ? firstTask.id : undefined;
 
     const updateResult = await taskTool({
       conversationId: "c1",
       payload: { action: "update", taskId, status: "done" },
     });
 
-    const updated = updateResult.data?.tasks?.[0];
-    expect(updated?.status).toBe("done");
-    expect(updated?.deliverables?.[0]?.status).toBe("done");
+    const updateData = isRecord(updateResult.data) ? updateResult.data : {};
+    const updatedTasks = Array.isArray(updateData.tasks) ? updateData.tasks : [];
+    const updated = isRecord(updatedTasks[0]) ? updatedTasks[0] : {};
+    const deliverables = Array.isArray(updated.deliverables)
+      ? updated.deliverables
+      : [];
+    const firstDeliverable = isRecord(deliverables[0]) ? deliverables[0] : {};
+    expect(updated.status).toBe("done");
+    expect(firstDeliverable.status).toBe("done");
   });
 
   it("infers list action for empty payloads", async () => {
@@ -129,8 +151,12 @@ describe("Task tool", () => {
     const result = await taskTool({ conversationId: "c1" });
 
     expect(Array.isArray(result.data)).toBe(true);
-    expect(result.data?.length).toBe(1);
-    expect((result.content?.[0] as TextContent)?.text).toContain("提示: 调用 Task 时请提供 action 字段");
+    if (Array.isArray(result.data)) {
+      expect(result.data.length).toBe(1);
+    }
+    expect((result.content?.[0] as TextContent)?.text).toContain(
+      "提示: 调用 Task 时请提供 action 字段",
+    );
   });
 
   it("guards complete_all with role and reason", async () => {
@@ -164,10 +190,15 @@ describe("Task tool", () => {
 
     const resultOk = await taskTool({
       conversationId: "c1",
-      payload: { action: "complete_all", reason: "验证结束", role: "validator" },
+      payload: {
+        action: "complete_all",
+        reason: "验证结束",
+        role: "validator",
+      },
     });
     expect(resultOk.isError).not.toBe(true);
-    expect(resultOk.data?.status).toBe("done");
+    const okData = isRecord(resultOk.data) ? resultOk.data : {};
+    expect(okData.status).toBe("done");
   });
 
   it("handles Claude Code Task compatibility payloads", async () => {
@@ -182,7 +213,9 @@ describe("Task tool", () => {
       },
     });
 
-    expect(result.data?.output).toBe("done");
-    expect(result.data?.compat?.subagent_type).toBe("research");
+    const data = isRecord(result.data) ? result.data : {};
+    const compat = isRecord(data.compat) ? data.compat : {};
+    expect(data.output).toBe("done");
+    expect(compat.subagent_type).toBe("research");
   });
 });

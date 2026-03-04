@@ -1,5 +1,5 @@
-import { defineComponent, ref, FunctionalComponent, computed } from "vue";
 import { storeToRefs } from "pinia";
+import { defineComponent, ref, FunctionalComponent, computed } from "vue";
 
 import {
   isInHighlightCache,
@@ -206,9 +206,7 @@ export default defineComponent({
         <div
           id="myz-interest-popup"
           class={store.popupCollapsed ? "collapsed" : ""}
-          style={
-            store.popupCollapsed ? dockPosition.value : DEFAULT_STYLE
-          }
+          style={store.popupCollapsed ? dockPosition.value : DEFAULT_STYLE}
         >
           {store.popupCollapsed ? (
             <InterestDock onClick={toggleInterestPopup} />

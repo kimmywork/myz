@@ -1,22 +1,42 @@
 import { describe, expect, it } from "vitest";
 import { installFetchMock, mockFetchOnce } from "./testUtils.ts";
-import { OpenAICompatibleJsonClient, shouldUseDeveloperRole } from "@/background/ai/providers/openaiCompatible/jsonClient.ts";
+import {
+  AnthropicJsonClient,
+  extractAnthropicModels,
+  buildAnthropicHeaders,
+} from "@/background/ai/providers/anthropic/jsonClient.ts";
+import {
+  GeminiJsonClient,
+  extractGeminiModels,
+  buildGeminiHeaders,
+} from "@/background/ai/providers/gemini/jsonClient.ts";
+import {
+  OllamaJsonClient,
+  extractOllamaModels,
+  buildOllamaHeaders,
+} from "@/background/ai/providers/ollama/jsonClient.ts";
+import {
+  OpenAICompatibleJsonClient,
+  shouldUseDeveloperRole,
+} from "@/background/ai/providers/openaiCompatible/jsonClient.ts";
 import { OpenAIResponsesJsonClient } from "@/background/ai/providers/openaiResponses/jsonClient.ts";
-import { GeminiJsonClient, extractGeminiModels, buildGeminiHeaders } from "@/background/ai/providers/gemini/jsonClient.ts";
-import { AnthropicJsonClient, extractAnthropicModels, buildAnthropicHeaders } from "@/background/ai/providers/anthropic/jsonClient.ts";
-import { OllamaJsonClient, extractOllamaModels, buildOllamaHeaders } from "@/background/ai/providers/ollama/jsonClient.ts";
 
 describe("provider clients", () => {
   it("OpenAI compatible client posts to endpoint", async () => {
     const fetchMock = installFetchMock();
-    mockFetchOnce({ json: async () => ({ choices: [{ message: { content: "ok" } }] }) });
+    mockFetchOnce({
+      json: async () => ({ choices: [{ message: { content: "ok" } }] }),
+    });
 
     const client = new OpenAICompatibleJsonClient({
       endpoint: "http://localhost/chat",
       buildHeaders: { Authorization: "Bearer token" },
     });
 
-    const response = await client.createCompletion({ model: "gpt-4", messages: [] } as any);
+    const response = await client.createCompletion({
+      model: "gpt-4",
+      messages: [],
+    } as any);
     expect((response as any).choices?.[0]?.message?.content).toBe("ok");
     expect(fetchMock).toHaveBeenCalled();
   });
@@ -27,7 +47,11 @@ describe("provider clients", () => {
       headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({
         output: [
-          { type: "message", role: "assistant", content: [{ type: "output_text", text: "hello" }] },
+          {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "hello" }],
+          },
         ],
       }),
     });
@@ -38,7 +62,10 @@ describe("provider clients", () => {
       headers: "",
     });
 
-    const response = await client.createCompletion({ model: "gpt-4", messages: [] } as any);
+    const response = await client.createCompletion({
+      model: "gpt-4",
+      messages: [],
+    } as any);
     expect((response as any).choices?.[0]?.message?.content).toBe("hello");
   });
 
@@ -57,7 +84,7 @@ describe("provider clients", () => {
             type: "function_call",
             call_id: "call-1",
             name: "ToolA",
-            arguments: "{\"x\":1}",
+            arguments: '{"x":1}',
           },
           {
             type: "reasoning",
@@ -73,7 +100,10 @@ describe("provider clients", () => {
       headers: "",
     });
 
-    const response = await client.createCompletion({ model: "gpt-4", messages: [] } as any);
+    const response = await client.createCompletion({
+      model: "gpt-4",
+      messages: [],
+    } as any);
     const message = (response as any).choices?.[0]?.message;
     expect(message?.content).toBe("hi");
     expect(message?.tool_calls?.[0]?.function?.name).toBe("ToolA");
@@ -84,9 +114,7 @@ describe("provider clients", () => {
     installFetchMock();
     mockFetchOnce({
       json: async () => ({
-        candidates: [
-          { content: { parts: [{ text: "gemini" }] } },
-        ],
+        candidates: [{ content: { parts: [{ text: "gemini" }] } }],
       }),
     });
 
@@ -96,7 +124,10 @@ describe("provider clients", () => {
       headers: "",
     });
 
-    const response = await client.createCompletion({ model: "gemini-1.5", messages: [] } as any);
+    const response = await client.createCompletion({
+      model: "gemini-1.5",
+      messages: [],
+    } as any);
     expect((response as any).choices?.[0]?.message?.content).toBe("gemini");
   });
 
@@ -126,10 +157,15 @@ describe("provider clients", () => {
       headers: "",
     });
 
-    const response = await client.createCompletion({ model: "gemini-1.5", messages: [] } as any);
+    const response = await client.createCompletion({
+      model: "gemini-1.5",
+      messages: [],
+    } as any);
     const message = (response as any).choices?.[0]?.message;
     expect(message?.tool_calls?.[0]?.function?.name).toBe("ToolA");
-    expect(message?.tool_calls?.[0]?.extra_content?.google?.thoughtSignature).toBe("sig");
+    expect(
+      message?.tool_calls?.[0]?.extra_content?.google?.thoughtSignature,
+    ).toBe("sig");
   });
 
   it("Anthropic client extracts message", async () => {
@@ -146,7 +182,10 @@ describe("provider clients", () => {
       headers: "",
     });
 
-    const response = await client.createCompletion({ model: "claude-3", messages: [] } as any);
+    const response = await client.createCompletion({
+      model: "claude-3",
+      messages: [],
+    } as any);
     expect((response as any).choices?.[0]?.message?.content).toBe("anthropic");
   });
 
@@ -167,7 +206,10 @@ describe("provider clients", () => {
       headers: "",
     });
 
-    const response = await client.createCompletion({ model: "claude-3", messages: [] } as any);
+    const response = await client.createCompletion({
+      model: "claude-3",
+      messages: [],
+    } as any);
     const message = (response as any).choices?.[0]?.message;
     expect(message?.tool_calls?.[0]?.function?.name).toBe("ToolA");
   });
@@ -178,15 +220,27 @@ describe("provider clients", () => {
       json: async () => ({ response: "ollama" }),
     });
 
-    const client = new OllamaJsonClient({ baseUrl: "http://localhost", headers: "" });
-    const response = await client.createCompletion({ model: "llama3", messages: [] } as any);
+    const client = new OllamaJsonClient({
+      baseUrl: "http://localhost",
+      headers: "",
+    });
+    const response = await client.createCompletion({
+      model: "llama3",
+      messages: [],
+    } as any);
     expect((response as any).choices?.[0]?.message?.content).toBe("ollama");
   });
 
   it("extracts model lists and headers", () => {
-    expect(extractGeminiModels({ models: [{ name: "models/a" }] })).toEqual(["a"]);
-    expect(extractAnthropicModels({ data: [{ id: "claude" }] })).toEqual(["claude"]);
-    expect(extractOllamaModels({ models: [{ name: "llama" }] })).toEqual(["llama"]);
+    expect(extractGeminiModels({ models: [{ name: "models/a" }] })).toEqual([
+      "a",
+    ]);
+    expect(extractAnthropicModels({ data: [{ id: "claude" }] })).toEqual([
+      "claude",
+    ]);
+    expect(extractOllamaModels({ models: [{ name: "llama" }] })).toEqual([
+      "llama",
+    ]);
     expect(buildGeminiHeaders("key", "")["x-goog-api-key"]).toBe("key");
     expect(buildAnthropicHeaders("key", "")["x-api-key"]).toBe("key");
     expect(buildOllamaHeaders("")["Content-Type"]).toBe("application/json");

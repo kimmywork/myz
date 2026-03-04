@@ -1,125 +1,127 @@
-import { computed, defineComponent, nextTick, onMounted, ref } from "vue"
-import { useChatStore } from "@/dashboard/stores/chat.js"
-import { useChatUIStore } from "@/dashboard/stores/chatUi.js"
-import { sendMessage } from "@/shared/messaging.js"
-import type { SkillMetadata } from "@/background/ai/skills/types.js"
+import { computed, defineComponent, nextTick, onMounted, ref } from "vue";
+import type { SkillMetadata } from "@/background/ai/skills/types.js";
+import { useChatStore } from "@/dashboard/stores/chat.js";
+import { useChatUIStore } from "@/dashboard/stores/chatUi.js";
+import { sendMessage } from "@/shared/messaging.js";
 
 export default defineComponent({
   name: "DashboardChatInputComposer",
   setup() {
-    const chatStore = useChatStore()
-    const uiStore = useChatUIStore()
-    const fileInputRef = ref<HTMLInputElement | null>(null)
-    const textareaRef = ref<HTMLTextAreaElement | null>(null)
-    const isFocused = ref(false)
-    const skillList = ref<SkillMetadata[]>([])
-    const mentionQuery = ref("")
-    const mentionStart = ref(0)
-    const mentionEnd = ref(0)
-    const mentionOpen = ref(false)
-    const isAssistantDisabled = computed(() => !chatStore.assistantEnabled)
+    const chatStore = useChatStore();
+    const uiStore = useChatUIStore();
+    const fileInputRef = ref<HTMLInputElement | null>(null);
+    const textareaRef = ref<HTMLTextAreaElement | null>(null);
+    const isFocused = ref(false);
+    const skillList = ref<SkillMetadata[]>([]);
+    const mentionQuery = ref("");
+    const mentionStart = ref(0);
+    const mentionEnd = ref(0);
+    const mentionOpen = ref(false);
+    const isAssistantDisabled = computed(() => !chatStore.assistantEnabled);
 
     const filteredSkills = computed(() => {
-      const query = mentionQuery.value.trim()
-      const enabled = skillList.value.filter((skill) => skill.enabled)
-      if (!query) return enabled.slice(0, 6)
-      return enabled.filter((skill) => skill.name.startsWith(query)).slice(0, 6)
-    })
+      const query = mentionQuery.value.trim();
+      const enabled = skillList.value.filter((skill) => skill.enabled);
+      if (!query) return enabled.slice(0, 6);
+      return enabled
+        .filter((skill) => skill.name.startsWith(query))
+        .slice(0, 6);
+    });
 
     const refreshSkills = async () => {
       try {
-        const result = await sendMessage("myz:listSkills")
-        skillList.value = Array.isArray(result) ? result : []
+        const result = await sendMessage("myz:listSkills");
+        skillList.value = Array.isArray(result) ? result : [];
       } catch {
-        skillList.value = []
+        skillList.value = [];
       }
-    }
+    };
 
     const closeMentions = () => {
-      mentionOpen.value = false
-      mentionQuery.value = ""
-    }
+      mentionOpen.value = false;
+      mentionQuery.value = "";
+    };
 
     const applyMention = async (name: string) => {
-      if (!textareaRef.value) return
-      const value = chatStore.userInput || ""
-      const before = value.slice(0, mentionStart.value)
-      const after = value.slice(mentionEnd.value)
-      const nextValue = `${before}@${name} ${after}`
-      chatStore.userInput = nextValue
-      closeMentions()
-      await nextTick()
-      const cursor = before.length + name.length + 2
-      textareaRef.value.selectionStart = cursor
-      textareaRef.value.selectionEnd = cursor
-      textareaRef.value.focus()
-    }
+      if (!textareaRef.value) return;
+      const value = chatStore.userInput || "";
+      const before = value.slice(0, mentionStart.value);
+      const after = value.slice(mentionEnd.value);
+      const nextValue = `${before}@${name} ${after}`;
+      chatStore.userInput = nextValue;
+      closeMentions();
+      await nextTick();
+      const cursor = before.length + name.length + 2;
+      textareaRef.value.selectionStart = cursor;
+      textareaRef.value.selectionEnd = cursor;
+      textareaRef.value.focus();
+    };
 
     const handleInput = (event: Event) => {
-      const target = event.target as HTMLTextAreaElement
-      chatStore.userInput = target.value
-      const caret = target.selectionStart ?? target.value.length
-      const before = target.value.slice(0, caret)
-      const match = /(?:^|\s)@([a-z0-9-]*)$/.exec(before)
+      const target = event.target as HTMLTextAreaElement;
+      chatStore.userInput = target.value;
+      const caret = target.selectionStart ?? target.value.length;
+      const before = target.value.slice(0, caret);
+      const match = /(?:^|\s)@([a-z0-9-]*)$/.exec(before);
       if (match) {
-        mentionQuery.value = match[1] || ""
-        mentionEnd.value = caret
-        mentionStart.value = caret - (match[1]?.length || 0) - 1
-        mentionOpen.value = true
+        mentionQuery.value = match[1] || "";
+        mentionEnd.value = caret;
+        mentionStart.value = caret - (match[1]?.length || 0) - 1;
+        mentionOpen.value = true;
         if (skillList.value.length === 0) {
-          void refreshSkills()
+          void refreshSkills();
         }
       } else {
-        closeMentions()
+        closeMentions();
       }
-    }
+    };
 
     const handlePickImages = () => {
-      if (isAssistantDisabled.value) return
-      fileInputRef.value?.click()
-    }
+      if (isAssistantDisabled.value) return;
+      fileInputRef.value?.click();
+    };
 
     const handleFilesChanged = async (event: Event) => {
-      const target = event.target as HTMLInputElement
-      await chatStore.addImageFiles(target.files)
-      target.value = ""
-    }
+      const target = event.target as HTMLInputElement;
+      await chatStore.addImageFiles(target.files);
+      target.value = "";
+    };
 
     const handleKeydown = async (e: KeyboardEvent) => {
       if (isAssistantDisabled.value) {
-        e.preventDefault()
-        return
+        e.preventDefault();
+        return;
       }
       if (uiStore.isComposing) {
-        return
+        return;
       }
       if (mentionOpen.value && filteredSkills.value.length) {
         if (e.key === "Enter" || e.key === "Tab") {
-          e.preventDefault()
-          await applyMention(filteredSkills.value[0].name)
-          return
+          e.preventDefault();
+          await applyMention(filteredSkills.value[0].name);
+          return;
         }
         if (e.key === "Escape") {
-          closeMentions()
-          return
+          closeMentions();
+          return;
         }
       }
       if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault()
-        closeMentions()
-        await chatStore.sendUserMessage(chatStore.userInput)
+        e.preventDefault();
+        closeMentions();
+        await chatStore.sendUserMessage(chatStore.userInput);
       }
-    }
+    };
 
     const handleSend = async () => {
-      if (isAssistantDisabled.value) return
-      closeMentions()
-      await chatStore.sendUserMessage(chatStore.userInput)
-    }
+      if (isAssistantDisabled.value) return;
+      closeMentions();
+      await chatStore.sendUserMessage(chatStore.userInput);
+    };
 
     onMounted(() => {
-      void refreshSkills()
-    })
+      void refreshSkills();
+    });
 
     return () => (
       <div class="border-t border-slate-200/80 bg-white/80 px-4 py-3 dark:border-slate-800/80 dark:bg-slate-900/80">
@@ -141,8 +143,8 @@ export default defineComponent({
                 <button
                   class="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/70 text-xs text-white hover:bg-slate-900"
                   onClick={(e) => {
-                    e.stopPropagation()
-                    chatStore.removeAttachment(index)
+                    e.stopPropagation();
+                    chatStore.removeAttachment(index);
                   }}
                   title="移除图片"
                 >
@@ -167,10 +169,10 @@ export default defineComponent({
             onInput={handleInput}
             onKeydown={handleKeydown}
             onFocus={() => {
-              isFocused.value = true
+              isFocused.value = true;
             }}
             onBlur={() => {
-              isFocused.value = false
+              isFocused.value = false;
             }}
             onCompositionstart={() => uiStore.setComposing(true)}
             onCompositionend={() => uiStore.setComposing(false)}
@@ -214,14 +216,17 @@ export default defineComponent({
                 </button>
               </>
             )}
-            {chatStore.error && <span class="text-rose-500">{chatStore.error}</span>}
+            {chatStore.error && (
+              <span class="text-rose-500">{chatStore.error}</span>
+            )}
           </div>
           <button
             class="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500 disabled:opacity-60"
             onClick={handleSend}
             disabled={
               isAssistantDisabled.value ||
-              (!chatStore.userInput?.trim() && chatStore.attachments.length === 0) ||
+              (!chatStore.userInput?.trim() &&
+                chatStore.attachments.length === 0) ||
               chatStore.isLoading
             }
           >
@@ -229,6 +234,6 @@ export default defineComponent({
           </button>
         </div>
       </div>
-    )
+    );
   },
-})
+});

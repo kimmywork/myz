@@ -1,17 +1,39 @@
 import { AUTO_HIGHLIGHT_CATEGORIES, HIGHLIGHT_STYLES } from "@/shared/types";
+import { type SettingsSchemaVersion } from "@/shared/versioning";
 
-export type AIProviderType =
-  | "openai_compatible"
-  | "openai_responses"
-  | "gemini"
-  | "anthropic"
-  | "moonshot"
-  | "qwen"
-  | "ollama"
-  | "vllm"
-  | "llama_cpp";
+export const AI_PROVIDER_TYPES = [
+  "openai_compatible",
+  "openai_responses",
+  "gemini",
+  "anthropic",
+  "moonshot",
+  "qwen",
+  "ollama",
+  "vllm",
+  "llama_cpp",
+] as const;
 
-export type MaxOutputTokenParam = "max_tokens" | "max_completion_tokens";
+export type AIProviderType = (typeof AI_PROVIDER_TYPES)[number];
+
+export const MAX_OUTPUT_TOKEN_PARAMS = [
+  "max_tokens",
+  "max_completion_tokens",
+] as const;
+export type MaxOutputTokenParam = (typeof MAX_OUTPUT_TOKEN_PARAMS)[number];
+
+export const AI_TOOL_CHOICE_MODES = [
+  "auto",
+  "none",
+  "required",
+  "tool",
+] as const;
+export type AIToolChoiceMode = (typeof AI_TOOL_CHOICE_MODES)[number];
+
+export const AI_TOOL_FLAG_SETTINGS = ["auto", "on", "off"] as const;
+export type AIToolFlagSetting = (typeof AI_TOOL_FLAG_SETTINGS)[number];
+
+export const AI_TOOL_SELECTION_MODES = ["manual", "auto"] as const;
+export type AIToolSelectionMode = (typeof AI_TOOL_SELECTION_MODES)[number];
 
 export interface AIModelCapabilities {
   vision: boolean;
@@ -26,14 +48,10 @@ export interface AIModelLimits {
   maxOutputTokenParam: MaxOutputTokenParam;
 }
 
-export type AIToolChoiceMode = "auto" | "none" | "required" | "tool";
-
 export interface AIToolChoiceSetting {
   mode: AIToolChoiceMode;
   toolName?: string;
 }
-
-export type AIToolFlagSetting = "auto" | "on" | "off";
 
 export interface AIToolControlSettings {
   toolChoice: AIToolChoiceSetting;
@@ -75,8 +93,6 @@ export interface AIAgentModelRef {
   providerId: string;
   modelId: string;
 }
-
-export type AIToolSelectionMode = "manual" | "auto";
 
 export interface AILocalToolsSettings {
   /**
@@ -223,4 +239,9 @@ export interface Settings extends AIAssistantSettings {
   lastUsedColor: string;
   socialImport: SocialImportSettings;
   sync: SyncSettings;
+}
+
+export interface SettingsBundle {
+  schemaVersion: SettingsSchemaVersion;
+  data: Settings;
 }

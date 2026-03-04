@@ -1,9 +1,9 @@
-import { handleMessage, hasHandler } from "./messages/handler";
 import { initializeAiMessageHandlers } from "./messages/ai";
+import { handleMessage, hasHandler } from "./messages/handler";
 import { initializeHighlightMessageHandlers } from "./messages/highlights";
 import { initializeSocialMessageHandlers } from "./messages/social";
-import { initializeZenMessageHandlers } from "./messages/zen";
 import { initializeSuperpowerMessageHandlers } from "./messages/superpower";
+import { initializeZenMessageHandlers } from "./messages/zen";
 
 // Initialize handlers
 initializeAiMessageHandlers();
@@ -14,13 +14,13 @@ initializeSuperpowerMessageHandlers();
 
 export interface MessagePayload {
   type: string;
-  payload?: any;
+  payload?: unknown;
 }
 
 export function messageListener(
   message: MessagePayload,
   sender: chrome.runtime.MessageSender,
-  sendResponse: (response?: any) => void,
+  sendResponse: (response?: unknown) => void,
 ) {
   if (!message || !message.type) {
     return false;

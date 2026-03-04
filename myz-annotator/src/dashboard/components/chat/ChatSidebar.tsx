@@ -1,45 +1,45 @@
-import { defineComponent } from "vue"
-import { useChatStore } from "@/dashboard/stores/chat.js"
-import type { ConversationInfo } from "@/sidepanel/aiStorage.js"
+import { defineComponent } from "vue";
+import { useChatStore } from "@/dashboard/stores/chat.js";
+import type { ConversationInfo } from "@/sidepanel/aiStorage.js";
 
 export default defineComponent({
   name: "DashboardChatSidebar",
   setup() {
-    const chatStore = useChatStore()
+    const chatStore = useChatStore();
 
     async function selectConversation(conv: ConversationInfo) {
-      await chatStore.loadConversation(conv.id)
+      await chatStore.loadConversation(conv.id);
     }
 
     async function deleteConv(convId: string) {
       if (confirm("确定要删除这个对话吗？")) {
         try {
-          await chatStore.deleteConversationById(convId)
+          await chatStore.deleteConversationById(convId);
         } catch (e) {
-          console.error("Failed to delete conversation:", e)
+          console.error("Failed to delete conversation:", e);
         }
       }
     }
 
     async function handleNewConversation() {
-      if (!chatStore.assistantEnabled) return
-      await chatStore.createNewConversation()
+      if (!chatStore.assistantEnabled) return;
+      await chatStore.createNewConversation();
     }
 
     function formatDate(dateString: string) {
       try {
-        return new Date(dateString).toLocaleString()
+        return new Date(dateString).toLocaleString();
       } catch (e) {
-        return dateString
+        return dateString;
       }
     }
 
     function extractHost(url: string) {
-      if (!url) return ""
+      if (!url) return "";
       try {
-        return new URL(url).host
+        return new URL(url).host;
       } catch {
-        return ""
+        return "";
       }
     }
 
@@ -50,7 +50,9 @@ export default defineComponent({
             <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
               对话历史
             </h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400">最近的对话会保留在这里</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              最近的对话会保留在这里
+            </p>
           </div>
           <button
             class="inline-flex items-center rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200"
@@ -75,10 +77,12 @@ export default defineComponent({
         ) : (
           <ul class="flex-1 space-y-3 overflow-y-auto pr-1">
             {chatStore.conversations.map((conv) => {
-              const titleGenerated = conv?.metadata?.titleGenerated === true
+              const titleGenerated = conv?.metadata?.titleGenerated === true;
               const generatedTitle =
-                titleGenerated && typeof conv.title === "string" ? conv.title.trim() : ""
-              const displayTitle = generatedTitle || "未命名对话"
+                titleGenerated && typeof conv.title === "string"
+                  ? conv.title.trim()
+                  : "";
+              const displayTitle = generatedTitle || "未命名对话";
               const pageTitle =
                 typeof conv?.metadata?.pageTitle === "string" &&
                 conv.metadata?.pageTitle.trim()
@@ -87,10 +91,10 @@ export default defineComponent({
                     ? "未记录"
                     : typeof conv.title === "string" && conv.title.trim()
                       ? conv.title.trim()
-                      : "未记录"
-              const host = extractHost(conv.url || "") || "未知地址"
-              const isActive = chatStore.conversationId === conv.id
-              const assistantMode = conv?.metadata?.assistantMode
+                      : "未记录";
+              const host = extractHost(conv.url || "") || "未知地址";
+              const isActive = chatStore.conversationId === conv.id;
+              const assistantMode = conv?.metadata?.assistantMode;
               return (
                 <li
                   key={conv.id}
@@ -125,19 +129,19 @@ export default defineComponent({
                   <button
                     class="rounded-full border border-rose-200 px-3 py-1 text-xs font-medium text-rose-500 transition hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
                     onClick={(e) => {
-                      e.stopPropagation()
-                      deleteConv(conv.id)
+                      e.stopPropagation();
+                      deleteConv(conv.id);
                     }}
                     title="删除对话"
                   >
                     删除
                   </button>
                 </li>
-              )
+              );
             })}
           </ul>
         )}
       </aside>
-    )
+    );
   },
-})
+});

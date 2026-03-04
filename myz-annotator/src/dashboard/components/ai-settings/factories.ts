@@ -1,17 +1,19 @@
+import { getProviderTypeMeta } from "./providerCatalog.js";
 import type {
   AIModelSetting,
   AIProviderSetting,
   AIProviderType,
   MaxOutputTokenParam,
-} from "@/background/settings.js"
-import { getProviderTypeMeta } from "./providerCatalog.js"
+} from "@/background/settings.js";
 
 function createId(prefix: string) {
-  return crypto.randomUUID ? crypto.randomUUID() : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export function createModelSetting(model = ""): AIModelSetting {
-  const maxOutputTokenParam: MaxOutputTokenParam = "max_tokens"
+  const maxOutputTokenParam: MaxOutputTokenParam = "max_tokens";
   return {
     id: createId("model"),
     model,
@@ -33,7 +35,7 @@ export function createModelSetting(model = ""): AIModelSetting {
       strict: "auto",
       parallelToolCalls: "auto",
     },
-  }
+  };
 }
 
 export function createProviderSetting(
@@ -42,8 +44,8 @@ export function createProviderSetting(
   const type: AIProviderType =
     overrides.type && typeof overrides.type === "string"
       ? overrides.type
-      : "openai_compatible"
-  const meta = getProviderTypeMeta(type)
+      : "openai_compatible";
+  const meta = getProviderTypeMeta(type);
   return {
     id: createId("provider"),
     name: meta.defaultName,
@@ -56,5 +58,5 @@ export function createProviderSetting(
     models: [],
     lastTest: null,
     ...overrides,
-  }
+  };
 }

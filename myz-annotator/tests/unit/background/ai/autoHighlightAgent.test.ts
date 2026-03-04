@@ -10,7 +10,7 @@ describe("AutoHighlightAgent", () => {
             finish_reason: "stop",
             message: {
               content:
-                "{\"highlights\":[{\"start\":0,\"end\":0,\"text\":\"Hello world.\",\"tags\":[\"#tag\"],\"category\":\"conceptual\"}]}" ,
+                '{"highlights":[{"start":0,"end":0,"text":"Hello world.","tags":["#tag"],"category":"conceptual"}]}',
             },
           },
         ],

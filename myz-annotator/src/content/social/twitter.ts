@@ -31,11 +31,17 @@ function sleep(ms: number) {
 }
 
 function parseSocialContext(article: HTMLElement) {
-  const node = article.querySelector<HTMLElement>('[data-testid="socialContext"]');
+  const node = article.querySelector<HTMLElement>(
+    '[data-testid="socialContext"]',
+  );
   const raw = (node?.innerText || "").trim();
   const text = raw.toLowerCase();
   if (!text) {
-    return { isReply: false, isRetweet: false, replyToUsernames: [] as string[] };
+    return {
+      isReply: false,
+      isRetweet: false,
+      replyToUsernames: [] as string[],
+    };
   }
   const isReply =
     text.includes("replying to") ||

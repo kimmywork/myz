@@ -1,27 +1,33 @@
-import { computed, defineComponent } from "vue";
 import { storeToRefs } from "pinia";
+import { computed, defineComponent } from "vue";
+import { useChatStore } from "../stores/chat.js";
+import { usePageStore } from "../stores/page.js";
+import { useUIStore } from "../stores/ui.js";
 import AssistantMessageBubble from "./messages/AssistantMessageBubble.jsx";
 import ConversationEmptyState from "./messages/ConversationEmptyState.jsx";
 import { resolveToolNames } from "./messages/messageUtils.jsx";
 import StreamingMessage from "./messages/StreamingMessage.jsx";
-import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
 import SystemEventMessageBubble from "./messages/SystemEventMessageBubble.jsx";
+import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
 import ToolInlineNotice from "./messages/ToolInlineNotice.jsx";
 import ToolMessageCard from "./messages/ToolMessageCard.jsx";
 import UserMessageBubble from "./messages/UserMessageBubble.jsx";
 import { Message } from "@/background/ai/types.js";
-import { useChatStore } from "../stores/chat.js";
-import { useUIStore } from "../stores/ui.js";
-import { usePageStore } from "../stores/page.js";
 
 function isToolInvocationNotice(msg: Message): boolean {
   if (!msg || msg.role !== "assistant" || !msg.metadata?.hasToolCalls) {
     return false;
   }
+  const metadataReasoning =
+    typeof msg.metadata?.reasoning === "string" ? msg.metadata.reasoning : "";
+  const metadataReasoningContent =
+    typeof msg.metadata?.reasoning_content === "string"
+      ? msg.metadata.reasoning_content
+      : "";
   const reasoningText = (
-    (msg as any)?.reasoning_content ||
-    (msg.metadata as any)?.reasoning ||
-    (msg.metadata as any)?.reasoning_content ||
+    msg.reasoning_content ||
+    metadataReasoning ||
+    metadataReasoningContent ||
     ""
   ).trim();
   if (reasoningText) {
@@ -115,7 +121,11 @@ export default defineComponent({
           <ToolMessageCard
             key={msg.id}
             message={msg}
-            onView={(msg) => uiStore.openToolResponse(msg)}
+            onView={(msg) => {
+              if (msg) {
+                uiStore.openToolResponse(msg);
+              }
+            }}
           />
         );
       }
@@ -126,7 +136,11 @@ export default defineComponent({
             key={msg.id}
             message={msg}
             onSave={() => uiStore.openSaveModal(msg)}
-            onToolDetails={(msg) => uiStore.openToolInvocationDetails(msg)}
+            onToolDetails={(msg) => {
+              if (msg) {
+                uiStore.openToolInvocationDetails(msg);
+              }
+            }}
             isSaving={uiStore.isSavingHighlight}
           />
         );
@@ -145,7 +159,9 @@ export default defineComponent({
 
         {messageEntries.value.map((msg) => renderMessage(msg))}
 
-        {chatStore.hasActiveStream && <StreamingMessage stream={chatStore.activeStream} />}
+        {chatStore.hasActiveStream && (
+          <StreamingMessage stream={chatStore.activeStream} />
+        )}
 
         {chatStore.isLoading && (
           <div class="flex items-center justify-center gap-2 text-sm text-slate-500">

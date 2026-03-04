@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { createReasoningNormalizationCapability } from "@/background/ai/providers/capabilities/reasoning.ts";
-import { createToolCallingCapability } from "@/background/ai/providers/capabilities/toolCalling.ts";
-import { createQwenThinkingCapability } from "@/background/ai/providers/capabilities/qwenThinking.ts";
-import { createGoogleGeminiThinkingCapability } from "@/background/ai/providers/capabilities/googleGemini.ts";
-import { createSseStreamingCapability } from "@/background/ai/providers/capabilities/sseStreaming.ts";
 import {
   installFetchMock,
   mockFetchOnce,
   createToolCallSequenceClient,
 } from "./testUtils.ts";
+import { createGoogleGeminiThinkingCapability } from "@/background/ai/providers/capabilities/googleGemini.ts";
+import { createQwenThinkingCapability } from "@/background/ai/providers/capabilities/qwenThinking.ts";
+import { createReasoningNormalizationCapability } from "@/background/ai/providers/capabilities/reasoning.ts";
+import { createSseStreamingCapability } from "@/background/ai/providers/capabilities/sseStreaming.ts";
+import { createToolCallingCapability } from "@/background/ai/providers/capabilities/toolCalling.ts";
 
 describe("provider capabilities", () => {
   it("normalizes reasoning content", async () => {
@@ -35,24 +35,36 @@ describe("provider capabilities", () => {
   });
 
   it("patches qwen thinking config", async () => {
-    const client = { createCompletion: vi.fn(async () => ({ choices: [] })) } as any;
+    const client = {
+      createCompletion: vi.fn(async () => ({ choices: [] })),
+    } as any;
     const wrapped = createQwenThinkingCapability()(client);
-    await wrapped.createCompletion({ model: "qwen", messages: [] } as any, {
-      enableGeminiThinking: true,
-    } as any);
+    await wrapped.createCompletion(
+      { model: "qwen", messages: [] } as any,
+      {
+        enableGeminiThinking: true,
+      } as any,
+    );
     expect(client.createCompletion).toHaveBeenCalled();
     const request = client.createCompletion.mock.calls[0][0];
     expect(request.extra_body.enable_thinking).toBe(true);
   });
 
   it("patches gemini thinking config", async () => {
-    const client = { createCompletion: vi.fn(async () => ({ choices: [] })) } as any;
+    const client = {
+      createCompletion: vi.fn(async () => ({ choices: [] })),
+    } as any;
     const wrapped = createGoogleGeminiThinkingCapability()(client);
-    await wrapped.createCompletion({ model: "gemini-1.5", messages: [] } as any, {
-      enableGeminiThinking: true,
-    } as any);
+    await wrapped.createCompletion(
+      { model: "gemini-1.5", messages: [] } as any,
+      {
+        enableGeminiThinking: true,
+      } as any,
+    );
     const request = client.createCompletion.mock.calls[0][0];
-    expect(request.extra_body.google.thinking_config.include_thoughts).toBe(true);
+    expect(request.extra_body.google.thinking_config.include_thoughts).toBe(
+      true,
+    );
   });
 
   it("executes tool calls and appends tool results", async () => {
@@ -60,7 +72,9 @@ describe("provider capabilities", () => {
     const client = createToolCallSequenceClient({
       steps: [
         {
-          tool_calls: [{ id: "c1", function: { name: "ToolA", arguments: "{\"x\":1}" } }],
+          tool_calls: [
+            { id: "c1", function: { name: "ToolA", arguments: '{"x":1}' } },
+          ],
         },
         { content: "done" },
       ],
@@ -70,17 +84,33 @@ describe("provider capabilities", () => {
     }) as any;
 
     const capability = createToolCallingCapability({
-      getTools: async () => [{ type: "function", function: { name: "ToolA" } }],
-      executeToolCall: async () => ({ content: [{ type: "text", text: "ok" }] }),
+      getTools: async () => [
+        {
+          type: "function",
+          function: {
+            name: "ToolA",
+            description: "Tool A",
+            parameters: { type: "object", properties: {} },
+          },
+        },
+      ],
+      executeToolCall: async () => ({
+        content: [{ type: "text", text: "ok" }],
+      }),
     });
 
     const wrapped = capability(client);
-    const response = await wrapped.createCompletion({ model: "gpt-4", messages: [] } as any, {
-      onToolResultMessage: vi.fn(),
-    } as any);
+    const response = await wrapped.createCompletion(
+      { model: "gpt-4", messages: [] } as any,
+      {
+        onToolResultMessage: vi.fn(),
+      } as any,
+    );
     expect((response as any).choices?.[0]?.message?.content).toBe("done");
     const followUp = callOrder[1];
-    expect(followUp.messages.some((msg: any) => msg.role === "tool")).toBe(true);
+    expect(followUp.messages.some((msg: any) => msg.role === "tool")).toBe(
+      true,
+    );
   });
 
   it("handles SelectTools dynamic selection", async () => {
@@ -88,7 +118,10 @@ describe("provider capabilities", () => {
       steps: [
         {
           tool_calls: [
-            { id: "c1", function: { name: "SelectTools", arguments: "{\"need\":\"search\"}" } },
+            {
+              id: "c1",
+              function: { name: "SelectTools", arguments: '{"need":"search"}' },
+            },
           ],
         },
         { content: "done" },
@@ -97,20 +130,34 @@ describe("provider capabilities", () => {
 
     const setActiveToolFilter = vi.fn();
     const capability = createToolCallingCapability({
-      getTools: async () => [{ type: "function", function: { name: "SelectTools" } }],
-      executeToolCall: async () => ({}),
+      getTools: async () => [
+        {
+          type: "function",
+          function: {
+            name: "SelectTools",
+            description: "Selector",
+            parameters: { type: "object", properties: {} },
+          },
+        },
+      ],
+      executeToolCall: async () => ({
+        content: [{ type: "text", text: "ok" }],
+      }),
     });
 
     const wrapped = capability(client);
-    await wrapped.createCompletion({ model: "gpt-4", messages: [] } as any, {
-      dynamicToolSelection: {
-        enabled: true,
-        candidates: [{ name: "ToolA" }],
-        selectToolNames: async () => ["ToolA"],
-        setActiveToolFilter,
-      },
-      onToolResultMessage: vi.fn(),
-    } as any);
+    await wrapped.createCompletion(
+      { model: "gpt-4", messages: [] } as any,
+      {
+        dynamicToolSelection: {
+          enabled: true,
+          candidates: [{ name: "ToolA" }],
+          selectToolNames: async () => ["ToolA"],
+          setActiveToolFilter,
+        },
+        onToolResultMessage: vi.fn(),
+      } as any,
+    );
     expect(setActiveToolFilter).toHaveBeenCalled();
   });
 
@@ -122,10 +169,14 @@ describe("provider capabilities", () => {
           role: "assistant",
           content: "Visible <thought>hidden</thought>",
           extra_content: { google: { thought: true } },
-          tool_calls: [{ id: "c1", function: { name: "ToolA", arguments: "{}" } }],
+          tool_calls: [
+            { id: "c1", function: { name: "ToolA", arguments: "{}" } },
+          ],
         },
         {
-          tool_calls: [{ id: "c2", function: { name: "ToolB", arguments: "{\"q\":1}" } }],
+          tool_calls: [
+            { id: "c2", function: { name: "ToolB", arguments: '{"q":1}' } },
+          ],
         },
         { content: "all done" },
       ],
@@ -134,25 +185,46 @@ describe("provider capabilities", () => {
       },
     }) as any;
 
-    const executeToolCall = vi.fn(async () => ({ content: [{ type: "text", text: "ok" }] }));
+    const executeToolCall = vi.fn(async () => ({
+      content: [{ type: "text", text: "ok" }],
+    }));
     const capability = createToolCallingCapability({
       getTools: async () => [
-        { type: "function", function: { name: "ToolA" } },
-        { type: "function", function: { name: "ToolB" } },
+        {
+          type: "function",
+          function: {
+            name: "ToolA",
+            description: "Tool A",
+            parameters: { type: "object", properties: {} },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "ToolB",
+            description: "Tool B",
+            parameters: { type: "object", properties: {} },
+          },
+        },
       ],
       executeToolCall,
     });
 
     const wrapped = capability(client);
-    const response = await wrapped.createCompletion({ model: "gpt-4", messages: [] } as any, {
-      onToolResultMessage: vi.fn(),
-    } as any);
+    const response = await wrapped.createCompletion(
+      { model: "gpt-4", messages: [] } as any,
+      {
+        onToolResultMessage: vi.fn(),
+      } as any,
+    );
 
     expect((response as any).choices?.[0]?.message?.content).toBe("all done");
     expect(executeToolCall).toHaveBeenCalledTimes(2);
     expect(requests).toHaveLength(3);
     const secondRequest = requests[1];
-    const assistantMessage = secondRequest.messages.find((msg: any) => msg.role === "assistant");
+    const assistantMessage = secondRequest.messages.find(
+      (msg: any) => msg.role === "assistant",
+    );
     expect(assistantMessage?.content).toBe("Visible");
   });
 
@@ -163,7 +235,7 @@ describe("provider capabilities", () => {
       start(controller) {
         controller.enqueue(
           encoder.encode(
-            "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" +
+            'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n' +
               "data: [DONE]\n\n",
           ),
         );
@@ -176,17 +248,22 @@ describe("provider capabilities", () => {
       body: stream as any,
     });
 
-    const client = { createCompletion: vi.fn(async () => ({ choices: [] })) } as any;
+    const client = {
+      createCompletion: vi.fn(async () => ({ choices: [] })),
+    } as any;
     const wrapped = createSseStreamingCapability({
       endpoint: "http://localhost",
       buildHeaders: {},
     })(client);
 
-    const response = await wrapped.createCompletion({
-      model: "gpt-4",
-      messages: [],
-      stream: true,
-    } as any, { onStreamDelta: vi.fn() } as any);
+    const response = await wrapped.createCompletion(
+      {
+        model: "gpt-4",
+        messages: [],
+        stream: true,
+      } as any,
+      { onStreamDelta: vi.fn() } as any,
+    );
 
     expect((response as any).choices?.[0]?.message?.content).toBe("hi");
     expect(fetchMock).toHaveBeenCalled();
@@ -199,9 +276,9 @@ describe("provider capabilities", () => {
       start(controller) {
         controller.enqueue(
           encoder.encode(
-            "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"function\":{\"name\":\"ToolA\",\"arguments\":\"{\\\"x\\\":\"}}]}}]}\n\n" +
-              "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"1}\"},\"extra_content\":{\"google\":{\"thought_signature\":\"sig\"}}}]}}]}\n\n" +
-              "data: {\"choices\":[{\"delta\":{\"content\":\"done\"}}]}\n\n" +
+            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","function":{"name":"ToolA","arguments":"{\\"x\\":"}}]}}]}\n\n' +
+              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"1}"},"extra_content":{"google":{"thought_signature":"sig"}}}]}}]}\n\n' +
+              'data: {"choices":[{"delta":{"content":"done"}}]}\n\n' +
               "data: [DONE]\n\n",
           ),
         );
@@ -214,23 +291,30 @@ describe("provider capabilities", () => {
       body: stream as any,
     });
 
-    const client = { createCompletion: vi.fn(async () => ({ choices: [] })) } as any;
+    const client = {
+      createCompletion: vi.fn(async () => ({ choices: [] })),
+    } as any;
     const wrapped = createSseStreamingCapability({
       endpoint: "http://localhost",
       buildHeaders: {},
     })(client);
 
-    const response = await wrapped.createCompletion({
-      model: "gpt-4",
-      messages: [],
-      stream: true,
-    } as any, { onStreamDelta: vi.fn() } as any);
+    const response = await wrapped.createCompletion(
+      {
+        model: "gpt-4",
+        messages: [],
+        stream: true,
+      } as any,
+      { onStreamDelta: vi.fn() } as any,
+    );
 
     const message = (response as any).choices?.[0]?.message;
     expect(message?.content).toBe("done");
     expect(message?.tool_calls?.[0]?.function?.name).toBe("ToolA");
-    expect(message?.tool_calls?.[0]?.function?.arguments).toBe("{\"x\":1}");
-    expect(message?.tool_calls?.[0]?.extra_content?.google?.thought_signature).toBe("sig");
+    expect(message?.tool_calls?.[0]?.function?.arguments).toBe('{"x":1}');
+    expect(
+      message?.tool_calls?.[0]?.extra_content?.google?.thought_signature,
+    ).toBe("sig");
   });
 
   it("parses gemini SSE thought tags and tool calls", async () => {
@@ -240,8 +324,8 @@ describe("provider capabilities", () => {
       start(controller) {
         controller.enqueue(
           encoder.encode(
-            "data: {\"choices\":[{\"delta\":{\"content\":\"Hello <thought>Thinking</thought> world\"}}]}\n\n" +
-              "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"function\":{\"name\":\"ToolA\",\"arguments\":\"{}\"},\"extra_content\":{\"google\":{\"thought_signature\":\"sig\"}}}]}}]}\n\n" +
+            'data: {"choices":[{"delta":{"content":"Hello <thought>Thinking</thought> world"}}]}\n\n' +
+              'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"ToolA","arguments":"{}"},"extra_content":{"google":{"thought_signature":"sig"}}}]}}]}\n\n' +
               "data: [DONE]\n\n",
           ),
         );
@@ -254,22 +338,29 @@ describe("provider capabilities", () => {
       body: stream as any,
     });
 
-    const client = { createCompletion: vi.fn(async () => ({ choices: [] })) } as any;
+    const client = {
+      createCompletion: vi.fn(async () => ({ choices: [] })),
+    } as any;
     const wrapped = createSseStreamingCapability({
       endpoint: "http://localhost",
       buildHeaders: {},
     })(client);
 
-    const response = await wrapped.createCompletion({
-      model: "gemini-1.5",
-      messages: [],
-      stream: true,
-    } as any, { onStreamDelta: vi.fn() } as any);
+    const response = await wrapped.createCompletion(
+      {
+        model: "gemini-1.5",
+        messages: [],
+        stream: true,
+      } as any,
+      { onStreamDelta: vi.fn() } as any,
+    );
 
     const message = (response as any).choices?.[0]?.message;
     expect(message?.content).toBe("Hello  world");
     expect(message?.reasoning_content).toBe("Thinking");
     expect(message?.tool_calls?.[0]?.function?.name).toBe("ToolA");
-    expect(message?.tool_calls?.[0]?.extra_content?.google?.thought_signature).toBe("sig");
+    expect(
+      message?.tool_calls?.[0]?.extra_content?.google?.thought_signature,
+    ).toBe("sig");
   });
 });

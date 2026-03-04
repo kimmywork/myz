@@ -1,3 +1,6 @@
+import { OpenAIEmbedder } from "vectoria/thin";
+import { normalizeBaseUrl } from "../ai/runtime/openaiCompatible.js";
+import type { AIProviderSetting } from "../settings";
 import { readSettings, getAllHighlights } from "../storage";
 import {
   resetVectorIndex,
@@ -5,14 +8,27 @@ import {
   searchSimilar,
   applyVectorSearchSettings,
 } from "../vectoria-index";
-import type { AIProviderSetting } from "../settings";
+import type { VectoriaSearchResult } from "../vectoria-index";
 import { registerMessageHandler } from "./handler";
-import { OpenAIEmbedder } from "vectoria/thin";
-import { normalizeBaseUrl } from "../ai/runtime/openaiCompatible.js";
+import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 const PENDING_RELATED_HIGHLIGHTS_KEY = "myz::pendingRelatedHighlights";
 
-async function writePendingRelatedHighlights(payload: any) {
+export interface VectorTestConnectionMessageResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface RebuildVectorIndexMessageResult {
+  success: boolean;
+  count: number;
+}
+
+export interface VectoriaSearchMessageResult {
+  results: VectoriaSearchResult[];
+}
+
+async function writePendingRelatedHighlights(payload: unknown) {
   const wrapped = {
     payload,
     createdAt: Date.now(),
@@ -29,13 +45,22 @@ async function writePendingRelatedHighlights(payload: any) {
 }
 
 async function popPendingRelatedHighlights() {
-  const unwrap = (data: any) => data?.[PENDING_RELATED_HIGHLIGHTS_KEY]?.payload || null;
+  const unwrap = (data: unknown) => {
+    if (!isRecord(data)) return null;
+    const record = data as UnknownRecord;
+    const entry = record[PENDING_RELATED_HIGHLIGHTS_KEY];
+    return isRecord(entry) ? (entry.payload ?? null) : null;
+  };
   try {
-    const result = await chrome.storage.session.get(PENDING_RELATED_HIGHLIGHTS_KEY);
+    const result = await chrome.storage.session.get(
+      PENDING_RELATED_HIGHLIGHTS_KEY,
+    );
     await chrome.storage.session.remove(PENDING_RELATED_HIGHLIGHTS_KEY);
     return unwrap(result);
   } catch {
-    const result = await chrome.storage.local.get(PENDING_RELATED_HIGHLIGHTS_KEY);
+    const result = await chrome.storage.local.get(
+      PENDING_RELATED_HIGHLIGHTS_KEY,
+    );
     await chrome.storage.local.remove(PENDING_RELATED_HIGHLIGHTS_KEY);
     return unwrap(result);
   }
@@ -53,33 +78,34 @@ export function initializeVectoriaMessageHandlers() {
       provider: Pick<AIProviderSetting, "baseUrl" | "apiKey">;
       model: string;
     }) => {
-      const provider = payload?.provider
-      const model = typeof payload?.model === "string" ? payload.model.trim() : ""
+      const provider = payload?.provider;
+      const model =
+        typeof payload?.model === "string" ? payload.model.trim() : "";
       if (!provider?.baseUrl) {
-        throw new Error("Base URL is required")
+        throw new Error("Base URL is required");
       }
       if (!provider?.apiKey) {
-        throw new Error("API key is required")
+        throw new Error("API key is required");
       }
       if (!model) {
-        throw new Error("Model is required")
+        throw new Error("Model is required");
       }
 
       // Vectoria's OpenAIEmbedder uses `{endpoint}/embeddings`
-      const endpoint = normalizeBaseUrl(provider.baseUrl)
+      const endpoint = normalizeBaseUrl(provider.baseUrl);
       const embedder = new OpenAIEmbedder({
         apiKey: provider.apiKey,
         endpoint,
         modelName: model,
-      })
+      });
       try {
-        const embedding = await embedder.embed("connection test")
+        const embedding = await embedder.embed("connection test");
         if (!Array.isArray(embedding) || embedding.length === 0) {
-          return { success: false, error: "No embedding returned" }
+          return { success: false, error: "No embedding returned" };
         }
-        return { success: true }
+        return { success: true };
       } catch (error) {
-        return { success: false, error: (error as Error).message }
+        return { success: false, error: (error as Error).message };
       }
     },
   );
@@ -89,10 +115,13 @@ export function initializeVectoriaMessageHandlers() {
     if (!settings.vectorSearch?.enabled) {
       throw new Error("请先启用向量检索");
     }
-    if (!settings.vectorSearch?.target || !settings.vectorSearch?.lastTest?.ok) {
-      throw new Error("请先选择模型并测试连接")
+    if (
+      !settings.vectorSearch?.target ||
+      !settings.vectorSearch?.lastTest?.ok
+    ) {
+      throw new Error("请先选择模型并测试连接");
     }
-    applyVectorSearchSettings(settings as any)
+    applyVectorSearchSettings(settings);
     await resetVectorIndex();
     const highlights = await getAllHighlights();
     await indexRecords(highlights);
@@ -114,10 +143,10 @@ export function initializeVectoriaMessageHandlers() {
         return { results: [] };
       }
       try {
-        const settings = await readSettings()
-        applyVectorSearchSettings(settings as any)
+        const settings = await readSettings();
+        applyVectorSearchSettings(settings);
       } catch (error) {
-        console.warn("Vectoria apply settings failed", error)
+        console.warn("Vectoria apply settings failed", error);
       }
       const results = await searchSimilar(query, { topK });
       return {
@@ -133,7 +162,7 @@ export function initializeVectoriaMessageHandlers() {
 
   registerMessageHandler(
     "myz:showRelatedHighlights",
-    async (payload: any, sender: chrome.runtime.MessageSender) => {
+    async (payload: unknown, sender: chrome.runtime.MessageSender) => {
       // Attempt to open SidePanel as early as possible (before any await), otherwise
       // Chrome may treat it as not initiated by a user gesture.
       try {
@@ -150,17 +179,24 @@ export function initializeVectoriaMessageHandlers() {
       let filteredPayload = payload;
       try {
         const settings = await readSettings();
-        const rawThreshold = (settings as any)?.vectorSearch?.matchThreshold;
+        const rawThreshold = settings.vectorSearch?.matchThreshold;
         const threshold =
           typeof rawThreshold === "number" && Number.isFinite(rawThreshold)
             ? Math.min(1, Math.max(0.4, rawThreshold))
             : 0.5;
-        const matches = Array.isArray(payload?.matches) ? payload.matches : [];
+        const matches = isRecord(payload) && Array.isArray(payload.matches)
+          ? payload.matches
+          : [];
         const filteredMatches = matches.filter(
-          (item: any) =>
-            typeof item?.score === "number" && Number.isFinite(item.score) && item.score >= threshold,
+          (item) =>
+            isRecord(item) &&
+            typeof item.score === "number" &&
+            Number.isFinite(item.score) &&
+            item.score >= threshold,
         );
-        filteredPayload = { ...payload, matches: filteredMatches };
+        filteredPayload = isRecord(payload)
+          ? { ...payload, matches: filteredMatches }
+          : { matches: filteredMatches };
         if (!filteredMatches.length) {
           return { ok: true, filtered: 0 };
         }

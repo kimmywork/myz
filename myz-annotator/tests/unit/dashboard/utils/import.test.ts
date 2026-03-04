@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { normalizeImportedPayload } from "@/dashboard/utils/import";
+import { RECORD_SCHEMA_VERSION } from "@/shared/versioning";
 
 describe("import", () => {
   const baseRecord = {
@@ -13,6 +14,7 @@ describe("import", () => {
   const normalizedRecord = {
     ...baseRecord,
     contentType: "text/plain",
+    schemaVersion: RECORD_SCHEMA_VERSION,
   };
 
   it("should return array if payload is array", () => {

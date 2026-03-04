@@ -1,17 +1,17 @@
-import { defineComponent } from "vue"
-import HighlightsPane from "../components/HighlightsPane.jsx"
-import PageSidebar from "../components/PageSidebar.jsx"
-import { useUIStore } from "../stores/ui.js"
+import { defineComponent } from "vue";
+import HighlightsPane from "../components/HighlightsPane.jsx";
+import PageSidebar from "../components/PageSidebar.jsx";
+import { useUIStore } from "../stores/ui.js";
 
 export default defineComponent({
   name: "HighlightsPage",
   setup() {
-    const uiStore = useUIStore()
+    const uiStore = useUIStore();
     const layoutClasses = () =>
       [
         "flex flex-col gap-6 lg:flex-row",
         uiStore.pageSidebarOpen ? "lg:items-stretch" : "",
-      ].join(" ")
+      ].join(" ");
     return () => (
       <>
         <div class={layoutClasses()}>
@@ -25,6 +25,6 @@ export default defineComponent({
           </div>
         </div>
       </>
-    )
+    );
   },
-})
+});

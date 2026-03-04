@@ -22,7 +22,7 @@ import { canonicalUrl } from "@/shared/url.js";
 declare global {
   interface Window {
     __myzAnnotatorInitialized?: boolean;
-    __myz_app?: any;
+    __myz_app?: ReturnType<typeof mountApp>;
   }
 }
 

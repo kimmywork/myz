@@ -6,7 +6,7 @@ describe("SkillSelectionAgent", () => {
   it("filters selected skills", async () => {
     const client = {
       createCompletion: vi.fn(async () => ({
-        choices: [{ message: { content: "{\"skill_names\":[\"s1\",\"s2\"]}" } }],
+        choices: [{ message: { content: '{"skill_names":["s1","s2"]}' } }],
       })),
     } as any;
 
@@ -29,7 +29,9 @@ describe("ToolSelectionAgent", () => {
   it("filters selected tools", async () => {
     const client = {
       createCompletion: vi.fn(async () => ({
-        choices: [{ message: { content: "{\"tool_names\":[\"WebSearch\",\"Foo\"]}" } }],
+        choices: [
+          { message: { content: '{"tool_names":["WebSearch","Foo"]}' } },
+        ],
       })),
     } as any;
 

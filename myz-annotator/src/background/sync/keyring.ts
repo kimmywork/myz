@@ -1,6 +1,19 @@
-import { argon2id } from "hash-wasm";
 import { ed25519 } from "@noble/curves/ed25519";
-import { aesGcmDecrypt, aesGcmEncrypt, hkdfSha256, sha256, utf8ToBytes } from "./crypto";
+import { argon2id } from "hash-wasm";
+import {
+  aesGcmDecrypt,
+  aesGcmEncrypt,
+  hkdfSha256,
+  sha256,
+  utf8ToBytes,
+} from "./crypto";
+import {
+  clearKeysetRecord,
+  readDeviceKey,
+  readKeysetRecord,
+  writeDeviceKey,
+  writeKeysetRecord,
+} from "./storage";
 import {
   base32Encode,
   base64ToBytes,
@@ -9,13 +22,6 @@ import {
   concatBytes,
   toArrayBuffer,
 } from "./utils";
-import {
-  clearKeysetRecord,
-  readDeviceKey,
-  readKeysetRecord,
-  writeDeviceKey,
-  writeKeysetRecord,
-} from "./storage";
 
 const ARGON2_SALT = utf8ToBytes("myz:e2ee:argon2id:v1");
 const KEYSET_VERSION = "v1";
@@ -53,7 +59,11 @@ export async function deriveKeysetFromSecret(
   });
   const privateKey = new Uint8Array(seed);
   const publicKey = ed25519.getPublicKey(privateKey);
-  const masterKey = await hkdfSha256(privateKey, utf8ToBytes("myz:e2ee:master"), 32);
+  const masterKey = await hkdfSha256(
+    privateKey,
+    utf8ToBytes("myz:e2ee:master"),
+    32,
+  );
   const keyId = base32Encode(await sha256(publicKey));
   const createdAt = new Date().toISOString();
   seed.fill(0);
@@ -134,7 +144,10 @@ export async function clearKeyset(): Promise<void> {
   await clearKeysetRecord();
 }
 
-export async function sealPublicKey(masterKey: Uint8Array, publicKey: Uint8Array) {
+export async function sealPublicKey(
+  masterKey: Uint8Array,
+  publicKey: Uint8Array,
+) {
   const key = await hkdfSha256(masterKey, utf8ToBytes("myz:seal"), 32);
   const fingerprint = await sha256(publicKey);
   const { nonce, ciphertext } = await aesGcmEncrypt(key, fingerprint);

@@ -2,9 +2,14 @@ import { defineComponent, ref, watchEffect } from "vue";
 import { useHighlightsStore } from "../../stores/highlights.js";
 import { useSettingsStore } from "../../stores/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
-import { RECORD_KINDS } from "@/shared/types";
-import { parseTwitterProfileUrl } from "@/shared/social/twitter";
 import { parseMastodonProfileUrl } from "@/shared/social/mastodon";
+import { parseTwitterProfileUrl } from "@/shared/social/twitter";
+import { RECORD_KINDS } from "@/shared/types";
+import type { SocialImportRequest } from "@/background/social-import";
+import type {
+  ClearTweetImportsMessageResult,
+  ImportSocialRecordsMessageResult,
+} from "@/background/messages/social-import";
 
 type StatusTone = "info" | "error" | "success";
 
@@ -88,7 +93,10 @@ export default defineComponent({
         });
 
         setStatus("抓取中…（将打开新窗口展示导入过程）", "info");
-        const result = await sendMessage("myz:importSocialRecords", {
+        const result = await sendMessage<
+          SocialImportRequest,
+          ImportSocialRecordsMessageResult
+        >("myz:importSocialRecords", {
           provider: "twitter",
           profileUrl: parsed.profileUrl,
           kinds,
@@ -96,7 +104,10 @@ export default defineComponent({
         });
 
         await highlightsStore.refreshHighlights();
-        setStatus(`导入完成：新增 ${result.inserted} 条，跳过 ${result.skipped} 条`, "success");
+        setStatus(
+          `导入完成：新增 ${result.inserted} 条，跳过 ${result.skipped} 条`,
+          "success",
+        );
       } catch (error) {
         setStatus(`导入失败：${(error as Error).message}`, "error");
       } finally {
@@ -128,7 +139,10 @@ export default defineComponent({
         });
 
         setStatus("抓取中…（将打开新窗口展示导入过程）", "info");
-        const result = await sendMessage("myz:importSocialRecords", {
+        const result = await sendMessage<
+          SocialImportRequest,
+          ImportSocialRecordsMessageResult
+        >("myz:importSocialRecords", {
           provider: "mastodon",
           profileUrl: parsed.profileUrl,
           kinds,
@@ -136,7 +150,10 @@ export default defineComponent({
         });
 
         await highlightsStore.refreshHighlights();
-        setStatus(`导入完成：新增 ${result.inserted} 条，跳过 ${result.skipped} 条`, "success");
+        setStatus(
+          `导入完成：新增 ${result.inserted} 条，跳过 ${result.skipped} 条`,
+          "success",
+        );
       } catch (error) {
         setStatus(`导入失败：${(error as Error).message}`, "error");
       } finally {
@@ -148,14 +165,19 @@ export default defineComponent({
       if (importing.value) {
         return;
       }
-      const ok = window.confirm("将删除所有 tweet:* 记录，且不可恢复。确定清理吗？");
+      const ok = window.confirm(
+        "将删除所有 tweet:* 记录，且不可恢复。确定清理吗？",
+      );
       if (!ok) {
         return;
       }
       importing.value = true;
       setStatus("清理中…", "info");
       try {
-        const result = await sendMessage("myz:clearTweetImports");
+        const result = await sendMessage<
+          undefined,
+          ClearTweetImportsMessageResult
+        >("myz:clearTweetImports");
         await highlightsStore.refreshHighlights();
         setStatus(`清理完成：删除 ${result.removed} 条`, "success");
       } catch (error) {
@@ -172,8 +194,8 @@ export default defineComponent({
         </div>
         <div class="settings__fields">
           <p class="settings__hint">
-            通过打开网页并抓取内容的方式导入（无需调用官方 API）。书签页为私有内容，
-            需要在浏览器里已登录对应账号。
+            通过打开网页并抓取内容的方式导入（无需调用官方
+            API）。书签页为私有内容， 需要在浏览器里已登录对应账号。
           </p>
 
           <div class="rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-950/40">

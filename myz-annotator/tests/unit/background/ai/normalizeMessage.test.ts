@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { splitContentAndReasoning, normalizeMessagePayload } from "@/background/ai/normalize/message.ts";
+import {
+  splitContentAndReasoning,
+  normalizeMessagePayload,
+} from "@/background/ai/normalize/message.ts";
 
 describe("normalize message", () => {
   it("splits text and reasoning parts", () => {

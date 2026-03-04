@@ -1,6 +1,6 @@
-import { computed, defineComponent } from "vue"
-import { RouterLink, useRoute } from "vue-router"
-import { useSettingsStore } from "../../stores/settings.js"
+import { computed, defineComponent } from "vue";
+import { RouterLink, useRoute } from "vue-router";
+import { useSettingsStore } from "../../stores/settings.js";
 
 const groups = [
   {
@@ -18,7 +18,7 @@ const groups = [
     title: "同步",
     items: [{ label: "加密同步", to: "/settings/sync" }],
   },
-]
+];
 
 const aiItems = [
   { label: "Provider / Models", to: "/settings/ai/providers" },
@@ -27,20 +27,20 @@ const aiItems = [
   { label: "本地 Tools", to: "/settings/ai/tools" },
   { label: "Skills", to: "/settings/ai/skills" },
   { label: "Vector Search", to: "/settings/ai/vector" },
-]
+];
 
 export default defineComponent({
   name: "SettingsSidebar",
   setup() {
-    const route = useRoute()
-    const settingsStore = useSettingsStore()
-    const isActive = (path: string, to: string) => path === to
-    const isAiActive = (path: string) => path.startsWith("/settings/ai")
+    const route = useRoute();
+    const settingsStore = useSettingsStore();
+    const isActive = (path: string, to: string) => path === to;
+    const isAiActive = (path: string) => path.startsWith("/settings/ai");
     const visibleAiItems = computed(() =>
       settingsStore.settings.aiAssistantEnabled
         ? aiItems
         : aiItems.filter((item) => item.to === "/settings/ai/providers"),
-    )
+    );
 
     return () => (
       <aside class="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
@@ -52,7 +52,7 @@ export default defineComponent({
               </div>
               <div class="space-y-1">
                 {group.items.map((item) => {
-                  const active = isActive(route.path, item.to)
+                  const active = isActive(route.path, item.to);
                   return (
                     <RouterLink
                       key={item.to}
@@ -67,7 +67,7 @@ export default defineComponent({
                     >
                       {item.label}
                     </RouterLink>
-                  )
+                  );
                 })}
               </div>
             </div>
@@ -84,7 +84,7 @@ export default defineComponent({
               ].join(" ")}
             >
               {visibleAiItems.value.map((item) => {
-                const active = isActive(route.path, item.to)
+                const active = isActive(route.path, item.to);
                 return (
                   <RouterLink
                     key={item.to}
@@ -99,12 +99,12 @@ export default defineComponent({
                   >
                     {item.label}
                   </RouterLink>
-                )
+                );
               })}
             </div>
           </div>
         </div>
       </aside>
-    )
+    );
   },
-})
+});

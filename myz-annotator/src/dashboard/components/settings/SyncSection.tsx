@@ -1,7 +1,12 @@
 import { defineComponent, onMounted, ref, watchEffect } from "vue";
 import { useSettingsStore } from "../../stores/settings.js";
-import { sendMessage } from "@/shared/messaging.js";
 import ToggleSwitch from "../ToggleSwitch.jsx";
+import { sendMessage } from "@/shared/messaging.js";
+import type {
+  SyncNowMessageResult,
+  SyncStatusMessageResult,
+  SyncTestConnectionMessageResult,
+} from "@/background/messages/sync";
 
 type StatusTone = "info" | "error" | "success";
 
@@ -61,7 +66,9 @@ export default defineComponent({
 
     async function refreshSyncStatus() {
       try {
-        const result = await sendMessage("myz:syncStatus");
+        const result = await sendMessage<undefined, SyncStatusMessageResult>(
+          "myz:syncStatus",
+        );
         keyId.value = result?.keyId || null;
         keyUpdatedAt.value = result?.keyUpdatedAt || null;
         lastSyncAt.value = result?.lastSyncAt || null;
@@ -95,9 +102,10 @@ export default defineComponent({
       isBusy.value = true;
       setStatus("测试连接中…", "info");
       try {
-        const result = await sendMessage("myz:syncTestConnection", {
-          s3: buildS3Payload(),
-        });
+        const result = await sendMessage<
+          { s3: ReturnType<typeof buildS3Payload> },
+          SyncTestConnectionMessageResult
+        >("myz:syncTestConnection", { s3: buildS3Payload() });
         if (result?.ok) {
           setStatus("连接成功", "success");
         } else {
@@ -119,7 +127,9 @@ export default defineComponent({
       isBusy.value = true;
       setStatus("设置密钥中…", "info");
       try {
-        await sendMessage("myz:syncSetKey", { secret: syncSecret.value.trim() });
+        await sendMessage("myz:syncSetKey", {
+          secret: syncSecret.value.trim(),
+        });
         syncSecret.value = "";
         await refreshSyncStatus();
         setStatus("密钥已更新", "success");
@@ -135,7 +145,9 @@ export default defineComponent({
       isBusy.value = true;
       setStatus("同步中…", "info");
       try {
-        const result = await sendMessage("myz:syncNow");
+        const result = await sendMessage<undefined, SyncNowMessageResult>(
+          "myz:syncNow",
+        );
         if (result?.ok) {
           setStatus("同步完成", "success");
         } else {
@@ -224,7 +236,9 @@ export default defineComponent({
                 type="password"
                 value={secretAccessKey.value}
                 onInput={(event: InputEvent) =>
-                  (secretAccessKey.value = (event.target as HTMLInputElement).value)
+                  (secretAccessKey.value = (
+                    event.target as HTMLInputElement
+                  ).value)
                 }
               />
             </label>
@@ -234,7 +248,9 @@ export default defineComponent({
                 type="text"
                 value={sessionToken.value}
                 onInput={(event: InputEvent) =>
-                  (sessionToken.value = (event.target as HTMLInputElement).value)
+                  (sessionToken.value = (
+                    event.target as HTMLInputElement
+                  ).value)
                 }
               />
             </label>

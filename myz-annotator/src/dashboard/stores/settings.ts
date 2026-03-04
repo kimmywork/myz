@@ -1,25 +1,20 @@
 import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
+import { LOCAL_TOOL_NAMES } from "@/background/ai/tools/localDefinitions.js";
 import { Settings } from "@/background/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
+import { isRecord } from "@/shared/typeUtils";
 import {
   DEFAULT_COLOR,
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLES,
 } from "@/shared/types.js";
-import { LOCAL_TOOL_NAMES } from "@/background/ai/tools/localDefinitions.js";
 
 export const useSettingsStore = defineStore("settings", () => {
   const settings: Settings = reactive({
     dashboardView: "cards",
-    colorPalette: [
-      "#b58900",
-      "#ef476f",
-      "#9f7aea",
-      "#38bdf8",
-      "#34d399",
-    ],
+    colorPalette: ["#b58900", "#ef476f", "#9f7aea", "#38bdf8", "#34d399"],
     aiAssistantEnabled: false,
     aiProviders: [],
     aiAgents: {
@@ -138,25 +133,29 @@ export const useSettingsStore = defineStore("settings", () => {
                 conversation: {
                   target: result.aiAgents.conversation?.target || null,
                   temperature:
-                    typeof result.aiAgents.conversation?.temperature === "number"
+                    typeof result.aiAgents.conversation?.temperature ===
+                    "number"
                       ? result.aiAgents.conversation.temperature
                       : 0.7,
                   compressImages:
-                    typeof result.aiAgents.conversation?.compressImages === "boolean"
+                    typeof result.aiAgents.conversation?.compressImages ===
+                    "boolean"
                       ? result.aiAgents.conversation.compressImages
                       : false,
                   superpowerMode:
-                    typeof result.aiAgents.conversation?.superpowerMode === "boolean"
+                    typeof result.aiAgents.conversation?.superpowerMode ===
+                    "boolean"
                       ? result.aiAgents.conversation.superpowerMode
                       : false,
                   multimodalTarget:
                     result.aiAgents.conversation?.multimodalTarget &&
-                    typeof result.aiAgents.conversation.multimodalTarget === "object"
+                    typeof result.aiAgents.conversation.multimodalTarget ===
+                      "object"
                       ? result.aiAgents.conversation.multimodalTarget
                       : null,
                   contextCompressionThreshold:
-                    typeof result.aiAgents.conversation?.contextCompressionThreshold ===
-                    "number"
+                    typeof result.aiAgents.conversation
+                      ?.contextCompressionThreshold === "number"
                       ? result.aiAgents.conversation.contextCompressionThreshold
                       : 80,
                 },
@@ -170,39 +169,41 @@ export const useSettingsStore = defineStore("settings", () => {
                 autoHighlight: {
                   target: result.aiAgents.autoHighlight?.target || null,
                   temperature:
-                    typeof result.aiAgents.autoHighlight?.temperature === "number"
+                    typeof result.aiAgents.autoHighlight?.temperature ===
+                    "number"
                       ? result.aiAgents.autoHighlight.temperature
                       : 0.4,
                   maxHighlights:
-                    typeof result.aiAgents.autoHighlight?.maxHighlights === "number"
+                    typeof result.aiAgents.autoHighlight?.maxHighlights ===
+                    "number"
                       ? result.aiAgents.autoHighlight.maxHighlights
                       : 15,
                   categoryStyles: {
                     conceptual: {
                       style:
-                        result.aiAgents.autoHighlight?.categoryStyles?.conceptual
-                          ?.style || HIGHLIGHT_STYLES.PAINT,
+                        result.aiAgents.autoHighlight?.categoryStyles
+                          ?.conceptual?.style || HIGHLIGHT_STYLES.PAINT,
                       color:
-                        result.aiAgents.autoHighlight?.categoryStyles?.conceptual
-                          ?.color || DEFAULT_COLORS[0],
+                        result.aiAgents.autoHighlight?.categoryStyles
+                          ?.conceptual?.color || DEFAULT_COLORS[0],
                     },
                     structural: {
                       style:
-                        result.aiAgents.autoHighlight?.categoryStyles?.structural
-                          ?.style || HIGHLIGHT_STYLES.UNDERLINE,
+                        result.aiAgents.autoHighlight?.categoryStyles
+                          ?.structural?.style || HIGHLIGHT_STYLES.UNDERLINE,
                       color:
-                        result.aiAgents.autoHighlight?.categoryStyles?.structural
-                          ?.color ||
+                        result.aiAgents.autoHighlight?.categoryStyles
+                          ?.structural?.color ||
                         DEFAULT_COLORS[3] ||
                         DEFAULT_COLORS[0],
                     },
                     behavioural: {
                       style:
-                        result.aiAgents.autoHighlight?.categoryStyles?.behavioural
-                          ?.style || HIGHLIGHT_STYLES.WAVY,
+                        result.aiAgents.autoHighlight?.categoryStyles
+                          ?.behavioural?.style || HIGHLIGHT_STYLES.WAVY,
                       color:
-                        result.aiAgents.autoHighlight?.categoryStyles?.behavioural
-                          ?.color ||
+                        result.aiAgents.autoHighlight?.categoryStyles
+                          ?.behavioural?.color ||
                         DEFAULT_COLORS[1] ||
                         DEFAULT_COLORS[0],
                     },
@@ -216,7 +217,9 @@ export const useSettingsStore = defineStore("settings", () => {
         aiLocalTools:
           result.aiLocalTools && typeof result.aiLocalTools === "object"
             ? {
-                enabledToolNames: Array.isArray(result.aiLocalTools.enabledToolNames)
+                enabledToolNames: Array.isArray(
+                  result.aiLocalTools.enabledToolNames,
+                )
                   ? result.aiLocalTools.enabledToolNames
                       .filter((name) => typeof name === "string" && name.trim())
                       .map((name) => name.trim())
@@ -240,21 +243,20 @@ export const useSettingsStore = defineStore("settings", () => {
                     : null,
               }
             : settings.aiSkills,
-        vectorSearch:
-          result.vectorSearch && typeof result.vectorSearch === "object"
-            ? {
-                enabled: Boolean(result.vectorSearch.enabled),
-                target: result.vectorSearch.target || null,
-                lastTest: result.vectorSearch.lastTest || null,
-                matchThreshold:
-                  typeof (result.vectorSearch as any).matchThreshold === "number"
-                    ? Math.min(
-                        1,
-                        Math.max(0.4, (result.vectorSearch as any).matchThreshold),
-                      )
-                    : settings.vectorSearch.matchThreshold,
-              }
-            : settings.vectorSearch,
+        vectorSearch: isRecord(result.vectorSearch)
+          ? {
+              enabled: Boolean(result.vectorSearch.enabled),
+              target: result.vectorSearch.target || null,
+              lastTest: result.vectorSearch.lastTest || null,
+              matchThreshold:
+                typeof result.vectorSearch.matchThreshold === "number"
+                  ? Math.min(
+                      1,
+                      Math.max(0.4, result.vectorSearch.matchThreshold),
+                    )
+                  : settings.vectorSearch.matchThreshold,
+            }
+          : settings.vectorSearch,
         socialImport:
           result.socialImport && typeof result.socialImport === "object"
             ? {
@@ -308,15 +310,17 @@ export const useSettingsStore = defineStore("settings", () => {
                             ? result.sync.s3.prefix
                             : settings.sync.s3.prefix,
                       }
-                      : settings.sync.s3,
-                }
-              : settings.sync,
+                    : settings.sync.s3,
+              }
+            : settings.sync,
         lastUsedColor:
-          typeof result.lastUsedColor === "string" && result.lastUsedColor.trim()
+          typeof result.lastUsedColor === "string" &&
+          result.lastUsedColor.trim()
             ? result.lastUsedColor
             : settings.lastUsedColor,
         lastUsedStyle:
-          result.lastUsedStyle && Object.values(HIGHLIGHT_STYLES).includes(result.lastUsedStyle)
+          result.lastUsedStyle &&
+          Object.values(HIGHLIGHT_STYLES).includes(result.lastUsedStyle)
             ? result.lastUsedStyle
             : settings.lastUsedStyle,
       });
@@ -346,19 +350,19 @@ export const useSettingsStore = defineStore("settings", () => {
           settings.aiProviders = updated.aiProviders.map((p) => ({ ...p }));
         }
         if ("aiAgents" in updated && updated.aiAgents) {
-          settings.aiAgents = updated.aiAgents as any;
+          settings.aiAgents = updated.aiAgents;
         }
         if (Array.isArray(updated.aiMcpServers)) {
           settings.aiMcpServers = updated.aiMcpServers.map((s) => ({ ...s }));
         }
         if ("aiLocalTools" in updated && updated.aiLocalTools) {
-          settings.aiLocalTools = updated.aiLocalTools as any;
+          settings.aiLocalTools = updated.aiLocalTools;
         }
         if ("aiSkills" in updated && updated.aiSkills) {
-          settings.aiSkills = updated.aiSkills as any;
+          settings.aiSkills = updated.aiSkills;
         }
         if ("vectorSearch" in updated && updated.vectorSearch) {
-          settings.vectorSearch = updated.vectorSearch as any;
+          settings.vectorSearch = updated.vectorSearch;
         }
         if ("socialImport" in updated) {
           settings.socialImport =

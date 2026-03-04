@@ -1,13 +1,18 @@
-import { computed, defineComponent, ref, watch } from "vue"
-import type { PropType } from "vue"
-import type { AIModelSetting } from "@/background/settings.js"
-import { createModelSetting } from "./factories.js"
-import ToggleSwitch from "../ToggleSwitch.jsx"
+import { computed, defineComponent, ref, watch } from "vue";
+import type { PropType } from "vue";
+import ToggleSwitch from "../ToggleSwitch.jsx";
+import { createModelSetting } from "./factories.js";
+import type { AIModelSetting } from "@/background/settings.js";
 
-function clampNumber(value: any, min: number, max: number, fallback: number) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return fallback
-  return Math.max(min, Math.min(max, parsed))
+function clampNumber(
+  value: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
 }
 
 export default defineComponent({
@@ -18,75 +23,102 @@ export default defineComponent({
     isRefreshingCatalog: { type: Boolean, default: false },
     catalogStatusMessage: { type: String, default: "" },
     onRefreshCatalog: { type: Function as PropType<() => void>, default: null },
-    onChange: { type: Function as PropType<(models: AIModelSetting[]) => void>, required: true },
+    onChange: {
+      type: Function as PropType<(models: AIModelSetting[]) => void>,
+      required: true,
+    },
   },
   setup(props) {
-    const manualModel = ref("")
-    const listFilter = ref("")
-    const selectedName = ref("")
-    const pendingSelection = ref("")
+    const manualModel = ref("");
+    const listFilter = ref("");
+    const selectedName = ref("");
+    const pendingSelection = ref("");
 
     const modelByName = computed(() => {
-      const map = new Map<string, AIModelSetting>()
+      const map = new Map<string, AIModelSetting>();
       props.models.forEach((model) => {
-        const key = (model.model || "").trim()
-        if (!key) return
-        map.set(key, model)
-      })
-      return map
-    })
+        const key = (model.model || "").trim();
+        if (!key) return;
+        map.set(key, model);
+      });
+      return map;
+    });
 
-    const ensureUniqueModelName = (candidate: string, existing: AIModelSetting[]) => {
-      const normalized = candidate.trim()
-      if (!normalized) return ""
-      const taken = new Set(existing.map((m) => m.model))
-      if (!taken.has(normalized)) return normalized
-      return ""
-    }
+    const ensureUniqueModelName = (
+      candidate: string,
+      existing: AIModelSetting[],
+    ) => {
+      const normalized = candidate.trim();
+      if (!normalized) return "";
+      const taken = new Set(existing.map((m) => m.model));
+      if (!taken.has(normalized)) return normalized;
+      return "";
+    };
 
     const addModel = (modelName: string) => {
-      const name = ensureUniqueModelName(modelName, props.models)
-      if (!name) return
-      props.onChange([...props.models, createModelSetting(name)])
-      selectedName.value = name
-    }
+      const name = ensureUniqueModelName(modelName, props.models);
+      if (!name) return;
+      props.onChange([...props.models, createModelSetting(name)]);
+      selectedName.value = name;
+    };
 
     const removeModel = (id: string) => {
-      props.onChange(props.models.filter((m) => m.id !== id))
-    }
+      props.onChange(props.models.filter((m) => m.id !== id));
+    };
 
     const updateModel = (id: string, patch: Partial<AIModelSetting>) => {
       props.onChange(
-        props.models.map((m) => (m.id === id ? ({ ...m, ...patch } as any) : m)),
-      )
-    }
+        props.models.map((m) =>
+          m.id === id ? ({ ...m, ...patch } as AIModelSetting) : m,
+        ),
+      );
+    };
 
-    const updateCapabilities = (id: string, patch: any) => {
+    const updateCapabilities = (
+      id: string,
+      patch: Partial<AIModelSetting["capabilities"]>,
+    ) => {
       props.onChange(
         props.models.map((m) =>
-          m.id === id ? { ...m, capabilities: { ...m.capabilities, ...patch } } : m,
+          m.id === id
+            ? { ...m, capabilities: { ...m.capabilities, ...patch } }
+            : m,
         ),
-      )
-    }
+      );
+    };
 
-    const updateLimits = (id: string, patch: any) => {
+    const updateLimits = (
+      id: string,
+      patch: Partial<AIModelSetting["limits"]>,
+    ) => {
       props.onChange(
         props.models.map((m) =>
           m.id === id ? { ...m, limits: { ...m.limits, ...patch } } : m,
         ),
-      )
-    }
+      );
+    };
 
-    const normalizeTooling = (tooling: any) => {
-      const toolChoice = tooling?.toolChoice || {}
-      const mode = typeof toolChoice?.mode === "string" ? toolChoice.mode : "auto"
+    const normalizeTooling = (
+      tooling?: AIModelSetting["tooling"] | null,
+    ): AIModelSetting["tooling"] => {
+      const toolChoice = tooling?.toolChoice;
+      const mode =
+        toolChoice?.mode === "none" ||
+        toolChoice?.mode === "required" ||
+        toolChoice?.mode === "tool" ||
+        toolChoice?.mode === "auto"
+          ? toolChoice.mode
+          : "auto";
       return {
         toolChoice: {
           mode,
-          toolName: typeof toolChoice?.toolName === "string" ? toolChoice.toolName : "",
+          toolName:
+            typeof toolChoice?.toolName === "string" ? toolChoice.toolName : "",
         },
         strict:
-          tooling?.strict === "on" || tooling?.strict === "off" || tooling?.strict === "auto"
+          tooling?.strict === "on" ||
+          tooling?.strict === "off" ||
+          tooling?.strict === "auto"
             ? tooling.strict
             : "auto",
         parallelToolCalls:
@@ -95,14 +127,17 @@ export default defineComponent({
           tooling?.parallelToolCalls === "auto"
             ? tooling.parallelToolCalls
             : "auto",
-      }
-    }
+      };
+    };
 
-    const updateToolChoice = (id: string, patch: any) => {
+    const updateToolChoice = (
+      id: string,
+      patch: Partial<AIModelSetting["tooling"]["toolChoice"]>,
+    ) => {
       props.onChange(
         props.models.map((m) => {
-          if (m.id !== id) return m
-          const tooling = normalizeTooling(m.tooling)
+          if (m.id !== id) return m;
+          const tooling = normalizeTooling(m.tooling);
           return {
             ...m,
             tooling: {
@@ -112,106 +147,112 @@ export default defineComponent({
                 ...patch,
               },
             },
-          }
+          };
         }),
-      )
-    }
+      );
+    };
 
-    const updateTooling = (id: string, patch: any) => {
+    const updateTooling = (
+      id: string,
+      patch: Partial<AIModelSetting["tooling"]>,
+    ) => {
       props.onChange(
         props.models.map((m) => {
-          if (m.id !== id) return m
-          const tooling = normalizeTooling(m.tooling)
+          if (m.id !== id) return m;
+          const tooling = normalizeTooling(m.tooling);
           return {
             ...m,
             tooling: {
               ...tooling,
               ...patch,
             },
-          }
+          };
         }),
-      )
-    }
+      );
+    };
 
     const catalogNames = computed(() => {
-      const raw = Array.isArray(props.catalog) ? props.catalog : []
+      const raw = Array.isArray(props.catalog) ? props.catalog : [];
       return raw
         .filter((id) => typeof id === "string" && id.trim().length > 0)
-        .map((id) => id.trim())
-    })
+        .map((id) => id.trim());
+    });
 
     const mergedNames = computed(() => {
-      const set = new Set<string>()
-      catalogNames.value.forEach((name) => set.add(name))
+      const set = new Set<string>();
+      catalogNames.value.forEach((name) => set.add(name));
       props.models.forEach((model) => {
-        const name = (model.model || "").trim()
-        if (name) set.add(name)
-      })
+        const name = (model.model || "").trim();
+        if (name) set.add(name);
+      });
 
-      const query = listFilter.value.trim().toLowerCase()
+      const query = listFilter.value.trim().toLowerCase();
       const items = [...set]
         .filter((name) => (query ? name.toLowerCase().includes(query) : true))
         .map((name) => {
-          const existing = modelByName.value.get(name) || null
+          const existing = modelByName.value.get(name) || null;
           return {
             name,
             exists: Boolean(existing),
             enabled: Boolean(existing?.enabled),
             fromCatalog: catalogNames.value.includes(name),
-          }
+          };
         })
         .sort((a, b) => {
-          if (a.enabled !== b.enabled) return a.enabled ? -1 : 1
-          if (a.exists !== b.exists) return a.exists ? -1 : 1
-          return a.name.localeCompare(b.name)
-        })
-      return items
-    })
+          if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+          if (a.exists !== b.exists) return a.exists ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+      return items;
+    });
 
     const selectedModel = computed(() => {
-      const name = selectedName.value.trim()
-      if (!name) return null
-      return modelByName.value.get(name) || null
-    })
+      const name = selectedName.value.trim();
+      if (!name) return null;
+      return modelByName.value.get(name) || null;
+    });
 
     watch(
       () => mergedNames.value,
       (items) => {
         if (pendingSelection.value) {
-          const next = pendingSelection.value
-          pendingSelection.value = ""
+          const next = pendingSelection.value;
+          pendingSelection.value = "";
           if (items.some((item) => item.name === next)) {
-            selectedName.value = next
-            return
+            selectedName.value = next;
+            return;
           }
         }
-        if (selectedName.value && items.some((item) => item.name === selectedName.value)) {
-          return
+        if (
+          selectedName.value &&
+          items.some((item) => item.name === selectedName.value)
+        ) {
+          return;
         }
-        selectedName.value = items[0]?.name || ""
+        selectedName.value = items[0]?.name || "";
       },
       { immediate: true },
-    )
+    );
 
     const ensureModelConfig = (name: string, enabled?: boolean) => {
-      const trimmed = (name || "").trim()
-      if (!trimmed) return null
-      const existing = modelByName.value.get(trimmed)
+      const trimmed = (name || "").trim();
+      if (!trimmed) return null;
+      const existing = modelByName.value.get(trimmed);
       if (existing) {
         if (typeof enabled === "boolean" && existing.enabled !== enabled) {
-          updateModel(existing.id, { enabled })
+          updateModel(existing.id, { enabled });
         }
-        return existing
+        return existing;
       }
-      const created = createModelSetting(trimmed)
+      const created = createModelSetting(trimmed);
       if (typeof enabled === "boolean") {
-        created.enabled = enabled
+        created.enabled = enabled;
       } else {
-        created.enabled = false
+        created.enabled = false;
       }
-      props.onChange([...props.models, created])
-      return created
-    }
+      props.onChange([...props.models, created]);
+      return created;
+    };
 
     return () => (
       <div class="space-y-3">
@@ -269,14 +310,16 @@ export default defineComponent({
               type="text"
               value={manualModel.value}
               placeholder="手动添加模型，例如 gpt-4o-mini"
-              onInput={(e) => (manualModel.value = (e.target as HTMLInputElement).value)}
+              onInput={(e) =>
+                (manualModel.value = (e.target as HTMLInputElement).value)
+              }
             />
             <button
               type="button"
               class="btn btn-small btn-primary whitespace-nowrap text-white"
               onClick={() => {
-                addModel(manualModel.value)
-                manualModel.value = ""
+                addModel(manualModel.value);
+                manualModel.value = "";
               }}
             >
               添加模型
@@ -314,7 +357,9 @@ export default defineComponent({
                   type="text"
                   value={listFilter.value}
                   placeholder="筛选模型名称…"
-                  onInput={(e) => (listFilter.value = (e.target as HTMLInputElement).value)}
+                  onInput={(e) =>
+                    (listFilter.value = (e.target as HTMLInputElement).value)
+                  }
                 />
               </div>
             </div>
@@ -331,8 +376,8 @@ export default defineComponent({
                         : "border-slate-200 hover:border-indigo-300 dark:border-white/10 dark:hover:border-indigo-400/40",
                     ].join(" ")}
                     onClick={() => {
-                      selectedName.value = entry.name
-                      ensureModelConfig(entry.name)
+                      selectedName.value = entry.name;
+                      ensureModelConfig(entry.name);
                     }}
                   >
                     <div class="min-w-0">
@@ -354,19 +399,25 @@ export default defineComponent({
                         checked={entry.enabled}
                         ariaLabel={`启用模型 ${entry.name}`}
                         onChange={(e) => {
-                          const nextEnabled = (e.target as HTMLInputElement).checked
-                          if (!nextEnabled && entry.name === selectedName.value) {
-                            const items = mergedNames.value
-                            const index = items.findIndex((item) => item.name === entry.name)
+                          const nextEnabled = (e.target as HTMLInputElement)
+                            .checked;
+                          if (
+                            !nextEnabled &&
+                            entry.name === selectedName.value
+                          ) {
+                            const items = mergedNames.value;
+                            const index = items.findIndex(
+                              (item) => item.name === entry.name,
+                            );
                             const nextItem =
                               (index >= 0 ? items[index + 1] : null) ||
-                              (index > 0 ? items[index - 1] : null)
+                              (index > 0 ? items[index - 1] : null);
                             if (nextItem) {
-                              pendingSelection.value = nextItem.name
-                              selectedName.value = nextItem.name
+                              pendingSelection.value = nextItem.name;
+                              selectedName.value = nextItem.name;
                             }
                           }
-                          ensureModelConfig(entry.name, nextEnabled)
+                          ensureModelConfig(entry.name, nextEnabled);
                         }}
                       />
                     </div>
@@ -402,17 +453,19 @@ export default defineComponent({
                     <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       能力
                     </div>
-                    {[
-                      ["vision", "支持 Vision"],
-                      ["imageOutput", "支持图像输出"],
-                      ["toolCalling", "支持 Tool Calling"],
-                      ["reasoning", "支持 Reasoning"],
-                    ].map(([key, label]) => (
+                    {(
+                      [
+                        ["vision", "支持 Vision"],
+                        ["imageOutput", "支持图像输出"],
+                        ["toolCalling", "支持 Tool Calling"],
+                        ["reasoning", "支持 Reasoning"],
+                      ] as const
+                    ).map(([key, label]) => (
                       <label class="flex items-center justify-between text-sm text-slate-700 dark:text-slate-200">
                         <span>{label}</span>
                         <input
                           type="checkbox"
-                          checked={(selectedModel.value!.capabilities as any)[key]}
+                          checked={selectedModel.value!.capabilities[key]}
                           onChange={(e) =>
                             updateCapabilities(selectedModel.value!.id, {
                               [key]: (e.target as HTMLInputElement).checked,
@@ -467,7 +520,11 @@ export default defineComponent({
                         value={selectedModel.value!.limits.maxOutputTokenParam}
                         onChange={(e) =>
                           updateLimits(selectedModel.value!.id, {
-                            maxOutputTokenParam: (e.target as HTMLSelectElement).value,
+                            maxOutputTokenParam:
+                              (e.target as HTMLSelectElement).value ===
+                              "max_completion_tokens"
+                                ? "max_completion_tokens"
+                                : "max_tokens",
                           })
                         }
                       >
@@ -487,16 +544,21 @@ export default defineComponent({
                       <span>系统提示改为用户消息</span>
                       <input
                         type="checkbox"
-                        checked={Boolean(selectedModel.value!.systemPromptInUserMessage)}
+                        checked={Boolean(
+                          selectedModel.value!.systemPromptInUserMessage,
+                        )}
                         onChange={(e) =>
                           updateModel(selectedModel.value!.id, {
-                            systemPromptInUserMessage: (e.target as HTMLInputElement).checked,
+                            systemPromptInUserMessage: (
+                              e.target as HTMLInputElement
+                            ).checked,
                           })
                         }
                       />
                     </label>
                     <p class="text-xs text-slate-500 dark:text-slate-400">
-                      当代理屏蔽 system prompt 时启用，系统提示会作为首条 user 消息注入。
+                      当代理屏蔽 system prompt 时启用，系统提示会作为首条 user
+                      消息注入。
                     </p>
                   </div>
 
@@ -507,24 +569,39 @@ export default defineComponent({
                     <label class="field">
                       <span>tool_choice</span>
                       <select
-                        value={normalizeTooling(selectedModel.value!.tooling).toolChoice.mode}
+                        value={
+                          normalizeTooling(selectedModel.value!.tooling)
+                            .toolChoice.mode
+                        }
                         onChange={(e) => {
-                          const mode = (e.target as HTMLSelectElement).value
-                          updateToolChoice(selectedModel.value!.id, { mode })
+                          const raw = (e.target as HTMLSelectElement).value;
+                          const mode =
+                            raw === "none" ||
+                            raw === "required" ||
+                            raw === "tool"
+                              ? raw
+                              : "auto";
+                          updateToolChoice(selectedModel.value!.id, { mode });
                         }}
                       >
                         <option value="auto">auto（默认）</option>
                         <option value="none">none（不调用工具）</option>
-                        <option value="required">required（必须调用工具）</option>
+                        <option value="required">
+                          required（必须调用工具）
+                        </option>
                         <option value="tool">指定工具</option>
                       </select>
                     </label>
-                    {normalizeTooling(selectedModel.value!.tooling).toolChoice.mode === "tool" ? (
+                    {normalizeTooling(selectedModel.value!.tooling).toolChoice
+                      .mode === "tool" ? (
                       <label class="field">
                         <span>指定工具名</span>
                         <input
                           type="text"
-                          value={normalizeTooling(selectedModel.value!.tooling).toolChoice.toolName}
+                          value={
+                            normalizeTooling(selectedModel.value!.tooling)
+                              .toolChoice.toolName
+                          }
                           placeholder="例如 GetPageContext"
                           onInput={(e) =>
                             updateToolChoice(selectedModel.value!.id, {
@@ -537,12 +614,15 @@ export default defineComponent({
                     <label class="field">
                       <span>strict</span>
                       <select
-                        value={normalizeTooling(selectedModel.value!.tooling).strict}
-                        onChange={(e) =>
-                          updateTooling(selectedModel.value!.id, {
-                            strict: (e.target as HTMLSelectElement).value,
-                          })
+                        value={
+                          normalizeTooling(selectedModel.value!.tooling).strict
                         }
+                        onChange={(e) => {
+                          const raw = (e.target as HTMLSelectElement).value;
+                          const strict =
+                            raw === "on" || raw === "off" ? raw : "auto";
+                          updateTooling(selectedModel.value!.id, { strict });
+                        }}
                       >
                         <option value="auto">auto（默认）</option>
                         <option value="on">on</option>
@@ -552,12 +632,18 @@ export default defineComponent({
                     <label class="field">
                       <span>parallel_tool_calls</span>
                       <select
-                        value={normalizeTooling(selectedModel.value!.tooling).parallelToolCalls}
-                        onChange={(e) =>
-                          updateTooling(selectedModel.value!.id, {
-                            parallelToolCalls: (e.target as HTMLSelectElement).value,
-                          })
+                        value={
+                          normalizeTooling(selectedModel.value!.tooling)
+                            .parallelToolCalls
                         }
+                        onChange={(e) => {
+                          const raw = (e.target as HTMLSelectElement).value;
+                          const parallelToolCalls =
+                            raw === "on" || raw === "off" ? raw : "auto";
+                          updateTooling(selectedModel.value!.id, {
+                            parallelToolCalls,
+                          });
+                        }}
                       >
                         <option value="auto">auto（默认）</option>
                         <option value="on">on</option>
@@ -565,7 +651,8 @@ export default defineComponent({
                       </select>
                     </label>
                     <p class="text-xs text-slate-500 dark:text-slate-400">
-                      注：部分 Provider 可能忽略 tool_choice / strict / parallel_tool_calls。
+                      注：部分 Provider 可能忽略 tool_choice / strict /
+                      parallel_tool_calls。
                     </p>
                   </div>
                 </div>
@@ -576,6 +663,6 @@ export default defineComponent({
           </div>
         </div>
       </div>
-    )
+    );
   },
-})
+});

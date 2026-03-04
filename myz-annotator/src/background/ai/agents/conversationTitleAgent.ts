@@ -1,18 +1,25 @@
-import type { ChatCompletionClient } from "../providers/types.js"
-import type { AIModelSetting, AIProviderSetting, MaxOutputTokenParam } from "../../settings.js"
-import { normalizeMessagePayload } from "../normalize/message.js"
-import { PromptBuilder } from "../prompt/builder.js"
-import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
+import type {
+  AIModelSetting,
+  AIProviderSetting,
+  MaxOutputTokenParam,
+} from "../../settings.js";
+import { normalizeMessagePayload } from "../normalize/message.js";
+import { PromptBuilder } from "../prompt/builder.js";
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js";
+import type {
+  ChatCompletionClient,
+  ProviderChatCompletionRequest,
+} from "../providers/types.js";
 
 export interface ConversationTitleAgentDeps {
-  client: ChatCompletionClient
+  client: ChatCompletionClient;
 }
 
 export class ConversationTitleAgent {
-  private deps: ConversationTitleAgentDeps
+  private deps: ConversationTitleAgentDeps;
 
   constructor(deps: ConversationTitleAgentDeps) {
-    this.deps = deps
+    this.deps = deps;
   }
 
   private buildSystemPrompt() {
@@ -23,32 +30,37 @@ export class ConversationTitleAgent {
       "1) 仅输出标题，不要引号或额外说明。",
       "2) 标题尽量短（<= 18 个汉字或 6-10 个英文词）。",
       "3) 避免包含日期或冗余前缀。",
-    ].join("\n")
+    ].join("\n");
   }
 
   private normalizeTitle(value: string) {
-    if (!value) return ""
-    let text = value.trim()
-    text = text.replace(/^["'“”]+|["'“”]+$/g, "")
-    text = text.split(/\r?\n/)[0]?.trim() || ""
-    if (!text) return ""
-    const maxLen = 36
-    return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text
+    if (!value) return "";
+    let text = value.trim();
+    text = text.replace(/^["'“”]+|["'“”]+$/g, "");
+    text = text.split(/\r?\n/)[0]?.trim() || "";
+    if (!text) return "";
+    const maxLen = 36;
+    return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
   }
 
   async generateTitleWithConfig(
     payload: { request: string; pageTitle?: string; url?: string },
     deps: {
-      isEnabled: boolean
-      callConfig: { provider: AIProviderSetting; model: AIModelSetting; temperature: number }
+      isEnabled: boolean;
+      callConfig: {
+        provider: AIProviderSetting;
+        model: AIModelSetting;
+        temperature: number;
+      };
     },
   ) {
     if (!deps.isEnabled) {
-      throw new Error("AI Assistant is not enabled")
+      throw new Error("AI Assistant is not enabled");
     }
 
-    const requestText = typeof payload?.request === "string" ? payload.request.trim() : ""
-    if (!requestText) return ""
+    const requestText =
+      typeof payload?.request === "string" ? payload.request.trim() : "";
+    if (!requestText) return "";
 
     const prompt = new PromptBuilder()
       .addSystem(this.buildSystemPrompt())
@@ -60,36 +72,41 @@ export class ConversationTitleAgent {
         ]
           .filter(Boolean)
           .join("\n"),
-      )
+      );
 
     const conversationMessages = injectSystemPromptAsUserMessage(
       prompt.build(),
       Boolean(deps.callConfig.model?.systemPromptInUserMessage),
-    )
+    );
 
     const maxOutputTokens = Math.min(
       64,
       deps.callConfig.model.limits.maxOutputTokens,
-    )
+    );
     const maxOutputTokenParam: MaxOutputTokenParam =
-      deps.callConfig.model.limits.maxOutputTokenParam
-    const model = deps.callConfig.model.model
+      deps.callConfig.model.limits.maxOutputTokenParam;
+    const model = deps.callConfig.model.model;
 
-    const request: any = {
+    const request: ProviderChatCompletionRequest = {
       model,
-      messages: conversationMessages as any,
+      messages:
+        conversationMessages as ProviderChatCompletionRequest["messages"],
       temperature: 0.3,
-    }
+    };
     if (maxOutputTokenParam === "max_completion_tokens") {
-      request.max_completion_tokens = maxOutputTokens
+      request.max_completion_tokens = maxOutputTokens;
     } else {
-      request.max_tokens = maxOutputTokens
+      request.max_tokens = maxOutputTokens;
     }
 
     const response = await this.deps.client.createCompletion(request, {
-      enableGeminiThinking: Boolean(deps.callConfig.model.capabilities.reasoning),
-    })
-    const { content } = normalizeMessagePayload(response?.choices?.[0]?.message)
-    return this.normalizeTitle(content || "")
+      enableGeminiThinking: Boolean(
+        deps.callConfig.model.capabilities.reasoning,
+      ),
+    });
+    const { content } = normalizeMessagePayload(
+      response?.choices?.[0]?.message,
+    );
+    return this.normalizeTitle(content || "");
   }
 }

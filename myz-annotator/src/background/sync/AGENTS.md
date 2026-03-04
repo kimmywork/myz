@@ -17,6 +17,8 @@ All code here runs in the MV3 service worker (no DOM APIs).
 - s3Client.ts: REST calls (GET/PUT/HEAD/LIST/DELETE) with signing.
 - manifest.ts: manifest build/parse, signature verify.
 - chunks.ts: chunk pack/unpack, chunkId derivation, encrypt/decrypt.
+- schemas/: zod schemas for sync payloads by protocol version.
+- registry.ts: protocol version registry for payload/manifest/chunk schemas.
 - lock.ts: lease acquisition/renewal/release.
 - gc.ts: archive policy and chunk cleanup.
 - syncEngine.ts: orchestration (read/merge/write, retry/backoff).

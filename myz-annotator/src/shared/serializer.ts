@@ -1,4 +1,5 @@
-import { isHighlightRecord } from "./highlightUtils.js";
+import { isHighlightRecord } from "./highlightUtils.js"
+import type { MyZRecord } from "./types.ts"
 
 export function isMyzWrapper(node: Node): boolean {
   if (node && node.nodeType === node.ELEMENT_NODE) {
@@ -320,8 +321,8 @@ function isArchiveInjectedNode(node: Node): boolean {
 
 export function serializeRange(
   range: Range,
-  highlightCache: Map<string, any>,
-  applyHighlight: (rec: any) => void = () => {},
+  highlightCache: Map<string, MyZRecord>,
+  applyHighlight: (rec: MyZRecord) => void = () => {},
 ): SerializedRange | null {
   try {
     // If the page already contains MyZ wrapper nodes, temporarily unwrap

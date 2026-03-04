@@ -5,210 +5,262 @@ import type {
   ProviderMessage,
   ProviderStreamOptions,
   ProviderToolCall,
-} from "../types.js"
-import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js"
-import { coerceContentToText, normalizeBaseUrl, parseDataUrl, safeJsonParse } from "../utils.js"
+} from "../types.js";
+import {
+  coerceContentToText,
+  normalizeBaseUrl,
+  parseDataUrl,
+  safeJsonParse,
+} from "../utils.js";
+import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js";
+import type { JsonRecord } from "@/shared/typeUtils";
+import {
+  isJsonRecord,
+  isRecord,
+  toJsonValue,
+} from "@/shared/typeUtils";
 
-type ValueOrGetter<T> = T | (() => T)
+type ValueOrGetter<T> = T | (() => T);
 
 function resolveValue<T>(value: ValueOrGetter<T>): T {
-  return typeof value === "function" ? (value as () => T)() : value
+  return typeof value === "function" ? (value as () => T)() : value;
 }
 
 export interface GeminiClientOptions {
-  baseUrl: ValueOrGetter<string>
-  apiKey: ValueOrGetter<string>
-  headers: ValueOrGetter<string>
-  syncHeaders?: () => Promise<void>
+  baseUrl: ValueOrGetter<string>;
+  apiKey: ValueOrGetter<string>;
+  headers: ValueOrGetter<string>;
+  syncHeaders?: () => Promise<void>;
 }
 
 function buildGeminiModelsUrl(baseUrl: string): string {
-  const normalized = normalizeBaseUrl(baseUrl)
-  if (!normalized) return ""
-  if (normalized.endsWith("/models")) return normalized
-  return `${normalized}/models`
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (!normalized) return "";
+  if (normalized.endsWith("/models")) return normalized;
+  return `${normalized}/models`;
 }
 
 function buildGeminiGenerateUrl(baseUrl: string, model: string): string {
-  const normalized = normalizeBaseUrl(baseUrl)
-  if (!normalized) return ""
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (!normalized) return "";
   const base = normalized.endsWith("/models")
     ? normalized.slice(0, -"/models".length)
-    : normalized
-  const trimmedModel = typeof model === "string" ? model.trim() : ""
+    : normalized;
+  const trimmedModel = typeof model === "string" ? model.trim() : "";
   const modelPath = trimmedModel.startsWith("models/")
     ? trimmedModel
-    : `models/${trimmedModel}`
-  return `${base}/${modelPath}:generateContent`
+    : `models/${trimmedModel}`;
+  return `${base}/${modelPath}:generateContent`;
 }
 
 function buildGeminiStreamUrl(baseUrl: string, model: string): string {
-  const normalized = normalizeBaseUrl(baseUrl)
-  if (!normalized) return ""
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (!normalized) return "";
   const base = normalized.endsWith("/models")
     ? normalized.slice(0, -"/models".length)
-    : normalized
-  const trimmedModel = typeof model === "string" ? model.trim() : ""
+    : normalized;
+  const trimmedModel = typeof model === "string" ? model.trim() : "";
   const modelPath = trimmedModel.startsWith("models/")
     ? trimmedModel
-    : `models/${trimmedModel}`
-  return `${base}/${modelPath}:streamGenerateContent?alt=sse`
+    : `models/${trimmedModel}`;
+  return `${base}/${modelPath}:streamGenerateContent?alt=sse`;
 }
 
-function buildGeminiHeaders(apiKey: string, headers: string): Record<string, string> {
-  const customHeaders = parseAiRequestHeaders(headers)
+function buildGeminiHeaders(
+  apiKey: string,
+  headers: string,
+): Record<string, string> {
+  const customHeaders = parseAiRequestHeaders(headers);
   const headerNamesLower = new Set(
     Object.keys(customHeaders).map((key) => key.toLowerCase()),
-  )
-  const merged: Record<string, string> = {}
+  );
+  const merged: Record<string, string> = {};
 
   if (!headerNamesLower.has("content-type")) {
-    merged["Content-Type"] = "application/json"
+    merged["Content-Type"] = "application/json";
   }
 
-  if (apiKey && !headerNamesLower.has("x-goog-api-key") && !headerNamesLower.has("authorization")) {
-    merged["x-goog-api-key"] = apiKey
+  if (
+    apiKey &&
+    !headerNamesLower.has("x-goog-api-key") &&
+    !headerNamesLower.has("authorization")
+  ) {
+    merged["x-goog-api-key"] = apiKey;
   }
 
   return {
     ...merged,
     ...customHeaders,
-  }
+  };
 }
 
-function toGeminiParts(content: ProviderMessage["content"]): any[] {
+function toGeminiParts(content: ProviderMessage["content"]): JsonRecord[] {
   if (typeof content === "string") {
-    return content ? [{ text: content }] : []
+    return content ? [{ text: content }] : [];
   }
-  if (!Array.isArray(content)) return []
+  if (!Array.isArray(content)) return [];
 
   return content
-    .map((part: any) => {
-      if (!part) return null
+    .map((part) => {
+      if (!isRecord(part)) return null;
       if (part.type === "text" && typeof part.text === "string") {
-        return { text: part.text }
+        const entry: JsonRecord = { text: part.text };
+        return entry;
       }
-      if (part.type === "image_url" && part.image_url?.url) {
-        const parsed = parseDataUrl(part.image_url.url)
+      if (
+        part.type === "image_url" &&
+        isRecord(part.image_url) &&
+        part.image_url.url
+      ) {
+        const parsed = parseDataUrl(String(part.image_url.url));
         if (!parsed) {
-          return { text: `[Image] ${part.image_url.url}` }
+          const entry: JsonRecord = {
+            text: `[Image] ${String(part.image_url.url)}`,
+          };
+          return entry;
         }
-        return {
-          inlineData: {
-            mimeType: parsed.mimeType,
-            data: parsed.data,
-          },
-        }
+        const inlineData: JsonRecord = {
+          mimeType: parsed.mimeType,
+          data: parsed.data,
+        };
+        const entry: JsonRecord = { inlineData };
+        return entry;
       }
-      return null
+      return null;
     })
-    .filter(Boolean)
+    .filter((item): item is JsonRecord => Boolean(item));
 }
 
-function normalizeGeminiToolChoice(choice: any) {
-  if (!choice) return { mode: "AUTO" }
+function normalizeGeminiToolChoice(choice: unknown): JsonRecord {
+  if (!choice) return { mode: "AUTO" };
   if (typeof choice === "string") {
-    if (choice === "none") return { mode: "NONE" }
-    if (choice === "required") return { mode: "ANY" }
-    return { mode: "AUTO" }
+    if (choice === "none") return { mode: "NONE" };
+    if (choice === "required") return { mode: "ANY" };
+    return { mode: "AUTO" };
   }
-  const name = choice?.function?.name || choice?.name
+  if (!isRecord(choice)) return { mode: "AUTO" };
+  const rawName =
+    (isRecord(choice.function) ? choice.function.name : undefined) ||
+    choice.name;
+  const name = typeof rawName === "string" ? rawName : "";
   if (name) {
     return {
       mode: "ANY",
       allowedFunctionNames: [name],
-    }
+    };
   }
-  return { mode: "AUTO" }
+  return { mode: "AUTO" };
 }
 
-function buildGeminiRequest(
-  request: ProviderChatCompletionRequest,
-): { body: any; systemInstruction?: string } {
-  const contents: any[] = []
-  const systemParts: string[] = []
+function buildGeminiRequest(request: ProviderChatCompletionRequest): {
+  body: JsonRecord;
+} {
+  const contents: JsonRecord[] = [];
+  const systemParts: string[] = [];
 
   request.messages.forEach((message) => {
-    if (!message) return
+    if (!message) return;
     if (message.role === "system" || message.role === "developer") {
-      const text = coerceContentToText(message.content)
-      if (text) systemParts.push(text)
-      return
+      const text = coerceContentToText(message.content);
+      if (text) systemParts.push(text);
+      return;
     }
 
     if (message.role === "tool") {
+      const metadata = isRecord(message.metadata) ? message.metadata : null;
+      const extraContent = isRecord(message.extra_content)
+        ? message.extra_content
+        : null;
       const toolName =
-        (message as any)?.metadata?.toolName ||
-        (message as any)?.extra_content?.toolName ||
-        ""
+        (metadata && typeof metadata.toolName === "string"
+          ? metadata.toolName
+          : "") ||
+        (extraContent && typeof extraContent.toolName === "string"
+          ? extraContent.toolName
+          : "");
       const responseValue = safeJsonParse(
         typeof message.content === "string"
           ? message.content
           : coerceContentToText(message.content),
-      )
-      const functionResponse: any = {
+      );
+      const responsePayload = toJsonValue(responseValue, {
+        output: coerceContentToText(message.content),
+      });
+      const functionResponse: JsonRecord = {
         name: toolName || "tool",
-        response: responseValue ?? { output: coerceContentToText(message.content) },
-      }
+        response: responsePayload,
+      };
       if (message.tool_call_id) {
-        functionResponse.id = message.tool_call_id
+        functionResponse.id = message.tool_call_id;
       }
       contents.push({
         role: "user",
         parts: [{ functionResponse }],
-      })
-      return
+      });
+      return;
     }
 
     if (message.role === "assistant") {
-      const parts: any[] = []
-      const textParts = toGeminiParts(message.content)
-      if (textParts.length) parts.push(...textParts)
+      const parts: JsonRecord[] = [];
+      const textParts = toGeminiParts(message.content);
+      if (textParts.length) parts.push(...textParts);
       if (Array.isArray(message.tool_calls)) {
         message.tool_calls.forEach((toolCall) => {
-          if (!toolCall?.function?.name) return
-          const args = safeJsonParse(toolCall.function.arguments) ?? {
-            _raw: toolCall.function.arguments,
-          }
-          const functionCall: any = {
+          if (!toolCall?.function?.name) return;
+          const args = toJsonValue(
+            safeJsonParse(toolCall.function.arguments),
+            {
+              _raw: toolCall.function.arguments,
+            },
+          );
+          const functionCall: JsonRecord = {
             name: toolCall.function.name,
             args,
-          }
+          };
           if (toolCall.id) {
-            functionCall.id = toolCall.id
+            functionCall.id = toolCall.id;
           }
           const thoughtSignature =
-            toolCall?.extra_content?.google?.thoughtSignature ||
-            (toolCall as any).thought_signature
-          const part: any = { functionCall }
+            (isRecord(toolCall.extra_content) &&
+            isRecord(toolCall.extra_content.google) &&
+            typeof toolCall.extra_content.google.thoughtSignature === "string"
+              ? toolCall.extra_content.google.thoughtSignature
+              : undefined) ||
+            (typeof toolCall.thought_signature === "string"
+              ? toolCall.thought_signature
+              : undefined);
+          const part: JsonRecord = { functionCall };
           if (thoughtSignature) {
-            part.thoughtSignature = thoughtSignature
+            part.thoughtSignature = thoughtSignature;
           }
-          parts.push(part)
-        })
+          parts.push(part);
+        });
       }
       if (parts.length) {
-        contents.push({ role: "model", parts })
+        contents.push({ role: "model", parts });
       }
-      return
+      return;
     }
 
     if (message.role === "user") {
-      const parts = toGeminiParts(message.content)
-      if (!parts.length) return
-      contents.push({ role: "user", parts })
+      const parts = toGeminiParts(message.content);
+      if (!parts.length) return;
+      contents.push({ role: "user", parts });
     }
-  })
+  });
 
   const declarations = Array.isArray(request.tools)
     ? request.tools
-        .map((tool) => ({
-          name: tool.function?.name,
-          description: tool.function?.description,
-          parameters: tool.function?.parameters,
-        }))
-        .filter((tool) => tool.name)
-    : []
+        .map((tool) => {
+          const entry: JsonRecord = {
+            name: tool.function?.name || "",
+            description: tool.function?.description || "",
+            parameters: tool.function?.parameters || {},
+          };
+          return entry;
+        })
+        .filter((tool) => typeof tool.name === "string" && tool.name)
+    : [];
   const tools =
     declarations.length > 0
       ? [
@@ -216,23 +268,27 @@ function buildGeminiRequest(
             functionDeclarations: declarations,
           },
         ]
-      : undefined
+      : undefined;
 
-  const body: any = {
+  const body: JsonRecord = {
     contents,
-  }
+  };
 
   if (systemParts.length) {
+    const parts: JsonRecord[] = [{ text: systemParts.join("\n\n") }];
     body.systemInstruction = {
-      parts: [{ text: systemParts.join("\n\n") }],
-    }
+      parts,
+    };
   }
 
   if (typeof request.temperature === "number") {
+    const prevConfig = isJsonRecord(body.generationConfig)
+      ? body.generationConfig
+      : {};
     body.generationConfig = {
-      ...(body.generationConfig || {}),
+      ...prevConfig,
       temperature: request.temperature,
-    }
+    };
   }
 
   const maxTokens =
@@ -240,68 +296,80 @@ function buildGeminiRequest(
       ? request.max_tokens
       : typeof request.max_completion_tokens === "number"
         ? request.max_completion_tokens
-        : undefined
+        : undefined;
 
   if (typeof maxTokens === "number") {
+    const prevConfig = isJsonRecord(body.generationConfig)
+      ? body.generationConfig
+      : {};
     body.generationConfig = {
-      ...(body.generationConfig || {}),
+      ...prevConfig,
       maxOutputTokens: maxTokens,
-    }
+    };
   }
 
   if (tools && tools[0]?.functionDeclarations?.length) {
-    body.tools = tools
-    body.toolConfig = {
-      functionCallingConfig: {
-        ...normalizeGeminiToolChoice(request.tool_choice),
-      },
-    }
+    body.tools = tools;
+    const toolConfig: JsonRecord = {
+      functionCallingConfig: normalizeGeminiToolChoice(request.tool_choice),
+    };
+    body.toolConfig = toolConfig;
   }
 
-  return { body }
+  return { body };
 }
 
-function extractGeminiMessage(payload: any): ProviderMessage {
-  const candidates = Array.isArray(payload?.candidates) ? payload.candidates : []
-  const candidate = candidates[0] || {}
-  const content = candidate?.content || {}
-  const parts = Array.isArray(content?.parts) ? content.parts : []
-  const toolCalls: any[] = []
-  const textParts: string[] = []
+function extractGeminiMessage(payload: unknown): ProviderMessage {
+  const candidates =
+    isRecord(payload) && Array.isArray(payload.candidates)
+      ? payload.candidates
+      : [];
+  const candidate = candidates[0];
+  const content = isRecord(candidate) ? candidate.content : null;
+  const parts =
+    isRecord(content) && Array.isArray(content.parts) ? content.parts : [];
+  const toolCalls: ProviderToolCall[] = [];
+  const textParts: string[] = [];
 
-  parts.forEach((part: any, index: number) => {
-    if (!part) return
+  parts.forEach((part, index: number) => {
+    if (!isRecord(part)) return;
     if (typeof part.text === "string") {
-      textParts.push(part.text)
-      return
+      textParts.push(part.text);
+      return;
     }
     if (part.functionCall) {
-      const call = part.functionCall
+      const call = isRecord(part.functionCall) ? part.functionCall : {};
+      const callId =
+        typeof call.id === "string" && call.id ? call.id : `call-${index + 1}`;
+      const callName =
+        typeof call.name === "string" && call.name ? call.name : "unknown";
+      const callArgs = call.args;
       toolCalls.push({
-        id: call.id || `call-${index + 1}`,
+        id: callId,
         type: "function",
         function: {
-          name: call.name || "unknown",
+          name: callName,
           arguments:
-            typeof call.args === "string"
-              ? call.args
-              : JSON.stringify(call.args || {}),
+            typeof callArgs === "string"
+              ? callArgs
+              : JSON.stringify(isJsonRecord(callArgs) ? callArgs : {}),
         },
-        extra_content: part.thoughtSignature
-          ? { google: { thoughtSignature: part.thoughtSignature } }
-          : undefined,
-      })
+        extra_content:
+          typeof part.thoughtSignature === "string"
+            ? { google: { thoughtSignature: part.thoughtSignature } }
+            : undefined,
+      });
     }
-  })
+  });
 
   const message: ProviderMessage = {
     role: "assistant",
     content: textParts.join("\n").trim(),
-  }
+  };
   if (toolCalls.length) {
-    message.tool_calls = toolCalls
+    message.tool_calls = toolCalls;
   }
-  return message
+  return message;
 }
 
 async function parseGeminiStream(
@@ -309,162 +377,176 @@ async function parseGeminiStream(
   options: ProviderStreamOptions,
 ): Promise<ProviderChatCompletionResponse> {
   if (!response.body) {
-    throw new Error("Empty streaming response body")
+    throw new Error("Empty streaming response body");
   }
 
-  const decoder = new TextDecoder("utf-8")
-  let buffer = ""
-  let content = ""
-  let usage: any = null
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let content = "";
+  let usage: unknown = null;
   const toolCalls = new Map<
     string,
     { id: string; name: string; argsText: string; thoughtSignature?: string }
-  >()
+  >();
 
   const appendContent = (text: string) => {
-    if (!text) return
-    content += text
-    options.onStreamDelta?.({ content })
-  }
+    if (!text) return;
+    content += text;
+    options.onStreamDelta?.({ content });
+  };
 
   const ensureToolCall = (id: string) => {
     if (!toolCalls.has(id)) {
-      toolCalls.set(id, { id, name: "", argsText: "" })
+      toolCalls.set(id, { id, name: "", argsText: "" });
     }
-    return toolCalls.get(id)!
-  }
+    return toolCalls.get(id)!;
+  };
 
-  const handleParts = (parts: any[]) => {
-    parts.forEach((part: any, index: number) => {
-      if (!part) return
+  const handleParts = (parts: unknown[]) => {
+    parts.forEach((part, index: number) => {
+      if (!isRecord(part)) return;
       if (typeof part.text === "string") {
-        appendContent(part.text)
-        return
+        appendContent(part.text);
+        return;
       }
       if (part.functionCall) {
-        const call = part.functionCall
-        const callId = call.id || `call-${index + 1}`
-        const entry = ensureToolCall(callId)
-        entry.name = call.name || entry.name
-        if (typeof call.args === "string") {
-          entry.argsText += call.args
-        } else if (call.args && typeof call.args === "object") {
-          entry.argsText = JSON.stringify(call.args)
+        const call = isRecord(part.functionCall) ? part.functionCall : {};
+        const callId =
+          typeof call.id === "string" && call.id
+            ? call.id
+            : `call-${index + 1}`;
+        const entry = ensureToolCall(callId);
+        const callName = typeof call.name === "string" ? call.name : "";
+        if (callName) {
+          entry.name = callName;
         }
-        if (part.thoughtSignature) {
-          entry.thoughtSignature = part.thoughtSignature
+        if (typeof call.args === "string") {
+          entry.argsText += call.args;
+        } else if (isRecord(call.args)) {
+          entry.argsText = JSON.stringify(call.args);
+        }
+        if (typeof part.thoughtSignature === "string") {
+          entry.thoughtSignature = part.thoughtSignature;
         }
       }
-    })
-  }
+    });
+  };
 
-  const handlePayload = (payload: any) => {
-    if (!payload) return
-    if (payload?.usageMetadata) {
-      usage = payload.usageMetadata
+  const handlePayload = (payload: unknown) => {
+    if (!isRecord(payload)) return;
+    if (payload.usageMetadata) {
+      usage = payload.usageMetadata;
     }
-    const candidates = Array.isArray(payload?.candidates) ? payload.candidates : []
-    const candidate = candidates[0] || {}
-    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : []
+    const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+    const candidate = candidates[0];
+    const content = isRecord(candidate) ? candidate.content : null;
+    const parts =
+      isRecord(content) && Array.isArray(content.parts) ? content.parts : [];
     if (parts.length) {
-      handleParts(parts)
+      handleParts(parts);
     }
-  }
+  };
 
-  const reader = response.body.getReader()
+  const reader = response.body.getReader();
   while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    buffer = buffer.replace(/\r\n/g, "\n")
-    let boundary = buffer.indexOf("\n\n")
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r\n/g, "\n");
+    let boundary = buffer.indexOf("\n\n");
     while (boundary >= 0) {
-      const rawEvent = buffer.slice(0, boundary)
-      buffer = buffer.slice(boundary + 2)
+      const rawEvent = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
       const dataLines = rawEvent
         .split("\n")
         .filter((line) => line.startsWith("data:"))
         .map((line) => line.slice(5).trim())
-        .filter(Boolean)
+        .filter(Boolean);
       if (dataLines.length) {
-        const dataStr = dataLines.join("\n")
+        const dataStr = dataLines.join("\n");
         if (dataStr === "[DONE]") {
-          boundary = -1
-          break
+          boundary = -1;
+          break;
         }
-        const parsed = safeJsonParse(dataStr)
+        const parsed = safeJsonParse(dataStr);
         if (parsed) {
-          handlePayload(parsed)
+          handlePayload(parsed);
         }
       }
-      boundary = buffer.indexOf("\n\n")
+      boundary = buffer.indexOf("\n\n");
     }
   }
 
-  const toolCallsArray: ProviderToolCall[] = Array.from(toolCalls.values()).map((call) => {
-    let argsText = call.argsText.trim()
-    if (!argsText) {
-      argsText = "{}"
-    } else {
-      const parsed = safeJsonParse(argsText)
-      if (parsed) {
-        argsText = JSON.stringify(parsed)
+  const toolCallsArray: ProviderToolCall[] = Array.from(toolCalls.values()).map(
+    (call) => {
+      let argsText = call.argsText.trim();
+      if (!argsText) {
+        argsText = "{}";
+      } else {
+        const parsed = safeJsonParse(argsText);
+        if (parsed) {
+          argsText = JSON.stringify(parsed);
+        }
       }
-    }
-    return {
-      id: call.id,
-      type: "function",
-      function: {
-        name: call.name || "unknown",
-        arguments: argsText,
-      },
-      ...(call.thoughtSignature
-        ? { extra_content: { google: { thoughtSignature: call.thoughtSignature } } }
-        : {}),
-    }
-  })
+      return {
+        id: call.id,
+        type: "function",
+        function: {
+          name: call.name || "unknown",
+          arguments: argsText,
+        },
+        ...(call.thoughtSignature
+          ? {
+              extra_content: {
+                google: { thoughtSignature: call.thoughtSignature },
+              },
+            }
+          : {}),
+      };
+    },
+  );
 
   const message: ProviderMessage = {
     role: "assistant",
     content,
-  }
+  };
   if (toolCallsArray.length) {
-    message.tool_calls = toolCallsArray
+    message.tool_calls = toolCallsArray;
   }
 
   return {
     choices: [{ index: 0, message }],
     ...(usage ? { usage } : {}),
-  }
+  };
 }
 
 export class GeminiJsonClient implements ChatCompletionClient {
-  private baseUrl: ValueOrGetter<string>
-  private apiKey: ValueOrGetter<string>
-  private headers: ValueOrGetter<string>
-  private syncHeaders?: () => Promise<void>
+  private baseUrl: ValueOrGetter<string>;
+  private apiKey: ValueOrGetter<string>;
+  private headers: ValueOrGetter<string>;
+  private syncHeaders?: () => Promise<void>;
 
   constructor(options: GeminiClientOptions) {
-    this.baseUrl = options.baseUrl
-    this.apiKey = options.apiKey
-    this.headers = options.headers
-    this.syncHeaders = options.syncHeaders
+    this.baseUrl = options.baseUrl;
+    this.apiKey = options.apiKey;
+    this.headers = options.headers;
+    this.syncHeaders = options.syncHeaders;
   }
 
   async createCompletion(
     request: ProviderChatCompletionRequest,
     options: ProviderStreamOptions = {},
   ): Promise<ProviderChatCompletionResponse> {
-    await this.syncHeaders?.()
+    await this.syncHeaders?.();
 
     const endpoint = request.stream
       ? buildGeminiStreamUrl(resolveValue(this.baseUrl), request.model)
-      : buildGeminiGenerateUrl(resolveValue(this.baseUrl), request.model)
+      : buildGeminiGenerateUrl(resolveValue(this.baseUrl), request.model);
     if (!endpoint) {
-      throw new Error("API endpoint not configured")
+      throw new Error("API endpoint not configured");
     }
 
-    const { body } = buildGeminiRequest(request)
+    const { body } = buildGeminiRequest(request);
     const response = await fetch(endpoint, {
       method: "POST",
       headers: buildGeminiHeaders(
@@ -472,24 +554,24 @@ export class GeminiJsonClient implements ChatCompletionClient {
         resolveValue(this.headers) || "",
       ),
       body: JSON.stringify(body),
-    })
+    });
 
     if (!response.ok) {
-      const errorText = await response.text()
+      const errorText = await response.text();
       throw new Error(
         `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
-      )
+      );
     }
 
     if (request.stream) {
-      const contentType = response.headers.get("content-type") || ""
+      const contentType = response.headers.get("content-type") || "";
       if (response.body && contentType.includes("text/event-stream")) {
-        return parseGeminiStream(response, options)
+        return parseGeminiStream(response, options);
       }
     }
 
-    const payload = await response.json()
-    const message = extractGeminiMessage(payload)
+    const payload = await response.json();
+    const message = extractGeminiMessage(payload);
     return {
       choices: [
         {
@@ -498,19 +580,22 @@ export class GeminiJsonClient implements ChatCompletionClient {
         },
       ],
       ...payload,
-    }
+    };
   }
 }
 
-export function extractGeminiModels(payload: any): string[] {
-  const items = Array.isArray(payload?.models) ? payload.models : []
+export function extractGeminiModels(payload: unknown): string[] {
+  const items =
+    isRecord(payload) && Array.isArray(payload.models) ? payload.models : [];
   return items
-    .map((item: any) => item?.name)
+    .map((item) =>
+      isRecord(item) && typeof item.name === "string" ? item.name : "",
+    )
     .filter(
-      (name: any): name is string =>
+      (name): name is string =>
         typeof name === "string" && name.trim().length > 0,
     )
-    .map((name: string) => name.replace(/^models\//, ""))
+    .map((name: string) => name.replace(/^models\//, ""));
 }
 
-export { buildGeminiModelsUrl, buildGeminiHeaders }
+export { buildGeminiModelsUrl, buildGeminiHeaders };
