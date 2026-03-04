@@ -89,10 +89,12 @@ export async function handleDocumentClick(event: MouseEvent) {
     targetNode instanceof Element ? targetNode : targetNode?.parentElement;
   const highlightEl =
     targetElement?.closest?.(".myz-highlight") ||
-    (event.composedPath?.().find(
-      (node) =>
-        node instanceof Element && node.classList?.contains("myz-highlight"),
-    ) as Element | undefined);
+    (event
+      .composedPath?.()
+      .find(
+        (node) =>
+          node instanceof Element && node.classList?.contains("myz-highlight"),
+      ) as Element | undefined);
   if (highlightEl) {
     const el = highlightEl as HTMLElement;
     event.stopPropagation();

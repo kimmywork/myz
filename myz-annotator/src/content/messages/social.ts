@@ -1,6 +1,6 @@
 import { registerMessageHandler } from "./handler";
-import { scrapeTwitterTimeline } from "@/content/social/twitter";
 import { scrapeMastodonTimeline } from "@/content/social/mastodon";
+import { scrapeTwitterTimeline } from "@/content/social/twitter";
 import { isTwitterHost } from "@/shared/social/twitter";
 
 /**
@@ -12,7 +12,7 @@ import { isTwitterHost } from "@/shared/social/twitter";
 export function initializeSocialMessageHandlers() {
   registerMessageHandler(
     "myz:scrapeTwitterTimeline",
-    async (payload: any): Promise<any> => {
+    async (payload: unknown): Promise<unknown> => {
       if (!isTwitterHost(window.location.hostname)) {
         throw new Error("当前页面不是 Twitter/X");
       }
@@ -22,7 +22,7 @@ export function initializeSocialMessageHandlers() {
 
   registerMessageHandler(
     "myz:scrapeMastodonTimeline",
-    async (payload: any): Promise<any> => {
+    async (payload: unknown): Promise<unknown> => {
       return scrapeMastodonTimeline(payload || {});
     },
   );

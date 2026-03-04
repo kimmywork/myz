@@ -1,4 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js"
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 /**
  * Local tools available to the AI assistant.
@@ -216,8 +216,7 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
   },
   {
     name: "Edit",
-    description:
-      "在虚拟文件系统中精确替换文本内容（/skills 路径不可写）。",
+    description: "在虚拟文件系统中精确替换文本内容（/skills 路径不可写）。",
     inputSchema: {
       type: "object",
       required: ["path", "old_string", "new_string"],
@@ -303,7 +302,13 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
               },
               owner: {
                 type: "string",
-                enum: ["planner", "executor", "research", "automation", "review"],
+                enum: [
+                  "planner",
+                  "executor",
+                  "research",
+                  "automation",
+                  "review",
+                ],
                 description: "任务角色归属。",
               },
               blockedBy: {
@@ -333,7 +338,10 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
                   type: "object",
                   required: ["description"],
                   properties: {
-                    description: { type: "string", description: "交付物说明。" },
+                    description: {
+                      type: "string",
+                      description: "交付物说明。",
+                    },
                   },
                 },
               },
@@ -503,25 +511,65 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
               },
               batch: {
                 type: ["integer", "boolean"],
-                description: "批量匹配数量（可选；>1 或 true 时对多个元素执行）。",
+                description:
+                  "批量匹配数量（可选；>1 或 true 时对多个元素执行）。",
                 minimum: 1,
                 maximum: 50,
               },
               value: { type: "string", description: "输入值或参数。" },
               key: { type: "string", description: "按键值（keypress）。" },
-              code: { type: "string", description: "按键 code（keypress，可选）。" },
-              ctrlKey: { type: "boolean", description: "Ctrl 修饰键（keypress）。" },
-              altKey: { type: "boolean", description: "Alt 修饰键（keypress）。" },
-              shiftKey: { type: "boolean", description: "Shift 修饰键（keypress）。" },
-              metaKey: { type: "boolean", description: "Meta/Command 修饰键（keypress）。" },
-              repeat: { type: "boolean", description: "重复按键（keypress）。" },
-              location: { type: "number", description: "按键位置（keypress，可选）。" },
-              attribute: { type: "string", description: "属性名（getAttribute）。" },
-              scrollTop: { type: "number", description: "滚动偏移 Y（scrollBy）。" },
-              scrollLeft: { type: "number", description: "滚动偏移 X（scrollBy）。" },
-              x: { type: "number", description: "视口坐标 X（elementFromPoint）。" },
-              y: { type: "number", description: "视口坐标 Y（elementFromPoint）。" },
-              limit: { type: "number", description: "返回元素数量上限（queryViewport）。" },
+              code: {
+                type: "string",
+                description: "按键 code（keypress，可选）。",
+              },
+              ctrlKey: {
+                type: "boolean",
+                description: "Ctrl 修饰键（keypress）。",
+              },
+              altKey: {
+                type: "boolean",
+                description: "Alt 修饰键（keypress）。",
+              },
+              shiftKey: {
+                type: "boolean",
+                description: "Shift 修饰键（keypress）。",
+              },
+              metaKey: {
+                type: "boolean",
+                description: "Meta/Command 修饰键（keypress）。",
+              },
+              repeat: {
+                type: "boolean",
+                description: "重复按键（keypress）。",
+              },
+              location: {
+                type: "number",
+                description: "按键位置（keypress，可选）。",
+              },
+              attribute: {
+                type: "string",
+                description: "属性名（getAttribute）。",
+              },
+              scrollTop: {
+                type: "number",
+                description: "滚动偏移 Y（scrollBy）。",
+              },
+              scrollLeft: {
+                type: "number",
+                description: "滚动偏移 X（scrollBy）。",
+              },
+              x: {
+                type: "number",
+                description: "视口坐标 X（elementFromPoint）。",
+              },
+              y: {
+                type: "number",
+                description: "视口坐标 Y（elementFromPoint）。",
+              },
+              limit: {
+                type: "number",
+                description: "返回元素数量上限（queryViewport）。",
+              },
               quality: {
                 type: "number",
                 description:
@@ -567,9 +615,9 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
       },
     },
   },
-]
+];
 
-export const LOCAL_TOOL_NAMES = LOCAL_TOOL_DEFINITIONS.map((tool) => tool.name)
+export const LOCAL_TOOL_NAMES = LOCAL_TOOL_DEFINITIONS.map((tool) => tool.name);
 
 export const SUPERPOWER_TOOL_NAMES = [
   "Task",
@@ -581,4 +629,4 @@ export const SUPERPOWER_TOOL_NAMES = [
   "RunDomActions",
   "GetPageContext",
   "EvalInPage",
-]
+];

@@ -1,22 +1,22 @@
-import { defineComponent } from "vue"
-import ToolInlineNotice from "@/sidepanel/components/messages/ToolInlineNotice.jsx"
-import { renderMarkdown } from "@/shared/markdownRenderer.js"
-import type { ImageAttachment } from "@/background/ai/types.js"
-import { useChatUIStore } from "@/dashboard/stores/chatUi.js"
+import { defineComponent } from "vue";
+import type { ImageAttachment } from "@/background/ai/types.js";
+import { useChatUIStore } from "@/dashboard/stores/chatUi.js";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
+import ToolInlineNotice from "@/sidepanel/components/messages/ToolInlineNotice.jsx";
 
 interface UserMessage {
-  id: string
-  content: string
-  timestamp: string
+  id: string;
+  content: string;
+  timestamp: string;
   metadata?: {
-    attachments?: ImageAttachment[]
-    selectionContextText?: string
-    skillNames?: string[] | string
-  }
+    attachments?: ImageAttachment[];
+    selectionContextText?: string;
+    skillNames?: string[] | string;
+  };
 }
 
 interface UserMessageBubbleProps {
-  message?: UserMessage
+  message?: UserMessage;
 }
 
 export default defineComponent({
@@ -29,17 +29,17 @@ export default defineComponent({
     },
   },
   setup(props: UserMessageBubbleProps) {
-    const uiStore = useChatUIStore()
+    const uiStore = useChatUIStore();
     const resolveSkillNames = () => {
-      const raw = props.message?.metadata?.skillNames
+      const raw = props.message?.metadata?.skillNames;
       if (Array.isArray(raw)) {
-        return raw.map((name) => String(name).trim()).filter(Boolean)
+        return raw.map((name) => String(name).trim()).filter(Boolean);
       }
       if (typeof raw === "string" && raw.trim()) {
-        return [raw.trim()]
+        return [raw.trim()];
       }
-      return []
-    }
+      return [];
+    };
 
     const renderAttachments = (items: ImageAttachment[]) => (
       <div class="mt-3 flex flex-wrap gap-2">
@@ -63,15 +63,17 @@ export default defineComponent({
           </button>
         ))}
       </div>
-    )
+    );
 
     return () => {
-      const skillNames = resolveSkillNames()
+      const skillNames = resolveSkillNames();
       return (
         <div class="ml-auto w-full max-w-[85%] rounded-2xl border border-indigo-500 bg-indigo-500 px-4 py-3 text-sm text-white shadow-md dark:border-indigo-600">
           <div class="mb-2 flex items-center justify-between text-xs font-semibold text-white/80">
             <span>用户</span>
-            <span>{new Date(props.message?.timestamp || "").toLocaleString()}</span>
+            <span>
+              {new Date(props.message?.timestamp || "").toLocaleString()}
+            </span>
           </div>
           {skillNames.length > 0 && (
             <div class="mb-3">
@@ -93,7 +95,7 @@ export default defineComponent({
             props.message.metadata.attachments.length > 0 &&
             renderAttachments(props.message.metadata.attachments)}
         </div>
-      )
-    }
+      );
+    };
   },
-})
+});

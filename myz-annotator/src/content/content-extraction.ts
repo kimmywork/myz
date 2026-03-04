@@ -1,8 +1,8 @@
 /**
  * Content extraction utilities for AI and other features
  */
-import { normalizeWhitespace } from "@/shared/highlightUtils.js";
 import { ZEN_SELECTOR_MAP } from "./zen-config.js";
+import { normalizeWhitespace } from "@/shared/highlightUtils.js";
 
 function resolveSelectorForUrl(url: string): string | null {
   try {

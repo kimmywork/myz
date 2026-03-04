@@ -15,17 +15,28 @@ describe("agentSelection", () => {
         enabled: true,
         lastTest: { ok: true },
         models: [
-          { id: "m1", model: "gpt-4", enabled: true, capabilities: { vision: true } },
+          {
+            id: "m1",
+            model: "gpt-4",
+            enabled: true,
+            capabilities: { vision: true },
+          },
         ],
       },
     ],
     aiAgents: {
-      conversation: { target: { providerId: "p1", modelId: "m1" }, temperature: 0.4 },
+      conversation: {
+        target: { providerId: "p1", modelId: "m1" },
+        temperature: 0.4,
+      },
     },
   };
 
   it("resolves model ref", () => {
-    const result = resolveModelRef(settings, { providerId: "p1", modelId: "m1" });
+    const result = resolveModelRef(settings, {
+      providerId: "p1",
+      modelId: "m1",
+    });
     expect(result.model.id).toBe("m1");
   });
 

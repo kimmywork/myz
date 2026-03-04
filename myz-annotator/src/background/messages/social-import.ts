@@ -1,9 +1,15 @@
-import { registerMessageHandler } from "./handler";
 import {
   clearTweetImports,
   importSocialRecords,
   SocialImportRequest,
+  type SocialImportResult,
 } from "../social-import";
+import { registerMessageHandler } from "./handler";
+
+export type ImportSocialRecordsMessageResult = SocialImportResult;
+export interface ClearTweetImportsMessageResult {
+  removed: number;
+}
 
 /**
  * Background social import message handlers.

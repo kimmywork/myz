@@ -8,11 +8,15 @@ import {
   parseImportFile,
   ImportSource,
 } from "@/dashboard/utils/import.js";
-import { normalizeRecord, recordToMarkdown } from "@/dashboard/utils/records.js";
+import {
+  normalizeRecord,
+  recordToMarkdown,
+} from "@/dashboard/utils/records.js";
 import { sendMessage } from "@/shared/messaging.js";
-import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
-import { normalizeTweetUrl } from "@/shared/social/twitter";
 import { normalizeMastodonStatusUrl } from "@/shared/social/mastodon";
+import { normalizeTweetUrl } from "@/shared/social/twitter";
+import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
+import { isRecord } from "@/shared/typeUtils";
 
 export type MessageTone = "info" | "error" | "success";
 
@@ -45,10 +49,9 @@ export const useHighlightsStore = defineStore("highlights", () => {
         return;
       }
       const rawUrl = record.url || record.sourceUrl || "";
-      const normalized =
-        kind.startsWith("tweet:")
-          ? normalizeTweetUrl(rawUrl)
-          : normalizeMastodonStatusUrl(rawUrl);
+      const normalized = kind.startsWith("tweet:")
+        ? normalizeTweetUrl(rawUrl)
+        : normalizeMastodonStatusUrl(rawUrl);
       const key = normalized || rawUrl;
       if (!key) {
         others.push(record);
@@ -115,7 +118,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
         .filter((t) => Number.isFinite(t))
         .sort((a, b) => b - a)[0];
 
-      const merged: any = {
+      const merged: MyZRecord = {
         ...base,
         url: key,
         sourceUrl: key,
@@ -149,7 +152,10 @@ export const useHighlightsStore = defineStore("highlights", () => {
     merged.sort((a, b) => {
       const timeA = Date.parse(a.createdAt || a.updatedAt || "");
       const timeB = Date.parse(b.createdAt || b.updatedAt || "");
-      return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+      return (
+        (Number.isFinite(timeB) ? timeB : 0) -
+        (Number.isFinite(timeA) ? timeA : 0)
+      );
     });
     return merged;
   }
@@ -254,12 +260,17 @@ export const useHighlightsStore = defineStore("highlights", () => {
 
   async function deleteHighlight(id: string) {
     try {
-      const record: any = highlights.value.find((item) => item.id === id);
+      const record = highlights.value.find((item) => item.id === id);
+      const recordBag = isRecord(record) ? record : null;
+      const legacyIds = Array.isArray(recordBag?.tweetRecordIds)
+        ? recordBag.tweetRecordIds.filter(
+            (entry): entry is string =>
+              typeof entry === "string" && entry.trim().length > 0,
+          )
+        : [];
       const ids = Array.isArray(record?.socialRecordIds)
         ? record.socialRecordIds
-        : Array.isArray(record?.tweetRecordIds)
-          ? record.tweetRecordIds
-          : [];
+        : legacyIds;
       if (ids.length) {
         await sendMessage("myz:removeRecordsByIds", { ids });
       } else {
@@ -296,7 +307,10 @@ export const useHighlightsStore = defineStore("highlights", () => {
       return;
     }
     try {
-      const updated = await sendMessage("myz:updateHighlight", {
+      const updated = await sendMessage<
+        { id: string; kind: RECORD_KINDS; range: null; color: null },
+        MyZRecord
+      >("myz:updateHighlight", {
         id,
         kind: RECORD_KINDS.CLIP,
         range: null,
@@ -311,19 +325,22 @@ export const useHighlightsStore = defineStore("highlights", () => {
 
   async function handleExport(format: "markdown" | "json") {
     try {
-      const result = await sendMessage("myz:export");
+      const result = await sendMessage<
+        undefined,
+        { markdown?: string; json?: string } | null
+      >("myz:export");
       if (!result) {
         return;
       }
       if (format === "markdown") {
         downloadFile(
-          result.markdown,
+          typeof result.markdown === "string" ? result.markdown : "",
           "text/markdown",
           `myz-export-${Date.now()}.md`,
         );
       } else {
         downloadFile(
-          result.json,
+          typeof result.json === "string" ? result.json : "",
           "application/json",
           `myz-export-${Date.now()}.json`,
         );
@@ -369,7 +386,10 @@ export const useHighlightsStore = defineStore("highlights", () => {
       throw new Error(message);
     }
     setTimedImportStatus("写入中…", "info", 0);
-    const result = await sendMessage("myz:importHighlights", {
+    const result = await sendMessage<
+      { records: MyZRecord[]; strategy: ImportStrategy },
+      { inserted?: number; replaced?: number; skipped?: number }
+    >("myz:importHighlights", {
       records,
       strategy,
     });

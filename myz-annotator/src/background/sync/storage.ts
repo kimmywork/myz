@@ -32,7 +32,10 @@ function getStore(name: string, mode: IDBTransactionMode) {
   return getDb().then((db) => db.transaction(name, mode).objectStore(name));
 }
 
-async function getRecord<T>(storeName: string, key: IDBValidKey): Promise<T | null> {
+async function getRecord<T>(
+  storeName: string,
+  key: IDBValidKey,
+): Promise<T | null> {
   const store = await getStore(storeName, "readonly");
   return new Promise((resolve, reject) => {
     const request = store.get(key);
@@ -44,13 +47,16 @@ async function getRecord<T>(storeName: string, key: IDBValidKey): Promise<T | nu
 async function putRecord<T>(storeName: string, value: T): Promise<void> {
   const store = await getStore(storeName, "readwrite");
   return new Promise((resolve, reject) => {
-    const request = store.put(value as any);
+    const request = store.put(value);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
 }
 
-async function deleteRecord(storeName: string, key: IDBValidKey): Promise<void> {
+async function deleteRecord(
+  storeName: string,
+  key: IDBValidKey,
+): Promise<void> {
   const store = await getStore(storeName, "readwrite");
   return new Promise((resolve, reject) => {
     const request = store.delete(key);
@@ -150,14 +156,18 @@ export async function removeDeletion(recordId: string): Promise<void> {
 
 export async function clearDeletions(): Promise<void> {
   const records = await listDeletions();
-  await Promise.all(records.map((record) => deleteRecord("deletions", record.recordId)));
+  await Promise.all(
+    records.map((record) => deleteRecord("deletions", record.recordId)),
+  );
 }
 
 export async function listRecordStates(): Promise<RecordStateRecord[]> {
   return getAllRecords<RecordStateRecord>("record_state");
 }
 
-export async function upsertRecordState(record: RecordStateRecord): Promise<void> {
+export async function upsertRecordState(
+  record: RecordStateRecord,
+): Promise<void> {
   return putRecord("record_state", record);
 }
 
@@ -167,5 +177,7 @@ export async function removeRecordState(recordId: string): Promise<void> {
 
 export async function clearRecordStates(): Promise<void> {
   const records = await listRecordStates();
-  await Promise.all(records.map((record) => deleteRecord("record_state", record.recordId)));
+  await Promise.all(
+    records.map((record) => deleteRecord("record_state", record.recordId)),
+  );
 }

@@ -37,7 +37,9 @@ export function parseMastodonProfileUrl(input: string): ParsedMastodonProfile {
     .map((p) => p.trim())
     .filter(Boolean)[0];
   if (!first || !first.startsWith("@")) {
-    throw new Error("Mastodon 个人主页地址应类似 https://mastodon.social/@username");
+    throw new Error(
+      "Mastodon 个人主页地址应类似 https://mastodon.social/@username",
+    );
   }
   const username = first.slice(1);
   if (!username) {
@@ -52,7 +54,10 @@ export function parseMastodonProfileUrl(input: string): ParsedMastodonProfile {
   };
 }
 
-export function normalizeMastodonStatusUrl(input: string, base?: string): string {
+export function normalizeMastodonStatusUrl(
+  input: string,
+  base?: string,
+): string {
   const trimmed = (input || "").trim();
   if (!trimmed) return "";
 
@@ -74,7 +79,10 @@ export function normalizeMastodonStatusUrl(input: string, base?: string): string
   return url.toString();
 }
 
-export function getMastodonAuthorFromStatusUrl(input: string, base?: string): string {
+export function getMastodonAuthorFromStatusUrl(
+  input: string,
+  base?: string,
+): string {
   const normalized = normalizeMastodonStatusUrl(input, base);
   if (!normalized) return "";
   try {
@@ -110,7 +118,9 @@ export function buildTootRecordTitle({
   createdAt: string;
 }) {
   const time = formatLocalDateTimeForTitle(createdAt);
-  const actor = actorUsername.startsWith("@") ? actorUsername : `@${actorUsername}`;
+  const actor = actorUsername.startsWith("@")
+    ? actorUsername
+    : `@${actorUsername}`;
   const author = statusAuthorUsername.startsWith("@")
     ? statusAuthorUsername
     : `@${statusAuthorUsername}`;
@@ -144,7 +154,7 @@ export function extractHashtagsFromText(text: string): string[] {
     return [];
   }
   const tags = new Set<string>();
-  // eslint-disable-next-line unicorn/better-regex
+
   const regex = /(^|[\s\p{P}])#([\p{L}\p{N}_]{1,100})/gu;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(value))) {
@@ -155,4 +165,3 @@ export function extractHashtagsFromText(text: string): string[] {
   }
   return Array.from(tags);
 }
-

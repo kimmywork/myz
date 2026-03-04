@@ -1,6 +1,6 @@
-import { type MyZRecord, RECORD_KINDS } from "@/shared/types.ts";
-import { normalizeRecord, parseTags } from "./records";
 import { z } from "zod";
+import { normalizeRecord, parseTags } from "./records";
+import { type MyZRecord, RECORD_KINDS } from "@/shared/types.ts";
 
 const IMPORTED_TAG = "imported";
 
@@ -26,7 +26,10 @@ const ImportStructureSchema = z.union([
 ]);
 
 export function normalizeImportedPayload(
-  payload: MyZRecord[] | { highlights?: MyZRecord[]; data?: MyZRecord[] } | any,
+  payload:
+    | MyZRecord[]
+    | { highlights?: MyZRecord[]; data?: MyZRecord[] }
+    | unknown,
 ): MyZRecord[] {
   const result = ImportStructureSchema.safeParse(payload);
 
@@ -153,9 +156,9 @@ function parseCsvRows(text: string): string[][] {
 
   for (let i = 0; i < normalized.length; i += 1) {
     const char = normalized[i];
-    if (char === "\"") {
-      if (inQuotes && normalized[i + 1] === "\"") {
-        field += "\"";
+    if (char === '"') {
+      if (inQuotes && normalized[i + 1] === '"') {
+        field += '"';
         i += 1;
         continue;
       }
@@ -215,7 +218,7 @@ function parseRaindropCsv(text: string): MyZRecord[] {
   const highlightsIndex = headerMap.get("highlights");
 
   const nowIso = new Date().toISOString();
-  const records: MyZRecord[] = [];
+  const records: Array<Partial<MyZRecord>> = [];
 
   rows.forEach((row) => {
     const url = (row[urlIndex] || "").trim();
@@ -226,8 +229,7 @@ function parseRaindropCsv(text: string): MyZRecord[] {
       titleIndex !== undefined ? (row[titleIndex] || "").trim() : "";
     const text =
       excerptIndex !== undefined ? (row[excerptIndex] || "").trim() : "";
-    const note =
-      noteIndex !== undefined ? (row[noteIndex] || "").trim() : "";
+    const note = noteIndex !== undefined ? (row[noteIndex] || "").trim() : "";
     const createdRaw =
       createdIndex !== undefined ? (row[createdIndex] || "").trim() : "";
     const createdAt = normalizeTimestamp(createdRaw, nowIso);
@@ -235,7 +237,7 @@ function parseRaindropCsv(text: string): MyZRecord[] {
       tagsIndex !== undefined ? (row[tagsIndex] || "").trim() : "";
     const tags = parseTags(tagsRaw);
 
-    const bookmark: MyZRecord = {
+    const bookmark = {
       id: "",
       kind: RECORD_KINDS.BOOKMARK,
       url,
@@ -251,7 +253,7 @@ function parseRaindropCsv(text: string): MyZRecord[] {
     records.push(bookmark);
 
     const highlightText =
-      highlightsIndex !== undefined ? (row[highlightsIndex] || "") : "";
+      highlightsIndex !== undefined ? row[highlightsIndex] || "" : "";
     const clips = parseRaindropHighlights(highlightText);
     clips.forEach((clipText) => {
       if (!clipText) {
@@ -300,7 +302,7 @@ function parseWeavaCsv(text: string): MyZRecord[] {
   const noteIndex = headerMap.get("note");
 
   const nowIso = new Date().toISOString();
-  const records: MyZRecord[] = [];
+  const records: Array<Partial<MyZRecord>> = [];
 
   rows.forEach((row) => {
     const url = (row[urlIndex] || "").trim();
@@ -314,7 +316,8 @@ function parseWeavaCsv(text: string): MyZRecord[] {
     const title =
       titleIndex !== undefined ? (row[titleIndex] || "").trim() : "";
     const note = noteIndex !== undefined ? (row[noteIndex] || "").trim() : "";
-    const dateRaw = dateIndex !== undefined ? (row[dateIndex] || "").trim() : "";
+    const dateRaw =
+      dateIndex !== undefined ? (row[dateIndex] || "").trim() : "";
     const createdAt = normalizeTimestamp(dateRaw, nowIso);
 
     records.push({
@@ -374,7 +377,7 @@ function parseChromeBookmarksHtml(text: string): MyZRecord[] {
       const addDate =
         anchor.getAttribute("add_date") || anchor.getAttribute("ADD_DATE");
       const createdAt = normalizeTimestamp(addDate || "", nowIso);
-      const record: MyZRecord = {
+      const record = {
         id: "",
         kind: RECORD_KINDS.BOOKMARK,
         url,
@@ -388,7 +391,9 @@ function parseChromeBookmarksHtml(text: string): MyZRecord[] {
       };
       return record;
     })
-    .filter((record): record is MyZRecord => record !== null)
+    .filter(
+      (record): record is NonNullable<typeof record> => record !== null,
+    )
     .map((record) => normalizeRecord(record))
     .filter((record): record is MyZRecord => record !== null);
 }

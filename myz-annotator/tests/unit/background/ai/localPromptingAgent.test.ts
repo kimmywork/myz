@@ -1,14 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import { LOCAL_TOOL_HANDLERS } from "@/background/ai/tools/local.ts";
+import { isRecord } from "@/shared/typeUtils";
 
 vi.mock("@/background/storage.js", () => ({
-  readSettings: vi.fn(async () => ({ aiAssistantEnabled: true, aiMcpServers: [], aiAgents: { conversation: {} } })),
+  readSettings: vi.fn(async () => ({
+    aiAssistantEnabled: true,
+    aiMcpServers: [],
+    aiAgents: { conversation: {} },
+  })),
 }));
 
 vi.mock("@/background/ai/runtime/agentSelection.js", () => ({
   resolveAgentTarget: vi.fn(() => ({
     provider: { id: "p1" },
-    model: { model: "gpt-4", limits: { maxOutputTokens: 100 }, capabilities: { toolCalling: false } },
+    model: {
+      model: "gpt-4",
+      limits: { maxOutputTokens: 100 },
+      capabilities: { toolCalling: false },
+    },
     temperature: 0.2,
   })),
 }));
@@ -45,7 +54,10 @@ describe("PromptingAgent tool", () => {
   });
 
   it("executes prompting agent and returns output", async () => {
-    const result = await LOCAL_TOOL_HANDLERS.PromptingAgent({ prompt: "rewrite" });
-    expect(result.data.output).toBe("done");
+    const result = await LOCAL_TOOL_HANDLERS.PromptingAgent({
+      prompt: "rewrite",
+    });
+    const data = isRecord(result.data) ? result.data : {};
+    expect(data.output).toBe("done");
   });
 });

@@ -1,17 +1,33 @@
-import { defineComponent, computed, ref, onMounted, onBeforeUnmount } from "vue";
+import { storeToRefs } from "pinia";
+import {
+  defineComponent,
+  computed,
+  ref,
+  onMounted,
+  onBeforeUnmount,
+} from "vue";
 import { usePageStore } from "../stores/page";
 import { useUIStore } from "../stores/ui";
-import { storeToRefs } from "pinia";
+import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 const SETTINGS_STORAGE_KEY = "myz::settings";
 const DEFAULT_MATCH_THRESHOLD = 0.5;
 
-function normalizeMatchThreshold(value: any): number {
+function normalizeMatchThreshold(value: unknown): number {
   const n =
     typeof value === "number" && Number.isFinite(value)
       ? value
       : DEFAULT_MATCH_THRESHOLD;
   return Math.min(1, Math.max(0.4, n));
+}
+
+function getMatchThresholdFromSettings(
+  settings: UnknownRecord | null | undefined,
+): number {
+  const vectorSearch = isRecord(settings?.vectorSearch)
+    ? settings.vectorSearch
+    : null
+  return normalizeMatchThreshold(vectorSearch?.matchThreshold)
 }
 
 export default defineComponent({
@@ -22,15 +38,18 @@ export default defineComponent({
     const { relatedMatches } = storeToRefs(pageStore);
     const matchThreshold = ref(DEFAULT_MATCH_THRESHOLD);
 
-    let storageListener: ((changes: any, areaName: string) => void) | null = null;
+    let storageListener:
+      | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
+      | null = null;
 
     async function loadMatchThreshold() {
       try {
         const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
-        const settings = stored?.[SETTINGS_STORAGE_KEY];
-        matchThreshold.value = normalizeMatchThreshold(
-          settings?.vectorSearch?.matchThreshold,
-        );
+        const settings = stored?.[SETTINGS_STORAGE_KEY] as
+          | UnknownRecord
+          | null
+          | undefined
+        matchThreshold.value = getMatchThresholdFromSettings(settings)
       } catch {
         // ignore
       }

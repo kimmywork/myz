@@ -5,7 +5,8 @@ class FakeIDBRequest<T = any> {
   error: any = null;
   onsuccess: ((event: { target: FakeIDBRequest<T> }) => void) | null = null;
   onerror: ((event: { target: FakeIDBRequest<T> }) => void) | null = null;
-  onupgradeneeded: ((event: { target: FakeIDBRequest<T> }) => void) | null = null;
+  onupgradeneeded: ((event: { target: FakeIDBRequest<T> }) => void) | null =
+    null;
 }
 
 class FakeObjectStore {
@@ -57,7 +58,10 @@ class FakeObjectStore {
   put(value: any) {
     const request = new FakeIDBRequest();
     queueMicrotask(() => {
-      const key = this.keyPath && value && typeof value === "object" ? value[this.keyPath] : value?.key;
+      const key =
+        this.keyPath && value && typeof value === "object"
+          ? value[this.keyPath]
+          : value?.key;
       this.data.set(key, value);
       request.result = key ?? null;
       request.onsuccess?.({ target: request });
@@ -90,9 +94,10 @@ class FakeIndex {
     const request = new FakeIDBRequest();
     queueMicrotask(() => {
       const items = Array.from(this.store.data.values());
-      const filtered = range?.type === "only"
-        ? items.filter((item) => item?.[this.keyPath] === range.value)
-        : items;
+      const filtered =
+        range?.type === "only"
+          ? items.filter((item) => item?.[this.keyPath] === range.value)
+          : items;
       request.result = filtered;
       request.onsuccess?.({ target: request });
     });
@@ -102,9 +107,10 @@ class FakeIndex {
   openCursor(range?: { type: string; value: any }) {
     const request = new FakeIDBRequest();
     const items = Array.from(this.store.data.values());
-    const filtered = range?.type === "only"
-      ? items.filter((item) => item?.[this.keyPath] === range.value)
-      : items;
+    const filtered =
+      range?.type === "only"
+        ? items.filter((item) => item?.[this.keyPath] === range.value)
+        : items;
     let index = 0;
     const store = this.store;
     const keyPath = this.keyPath;
@@ -154,7 +160,11 @@ class FakeTransaction {
   onerror: ((event: { target: FakeTransaction }) => void) | null = null;
   private completeScheduled = false;
 
-  constructor(db: FakeIDBDatabase, storeNames: string[], mode: "readonly" | "readwrite") {
+  constructor(
+    db: FakeIDBDatabase,
+    storeNames: string[],
+    mode: "readonly" | "readwrite",
+  ) {
     this.db = db;
     this.storeNames = storeNames;
     this.mode = mode;
@@ -194,12 +204,19 @@ class FakeIDBDatabase {
   }
 
   createObjectStore(name: string, options?: { keyPath?: string }) {
-    const store = new FakeObjectStore(name, options?.keyPath ?? null, null as any);
+    const store = new FakeObjectStore(
+      name,
+      options?.keyPath ?? null,
+      null as any,
+    );
     this.stores.set(name, store);
     return store;
   }
 
-  transaction(storeNames: string | string[], mode: "readonly" | "readwrite" = "readonly") {
+  transaction(
+    storeNames: string | string[],
+    mode: "readonly" | "readwrite" = "readonly",
+  ) {
     const names = Array.isArray(storeNames) ? storeNames : [storeNames];
     return new FakeTransaction(this, names, mode);
   }
@@ -262,7 +279,9 @@ export function installFetchMock() {
   return fetchMock;
 }
 
-export function mockFetchOnce(response: Partial<Response> & { json?: () => any; text?: () => any }) {
+export function mockFetchOnce(
+  response: Partial<Response> & { json?: () => any; text?: () => any },
+) {
   const fetchMock = globalThis.fetch as any;
   fetchMock.mockResolvedValueOnce({
     ok: response.ok ?? true,
@@ -276,34 +295,29 @@ export function mockFetchOnce(response: Partial<Response> & { json?: () => any; 
 }
 
 export interface ToolCallSequenceStep {
-  message?: Record<string, any>
-  role?: string
-  content?: any
-  extra_content?: Record<string, any>
-  tool_calls?: any[]
-  response?: Record<string, any>
+  message?: Record<string, any>;
+  role?: string;
+  content?: any;
+  extra_content?: Record<string, any>;
+  tool_calls?: any[];
+  response?: Record<string, any>;
 }
 
 export function createToolCallSequenceClient(options: {
-  steps: ToolCallSequenceStep[]
-  finalContent?: string
-  finalMessage?: Record<string, any>
-  onRequest?: (request: any, index: number) => void
+  steps: ToolCallSequenceStep[];
+  finalContent?: string;
+  finalMessage?: Record<string, any>;
+  onRequest?: (request: any, index: number) => void;
 }) {
-  const {
-    steps,
-    finalContent = "done",
-    finalMessage,
-    onRequest,
-  } = options
-  let callCount = 0
+  const { steps, finalContent = "done", finalMessage, onRequest } = options;
+  let callCount = 0;
 
   const buildMessage = (step?: ToolCallSequenceStep) => {
     if (!step) {
       return {
         role: "assistant",
         content: finalContent,
-      }
+      };
     }
 
     if (step.message) {
@@ -313,52 +327,52 @@ export function createToolCallSequenceClient(options: {
         ...step.message,
         ...(step.tool_calls ? { tool_calls: step.tool_calls } : {}),
         ...(step.extra_content ? { extra_content: step.extra_content } : {}),
-      }
+      };
     }
 
     const message: Record<string, any> = {
       role: step.role || "assistant",
       content: step.content ?? "",
-    }
+    };
     if (step.tool_calls) {
-      message.tool_calls = step.tool_calls
+      message.tool_calls = step.tool_calls;
     }
     if (step.extra_content) {
-      message.extra_content = step.extra_content
+      message.extra_content = step.extra_content;
     }
-    return message
-  }
+    return message;
+  };
 
   const buildResponse = (step?: ToolCallSequenceStep) => {
-    const message = buildMessage(step)
-    const response = step?.response ? { ...step.response } : {}
+    const message = buildMessage(step);
+    const response = step?.response ? { ...step.response } : {};
     if (Array.isArray(response.choices)) {
       if (!response.choices.length) {
-        response.choices = [{ message }]
+        response.choices = [{ message }];
       } else if (!response.choices[0]?.message) {
-        response.choices[0] = { ...response.choices[0], message }
+        response.choices[0] = { ...response.choices[0], message };
       }
-      return response
+      return response;
     }
     return {
       choices: [{ message }],
       ...response,
-    }
-  }
+    };
+  };
 
   return {
     createCompletion: vi.fn(async (request: any) => {
-      const index = callCount
-      callCount += 1
-      onRequest?.(request, index)
-      const step = steps[index]
+      const index = callCount;
+      callCount += 1;
+      onRequest?.(request, index);
+      const step = steps[index];
       if (step) {
-        return buildResponse(step)
+        return buildResponse(step);
       }
       if (finalMessage) {
-        return buildResponse({ message: finalMessage })
+        return buildResponse({ message: finalMessage });
       }
-      return buildResponse()
+      return buildResponse();
     }),
-  }
+  };
 }

@@ -208,4 +208,3 @@ export async function scrapeMastodonTimeline(
 
   return combined.slice(0, limit);
 }
-

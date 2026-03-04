@@ -1,42 +1,53 @@
-import { defineComponent, computed } from "vue"
-import type { PropType, StyleValue } from "vue"
+import { defineComponent, computed } from "vue";
+import type { PropType, StyleValue } from "vue";
 import type {
   AIAgentsSettings,
   AIProviderSetting,
-} from "@/background/settings.js"
-import { DEFAULT_COLORS, HIGHLIGHT_STYLE_OPTIONS, HIGHLIGHT_STYLES } from "@/shared/types.js"
-import { highlightStyleIconMap } from "@/shared/icons.js"
+} from "@/background/settings.js";
+import { highlightStyleIconMap } from "@/shared/icons.js";
+import {
+  DEFAULT_COLORS,
+  HIGHLIGHT_STYLE_OPTIONS,
+  HIGHLIGHT_STYLES,
+} from "@/shared/types.js";
 
-function clamp(value: any, min: number, max: number, fallback: number) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return fallback
-  return Math.max(min, Math.min(max, parsed))
+function clamp(value: unknown, min: number, max: number, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, parsed));
 }
 
-function clampCount(value: any, min: number, max: number, fallback: number) {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return fallback
-  return Math.max(min, Math.min(max, Math.round(parsed)))
+function clampCount(
+  value: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(parsed)));
 }
 
 function openColorPicker(event: Event) {
-  const target = event.currentTarget as HTMLElement | null
-  const input = target?.parentElement?.querySelector("input[type='color']") as
-    | HTMLInputElement
-    | null
-  input?.click()
+  const target = event.currentTarget as HTMLElement | null;
+  const input = target?.parentElement?.querySelector(
+    "input[type='color']",
+  ) as HTMLInputElement | null;
+  input?.click();
 }
 
 function handleSwatchKeydown(event: KeyboardEvent) {
-  if (event.key !== "Enter" && event.key !== " ") return
-  event.preventDefault()
-  openColorPicker(event)
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  openColorPicker(event);
 }
 
-function getStylePreviewStyle(style: HIGHLIGHT_STYLES, color: string): StyleValue {
-  const safeColor = typeof color === "string" && color.trim()
-    ? color
-    : DEFAULT_COLORS[0]
+function getStylePreviewStyle(
+  style: HIGHLIGHT_STYLES,
+  color: string,
+): StyleValue {
+  const safeColor =
+    typeof color === "string" && color.trim() ? color : DEFAULT_COLORS[0];
   if (style === HIGHLIGHT_STYLES.UNDERLINE) {
     return {
       textDecorationLine: "underline",
@@ -44,7 +55,7 @@ function getStylePreviewStyle(style: HIGHLIGHT_STYLES, color: string): StyleValu
       textDecorationColor: safeColor,
       textUnderlineOffset: "3px",
       textDecorationThickness: "2px",
-    }
+    };
   }
   if (style === HIGHLIGHT_STYLES.WAVY) {
     return {
@@ -53,17 +64,17 @@ function getStylePreviewStyle(style: HIGHLIGHT_STYLES, color: string): StyleValu
       textDecorationColor: safeColor,
       textUnderlineOffset: "3px",
       textDecorationThickness: "2px",
-    }
+    };
   }
   return {
     background: safeColor,
     color: "#0f172a",
     borderRadius: "6px",
     padding: "0 4px",
-  }
+  };
 }
 
-type AgentKey = keyof AIAgentsSettings
+type AgentKey = keyof AIAgentsSettings;
 
 const DEFAULT_CATEGORY_STYLES = {
   conceptual: {
@@ -78,7 +89,7 @@ const DEFAULT_CATEGORY_STYLES = {
     style: HIGHLIGHT_STYLES.WAVY,
     color: DEFAULT_COLORS[1] || DEFAULT_COLORS[0],
   },
-}
+};
 
 export default defineComponent({
   name: "AiAgentRouting",
@@ -92,7 +103,11 @@ export default defineComponent({
   },
   setup(props) {
     const options = computed(() => {
-      const items: Array<{ label: string; providerId: string; modelId: string }> = []
+      const items: Array<{
+        label: string;
+        providerId: string;
+        modelId: string;
+      }> = [];
       props.providers
         .filter((p) => p.enabled && p.lastTest?.ok)
         .forEach((provider) => {
@@ -103,14 +118,18 @@ export default defineComponent({
                 label: `${provider.name} (${model.model})`,
                 providerId: provider.id,
                 modelId: model.id,
-              })
-            })
-        })
-      return items
-    })
+              });
+            });
+        });
+      return items;
+    });
 
     const visionOptions = computed(() => {
-      const items: Array<{ label: string; providerId: string; modelId: string }> = []
+      const items: Array<{
+        label: string;
+        providerId: string;
+        modelId: string;
+      }> = [];
       props.providers
         .filter((p) => p.enabled && p.lastTest?.ok)
         .forEach((provider) => {
@@ -121,18 +140,23 @@ export default defineComponent({
                 label: `${provider.name} (${model.model})`,
                 providerId: provider.id,
                 modelId: model.id,
-              })
-            })
-        })
-      return items
-    })
+              });
+            });
+        });
+      return items;
+    });
 
-    const resolveTargetModel = (target?: { providerId?: string; modelId?: string } | null) => {
-      if (!target?.providerId || !target?.modelId) return null
-      const provider = props.providers.find((p) => p.id === target.providerId)
-      if (!provider) return null
-      return (provider.models || []).find((model) => model.id === target.modelId) || null
-    }
+    const resolveTargetModel = (
+      target?: { providerId?: string; modelId?: string } | null,
+    ) => {
+      if (!target?.providerId || !target?.modelId) return null;
+      const provider = props.providers.find((p) => p.id === target.providerId);
+      if (!provider) return null;
+      return (
+        (provider.models || []).find((model) => model.id === target.modelId) ||
+        null
+      );
+    };
 
     const updateAgent = <K extends AgentKey>(
       key: K,
@@ -144,23 +168,25 @@ export default defineComponent({
           ...props.agents[key],
           ...patch,
         },
-      })
-    }
+      });
+    };
 
     const renderAgentRow = (
       key: "conversation" | "insights" | "autoHighlight",
       label: string,
     ) => {
-      const agent = props.agents[key]
-      const currentKey = agent.target ? `${agent.target.providerId}:${agent.target.modelId}` : ""
+      const agent = props.agents[key];
+      const currentKey = agent.target
+        ? `${agent.target.providerId}:${agent.target.modelId}`
+        : "";
       const supportsVision =
         key === "conversation"
           ? Boolean(resolveTargetModel(agent.target)?.capabilities?.vision)
-          : false
+          : false;
       const multimodalKey =
         key === "conversation" && agent.multimodalTarget
           ? `${agent.multimodalTarget.providerId}:${agent.multimodalTarget.modelId}`
-          : ""
+          : "";
       return (
         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
           <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -179,18 +205,20 @@ export default defineComponent({
               <select
                 value={currentKey}
                 onChange={(e) => {
-                  const value = (e.target as HTMLSelectElement).value
-                  const [providerId, modelId] = value.split(":")
+                  const value = (e.target as HTMLSelectElement).value;
+                  const [providerId, modelId] = value.split(":");
                   if (!providerId || !modelId) {
-                    updateAgent(key, { target: null })
-                    return
+                    updateAgent(key, { target: null });
+                    return;
                   }
-                  updateAgent(key, { target: { providerId, modelId } })
+                  updateAgent(key, { target: { providerId, modelId } });
                 }}
               >
                 <option value="">未选择</option>
                 {options.value.map((opt) => (
-                  <option value={`${opt.providerId}:${opt.modelId}`}>{opt.label}</option>
+                  <option value={`${opt.providerId}:${opt.modelId}`}>
+                    {opt.label}
+                  </option>
                 ))}
               </select>
             </label>
@@ -222,20 +250,22 @@ export default defineComponent({
                 <select
                   value={multimodalKey}
                   onChange={(e) => {
-                    const value = (e.target as HTMLSelectElement).value
-                    const [providerId, modelId] = value.split(":")
+                    const value = (e.target as HTMLSelectElement).value;
+                    const [providerId, modelId] = value.split(":");
                     if (!providerId || !modelId) {
-                      updateAgent("conversation", { multimodalTarget: null })
-                      return
+                      updateAgent("conversation", { multimodalTarget: null });
+                      return;
                     }
                     updateAgent("conversation", {
                       multimodalTarget: { providerId, modelId },
-                    })
+                    });
                   }}
                 >
                   <option value="">未选择</option>
                   {visionOptions.value.map((opt) => (
-                    <option value={`${opt.providerId}:${opt.modelId}`}>{opt.label}</option>
+                    <option value={`${opt.providerId}:${opt.modelId}`}>
+                      {opt.label}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -260,7 +290,8 @@ export default defineComponent({
                 <span>Superpower Mode（高级能力）</span>
               </label>
               <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                开启后允许使用高级工具（标签页/DOM 操作/任务管理），并启用计划 → 执行 → 验证流程。
+                开启后允许使用高级工具（标签页/DOM 操作/任务管理），并启用计划 →
+                执行 → 验证流程。
               </div>
             </div>
           )}
@@ -325,10 +356,10 @@ export default defineComponent({
                         5,
                         30,
                         15,
-                      )
+                      );
                       updateAgent("autoHighlight", {
                         maxHighlights: maxValue,
-                      })
+                      });
                     }}
                   />
                   <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -345,21 +376,25 @@ export default defineComponent({
                 </div>
                 {(["conceptual", "structural", "behavioural"] as const).map(
                   (category) => {
+                    const autoAgent =
+                      agent as AIAgentsSettings["autoHighlight"];
                     const categoryStyles =
-                      (agent as any).categoryStyles || DEFAULT_CATEGORY_STYLES
-                    const current = categoryStyles[category] || DEFAULT_CATEGORY_STYLES[category]
-                    const normalizedStyle = current.style as HIGHLIGHT_STYLES
+                      autoAgent.categoryStyles || DEFAULT_CATEGORY_STYLES;
+                    const current =
+                      categoryStyles[category] ||
+                      DEFAULT_CATEGORY_STYLES[category];
+                    const normalizedStyle = current.style as HIGHLIGHT_STYLES;
                     const styleMeta =
                       HIGHLIGHT_STYLE_OPTIONS[normalizedStyle] ||
-                      HIGHLIGHT_STYLE_OPTIONS.paint
+                      HIGHLIGHT_STYLE_OPTIONS.paint;
                     const StyleIcon =
                       highlightStyleIconMap[normalizedStyle] ||
-                      highlightStyleIconMap.paint
+                      highlightStyleIconMap.paint;
                     const labelMap = {
                       conceptual: "Conceptual（核心知识）",
                       structural: "Structural（结构框架）",
                       behavioural: "Behavioural（行动指令）",
-                    }
+                    };
                     return (
                       <div class="mt-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950/40">
                         <div class="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
@@ -388,17 +423,19 @@ export default defineComponent({
                                   ...categoryStyles,
                                   [category]: {
                                     ...current,
-                                    style: (e.target as HTMLSelectElement).value,
+                                    style: (e.target as HTMLSelectElement)
+                                      .value,
                                   },
-                                }
+                                };
                                 updateAgent("autoHighlight", {
                                   categoryStyles: next,
-                                } as any)
+                                });
                               }}
                             >
                               {Object.values(HIGHLIGHT_STYLES).map((style) => (
                                 <option value={style}>
-                                  {HIGHLIGHT_STYLE_OPTIONS[style]?.label || style}
+                                  {HIGHLIGHT_STYLE_OPTIONS[style]?.label ||
+                                    style}
                                 </option>
                               ))}
                             </select>
@@ -423,12 +460,13 @@ export default defineComponent({
                                     ...categoryStyles,
                                     [category]: {
                                       ...current,
-                                      color: (e.target as HTMLInputElement).value,
+                                      color: (e.target as HTMLInputElement)
+                                        .value,
                                     },
-                                  }
+                                  };
                                   updateAgent("autoHighlight", {
                                     categoryStyles: next,
-                                  } as any)
+                                  });
                                 }}
                               />
                               <span class="text-[11px] text-slate-500 dark:text-slate-400">
@@ -438,7 +476,7 @@ export default defineComponent({
                           </label>
                         </div>
                       </div>
-                    )
+                    );
                   },
                 )}
               </div>
@@ -448,8 +486,8 @@ export default defineComponent({
             </div>
           )}
         </div>
-      )
-    }
+      );
+    };
 
     return () => (
       <div class="space-y-3">
@@ -457,6 +495,6 @@ export default defineComponent({
         {renderAgentRow("insights", "Insights")}
         {renderAgentRow("autoHighlight", "Auto Highlight")}
       </div>
-    )
+    );
   },
-})
+});

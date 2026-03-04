@@ -26,6 +26,16 @@ Import shared AI types from `@/background/ai/types.ts`.
 - `myz-annotator/src/background/ai/types.ts`
   - Message/Conversation types, request/response payload shapes, streaming payloads, tool call types.
 
+### Schemas (versioned)
+- `myz-annotator/src/background/ai/schemas/`
+  - Zod schemas for AI conversation/message payloads by version.
+- `myz-annotator/src/background/ai/registry.ts`
+  - Registry mapping AI schema versions to zod definitions.
+- `myz-annotator/src/background/settings/schemas/`
+  - Zod schemas for Settings bundle/data by version.
+- `myz-annotator/src/background/settings/registry.ts`
+  - Registry mapping Settings schema versions to zod definitions.
+
 ### Settings (shared by background + UI)
 - `myz-annotator/src/background/settings.ts`
   - `aiProviders[]` (multiple providers), per-provider `models[]` (multiple models), and `aiAgents` (Conversation/Insights target + temperature).

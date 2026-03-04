@@ -26,7 +26,28 @@ import {
 } from "../vectoria-index";
 import { registerMessageHandler } from "./handler";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils";
-import { MyZRecord, RECORD_KINDS, resolveRecordContentType } from "@/shared/types";
+import {
+  MyZRecord,
+  RECORD_KINDS,
+  ensureRecordSchemaVersion,
+  resolveRecordContentType,
+} from "@/shared/types";
+
+export type GetHighlightsForUrlMessageResult = MyZRecord[];
+export type SaveHighlightMessageResult = MyZRecord;
+export type SaveHighlightMessagePayload = Partial<MyZRecord>;
+export type UpdateHighlightMessageResult = MyZRecord;
+export interface RemoveHighlightMessageResult {
+  success: boolean;
+}
+export interface RemoveRecordsByIdsMessageResult {
+  removed: number;
+}
+export interface UpdateRecordsByIdsMessageResult {
+  updated: number;
+}
+export type GetAllHighlightsMessageResult = MyZRecord[];
+export type GetAllTagsMessageResult = string[];
 
 export function initializeHighlightMessageHandlers() {
   registerMessageHandler(
@@ -59,7 +80,9 @@ export function initializeHighlightMessageHandlers() {
     },
   );
 
-  registerMessageHandler("myz:saveHighlight", async (payload: MyZRecord) => {
+  registerMessageHandler(
+    "myz:saveHighlight",
+    async (payload: SaveHighlightMessagePayload) => {
     if (!payload) {
       throw new Error("Missing highlight payload");
     }
@@ -78,13 +101,13 @@ export function initializeHighlightMessageHandlers() {
       }
       return RECORD_KINDS.HIGHLIGHT;
     })();
-    const record: MyZRecord = {
+    const record: MyZRecord = ensureRecordSchemaVersion({
       ...payload,
       id,
       kind,
       createdAt: payload.createdAt || now,
       updatedAt: now,
-    };
+    }) as MyZRecord;
     record.contentType = resolveRecordContentType(record);
 
     if (kind !== RECORD_KINDS.HIGHLIGHT) {
@@ -105,7 +128,8 @@ export function initializeHighlightMessageHandlers() {
     }
     await indexRecord(record);
     return record;
-  });
+    },
+  );
 
   registerMessageHandler(
     "myz:updateHighlight",
@@ -123,12 +147,12 @@ export function initializeHighlightMessageHandlers() {
         Object.values(RECORD_KINDS).includes(payload.kind as RECORD_KINDS)
           ? (payload.kind as RECORD_KINDS)
           : existing.kind;
-      const updated: MyZRecord = {
+      const updated: MyZRecord = ensureRecordSchemaVersion({
         ...existing,
         ...payload,
         kind: requestedKind,
         updatedAt: now,
-      };
+      }) as MyZRecord;
       updated.contentType = resolveRecordContentType(updated);
       if (updated.kind !== RECORD_KINDS.HIGHLIGHT) {
         updated.range = undefined;
@@ -187,10 +211,7 @@ export function initializeHighlightMessageHandlers() {
 
   registerMessageHandler(
     "myz:updateRecordsByIds",
-    async (payload: {
-      ids?: string[];
-      patch?: Partial<MyZRecord>;
-    }) => {
+    async (payload: { ids?: string[]; patch?: Partial<MyZRecord> }) => {
       const ids = Array.isArray(payload?.ids) ? payload.ids : [];
       const unique = Array.from(
         new Set(
@@ -199,7 +220,10 @@ export function initializeHighlightMessageHandlers() {
             .filter(Boolean),
         ),
       );
-      const patch = payload?.patch && typeof payload.patch === "object" ? payload.patch : {};
+      const patch =
+        payload?.patch && typeof payload.patch === "object"
+          ? payload.patch
+          : {};
       if (!unique.length) {
         return { updated: 0 };
       }

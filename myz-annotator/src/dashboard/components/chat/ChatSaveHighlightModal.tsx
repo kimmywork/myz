@@ -1,36 +1,36 @@
-import { defineComponent, ref } from "vue"
-import { storeToRefs } from "pinia"
-import TagInput from "@/dashboard/components/TagInput.jsx"
-import { useChatUIStore } from "@/dashboard/stores/chatUi.js"
+import { storeToRefs } from "pinia";
+import { defineComponent, ref } from "vue";
+import TagInput from "@/dashboard/components/TagInput.jsx";
+import { useChatUIStore } from "@/dashboard/stores/chatUi.js";
 
 export default defineComponent({
   name: "DashboardSaveHighlightModal",
   setup() {
-    const uiStore = useChatUIStore()
-    const { saveModal } = storeToRefs(uiStore)
+    const uiStore = useChatUIStore();
+    const { saveModal } = storeToRefs(uiStore);
 
-    const note = ref("")
-    const tags = ref(["ai-generated"])
-    const saving = ref(false)
-    const tagInputRef = ref(null)
+    const note = ref("");
+    const tags = ref(["ai-generated"]);
+    const saving = ref(false);
+    const tagInputRef = ref(null);
 
     function handleSave() {
-      saving.value = true
+      saving.value = true;
       uiStore
         .saveHighlight({
           note: note.value,
           tags: [...tags.value],
         })
         .finally(() => {
-          saving.value = false
-          handleClose()
-        })
+          saving.value = false;
+          handleClose();
+        });
     }
 
     function handleClose() {
-      note.value = ""
-      tags.value = ["ai-generated"]
-      uiStore.closeSaveModal()
+      note.value = "";
+      tags.value = ["ai-generated"];
+      uiStore.closeSaveModal();
     }
 
     return () =>
@@ -107,6 +107,6 @@ export default defineComponent({
             </footer>
           </div>
         </div>
-      ) : null
+      ) : null;
   },
-})
+});

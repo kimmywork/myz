@@ -1,4 +1,3 @@
-import { registerMessageHandler } from "./handler";
 import {
   AIContextOptions,
   captureAiPageContext,
@@ -7,7 +6,6 @@ import {
   extractPageContentForAi,
 } from "../ai-page-context";
 import { findPrimaryContentElement } from "../content-extraction.js";
-import { serializeRangeToHtml } from "../html.js";
 import {
   applyHighlight,
   deleteUnreachableHighlights,
@@ -17,18 +15,33 @@ import {
   storeRecord,
   updateHighlightIndicators,
 } from "../highlight-state";
+import { serializeRangeToHtml } from "../html.js";
 import { useModalStore } from "../stores/modal-store";
 import { useNotificationStore } from "../stores/notification-store";
 import { usePreferenceStore } from "../stores/preference-store";
+import { registerMessageHandler } from "./handler";
+import {
+  normalizeColor,
+  normalizeWhitespace,
+} from "@/shared/highlightUtils.js";
 import { sendMessage } from "@/shared/messaging.js";
-import { normalizeColor, normalizeWhitespace } from "@/shared/highlightUtils.js";
 import { serializeRange, isNodeFromMyz } from "@/shared/serializer.js";
+import { isRecord } from "@/shared/typeUtils";
+import type {
+  GenerateAutoHighlightsMessageResult,
+  GeneratePageInsightsMessageResult,
+} from "@/background/messages/ai";
+import type {
+  SaveHighlightMessagePayload,
+  SaveHighlightMessageResult,
+} from "@/background/messages/highlights";
 import {
   AUTO_HIGHLIGHT_CATEGORIES,
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLES,
   RECORD_KINDS,
+  type MyZRecord,
 } from "@/shared/types.js";
 import { canonicalUrl, extractHostname } from "@/shared/url.js";
 
@@ -57,14 +70,15 @@ type TextPosition = {
   offset: number;
 };
 
-function resolvePreferenceValue<T>(value: any, fallback: T): T {
-  if (value && typeof value === "object" && "value" in value) {
-    return (value as any).value ?? fallback;
+function resolvePreferenceValue<T>(value: unknown, fallback: T): T {
+  if (isRecord(value) && "value" in value) {
+    const record = value as { value?: T };
+    return record.value ?? fallback;
   }
   return (value as T) ?? fallback;
 }
 
-function resolveStyle(value: any, fallback: HIGHLIGHT_STYLES) {
+function resolveStyle(value: unknown, fallback: HIGHLIGHT_STYLES) {
   const normalized =
     typeof value === "string" ? value.trim().toLowerCase() : "";
   if (STYLE_OPTIONS.includes(normalized as HIGHLIGHT_STYLES)) {
@@ -73,7 +87,7 @@ function resolveStyle(value: any, fallback: HIGHLIGHT_STYLES) {
   return fallback;
 }
 
-function resolveColor(value: any, fallback: string) {
+function resolveColor(value: unknown, fallback: string) {
   const normalized = normalizeColor(
     typeof value === "string" ? value : "",
     fallback,
@@ -81,7 +95,7 @@ function resolveColor(value: any, fallback: string) {
   return normalized || fallback;
 }
 
-function resolveCategory(value: any) {
+function resolveCategory(value: unknown) {
   const normalized =
     typeof value === "string" ? value.trim().toLowerCase() : "";
   if (CATEGORY_OPTIONS.includes(normalized as AUTO_HIGHLIGHT_CATEGORIES)) {
@@ -91,22 +105,25 @@ function resolveCategory(value: any) {
 }
 
 function normalizeCategoryStyles(
-  value: any,
+  value: unknown,
   fallback = DEFAULT_CATEGORY_STYLES,
 ) {
-  const raw = value || {};
+  const raw = isRecord(value) ? value : {};
+  const conceptual = isRecord(raw.conceptual) ? raw.conceptual : {};
+  const structural = isRecord(raw.structural) ? raw.structural : {};
+  const behavioural = isRecord(raw.behavioural) ? raw.behavioural : {};
   return {
     conceptual: {
-      style: resolveStyle(raw.conceptual?.style, fallback.conceptual.style),
-      color: resolveColor(raw.conceptual?.color, fallback.conceptual.color),
+      style: resolveStyle(conceptual.style, fallback.conceptual.style),
+      color: resolveColor(conceptual.color, fallback.conceptual.color),
     },
     structural: {
-      style: resolveStyle(raw.structural?.style, fallback.structural.style),
-      color: resolveColor(raw.structural?.color, fallback.structural.color),
+      style: resolveStyle(structural.style, fallback.structural.style),
+      color: resolveColor(structural.color, fallback.structural.color),
     },
     behavioural: {
-      style: resolveStyle(raw.behavioural?.style, fallback.behavioural.style),
-      color: resolveColor(raw.behavioural?.color, fallback.behavioural.color),
+      style: resolveStyle(behavioural.style, fallback.behavioural.style),
+      color: resolveColor(behavioural.color, fallback.behavioural.color),
     },
   };
 }
@@ -234,7 +251,10 @@ function createRangeFromIndexes(
   const endPos = positions[safeEnd - 1];
   if (!startPos || !endPos) return null;
   const range = document.createRange();
-  range.setStart(startPos.node, Math.min(startPos.offset, startPos.node.length));
+  range.setStart(
+    startPos.node,
+    Math.min(startPos.offset, startPos.node.length),
+  );
   const endOffset = Math.min(endPos.offset + 1, endPos.node.length);
   range.setEnd(endPos.node, endOffset);
   if (range.collapsed) return null;
@@ -260,19 +280,25 @@ function rangeOverlapsExistingHighlight(range: Range) {
 }
 
 export function initializeAiMessageHandlers() {
-  registerMessageHandler("myz:captureAiPageContext", async (payload: AIContextOptions) => {
-    return captureAiPageContext(payload || {});
-  });
+  registerMessageHandler(
+    "myz:captureAiPageContext",
+    async (payload: AIContextOptions) => {
+      return captureAiPageContext(payload || {});
+    },
+  );
 
-  registerMessageHandler("myz:scrollToAiChunk", async (payload: { chunkId: string; snippet?: string }) => {
-    const chunkId = payload?.chunkId;
-    const snippet = payload?.snippet || "";
-    const success = scrollToAiChunk(chunkId, snippet);
-    if (!success) {
+  registerMessageHandler(
+    "myz:scrollToAiChunk",
+    async (payload: { chunkId: string; snippet?: string }) => {
+      const chunkId = payload?.chunkId;
+      const snippet = payload?.snippet || "";
+      const success = scrollToAiChunk(chunkId, snippet);
+      if (!success) {
         throw new Error("Chunk not found");
-    }
-    return { success };
-  });
+      }
+      return { success };
+    },
+  );
 
   registerMessageHandler("myz:clearAiPageChunks", async () => {
     clearAiPageChunkAnchors();
@@ -344,22 +370,32 @@ export function initializeAiMessageHandlers() {
           duration: 2000,
         });
 
-        const result: any = await sendMessage("myz:generateAutoHighlights", {
+        const result = await sendMessage<
+          {
+            text?: string;
+            title?: string;
+            url?: string;
+            maxHighlights?: number;
+            temperature?: number;
+          },
+          GenerateAutoHighlightsMessageResult
+        >("myz:generateAutoHighlights", {
           text,
           title: document.title || "",
           url: window.location.href,
           temperature: payload?.temperature,
         });
 
-        const highlights = Array.isArray(result?.highlights)
-          ? result.highlights
-          : [];
+        const highlights =
+          isRecord(result) && Array.isArray(result.highlights)
+            ? result.highlights
+            : [];
         if (!highlights.length) {
           notificationStore.notify({ message: "未生成可用标注" });
           return { success: false, count: 0 };
         }
 
-        const normalizeTag = (tag: any) =>
+        const normalizeTag = (tag: unknown) =>
           typeof tag === "string" ? tag.replace(/^#+/, "").trim() : "";
 
         const currentUrl = window.location.href;
@@ -373,21 +409,26 @@ export function initializeAiMessageHandlers() {
           preferenceStore.lastUsedStyle,
           DEFAULT_HIGHLIGHT_STYLE,
         );
-        const categoryStyles = normalizeCategoryStyles(result?.categoryStyles);
+        const categoryStyles = normalizeCategoryStyles(
+          isRecord(result) ? result.categoryStyles : undefined,
+        );
 
-        const prepared: Array<any> = [];
+        const prepared: Array<Partial<MyZRecord>> = [];
         const seenRanges = new Set<string>();
         const occupied: Array<{ start: number; end: number }> = [];
 
-        highlights.forEach((item: any) => {
-          if (!item?.text || typeof item.text !== "string") return;
+        highlights.forEach((item) => {
+          if (!isRecord(item) || typeof item.text !== "string") return;
           const normalizedSnippet = normalizeWhitespace(item.text);
           if (!normalizedSnippet) return;
 
-          const start = Number(item?.start);
-          const end = Number(item?.end);
+          const start = Number(item.start);
+          const end = Number(item.end);
           if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-          const safeStart = Math.max(0, Math.min(text.length, Math.floor(start)));
+          const safeStart = Math.max(
+            0,
+            Math.min(text.length, Math.floor(start)),
+          );
           const safeEnd = Math.max(0, Math.min(text.length, Math.floor(end)));
           if (safeEnd <= safeStart) return;
 
@@ -424,7 +465,11 @@ export function initializeAiMessageHandlers() {
             return;
           }
 
-          const range = createRangeFromIndexes(startResolved, endResolved, positions);
+          const range = createRangeFromIndexes(
+            startResolved,
+            endResolved,
+            positions,
+          );
           if (!range) return;
           if (rangeOverlapsExistingHighlight(range)) return;
 
@@ -442,12 +487,12 @@ export function initializeAiMessageHandlers() {
 
           const tags = Array.from(
             new Set([
-              ...(Array.isArray(item?.tags) ? item.tags.map(normalizeTag) : []),
+              ...(Array.isArray(item.tags) ? item.tags.map(normalizeTag) : []),
               "AI生成标注",
             ]),
           ).filter(Boolean);
 
-          const category = resolveCategory(item?.category);
+          const category = resolveCategory(item.category);
           const categoryStyle = categoryStyles[category];
           const itemColor = categoryStyle?.color || color;
           const itemStyle = categoryStyle?.style || style;
@@ -475,7 +520,13 @@ export function initializeAiMessageHandlers() {
 
         let successCount = 0;
         for (const payloadItem of prepared) {
-          const record = await sendMessage("myz:saveHighlight", payloadItem);
+          const record = await sendMessage<
+            SaveHighlightMessagePayload,
+            SaveHighlightMessageResult
+          >(
+            "myz:saveHighlight",
+            payloadItem,
+          );
           if (!record) continue;
           const stored = storeRecord(record);
           if (stored) {
@@ -513,26 +564,39 @@ export function initializeAiMessageHandlers() {
   registerMessageHandler(
     "myz:analyzePage",
     async (payload: { action?: string; contextOptions?: AIContextOptions }) => {
-      const action = payload?.action === "key_points" ? "key_points" : "summarize";
+      const action =
+        payload?.action === "key_points" ? "key_points" : "summarize";
       const context = captureAiPageContext({
         maxTotalChars: 80000,
         ...(payload?.contextOptions || {}),
         registerAnchors: true,
       });
 
-      const insights: any = await sendMessage("myz:generatePageInsights", {
+      const insights = await sendMessage<
+        {
+          action: string;
+          title: string;
+          url: string;
+          chunks: typeof context.chunks;
+        },
+        GeneratePageInsightsMessageResult
+      >("myz:generatePageInsights", {
         action,
         title: context.title,
         url: context.url,
         chunks: context.chunks,
       });
-
       return {
         success: true,
         action,
-        markdown: insights?.markdown || "",
-        chunkGroups: insights?.chunkGroups || 0,
-        generatedAt: insights?.generatedAt || new Date().toISOString(),
+        markdown:
+          typeof insights?.markdown === "string" ? insights.markdown : "",
+        chunkGroups:
+          typeof insights?.chunkGroups === "number" ? insights.chunkGroups : 0,
+        generatedAt:
+          typeof insights?.generatedAt === "string"
+            ? insights.generatedAt
+            : new Date().toISOString(),
         context: {
           chunkCount: context.chunkCount,
           wordCount: context.wordCount,
@@ -591,7 +655,8 @@ export function initializeAiMessageHandlers() {
           ? Math.min(10, Math.floor(payload.limit))
           : 5;
 
-      const results: Array<{ title: string; url: string; snippet: string }> = [];
+      const results: Array<{ title: string; url: string; snippet: string }> =
+        [];
 
       const pushResult = (title: string, url: string, snippet: string) => {
         const normalizedUrl = typeof url === "string" ? url.trim() : "";
@@ -599,7 +664,8 @@ export function initializeAiMessageHandlers() {
           return;
         }
         const normalizedTitle = typeof title === "string" ? title.trim() : "";
-        const normalizedSnippet = typeof snippet === "string" ? snippet.trim() : "";
+        const normalizedSnippet =
+          typeof snippet === "string" ? snippet.trim() : "";
         results.push({
           title: normalizedTitle,
           url: normalizedUrl,

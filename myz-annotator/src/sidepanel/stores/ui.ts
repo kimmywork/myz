@@ -1,9 +1,9 @@
 import { defineStore } from "pinia";
 import { reactive, ref, nextTick } from "vue";
-import { ToolInvocationDetails, Message } from "@/background/ai/types.js";
-import { sendMessage } from "@/shared/messaging.js";
 import { useChatStore } from "./chat.js";
 import { usePageStore } from "./page.js";
+import { Message } from "@/background/ai/types.js";
+import { sendMessage } from "@/shared/messaging.js";
 
 export interface SaveModalState {
   visible: boolean;
@@ -18,7 +18,11 @@ export interface ToolResponseViewerState {
   toolName: string;
   timestamp: string;
   args: string;
-  invocationDetails: ToolInvocationDetails[];
+  invocationDetails: Array<{
+    id: string;
+    name: string;
+    arguments: string;
+  }>;
 }
 
 export interface ImagePreviewState {
@@ -86,7 +90,7 @@ export const useUIStore = defineStore("ui", () => {
   async function saveHighlight(data: { note: string; tags: string[] }) {
     const chatStore = useChatStore();
     const pageStore = usePageStore();
-    
+
     const messageId = saveModal.messageId;
     const message = chatStore.messages.find((m) => m.id === messageId);
     if (!message) return;
@@ -137,12 +141,18 @@ export const useUIStore = defineStore("ui", () => {
 
   function openToolResponse(message: Message) {
     toolResponseViewer.visible = true;
-    toolResponseViewer.title = message.metadata?.toolName || "工具响应详情";
+    const toolName =
+      typeof message.metadata?.toolName === "string"
+        ? message.metadata.toolName
+        : "工具响应详情";
+    toolResponseViewer.title = toolName;
     toolResponseViewer.content = message.content || "";
-    toolResponseViewer.toolName = message.metadata?.toolName || "工具响应";
+    toolResponseViewer.toolName = toolName || "工具响应";
     toolResponseViewer.timestamp = message.timestamp || "";
     toolResponseViewer.args = formatArgumentsForDisplay(
-      message.metadata?.toolArgs,
+      typeof message.metadata?.toolArgs === "string"
+        ? message.metadata.toolArgs
+        : "",
     );
     toolResponseViewer.invocationDetails = [];
   }
@@ -159,21 +169,21 @@ export const useUIStore = defineStore("ui", () => {
 
   function openToolInvocationDetails(message: Message) {
     if (!message.metadata?.toolCallDetails?.length) return;
-    const details = message.metadata?.toolCallDetails?.map(
-      (detail, index) => ({
-        id: detail.id || `tool-${index + 1}`,
-        name: detail.name || `工具 ${index + 1}`,
-        arguments:
-          formatArgumentsForDisplay(detail.arguments) || "（无参数）",
-      }),
-    );
+    const rawDetails = Array.isArray(message.metadata?.toolCallDetails)
+      ? message.metadata.toolCallDetails
+      : [];
+    const details = rawDetails.map((detail, index) => ({
+      id: detail.id || `tool-${index + 1}`,
+      name: detail.name || `工具 ${index + 1}`,
+      arguments: formatArgumentsForDisplay(detail.arguments) || "（无参数）",
+    }));
     toolResponseViewer.visible = true;
     toolResponseViewer.toolName = "工具调用参数";
     toolResponseViewer.title = "工具调用参数";
     toolResponseViewer.timestamp = message.timestamp || "";
     toolResponseViewer.content = "";
     toolResponseViewer.args = "";
-    toolResponseViewer.invocationDetails = details || [];
+    toolResponseViewer.invocationDetails = details;
   }
 
   // Alias for compatibility if needed, or just use openToolResponse
@@ -193,7 +203,8 @@ export const useUIStore = defineStore("ui", () => {
     if (!dataUrl) return;
     imagePreview.visible = true;
     imagePreview.dataUrl = dataUrl;
-    imagePreview.title = typeof payload?.title === "string" ? payload.title : "图片预览";
+    imagePreview.title =
+      typeof payload?.title === "string" ? payload.title : "图片预览";
   }
 
   function closeImagePreview() {

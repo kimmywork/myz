@@ -1,24 +1,25 @@
-import { computed, defineComponent, ref, watch } from "vue"
-import type { PropType } from "vue"
-import type { McpServerSetting } from "@/background/settings.js"
-import { sendMessage } from "@/shared/messaging.js"
-import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js"
-import ToggleSwitch from "../ToggleSwitch.jsx"
+import { computed, defineComponent, ref, watch } from "vue";
+import type { PropType } from "vue";
+import ToggleSwitch from "../ToggleSwitch.jsx";
+import type { McpServerSetting } from "@/background/settings.js";
+import { parseAiRequestHeaders } from "@/shared/aiHeaderUtils.js";
+import { sendMessage } from "@/shared/messaging.js";
+import type { TestMcpConnectionMessageResult } from "@/background/messages/ai";
 
 function stringifyHeaders(headers?: Record<string, string>) {
-  if (!headers || typeof headers !== "object") return ""
+  if (!headers || typeof headers !== "object") return "";
   return Object.entries(headers)
     .filter(([key]) => typeof key === "string" && key.trim())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}: ${value ?? ""}`.trimEnd())
-    .join("\n")
+    .join("\n");
 }
 
 function statusDot(server: McpServerSetting) {
-  if (server.enabled) return "bg-emerald-500"
-  if (server.lastTest?.ok) return "bg-sky-500"
-  if (server.lastTest) return "bg-rose-500"
-  return "bg-slate-300 dark:bg-slate-600"
+  if (server.enabled) return "bg-emerald-500";
+  if (server.lastTest?.ok) return "bg-sky-500";
+  if (server.lastTest) return "bg-rose-500";
+  return "bg-slate-300 dark:bg-slate-600";
 }
 
 export default defineComponent({
@@ -31,56 +32,64 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const selectedId = ref<string | null>(null)
-    const headerDraftById = ref<Record<string, string>>({})
-    const isTestingId = ref<string | null>(null)
-    const testMessage = ref("")
+    const selectedId = ref<string | null>(null);
+    const headerDraftById = ref<Record<string, string>>({});
+    const isTestingId = ref<string | null>(null);
+    const testMessage = ref("");
 
     const selectedServer = computed(
-      () => props.servers.find((server) => server.id === selectedId.value) || null,
-    )
+      () =>
+        props.servers.find((server) => server.id === selectedId.value) || null,
+    );
 
-    const canEnableSelected = computed(() => Boolean(selectedServer.value?.lastTest?.ok))
+    const canEnableSelected = computed(() =>
+      Boolean(selectedServer.value?.lastTest?.ok),
+    );
 
     watch(
       () => props.servers,
       (servers) => {
-        if (selectedId.value && servers.some((s) => s.id === selectedId.value)) {
-          return
+        if (
+          selectedId.value &&
+          servers.some((s) => s.id === selectedId.value)
+        ) {
+          return;
         }
-        selectedId.value = servers[0]?.id || null
+        selectedId.value = servers[0]?.id || null;
       },
       { deep: true, immediate: true },
-    )
+    );
 
     watch(
       () => selectedServer.value?.id,
       (id) => {
-        if (!id) return
-        if (typeof headerDraftById.value[id] === "string") return
-        const server = props.servers.find((s) => s.id === id)
+        if (!id) return;
+        if (typeof headerDraftById.value[id] === "string") return;
+        const server = props.servers.find((s) => s.id === id);
         headerDraftById.value = {
           ...headerDraftById.value,
           [id]: stringifyHeaders(server?.headers),
-        }
+        };
       },
       { immediate: true },
-    )
+    );
 
     const updateServer = (id: string, patch: Partial<McpServerSetting>) => {
       props.onChange(
         props.servers.map((server) =>
-          server.id === id ? ({ ...server, ...patch } as any) : server,
+          server.id === id
+            ? ({ ...server, ...patch } as McpServerSetting)
+            : server,
         ),
-      )
-    }
+      );
+    };
 
     const invalidateServerTest = (id: string) => {
-      const current = props.servers.find((s) => s.id === id)
-      if (!current) return
-      if (!current.lastTest && !current.enabled) return
-      updateServer(id, { lastTest: null, enabled: false })
-    }
+      const current = props.servers.find((s) => s.id === id);
+      if (!current) return;
+      if (!current.lastTest && !current.enabled) return;
+      updateServer(id, { lastTest: null, enabled: false });
+    };
 
     const addServer = () => {
       const record: McpServerSetting = {
@@ -90,73 +99,81 @@ export default defineComponent({
         url: "",
         headers: undefined,
         lastTest: null,
-      }
-      props.onChange([...props.servers, record])
-      selectedId.value = record.id
+      };
+      props.onChange([...props.servers, record]);
+      selectedId.value = record.id;
       headerDraftById.value = {
         ...headerDraftById.value,
         [record.id]: "",
-      }
-    }
+      };
+    };
 
     const removeServer = (id: string) => {
-      const next = props.servers.filter((server) => server.id !== id)
-      props.onChange(next)
+      const next = props.servers.filter((server) => server.id !== id);
+      props.onChange(next);
       if (selectedId.value === id) {
-        selectedId.value = next[0]?.id || null
+        selectedId.value = next[0]?.id || null;
       }
-    }
+    };
 
     const testConnection = async () => {
-      const server = selectedServer.value
-      if (!server) return
+      const server = selectedServer.value;
+      if (!server) return;
       if (!server.url || !server.url.trim()) {
-        testMessage.value = "请输入 MCP Server URL"
-        return
+        testMessage.value = "请输入 MCP Server URL";
+        return;
       }
-      isTestingId.value = server.id
-      testMessage.value = ""
+      isTestingId.value = server.id;
+      testMessage.value = "";
 
-      const headerText = headerDraftById.value[server.id] || ""
-      const parsedHeaders = parseAiRequestHeaders(headerText)
+      const headerText = headerDraftById.value[server.id] || "";
+      const parsedHeaders = parseAiRequestHeaders(headerText);
 
       try {
-        const result = await sendMessage("myz:testMcpConnection", {
+        const result = await sendMessage<
+          { serverConfig: { url: string; headers?: Record<string, string> } },
+          TestMcpConnectionMessageResult
+        >("myz:testMcpConnection", {
           serverConfig: {
             url: server.url.trim(),
-            headers: Object.keys(parsedHeaders).length ? parsedHeaders : undefined,
+            headers: Object.keys(parsedHeaders).length
+              ? parsedHeaders
+              : undefined,
           },
-        })
+        });
 
-        const ok = Boolean(result?.success)
+        const ok = Boolean(result?.success);
         const message = ok
           ? `连接成功（tools: ${(result?.tools || []).length}）`
-          : result?.error || "连接失败"
-        testMessage.value = message
+          : result?.error || "连接失败";
+        testMessage.value = message;
 
         updateServer(server.id, {
           lastTest: { ok, message, testedAt: new Date().toISOString() },
           enabled: ok ? server.enabled : false,
-          headers: ok && Object.keys(parsedHeaders).length ? parsedHeaders : server.headers,
-        })
+          headers:
+            ok && Object.keys(parsedHeaders).length
+              ? parsedHeaders
+              : server.headers,
+        });
 
         if (ok) {
           headerDraftById.value = {
             ...headerDraftById.value,
             [server.id]: stringifyHeaders(parsedHeaders),
-          }
+          };
         }
       } catch (error) {
-        const message = (error as Error).message
-        testMessage.value = message
+        const message = (error as Error).message;
+        testMessage.value = message;
         updateServer(server.id, {
           lastTest: { ok: false, message, testedAt: new Date().toISOString() },
           enabled: false,
-        })
+        });
       } finally {
-        isTestingId.value = null
+        isTestingId.value = null;
       }
-    }
+    };
 
     return () => (
       <div class="space-y-4">
@@ -270,8 +287,8 @@ export default defineComponent({
                       (() => {
                         updateServer(selectedServer.value!.id, {
                           url: (e.target as HTMLInputElement).value,
-                        })
-                        invalidateServerTest(selectedServer.value!.id)
+                        });
+                        invalidateServerTest(selectedServer.value!.id);
                       })()
                     }
                   />
@@ -284,12 +301,12 @@ export default defineComponent({
                     value={headerDraftById.value[selectedServer.value.id] ?? ""}
                     placeholder={"x-api-key: xxx\nAuthorization: Bearer ..."}
                     onInput={(e) => {
-                      const text = (e.target as HTMLTextAreaElement).value
+                      const text = (e.target as HTMLTextAreaElement).value;
                       headerDraftById.value = {
                         ...headerDraftById.value,
                         [selectedServer.value!.id]: text,
-                      }
-                      invalidateServerTest(selectedServer.value!.id)
+                      };
+                      invalidateServerTest(selectedServer.value!.id);
                     }}
                   ></textarea>
                   <small class="help-text">每行一个：Header: value</small>
@@ -299,10 +316,15 @@ export default defineComponent({
                   <button
                     type="button"
                     class="btn btn-small btn-primary whitespace-nowrap text-white"
-                    disabled={isTestingId.value === selectedServer.value.id || !selectedServer.value.url}
+                    disabled={
+                      isTestingId.value === selectedServer.value.id ||
+                      !selectedServer.value.url
+                    }
                     onClick={testConnection}
                   >
-                    {isTestingId.value === selectedServer.value.id ? "测试中…" : "测试连接"}
+                    {isTestingId.value === selectedServer.value.id
+                      ? "测试中…"
+                      : "测试连接"}
                   </button>
                   <div class="text-xs">
                     {selectedServer.value.lastTest ? (
@@ -313,8 +335,10 @@ export default defineComponent({
                             : "text-rose-600",
                         ].join(" ")}
                       >
-                        {selectedServer.value.lastTest.ok ? "测试通过" : "测试失败"} ·{" "}
-                        {selectedServer.value.lastTest.message}
+                        {selectedServer.value.lastTest.ok
+                          ? "测试通过"
+                          : "测试失败"}{" "}
+                        · {selectedServer.value.lastTest.message}
                       </span>
                     ) : testMessage.value ? (
                       <span class="text-rose-600">{testMessage.value}</span>
@@ -332,6 +356,6 @@ export default defineComponent({
           </div>
         </div>
       </div>
-    )
+    );
   },
-})
+});

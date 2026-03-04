@@ -1,8 +1,14 @@
-import { computed, defineComponent, onBeforeUnmount, onMounted, ref } from "vue";
+import {
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
+import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 
 export default defineComponent({
   name: "DashboardNavbar",
@@ -38,7 +44,9 @@ export default defineComponent({
       const path = route.path || "";
       return tabs.find((tab) => tab.isActive(path))?.key ?? "highlights";
     });
-    const isHighlightsRoute = computed(() => (route.path || "") === "/highlights");
+    const isHighlightsRoute = computed(
+      () => (route.path || "") === "/highlights",
+    );
     const hasInput = computed(() => Boolean(uiStore.quickSearch.trim()));
     const normalizedQuery = computed(() => {
       const raw = uiStore.quickSearch.trim();
@@ -46,7 +54,9 @@ export default defineComponent({
       if (raw.toLowerCase().startsWith("site:")) {
         return raw.slice(5).trim().toLowerCase();
       }
-      return raw.startsWith("#") ? raw.slice(1).trim().toLowerCase() : raw.toLowerCase();
+      return raw.startsWith("#")
+        ? raw.slice(1).trim().toLowerCase()
+        : raw.toLowerCase();
     });
     const queryPrefersSite = computed(() =>
       uiStore.quickSearch.trim().toLowerCase().startsWith("site:"),
@@ -96,7 +106,9 @@ export default defineComponent({
 
       return list
         .sort((a, b) =>
-          a.score === b.score ? a.label.localeCompare(b.label) : a.score - b.score,
+          a.score === b.score
+            ? a.label.localeCompare(b.label)
+            : a.score - b.score,
         )
         .slice(0, 10);
     });
@@ -223,14 +235,14 @@ export default defineComponent({
             </div>
             {showSuggestions.value ? (
               <div class="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 text-sm shadow-xl dark:border-white/10 dark:bg-slate-900/90">
-                  {suggestions.value.map((item) => (
-                    <button
-                      key={`${item.type}:${item.value}`}
+                {suggestions.value.map((item) => (
+                  <button
+                    key={`${item.type}:${item.value}`}
                     type="button"
                     class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-slate-700 transition hover:bg-indigo-50 dark:text-slate-200 dark:hover:bg-indigo-500/10"
                     onMousedown={(event) => event.preventDefault()}
-                      onClick={() => handleSuggestionSelect(item)}
-                    >
+                    onClick={() => handleSuggestionSelect(item)}
+                  >
                     <span class="truncate">{item.label}</span>
                     <span class="ml-2 text-xs text-slate-400">
                       {item.type === "tag" ? "标签" : "网站"}

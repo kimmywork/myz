@@ -119,7 +119,9 @@ export function buildTweetRecordTitle({
   createdAt: string;
 }) {
   const time = formatLocalDateTimeForTitle(createdAt);
-  const actor = actorUsername.startsWith("@") ? actorUsername : `@${actorUsername}`;
+  const actor = actorUsername.startsWith("@")
+    ? actorUsername
+    : `@${actorUsername}`;
   const author = tweetAuthorUsername.startsWith("@")
     ? tweetAuthorUsername
     : `@${tweetAuthorUsername}`;
@@ -156,7 +158,7 @@ export function extractHashtagsFromText(text: string): string[] {
     return [];
   }
   const tags = new Set<string>();
-  // eslint-disable-next-line unicorn/better-regex
+
   const regex = /(^|[\s\p{P}])#([\p{L}\p{N}_]{1,100})/gu;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(value))) {

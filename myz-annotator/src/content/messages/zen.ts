@@ -1,10 +1,6 @@
-import { registerMessageHandler } from "./handler";
-import {
-  hasArticleElement,
-  toggleZenMode,
-  captureZenTargetFull,
-} from "../zen";
 import { useNotificationStore } from "../stores/notification-store";
+import { hasArticleElement, toggleZenMode, captureZenTargetFull } from "../zen";
+import { registerMessageHandler } from "./handler";
 
 export function initializeZenMessageHandlers() {
   registerMessageHandler("myz:canEnterZenMode", async () => {

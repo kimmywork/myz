@@ -1,6 +1,6 @@
-import { defineComponent } from "vue"
-import { RouterLink, RouterView } from "vue-router"
-import SettingsSidebar from "./SettingsSidebar.jsx"
+import { defineComponent } from "vue";
+import { RouterLink, RouterView } from "vue-router";
+import SettingsSidebar from "./SettingsSidebar.jsx";
 
 export default defineComponent({
   name: "SettingsLayout",
@@ -35,6 +35,6 @@ export default defineComponent({
           </div>
         </div>
       </section>
-    )
+    );
   },
-})
+});

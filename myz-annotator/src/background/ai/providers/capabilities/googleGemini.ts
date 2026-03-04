@@ -1,9 +1,10 @@
-import type { Capability } from "../capability.js"
-import type { ProviderChatCompletionRequest } from "../types.js"
-import type { ProviderStreamOptions } from "../types.js"
+import type { Capability } from "../capability.js";
+import type { ProviderChatCompletionRequest } from "../types.js";
+import type { ProviderStreamOptions } from "../types.js";
+import { isRecord, toJsonRecord } from "@/shared/typeUtils";
 
 function isGeminiModel(model: unknown) {
-  return typeof model === "string" && /^gemini/i.test(model)
+  return typeof model === "string" && /^gemini/i.test(model);
 }
 
 function patchGeminiThinkingConfig(
@@ -11,19 +12,21 @@ function patchGeminiThinkingConfig(
   options?: ProviderStreamOptions,
 ) {
   if (!isGeminiModel(request.model)) {
-    return request
+    return request;
   }
 
   if (!options?.enableGeminiThinking) {
-    return request
+    return request;
   }
 
-  const extraBody = request.extra_body || {}
-  const google = extraBody.google || {}
-  const thinkingConfig = google.thinking_config || {}
+  const extraBody = toJsonRecord(request.extra_body, {});
+  const google = isRecord(extraBody.google) ? toJsonRecord(extraBody.google) : {};
+  const thinkingConfig = isRecord(google.thinking_config)
+    ? toJsonRecord(google.thinking_config)
+    : {};
 
   if (typeof thinkingConfig.include_thoughts !== "undefined") {
-    return request
+    return request;
   }
 
   return {
@@ -38,13 +41,16 @@ function patchGeminiThinkingConfig(
         },
       },
     },
-  }
+  };
 }
 
 export function createGoogleGeminiThinkingCapability(): Capability {
   return (client) => ({
     async createCompletion(request, options) {
-      return client.createCompletion(patchGeminiThinkingConfig(request, options), options)
+      return client.createCompletion(
+        patchGeminiThinkingConfig(request, options),
+        options,
+      );
     },
-  })
+  });
 }

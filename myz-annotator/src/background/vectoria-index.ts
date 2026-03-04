@@ -1,7 +1,12 @@
 import { Vectoria, OpenAIEmbedder } from "vectoria/thin";
-import { MyZRecord } from "@/shared/types.ts";
-import type { AIProviderSetting, Settings, VectorSettings } from "./settings.js";
 import { normalizeBaseUrl } from "./ai/runtime/openaiCompatible.js";
+import type {
+  AIProviderSetting,
+  Settings,
+  VectorSettings,
+} from "./settings.js";
+import { MyZRecord } from "@/shared/types.ts";
+import { isRecord, isStringArray } from "@/shared/typeUtils";
 
 const DOC_MAP_KEY = "myz::vectoriaDocMap";
 const DB_NAME = "myz-vectoria";
@@ -60,7 +65,8 @@ function resolveEmbedderConfig(): {
   if (!vectorSearchState.target) return null;
   if (!vectorSearchState.lastTest?.ok) return null;
   if (
-    vectorSearchState.lastTest.providerId !== vectorSearchState.target.providerId ||
+    vectorSearchState.lastTest.providerId !==
+      vectorSearchState.target.providerId ||
     vectorSearchState.lastTest.modelId !== vectorSearchState.target.modelId
   ) {
     return null;
@@ -151,12 +157,21 @@ export async function getVectoria(): Promise<Vectoria | undefined> {
   return ensureVectoria();
 }
 
-async function readDocMap() {
+type DocMap = Record<string, string[]>;
+
+async function readDocMap(): Promise<DocMap> {
   const { [DOC_MAP_KEY]: stored } = await chrome.storage.local.get(DOC_MAP_KEY);
-  return stored && typeof stored === "object" ? stored : {};
+  if (!isRecord(stored)) return {};
+  const map: DocMap = {};
+  Object.entries(stored).forEach(([key, value]) => {
+    if (isStringArray(value)) {
+      map[key] = value;
+    }
+  });
+  return map;
 }
 
-async function writeDocMap(map: any) {
+async function writeDocMap(map: DocMap) {
   await chrome.storage.local.set({ [DOC_MAP_KEY]: map });
 }
 
@@ -282,7 +297,7 @@ function batchDocumentsForAdd(docs: VectoriaDocument[]): VectoriaDocument[][] {
   return batches;
 }
 
-async function deleteDocsByIds(docIds = []) {
+async function deleteDocsByIds(docIds: string[] = []) {
   if (!docIds.length) return;
   const vectoria = await getVectoria();
   if (!vectoria) return;

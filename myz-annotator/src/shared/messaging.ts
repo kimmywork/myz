@@ -1,4 +1,4 @@
-export async function sendMessage<Payload, Result = any>(
+export async function sendMessage<Payload, Result = unknown>(
   type: string,
   payload?: Payload,
 ): Promise<Result> {
@@ -30,7 +30,7 @@ export async function sendMessage<Payload, Result = any>(
   });
 }
 
-export async function sendMessageToTab<Type, Payload, Response = any>(
+export async function sendMessageToTab<Type, Payload, Response = unknown>(
   tabId: number,
   type: Type,
   payload: Payload,

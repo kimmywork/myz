@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { executeSandboxedCode } from "@/background/ai/tools/codeExecution.ts";
 import { installFakeChrome } from "./testUtils.ts";
+import { executeSandboxedCode } from "@/background/ai/tools/codeExecution.ts";
 
 describe("codeExecution", () => {
   it("rejects empty code", async () => {

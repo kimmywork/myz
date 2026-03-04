@@ -1,5 +1,6 @@
-import { AIAssistantSettings, Settings } from "./settings";
+import type { AIAssistantSettings, AIProviderSetting, Settings } from "./settings";
 import { getAiHeaderValue } from "@/shared/aiHeaderUtils.js";
+import { isRecord } from "@/shared/typeUtils";
 
 type ResourceType = chrome.declarativeNetRequest.ResourceType;
 
@@ -33,24 +34,37 @@ function buildRegexFilterForEndpoint(endpoint: string): string | null {
 
 function pickProviderIdsFromAgents(settings: Partial<Settings> = {}) {
   const ids = new Set<string>();
-  const agents: any = (settings as any).aiAgents || {};
-  const conversationProvider = agents?.conversation?.target?.providerId;
-  const insightsProvider = agents?.insights?.target?.providerId;
-  const autoHighlightProvider = agents?.autoHighlight?.target?.providerId;
-  [conversationProvider, insightsProvider, autoHighlightProvider].forEach((value) => {
-    if (typeof value === "string" && value.trim()) {
-      ids.add(value.trim());
-    }
-  });
+  const agents = isRecord(settings.aiAgents) ? settings.aiAgents : null;
+  const conversationProvider =
+    isRecord(agents?.conversation) && isRecord(agents.conversation.target)
+      ? agents.conversation.target.providerId
+      : undefined;
+  const insightsProvider =
+    isRecord(agents?.insights) && isRecord(agents.insights.target)
+      ? agents.insights.target.providerId
+      : undefined;
+  const autoHighlightProvider =
+    isRecord(agents?.autoHighlight) && isRecord(agents.autoHighlight.target)
+      ? agents.autoHighlight.target.providerId
+      : undefined;
+  [conversationProvider, insightsProvider, autoHighlightProvider].forEach(
+    (value) => {
+      if (typeof value === "string" && value.trim()) {
+        ids.add(value.trim());
+      }
+    },
+  );
   return [...ids];
 }
 
 function resolveHeaderTargets(settings: Partial<Settings> = {}) {
-  const providers = Array.isArray(settings.aiProviders) ? settings.aiProviders : [];
+  const providers = Array.isArray(settings.aiProviders)
+    ? settings.aiProviders
+    : [];
   const selectedIds = pickProviderIdsFromAgents(settings);
   const selectedProviders = selectedIds
     .map((id) => providers.find((p) => p?.id === id))
-    .filter(Boolean) as any[];
+    .filter((provider): provider is AIProviderSetting => Boolean(provider));
 
   return selectedProviders
     .map((provider) => ({
@@ -67,12 +81,14 @@ export async function syncAiRequestHeaderRules(
     return;
   }
 
-  const targets = resolveHeaderTargets(settings as any);
+  const targets = resolveHeaderTargets(settings);
   const addRules: chrome.declarativeNetRequest.Rule[] = [];
 
   targets.slice(0, AI_USER_AGENT_RULE_MAX).forEach((target, index) => {
     const userAgent = getAiHeaderValue(target.headers, "user-agent");
-    const regexFilter = userAgent ? buildRegexFilterForEndpoint(target.baseUrl) : null;
+    const regexFilter = userAgent
+      ? buildRegexFilterForEndpoint(target.baseUrl)
+      : null;
     if (!userAgent || !regexFilter) {
       return;
     }
@@ -106,8 +122,9 @@ export async function syncAiRequestHeaderRules(
   });
 
   try {
-    const removeRuleIds = Array.from({ length: AI_USER_AGENT_RULE_MAX }, (_, idx) =>
-      AI_USER_AGENT_RULE_BASE_ID + idx + 1,
+    const removeRuleIds = Array.from(
+      { length: AI_USER_AGENT_RULE_MAX },
+      (_, idx) => AI_USER_AGENT_RULE_BASE_ID + idx + 1,
     );
     await chrome.declarativeNetRequest.updateDynamicRules({
       removeRuleIds,

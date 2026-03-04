@@ -1,13 +1,19 @@
-import { defineComponent, computed, ref, watch } from "vue"
-import type { PropType } from "vue"
-import type { AIModelSetting, AIProviderSetting } from "@/background/settings.js"
-import AiHeadersEditor from "./AiHeadersEditor.jsx"
-import AiModelListEditor from "./AiModelListEditor.jsx"
-import { getProviderTypeMeta, PROVIDER_TYPE_OPTIONS } from "./providerCatalog.js"
-import ToggleSwitch from "../ToggleSwitch.jsx"
+import { defineComponent, computed, ref, watch } from "vue";
+import type { PropType } from "vue";
+import ToggleSwitch from "../ToggleSwitch.jsx";
+import AiHeadersEditor from "./AiHeadersEditor.jsx";
+import AiModelListEditor from "./AiModelListEditor.jsx";
+import {
+  getProviderTypeMeta,
+  PROVIDER_TYPE_OPTIONS,
+} from "./providerCatalog.js";
+import type {
+  AIModelSetting,
+  AIProviderSetting,
+} from "@/background/settings.js";
 
 function normalizeUrl(value: string) {
-  return value.trim().replace(/\/+$/, "")
+  return value.trim().replace(/\/+$/, "");
 }
 
 export default defineComponent({
@@ -29,71 +35,76 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const showApiKey = ref(false)
-    const testModelId = ref("")
+    const showApiKey = ref(false);
+    const testModelId = ref("");
 
     const availableModels = computed(() =>
       (props.provider.models || []).filter((m) => m.model && m.model.trim()),
-    )
+    );
 
     watch(
       () => props.provider.id,
       () => {
-        testModelId.value = ""
+        testModelId.value = "";
       },
-    )
+    );
 
     watch(
       () => props.provider.models,
       () => {
-        const current = availableModels.value.find((m) => m.id === testModelId.value)
-        if (current) return
-        testModelId.value = availableModels.value[0]?.id || ""
+        const current = availableModels.value.find(
+          (m) => m.id === testModelId.value,
+        );
+        if (current) return;
+        testModelId.value = availableModels.value[0]?.id || "";
       },
       { deep: true, immediate: true },
-    )
+    );
 
     const canEnable = computed(() => {
-      if (!props.provider.lastTest?.ok) return false
-      const models = props.provider.models || []
-      const enabledModels = models.filter((m) => m.enabled)
-      if (!enabledModels.length) return false
-      const testedModel = String(props.provider.lastTest?.model || "").trim()
-      if (!testedModel) return false
-      return enabledModels.some((model) => String(model.model || "").trim() === testedModel)
-    })
+      if (!props.provider.lastTest?.ok) return false;
+      const models = props.provider.models || [];
+      const enabledModels = models.filter((m) => m.enabled);
+      if (!enabledModels.length) return false;
+      const testedModel = String(props.provider.lastTest?.model || "").trim();
+      if (!testedModel) return false;
+      return enabledModels.some(
+        (model) => String(model.model || "").trim() === testedModel,
+      );
+    });
 
     watch(
       () => canEnable.value,
       (enabled) => {
         if (!enabled && props.provider.enabled) {
-          updateProvider({ enabled: false })
+          updateProvider({ enabled: false });
         }
       },
-    )
+    );
 
     const selectedTestModel = computed(
-      () => availableModels.value.find((m) => m.id === testModelId.value) || null,
-    )
+      () =>
+        availableModels.value.find((m) => m.id === testModelId.value) || null,
+    );
 
     const updateProvider = (patch: Partial<AIProviderSetting>) => {
-      props.onChange({ ...props.provider, ...patch })
-    }
+      props.onChange({ ...props.provider, ...patch });
+    };
 
     const updateModels = (models: AIModelSetting[]) => {
-      props.onChange({ ...props.provider, models })
-    }
+      props.onChange({ ...props.provider, models });
+    };
 
     const renderTestHint = () => {
       if (!props.provider.lastTest) {
-        return <p class="text-xs text-slate-500">未测试，无法启用</p>
+        return <p class="text-xs text-slate-500">未测试，无法启用</p>;
       }
       if (props.provider.lastTest.ok && !canEnable.value) {
         return (
           <p class="text-xs text-amber-600">
             已测试通过，请启用对应模型后再启用 Provider
           </p>
-        )
+        );
       }
       return (
         <p
@@ -105,32 +116,34 @@ export default defineComponent({
           {props.provider.lastTest.ok ? "测试通过" : "测试失败"} ·{" "}
           {props.provider.lastTest.model} · {props.provider.lastTest.message}
         </p>
-      )
-    }
+      );
+    };
 
     const onChangeType = (nextType: AIProviderSetting["type"]) => {
-      const currentMeta = getProviderTypeMeta(props.provider.type)
-      const nextMeta = getProviderTypeMeta(nextType)
+      const currentMeta = getProviderTypeMeta(props.provider.type);
+      const nextMeta = getProviderTypeMeta(nextType);
       const shouldRename =
-        !props.provider.name || props.provider.name === currentMeta.defaultName
+        !props.provider.name || props.provider.name === currentMeta.defaultName;
       const shouldResetBaseUrl =
         !props.provider.baseUrl ||
-        props.provider.baseUrl === currentMeta.defaultBaseUrl
+        props.provider.baseUrl === currentMeta.defaultBaseUrl;
       updateProvider({
         type: nextType,
         name: shouldRename ? nextMeta.defaultName : props.provider.name,
-        baseUrl: shouldResetBaseUrl ? nextMeta.defaultBaseUrl : props.provider.baseUrl,
+        baseUrl: shouldResetBaseUrl
+          ? nextMeta.defaultBaseUrl
+          : props.provider.baseUrl,
         enabled: false,
         lastTest: null,
-      })
-    }
+      });
+    };
 
     const canTest = computed(() => {
-      const meta = getProviderTypeMeta(props.provider.type)
-      if (!props.provider.baseUrl) return false
-      if (meta.requiresApiKey && !props.provider.apiKey) return false
-      return true
-    })
+      const meta = getProviderTypeMeta(props.provider.type);
+      if (!props.provider.baseUrl) return false;
+      if (meta.requiresApiKey && !props.provider.apiKey) return false;
+      return true;
+    });
 
     return () => (
       <div class="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
@@ -144,7 +157,9 @@ export default defineComponent({
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <span class="text-sm text-slate-700 dark:text-slate-200">启用 Provider</span>
+            <span class="text-sm text-slate-700 dark:text-slate-200">
+              启用 Provider
+            </span>
             <ToggleSwitch
               checked={props.provider.enabled}
               disabled={!canEnable.value}
@@ -163,7 +178,11 @@ export default defineComponent({
           <select
             class="input"
             value={props.provider.type}
-            onChange={(e) => onChangeType((e.target as HTMLSelectElement).value as any)}
+            onChange={(e) =>
+              onChangeType(
+                (e.target as HTMLSelectElement).value as AIProviderSetting["type"],
+              )
+            }
           >
             {PROVIDER_TYPE_OPTIONS.map((item) => (
               <option value={item.type}>{item.label}</option>
@@ -176,13 +195,17 @@ export default defineComponent({
           <input
             type="url"
             value={props.provider.baseUrl}
-            placeholder={getProviderTypeMeta(props.provider.type).baseUrlPlaceholder}
+            placeholder={
+              getProviderTypeMeta(props.provider.type).baseUrlPlaceholder
+            }
             onInput={(e) =>
               updateProvider({
                 baseUrl: (e.target as HTMLInputElement).value,
               })
             }
-            onBlur={() => updateProvider({ baseUrl: normalizeUrl(props.provider.baseUrl) })}
+            onBlur={() =>
+              updateProvider({ baseUrl: normalizeUrl(props.provider.baseUrl) })
+            }
           />
         </label>
 
@@ -249,7 +272,9 @@ export default defineComponent({
               <select
                 class="input w-full sm:w-auto"
                 value={testModelId.value}
-                onChange={(e) => (testModelId.value = (e.target as HTMLSelectElement).value)}
+                onChange={(e) =>
+                  (testModelId.value = (e.target as HTMLSelectElement).value)
+                }
               >
                 <option value="">选择测试模型…</option>
                 {availableModels.value.map((m) => (
@@ -263,13 +288,11 @@ export default defineComponent({
                 type="button"
                 class="btn btn-small btn-primary whitespace-nowrap text-white"
                 disabled={
-                  props.isTesting ||
-                  !selectedTestModel.value ||
-                  !canTest.value
+                  props.isTesting || !selectedTestModel.value || !canTest.value
                 }
                 onClick={() => {
                   if (selectedTestModel.value) {
-                    props.onTestConnection(selectedTestModel.value)
+                    props.onTestConnection(selectedTestModel.value);
                   }
                 }}
               >
@@ -280,6 +303,6 @@ export default defineComponent({
           {renderTestHint()}
         </div>
       </div>
-    )
+    );
   },
-})
+});

@@ -8,8 +8,8 @@ import {
   splitNoncePayload,
   utf8ToBytes,
 } from "./crypto";
-import { decodeBinaryPayload, encodeBinaryPayload } from "./utils";
 import type { ManifestData } from "./types";
+import { decodeBinaryPayload, encodeBinaryPayload } from "./utils";
 
 export interface EncryptedManifest {
   payload: Uint8Array;

@@ -1,47 +1,54 @@
-import { computed, defineComponent, ref, watch } from "vue"
-import { useSettingsStore } from "../../../stores/settings.js"
+import { computed, defineComponent, ref, watch } from "vue";
+import { useSettingsStore } from "../../../stores/settings.js";
+import {
+  normalizeColor,
+  normalizeHighlightStyle,
+  normalizePalette,
+} from "@/shared/highlightUtils.js";
 import {
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLE_OPTIONS,
   HIGHLIGHT_STYLES,
-} from "@/shared/types.js"
-import {
-  normalizeColor,
-  normalizeHighlightStyle,
-  normalizePalette,
-} from "@/shared/highlightUtils.js"
+} from "@/shared/types.js";
 
 const styleOptions = Object.entries(HIGHLIGHT_STYLE_OPTIONS) as [
   HIGHLIGHT_STYLES,
   { label: string },
-][]
+][];
 
 export default defineComponent({
   name: "HighlightPreferencesPage",
   setup() {
-    const store = useSettingsStore()
-    const palette = ref<string[]>([])
-    const defaultColor = ref(DEFAULT_COLORS[0])
-    const defaultStyle = ref<HIGHLIGHT_STYLES>(DEFAULT_HIGHLIGHT_STYLE)
-    const saveNotice = ref("")
-    const status = ref("")
-    const isSaving = ref(false)
+    const store = useSettingsStore();
+    const palette = ref<string[]>([]);
+    const defaultColor = ref(DEFAULT_COLORS[0]);
+    const defaultStyle = ref<HIGHLIGHT_STYLES>(DEFAULT_HIGHLIGHT_STYLE);
+    const saveNotice = ref("");
+    const status = ref("");
+    const isSaving = ref(false);
 
     const applyFromStore = () => {
-      const normalizedPalette = normalizePalette(DEFAULT_COLORS, store.settings.colorPalette)
-      palette.value = normalizedPalette
-      defaultColor.value = normalizedPalette.includes(store.settings.lastUsedColor)
+      const normalizedPalette = normalizePalette(
+        DEFAULT_COLORS,
+        store.settings.colorPalette,
+      );
+      palette.value = normalizedPalette;
+      defaultColor.value = normalizedPalette.includes(
+        store.settings.lastUsedColor,
+      )
         ? store.settings.lastUsedColor
-        : normalizedPalette[0]
-      defaultStyle.value = normalizeHighlightStyle(store.settings.lastUsedStyle)
-    }
+        : normalizedPalette[0];
+      defaultStyle.value = normalizeHighlightStyle(
+        store.settings.lastUsedStyle,
+      );
+    };
 
     watch(
       () => store.settings,
       () => applyFromStore(),
       { deep: true, immediate: true },
-    )
+    );
 
     const isDirty = computed(() => {
       return (
@@ -49,51 +56,51 @@ export default defineComponent({
           JSON.stringify(store.settings.colorPalette) ||
         defaultColor.value !== store.settings.lastUsedColor ||
         defaultStyle.value !== store.settings.lastUsedStyle
-      )
-    })
+      );
+    });
 
     const setTimedNotice = (message: string) => {
-      saveNotice.value = message
+      saveNotice.value = message;
       setTimeout(() => {
-        if (saveNotice.value === message) saveNotice.value = ""
-      }, 2500)
-    }
+        if (saveNotice.value === message) saveNotice.value = "";
+      }, 2500);
+    };
 
     const updatePaletteColor = (index: number, value: string) => {
-      const next = [...palette.value]
-      next[index] = normalizeColor(value, next[index] || DEFAULT_COLORS[0])
-      const normalized = normalizePalette(DEFAULT_COLORS, next)
-      palette.value = normalized
+      const next = [...palette.value];
+      next[index] = normalizeColor(value, next[index] || DEFAULT_COLORS[0]);
+      const normalized = normalizePalette(DEFAULT_COLORS, next);
+      palette.value = normalized;
       if (!normalized.includes(defaultColor.value)) {
-        defaultColor.value = normalized[0]
+        defaultColor.value = normalized[0];
       }
-    }
+    };
 
     const resetDefaults = () => {
-      const normalized = normalizePalette(DEFAULT_COLORS, DEFAULT_COLORS)
-      palette.value = normalized
-      defaultColor.value = normalized[0]
-      defaultStyle.value = DEFAULT_HIGHLIGHT_STYLE
-    }
+      const normalized = normalizePalette(DEFAULT_COLORS, DEFAULT_COLORS);
+      palette.value = normalized;
+      defaultColor.value = normalized[0];
+      defaultStyle.value = DEFAULT_HIGHLIGHT_STYLE;
+    };
 
     const save = async () => {
-      if (isSaving.value) return
-      isSaving.value = true
-      status.value = "保存中…"
+      if (isSaving.value) return;
+      isSaving.value = true;
+      status.value = "保存中…";
       try {
         await store.saveSettings({
           colorPalette: [...palette.value],
           lastUsedColor: defaultColor.value,
           lastUsedStyle: defaultStyle.value,
-        })
-        setTimedNotice("已保存")
-        status.value = ""
+        });
+        setTimedNotice("已保存");
+        status.value = "";
       } catch (error) {
-        status.value = `保存失败：${(error as Error).message}`
+        status.value = `保存失败：${(error as Error).message}`;
       } finally {
-        isSaving.value = false
+        isSaving.value = false;
       }
-    }
+    };
 
     return () => (
       <section class="settings__group">
@@ -223,6 +230,6 @@ export default defineComponent({
           </div>
         </div>
       </section>
-    )
+    );
   },
-})
+});

@@ -8,9 +8,9 @@ import {
   splitNoncePayload,
   utf8ToBytes,
 } from "./crypto";
-import { decodeBinaryPayload, encodeBinaryPayload } from "./utils";
-import type { LockPayload } from "./types";
 import type { S3Client } from "./s3Client";
+import type { LockPayload } from "./types";
+import { decodeBinaryPayload, encodeBinaryPayload } from "./utils";
 
 const DEFAULT_LEASE_MS = 30_000;
 
@@ -103,7 +103,9 @@ async function isLockValid(
     const key = await hkdfSha256(masterKey, utf8ToBytes("lock"), 32);
     const plain = await aesGcmDecrypt(key, nonce, ciphertext);
     const decoded = decodeBinaryPayload(plain) as LockPayload;
-    const signature = Uint8Array.from(atob(decoded.signature), (c) => c.charCodeAt(0));
+    const signature = Uint8Array.from(atob(decoded.signature), (c) =>
+      c.charCodeAt(0),
+    );
     const payloadToVerify: Omit<LockPayload, "signature"> = {
       clientId: decoded.clientId,
       leaseExpiresAt: decoded.leaseExpiresAt,

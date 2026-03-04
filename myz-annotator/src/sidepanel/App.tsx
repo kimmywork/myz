@@ -1,25 +1,20 @@
-import {
-  defineComponent,
-  onMounted,
-  onBeforeUnmount,
-  ref,
-  watch,
-} from "vue";
+import { defineComponent, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import AutoInsightsPanel from "./components/AutoInsightsPanel.jsx";
+import ContextStatusBar from "./components/ContextStatusBar.jsx";
+import ConversationList from "./components/ConversationList.jsx";
+import ImagePreviewModal from "./components/ImagePreviewModal.jsx";
+import InputComposer from "./components/InputComposer.jsx";
+import InterestsPanel from "./components/InterestsPanel.jsx";
+import TaskPlanPanel from "./components/TaskPlanPanel.jsx";
+import ToolResponseModal from "./components/ToolResponseModal.jsx";
+import HistoryView from "./HistoryView.jsx";
+import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import { useChatStore } from "./stores/chat.js";
 import { usePageStore } from "./stores/page.js";
 import { useUIStore } from "./stores/ui.js";
-import AutoInsightsPanel from "./components/AutoInsightsPanel.jsx";
-import ConversationList from "./components/ConversationList.jsx";
-import InputComposer from "./components/InputComposer.jsx";
-import InterestsPanel from "./components/InterestsPanel.jsx";
-import ToolResponseModal from "./components/ToolResponseModal.jsx";
-import ImagePreviewModal from "./components/ImagePreviewModal.jsx";
-import ContextStatusBar from "./components/ContextStatusBar.jsx";
-import TaskPlanPanel from "./components/TaskPlanPanel.jsx";
-import HistoryView from "./HistoryView.jsx";
-import SaveHighlightModal from "./SaveHighlightModal.jsx";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 import { IconChatPlus, IconHistory, IconSettings } from "@/shared/icons.js";
+import { isRecord } from "@/shared/typeUtils";
 
 const SETTINGS_STORAGE_KEY = "myz::settings";
 
@@ -30,14 +25,26 @@ export default defineComponent({
     const pageStore = usePageStore();
     const uiStore = useUIStore();
     const vectorSearchEnabled = ref(false);
-    let settingsListener: ((changes: any, areaName: string) => void) | null = null;
+    let settingsListener:
+      | ((
+          changes: Record<string, chrome.storage.StorageChange>,
+          areaName: string,
+        ) => void)
+      | null = null;
 
-    const resolveVectorSearchEnabled = (settings: any) => {
-      const target = settings?.vectorSearch?.target;
+    const resolveVectorSearchEnabled = (settings?: unknown) => {
+      if (!isRecord(settings)) return false;
+      const vectorSearch = isRecord(settings.vectorSearch)
+        ? settings.vectorSearch
+        : null;
+      const target =
+        vectorSearch && isRecord(vectorSearch.target)
+          ? vectorSearch.target
+          : null;
       return Boolean(
-        settings?.vectorSearch?.enabled &&
+        vectorSearch?.enabled === true &&
           target &&
-          typeof target?.modelId === "string" &&
+          typeof target.modelId === "string" &&
           target.modelId.trim(),
       );
     };
@@ -45,9 +52,8 @@ export default defineComponent({
     const loadVectorSearchEnabled = async () => {
       try {
         const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
-        vectorSearchEnabled.value = resolveVectorSearchEnabled(
-          stored?.[SETTINGS_STORAGE_KEY],
-        );
+        const storedSettings = stored?.[SETTINGS_STORAGE_KEY];
+        vectorSearchEnabled.value = resolveVectorSearchEnabled(storedSettings);
       } catch {
         vectorSearchEnabled.value = false;
       }
@@ -156,12 +162,16 @@ export default defineComponent({
             </header>
             <ContextStatusBar />
             {chatStore.isAgentMode && <TaskPlanPanel />}
-            {chatStore.autoInsights.active && chatStore.autoInsights.loading && (
-              <p class="mt-2 text-xs text-indigo-600 dark:text-indigo-300">
-                正在生成
-                {chatStore.autoInsights.action === "key_points" ? "要点" : "摘要"}...
-              </p>
-            )}
+            {chatStore.autoInsights.active &&
+              chatStore.autoInsights.loading && (
+                <p class="mt-2 text-xs text-indigo-600 dark:text-indigo-300">
+                  正在生成
+                  {chatStore.autoInsights.action === "key_points"
+                    ? "要点"
+                    : "摘要"}
+                  ...
+                </p>
+              )}
             {chatStore.autoInsights.active &&
               !chatStore.autoInsights.loading &&
               chatStore.autoInsights.error && (

@@ -6,6 +6,7 @@ import {
   normalizePalette,
 } from "@/shared/highlightUtils.js";
 import { sendMessage } from "@/shared/messaging.js";
+import type { Settings } from "@/background/settings.js";
 
 import {
   DEFAULT_COLORS,
@@ -38,7 +39,7 @@ async function persistSettings(patch: Partial<HightlightPreference>) {
     return;
   }
   try {
-    await sendMessage("myz:updateSettings", payload);
+    await sendMessage<Partial<Settings>, Settings>("myz:updateSettings", payload);
   } catch (error) {
     console.warn("Failed to persist highlight preferences", error);
   }
@@ -54,7 +55,7 @@ export const usePreferenceStore = defineStore("preference", () => {
     typeof DEFAULT_HIGHLIGHT_STYLE === "string"
       ? DEFAULT_HIGHLIGHT_STYLE
       : HIGHLIGHT_STYLES.PAINT;
-  const normalizeStyle = (style: any) => normalizeHighlightStyle(style);
+  const normalizeStyle = (style: unknown) => normalizeHighlightStyle(style);
 
   const palette = ref(normalizePalette(defaultColors, defaultColors));
   const lastUsedColor = ref(palette.value[0]);
@@ -70,7 +71,7 @@ export const usePreferenceStore = defineStore("preference", () => {
     return normalized;
   }
 
-  function persistStyle(style: any) {
+  function persistStyle(style: unknown) {
     const normalized = normalizeStyle(style);
     lastUsedStyle.value = normalized;
     persistSettings({ lastUsedStyle: lastUsedStyle.value });
@@ -81,7 +82,7 @@ export const usePreferenceStore = defineStore("preference", () => {
   // This will apply settings and set `isLoaded` when complete.
   async function loadSettings() {
     try {
-      const settings = await sendMessage("myz:getSettings");
+      const settings = await sendMessage<undefined, Settings>("myz:getSettings");
       if (settings) {
         applySettings(settings);
       } else {

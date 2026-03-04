@@ -108,10 +108,12 @@ export default defineComponent({
                   {(() => {
                     if (kind.value === RECORD_KINDS.CLIP) return "保存文字";
                     if (kind.value === RECORD_KINDS.BOOKMARK) return "网页书签";
-                    if (kind.value === RECORD_KINDS.AI_GENERATED) return "AI摘录";
+                    if (kind.value === RECORD_KINDS.AI_GENERATED)
+                      return "AI摘录";
                     if (kind.value === RECORD_KINDS.TWEET_POST) return "推文";
                     if (kind.value === RECORD_KINDS.TWEET_REPLY) return "回复";
-                    if (kind.value === RECORD_KINDS.TWEET_RETWEET) return "转推";
+                    if (kind.value === RECORD_KINDS.TWEET_RETWEET)
+                      return "转推";
                     if (kind.value === RECORD_KINDS.TWEET_FAVORITE)
                       return "点赞推文";
                     if (kind.value === RECORD_KINDS.TWEET_BOOKMARK)
@@ -151,7 +153,9 @@ export default defineComponent({
                   <div
                     class="mt-2 min-h-[130px] rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-300"
                     innerHTML={
-                      hasNote.value ? uiStore.formatNote(current.note!) : "无批注"
+                      hasNote.value
+                        ? uiStore.formatNote(current.note!)
+                        : "无批注"
                     }
                   ></div>
                 )}

@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref, Ref, watch } from "vue";
-import { useHighlightsStore } from "./highlights.js";
 import { PAGINATION_BATCH } from "../constants.js";
+import { useHighlightsStore } from "./highlights.js";
 import {
   computeRecordStats,
   formatDateTime,
@@ -121,8 +121,7 @@ export const useUIStore = defineStore("ui", () => {
     let items = filteredHighlightsBase.value;
     if (pageFilter.value) {
       items = items.filter(
-        (item) =>
-          (item.url || item.sourceUrl || "") === pageFilter.value,
+        (item) => (item.url || item.sourceUrl || "") === pageFilter.value,
       );
       if (pageSortMode.value === "range") {
         items = sortRecordsForPage(items, "range");
@@ -393,8 +392,8 @@ export const useUIStore = defineStore("ui", () => {
     if (!record) {
       return;
     }
-    const socialRecordIds: string[] = Array.isArray((record as any)?.socialRecordIds)
-      ? ((record as any).socialRecordIds as any[])
+    const socialRecordIds: string[] = Array.isArray(record.socialRecordIds)
+      ? record.socialRecordIds
           .map((id) => (typeof id === "string" ? id.trim() : ""))
           .filter(Boolean)
       : [];
@@ -426,7 +425,10 @@ export const useUIStore = defineStore("ui", () => {
           payload.color = undefined;
           payload.range = undefined;
         }
-        const updated = await sendMessage("myz:updateHighlight", payload);
+        const updated = await sendMessage<Partial<MyZRecord>, MyZRecord>(
+          "myz:updateHighlight",
+          payload,
+        );
         highlightsStore.applyUpdatedRecord(updated);
       }
       modalState.status = "保存成功";

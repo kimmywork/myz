@@ -1,45 +1,78 @@
 import { readSettings, writeSettings } from "../storage";
-import { registerMessageHandler } from "./handler";
+import type { SyncS3Settings, SyncSettings } from "../settings";
+import { isRecord } from "@/shared/typeUtils";
+import {
+  clearKeyset,
+  deriveKeysetFromSecret,
+  loadKeyset,
+  storeKeyset,
+} from "../sync/keyring";
+import { buildRotationNotice } from "../sync/rotation";
+import { S3Client } from "../sync/s3Client";
+import { ensureSyncAlarm } from "../sync/scheduler";
 import {
   clearDeletions,
   clearRecordStates,
   readSyncState,
   writeSyncState,
 } from "../sync/storage";
-import { clearKeyset, deriveKeysetFromSecret, loadKeyset, storeKeyset } from "../sync/keyring";
 import { syncNow } from "../sync/syncEngine";
-import { ensureSyncAlarm } from "../sync/scheduler";
-import { S3Client } from "../sync/s3Client";
-import { buildRotationNotice } from "../sync/rotation";
+import { registerMessageHandler } from "./handler";
+
+export interface SyncStatusMessageResult {
+  enabled: boolean;
+  keyId: string | null;
+  keyUpdatedAt: string | null;
+  lastSyncAt: string | null;
+  lastManifestVersion: number;
+}
+
+export interface SyncTestConnectionMessageResult {
+  ok: boolean;
+  message?: string;
+}
+
+export interface SyncSetKeyMessageResult {
+  keyId: string;
+  keyUpdatedAt: string;
+}
+
+export interface SyncNowMessageResult {
+  ok: boolean;
+  status?: string;
+  message?: string;
+}
 
 export function initializeSyncMessageHandlers() {
-  registerMessageHandler(
-    "myz:syncStatus",
-    async () => {
-      const settings = await readSettings();
-      const state = await readSyncState();
-      const keyset = await loadKeyset();
-      return {
-        enabled: Boolean(settings.sync?.enabled),
-        keyId: keyset?.keyId || null,
-        keyUpdatedAt: state?.keyUpdatedAt || null,
-        lastSyncAt: state?.lastSyncAt || null,
-        lastManifestVersion: state?.lastManifestVersion || 0,
-      };
-    },
-  );
+  registerMessageHandler("myz:syncStatus", async () => {
+    const settings = await readSettings();
+    const state = await readSyncState();
+    const keyset = await loadKeyset();
+    const result: SyncStatusMessageResult = {
+      enabled: Boolean(settings.sync?.enabled),
+      keyId: keyset?.keyId || null,
+      keyUpdatedAt: state?.keyUpdatedAt || null,
+      lastSyncAt: state?.lastSyncAt || null,
+      lastManifestVersion: state?.lastManifestVersion || 0,
+    };
+    return result;
+  });
 
   registerMessageHandler(
     "myz:syncUpdateSettings",
-    async (payload: { enabled?: boolean; s3?: any }) => {
-      const patch: any = { sync: {} };
+    async (payload: { enabled?: boolean; s3?: Partial<SyncS3Settings> }) => {
+      const current = await readSettings();
+      const syncPatch: SyncSettings = {
+        ...current.sync,
+        s3: { ...current.sync.s3 },
+      };
       if (typeof payload?.enabled === "boolean") {
-        patch.sync.enabled = payload.enabled;
+        syncPatch.enabled = payload.enabled;
       }
-      if (payload?.s3 && typeof payload.s3 === "object") {
-        patch.sync.s3 = { ...payload.s3 };
+      if (isRecord(payload?.s3)) {
+        syncPatch.s3 = { ...syncPatch.s3, ...payload.s3 };
       }
-      const updated = await writeSettings(patch);
+      const updated = await writeSettings({ sync: syncPatch });
       await ensureSyncAlarm();
       if (payload?.enabled) {
         void syncNow();
@@ -50,15 +83,23 @@ export function initializeSyncMessageHandlers() {
 
   registerMessageHandler(
     "myz:syncTestConnection",
-    async (payload: { s3?: any }) => {
+    async (payload: { s3?: Partial<SyncS3Settings> }) => {
       const settings = await readSettings();
-      const s3 = payload?.s3 || settings.sync?.s3;
-      if (!s3?.endpoint || !s3?.bucket || !s3?.accessKeyId || !s3?.secretAccessKey) {
+      const baseS3 = settings.sync.s3;
+      const s3 = isRecord(payload?.s3)
+        ? { ...baseS3, ...payload.s3 }
+        : baseS3;
+      if (
+        !s3?.endpoint ||
+        !s3?.bucket ||
+        !s3?.accessKeyId ||
+        !s3?.secretAccessKey
+      ) {
         throw new Error("缺少 S3 配置");
       }
       const client = new S3Client(s3);
       await client.listObjects(s3.prefix || "");
-      return { ok: true };
+      return { ok: true } satisfies SyncTestConnectionMessageResult;
     },
   );
 
@@ -121,29 +162,29 @@ export function initializeSyncMessageHandlers() {
           console.warn("Failed to write rotation notice", error);
         }
       }
-      return { keyId: keyset.keyId, keyUpdatedAt };
+      return {
+        keyId: keyset.keyId,
+        keyUpdatedAt,
+      } satisfies SyncSetKeyMessageResult;
     },
   );
 
-  registerMessageHandler(
-    "myz:syncClearKey",
-    async () => {
-      await clearKeyset();
-      await clearRecordStates();
-      await clearDeletions();
-      await writeSyncState({
-        id: "state",
-        clientId: "",
-        epoch: 0,
-        keyId: null,
-        keyUpdatedAt: null,
-        lastManifestVersion: 0,
-        lastManifestCreatedAt: null,
-        lastSyncAt: null,
-      });
-      return { ok: true };
-    },
-  );
+  registerMessageHandler("myz:syncClearKey", async () => {
+    await clearKeyset();
+    await clearRecordStates();
+    await clearDeletions();
+    await writeSyncState({
+      id: "state",
+      clientId: "",
+      epoch: 0,
+      keyId: null,
+      keyUpdatedAt: null,
+      lastManifestVersion: 0,
+      lastManifestCreatedAt: null,
+      lastSyncAt: null,
+    });
+    return { ok: true } satisfies SyncNowMessageResult;
+  });
 
   registerMessageHandler("myz:syncNow", async () => {
     return syncNow();

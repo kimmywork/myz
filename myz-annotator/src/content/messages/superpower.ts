@@ -98,7 +98,7 @@ function escapeXPathLiteral(value: string) {
   if (!value.includes("'")) return `'${value}'`;
   if (!value.includes('"')) return `"${value}"`;
   const parts = value.split("'");
-  const joined = parts.map((part) => `'${part}'`).join(", \"'\", ");
+  const joined = parts.map((part) => `'${part}'`).join(', "\'", ');
   return `concat(${joined})`;
 }
 
@@ -106,7 +106,8 @@ function buildXPath(element: Element) {
   if (!element || element.nodeType !== Node.ELEMENT_NODE) return "";
   const id = (element as HTMLElement).id;
   if (id) {
-    const escaped = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id;
+    const escaped =
+      typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id;
     const matches = document.querySelectorAll(`#${escaped}`);
     if (matches.length === 1) {
       return `//*[@id=${escapeXPathLiteral(id)}]`;
@@ -133,7 +134,9 @@ function buildXPath(element: Element) {
     current = parentElement;
   }
   if (!segments.length) return "";
-  const normalized = segments[0].startsWith("/") ? segments.join("/") : `/${segments.join("/")}`;
+  const normalized = segments[0].startsWith("/")
+    ? segments.join("/")
+    : `/${segments.join("/")}`;
   return normalized;
 }
 
@@ -165,7 +168,11 @@ function dispatchPointerEvent(
   element.dispatchEvent(new PointerEvent(type, init));
 }
 
-function dispatchMouseEvent(element: Element, type: string, init: MouseEventInit) {
+function dispatchMouseEvent(
+  element: Element,
+  type: string,
+  init: MouseEventInit,
+) {
   element.dispatchEvent(new MouseEvent(type, init));
 }
 
@@ -213,7 +220,10 @@ function simulateClick(element: Element) {
   try {
     dispatchPointerEvent(element, "pointerover", pointerInit);
     dispatchPointerEvent(element, "pointerenter", pointerInit);
-    dispatchPointerEvent(element, "pointerdown", { ...pointerInit, buttons: 1 });
+    dispatchPointerEvent(element, "pointerdown", {
+      ...pointerInit,
+      buttons: 1,
+    });
     dispatchMouseEvent(element, "mouseover", baseInit);
     dispatchMouseEvent(element, "mouseenter", baseInit);
     dispatchMouseEvent(element, "mousemove", baseInit);
@@ -224,7 +234,10 @@ function simulateClick(element: Element) {
     dispatchMouseEvent(element, "click", { ...baseInit, buttons: 0 });
 
     dispatchPointerEvent(element, "pointerout", { ...pointerInit, buttons: 0 });
-    dispatchPointerEvent(element, "pointerleave", { ...pointerInit, buttons: 0 });
+    dispatchPointerEvent(element, "pointerleave", {
+      ...pointerInit,
+      buttons: 0,
+    });
     dispatchMouseEvent(element, "mouseout", baseInit);
     dispatchMouseEvent(element, "mouseleave", baseInit);
   } catch {
@@ -289,20 +302,20 @@ function simulateTyping(element: Element, value: string) {
 }
 
 function sanitizeHtmlContent(element: Element) {
-  const clone = element.cloneNode(true) as Element
-  const removed = clone.querySelectorAll("script, style")
-  removed.forEach((node) => node.remove())
-  const nodes = clone.querySelectorAll("*")
+  const clone = element.cloneNode(true) as Element;
+  const removed = clone.querySelectorAll("script, style");
+  removed.forEach((node) => node.remove());
+  const nodes = clone.querySelectorAll("*");
   nodes.forEach((node) => {
-    const attrs = Array.from(node.attributes)
+    const attrs = Array.from(node.attributes);
     attrs.forEach((attr) => {
-      const name = attr.name.toLowerCase()
+      const name = attr.name.toLowerCase();
       if (name === "style" || name.startsWith("on")) {
-        node.removeAttribute(attr.name)
+        node.removeAttribute(attr.name);
       }
-    })
-  })
-  return clone.innerHTML || ""
+    });
+  });
+  return clone.innerHTML || "";
 }
 
 function buildElementSnapshot(element: Element) {
@@ -332,7 +345,7 @@ function buildElementSnapshot(element: Element) {
   };
 }
 
-function normalizeBatchSize(value: any, fallback = 10) {
+function normalizeBatchSize(value: unknown, fallback = 10) {
   if (value === true) return fallback;
   if (typeof value !== "number" || !Number.isFinite(value)) return 0;
   return Math.max(1, Math.min(50, Math.floor(value)));
@@ -340,12 +353,20 @@ function normalizeBatchSize(value: any, fallback = 10) {
 
 function isRectInViewport(rect: DOMRect) {
   const width = window.innerWidth || document.documentElement.clientWidth || 0;
-  const height = window.innerHeight || document.documentElement.clientHeight || 0;
-  return rect.bottom > 0 && rect.right > 0 && rect.top < height && rect.left < width;
+  const height =
+    window.innerHeight || document.documentElement.clientHeight || 0;
+  return (
+    rect.bottom > 0 && rect.right > 0 && rect.top < height && rect.left < width
+  );
 }
 
-function normalizeEvalResult(value: any): any {
-  if (value == null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+function normalizeEvalResult(value: unknown): unknown {
+  if (
+    value == null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
     return value;
   }
   if (value instanceof Element) {
@@ -378,8 +399,10 @@ export function initializeSuperpowerMessageHandlers() {
             return { ok: false, error: "captureViewport 需由后台执行" };
           }
           if (type === "scrollBy") {
-            const top = typeof action.scrollTop === "number" ? action.scrollTop : 0;
-            const left = typeof action.scrollLeft === "number" ? action.scrollLeft : 0;
+            const top =
+              typeof action.scrollTop === "number" ? action.scrollTop : 0;
+            const left =
+              typeof action.scrollLeft === "number" ? action.scrollLeft : 0;
             window.scrollBy({ top, left, behavior: "smooth" });
             return { ok: true };
           }
@@ -410,7 +433,7 @@ export function initializeSuperpowerMessageHandlers() {
                 ? Math.max(1, Math.min(50, Math.floor(action.limit)))
                 : 10;
             const nodes = resolveElements(selector, action.selectorType);
-            const inView: any[] = [];
+            const inView: Array<{ xpath: string }> = [];
             for (const node of nodes) {
               if (!(node instanceof Element)) continue;
               const rect = node.getBoundingClientRect();
@@ -446,14 +469,20 @@ export function initializeSuperpowerMessageHandlers() {
               shiftKey: Boolean(action.shiftKey),
               metaKey: Boolean(action.metaKey),
               repeat: Boolean(action.repeat),
-              location: typeof action.location === "number" ? action.location : undefined,
+              location:
+                typeof action.location === "number"
+                  ? action.location
+                  : undefined,
             });
             return { ok: true, result: { xpath: buildXPath(target) } };
           }
 
           const batchSize = normalizeBatchSize(action.batch);
           if (batchSize > 0) {
-            const elements = resolveElements(action.selector, action.selectorType).slice(0, batchSize);
+            const elements = resolveElements(
+              action.selector,
+              action.selectorType,
+            ).slice(0, batchSize);
             if (!elements.length) {
               return { ok: false, error: "Element not found" };
             }
@@ -462,7 +491,9 @@ export function initializeSuperpowerMessageHandlers() {
                 return {
                   ok: true,
                   result: {
-                    items: elements.map((item) => ({ xpath: buildXPath(item) })),
+                    items: elements.map((item) => ({
+                      xpath: buildXPath(item),
+                    })),
                   },
                 };
               case "click":
@@ -471,7 +502,9 @@ export function initializeSuperpowerMessageHandlers() {
                   ok: true,
                   result: {
                     matched: elements.length,
-                    items: elements.map((item) => ({ xpath: buildXPath(item) })),
+                    items: elements.map((item) => ({
+                      xpath: buildXPath(item),
+                    })),
                   },
                 };
               case "scrollIntoView":
@@ -482,20 +515,30 @@ export function initializeSuperpowerMessageHandlers() {
                   ok: true,
                   result: {
                     matched: elements.length,
-                    items: elements.map((item) => ({ xpath: buildXPath(item) })),
+                    items: elements.map((item) => ({
+                      xpath: buildXPath(item),
+                    })),
                   },
                 };
               case "input":
                 elements.forEach((item) => {
                   simulateClick(item);
-                  setInputValue(item, typeof action.value === "string" ? action.value : "");
-                  simulateTyping(item, typeof action.value === "string" ? action.value : "");
+                  setInputValue(
+                    item,
+                    typeof action.value === "string" ? action.value : "",
+                  );
+                  simulateTyping(
+                    item,
+                    typeof action.value === "string" ? action.value : "",
+                  );
                 });
                 return {
                   ok: true,
                   result: {
                     matched: elements.length,
-                    items: elements.map((item) => ({ xpath: buildXPath(item) })),
+                    items: elements.map((item) => ({
+                      xpath: buildXPath(item),
+                    })),
                   },
                 };
               case "keypress": {
@@ -506,21 +549,26 @@ export function initializeSuperpowerMessageHandlers() {
                   simulateClick(item);
                   simulateKeypress(item, {
                     key: typeof action.key === "string" ? action.key : "",
-                    code: typeof action.code === "string" ? action.code : undefined,
+                    code:
+                      typeof action.code === "string" ? action.code : undefined,
                     ctrlKey: Boolean(action.ctrlKey),
                     altKey: Boolean(action.altKey),
                     shiftKey: Boolean(action.shiftKey),
                     metaKey: Boolean(action.metaKey),
                     repeat: Boolean(action.repeat),
                     location:
-                      typeof action.location === "number" ? action.location : undefined,
+                      typeof action.location === "number"
+                        ? action.location
+                        : undefined,
                   });
                 });
                 return {
                   ok: true,
                   result: {
                     matched: elements.length,
-                    items: elements.map((item) => ({ xpath: buildXPath(item) })),
+                    items: elements.map((item) => ({
+                      xpath: buildXPath(item),
+                    })),
                   },
                 };
               }
@@ -530,7 +578,9 @@ export function initializeSuperpowerMessageHandlers() {
                   ok: true,
                   result: {
                     matched: elements.length,
-                    items: elements.map((item) => ({ xpath: buildXPath(item) })),
+                    items: elements.map((item) => ({
+                      xpath: buildXPath(item),
+                    })),
                   },
                 };
               case "getText":
@@ -563,7 +613,9 @@ export function initializeSuperpowerMessageHandlers() {
                     items: elements.map((item) => ({
                       xpath: buildXPath(item),
                       attribute: action.attribute || "",
-                      value: action.attribute ? item.getAttribute(action.attribute) : null,
+                      value: action.attribute
+                        ? item.getAttribute(action.attribute)
+                        : null,
                     })),
                   },
                 };
@@ -614,8 +666,14 @@ export function initializeSuperpowerMessageHandlers() {
               return { ok: true, result: { xpath: buildXPath(element) } };
             case "input":
               simulateClick(element);
-              setInputValue(element, typeof action.value === "string" ? action.value : "");
-              simulateTyping(element, typeof action.value === "string" ? action.value : "");
+              setInputValue(
+                element,
+                typeof action.value === "string" ? action.value : "",
+              );
+              simulateTyping(
+                element,
+                typeof action.value === "string" ? action.value : "",
+              );
               return { ok: true, result: { xpath: buildXPath(element) } };
             case "keypress": {
               if (!action.key) {
@@ -630,7 +688,10 @@ export function initializeSuperpowerMessageHandlers() {
                 shiftKey: Boolean(action.shiftKey),
                 metaKey: Boolean(action.metaKey),
                 repeat: Boolean(action.repeat),
-                location: typeof action.location === "number" ? action.location : undefined,
+                location:
+                  typeof action.location === "number"
+                    ? action.location
+                    : undefined,
               });
               return { ok: true, result: { xpath: buildXPath(element) } };
             }

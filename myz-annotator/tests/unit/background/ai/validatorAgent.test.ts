@@ -9,7 +9,7 @@ describe("ValidatorAgent", () => {
           {
             message: {
               content:
-                "{\"status\":\"pass\",\"expectationScore\":88.7,\"deliverableScore\":91,\"issues\":[\" ok \"],\"missingDeliverables\":[]}",
+                '{"status":"pass","expectationScore":88.7,"deliverableScore":91,"issues":[" ok "],"missingDeliverables":[]}',
             },
           },
         ],

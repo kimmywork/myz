@@ -1,5 +1,5 @@
-import type { S3Client } from "./s3Client";
 import { decryptManifest } from "./manifest";
+import type { S3Client } from "./s3Client";
 
 const MANIFEST_PREFIX = "manifests/";
 const CHUNKS_PREFIX = "chunks/";

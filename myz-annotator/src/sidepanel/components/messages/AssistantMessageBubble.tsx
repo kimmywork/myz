@@ -2,39 +2,12 @@ import { computed, defineComponent, ref, watch } from "vue";
 import { resolveToolNames } from "./messageUtils.js";
 import ToolInlineNotice from "./ToolInlineNotice.jsx";
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
-
-export interface AssistantMessageMetadata {
-  hasToolCalls?: boolean;
-  toolCallDetails?: Array<any>;
-  reasoning?: string;
-  streamingError?: string;
-  streaming?: boolean;
-  toolNames?: string[] | string;
-  toolCallCount?: number;
-  model?: string;
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  };
-  contextWindow?: number;
-  requestDurationMs?: number;
-}
-
-export interface AssistantMessage {
-  id: string;
-  content: string;
-  timestamp: string;
-  metadata?: AssistantMessageMetadata;
-}
+import type { Message } from "@/background/ai/types";
 
 export interface AssistantMessageBubbleProps {
-  message?: AssistantMessage;
+  message?: Message;
   onSave?: (messageId: string) => void;
-  onToolDetails?: (message: any) => void;
+  onToolDetails?: (message: Message | undefined) => void;
   isSaving?: boolean;
 }
 
@@ -61,12 +34,14 @@ export default defineComponent({
     },
   },
   setup(props: AssistantMessageBubbleProps) {
-    const hasToolCalls = (message?: AssistantMessage) =>
+    const hasToolCalls = (message?: Message) =>
       Boolean(message?.metadata?.hasToolCalls);
     const showReasoning = ref(false);
     const copyStatus = ref<"idle" | "success" | "error">("idle");
     let copyTimer: ReturnType<typeof setTimeout> | null = null;
-    const modelName = computed(() => String(props.message?.metadata?.model || "").trim());
+    const modelName = computed(() =>
+      String(props.message?.metadata?.model || "").trim(),
+    );
     const reasoningText = computed(() =>
       (props.message?.metadata?.reasoning || "").trim(),
     );
@@ -106,9 +81,7 @@ export default defineComponent({
       const rate = seconds > 0 ? completionTokens / seconds : 0;
       return `Token用量： ${formatTokenCount(totalTokens)}/${formatTokenCount(
         contextWindow,
-      )}(${percent.toFixed(
-        0,
-      )} %)，Token速率：${rate.toFixed(2)} tokens/s`;
+      )}(${percent.toFixed(0)} %)，Token速率：${rate.toFixed(2)} tokens/s`;
     });
 
     const copyLabel = computed(() => {
@@ -144,16 +117,17 @@ export default defineComponent({
       }
     };
 
-    watch(() => props.message?.id, () => {
-      resetCopyStatus();
-    });
+    watch(
+      () => props.message?.id,
+      () => {
+        resetCopyStatus();
+      },
+    );
 
     return () => (
       <div class="w-full max-w-[85%] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
         <div class="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-          <span>
-            AI助理{modelName.value ? ` · ${modelName.value}` : ""}
-          </span>
+          <span>AI助理{modelName.value ? ` · ${modelName.value}` : ""}</span>
           <span>
             {new Date(props.message?.timestamp || "").toLocaleString()}
           </span>

@@ -1,12 +1,5 @@
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import {
-  MyZRecord,
-  RECORD_KINDS,
-  normalizeContentType,
-  resolveRecordContentType,
-} from "@/shared/types";
-import { extractHostname } from "@/shared/url.js";
-import {
   SerializedRangeSchema,
   ImportStrategySchema,
   SanitizedUrlSchema,
@@ -14,6 +7,15 @@ import {
   SanitizedTimestampSchema,
   SanitizedTagsSchema,
 } from "@/shared/schemas";
+import {
+  MyZRecord,
+  RECORD_KINDS,
+  ensureRecordSchemaVersion,
+  normalizeContentType,
+  resolveRecordContentType,
+} from "@/shared/types";
+import { extractHostname } from "@/shared/url.js";
+import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 export type ImportStrategy = "skip" | "overwrite" | "latest";
 
@@ -22,17 +24,18 @@ export function normalizeImportStrategy(value: unknown): ImportStrategy {
 }
 
 export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
-  if (!raw || typeof raw !== "object") {
+  if (!isRecord(raw)) {
     return null;
   }
 
-  const url = SanitizedUrlSchema.parse((raw as any).url || (raw as any).sourceUrl);
+  const record = raw as UnknownRecord;
+  const url = SanitizedUrlSchema.parse(record.url || record.sourceUrl);
   if (!url) {
     return null;
   }
 
   const kind = (() => {
-    const candidate = (raw as any).kind;
+    const candidate = record.kind;
     if (typeof candidate === "string") {
       const normalized = candidate.trim();
       if (
@@ -45,7 +48,7 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     return RECORD_KINDS.HIGHLIGHT;
   })();
 
-  const rawRecord = raw as MyZRecord;
+  const rawRecord = record as Partial<MyZRecord>;
 
   let range = null;
   if (kind === RECORD_KINDS.HIGHLIGHT) {
@@ -65,7 +68,7 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     text: typeof rawRecord.text === "string" ? rawRecord.text.trim() : "",
     html: typeof rawRecord.html === "string" ? rawRecord.html.trim() : "",
     note: typeof rawRecord.note === "string" ? rawRecord.note.trim() : "",
-    contentType: normalizeContentType((rawRecord as any).contentType),
+    contentType: normalizeContentType(rawRecord.contentType),
     tags: SanitizedTagsSchema.parse(rawRecord.tags),
     hostname:
       typeof rawRecord.hostname === "string" && rawRecord.hostname.trim()
@@ -126,7 +129,7 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     delete result.color;
   }
 
-  return result as MyZRecord;
+  return ensureRecordSchemaVersion(result as MyZRecord) as MyZRecord;
 }
 
 export function buildHighlightSignature(record: MyZRecord): string {

@@ -1,17 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
-import { executeToolCall, listAvailableTools } from "@/background/ai/tools/registry.ts";
+import {
+  executeToolCall,
+  listAvailableTools,
+} from "@/background/ai/tools/registry.ts";
 
 vi.mock("@/background/ai/tools/local.js", () => ({
-  LOCAL_TOOL_DEFINITIONS: [{ name: "LocalTool", description: "local", inputSchema: {} }],
+  LOCAL_TOOL_DEFINITIONS: [
+    { name: "LocalTool", description: "local", inputSchema: {} },
+  ],
   LOCAL_TOOL_HANDLERS: {
-    LocalTool: vi.fn(async (args: any) => ({ content: [{ type: "text", text: `ok:${args.value}` }] })),
+    LocalTool: vi.fn(async (args: any) => ({
+      content: [{ type: "text", text: `ok:${args.value}` }],
+    })),
   },
 }));
 
 function createMcpClient() {
   return {
-    getTools: () => [{ name: "RemoteTool", description: "remote", inputSchema: {} }],
-    callTool: vi.fn(async () => ({ content: [{ type: "text", text: "remote-ok" }] })),
+    getTools: () => [
+      { name: "RemoteTool", description: "remote", inputSchema: {} },
+    ],
+    callTool: vi.fn(async () => ({
+      content: [{ type: "text", text: "remote-ok" }],
+    })),
   };
 }
 
@@ -27,7 +38,9 @@ describe("tool registry", () => {
     const result = await executeToolCall(new Map(), {
       function: { name: "LocalTool", arguments: JSON.stringify({ value: 1 }) },
     });
-    const textBlock = result.content.find((block: any) => block.type === "text") as any;
+    const textBlock = result.content.find(
+      (block: any) => block.type === "text",
+    ) as any;
     expect(textBlock?.text).toBe("ok:1");
   });
 
@@ -36,7 +49,9 @@ describe("tool registry", () => {
     const result = await executeToolCall(new Map([["server", client] as any]), {
       function: { name: "RemoteTool", arguments: "{}" },
     });
-    const textBlock = result.content.find((block: any) => block.type === "text") as any;
+    const textBlock = result.content.find(
+      (block: any) => block.type === "text",
+    ) as any;
     expect(textBlock?.text).toBe("remote-ok");
   });
 });

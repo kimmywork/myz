@@ -1,8 +1,8 @@
 import { defineComponent } from "vue";
-import ToolInlineNotice from "./ToolInlineNotice.jsx";
-import { renderMarkdown } from "@/shared/markdownRenderer.js";
-import type { ImageAttachment } from "@/background/ai/types.js";
 import { useUIStore } from "../../stores/ui.js";
+import ToolInlineNotice from "./ToolInlineNotice.jsx";
+import type { ImageAttachment } from "@/background/ai/types.js";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 interface UserMessage {
   id: string;

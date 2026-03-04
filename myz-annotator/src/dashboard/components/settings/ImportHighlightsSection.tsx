@@ -55,9 +55,8 @@ export default defineComponent({
             <select
               value={importSource.value}
               onChange={(event: Event) =>
-                (importSource.value = (
-                  event.target as HTMLSelectElement
-                ).value as ImportSource)
+                (importSource.value = (event.target as HTMLSelectElement)
+                  .value as ImportSource)
               }
             >
               <option value="auto">自动识别（推荐）</option>
@@ -72,9 +71,8 @@ export default defineComponent({
             <select
               value={importStrategy.value}
               onChange={(event: Event) =>
-                (importStrategy.value = (
-                  event.target as HTMLSelectElement
-                ).value as ImportStrategy)
+                (importStrategy.value = (event.target as HTMLSelectElement)
+                  .value as ImportStrategy)
               }
             >
               <option value="skip">遇到重复时跳过</option>

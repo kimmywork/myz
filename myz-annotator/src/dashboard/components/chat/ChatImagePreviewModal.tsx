@@ -1,16 +1,16 @@
-import { defineComponent } from "vue"
-import { storeToRefs } from "pinia"
-import { useChatUIStore } from "@/dashboard/stores/chatUi.js"
+import { storeToRefs } from "pinia";
+import { defineComponent } from "vue";
+import { useChatUIStore } from "@/dashboard/stores/chatUi.js";
 
 export default defineComponent({
   name: "DashboardImagePreviewModal",
   setup() {
-    const uiStore = useChatUIStore()
-    const { imagePreview } = storeToRefs(uiStore)
+    const uiStore = useChatUIStore();
+    const { imagePreview } = storeToRefs(uiStore);
 
     const handleClose = () => {
-      uiStore.closeImagePreview()
-    }
+      uiStore.closeImagePreview();
+    };
 
     return () =>
       imagePreview.value.visible ? (
@@ -42,6 +42,6 @@ export default defineComponent({
             </div>
           </div>
         </div>
-      ) : null
+      ) : null;
   },
-})
+});

@@ -14,7 +14,9 @@ beforeEach(() => {
 
 describe("skills storage", () => {
   it("imports and lists custom skill", async () => {
-    const { importSkill, listSkills } = await import("@/background/ai/skills/storage.ts");
+    const { importSkill, listSkills } = await import(
+      "@/background/ai/skills/storage.ts"
+    );
     await importSkill({
       rootDir: "custom-skill",
       files: [{ path: "SKILL.md", content: skillContent, encoding: "utf-8" }],
@@ -25,7 +27,9 @@ describe("skills storage", () => {
   });
 
   it("updates enabled state", async () => {
-    const { importSkill, updateSkillEnabled } = await import("@/background/ai/skills/storage.ts");
+    const { importSkill, updateSkillEnabled } = await import(
+      "@/background/ai/skills/storage.ts"
+    );
     await importSkill({
       rootDir: "custom-skill",
       files: [{ path: "SKILL.md", content: skillContent, encoding: "utf-8" }],
@@ -37,20 +41,27 @@ describe("skills storage", () => {
 
   it("updates SKILL.md metadata and instruction", async () => {
     const { importSkill, updateSkillFile, getSkillInstruction } = await import(
-      "@/background/ai/skills/storage.ts",
+      "@/background/ai/skills/storage.ts"
     );
     await importSkill({
       rootDir: "custom-skill",
       files: [{ path: "SKILL.md", content: skillContent, encoding: "utf-8" }],
     });
 
-    await updateSkillFile("custom-skill", "SKILL.md", updatedSkillContent, "utf-8");
+    await updateSkillFile(
+      "custom-skill",
+      "SKILL.md",
+      updatedSkillContent,
+      "utf-8",
+    );
     const instruction = await getSkillInstruction("custom-skill");
     expect(instruction?.description).toBe("Updated description");
   });
 
   it("blocks deletion of builtin skill", async () => {
-    const { listSkills, deleteSkill } = await import("@/background/ai/skills/storage.ts");
+    const { listSkills, deleteSkill } = await import(
+      "@/background/ai/skills/storage.ts"
+    );
     const skills = await listSkills();
     const builtin = skills.find((skill) => skill.builtin);
     expect(builtin).toBeTruthy();

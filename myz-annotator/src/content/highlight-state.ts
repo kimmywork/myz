@@ -10,6 +10,12 @@ import { ensureContentStyles } from "./styles.ts";
 import { normalizeRecord } from "@/dashboard/utils/records.ts";
 import { isHighlightRecord, isClipRecord } from "@/shared/highlightUtils.ts";
 import { sendMessage } from "@/shared/messaging.ts";
+import type {
+  GetAllTagsMessageResult,
+  GetHighlightsForUrlMessageResult,
+  RemoveHighlightMessageResult,
+  UpdateHighlightMessageResult,
+} from "@/background/messages/highlights";
 
 import { deserializeRange, unwrapNode } from "@/shared/serializer.ts";
 
@@ -56,14 +62,19 @@ export async function restoreHighlights() {
     const currentCanonical = canonicalUrl(currentUrl);
     const urlAliases = buildUrlAliases(currentUrl, currentCanonical);
     const [highlights, tagList] = await Promise.all([
-      sendMessage("myz:getHighlightsForUrl", {
+      sendMessage<
+        { url?: string; aliases?: string[] },
+        GetHighlightsForUrlMessageResult
+      >("myz:getHighlightsForUrl", {
         url: currentCanonical,
         aliases: urlAliases,
       }),
-      sendMessage("myz:getAllTags").catch((error) => {
+      sendMessage<undefined, GetAllTagsMessageResult>("myz:getAllTags").catch(
+        (error) => {
         console.warn("Failed to load known tags", error);
         return null;
-      }),
+        },
+      ),
     ]);
 
     if (Array.isArray(tagList)) {
@@ -433,7 +444,10 @@ export async function updateExistingHighlight(update: Partial<MyZRecord>) {
   const modalStore = useModalStore();
   const inspectorStore = useInspectorStore();
   try {
-    const record = await sendMessage("myz:updateHighlight", update);
+    const record = await sendMessage<
+      Partial<MyZRecord>,
+      UpdateHighlightMessageResult
+    >("myz:updateHighlight", update);
     if (!record) {
       return;
     }
@@ -466,7 +480,10 @@ export async function updateExistingHighlight(update: Partial<MyZRecord>) {
 export async function deleteHighlight(id: string) {
   const inspectorStore = useInspectorStore();
   try {
-    await sendMessage("myz:removeHighlight", { id });
+    await sendMessage<{ id?: string }, RemoveHighlightMessageResult>(
+      "myz:removeHighlight",
+      { id },
+    );
     highlightCache.delete(id);
     removeHighlightFromPending(id);
     unreachableHighlights.delete(id);

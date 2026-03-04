@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { normalizeBaseUrl, parseDataUrl, coerceContentToText, safeJsonParse } from "@/background/ai/providers/utils.ts";
+import {
+  normalizeBaseUrl,
+  parseDataUrl,
+  coerceContentToText,
+  safeJsonParse,
+} from "@/background/ai/providers/utils.ts";
+import { isRecord } from "@/shared/typeUtils";
 
 describe("provider utils", () => {
   it("normalizes base url", () => {
-    expect(normalizeBaseUrl("http://a/b/")) .toBe("http://a/b");
+    expect(normalizeBaseUrl("http://a/b/")).toBe("http://a/b");
   });
 
   it("parses data url", () => {
@@ -21,7 +27,9 @@ describe("provider utils", () => {
   });
 
   it("safely parses json", () => {
-    expect(safeJsonParse("{\"a\":1}").a).toBe(1);
+    const parsed = safeJsonParse('{"a":1}');
+    const data = isRecord(parsed) ? parsed : {};
+    expect(data.a).toBe(1);
     expect(safeJsonParse("invalid")).toBeNull();
   });
 });

@@ -6,10 +6,13 @@ import {
   cropToCanvas,
   getSelectionBoundingRect,
 } from "../image";
+import type { CropRect } from "../image";
 import { useModalStore } from "./modal-store";
 import { useNotificationStore } from "./notification-store";
 import { sendMessage } from "@/shared/messaging";
 import { RECORD_KINDS } from "@/shared/types";
+import type { ImageAttachment } from "@/background/ai/types";
+import type { CaptureSelectionMessageResult } from "@/background/messages/capture";
 
 export interface ToolbarStore {
   show(position: DOMRect): void;
@@ -28,6 +31,26 @@ export interface ToolbarStore {
 
 const TOOLBAR_MIN_VIEWPORT_GAP = 12;
 const TOOLBAR_VERTICAL_OFFSET_RATIO = 1.5; // Keep in sync with CSS translateY percentage.
+
+function toCropRect(rect: Partial<CropRect> | null): CropRect | null {
+  if (!rect) return null;
+  if (
+    typeof rect.left !== "number" ||
+    typeof rect.top !== "number" ||
+    typeof rect.width !== "number" ||
+    typeof rect.height !== "number"
+  ) {
+    return null;
+  }
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    right: rect.right,
+    bottom: rect.bottom,
+  };
+}
 
 export const useToolbarStore = defineStore("toolbar", () => {
   const modalStore = useModalStore();
@@ -79,7 +102,7 @@ export const useToolbarStore = defineStore("toolbar", () => {
       return;
     }
     const range = selection.getRangeAt(0);
-    const rect = getSelectionBoundingRect(range) as DOMRect;
+    const rect = toCropRect(getSelectionBoundingRect(range));
     if (!rect || rect.width < 4 || rect.height < 4) {
       hide();
       return;
@@ -94,7 +117,10 @@ export const useToolbarStore = defineStore("toolbar", () => {
     await waitForNextPaint();
 
     try {
-      const result = await sendMessage("myz:captureSelection", {
+      const result = await sendMessage<
+        { format?: "jpeg" | "png"; quality?: number },
+        CaptureSelectionMessageResult
+      >("myz:captureSelection", {
         format: "png",
       });
       if (!result || !result.dataUrl) {
@@ -130,13 +156,13 @@ export const useToolbarStore = defineStore("toolbar", () => {
       return;
     }
     const range = selection.getRangeAt(0);
-    const rect = getSelectionBoundingRect(range) as any;
+    const rect = toCropRect(getSelectionBoundingRect(range));
     const selectedText = selection.toString().trim();
 
     const fragment = range.cloneContents();
     const containsImage =
-      typeof (fragment as any)?.querySelector === "function" &&
-      Boolean((fragment as any).querySelector("img"));
+      typeof fragment.querySelector === "function" &&
+      Boolean(fragment.querySelector("img"));
 
     const storedRanges = [];
     for (let index = 0; index < selection.rangeCount; index += 1) {
@@ -147,9 +173,14 @@ export const useToolbarStore = defineStore("toolbar", () => {
     await waitForNextPaint();
 
     try {
-      let selectionAttachment: any = null;
-      if (containsImage && rect?.width > 4 && rect?.height > 4) {
-        const result = await sendMessage("myz:captureSelection", { format: "png" });
+      let selectionAttachment: ImageAttachment | null = null;
+      if (containsImage && rect && rect.width > 4 && rect.height > 4) {
+        const result = await sendMessage<
+          { format?: "jpeg" | "png"; quality?: number },
+          CaptureSelectionMessageResult
+        >("myz:captureSelection", {
+          format: "png",
+        });
         if (result?.dataUrl) {
           const crop = await cropToCanvas(result.dataUrl, rect, {
             width: window.innerWidth,

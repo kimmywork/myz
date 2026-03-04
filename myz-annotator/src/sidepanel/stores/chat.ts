@@ -1,13 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref, Ref } from "vue";
 import {
-  Message,
-  MessageStream,
-  MessageStreamData,
-  ImageAttachment,
-} from "@/background/ai/types.js";
-import type { Settings } from "@/background/settings.js";
-import {
   saveConversation,
   saveMessage,
   getConversation,
@@ -19,26 +12,83 @@ import {
   ConversationInfo,
 } from "../aiStorage.js";
 import { usePageStore } from "./page.js";
-import { useUIStore } from "./ui.js";
 import { useTaskPlanStore } from "./taskPlan.js";
-import { sendMessage } from "@/shared/messaging.js";
+import { useUIStore } from "./ui.js";
+import {
+  Message,
+  MessageStream,
+  MessageStreamData,
+  ImageAttachment,
+  MessageMetadata,
+  ToolInvocationDetails,
+} from "@/background/ai/types.js";
+import type { TaskPlan, TaskPlanReview } from "@/background/ai/tasks/taskManager.js";
+import type { Settings } from "@/background/settings.js";
 import { VectoriaSearchResult } from "@/background/vectoria-index.js";
+import { sendMessage } from "@/shared/messaging.js";
+import type { JsonRecord, UnknownRecord } from "@/shared/typeUtils";
+import { isRecord, isString, isStringArray } from "@/shared/typeUtils";
 
 const ACTIVE_CONVERSATION_ID_KEY = "myz::activeConversationId";
 
+type ConversationMode = "agent" | "chat";
+type AutoAction =
+  | "summarize"
+  | "key_points"
+  | "interpret_image"
+  | "interpret_selection"
+  | "custom";
+
+type UiAttachment = Pick<
+  ImageAttachment,
+  "type" | "dataUrl" | "mimeType" | "name"
+>;
+
+interface SidePanelActionPayload {
+  action?: AutoAction;
+  draftId?: string;
+  tabId?: number;
+  matches?: VectoriaSearchResult[];
+  prompt?: string;
+  attachments?: ImageAttachment[];
+  selectionText?: string;
+  selectionAttachment?: ImageAttachment;
+}
+
+interface PlanRequestPayload {
+  conversationId: string;
+  message: string;
+  options?: {
+    quickStart?: boolean;
+    autoStart?: boolean;
+    selectionContextText?: string;
+  };
+}
+
+interface PlanRequestResult {
+  plan?: TaskPlan;
+  review?: TaskPlanReview;
+  result?: unknown;
+}
+
+interface CompactConversationPayload {
+  conversationId: string;
+  targetTokens?: number;
+  keepRecentCount?: number;
+}
+
+interface CompactConversationResult {
+  compressed: boolean;
+  messages: Message[];
+  originalCount?: number;
+  compressedCount?: number;
+  summary?: string;
+}
+
 interface SidePanelCommunicationMessage {
   type: string;
-  payload?: {
-    action?: string;
-    draftId?: string;
-    tabId?: number;
-    matches?: VectoriaSearchResult[];
-    prompt?: string;
-    attachments?: ImageAttachment[];
-    selectionText?: string;
-    selectionAttachment?: ImageAttachment;
-  };
-  data?: MessageStreamData | { conversationId?: string; plan?: any };
+  payload?: SidePanelActionPayload;
+  data?: MessageStreamData | { conversationId?: string; plan?: TaskPlan };
 }
 
 export interface AutoInsightsState {
@@ -48,7 +98,7 @@ export interface AutoInsightsState {
   error: string;
   markdown: string;
   chunkGroups: number;
-  context: any;
+  context: JsonRecord | null;
   generatedAt: string;
 }
 
@@ -65,7 +115,7 @@ export const useChatStore = defineStore("chat", () => {
   const userInput = ref("");
   const pendingRequestId = ref<string | null>(null);
   const sendContext = ref(false);
-  const attachments: Ref<ImageAttachment[]> = ref([]);
+  const attachments: Ref<UiAttachment[]> = ref([]);
   const aiConfig = reactive({
     assistantEnabled: false,
     supportsVision: false,
@@ -116,7 +166,9 @@ export const useChatStore = defineStore("chat", () => {
             msg.metadata?.type !== "page_context" &&
             (msg.role !== "system" || msg.metadata?.type === "system_event"),
         );
-    return base.filter((msg: Message) => msg.metadata?.type !== "compression_summary");
+    return base.filter(
+      (msg: Message) => msg.metadata?.type !== "compression_summary",
+    );
   });
 
   const conversationUrl = computed(() => activeConversation.value?.url || "");
@@ -133,7 +185,10 @@ export const useChatStore = defineStore("chat", () => {
   const hasActiveStream = computed(() => Boolean(activeStream.id));
 
   const canAttachImages = computed(
-    () => aiConfig.assistantEnabled && aiConfig.configured && aiConfig.supportsVision,
+    () =>
+      aiConfig.assistantEnabled &&
+      aiConfig.configured &&
+      aiConfig.supportsVision,
   );
 
   const draftContext = reactive<{
@@ -141,7 +196,7 @@ export const useChatStore = defineStore("chat", () => {
     enabled: boolean;
     kind: "selection" | null;
     text: string;
-    attachments: ImageAttachment[];
+    attachments: UiAttachment[];
   }>({
     present: false,
     enabled: false,
@@ -150,12 +205,35 @@ export const useChatStore = defineStore("chat", () => {
     attachments: [],
   });
 
-  function normalizeConversationMode(value: any): "agent" | "chat" {
+  function normalizeConversationMode(value: unknown): ConversationMode {
     return value === "chat" ? "chat" : "agent";
   }
 
-  function resolveConversationMode(value: any) {
+  function resolveConversationMode(value: unknown): ConversationMode {
     return aiConfig.superpowerMode ? normalizeConversationMode(value) : "chat";
+  }
+
+  function normalizeAutoAction(value: unknown): AutoAction | null {
+    if (value === "summarize") return "summarize";
+    if (value === "key_points") return "key_points";
+    if (value === "interpret_image") return "interpret_image";
+    if (value === "interpret_selection") return "interpret_selection";
+    if (value === "custom") return "custom";
+    return null;
+  }
+
+  function isToolInvocationDetailsArray(
+    value: unknown,
+  ): value is ToolInvocationDetails[] {
+    if (!Array.isArray(value)) return false;
+    return value.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.id === "string" &&
+        typeof item.name === "string" &&
+        typeof item.arguments === "string" &&
+        (item.response === undefined || typeof item.response === "string"),
+    );
   }
 
   async function maybeGenerateConversationTitle(input: string) {
@@ -165,7 +243,15 @@ export const useChatStore = defineStore("chat", () => {
     const titleGenerated = current?.metadata?.titleGenerated;
     if (titleGenerated !== false) return;
     try {
-      const updated = await sendMessage("myz:aiTitleRequest", {
+      const updated = await sendMessage<
+        {
+          conversationId: string;
+          request?: string;
+          pageTitle?: string;
+          url?: string;
+        },
+        ConversationInfo
+      >("myz:aiTitleRequest", {
         conversationId: current.id,
         request: input,
         pageTitle: pageStore.pageTitle,
@@ -205,11 +291,31 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   function removeDraftAttachment(index: number) {
-    draftContext.attachments = draftContext.attachments.filter((_, i) => i !== index);
+    draftContext.attachments = draftContext.attachments.filter(
+      (_, i) => i !== index,
+    );
   }
 
   function resetAttachments() {
     attachments.value = [];
+  }
+
+  function normalizeUiAttachments(value: unknown): UiAttachment[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(
+        (item): item is UiAttachment =>
+          isRecord(item) &&
+          item.type === "image" &&
+          typeof item.dataUrl === "string" &&
+          item.dataUrl.length > 0,
+      )
+      .map((item) => ({
+        type: "image",
+        dataUrl: item.dataUrl,
+        mimeType: typeof item.mimeType === "string" ? item.mimeType : undefined,
+        name: typeof item.name === "string" ? item.name : undefined,
+      }));
   }
 
   function inferMimeTypeFromDataUrl(dataUrl: string) {
@@ -262,7 +368,9 @@ export const useChatStore = defineStore("chat", () => {
     const mimeType =
       attachment.mimeType || inferMimeTypeFromDataUrl(dataUrl) || "image/png";
     const outputMime =
-      mimeType === "image/jpeg" || mimeType === "image/webp" ? mimeType : "image/png";
+      mimeType === "image/jpeg" || mimeType === "image/webp"
+        ? mimeType
+        : "image/png";
     const nextDataUrl =
       outputMime === "image/jpeg" || outputMime === "image/webp"
         ? canvas.toDataURL(outputMime, 0.9)
@@ -397,7 +505,10 @@ export const useChatStore = defineStore("chat", () => {
       const title = "";
       const pageTitle = pageStore.pageTitle || "";
       const defaultMode = resolveConversationMode("agent");
-      const conversationData: ConversationInfo & Record<string, any> = {
+      const conversationData: ConversationInfo & {
+        messages?: Message[];
+        isAiGenerated?: boolean;
+      } = {
         id: convId,
         url,
         title,
@@ -496,24 +607,26 @@ export const useChatStore = defineStore("chat", () => {
       if (conv) {
         conversationId.value = conv.id;
         activeConversation.value = conv;
-        conversationMode.value = resolveConversationMode(conv.metadata?.assistantMode);
+        conversationMode.value = resolveConversationMode(
+          conv.metadata?.assistantMode,
+        );
         await writeActiveConversationId(conv.id);
         await taskPlanStore.loadPlan(conv.id);
         const msgs = await getMessagesForConversation(convId, 1000);
         messages.value = msgs;
-        
+
         const hasContext = msgs.some(
           (msg) =>
             msg.metadata?.type === "page_context" ||
             (msg.role === "system" && !msg.metadata?.type),
         );
-        
+
         if (typeof conv.sendContextEnabled === "boolean") {
           sendContext.value = conv.sendContextEnabled;
         } else {
           sendContext.value = hasContext;
         }
-        
+
         await checkContext();
         return true;
       }
@@ -561,7 +674,10 @@ export const useChatStore = defineStore("chat", () => {
   async function sendUserMessage(content: string) {
     const trimmed = (content || "").trim();
     const autoMode = isAgentMode.value;
-    const cleanedMessage = trimmed.replace(/\b(ulw|ultrawork)\b/gi, "").replace(/\s+/g, " ").trim();
+    const cleanedMessage = trimmed
+      .replace(/\b(ulw|ultrawork)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
     const effectiveMessage = cleanedMessage || trimmed;
     const draftEnabled = Boolean(draftContext.present && draftContext.enabled);
     const draftText = draftEnabled ? (draftContext.text || "").trim() : "";
@@ -576,10 +692,18 @@ export const useChatStore = defineStore("chat", () => {
       ? conversationMode.value
       : "chat";
 
-    if ((!trimmed && !combinedAttachments.length && !draftText) || isLoading.value) {
+    if (
+      (!trimmed && !combinedAttachments.length && !draftText) ||
+      isLoading.value
+    ) {
       return;
     }
-    if (autoMode && !cleanedMessage && !combinedAttachments.length && !draftText) {
+    if (
+      autoMode &&
+      !cleanedMessage &&
+      !combinedAttachments.length &&
+      !draftText
+    ) {
       error.value = "请提供一句话任务描述";
       return;
     }
@@ -625,7 +749,8 @@ export const useChatStore = defineStore("chat", () => {
         await compressConversationContext();
       }
 
-      const nextAttachments = await prepareAttachmentsForSend(combinedAttachments);
+      const nextAttachments =
+        await prepareAttachmentsForSend(combinedAttachments);
       const selectionContextText = draftEnabled && draftText ? draftText : "";
       const userMsg: Message = {
         id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -651,7 +776,10 @@ export const useChatStore = defineStore("chat", () => {
         autoMode && (!plan || plan.status === "needs_revision");
       if (needsPlanning) {
         try {
-          const planResult: any = await sendMessage("myz:aiPlanRequest", {
+          const planResult = await sendMessage<
+            PlanRequestPayload,
+            PlanRequestResult
+          >("myz:aiPlanRequest", {
             conversationId: conversationId.value,
             message: effectiveMessage,
             options: {
@@ -665,7 +793,9 @@ export const useChatStore = defineStore("chat", () => {
           const review = plan?.planReview || planResult?.review;
           const reviewStatus = review?.status || "pending";
           const issues = Array.isArray(review?.issues) ? review.issues : [];
-          const missingInfo = Array.isArray(review?.missingInfo) ? review.missingInfo : [];
+          const missingInfo = Array.isArray(review?.missingInfo)
+            ? review.missingInfo
+            : [];
           const contentLines = [];
           if (reviewStatus === "pass") {
             contentLines.push(
@@ -674,9 +804,13 @@ export const useChatStore = defineStore("chat", () => {
                 : "已生成任务计划并通过审核。请在任务面板点击“开始执行”。",
             );
           } else if (reviewStatus === "needs_revision") {
-            contentLines.push("任务计划需调整，请根据以下问题补充或修改需求后再试：");
+            contentLines.push(
+              "任务计划需调整，请根据以下问题补充或修改需求后再试：",
+            );
             if (issues.length === 0 && missingInfo.length === 0) {
-              contentLines.push("审核未给出具体问题，请补充目标、约束或验收标准，或点击“重新审核”重试。");
+              contentLines.push(
+                "审核未给出具体问题，请补充目标、约束或验收标准，或点击“重新审核”重试。",
+              );
             } else {
               issues.forEach((issue: string, index: number) => {
                 contentLines.push(`${index + 1}. ${issue}`);
@@ -755,7 +889,10 @@ export const useChatStore = defineStore("chat", () => {
 
   async function compressConversationContext() {
     if (!conversationId.value) return;
-    const compressed: any = await sendMessage("myz:compactConversation", {
+    const compressed = await sendMessage<
+      CompactConversationPayload,
+      CompactConversationResult
+    >("myz:compactConversation", {
       conversationId: conversationId.value,
       targetTokens: contextInfo.maxSize * 0.5,
     });
@@ -767,29 +904,51 @@ export const useChatStore = defineStore("chat", () => {
 
   async function runAutoInsights(action: string) {
     if (!pageStore.currentTabId) return;
-    
+
     resetAutoInsights();
     autoInsights.active = true;
     autoInsights.action = action;
     autoInsights.loading = true;
 
     try {
-      const envelope: any = await chrome.tabs.sendMessage(pageStore.currentTabId, {
-        type: "myz:analyzePage",
-        payload: { action },
-      });
-      if (envelope?.ok === false) {
-        throw new Error(envelope?.error || "分析失败");
+      const envelope = await chrome.tabs.sendMessage(
+        pageStore.currentTabId,
+        {
+          type: "myz:analyzePage",
+          payload: { action },
+        },
+      );
+      if (isRecord(envelope) && envelope.ok === false) {
+        throw new Error(
+          typeof envelope.error === "string" ? envelope.error : "分析失败",
+        );
       }
-      const result = envelope?.data ?? envelope;
+      const result = isRecord(envelope) && "data" in envelope
+        ? (envelope.data as unknown)
+        : envelope;
+      const resultRecord = isRecord(result) ? result : null;
 
-      if (result && result.success) {
-        autoInsights.markdown = result.markdown;
-        autoInsights.chunkGroups = result.chunkGroups || 0;
-        autoInsights.context = result.context;
-        autoInsights.generatedAt = result.generatedAt || new Date().toISOString();
+      if (resultRecord && resultRecord.success === true) {
+        autoInsights.markdown =
+          typeof resultRecord.markdown === "string"
+            ? resultRecord.markdown
+            : "";
+        autoInsights.chunkGroups =
+          typeof resultRecord.chunkGroups === "number"
+            ? resultRecord.chunkGroups
+            : 0;
+        autoInsights.context = isRecord(resultRecord.context)
+          ? (resultRecord.context as JsonRecord)
+          : null;
+        autoInsights.generatedAt =
+          typeof resultRecord.generatedAt === "string"
+            ? resultRecord.generatedAt
+            : new Date().toISOString();
       } else {
-        autoInsights.error = result?.error || "分析失败";
+        autoInsights.error =
+          typeof resultRecord?.error === "string"
+            ? resultRecord.error
+            : "分析失败";
       }
     } catch (e) {
       autoInsights.error = (e as Error).message;
@@ -799,7 +958,9 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   const isContextPreferenceUpdating = ref(false);
-  let runtimeListener: ((message: SidePanelCommunicationMessage) => void) | null = null;
+  let runtimeListener:
+    | ((message: SidePanelCommunicationMessage) => void)
+    | null = null;
 
   async function toggleContext(event: Event) {
     const enabled = Boolean(
@@ -827,13 +988,15 @@ export const useChatStore = defineStore("chat", () => {
             (msg.role !== "system" || msg.metadata?.type === "system_event"),
         );
       } else if (!pageStore.pageContent) {
-         await ensurePageContextMessage(conversationId.value);
+        await ensurePageContextMessage(conversationId.value);
       } else {
-         // Check if we already have it?
-         const hasContext = messages.value.some(m => m.metadata?.type === "page_context");
-         if (!hasContext && pageStore.pageContent) {
-            await ensurePageContextMessage(conversationId.value);
-         }
+        // Check if we already have it?
+        const hasContext = messages.value.some(
+          (m) => m.metadata?.type === "page_context",
+        );
+        if (!hasContext && pageStore.pageContent) {
+          await ensurePageContextMessage(conversationId.value);
+        }
       }
 
       await persistSendContextPreference(enabled);
@@ -853,33 +1016,50 @@ export const useChatStore = defineStore("chat", () => {
 
   // Stream handlers
   function handleStreamStartEvent(data: MessageStreamData) {
-    if (!data || data.conversationId !== conversationId.value || !data.message) return;
+    if (!data || data.conversationId !== conversationId.value || !data.message)
+      return;
     resetActiveStream();
     const streamId = data.message.id || data.streamId;
     if (!streamId) return;
-    
+
     activeStream.id = streamId;
     activeStream.content = "";
     activeStream.reasoning = "";
     activeStream.timestamp = data.message.timestamp || new Date().toISOString();
-    activeStream.metadata = { ...(data.message.metadata || {}), streaming: true };
-    
+    activeStream.metadata = {
+      ...(data.message.metadata || {}),
+      streaming: true,
+    };
+
     const uiStore = useUIStore();
     uiStore.scrollToBottom();
   }
 
   function handleStreamChunkEvent(data: MessageStreamData) {
-    if (!data || data.conversationId !== conversationId.value || !data.streamId || activeStream.id !== data.streamId) return;
-    
+    if (
+      !data ||
+      data.conversationId !== conversationId.value ||
+      !data.streamId ||
+      activeStream.id !== data.streamId
+    )
+      return;
+
     if (typeof data.delta === "string") activeStream.content = data.delta;
-    if (typeof data.reasoning === "string") activeStream.reasoning = data.reasoning;
-    
+    if (typeof data.reasoning === "string")
+      activeStream.reasoning = data.reasoning;
+
     const uiStore = useUIStore();
     uiStore.scrollToBottom();
   }
 
   function handleStreamCompleteEvent(data: MessageStreamData) {
-    if (!data || data.conversationId !== conversationId.value || !data.streamId || activeStream.id !== data.streamId) return;
+    if (
+      !data ||
+      data.conversationId !== conversationId.value ||
+      !data.streamId ||
+      activeStream.id !== data.streamId
+    )
+      return;
 
     let finalMessage: Message | undefined = data.message;
     if (!finalMessage) {
@@ -896,52 +1076,85 @@ export const useChatStore = defineStore("chat", () => {
         },
       };
     }
-    
+
     // Merge metadata logic from App.tsx
-    const mergedMetadata: Record<string, any> = {
+    const mergedMetadata: MessageMetadata = {
       ...(finalMessage.metadata || {}),
       streaming: false,
     };
-    const reasoningText = data.reasoning || (data.metadata?.reasoning as string) || (mergedMetadata?.reasoning as string) || activeStream.reasoning || "";
+    const reasoningText =
+      data.reasoning ||
+      (typeof data.metadata?.reasoning === "string"
+        ? data.metadata.reasoning
+        : "") ||
+      (typeof mergedMetadata?.reasoning === "string"
+        ? mergedMetadata.reasoning
+        : "") ||
+      activeStream.reasoning ||
+      "";
     if (reasoningText) {
       mergedMetadata.reasoning = reasoningText;
-      finalMessage.reasoning_content = finalMessage.reasoning_content || reasoningText;
+      finalMessage.reasoning_content =
+        finalMessage.reasoning_content || reasoningText;
     }
     finalMessage.metadata = mergedMetadata;
 
-    if (data.metadata?.toolNames && !finalMessage.metadata?.toolNames) {
-      finalMessage.metadata = { ...(finalMessage.metadata || {}), toolNames: data.metadata.toolNames };
-    }
-    if (data.metadata?.toolCallDetails && !finalMessage.metadata?.toolCallDetails) {
-      finalMessage.metadata = { 
-        ...(finalMessage.metadata || {}), 
-        toolCallDetails: data.metadata.toolCallDetails,
-        hasToolCalls: data.metadata.toolCallDetails.length > 0 
+    const rawToolNames = data.metadata?.toolNames;
+    const toolNames = isStringArray(rawToolNames)
+      ? rawToolNames
+      : isString(rawToolNames)
+        ? rawToolNames
+        : null;
+    const rawToolCallDetails = data.metadata?.toolCallDetails;
+    const toolCallDetails = isToolInvocationDetailsArray(rawToolCallDetails)
+      ? rawToolCallDetails
+      : null;
+    if (toolNames && !finalMessage.metadata?.toolNames) {
+      finalMessage.metadata = {
+        ...(finalMessage.metadata || {}),
+        toolNames,
       };
     }
-    if (Array.isArray(finalMessage.metadata?.toolNames) && finalMessage.metadata.toolNames.length > 0) {
+    if (toolCallDetails && !finalMessage.metadata?.toolCallDetails) {
+      finalMessage.metadata = {
+        ...(finalMessage.metadata || {}),
+        toolCallDetails,
+        hasToolCalls: toolCallDetails.length > 0,
+      };
+    }
+    if (
+      Array.isArray(finalMessage.metadata?.toolNames) &&
+      finalMessage.metadata.toolNames.length > 0
+    ) {
       finalMessage.metadata.hasToolCalls = true;
     }
 
-    const messageToAppend = { ...finalMessage, metadata: { ...(finalMessage.metadata || {}) } };
+    const messageToAppend = {
+      ...finalMessage,
+      metadata: { ...(finalMessage.metadata || {}) },
+    };
     resetActiveStream();
     messages.value.push(messageToAppend);
     isLoading.value = false;
     pendingRequestId.value = null;
 
     maybeTriggerValidation(taskPlanStore.taskPlan);
-    
+
     const uiStore = useUIStore();
     uiStore.scrollToBottom();
     checkContext();
   }
 
-  function maybeTriggerValidation(plan: any) {
+  function maybeTriggerValidation(plan: TaskPlan | null) {
     if (!isAgentMode.value || !conversationId.value || isValidating.value) {
       return;
     }
     const reviewPassed = plan?.planReview?.status === "pass";
-    if (reviewPassed && plan?.status === "done" && plan?.validation?.status !== "pass") {
+    if (
+      reviewPassed &&
+      plan?.status === "done" &&
+      plan?.validation?.status !== "pass"
+    ) {
       isValidating.value = true;
       void sendMessage("myz:aiValidateRequest", {
         conversationId: conversationId.value,
@@ -956,28 +1169,37 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   function handleStreamErrorEvent(data: MessageStreamData) {
-    if (!data || data.conversationId !== conversationId.value || !data.streamId || activeStream.id !== data.streamId) return;
+    if (
+      !data ||
+      data.conversationId !== conversationId.value ||
+      !data.streamId ||
+      activeStream.id !== data.streamId
+    )
+      return;
     resetActiveStream();
     error.value = data.error ? `AI生成失败: ${data.error}` : "AI生成失败";
     isLoading.value = false;
     pendingRequestId.value = null;
   }
 
-  const lastSidePanelAction = ref<SidePanelCommunicationMessage["payload"] | null>(
-    null,
-  );
+  const lastSidePanelAction = ref<UnknownRecord | null>(null);
 
   async function refreshAiConfig() {
     try {
-      const settings = (await sendMessage<any, Settings>("myz:getSettings")) as Settings;
+      const settings = await sendMessage<undefined, Settings>(
+        "myz:getSettings",
+      );
       aiConfig.assistantEnabled = Boolean(settings?.aiAssistantEnabled);
 
       const conversation = settings?.aiAgents?.conversation;
       const target = conversation?.target;
       const providerId = target?.providerId;
       const modelId = target?.modelId;
-      const provider = (settings?.aiProviders || []).find((p: any) => p.id === providerId);
-      const model = (provider?.models || []).find((m: any) => m.id === modelId);
+      const providers = Array.isArray(settings?.aiProviders)
+        ? settings.aiProviders
+        : [];
+      const provider = providers.find((p) => p.id === providerId);
+      const model = provider?.models?.find((m) => m.id === modelId);
 
       aiConfig.configured = Boolean(provider && model);
       const baseVision = Boolean(model?.capabilities?.vision);
@@ -990,11 +1212,11 @@ export const useChatStore = defineStore("chat", () => {
       let multimodalVision = false;
       let multimodalContextWindow: number | null = null;
       if (multimodalTarget?.providerId && multimodalTarget?.modelId) {
-        const multimodalProvider = (settings?.aiProviders || []).find(
-          (p: any) => p.id === multimodalTarget.providerId,
+        const multimodalProvider = providers.find(
+          (p) => p.id === multimodalTarget.providerId,
         );
-        const multimodalModel = (multimodalProvider?.models || []).find(
-          (m: any) => m.id === multimodalTarget.modelId,
+        const multimodalModel = multimodalProvider?.models?.find(
+          (m) => m.id === multimodalTarget.modelId,
         );
         multimodalVision = Boolean(
           multimodalProvider?.enabled &&
@@ -1003,7 +1225,9 @@ export const useChatStore = defineStore("chat", () => {
             multimodalModel?.capabilities?.vision,
         );
         if (typeof multimodalModel?.limits?.contextWindow === "number") {
-          multimodalContextWindow = Math.floor(multimodalModel.limits.contextWindow);
+          multimodalContextWindow = Math.floor(
+            multimodalModel.limits.contextWindow,
+          );
         }
       }
       aiConfig.supportsVision = baseVision || multimodalVision;
@@ -1043,11 +1267,14 @@ export const useChatStore = defineStore("chat", () => {
       return;
     }
     if (action === "interpret_image") {
-      const payload = lastSidePanelAction.value || {};
+      const payload: UnknownRecord = isRecord(lastSidePanelAction.value)
+        ? lastSidePanelAction.value
+        : {};
       clearDraftContext();
       resetAttachments();
-      if (Array.isArray(payload.attachments) && payload.attachments.length) {
-        attachments.value = payload.attachments;
+      const nextAttachments = normalizeUiAttachments(payload.attachments);
+      if (nextAttachments.length) {
+        attachments.value = nextAttachments;
       }
       userInput.value =
         typeof payload.prompt === "string" && payload.prompt.trim()
@@ -1056,20 +1283,23 @@ export const useChatStore = defineStore("chat", () => {
       return;
     }
     if (action === "interpret_selection") {
-      const payload = lastSidePanelAction.value || {};
+      const payload: UnknownRecord = isRecord(lastSidePanelAction.value)
+        ? lastSidePanelAction.value
+        : {};
       resetAttachments();
       const selectionText =
-        typeof payload.selectionText === "string" ? payload.selectionText.trim() : "";
-      const selectionAttachment =
-        payload.selectionAttachment && payload.selectionAttachment.type === "image"
-          ? payload.selectionAttachment
-          : null;
+        typeof payload.selectionText === "string"
+          ? payload.selectionText.trim()
+          : "";
+      const selectionAttachments = normalizeUiAttachments(
+        payload.selectionAttachment ? [payload.selectionAttachment] : [],
+      );
 
       draftContext.present = true;
       draftContext.enabled = true;
       draftContext.kind = "selection";
       draftContext.text = selectionText;
-      draftContext.attachments = selectionAttachment ? [selectionAttachment] : [];
+      draftContext.attachments = selectionAttachments;
 
       userInput.value =
         typeof payload.prompt === "string" && payload.prompt.trim()
@@ -1090,11 +1320,18 @@ export const useChatStore = defineStore("chat", () => {
     // Setup listener
     runtimeListener = (message: SidePanelCommunicationMessage) => {
       const uiStore = useUIStore();
-      
-      if (message.type === "myz:openSidePanelWithAction" && message.payload?.action) {
-        lastSidePanelAction.value = message.payload || null;
+
+      if (
+        message.type === "myz:openSidePanelWithAction" &&
+        message.payload?.action
+      ) {
+        lastSidePanelAction.value = isRecord(message.payload)
+          ? message.payload
+          : null;
         const tabId =
-          typeof message.payload?.tabId === "number" ? message.payload.tabId : null;
+          typeof message.payload?.tabId === "number"
+            ? message.payload.tabId
+            : null;
         if (typeof tabId === "number") {
           void pageStore.loadPageContext(tabId, { includeContent: false });
         }
@@ -1103,10 +1340,19 @@ export const useChatStore = defineStore("chat", () => {
             draftId: message.payload.draftId,
           }).catch(() => {});
         }
-        setTimeout(() => handleAutoAction(message.payload!.action as any), 100);
-      } else if (message.type === "myz:newMessage" && (message.data as MessageStreamData)?.message) {
+        const action = normalizeAutoAction(message.payload?.action);
+        if (action) {
+          setTimeout(() => handleAutoAction(action), 100);
+        }
+      } else if (
+        message.type === "myz:newMessage" &&
+        (message.data as MessageStreamData)?.message
+      ) {
         const incoming = (message.data as MessageStreamData).message!;
-        if (conversationId.value && incoming.conversationId === conversationId.value) {
+        if (
+          conversationId.value &&
+          incoming.conversationId === conversationId.value
+        ) {
           messages.value.push(incoming);
           if (incoming.role === "assistant") {
             isLoading.value = false;
@@ -1115,17 +1361,24 @@ export const useChatStore = defineStore("chat", () => {
           uiStore.scrollToBottom();
         }
       } else if (message.type === "myz:taskPlanUpdated" && message.data) {
-        const payload = message.data as any;
-        if (payload?.conversationId === conversationId.value) {
-          taskPlanStore.setPlan(payload.plan);
-          maybeTriggerValidation(payload.plan);
+        const payload = isRecord(message.data) ? message.data : null;
+        const plan = payload?.plan as TaskPlan | undefined;
+        if (
+          typeof payload?.conversationId === "string" &&
+          payload.conversationId === conversationId.value
+        ) {
+          taskPlanStore.setPlan(plan || null);
+          maybeTriggerValidation(plan || null);
         }
       } else if (message.type === "myz:aiSkillSelection" && message.data) {
         const data = message.data! as MessageStreamData;
-        if (!data.conversationId || data.conversationId !== conversationId.value) {
+        if (
+          !data.conversationId ||
+          data.conversationId !== conversationId.value
+        ) {
           return;
         }
-        if (!(data).clientMessageId) {
+        if (!data.clientMessageId) {
           return;
         }
         const skillNames = Array.isArray(data.skillNames)
@@ -1134,7 +1387,9 @@ export const useChatStore = defineStore("chat", () => {
         if (skillNames.length === 0) {
           return;
         }
-        const index = messages.value.findIndex((msg) => msg.id === data.clientMessageId);
+        const index = messages.value.findIndex(
+          (msg) => msg.id === data.clientMessageId,
+        );
         if (index >= 0) {
           const existing = messages.value[index];
           messages.value[index] = {
@@ -1153,7 +1408,10 @@ export const useChatStore = defineStore("chat", () => {
         handleStreamCompleteEvent(message.data as MessageStreamData);
       } else if (message.type === "myz:aiStreamError" && message.data) {
         handleStreamErrorEvent(message.data as MessageStreamData);
-      } else if (message.type === "myz:showRelatedHighlights" && Array.isArray(message.payload?.matches)) {
+      } else if (
+        message.type === "myz:showRelatedHighlights" &&
+        Array.isArray(message.payload?.matches)
+      ) {
         pageStore.relatedMatches = message.payload!.matches;
         uiStore.setView("related");
       }
@@ -1166,14 +1424,21 @@ export const useChatStore = defineStore("chat", () => {
     // - If opened from a draft action, use its originating tab.
     // - Otherwise use the current active tab.
     try {
-      const pending: any = await sendMessage("myz:popSidePanelAction");
+      const pending = await sendMessage<undefined, SidePanelActionPayload | null>(
+        "myz:popSidePanelAction",
+      );
       if (pending?.action) {
-        lastSidePanelAction.value = pending;
-        const tabId = typeof pending?.tabId === "number" ? pending.tabId : null;
+        const pendingRecord: UnknownRecord = { ...pending }
+        lastSidePanelAction.value = pendingRecord
+        const tabId =
+          typeof pending?.tabId === "number" ? pending.tabId : null;
         if (typeof tabId === "number") {
           await pageStore.loadPageContext(tabId, { includeContent: false });
         }
-        setTimeout(() => handleAutoAction(pending.action as any), 80);
+        const action = normalizeAutoAction(pending.action);
+        if (action) {
+          setTimeout(() => handleAutoAction(action), 80);
+        }
       } else {
         await pageStore.loadPageContext(undefined, { includeContent: false });
       }
@@ -1186,9 +1451,10 @@ export const useChatStore = defineStore("chat", () => {
     // If a related-highlights payload was produced while the SidePanel was closed,
     // pull it once on startup and show it.
     try {
-      const pendingRelated: any = await sendMessage(
-        "myz:popPendingRelatedHighlights",
-      );
+      const pendingRelated = await sendMessage<
+        undefined,
+        { matches?: VectoriaSearchResult[] } | null
+      >("myz:popPendingRelatedHighlights");
       if (pendingRelated && Array.isArray(pendingRelated.matches)) {
         pageStore.relatedMatches = pendingRelated.matches;
         uiStore.setView("related");

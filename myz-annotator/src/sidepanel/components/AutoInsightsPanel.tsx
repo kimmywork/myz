@@ -1,8 +1,8 @@
+import { storeToRefs } from "pinia";
 import { defineComponent, computed } from "vue";
-import { renderMarkdown } from "@/shared/markdownRenderer.js";
 import { useChatStore } from "../stores/chat";
 import { usePageStore } from "../stores/page";
-import { storeToRefs } from "pinia";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
 
 const ACTION_LABELS: Record<string, string> = {
   summarize: "总结页面内容",
@@ -44,7 +44,10 @@ export default defineComponent({
       if (context.chunkCount) {
         parts.push(`${context.chunkCount} 个片段`);
       }
-      if (autoInsights.value.chunkGroups && autoInsights.value.chunkGroups > 1) {
+      if (
+        autoInsights.value.chunkGroups &&
+        autoInsights.value.chunkGroups > 1
+      ) {
         parts.push(`共 ${autoInsights.value.chunkGroups} 批`);
       }
       if (context.wordCount) {
@@ -158,7 +161,8 @@ export default defineComponent({
 
         {autoInsights.value.generatedAt && (
           <footer class="border-t border-slate-200 px-4 py-2 text-right text-[11px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
-            生成时间：{new Date(autoInsights.value.generatedAt).toLocaleString()}
+            生成时间：
+            {new Date(autoInsights.value.generatedAt).toLocaleString()}
           </footer>
         )}
       </div>

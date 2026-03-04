@@ -7,6 +7,30 @@ import {
   saveAiGeneratedHighlight,
   writeAiConversations,
 } from "../ai";
+import {
+  AutoHighlightAgent,
+  type AutoHighlightResult,
+} from "../ai/agents/autoHighlightAgent.js";
+import { ConversationAgent } from "../ai/agents/conversationAgent.js";
+import { ConversationTitleAgent } from "../ai/agents/conversationTitleAgent.js";
+import { InsightsAgent } from "../ai/agents/insightsAgent.js";
+import { PlanningAgent } from "../ai/agents/planningAgent.js";
+import { SkillSelectionAgent } from "../ai/agents/skillSelectionAgent.js";
+import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
+import { McpCapability } from "../ai/capabilities/mcp.js";
+import {
+  fetchProviderModels,
+  testProviderConnection,
+} from "../ai/providers/registry.js";
+import {
+  resolveAgentTarget,
+  resolveConversationMultimodalTarget,
+  resolveModelRef,
+} from "../ai/runtime/agentSelection.js";
+import type {
+  ChatCompletionClient,
+  ProviderChatCompletionRequest,
+} from "../ai/providers/types.js";
 import type {
   ImageAttachment,
   Message,
@@ -14,6 +38,7 @@ import type {
   ProcessConversationOptions,
 } from "../ai/types.js";
 import { testMcpConnection } from "../mcp";
+import type { ToolWithServer } from "../ai/tools/registry.js";
 import type {
   AIProviderSetting,
   MaxOutputTokenParam,
@@ -21,6 +46,7 @@ import type {
 } from "../settings";
 import type { Settings } from "../settings";
 import { generateId, readSettings, saveHighlight } from "../storage";
+import { isRecord } from "@/shared/typeUtils";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 import {
@@ -32,24 +58,7 @@ import {
   saveConversation,
 } from "@/sidepanel/aiStorage";
 import { recordConversationDeletion } from "../sync/deletions";
-import {
-  resolveAgentTarget,
-  resolveConversationMultimodalTarget,
-  resolveModelRef,
-} from "../ai/runtime/agentSelection.js";
 import { acquireProviderRuntime } from "../ai/runtime/providerRuntime.js";
-import {
-  fetchProviderModels,
-  testProviderConnection,
-} from "../ai/providers/registry.js";
-import { McpCapability } from "../ai/capabilities/mcp.js";
-import { ConversationAgent } from "../ai/agents/conversationAgent.js";
-import { ConversationTitleAgent } from "../ai/agents/conversationTitleAgent.js";
-import { InsightsAgent } from "../ai/agents/insightsAgent.js";
-import { AutoHighlightAgent } from "../ai/agents/autoHighlightAgent.js";
-import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
-import { SkillSelectionAgent } from "../ai/agents/skillSelectionAgent.js";
-import { PlanningAgent } from "../ai/agents/planningAgent.js";
 import { QuickStartAgent } from "../ai/agents/quickStartAgent.js";
 import { PlanReviewAgent } from "../ai/agents/planReviewAgent.js";
 import { ValidatorAgent } from "../ai/agents/validatorAgent.js";
@@ -61,9 +70,46 @@ import {
   updatePlanReviewResult,
   updateValidationResult,
 } from "../ai/tasks/taskManager.js";
-import { LOCAL_TOOL_NAMES, SUPERPOWER_TOOL_NAMES } from "../ai/tools/localDefinitions.js";
+import {
+  LOCAL_TOOL_NAMES,
+  SUPERPOWER_TOOL_NAMES,
+} from "../ai/tools/localDefinitions.js";
 import { extractSkillMentions } from "../ai/skills/mentions.js";
 import { listSkills } from "../ai/skills/storage.js";
+
+export interface AIProviderFetchModelsMessageResult {
+  models: string[];
+}
+
+export interface AIProviderTestConnectionMessageResult {
+  success: boolean;
+  response?: string;
+  error?: string;
+}
+
+export interface GeneratePageInsightsMessageResult {
+  success: boolean;
+  action: "summarize" | "key_points";
+  markdown: string;
+  raw: string[];
+  chunkGroups: number;
+  generatedAt: string;
+}
+
+export interface GenerateAutoHighlightsMessageResult extends AutoHighlightResult {
+  categoryStyles?: unknown;
+}
+
+export interface TestMcpConnectionMessageResult {
+  success: boolean;
+  tools?: ToolWithServer[];
+  resources?: unknown[];
+  error?: string;
+}
+
+export interface ListMcpToolsMessageResult {
+  tools: ToolWithServer[];
+}
 
 /**
  * Stores a "draft action" so the SidePanel can pick it up even if the runtime
@@ -76,25 +122,25 @@ function generateDraftId(prefix = "draft") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function normalizeConversationMode(value: any): "agent" | "chat" | null {
-  if (value === "chat") return "chat"
-  if (value === "agent") return "agent"
-  return null
+function normalizeConversationMode(value: unknown): "agent" | "chat" | null {
+  if (value === "chat") return "chat";
+  if (value === "agent") return "agent";
+  return null;
 }
 
 function resolveConversationMode(
-  requested: any,
-  stored: any,
+  requested: unknown,
+  stored: unknown,
 ): "agent" | "chat" {
   return (
     normalizeConversationMode(requested) ||
     normalizeConversationMode(stored) ||
     "agent"
-  )
+  );
 }
 
 function supportsProviderStreaming(provider: AIProviderSetting) {
-  if (provider?.streamingEnabled === false) return false
+  if (provider?.streamingEnabled === false) return false;
   switch (provider?.type) {
     case "openai_compatible":
     case "openai_responses":
@@ -105,21 +151,26 @@ function supportsProviderStreaming(provider: AIProviderSetting) {
     case "vllm":
     case "llama_cpp":
     case "ollama":
-      return true
+      return true;
     default:
-      return false
+      return false;
   }
 }
 
-function buildPreflightTask(review?: { issues?: string[]; missingInfo?: string[] }) {
-  const issues = Array.isArray(review?.issues) ? review?.issues : []
-  const missingInfo = Array.isArray(review?.missingInfo) ? review?.missingInfo : []
+function buildPreflightTask(review?: {
+  issues?: string[];
+  missingInfo?: string[];
+}) {
+  const issues = Array.isArray(review?.issues) ? review?.issues : [];
+  const missingInfo = Array.isArray(review?.missingInfo)
+    ? review?.missingInfo
+    : [];
   const deliverables = [...issues, ...missingInfo]
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter(Boolean)
-    .map((item) => ({ description: `补齐/确认：${item}` }))
+    .map((item) => ({ description: `补齐/确认：${item}` }));
   if (deliverables.length === 0) {
-    deliverables.push({ description: "补齐目标、约束、验收标准或账号权限" })
+    deliverables.push({ description: "补齐目标、约束、验收标准或账号权限" });
   }
   return {
     title: "补齐执行前提与关键信息",
@@ -127,137 +178,149 @@ function buildPreflightTask(review?: { issues?: string[]; missingInfo?: string[]
     priority: "high",
     owner: "executor",
     category: "quick",
-  }
+  };
 }
 
-function notifySidePanel(type: string, data?: any) {
+function notifySidePanel(type: string, data?: unknown) {
   try {
     chrome.runtime
       .sendMessage(data ? { type, data } : { type })
-      .catch(() => {})
+      .catch(() => {});
   } catch (error) {
-    console.warn(`Failed to notify sidepanel: ${type}`, error)
+    console.warn(`Failed to notify sidepanel: ${type}`, error);
   }
 }
 
 async function finalizeSkillContext(options: {
-  conversationId?: string
-  skills: Array<{ name: string; description?: string }>
+  conversationId?: string;
+  skills: Array<{ name: string; description?: string }>;
 }) {
   if (!options.skills.length) {
-    return { skillNames: [], skillList: [] }
+    return { skillNames: [], skillList: [] };
   }
 
-  const skillNames = options.skills.map((skill) => skill.name)
+  const skillNames = options.skills.map((skill) => skill.name);
   let injectList = options.skills.map((skill) => ({
     name: skill.name,
     description: skill.description || "",
-  }))
+  }));
 
-  const conversationId = options.conversationId
+  const conversationId = options.conversationId;
   if (conversationId) {
     try {
-      const conversation = await getConversation(conversationId)
-      const injected = Array.isArray(conversation?.metadata?.skillContextInjected)
+      const conversation = await getConversation(conversationId);
+      const injected = Array.isArray(
+        conversation?.metadata?.skillContextInjected,
+      )
         ? conversation?.metadata?.skillContextInjected
-            .map((name: any) => (typeof name === "string" ? name.trim() : ""))
+            .map((name) => (typeof name === "string" ? name.trim() : ""))
             .filter(Boolean)
-        : []
-      const injectedSet = new Set(injected)
-      injectList = injectList.filter((skill) => !injectedSet.has(skill.name))
+        : [];
+      const injectedSet = new Set(injected);
+      injectList = injectList.filter((skill) => !injectedSet.has(skill.name));
       if (injectList.length > 0) {
         const nextInjected = Array.from(
           new Set([...injectedSet, ...injectList.map((skill) => skill.name)]),
-        )
+        );
         await updateConversationMetadata(conversationId, {
           skillContextInjected: nextInjected,
-        })
+        });
       }
     } catch (error) {
-      console.warn("Failed to update skill injection metadata", error)
+      console.warn("Failed to update skill injection metadata", error);
     }
   }
 
   return {
     skillNames,
     skillList: injectList,
-  }
+  };
 }
 
 async function resolveSkillContext(options: {
-  conversationId?: string
-  message: string
-  settings: Settings
-  forceAllSkills?: boolean
+  conversationId?: string;
+  message: string;
+  settings: Settings;
+  forceAllSkills?: boolean;
 }) {
-  const message = typeof options.message === "string" ? options.message : ""
-  const skills = await listSkills()
-  const enabledSkills = skills.filter((skill) => skill.enabled)
+  const message = typeof options.message === "string" ? options.message : "";
+  const skills = await listSkills();
+  const enabledSkills = skills.filter((skill) => skill.enabled);
   if (!enabledSkills.length) {
-    return { skillNames: [], skillList: [] }
+    return { skillNames: [], skillList: [] };
   }
 
   if (options.forceAllSkills) {
     return await finalizeSkillContext({
       conversationId: options.conversationId,
       skills: enabledSkills,
-    })
+    });
   }
 
-  const available = new Set(enabledSkills.map((skill) => skill.name))
-  const explicit = extractSkillMentions(message, available)
-  const selected = new Set(explicit)
+  const available = new Set(enabledSkills.map((skill) => skill.name));
+  const explicit = extractSkillMentions(message, available);
+  const selected = new Set(explicit);
 
-  const skillSettings = (options.settings as any)?.aiSkills
-  const selectorTarget = skillSettings?.autoSelectorTarget
-  const shouldAutoSelect = skillSettings?.mode === "auto"
+  const skillSettings = options.settings.aiSkills;
+  const selectorTarget = skillSettings?.autoSelectorTarget;
+  const shouldAutoSelect = skillSettings?.mode === "auto";
 
-  if (shouldAutoSelect && selectorTarget?.providerId && selectorTarget?.modelId && message.trim()) {
+  if (
+    shouldAutoSelect &&
+    selectorTarget?.providerId &&
+    selectorTarget?.modelId &&
+    message.trim()
+  ) {
     try {
-      const resolved = resolveModelRef(options.settings as any, selectorTarget)
-      const selectorRuntime = await acquireProviderRuntime(resolved.provider as any, [])
+      const resolved = resolveModelRef(options.settings, selectorTarget);
+      const selectorRuntime = await acquireProviderRuntime(
+        resolved.provider,
+        [],
+      );
       try {
-        const selector = new SkillSelectionAgent()
+        const selector = new SkillSelectionAgent();
         const autoSelected = await selector.selectSkillNames({
           prompt: message,
           skills: enabledSkills.map((skill) => ({
             name: skill.name,
             description: skill.description,
           })),
-          client: selectorRuntime.session.client as any,
-          model: resolved.model as any,
-        })
-        autoSelected.forEach((name) => selected.add(name))
+          client: selectorRuntime.session.client,
+          model: resolved.model,
+        });
+        autoSelected.forEach((name) => selected.add(name));
       } finally {
-        await selectorRuntime.release()
+        await selectorRuntime.release();
       }
     } catch (error) {
-      console.warn("Skill selector failed", error)
+      console.warn("Skill selector failed", error);
     }
   }
 
   if (!selected.size) {
-    return { skillNames: [], skillList: [] }
+    return { skillNames: [], skillList: [] };
   }
 
-  const resolved = enabledSkills.filter((skill) => selected.has(skill.name))
+  const resolved = enabledSkills.filter((skill) => selected.has(skill.name));
   if (!resolved.length) {
-    return { skillNames: [], skillList: [] }
+    return { skillNames: [], skillList: [] };
   }
 
   return await finalizeSkillContext({
     conversationId: options.conversationId,
     skills: resolved,
-  })
+  });
 }
 
-function normalizeText(value: any) {
+function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
 function buildUserContextText(message: Message) {
   const baseText = normalizeText(message?.content);
-  const selectionContextText = normalizeText(message?.metadata?.selectionContextText);
+  const selectionContextText = normalizeText(
+    message?.metadata?.selectionContextText,
+  );
   const parts = [];
   if (selectionContextText) {
     parts.push(`选中内容（上下文）:\n${selectionContextText}`);
@@ -279,7 +342,9 @@ function formatTranscriptMessage(message: Message) {
           ? "工具"
           : "消息";
   const text =
-    role === "user" ? buildUserContextText(message) : normalizeText(message?.content);
+    role === "user"
+      ? buildUserContextText(message)
+      : normalizeText(message?.content);
   if (!text) return "";
   return `${label}: ${text}`;
 }
@@ -296,7 +361,9 @@ function normalizeSummaryMaxTokens(
   targetTokens?: number,
 ) {
   const modelMax =
-    typeof model?.limits?.maxOutputTokens === "number" ? model.limits.maxOutputTokens : 1024;
+    typeof model?.limits?.maxOutputTokens === "number"
+      ? model.limits.maxOutputTokens
+      : 1024;
   let desired =
     typeof targetTokens === "number" && targetTokens > 0
       ? Math.floor(targetTokens / 16)
@@ -307,7 +374,7 @@ function normalizeSummaryMaxTokens(
 
 async function generateContextSummary(options: {
   messages: Message[];
-  client: any;
+  client: ChatCompletionClient;
   model: AIProviderSetting["models"][number];
   targetTokens?: number;
 }) {
@@ -334,13 +401,16 @@ async function generateContextSummary(options: {
     "请输出摘要。",
   ].join("\n");
 
-  const maxOutputTokens = normalizeSummaryMaxTokens(options.model, options.targetTokens);
+  const maxOutputTokens = normalizeSummaryMaxTokens(
+    options.model,
+    options.targetTokens,
+  );
   const maxOutputTokenParam: MaxOutputTokenParam =
     options.model?.limits?.maxOutputTokenParam === "max_completion_tokens"
       ? "max_completion_tokens"
       : "max_tokens";
 
-  const request: any = {
+  const request: ProviderChatCompletionRequest = {
     model: options.model.model,
     messages: [
       { role: "system", content: systemPrompt },
@@ -366,9 +436,11 @@ async function generateContextSummary(options: {
  * Prefer session storage to avoid persistence beyond the current browser session.
  * Fall back to local storage if `chrome.storage.session` is unavailable.
  */
-async function writePendingSidePanelAction(payload: any) {
+async function writePendingSidePanelAction(payload: unknown) {
   try {
-    await chrome.storage.session.set({ [PENDING_SIDEPANEL_ACTION_KEY]: payload });
+    await chrome.storage.session.set({
+      [PENDING_SIDEPANEL_ACTION_KEY]: payload,
+    });
   } catch {
     await chrome.storage.local.set({ [PENDING_SIDEPANEL_ACTION_KEY]: payload });
   }
@@ -379,7 +451,9 @@ async function writePendingSidePanelAction(payload: any) {
  */
 async function popPendingSidePanelAction() {
   try {
-    const result = await chrome.storage.session.get(PENDING_SIDEPANEL_ACTION_KEY);
+    const result = await chrome.storage.session.get(
+      PENDING_SIDEPANEL_ACTION_KEY,
+    );
     await chrome.storage.session.remove(PENDING_SIDEPANEL_ACTION_KEY);
     return result?.[PENDING_SIDEPANEL_ACTION_KEY] || null;
   } catch {
@@ -396,7 +470,8 @@ async function popPendingSidePanelAction() {
 async function clearPendingSidePanelActionIfMatch(draftId: string) {
   if (!draftId) return;
   const read = async (area: "session" | "local") => {
-    const store = area === "session" ? chrome.storage.session : chrome.storage.local;
+    const store =
+      area === "session" ? chrome.storage.session : chrome.storage.local;
     const result = await store.get(PENDING_SIDEPANEL_ACTION_KEY);
     const current = result?.[PENDING_SIDEPANEL_ACTION_KEY];
     if (current?.draftId && current.draftId === draftId) {
@@ -423,45 +498,61 @@ export function initializeAIMessageHandlers() {
       apiKey: string;
       headers?: string;
     }) => {
-      const { type, baseUrl, apiKey, headers = "" } = payload || ({} as any);
+      const { type, baseUrl, apiKey, headers = "" } = payload;
       if (!baseUrl) {
         throw new Error("Base URL is required");
       }
-      const models = await fetchProviderModels({ type, baseUrl, apiKey, headers });
-      return { models };
+      const models = await fetchProviderModels({
+        type,
+        baseUrl,
+        apiKey,
+        headers,
+      });
+      return { models } satisfies AIProviderFetchModelsMessageResult;
     },
   );
 
   registerMessageHandler(
     "myz:aiProviderTestConnection",
     async (payload: {
-      provider: Pick<AIProviderSetting, "baseUrl" | "apiKey" | "headers" | "type">;
+      provider: Pick<
+        AIProviderSetting,
+        "baseUrl" | "apiKey" | "headers" | "type"
+      >;
       model: string;
       maxOutputTokens?: number;
       maxOutputTokenParam?: MaxOutputTokenParam;
     }) => {
-      return testProviderConnection(payload as any);
+      const result = await testProviderConnection(payload);
+      return result satisfies AIProviderTestConnectionMessageResult;
     },
   );
 
   registerMessageHandler(
     "myz:aiPlanRequest",
     async (payload: {
-      conversationId: string
-      message?: string
-      options?: { quickStart?: boolean; autoStart?: boolean; selectionContextText?: string }
+      conversationId: string;
+      message?: string;
+      options?: {
+        quickStart?: boolean;
+        autoStart?: boolean;
+        selectionContextText?: string;
+      };
     }) => {
       const settings = await readSettings();
       if (!settings.aiAssistantEnabled) {
         throw new Error("AI Assistant is not enabled");
       }
-      const superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode);
+      const superpowerEnabled = Boolean(
+        settings?.aiAgents?.conversation?.superpowerMode,
+      );
       if (!superpowerEnabled) {
         throw new Error("Superpower Mode is not enabled");
       }
 
       const conversationId = payload?.conversationId;
-      const normalizedMessage = typeof payload?.message === "string" ? payload.message.trim() : "";
+      const normalizedMessage =
+        typeof payload?.message === "string" ? payload.message.trim() : "";
       if (!conversationId) {
         throw new Error("conversationId is required");
       }
@@ -470,15 +561,18 @@ export function initializeAIMessageHandlers() {
       }
 
       const existingPlan = await getTaskPlan(conversationId);
-      const quickStart = Boolean(payload?.options?.quickStart)
+      const quickStart = Boolean(payload?.options?.quickStart);
       const selectionContextText =
         typeof payload?.options?.selectionContextText === "string"
           ? payload.options.selectionContextText.trim()
-          : ""
+          : "";
       const baseRequest = selectionContextText
-        ? [normalizedMessage, `选中内容:\n${selectionContextText}`].filter(Boolean).join("\n\n")
-        : normalizedMessage
-      const originalUserRequest = existingPlan?.originalUserRequest || baseRequest;
+        ? [normalizedMessage, `选中内容:\n${selectionContextText}`]
+            .filter(Boolean)
+            .join("\n\n")
+        : normalizedMessage;
+      const originalUserRequest =
+        existingPlan?.originalUserRequest || baseRequest;
       const reviewStatus = existingPlan?.planReview?.status;
       const reviewIssues = Array.isArray(existingPlan?.planReview?.issues)
         ? existingPlan?.planReview?.issues
@@ -494,28 +588,42 @@ export function initializeAIMessageHandlers() {
             "",
             `原始需求：${originalUserRequest}`,
             `补充信息：${normalizedMessage}`,
-            selectionContextText ? `补充选中内容：\n${selectionContextText}` : "补充选中内容：无",
-            reviewIssues.length ? `审核问题：${reviewIssues.join("；")}` : "审核问题：无",
-            reviewMissing.length ? `缺失信息：${reviewMissing.join("；")}` : "缺失信息：无",
+            selectionContextText
+              ? `补充选中内容：\n${selectionContextText}`
+              : "补充选中内容：无",
+            reviewIssues.length
+              ? `审核问题：${reviewIssues.join("；")}`
+              : "审核问题：无",
+            reviewMissing.length
+              ? `缺失信息：${reviewMissing.join("；")}`
+              : "缺失信息：无",
           ].join("\n")
         : baseRequest;
 
-      const target = resolveAgentTarget(settings as any, "conversation");
-      const runtime = await acquireProviderRuntime(target.provider as any, []);
+      const target = resolveAgentTarget(settings, "conversation");
+      const runtime = await acquireProviderRuntime(target.provider, []);
       try {
-        const planner = quickStart ? new QuickStartAgent() : new PlanningAgent();
+        const planner = quickStart
+          ? new QuickStartAgent()
+          : new PlanningAgent();
         const result = await planner.createPlan({
           prompt: planningPrompt,
-          client: runtime.session.client as any,
-          model: target.model as any,
+          client: runtime.session.client,
+          model: target.model,
         });
+        const resultMode =
+          isRecord(result) && typeof result.mode === "string"
+            ? result.mode
+            : undefined;
 
         let plan = await initTaskPlan({
           conversationId,
           originalUserRequest,
           tasks: result.tasks,
-          mode: (result as any)?.mode,
-          assumptions: Array.isArray(result.assumptions) ? result.assumptions : [],
+          mode: resultMode,
+          assumptions: Array.isArray(result.assumptions)
+            ? result.assumptions
+            : [],
         });
 
         const reviewer = new PlanReviewAgent();
@@ -525,8 +633,8 @@ export function initializeAIMessageHandlers() {
             return await reviewer.review({
               originalUserRequest,
               taskPlan: currentPlan,
-              client: runtime.session.client as any,
-              model: target.model as any,
+              client: runtime.session.client,
+              model: target.model,
             });
           } catch (error) {
             console.warn("Plan review failed", error);
@@ -544,12 +652,16 @@ export function initializeAIMessageHandlers() {
             "",
             `原始需求：${originalUserRequest}`,
             `补充信息：${normalizedMessage}`,
-            selectionContextText ? `补充选中内容：\n${selectionContextText}` : "补充选中内容：无",
+            selectionContextText
+              ? `补充选中内容：\n${selectionContextText}`
+              : "补充选中内容：无",
             "现有计划：",
             JSON.stringify(
               {
                 tasks: plan.tasks,
-                assumptions: Array.isArray(plan.assumptions) ? plan.assumptions : [],
+                assumptions: Array.isArray(plan.assumptions)
+                  ? plan.assumptions
+                  : [],
               },
               null,
               2,
@@ -563,15 +675,19 @@ export function initializeAIMessageHandlers() {
           ].join("\n");
           const revised = await planner.createPlan({
             prompt: revisionPrompt,
-            client: runtime.session.client as any,
-            model: target.model as any,
+            client: runtime.session.client,
+            model: target.model,
           });
+          const revisedMode =
+            isRecord(revised) && typeof revised.mode === "string"
+              ? revised.mode
+              : undefined;
           if (Array.isArray(revised.tasks) && revised.tasks.length > 0) {
             plan = await initTaskPlan({
               conversationId,
               originalUserRequest,
               tasks: revised.tasks,
-              mode: (revised as any)?.mode ?? (result as any)?.mode,
+              mode: revisedMode ?? resultMode,
               assumptions: Array.isArray(revised.assumptions)
                 ? revised.assumptions
                 : Array.isArray(result.assumptions)
@@ -592,7 +708,9 @@ export function initializeAIMessageHandlers() {
             originalUserRequest,
             tasks: [preflight, ...plan.tasks],
             mode: plan.mode,
-            assumptions: Array.isArray(plan.assumptions) ? plan.assumptions : [],
+            assumptions: Array.isArray(plan.assumptions)
+              ? plan.assumptions
+              : [],
           });
           reviewResult = { status: "pass", issues: [], missingInfo: [] };
         }
@@ -605,9 +723,9 @@ export function initializeAIMessageHandlers() {
         }
 
         if (payload?.options?.autoStart && reviewResult?.status === "pass") {
-          const started = await startTaskPlanExecution(conversationId)
+          const started = await startTaskPlanExecution(conversationId);
           if (started) {
-            plan = started
+            plan = started;
           }
         }
 
@@ -625,7 +743,9 @@ export function initializeAIMessageHandlers() {
       if (!settings.aiAssistantEnabled) {
         throw new Error("AI Assistant is not enabled");
       }
-      const superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode);
+      const superpowerEnabled = Boolean(
+        settings?.aiAgents?.conversation?.superpowerMode,
+      );
       if (!superpowerEnabled) {
         throw new Error("Superpower Mode is not enabled");
       }
@@ -647,15 +767,15 @@ export function initializeAIMessageHandlers() {
         throw new Error("Tasks are not completed yet");
       }
 
-      const target = resolveAgentTarget(settings as any, "conversation");
-      const runtime = await acquireProviderRuntime(target.provider as any, []);
+      const target = resolveAgentTarget(settings, "conversation");
+      const runtime = await acquireProviderRuntime(target.provider, []);
       try {
         const validator = new ValidatorAgent();
         const result = await validator.validate({
           originalUserRequest: plan.originalUserRequest,
           taskPlan: plan,
-          client: runtime.session.client as any,
-          model: target.model as any,
+          client: runtime.session.client,
+          model: target.model,
         });
         await updateValidationResult({ conversationId, validation: result });
         return result;
@@ -672,7 +792,9 @@ export function initializeAIMessageHandlers() {
       if (!settings.aiAssistantEnabled) {
         throw new Error("AI Assistant is not enabled");
       }
-      const superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode);
+      const superpowerEnabled = Boolean(
+        settings?.aiAgents?.conversation?.superpowerMode,
+      );
       if (!superpowerEnabled) {
         throw new Error("Superpower Mode is not enabled");
       }
@@ -686,15 +808,15 @@ export function initializeAIMessageHandlers() {
         throw new Error("No task plan found for this conversation");
       }
 
-      const target = resolveAgentTarget(settings as any, "conversation");
-      const runtime = await acquireProviderRuntime(target.provider as any, []);
+      const target = resolveAgentTarget(settings, "conversation");
+      const runtime = await acquireProviderRuntime(target.provider, []);
       try {
         const reviewer = new PlanReviewAgent();
         const review = await reviewer.review({
           originalUserRequest: plan.originalUserRequest,
           taskPlan: plan,
-          client: runtime.session.client as any,
-          model: target.model as any,
+          client: runtime.session.client,
+          model: target.model,
         });
         await updatePlanReviewResult({ conversationId, review });
         return review;
@@ -711,7 +833,9 @@ export function initializeAIMessageHandlers() {
       if (!settings.aiAssistantEnabled) {
         throw new Error("AI Assistant is not enabled");
       }
-      const superpowerEnabled = Boolean(settings?.aiAgents?.conversation?.superpowerMode);
+      const superpowerEnabled = Boolean(
+        settings?.aiAgents?.conversation?.superpowerMode,
+      );
       if (!superpowerEnabled) {
         throw new Error("Superpower Mode is not enabled");
       }
@@ -755,40 +879,53 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const { conversationId, message, action, context, options, attachments, clientMessageId } =
-        payload || ({} as any);
+      const safePayload = payload ?? ({} as typeof payload);
+      const {
+        conversationId,
+        message,
+        action,
+        context,
+        options,
+        attachments,
+        clientMessageId,
+      } = safePayload;
       if (!conversationId) {
         throw new Error("conversationId is required");
       }
       const normalizedMessage = typeof message === "string" ? message : "";
       const normalizedAttachments = Array.isArray(attachments)
         ? attachments.filter(
-            (item: any) =>
-              item?.type === "image" && typeof item?.dataUrl === "string" && item.dataUrl,
+            (item) =>
+              item?.type === "image" &&
+              typeof item?.dataUrl === "string" &&
+              item.dataUrl,
           )
         : [];
       if (!normalizedMessage.trim() && !normalizedAttachments.length) {
         throw new Error("message is required");
       }
 
-      const conversation = await getConversation(conversationId)
+      const conversation = await getConversation(conversationId);
       const conversationMode = resolveConversationMode(
         options?.conversationMode,
         conversation?.metadata?.assistantMode,
-      )
+      );
 
-      const baseTarget = resolveAgentTarget(settings as any, "conversation");
+      const baseTarget = resolveAgentTarget(settings, "conversation");
       let target = baseTarget;
-      if (normalizedAttachments.length > 0 && !baseTarget.model.capabilities?.vision) {
-        const multimodalTarget = resolveConversationMultimodalTarget(settings as any);
+      if (
+        normalizedAttachments.length > 0 &&
+        !baseTarget.model.capabilities?.vision
+      ) {
+        const multimodalTarget = resolveConversationMultimodalTarget(settings);
         if (!multimodalTarget) {
           throw new Error("当前模型不支持 Vision，且未配置多模态模型");
         }
         target = multimodalTarget;
       }
       const runtime = await acquireProviderRuntime(
-        target.provider as any,
-        (settings.aiMcpServers || []) as any,
+        target.provider,
+        settings.aiMcpServers || [],
       );
 
       try {
@@ -796,39 +933,45 @@ export function initializeAIMessageHandlers() {
         if (enableTools) {
           await runtime.connectMcp();
         }
-        runtime.session.mcp.setConversationContext({ conversationId })
+        runtime.session.mcp.setConversationContext({ conversationId });
 
-        const aiLocalTools = (settings as any)?.aiLocalTools
+        const aiLocalTools = settings.aiLocalTools;
         const superpowerEnabled =
-          Boolean((settings as any)?.aiAgents?.conversation?.superpowerMode) &&
-          conversationMode !== "chat"
+          Boolean(settings.aiAgents?.conversation?.superpowerMode) &&
+          conversationMode !== "chat";
         const skillPayload = superpowerEnabled
           ? { skillNames: [], skillList: [] }
           : await resolveSkillContext({
               conversationId,
               message: normalizedMessage,
-              settings: settings as any,
-            })
+              settings,
+            });
         if (enableTools) {
-          const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
-            ? ((settings as any).aiLocalTools.enabledToolNames as any[])
-                .filter((name: any) => typeof name === "string" && name.trim())
+          const enabledToolNames = Array.isArray(
+            settings.aiLocalTools?.enabledToolNames,
+          )
+            ? settings.aiLocalTools.enabledToolNames.filter(
+                (name): name is string =>
+                  typeof name === "string" && name.trim().length > 0,
+              )
                 .map((name: string) => name.trim())
-            : LOCAL_TOOL_NAMES.slice()
+            : LOCAL_TOOL_NAMES.slice();
           const gatedToolNames = superpowerEnabled
             ? enabledToolNames
-            : enabledToolNames.filter((name) => !SUPERPOWER_TOOL_NAMES.includes(name))
+            : enabledToolNames.filter(
+                (name) => !SUPERPOWER_TOOL_NAMES.includes(name),
+              );
           let normalizedToolNames = superpowerEnabled
             ? gatedToolNames.filter((name: string) => name !== "SelectTools")
             : aiLocalTools?.mode === "auto"
               ? (() => {
                   if (!gatedToolNames.includes("SelectTools")) {
-                    gatedToolNames.push("SelectTools")
+                    gatedToolNames.push("SelectTools");
                   }
-                  return gatedToolNames
+                  return gatedToolNames;
                 })()
-              : gatedToolNames.filter((name: string) => name !== "SelectTools")
-          runtime.session.mcp.setLocalToolAllowlist(normalizedToolNames)
+              : gatedToolNames.filter((name: string) => name !== "SelectTools");
+          runtime.session.mcp.setLocalToolAllowlist(normalizedToolNames);
         }
 
         const includePageContext =
@@ -841,22 +984,24 @@ export function initializeAIMessageHandlers() {
           ? runtime.session.clientWithTools
           : runtime.session.client;
 
-        const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
+        const toolSelectorTarget = aiLocalTools?.autoSelectorTarget;
         const toolSelectorRequested =
-          !superpowerEnabled && enableTools && aiLocalTools?.mode === "auto"
+          !superpowerEnabled && enableTools && aiLocalTools?.mode === "auto";
         const skillMetadata =
           skillPayload.skillNames.length > 0
             ? {
                 skillNames: skillPayload.skillNames,
-                ...(skillPayload.skillList.length ? { skillList: skillPayload.skillList } : {}),
+                ...(skillPayload.skillList.length
+                  ? { skillList: skillPayload.skillList }
+                  : {}),
               }
-            : {}
+            : {};
         if (clientMessageId && skillPayload.skillNames.length > 0) {
           notifySidePanel("myz:aiSkillSelection", {
             conversationId,
             clientMessageId,
             skillNames: skillPayload.skillNames,
-          })
+          });
         }
 
         return await agent.processConversation(
@@ -882,17 +1027,20 @@ export function initializeAIMessageHandlers() {
             },
           },
           {
-            client: client as any,
+            client,
             isEnabled: Boolean(settings.aiAssistantEnabled),
-            callConfig: target as any,
+            callConfig: target,
             ...(enableTools
               ? {
                   toolControl: {
                     listTools: () =>
-                      (runtime.session.mcp.listTools() as any[]).map((tool: any) => ({
+                      runtime.session.mcp.listTools().map((tool) => ({
                         name: tool?.name || "",
                         description: tool?.description || "",
-                        server: tool?.server || "",
+                        server:
+                          isRecord(tool) && typeof tool.server === "string"
+                            ? tool.server
+                            : "",
                       })),
                     setActiveToolFilter: (toolNames: string[] | null) =>
                       runtime.session.mcp.setActiveToolFilter(toolNames),
@@ -905,41 +1053,51 @@ export function initializeAIMessageHandlers() {
                     enabled: true,
                     selectToolNames: async (
                       prompt: string,
-                      tools: Array<{ name: string; description?: string; server?: string }>,
+                      tools: Array<{
+                        name: string;
+                        description?: string;
+                        server?: string;
+                      }>,
                     ) => {
                       const normalizedPrompt =
-                        typeof prompt === "string" ? prompt.trim() : ""
+                        typeof prompt === "string" ? prompt.trim() : "";
                       const candidates = Array.isArray(tools)
                         ? tools.filter((t) => t?.name)
-                        : []
+                        : [];
                       if (!normalizedPrompt || candidates.length === 0) {
-                        return []
+                        return [];
                       }
 
-                      if (!toolSelectorTarget?.providerId || !toolSelectorTarget?.modelId) {
-                        return []
+                      if (
+                        !toolSelectorTarget?.providerId ||
+                        !toolSelectorTarget?.modelId
+                      ) {
+                        return [];
                       }
 
                       try {
-                        const resolved = resolveModelRef(settings as any, toolSelectorTarget)
+                        const resolved = resolveModelRef(
+                          settings,
+                          toolSelectorTarget,
+                        );
                         const selectorRuntime = await acquireProviderRuntime(
-                          resolved.provider as any,
+                          resolved.provider,
                           [],
-                        )
+                        );
                         try {
-                          const selector = new ToolSelectionAgent()
+                          const selector = new ToolSelectionAgent();
                           return await selector.selectToolNames({
                             prompt: normalizedPrompt,
                             tools: candidates,
-                            client: selectorRuntime.session.client as any,
-                            model: resolved.model as any,
-                          })
+                            client: selectorRuntime.session.client,
+                            model: resolved.model,
+                          });
                         } finally {
-                          await selectorRuntime.release()
+                          await selectorRuntime.release();
                         }
                       } catch (error) {
-                        console.warn("Tool selector failed", error)
-                        return []
+                        console.warn("Tool selector failed", error);
+                        return [];
                       }
                     },
                   },
@@ -949,10 +1107,10 @@ export function initializeAIMessageHandlers() {
         );
       } finally {
         try {
-          runtime.session.mcp.setActiveToolFilter(null)
+          runtime.session.mcp.setActiveToolFilter(null);
         } catch {}
         try {
-          runtime.session.mcp.setConversationContext(null)
+          runtime.session.mcp.setConversationContext(null);
         } catch {}
         if (target.model.capabilities.toolCalling) {
           await runtime.disconnectMcp();
@@ -1005,15 +1163,12 @@ export function initializeAIMessageHandlers() {
         return failed;
       }
 
-      const target = resolveAgentTarget(settings as any, "conversation");
-      const runtime = await acquireProviderRuntime(
-        target.provider as any,
-        [],
-      );
+      const target = resolveAgentTarget(settings, "conversation");
+      const runtime = await acquireProviderRuntime(target.provider, []);
 
       try {
         const agent = new ConversationTitleAgent({
-          client: runtime.session.client as any,
+          client: runtime.session.client,
         });
         const title = await agent.generateTitleWithConfig(
           {
@@ -1023,7 +1178,7 @@ export function initializeAIMessageHandlers() {
           },
           {
             isEnabled: Boolean(settings.aiAssistantEnabled),
-            callConfig: target as any,
+            callConfig: target,
           },
         );
 
@@ -1080,7 +1235,8 @@ export function initializeAIMessageHandlers() {
       }
 
       const keepRecentCount =
-        typeof payload?.keepRecentCount === "number" && payload.keepRecentCount > 0
+        typeof payload?.keepRecentCount === "number" &&
+        payload.keepRecentCount > 0
           ? Math.floor(payload.keepRecentCount)
           : DEFAULT_CONTEXT_COMPACTION_RECENT_COUNT;
 
@@ -1123,23 +1279,18 @@ export function initializeAIMessageHandlers() {
         conversation?.metadata?.originalUserRequest,
       );
       if (!originalRequest) {
-        const firstUser = normalizedMessages.find(
-          (msg) => msg.role === "user",
-        );
+        const firstUser = normalizedMessages.find((msg) => msg.role === "user");
         originalRequest = firstUser ? buildUserContextText(firstUser) : "";
       }
 
-      const target = resolveAgentTarget(settings as any, "conversation");
-      const runtime = await acquireProviderRuntime(
-        target.provider as any,
-        [],
-      );
+      const target = resolveAgentTarget(settings, "conversation");
+      const runtime = await acquireProviderRuntime(target.provider, []);
 
       try {
         const summary = await generateContextSummary({
           messages: oldMessages,
-          client: runtime.session.client as any,
-          model: target.model as any,
+          client: runtime.session.client,
+          model: target.model,
           targetTokens: payload?.targetTokens,
         });
 
@@ -1305,10 +1456,10 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const target = resolveAgentTarget(settings as any, "conversation");
+      const target = resolveAgentTarget(settings, "conversation");
       const runtime = await acquireProviderRuntime(
-        target.provider as any,
-        (settings.aiMcpServers || []) as any,
+        target.provider,
+        settings.aiMcpServers || [],
       );
 
       try {
@@ -1316,60 +1467,70 @@ export function initializeAIMessageHandlers() {
         if (enableTools) {
           await runtime.connectMcp();
         }
-        runtime.session.mcp.setConversationContext({ conversationId: payload?.conversationId })
+        runtime.session.mcp.setConversationContext({
+          conversationId: payload?.conversationId,
+        });
         const { conversationId, action, content, options = {} } = payload || {};
 
-        const aiLocalTools = (settings as any)?.aiLocalTools
-        const conversation = await getConversation(conversationId)
+        const aiLocalTools = settings.aiLocalTools;
+        const conversation = await getConversation(conversationId);
         const conversationMode = resolveConversationMode(
           options?.conversationMode,
           conversation?.metadata?.assistantMode,
-        )
+        );
         const superpowerEnabled =
-          Boolean((settings as any)?.aiAgents?.conversation?.superpowerMode) &&
-          conversationMode !== "chat"
+          Boolean(settings.aiAgents?.conversation?.superpowerMode) &&
+          conversationMode !== "chat";
         const skillPayload = await resolveSkillContext({
           conversationId,
           message: content,
-          settings: settings as any,
+          settings,
           forceAllSkills: superpowerEnabled,
-        })
+        });
         if (enableTools) {
-          const enabledToolNames = Array.isArray((settings as any)?.aiLocalTools?.enabledToolNames)
-            ? ((settings as any).aiLocalTools.enabledToolNames as any[])
-                .filter((name: any) => typeof name === "string" && name.trim())
+          const enabledToolNames = Array.isArray(
+            settings.aiLocalTools?.enabledToolNames,
+          )
+            ? settings.aiLocalTools.enabledToolNames.filter(
+                (name): name is string =>
+                  typeof name === "string" && name.trim().length > 0,
+              )
                 .map((name: string) => name.trim())
-            : LOCAL_TOOL_NAMES.slice()
+            : LOCAL_TOOL_NAMES.slice();
           const gatedToolNames = superpowerEnabled
             ? enabledToolNames
-            : enabledToolNames.filter((name) => !SUPERPOWER_TOOL_NAMES.includes(name))
+            : enabledToolNames.filter(
+                (name) => !SUPERPOWER_TOOL_NAMES.includes(name),
+              );
           let normalizedToolNames = superpowerEnabled
             ? gatedToolNames.filter((name: string) => name !== "SelectTools")
             : aiLocalTools?.mode === "auto"
               ? (() => {
                   if (!gatedToolNames.includes("SelectTools")) {
-                    gatedToolNames.push("SelectTools")
+                    gatedToolNames.push("SelectTools");
                   }
-                  return gatedToolNames
+                  return gatedToolNames;
                 })()
-              : gatedToolNames.filter((name: string) => name !== "SelectTools")
-          runtime.session.mcp.setLocalToolAllowlist(normalizedToolNames)
+              : gatedToolNames.filter((name: string) => name !== "SelectTools");
+          runtime.session.mcp.setLocalToolAllowlist(normalizedToolNames);
         }
 
         const agent = new ConversationAgent();
         const client = enableTools
           ? runtime.session.clientWithTools
           : runtime.session.client;
-        const toolSelectorTarget = aiLocalTools?.autoSelectorTarget
+        const toolSelectorTarget = aiLocalTools?.autoSelectorTarget;
         const toolSelectorRequested =
-          !superpowerEnabled && enableTools && aiLocalTools?.mode === "auto"
+          !superpowerEnabled && enableTools && aiLocalTools?.mode === "auto";
         const skillMetadata =
           skillPayload.skillNames.length > 0
             ? {
                 skillNames: skillPayload.skillNames,
-                ...(skillPayload.skillList.length ? { skillList: skillPayload.skillList } : {}),
+                ...(skillPayload.skillList.length
+                  ? { skillList: skillPayload.skillList }
+                  : {}),
               }
-            : {}
+            : {};
         const result = await agent.processConversation(
           conversationId,
           action,
@@ -1387,17 +1548,20 @@ export function initializeAIMessageHandlers() {
             conversationMode,
           },
           {
-            client: client as any,
+            client,
             isEnabled: Boolean(settings.aiAssistantEnabled),
-            callConfig: target as any,
+            callConfig: target,
             ...(enableTools
               ? {
                   toolControl: {
                     listTools: () =>
-                      (runtime.session.mcp.listTools() as any[]).map((tool: any) => ({
+                      runtime.session.mcp.listTools().map((tool) => ({
                         name: tool?.name || "",
                         description: tool?.description || "",
-                        server: tool?.server || "",
+                        server:
+                          isRecord(tool) && typeof tool.server === "string"
+                            ? tool.server
+                            : "",
                       })),
                     setActiveToolFilter: (toolNames: string[] | null) =>
                       runtime.session.mcp.setActiveToolFilter(toolNames),
@@ -1410,41 +1574,51 @@ export function initializeAIMessageHandlers() {
                     enabled: true,
                     selectToolNames: async (
                       prompt: string,
-                      tools: Array<{ name: string; description?: string; server?: string }>,
+                      tools: Array<{
+                        name: string;
+                        description?: string;
+                        server?: string;
+                      }>,
                     ) => {
                       const normalizedPrompt =
-                        typeof prompt === "string" ? prompt.trim() : ""
+                        typeof prompt === "string" ? prompt.trim() : "";
                       const candidates = Array.isArray(tools)
                         ? tools.filter((t) => t?.name)
-                        : []
+                        : [];
                       if (!normalizedPrompt || candidates.length === 0) {
-                        return []
+                        return [];
                       }
 
-                      if (!toolSelectorTarget?.providerId || !toolSelectorTarget?.modelId) {
-                        return []
+                      if (
+                        !toolSelectorTarget?.providerId ||
+                        !toolSelectorTarget?.modelId
+                      ) {
+                        return [];
                       }
 
                       try {
-                        const resolved = resolveModelRef(settings as any, toolSelectorTarget)
+                        const resolved = resolveModelRef(
+                          settings,
+                          toolSelectorTarget,
+                        );
                         const selectorRuntime = await acquireProviderRuntime(
-                          resolved.provider as any,
+                          resolved.provider,
                           [],
-                        )
+                        );
                         try {
-                          const selector = new ToolSelectionAgent()
+                          const selector = new ToolSelectionAgent();
                           return await selector.selectToolNames({
                             prompt: normalizedPrompt,
                             tools: candidates,
-                            client: selectorRuntime.session.client as any,
-                            model: resolved.model as any,
-                          })
+                            client: selectorRuntime.session.client,
+                            model: resolved.model,
+                          });
                         } finally {
-                          await selectorRuntime.release()
+                          await selectorRuntime.release();
                         }
                       } catch (error) {
-                        console.warn("Tool selector failed", error)
-                        return []
+                        console.warn("Tool selector failed", error);
+                        return [];
                       }
                     },
                   },
@@ -1454,17 +1628,17 @@ export function initializeAIMessageHandlers() {
         );
 
         if (enableTools) {
-          runtime.session.mcp.setActiveToolFilter(null)
+          runtime.session.mcp.setActiveToolFilter(null);
           result.availableTools = runtime.session.mcp.listTools();
         }
 
         return result;
       } finally {
         try {
-          runtime.session.mcp.setActiveToolFilter(null)
+          runtime.session.mcp.setActiveToolFilter(null);
         } catch {}
         try {
-          runtime.session.mcp.setConversationContext(null)
+          runtime.session.mcp.setConversationContext(null);
         } catch {}
         if (target.model.capabilities.toolCalling) {
           await runtime.disconnectMcp();
@@ -1482,16 +1656,18 @@ export function initializeAIMessageHandlers() {
         throw new Error("AI Assistant is not enabled");
       }
 
-      const target = resolveAgentTarget(settings as any, "insights");
+      const target = resolveAgentTarget(settings, "insights");
       const runtime = await acquireProviderRuntime(
-        target.provider as any,
-        (settings.aiMcpServers || []) as any,
+        target.provider,
+        settings.aiMcpServers || [],
       );
       try {
-        const agent = new InsightsAgent({ client: runtime.session.client as any });
+        const agent = new InsightsAgent({
+          client: runtime.session.client,
+        });
         return await agent.generatePageInsightsWithConfig(payload || {}, {
           isEnabled: Boolean(settings.aiAssistantEnabled),
-          callConfig: target as any,
+          callConfig: target,
         });
       } finally {
         await runtime.release();
@@ -1501,15 +1677,13 @@ export function initializeAIMessageHandlers() {
 
   registerMessageHandler(
     "myz:generateAutoHighlights",
-    async (
-      payload: {
-        text?: string;
-        title?: string;
-        url?: string;
-        maxHighlights?: number;
-        temperature?: number;
-      },
-    ) => {
+    async (payload: {
+      text?: string;
+      title?: string;
+      url?: string;
+      maxHighlights?: number;
+      temperature?: number;
+    }) => {
       const settings = await readSettings();
       if (!settings.aiAssistantEnabled) {
         throw new Error("AI Assistant is not enabled");
@@ -1525,17 +1699,20 @@ export function initializeAIMessageHandlers() {
             : agentConfig.maxHighlights,
       };
       const runtime = await acquireProviderRuntime(
-        target.provider as any,
-        (settings.aiMcpServers || []) as any,
+        target.provider,
+        settings.aiMcpServers || [],
       );
       try {
         const agent = new AutoHighlightAgent({
-          client: runtime.session.client as any,
+          client: runtime.session.client,
         });
-        const result = await agent.generateAutoHighlightsWithConfig(mergedPayload || {}, {
-          isEnabled: Boolean(settings.aiAssistantEnabled),
-          callConfig: target as any,
-        });
+        const result = await agent.generateAutoHighlightsWithConfig(
+          mergedPayload || {},
+          {
+            isEnabled: Boolean(settings.aiAssistantEnabled),
+            callConfig: target,
+          },
+        );
         return {
           ...result,
           categoryStyles: agentConfig.categoryStyles || {},

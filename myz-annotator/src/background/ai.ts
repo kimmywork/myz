@@ -1,4 +1,10 @@
-import { CONTENT_TYPES, type MyZRecord } from "@/shared/types.ts";
+import {
+  CONTENT_TYPES,
+  type MyZRecord,
+  ensureRecordSchemaVersion,
+} from "@/shared/types.ts";
+import { AI_SCHEMA_VERSION } from "@/shared/versioning";
+import type { JsonRecord } from "@/shared/typeUtils";
 
 export const AI_CONVERSATION_KEY = "myz::ai-conversations";
 export const AI_MCP_SERVERS_KEY = "myz::ai-mcp-servers";
@@ -9,14 +15,16 @@ export const DEFAULT_AI_CONVERSATION_STATE: AiConversationState = {
 };
 
 export interface ConversationMessage {
+  schemaVersion?: string;
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
-  metadata: Record<string, any>;
+  metadata: JsonRecord;
 }
 
 export interface AiConversation {
+  schemaVersion?: string;
   id: string;
   url: string;
   title: string;
@@ -52,6 +60,7 @@ export function createConversation(url: string, title: string): AiConversation {
   const id = generateConversationId();
   const now = new Date().toISOString();
   return {
+    schemaVersion: AI_SCHEMA_VERSION,
     id,
     url: url || "",
     title: title || "新对话",
@@ -66,7 +75,7 @@ export async function addMessageToConversation(
   conversationId: string,
   role: "user" | "assistant" | "system",
   content: string,
-  metadata: Record<string, any> = {},
+  metadata: JsonRecord = {},
 ): Promise<ConversationMessage> {
   const state = await readAiConversations();
   const conversation = state.conversations[conversationId];
@@ -74,6 +83,7 @@ export async function addMessageToConversation(
     throw new Error("Conversation not found");
   }
   const message: ConversationMessage = {
+    schemaVersion: AI_SCHEMA_VERSION,
     id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     role,
     content,
@@ -130,7 +140,7 @@ export async function saveAiGeneratedHighlight(
     },
   };
 
-  return aiHighlight;
+  return ensureRecordSchemaVersion(aiHighlight as MyZRecord) as MyZRecord;
 }
 
 export async function exportConversation(

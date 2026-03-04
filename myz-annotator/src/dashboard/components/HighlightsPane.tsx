@@ -1,4 +1,11 @@
-import { computed, defineComponent, onBeforeUnmount, onMounted, ref, Ref } from "vue";
+import {
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  Ref,
+} from "vue";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
 import HighlightGroups from "./HighlightGroups.jsx";

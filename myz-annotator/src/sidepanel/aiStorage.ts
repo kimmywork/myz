@@ -4,21 +4,41 @@
  */
 
 import { Message } from "@/background/ai/types.js";
+import { AI_SCHEMA_VERSION } from "@/shared/versioning";
+import type { UnknownRecord } from "@/shared/typeUtils";
+import { isRecord } from "@/shared/typeUtils";
 
 const DB_NAME = "MyZAIAssistantDB";
 const DB_VERSION = 1;
 const CONVERSATIONS_STORE = "conversations";
 const MESSAGES_STORE = "messages";
 
+function normalizeConversation(
+  conversation: ConversationInfo,
+): ConversationInfo {
+  return {
+    ...conversation,
+    schemaVersion: conversation.schemaVersion || AI_SCHEMA_VERSION,
+  };
+}
+
+function normalizeMessage(message: Message): Message {
+  return {
+    ...message,
+    schemaVersion: message.schemaVersion || AI_SCHEMA_VERSION,
+  };
+}
+
 let db: IDBDatabase | null = null;
 
 export interface ConversationInfo {
+  schemaVersion?: string;
   id: string;
   title: string;
   url: string;
   createdAt: string;
   updatedAt: string;
-  metadata?: Record<string, any>;
+  metadata?: UnknownRecord;
   sendContextEnabled?: boolean;
 }
 
@@ -74,8 +94,9 @@ export async function saveConversation(
     const transaction = db.transaction([CONVERSATIONS_STORE], "readwrite");
     const store = transaction.objectStore(CONVERSATIONS_STORE);
 
-    const request = store.put(conversation);
-    request.onsuccess = () => resolve(conversation);
+    const normalized = normalizeConversation(conversation);
+    const request = store.put(normalized);
+    request.onsuccess = () => resolve(normalized);
     request.onerror = () => reject(request.error);
   });
 }
@@ -90,7 +111,10 @@ export async function getConversation(
     const store = transaction.objectStore(CONVERSATIONS_STORE);
 
     const request = store.get(conversationId);
-    request.onsuccess = () => resolve(request.result || null);
+    request.onsuccess = () => {
+      const result = request.result || null;
+      resolve(result ? normalizeConversation(result) : null);
+    };
     request.onerror = () => reject(request.error);
   });
 }
@@ -118,7 +142,7 @@ export async function listConversations(
           skipped++;
           cursor.continue();
         } else {
-          conversations.push(cursor.value);
+          conversations.push(normalizeConversation(cursor.value));
           count++;
           cursor.continue();
         }
@@ -171,8 +195,9 @@ export async function saveMessage(message: Message) {
     const transaction = db.transaction([MESSAGES_STORE], "readwrite");
     const store = transaction.objectStore(MESSAGES_STORE);
 
-    const request = store.put(message);
-    request.onsuccess = () => resolve(message);
+    const normalized = normalizeMessage(message);
+    const request = store.put(normalized);
+    request.onsuccess = () => resolve(normalized);
     request.onerror = () => reject(request.error);
   });
 }
@@ -194,7 +219,7 @@ export async function replaceConversationMessages(
         cursor.delete();
         cursor.continue();
       } else {
-        messages.forEach((message) => store.put(message));
+        messages.forEach((message) => store.put(normalizeMessage(message)));
       }
     };
 
@@ -206,7 +231,7 @@ export async function replaceConversationMessages(
 
 export async function updateConversationMetadata(
   conversationId: string,
-  patch: Record<string, any>,
+  patch: UnknownRecord,
 ) {
   const conversation = await getConversation(conversationId);
   if (!conversation) return null;
@@ -333,7 +358,7 @@ export async function checkContextSize(
       if (includeFlag !== null && includeFlag !== includePageContext) {
         continue;
       }
-      const usage = msg.metadata?.usage || {};
+      const usage = isRecord(msg.metadata?.usage) ? msg.metadata.usage : null;
       const total =
         typeof usage?.total_tokens === "number"
           ? usage.total_tokens
@@ -347,7 +372,11 @@ export async function checkContextSize(
             ? usage.promptTokens
             : null;
       const candidate = total ?? prompt;
-      if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+      if (
+        typeof candidate === "number" &&
+        Number.isFinite(candidate) &&
+        candidate > 0
+      ) {
         return Math.floor(candidate);
       }
     }

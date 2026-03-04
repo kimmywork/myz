@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import * as registry from "@/background/ai/providers/registry.ts";
 import { installFetchMock, mockFetchOnce } from "./testUtils.ts";
+import * as registry from "@/background/ai/providers/registry.ts";
 
 describe("provider registry", () => {
   it("fetches models from openai-compatible", async () => {
@@ -17,7 +17,12 @@ describe("provider registry", () => {
 
   it("throws when fetch models fails", async () => {
     installFetchMock();
-    mockFetchOnce({ ok: false, status: 401, statusText: "Unauthorized", text: async () => "bad" });
+    mockFetchOnce({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      text: async () => "bad",
+    });
     await expect(
       registry.fetchProviderModels({
         type: "gemini",
@@ -31,11 +36,18 @@ describe("provider registry", () => {
   it("tests provider connection", async () => {
     installFetchMock();
     mockFetchOnce({
-      json: async () => ({ choices: [{ message: { content: "Connection successful" } }] }),
+      json: async () => ({
+        choices: [{ message: { content: "Connection successful" } }],
+      }),
     });
 
     const result = await registry.testProviderConnection({
-      provider: { baseUrl: "http://localhost", apiKey: "key", headers: "", type: "openai_compatible" },
+      provider: {
+        baseUrl: "http://localhost",
+        apiKey: "key",
+        headers: "",
+        type: "openai_compatible",
+      },
       model: "gpt-4",
     });
     expect(result.success).toBe(true);

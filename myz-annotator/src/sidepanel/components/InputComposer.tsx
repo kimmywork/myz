@@ -1,8 +1,8 @@
 import { computed, defineComponent, nextTick, onMounted, ref } from "vue";
 import { useChatStore } from "../stores/chat.js";
 import { useUIStore } from "../stores/ui.js";
-import { sendMessage } from "@/shared/messaging.js";
 import type { SkillMetadata } from "@/background/ai/skills/types.js";
+import { sendMessage } from "@/shared/messaging.js";
 
 export default defineComponent({
   name: "InputComposer",
@@ -127,7 +127,9 @@ export default defineComponent({
                   class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
                   checked={chatStore.draftContext.enabled}
                   onChange={(e) => {
-                    chatStore.draftContext.enabled = (e.target as HTMLInputElement).checked;
+                    chatStore.draftContext.enabled = (
+                      e.target as HTMLInputElement
+                    ).checked;
                   }}
                 />
                 <span class="font-medium">选中内容上下文</span>
@@ -275,11 +277,13 @@ export default defineComponent({
                 class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
                 checked={chatStore.sendContext}
                 disabled={chatStore.isLoading}
-                onChange={(e) => chatStore.toggleContext(e as any)}
+                onChange={(event) => chatStore.toggleContext(event)}
               />
               页面上下文
             </label>
-            {chatStore.error && <span class="text-rose-500">{chatStore.error}</span>}
+            {chatStore.error && (
+              <span class="text-rose-500">{chatStore.error}</span>
+            )}
           </div>
           <button
             class="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500 disabled:opacity-60"

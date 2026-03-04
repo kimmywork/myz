@@ -9,7 +9,9 @@ import {
 describe("shared types", () => {
   describe("normalizeContentType", () => {
     it("should normalize valid content types", () => {
-      expect(normalizeContentType("text/markdown")).toBe(CONTENT_TYPES.MARKDOWN);
+      expect(normalizeContentType("text/markdown")).toBe(
+        CONTENT_TYPES.MARKDOWN,
+      );
       expect(normalizeContentType("TEXT/HTML")).toBe(CONTENT_TYPES.HTML);
     });
 
@@ -36,9 +38,9 @@ describe("shared types", () => {
     });
 
     it("should use html when html is present", () => {
-      expect(
-        resolveRecordContentType({ html: "<p>hello</p>" }),
-      ).toBe(CONTENT_TYPES.HTML);
+      expect(resolveRecordContentType({ html: "<p>hello</p>" })).toBe(
+        CONTENT_TYPES.HTML,
+      );
     });
 
     it("should fallback to plain", () => {

@@ -288,10 +288,7 @@ export function collectLeafBlocks(
 ): HTMLLeaf[] {
   const results: HTMLLeaf[] = [];
   const selected = new WeakSet<HTMLElement>();
-  const walker = document.createTreeWalker(
-    root,
-    NodeFilter.SHOW_ELEMENT,
-  );
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
   // const start = performance.now();
   let node;
   while ((node = walker.nextNode()) && results.length < maxCount) {

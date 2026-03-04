@@ -7,6 +7,7 @@ import {
   startTaskPlanExecution,
   updatePlanReviewResult,
 } from "@/background/ai/tasks/taskManager.ts";
+import { isRecord } from "@/shared/typeUtils";
 
 type ConversationRecord = { metadata: Record<string, any> };
 let conversationStore: ConversationRecord = { metadata: {} };
@@ -93,12 +94,18 @@ describe("taskManager v2", () => {
     await initTaskPlan({
       conversationId: "c1",
       originalUserRequest: "do something",
-      tasks: [{ title: "Task A", deliverables: [{ description: "Deliver A" }] }],
+      tasks: [
+        { title: "Task A", deliverables: [{ description: "Deliver A" }] },
+      ],
     });
 
     await updatePlanReviewResult({
       conversationId: "c1",
-      review: { status: "needs_revision", issues: ["缺少验收标准"], missingInfo: [] },
+      review: {
+        status: "needs_revision",
+        issues: ["缺少验收标准"],
+        missingInfo: [],
+      },
     });
 
     const plan = await getTaskPlan("c1");
@@ -111,7 +118,11 @@ describe("taskManager v2", () => {
       conversationId: "c1",
       originalUserRequest: "do something",
       tasks: [
-        { id: "t-1", title: "Task A", deliverables: [{ description: "Deliver A" }] },
+        {
+          id: "t-1",
+          title: "Task A",
+          deliverables: [{ description: "Deliver A" }],
+        },
         {
           id: "t-2",
           title: "Task B",
@@ -158,7 +169,13 @@ describe("taskManager v2", () => {
     await initTaskPlan({
       conversationId: "c1",
       originalUserRequest: "do something",
-      tasks: [{ id: "t-1", title: "Task A", deliverables: [{ description: "Deliver A" }] }],
+      tasks: [
+        {
+          id: "t-1",
+          title: "Task A",
+          deliverables: [{ description: "Deliver A" }],
+        },
+      ],
     });
 
     const bigText = "x".repeat(40000);
@@ -169,9 +186,12 @@ describe("taskManager v2", () => {
       artifact: { type: "note", payload: bigText },
     });
 
-    const payload = updated?.tasks?.[0]?.deliverables?.[0]?.artifacts?.[0]?.payload;
+    const payload =
+      updated?.tasks?.[0]?.deliverables?.[0]?.artifacts?.[0]?.payload;
     expect(typeof payload).toBe("string");
-    expect(payload.length).toBeLessThanOrEqual(32000);
+    if (typeof payload === "string") {
+      expect(payload.length).toBeLessThanOrEqual(32000);
+    }
 
     const updatedObj = await attachDeliverableArtifact({
       conversationId: "c1",
@@ -182,7 +202,10 @@ describe("taskManager v2", () => {
 
     const payloadObj =
       updatedObj?.tasks?.[0]?.deliverables?.[0]?.artifacts?.[1]?.payload;
-    expect(payloadObj?.truncated).toBe(true);
-    expect(payloadObj?.content?.length).toBeLessThanOrEqual(32000);
+    const payloadRecord = isRecord(payloadObj) ? payloadObj : {};
+    expect(payloadRecord.truncated).toBe(true);
+    expect(String(payloadRecord.content || "").length).toBeLessThanOrEqual(
+      32000,
+    );
   });
 });

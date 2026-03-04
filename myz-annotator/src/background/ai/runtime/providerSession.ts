@@ -1,22 +1,22 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js"
-import type { AIProviderSetting, McpServerSetting } from "../../settings.js"
-import type { ToolDefinition } from "../types.js"
-import type { ChatCompletionClient } from "../providers/types.js"
-import { McpCapability } from "../capabilities/mcp.js"
-import { createProviderClients } from "../providers/registry.js"
+import type { AIProviderSetting, McpServerSetting } from "../../settings.js";
+import { McpCapability } from "../capabilities/mcp.js";
+import { createProviderClients } from "../providers/registry.js";
+import type { ChatCompletionClient } from "../providers/types.js";
+import type { ToolDefinition } from "../types.js";
+import type { ToolWithServer } from "../tools/registry.js";
 
 export interface ProviderSession {
-  provider: AIProviderSetting
-  mcp: McpCapability
-  client: ChatCompletionClient
-  clientWithTools: ChatCompletionClient
-  connectMcp: () => Promise<void>
-  disconnectMcp: () => Promise<void>
-  listTools: () => Tool[]
+  provider: AIProviderSetting;
+  mcp: McpCapability;
+  client: ChatCompletionClient;
+  clientWithTools: ChatCompletionClient;
+  connectMcp: () => Promise<void>;
+  disconnectMcp: () => Promise<void>;
+  listTools: () => ToolWithServer[];
 }
 
 function toToolSpecs(
-  tools: Tool[],
+  tools: ToolWithServer[],
 ): Array<{ type: "function"; function: ToolDefinition }> {
   return tools.map((tool) => ({
     type: "function" as const,
@@ -25,7 +25,7 @@ function toToolSpecs(
       description: tool.description,
       parameters: tool.inputSchema,
     } as ToolDefinition,
-  }))
+  }));
 }
 
 export function createProviderSession(
@@ -34,14 +34,14 @@ export function createProviderSession(
 ): ProviderSession {
   const mcp = new McpCapability({
     getServers: () => mcpServers,
-  })
+  });
 
-  const getToolSpecs = async () => toToolSpecs(mcp.listTools())
+  const getToolSpecs = async () => toToolSpecs(mcp.listTools());
 
   const clients = createProviderClients(provider, {
     getTools: getToolSpecs,
-    executeToolCall: (toolCall) => mcp.executeToolCall(toolCall as any),
-  })
+    executeToolCall: (toolCall) => mcp.executeToolCall(toolCall),
+  });
 
   return {
     provider,
@@ -51,5 +51,5 @@ export function createProviderSession(
     connectMcp: () => mcp.connect(),
     disconnectMcp: () => mcp.disconnect(),
     listTools: () => mcp.listTools(),
-  }
+  };
 }

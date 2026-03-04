@@ -17,8 +17,10 @@ export function initializeSyncScheduler() {
     }
   });
 
-  const runtimeAny = chrome.runtime as any;
-  runtimeAny?.onStartup?.addListener(() => {
+  const runtime = chrome.runtime as typeof chrome.runtime & {
+    onStartup?: chrome.events.Event<() => void>;
+  };
+  runtime.onStartup?.addListener(() => {
     void syncNow();
     void ensureSyncAlarm();
   });
@@ -36,5 +38,7 @@ export async function ensureSyncAlarm() {
 }
 
 function getRandomDelayMinutes() {
-  return MIN_DELAY_MINUTES + Math.random() * (MAX_DELAY_MINUTES - MIN_DELAY_MINUTES);
+  return (
+    MIN_DELAY_MINUTES + Math.random() * (MAX_DELAY_MINUTES - MIN_DELAY_MINUTES)
+  );
 }

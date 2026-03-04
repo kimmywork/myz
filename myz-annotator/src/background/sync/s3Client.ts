@@ -1,6 +1,6 @@
+import type { SyncS3Settings } from "../settings";
 import { hmacSha256, sha256, utf8ToBytes } from "./crypto";
 import { bytesToHex, toArrayBuffer } from "./utils";
-import type { SyncS3Settings } from "../settings";
 
 export interface S3ObjectInfo {
   key: string;
@@ -16,7 +16,8 @@ export interface S3PutOptions {
   ifNoneMatch?: string;
 }
 
-const EMPTY_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const EMPTY_HASH =
+  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 export class S3Client {
   private endpoint: string;
@@ -66,7 +67,9 @@ export class S3Client {
     return parseListObjects(text);
   }
 
-  async getObject(path: string): Promise<{ body: Uint8Array; etag?: string } | null> {
+  async getObject(
+    path: string,
+  ): Promise<{ body: Uint8Array; etag?: string } | null> {
     const url = this.buildUrl(path);
     const response = await this.fetchSigned("GET", url);
     if (response.status === 404) return null;
@@ -158,7 +161,9 @@ interface SignRequestInput {
   headers?: Record<string, string>;
 }
 
-async function signRequest(input: SignRequestInput): Promise<Record<string, string>> {
+async function signRequest(
+  input: SignRequestInput,
+): Promise<Record<string, string>> {
   const url = new URL(input.url);
   const amzDate = toAmzDate(new Date());
   const dateStamp = amzDate.slice(0, 8);
@@ -219,17 +224,17 @@ async function signRequest(input: SignRequestInput): Promise<Record<string, stri
 }
 
 async function getSigningKey(secret: string, date: string, region: string) {
-  const kDate = await hmacSha256(utf8ToBytes(`AWS4${secret}`), utf8ToBytes(date));
+  const kDate = await hmacSha256(
+    utf8ToBytes(`AWS4${secret}`),
+    utf8ToBytes(date),
+  );
   const kRegion = await hmacSha256(kDate, utf8ToBytes(region));
   const kService = await hmacSha256(kRegion, utf8ToBytes("s3"));
   return hmacSha256(kService, utf8ToBytes("aws4_request"));
 }
 
 function toAmzDate(date: Date) {
-  return date
-    .toISOString()
-    .replace(/[:-]/g, "")
-    .replace(/\..+/, "") + "Z";
+  return date.toISOString().replace(/[:-]/g, "").replace(/\..+/, "") + "Z";
 }
 
 function canonicalizeQuery(params: URLSearchParams) {
@@ -260,7 +265,8 @@ function encodePath(path: string) {
 
 function parseListObjects(xml: string): S3ObjectInfo[] {
   const results: S3ObjectInfo[] = [];
-  const regex = /<Contents>[\s\S]*?<Key>([^<]+)<\/Key>[\s\S]*?<LastModified>([^<]+)<\/LastModified>[\s\S]*?<ETag>([^<]+)<\/ETag>[\s\S]*?<Size>([^<]+)<\/Size>[\s\S]*?<\/Contents>/g;
+  const regex =
+    /<Contents>[\s\S]*?<Key>([^<]+)<\/Key>[\s\S]*?<LastModified>([^<]+)<\/LastModified>[\s\S]*?<ETag>([^<]+)<\/ETag>[\s\S]*?<Size>([^<]+)<\/Size>[\s\S]*?<\/Contents>/g;
   let match = regex.exec(xml);
   while (match) {
     results.push({

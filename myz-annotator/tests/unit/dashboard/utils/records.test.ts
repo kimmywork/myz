@@ -9,6 +9,7 @@ import {
   formatDateTime,
 } from "@/dashboard/utils/records";
 import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types";
+import { RECORD_SCHEMA_VERSION } from "@/shared/versioning";
 
 describe("records", () => {
   describe("getRecordKind", () => {
@@ -25,10 +26,11 @@ describe("records", () => {
     });
 
     it("should return HIGHLIGHT for other kinds", () => {
-      expect(getRecordKind({ kind: "other" } as any)).toBe(
+      const invalidKindRecord = { kind: "other" } as unknown as Partial<MyZRecord>;
+      expect(getRecordKind(invalidKindRecord)).toBe(
         RECORD_KINDS.HIGHLIGHT,
       );
-      expect(getRecordKind({} as any)).toBe(RECORD_KINDS.HIGHLIGHT);
+      expect(getRecordKind({})).toBe(RECORD_KINDS.HIGHLIGHT);
     });
   });
 
@@ -56,17 +58,18 @@ describe("records", () => {
     };
 
     it("should return null for invalid record", () => {
-      expect(normalizeRecord(null as any)).toBeNull();
-      expect(normalizeRecord("string" as any)).toBeNull();
+      expect(normalizeRecord(null)).toBeNull();
+      expect(normalizeRecord("string")).toBeNull();
     });
 
     it("should normalize record with correct kind", () => {
-      const record = { ...baseRecord, kind: "unknown" } as any;
+      const record = { ...baseRecord, kind: "unknown" };
       const normalized = normalizeRecord(record);
       expect(normalized).toEqual({
         ...baseRecord,
         kind: RECORD_KINDS.HIGHLIGHT,
         contentType: "text/plain",
+        schemaVersion: RECORD_SCHEMA_VERSION,
       });
     });
   });
@@ -158,7 +161,9 @@ describe("records", () => {
       expect(groups).toHaveLength(2);
       expect(groups[0].url).toBe("https://foo.bar/path");
       expect(groups[0].hostname).toBe("foo.bar");
-      const exampleGroup = groups.find((group) => group.url.includes("example"))!;
+      const exampleGroup = groups.find((group) =>
+        group.url.includes("example"),
+      )!;
       expect(exampleGroup.count).toBe(2);
       expect(exampleGroup.latestAt).toBe("2024-02-02T10:00:00.000Z");
     });
@@ -201,7 +206,10 @@ describe("records", () => {
           range: {
             start: {
               charOffset: 5,
-              path: [{ name: "div", index: 0 }, { name: "#text", index: 0 }],
+              path: [
+                { name: "div", index: 0 },
+                { name: "#text", index: 0 },
+              ],
             },
           },
         },
@@ -213,7 +221,10 @@ describe("records", () => {
           range: {
             start: {
               charOffset: 1,
-              path: [{ name: "div", index: 1 }, { name: "#text", index: 0 }],
+              path: [
+                { name: "div", index: 1 },
+                { name: "#text", index: 0 },
+              ],
             },
           },
         },

@@ -1,7 +1,10 @@
-import { computed, defineComponent } from "vue"
-import type { PropType } from "vue"
-import type { AIProviderSetting, AILocalToolsSettings } from "@/background/settings.js"
-import { LOCAL_TOOL_DEFINITIONS } from "@/background/ai/tools/localDefinitions.js"
+import { computed, defineComponent } from "vue";
+import type { PropType } from "vue";
+import { LOCAL_TOOL_DEFINITIONS } from "@/background/ai/tools/localDefinitions.js";
+import type {
+  AIProviderSetting,
+  AILocalToolsSettings,
+} from "@/background/settings.js";
 
 export default defineComponent({
   name: "AiLocalToolsSection",
@@ -15,7 +18,11 @@ export default defineComponent({
   },
   setup(props) {
     const options = computed(() => {
-      const items: Array<{ label: string; providerId: string; modelId: string }> = []
+      const items: Array<{
+        label: string;
+        providerId: string;
+        modelId: string;
+      }> = [];
       props.providers
         .filter((p) => p.enabled && p.lastTest?.ok)
         .forEach((provider) => {
@@ -26,45 +33,48 @@ export default defineComponent({
                 label: `${provider.name} (${model.model})`,
                 providerId: provider.id,
                 modelId: model.id,
-              })
-            })
-        })
-      return items
-    })
+              });
+            });
+        });
+      return items;
+    });
 
-    const isAuto = computed(() => props.value.mode === "auto")
+    const isAuto = computed(() => props.value.mode === "auto");
     const missingAutoTarget = computed(
       () => isAuto.value && !props.value.autoSelectorTarget,
-    )
+    );
 
     const update = (patch: Partial<AILocalToolsSettings>) => {
       props.onChange({
         ...props.value,
         ...patch,
-      })
-    }
+      });
+    };
 
-    const enabledSet = computed(() => new Set(props.value.enabledToolNames || []))
+    const enabledSet = computed(
+      () => new Set(props.value.enabledToolNames || []),
+    );
 
     const toggleTool = (name: string, enabled: boolean) => {
-      const current = new Set(props.value.enabledToolNames || [])
+      const current = new Set(props.value.enabledToolNames || []);
       if (enabled) {
-        current.add(name)
+        current.add(name);
       } else {
-        current.delete(name)
+        current.delete(name);
       }
-      update({ enabledToolNames: Array.from(current) })
-    }
+      update({ enabledToolNames: Array.from(current) });
+    };
 
     const currentKey = computed(() => {
-      const target = props.value.autoSelectorTarget
-      return target ? `${target.providerId}:${target.modelId}` : ""
-    })
+      const target = props.value.autoSelectorTarget;
+      return target ? `${target.providerId}:${target.modelId}` : "";
+    });
 
     return () => (
       <div class="space-y-3">
         <div class="text-xs text-slate-500 dark:text-slate-400">
-          本地 tools 会访问扩展内的标注数据；未启用的 tool 不会暴露给模型，也不会被执行。
+          本地 tools 会访问扩展内的标注数据；未启用的 tool
+          不会暴露给模型，也不会被执行。
           {isAuto.value
             ? "（自动模式：每次发送前会用选择器模型从已启用工具中挑选本次可用的 subset）"
             : null}
@@ -82,7 +92,9 @@ export default defineComponent({
             checked={isAuto.value}
             onChange={(e) =>
               update({
-                mode: (e.target as HTMLInputElement).checked ? "auto" : "manual",
+                mode: (e.target as HTMLInputElement).checked
+                  ? "auto"
+                  : "manual",
               })
             }
           />
@@ -98,18 +110,20 @@ export default defineComponent({
             <select
               value={currentKey.value}
               onChange={(e) => {
-                const value = (e.target as HTMLSelectElement).value
-                const [providerId, modelId] = value.split(":")
+                const value = (e.target as HTMLSelectElement).value;
+                const [providerId, modelId] = value.split(":");
                 if (!providerId || !modelId) {
-                  update({ autoSelectorTarget: null })
-                  return
+                  update({ autoSelectorTarget: null });
+                  return;
                 }
-                update({ autoSelectorTarget: { providerId, modelId } })
+                update({ autoSelectorTarget: { providerId, modelId } });
               }}
             >
               <option value="">未选择</option>
               {options.value.map((opt) => (
-                <option value={`${opt.providerId}:${opt.modelId}`}>{opt.label}</option>
+                <option value={`${opt.providerId}:${opt.modelId}`}>
+                  {opt.label}
+                </option>
               ))}
             </select>
             <div class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
@@ -130,7 +144,10 @@ export default defineComponent({
                   class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
                   checked={enabledSet.value.has(tool.name)}
                   onChange={(e) =>
-                    toggleTool(tool.name, (e.target as HTMLInputElement).checked)
+                    toggleTool(
+                      tool.name,
+                      (e.target as HTMLInputElement).checked,
+                    )
                   }
                 />
                 <span class="min-w-0 flex-1">
@@ -146,6 +163,6 @@ export default defineComponent({
           </div>
         </div>
       </div>
-    )
+    );
   },
-})
+});

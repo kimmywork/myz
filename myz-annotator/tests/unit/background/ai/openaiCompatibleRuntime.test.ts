@@ -8,7 +8,9 @@ import {
 
 describe("openaiCompatible runtime", () => {
   it("builds urls", () => {
-    expect(buildModelsUrl("https://api.example.com/v1/")).toBe("https://api.example.com/v1/models");
+    expect(buildModelsUrl("https://api.example.com/v1/")).toBe(
+      "https://api.example.com/v1/models",
+    );
     expect(buildChatCompletionsUrl("https://api.example.com/v1/")).toBe(
       "https://api.example.com/v1/chat/completions",
     );
@@ -21,6 +23,8 @@ describe("openaiCompatible runtime", () => {
   });
 
   it("extracts model list", () => {
-    expect(extractOpenAICompatibleModels({ data: [{ id: "a" }, { id: "" }] })).toEqual(["a"]);
+    expect(
+      extractOpenAICompatibleModels({ data: [{ id: "a" }, { id: "" }] }),
+    ).toEqual(["a"]);
   });
 });

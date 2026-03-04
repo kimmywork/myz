@@ -24,9 +24,9 @@ export const ZEN_SELECTOR_MAP: ZenSelectorRule[] = [
     selector: "#content",
   },
   {
-    "pattern": /:\/\/(?:www\.)?zhihu\.com\/question\/\d+$/,
-    "selector": ".Question-mainColumn",
-  }
+    pattern: /:\/\/(?:www\.)?zhihu\.com\/question\/\d+$/,
+    selector: ".Question-mainColumn",
+  },
   // Add more rules as needed, e.g.
   // { pattern: /example\.com/, selector: "main .article" },
 ];

@@ -1,5 +1,5 @@
-import { upsertDeletion } from "./storage";
 import { recordIdForConversation, recordIdForHighlight } from "./records";
+import { upsertDeletion } from "./storage";
 
 export async function recordHighlightDeletion(id: string): Promise<void> {
   const recordId = recordIdForHighlight(id);

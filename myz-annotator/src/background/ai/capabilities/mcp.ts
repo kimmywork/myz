@@ -1,38 +1,39 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js"
-import type { McpServerSetting } from "../../settings.js"
-import { McpClient } from "../../mcp.js"
-import type { ToolExecutionResult } from "../types.js"
+import { McpClient } from "../../mcp.js";
+import type { McpServerSetting } from "../../settings.js";
 import {
   executeToolCall,
   listAvailableTools,
   type ToolCallLike,
-} from "../tools/registry.js"
+  type ToolWithServer,
+} from "../tools/registry.js";
+import type { ToolExecutionResult } from "../types.js";
+import { isRecord } from "@/shared/typeUtils";
 
 export interface McpCapabilityOptions {
-  getServers: () => McpServerSetting[]
+  getServers: () => McpServerSetting[];
 }
 
 export class McpCapability {
-  private clients: Map<string, McpClient>
-  private getServers: () => McpServerSetting[]
-  private localToolAllowlist: Set<string> | null
-  private activeToolFilter: Set<string> | null
-  private conversationContext: { conversationId?: string } | null
+  private clients: Map<string, McpClient>;
+  private getServers: () => McpServerSetting[];
+  private localToolAllowlist: Set<string> | null;
+  private activeToolFilter: Set<string> | null;
+  private conversationContext: { conversationId?: string } | null;
 
   constructor(options: McpCapabilityOptions) {
-    this.clients = new Map()
-    this.getServers = options.getServers
-    this.localToolAllowlist = null
-    this.activeToolFilter = null
-    this.conversationContext = null
+    this.clients = new Map();
+    this.getServers = options.getServers;
+    this.localToolAllowlist = null;
+    this.activeToolFilter = null;
+    this.conversationContext = null;
   }
 
   getClientCount() {
-    return this.clients.size
+    return this.clients.size;
   }
 
   getClients() {
-    return this.clients
+    return this.clients;
   }
 
   /**
@@ -41,14 +42,14 @@ export class McpCapability {
    */
   setLocalToolAllowlist(toolNames: string[] | null) {
     if (!toolNames) {
-      this.localToolAllowlist = null
-      return
+      this.localToolAllowlist = null;
+      return;
     }
     this.localToolAllowlist = new Set(
       toolNames
         .filter((name) => typeof name === "string" && name.trim())
         .map((name) => name.trim()),
-    )
+    );
   }
 
   /**
@@ -57,53 +58,59 @@ export class McpCapability {
    */
   setActiveToolFilter(toolNames: string[] | null) {
     if (!toolNames) {
-      this.activeToolFilter = null
-      return
+      this.activeToolFilter = null;
+      return;
     }
     this.activeToolFilter = new Set(
       toolNames
         .filter((name) => typeof name === "string" && name.trim())
         .map((name) => name.trim()),
-    )
+    );
   }
 
   setConversationContext(context: { conversationId?: string } | null) {
     if (!context) {
-      this.conversationContext = null
-      return
+      this.conversationContext = null;
+      return;
     }
     const conversationId =
-      typeof context.conversationId === "string" ? context.conversationId.trim() : ""
-    this.conversationContext = conversationId ? { conversationId } : null
+      typeof context.conversationId === "string"
+        ? context.conversationId.trim()
+        : "";
+    this.conversationContext = conversationId ? { conversationId } : null;
   }
 
-  private filterTools(tools: Tool[]) {
-    const localAllowlist = this.localToolAllowlist
-    const activeFilter = this.activeToolFilter
-    return (tools || []).filter((tool: any) => {
-      const name = typeof tool?.name === "string" ? tool.name : ""
-      if (!name) return false
-      const server = typeof tool?.server === "string" ? tool.server : ""
-      if (server === "myz-local" && localAllowlist && !localAllowlist.has(name)) {
-        return false
+  private filterTools(tools: ToolWithServer[]) {
+    const localAllowlist = this.localToolAllowlist;
+    const activeFilter = this.activeToolFilter;
+    return (tools || []).filter((tool) => {
+      const name = typeof tool?.name === "string" ? tool.name : "";
+      if (!name) return false;
+      const server = typeof tool?.server === "string" ? tool.server : "";
+      if (
+        server === "myz-local" &&
+        localAllowlist &&
+        !localAllowlist.has(name)
+      ) {
+        return false;
       }
       if (activeFilter && !activeFilter.has(name)) {
-        return false
+        return false;
       }
-      return true
-    })
+      return true;
+    });
   }
 
-  listTools(): Tool[] {
-    const allTools = listAvailableTools(this.clients)
-    return this.filterTools(allTools)
+  listTools(): ToolWithServer[] {
+    const allTools = listAvailableTools(this.clients);
+    return this.filterTools(allTools);
   }
 
   private buildToolCandidates(rawName: string) {
     const fallbackName =
       typeof rawName === "string" && rawName.includes(":")
         ? rawName.split(":").pop() || rawName
-        : rawName
+        : rawName;
     return Array.from(
       new Set(
         [rawName, fallbackName].filter(
@@ -111,74 +118,74 @@ export class McpCapability {
             typeof value === "string" && value.trim().length > 0,
         ),
       ),
-    )
+    );
   }
 
   async executeToolCall(toolCall: ToolCallLike): Promise<ToolExecutionResult> {
-    const rawName = toolCall?.function?.name || ""
-    const allowed = new Set(this.listTools().map((tool: any) => tool.name))
-    const candidates = this.buildToolCandidates(rawName)
-    const isAllowed = candidates.some((candidate) => allowed.has(candidate))
+    const rawName = toolCall?.function?.name || "";
+    const allowed = new Set(this.listTools().map((tool) => tool.name));
+    const candidates = this.buildToolCandidates(rawName);
+    const isAllowed = candidates.some((candidate) => allowed.has(candidate));
     if (!isAllowed) {
-      throw new Error(`Tool not enabled: ${rawName}`)
+      throw new Error(`Tool not enabled: ${rawName}`);
     }
-    const contextId = this.conversationContext?.conversationId
+    const contextId = this.conversationContext?.conversationId;
     if (contextId && candidates.includes("Task")) {
-      const rawArgs = toolCall?.function?.arguments
-      let parsed: any = {}
+      const rawArgs = toolCall?.function?.arguments;
+      let parsed: Record<string, unknown> = {};
       if (typeof rawArgs === "string") {
         try {
-          parsed = JSON.parse(rawArgs)
+          parsed = JSON.parse(rawArgs);
         } catch {
-          parsed = {}
+          parsed = {};
         }
-      } else if (rawArgs && typeof rawArgs === "object") {
-        parsed = { ...(rawArgs as Record<string, any>) }
+      } else if (isRecord(rawArgs)) {
+        parsed = { ...rawArgs };
       }
-      parsed.conversationId = contextId
-      const nextArgs = JSON.stringify(parsed)
+      parsed.conversationId = contextId;
+      const nextArgs = JSON.stringify(parsed);
       toolCall = {
         ...toolCall,
         function: {
           ...toolCall.function,
           arguments: nextArgs,
         },
-      }
+      };
     }
-    return executeToolCall(this.clients, toolCall)
+    return executeToolCall(this.clients, toolCall);
   }
 
   async connect(): Promise<void> {
-    const servers = this.getServers()
+    const servers = this.getServers();
     if (!Array.isArray(servers) || !servers.length) {
-      return
+      return;
     }
 
     for (const serverConfig of servers) {
       if (!serverConfig?.enabled || !serverConfig.url) {
-        continue
+        continue;
       }
 
       try {
         const serverUrl = serverConfig.url.endsWith("/")
           ? serverConfig.url.slice(0, -1)
-          : serverConfig.url
-        const client = new McpClient({ ...serverConfig, url: serverUrl })
-        await client.connect()
-        this.clients.set(serverConfig.name, client)
+          : serverConfig.url;
+        const client = new McpClient({ ...serverConfig, url: serverUrl });
+        await client.connect();
+        this.clients.set(serverConfig.name, client);
       } catch (error) {
         console.error(
           `Failed to connect to MCP server ${serverConfig.name}:`,
           error,
-        )
+        );
       }
     }
   }
 
   async disconnect(): Promise<void> {
     for (const client of this.clients.values()) {
-      await client.disconnect()
+      await client.disconnect();
     }
-    this.clients.clear()
+    this.clients.clear();
   }
 }

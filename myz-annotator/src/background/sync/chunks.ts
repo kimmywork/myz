@@ -6,6 +6,7 @@ import {
   sha256,
   utf8ToBytes,
 } from "./crypto";
+import type { ChunkEnvelope, SyncRecord } from "./types";
 import {
   base32Encode,
   base64ToBytes,
@@ -13,7 +14,7 @@ import {
   decodeBinaryPayload,
   encodeBinaryPayload,
 } from "./utils";
-import type { ChunkEnvelope, SyncRecord } from "./types";
+import { SYNC_PROTOCOL_VERSION } from "@/shared/versioning";
 
 export interface BuiltChunk {
   chunkId: string;
@@ -29,6 +30,7 @@ export async function buildChunkForRecord(
   prevHash: string,
 ): Promise<BuiltChunk> {
   const recordPayload = encodeBinaryPayload({
+    protocolVersion: SYNC_PROTOCOL_VERSION,
     recordId: record.recordId,
     type: record.type,
     updatedAt: record.updatedAt,
@@ -47,6 +49,7 @@ export async function buildChunkForRecord(
   );
   const keyId = base32Encode(await sha256(recordKey));
   const envelope: ChunkEnvelope = {
+    protocolVersion: SYNC_PROTOCOL_VERSION,
     recordId: record.recordId,
     updatedAt: record.updatedAt,
     prevHash,
@@ -65,7 +68,13 @@ export async function buildChunkForRecord(
     chunkKey,
     chunkPlaintext,
   );
-  return { chunkId, chunkCipher, chunkNonce, recordHash: record.recordHash, keyId };
+  return {
+    chunkId,
+    chunkCipher,
+    chunkNonce,
+    recordHash: record.recordHash,
+    keyId,
+  };
 }
 
 export async function decryptChunkEnvelope(
@@ -82,6 +91,7 @@ export async function decryptChunkEnvelope(
   const plain = await aesGcmDecrypt(chunkKey, chunkNonce, chunkCipher);
   const envelope = decodeBinaryPayload(plain) as ChunkEnvelope;
   return {
+    protocolVersion: envelope.protocolVersion || SYNC_PROTOCOL_VERSION,
     recordId: envelope.recordId,
     updatedAt: envelope.updatedAt,
     prevHash: envelope.prevHash,

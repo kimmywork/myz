@@ -1,16 +1,16 @@
-import { defineComponent } from "vue"
-import { storeToRefs } from "pinia"
-import { useChatUIStore } from "@/dashboard/stores/chatUi.js"
+import { storeToRefs } from "pinia";
+import { defineComponent } from "vue";
+import { useChatUIStore } from "@/dashboard/stores/chatUi.js";
 
 export default defineComponent({
   name: "DashboardToolResponseModal",
   setup() {
-    const uiStore = useChatUIStore()
-    const { toolResponseViewer } = storeToRefs(uiStore)
+    const uiStore = useChatUIStore();
+    const { toolResponseViewer } = storeToRefs(uiStore);
 
     const handleClose = () => {
-      uiStore.closeToolResponse()
-    }
+      uiStore.closeToolResponse();
+    };
 
     return () =>
       toolResponseViewer.value.visible ? (
@@ -29,7 +29,9 @@ export default defineComponent({
                 </div>
                 {toolResponseViewer.value.timestamp && (
                   <div class="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(toolResponseViewer.value.timestamp).toLocaleString()}
+                    {new Date(
+                      toolResponseViewer.value.timestamp,
+                    ).toLocaleString()}
                   </div>
                 )}
               </div>
@@ -74,6 +76,6 @@ export default defineComponent({
             </div>
           </div>
         </div>
-      ) : null
+      ) : null;
   },
-})
+});

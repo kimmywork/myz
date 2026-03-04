@@ -1,11 +1,29 @@
+import { LOCAL_TOOL_NAMES } from "./ai/tools/localDefinitions.js";
 import { syncAiRequestHeaderRules } from "./aiHeaders.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 
-import { Settings } from "./settings.js";
-import { LOCAL_TOOL_NAMES } from "./ai/tools/localDefinitions.js";
+import type {
+  AIAgentConfig,
+  AIAgentsSettings,
+  AIModelSetting,
+  AIProviderSetting,
+  AIToolChoiceSetting,
+  AIToolControlSettings,
+  AIToolFlagSetting,
+  AutoHighlightCategoryStyle,
+  AutoHighlightCategoryStyles,
+  McpServerSetting,
+  Settings,
+  SettingsBundle,
+} from "./settings.js";
 import { applyVectorSearchSettings } from "./vectoria-index.js";
-import { normalizeColor, normalizeHighlightStyle } from "@/shared/highlightUtils.js";
-import { MyZRecord } from "@/shared/types.js";
+import {
+  normalizeColor,
+  normalizeHighlightStyle,
+} from "@/shared/highlightUtils.js";
+import { MyZRecord, ensureRecordSchemaVersion } from "@/shared/types.js";
+import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
+import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 const DB_NAME = "myz_db";
 const DB_VERSION = 1;
@@ -63,9 +81,9 @@ async function migrateFromLocalStorage(db: IDBDatabase) {
 
     const highlightsStore = tx.objectStore("highlights");
 
-    if (stored.highlights) {
-      Object.values(stored.highlights).forEach((h: any) =>
-        highlightsStore.put(h),
+    if (isRecord((stored as UnknownRecord).highlights)) {
+      Object.values((stored as UnknownRecord).highlights as UnknownRecord).forEach(
+        (highlight) => highlightsStore.put(highlight),
       );
     }
   });
@@ -83,109 +101,149 @@ function getAllFromStore<T>(storeName: string): Promise<T[]> {
   });
 }
 
+function unwrapStoredSettings(stored: unknown): Partial<Settings> | null {
+  if (!stored || typeof stored !== "object") {
+    return null;
+  }
+  const candidate = stored as SettingsBundle;
+  if (typeof candidate.schemaVersion === "string" && candidate.data) {
+    return candidate.data as Partial<Settings>;
+  }
+  return stored as Partial<Settings>;
+}
+
+function wrapSettingsBundle(settings: Settings): SettingsBundle {
+  return {
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+    data: settings,
+  };
+}
+
 function normalizeSettings<T extends Settings>(settings: T): T {
-  const clampPercent = (value: any, min: number, max: number, fallback: number) => {
-    const parsed = Number(value)
-    if (!Number.isFinite(parsed)) return fallback
-    return Math.max(min, Math.min(max, Math.round(parsed)))
-  }
-  const normalizeToolFlag = (value: any) => {
-    if (value === "on" || value === "off" || value === "auto") return value
-    return "auto"
-  }
-  const normalizeToolChoice = (value: any) => {
-    const mode = typeof value?.mode === "string" ? value.mode : "auto"
+  const clampPercent = (
+    value: unknown,
+    min: number,
+    max: number,
+    fallback: number,
+  ) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(parsed)));
+  };
+  const normalizeToolFlag = (value: unknown): AIToolFlagSetting => {
+    if (value === "on" || value === "off" || value === "auto") return value;
+    return "auto";
+  };
+  const normalizeToolChoice = (value: unknown): AIToolChoiceSetting => {
+    const record = isRecord(value) ? value : null;
+    const mode = typeof record?.mode === "string" ? record.mode : "auto";
     if (mode === "none" || mode === "required" || mode === "auto") {
-      return { mode }
+      return { mode };
     }
     if (mode === "tool") {
-      const toolName = typeof value?.toolName === "string" ? value.toolName : ""
-      return { mode, toolName }
+      const toolName =
+        typeof record?.toolName === "string" ? record.toolName : "";
+      return { mode, toolName };
     }
-    return { mode: "auto" }
-  }
-  const normalizeTooling = (value: any) => ({
-    toolChoice: normalizeToolChoice(value?.toolChoice),
-    strict: normalizeToolFlag(value?.strict),
-    parallelToolCalls: normalizeToolFlag(value?.parallelToolCalls),
-  })
-  const normalizeModelSetting = (model: any) => {
-    const limits = model?.limits || {}
-    const capabilities = model?.capabilities || {}
+    return { mode: "auto" };
+  };
+  const normalizeTooling = (value: unknown): AIToolControlSettings => {
+    const record = isRecord(value) ? value : null;
     return {
-      ...model,
-      id: typeof model?.id === "string" ? model.id : "",
-      model: typeof model?.model === "string" ? model.model : "",
-      enabled: Boolean(model?.enabled),
-      systemPromptInUserMessage: Boolean(model?.systemPromptInUserMessage),
+      toolChoice: normalizeToolChoice(record?.toolChoice),
+      strict: normalizeToolFlag(record?.strict),
+      parallelToolCalls: normalizeToolFlag(record?.parallelToolCalls),
+    };
+  };
+  const normalizeModelSetting = (model: unknown): AIModelSetting => {
+    const record = isRecord(model) ? model : {};
+    const limits = isRecord(record.limits) ? record.limits : {};
+    const capabilities = isRecord(record.capabilities) ? record.capabilities : {};
+    return {
+      ...(record as Partial<AIModelSetting>),
+      id: typeof record.id === "string" ? record.id : "",
+      model: typeof record.model === "string" ? record.model : "",
+      enabled: Boolean(record.enabled),
+      systemPromptInUserMessage: Boolean(record.systemPromptInUserMessage),
       capabilities: {
-        vision: Boolean(capabilities?.vision),
-        imageOutput: Boolean(capabilities?.imageOutput),
+        vision: Boolean(capabilities.vision),
+        imageOutput: Boolean(capabilities.imageOutput),
         toolCalling:
-          typeof capabilities?.toolCalling === "boolean" ? capabilities.toolCalling : true,
-        reasoning: Boolean(capabilities?.reasoning),
+          typeof capabilities.toolCalling === "boolean"
+            ? capabilities.toolCalling
+            : true,
+        reasoning: Boolean(capabilities.reasoning),
       },
       limits: {
         contextWindow:
-          typeof limits?.contextWindow === "number" && Number.isFinite(limits.contextWindow)
+          typeof limits.contextWindow === "number" &&
+          Number.isFinite(limits.contextWindow)
             ? Math.max(1, Math.floor(limits.contextWindow))
             : 32768,
         maxOutputTokens:
-          typeof limits?.maxOutputTokens === "number" && Number.isFinite(limits.maxOutputTokens)
+          typeof limits.maxOutputTokens === "number" &&
+          Number.isFinite(limits.maxOutputTokens)
             ? Math.max(1, Math.floor(limits.maxOutputTokens))
             : 4096,
         maxOutputTokenParam:
-          limits?.maxOutputTokenParam === "max_completion_tokens"
+          limits.maxOutputTokenParam === "max_completion_tokens"
             ? "max_completion_tokens"
             : "max_tokens",
       },
-      tooling: normalizeTooling(model?.tooling),
-    }
-  }
+      tooling: normalizeTooling(record.tooling),
+    };
+  };
   settings.aiAssistantEnabled = Boolean(settings.aiAssistantEnabled);
-  settings.aiProviders = Array.isArray(settings.aiProviders)
-    ? settings.aiProviders.filter((p) => p && typeof p === "object")
+  const rawProviders: unknown[] = Array.isArray(
+    (settings as UnknownRecord).aiProviders,
+  )
+    ? ((settings as UnknownRecord).aiProviders as unknown[])
     : [];
-  settings.aiProviders = settings.aiProviders.map((provider: any) => ({
-    ...provider,
-    type: typeof provider?.type === "string" ? provider.type : "openai_compatible",
-    streamingEnabled:
-      typeof provider?.streamingEnabled === "boolean" ? provider.streamingEnabled : true,
-    models: Array.isArray(provider?.models)
-      ? provider.models.map((model: any) => normalizeModelSetting(model))
-      : [],
-  }))
-  settings.aiAgents =
-    settings.aiAgents && typeof settings.aiAgents === "object"
-      ? settings.aiAgents
-      : ({
-          conversation: {
-            target: null,
-            temperature: 0.7,
-            compressImages: false,
-            multimodalTarget: null,
-            superpowerMode: false,
-          },
-          insights: { target: null, temperature: 0.7 },
-          autoHighlight: {
-            target: null,
-            temperature: 0.4,
-            maxHighlights: 15,
-          },
-        } as any);
-  const aiAgents = settings.aiAgents as any
-  const normalizeAgentTarget = (target: any) => {
+  settings.aiProviders = rawProviders
+    .filter((provider): provider is UnknownRecord => isRecord(provider))
+    .map((record) => ({
+      ...(record as Partial<AIProviderSetting>),
+      type: typeof record.type === "string" ? record.type : "openai_compatible",
+      streamingEnabled:
+        typeof record.streamingEnabled === "boolean"
+          ? record.streamingEnabled
+          : true,
+      models: Array.isArray(record.models)
+        ? record.models.map((model) => normalizeModelSetting(model))
+        : [],
+    })) as AIProviderSetting[];
+  const fallbackAgents: AIAgentsSettings = {
+    conversation: {
+      target: null,
+      temperature: 0.7,
+      compressImages: false,
+      multimodalTarget: null,
+      superpowerMode: false,
+    },
+    insights: { target: null, temperature: 0.7 },
+    autoHighlight: {
+      target: null,
+      temperature: 0.4,
+      maxHighlights: 15,
+    },
+  };
+  settings.aiAgents = isRecord(settings.aiAgents)
+    ? (settings.aiAgents as AIAgentsSettings)
+    : fallbackAgents;
+  const aiAgents = settings.aiAgents;
+  const normalizeAgentTarget = (
+    target: unknown,
+  ): AIAgentConfig["target"] => {
     if (
-      target &&
-      typeof target === "object" &&
+      isRecord(target) &&
       typeof target.providerId === "string" &&
       typeof target.modelId === "string"
     ) {
-      return { providerId: target.providerId, modelId: target.modelId }
+      return { providerId: target.providerId, modelId: target.modelId };
     }
-    return null
-  }
-  if (!aiAgents.conversation || typeof aiAgents.conversation !== "object") {
+    return null;
+  };
+  if (!isRecord(aiAgents.conversation)) {
     aiAgents.conversation = {
       target: null,
       temperature: 0.7,
@@ -193,64 +251,83 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       multimodalTarget: null,
       superpowerMode: false,
       contextCompressionThreshold: 80,
-    }
+    };
   } else {
-    aiAgents.conversation.target = normalizeAgentTarget(aiAgents.conversation.target)
+    aiAgents.conversation.target = normalizeAgentTarget(
+      aiAgents.conversation.target,
+    );
     aiAgents.conversation.temperature =
       typeof aiAgents.conversation.temperature === "number"
         ? aiAgents.conversation.temperature
-        : 0.7
-    aiAgents.conversation.compressImages = Boolean(aiAgents.conversation.compressImages)
-    aiAgents.conversation.superpowerMode = Boolean(aiAgents.conversation.superpowerMode)
+        : 0.7;
+    aiAgents.conversation.compressImages = Boolean(
+      aiAgents.conversation.compressImages,
+    );
+    aiAgents.conversation.superpowerMode = Boolean(
+      aiAgents.conversation.superpowerMode,
+    );
     aiAgents.conversation.multimodalTarget = normalizeAgentTarget(
       aiAgents.conversation.multimodalTarget,
-    )
+    );
     aiAgents.conversation.contextCompressionThreshold = clampPercent(
       aiAgents.conversation.contextCompressionThreshold,
       50,
       95,
       80,
-    )
+    );
   }
-  if (!aiAgents.insights || typeof aiAgents.insights !== "object") {
-    aiAgents.insights = { target: null, temperature: 0.7 }
+  if (!isRecord(aiAgents.insights)) {
+    aiAgents.insights = { target: null, temperature: 0.7 };
   } else {
-    aiAgents.insights.target = normalizeAgentTarget(aiAgents.insights.target)
+    aiAgents.insights.target = normalizeAgentTarget(aiAgents.insights.target);
     aiAgents.insights.temperature =
-      typeof aiAgents.insights.temperature === "number" ? aiAgents.insights.temperature : 0.7
+      typeof aiAgents.insights.temperature === "number"
+        ? aiAgents.insights.temperature
+        : 0.7;
   }
-  if (!aiAgents.autoHighlight || typeof aiAgents.autoHighlight !== "object") {
+  if (!isRecord(aiAgents.autoHighlight)) {
+    const fallbackCategoryStyles =
+      DEFAULT_SETTINGS.aiAgents.autoHighlight
+        .categoryStyles as AutoHighlightCategoryStyles;
     aiAgents.autoHighlight = {
       target: null,
       temperature: 0.4,
       maxHighlights: 15,
-      categoryStyles:
-        (DEFAULT_SETTINGS.aiAgents as any)?.autoHighlight?.categoryStyles || {},
-    }
+      categoryStyles: fallbackCategoryStyles,
+    };
   } else {
-    aiAgents.autoHighlight.target = normalizeAgentTarget(aiAgents.autoHighlight.target)
+    aiAgents.autoHighlight.target = normalizeAgentTarget(
+      aiAgents.autoHighlight.target,
+    );
     aiAgents.autoHighlight.temperature =
       typeof aiAgents.autoHighlight.temperature === "number"
         ? aiAgents.autoHighlight.temperature
-        : 0.4
+        : 0.4;
     const maxCount =
       typeof aiAgents.autoHighlight.maxHighlights === "number"
         ? aiAgents.autoHighlight.maxHighlights
-        : 15
-    const maxHighlights = clampPercent(maxCount, 5, 30, 15)
-    aiAgents.autoHighlight.maxHighlights = maxHighlights
+        : 15;
+    const maxHighlights = clampPercent(maxCount, 5, 30, 15);
+    aiAgents.autoHighlight.maxHighlights = maxHighlights;
 
     const defaultCategoryStyles =
-      (DEFAULT_SETTINGS.aiAgents as any)?.autoHighlight?.categoryStyles || {}
-    const rawCategoryStyles = (aiAgents.autoHighlight as any).categoryStyles || {}
-    const normalizeCategoryStyle = (value: any, fallback: any) => ({
+      DEFAULT_SETTINGS.aiAgents.autoHighlight
+        .categoryStyles as AutoHighlightCategoryStyles;
+    const rawCategoryStyles = isRecord(aiAgents.autoHighlight.categoryStyles)
+      ? (aiAgents.autoHighlight
+          .categoryStyles as Partial<AutoHighlightCategoryStyles>)
+      : {};
+    const normalizeCategoryStyle = (
+      value: AutoHighlightCategoryStyle | undefined,
+      fallback: AutoHighlightCategoryStyle | undefined,
+    ): AutoHighlightCategoryStyle => ({
       style: normalizeHighlightStyle(value?.style ?? fallback?.style),
       color: normalizeColor(
         typeof value?.color === "string" ? value.color : "",
         typeof fallback?.color === "string" ? fallback.color : "#b58900",
       ),
-    })
-    ;(aiAgents.autoHighlight as any).categoryStyles = {
+    });
+    aiAgents.autoHighlight.categoryStyles = {
       conceptual: normalizeCategoryStyle(
         rawCategoryStyles.conceptual,
         defaultCategoryStyles.conceptual,
@@ -263,42 +340,52 @@ function normalizeSettings<T extends Settings>(settings: T): T {
         rawCategoryStyles.behavioural,
         defaultCategoryStyles.behavioural,
       ),
-    }
+    };
   }
-  settings.aiMcpServers = Array.isArray(settings.aiMcpServers)
-    ? settings.aiMcpServers
-        .filter((s) => s && typeof s === "object")
-        .map((server: any) => {
-          const normalized: any = {
-            id: typeof server.id === "string" ? server.id : "",
-            name: typeof server.name === "string" ? server.name : "",
-            enabled: Boolean(server.enabled),
-            url: typeof server.url === "string" ? server.url : "",
-          }
-          const headers = server.headers
-          if (headers && typeof headers === "object" && !Array.isArray(headers)) {
-            normalized.headers = headers as any
-          }
-          const lastTest = server.lastTest
-          if (lastTest && typeof lastTest === "object") {
-            normalized.lastTest = {
-              ok: Boolean(lastTest.ok),
-              message: typeof lastTest.message === "string" ? lastTest.message : "",
-              testedAt: typeof lastTest.testedAt === "string" ? lastTest.testedAt : "",
-            }
-          } else if (lastTest === null) {
-            normalized.lastTest = null
-          }
-          return normalized
-        })
+  const rawServers: unknown[] = Array.isArray(
+    (settings as UnknownRecord).aiMcpServers,
+  )
+    ? ((settings as UnknownRecord).aiMcpServers as unknown[])
     : [];
-  const aiLocalTools = (settings as any).aiLocalTools
-  if (!aiLocalTools || typeof aiLocalTools !== "object") {
-    ;(settings as any).aiLocalTools = {
+  settings.aiMcpServers = rawServers
+    .filter((server): server is UnknownRecord => isRecord(server))
+    .map((server) => {
+      const normalized: McpServerSetting = {
+        id: typeof server.id === "string" ? server.id : "",
+        name: typeof server.name === "string" ? server.name : "",
+        enabled: Boolean(server.enabled),
+        url: typeof server.url === "string" ? server.url : "",
+      };
+      const headers = isRecord(server.headers) ? server.headers : null;
+      if (headers) {
+        const cleaned = Object.fromEntries(
+          Object.entries(headers).filter(([, value]) => typeof value === "string"),
+        ) as Record<string, string>;
+        if (Object.keys(cleaned).length) {
+          normalized.headers = cleaned;
+        }
+      }
+      const lastTest = isRecord(server.lastTest) ? server.lastTest : null;
+      if (lastTest) {
+        normalized.lastTest = {
+          ok: Boolean(lastTest.ok),
+          message:
+            typeof lastTest.message === "string" ? lastTest.message : "",
+          testedAt:
+            typeof lastTest.testedAt === "string" ? lastTest.testedAt : "",
+        };
+      } else if (server.lastTest === null) {
+        normalized.lastTest = null;
+      }
+      return normalized;
+    });
+  const aiLocalTools = settings.aiLocalTools;
+  if (!isRecord(aiLocalTools)) {
+    settings.aiLocalTools = {
       enabledToolNames: LOCAL_TOOL_NAMES.slice(),
       mode: "manual",
       autoSelectorTarget: null,
-    }
+    };
   } else {
     const toolNameMigrations: Record<string, string> = {
       "list-files": "List",
@@ -318,127 +405,130 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       "myz-run-dom-actions": "RunDomActions",
       "myz-get-page-context": "GetPageContext",
       "myz-eval-in-page": "EvalInPage",
-    }
+    };
     aiLocalTools.enabledToolNames = Array.isArray(aiLocalTools.enabledToolNames)
       ? aiLocalTools.enabledToolNames
-          .filter((name: any) => typeof name === "string" && name.trim())
-          .map((name: string) => toolNameMigrations[name.trim()] || name.trim())
-          .filter((name: string) => LOCAL_TOOL_NAMES.includes(name))
-      : LOCAL_TOOL_NAMES.slice()
-    aiLocalTools.enabledToolNames = Array.from(new Set(aiLocalTools.enabledToolNames))
-    aiLocalTools.mode = aiLocalTools.mode === "auto" ? "auto" : "manual"
-    const target = aiLocalTools.autoSelectorTarget
+          .filter((name) => typeof name === "string" && name.trim())
+          .map((name) => toolNameMigrations[name.trim()] || name.trim())
+          .filter((name) => LOCAL_TOOL_NAMES.includes(name))
+      : LOCAL_TOOL_NAMES.slice();
+    aiLocalTools.enabledToolNames = Array.from(
+      new Set(aiLocalTools.enabledToolNames),
+    );
+    aiLocalTools.mode = aiLocalTools.mode === "auto" ? "auto" : "manual";
+    const target = aiLocalTools.autoSelectorTarget;
     if (
-      target &&
-      typeof target === "object" &&
+      isRecord(target) &&
       typeof target.providerId === "string" &&
       typeof target.modelId === "string"
     ) {
       aiLocalTools.autoSelectorTarget = {
         providerId: target.providerId,
         modelId: target.modelId,
-      }
+      };
     } else {
-      aiLocalTools.autoSelectorTarget = null
+      aiLocalTools.autoSelectorTarget = null;
     }
   }
-  const aiSkills = settings.aiSkills
-  if (!aiSkills || typeof aiSkills !== "object") {
-    ;(settings as any).aiSkills = {
+  const aiSkills = settings.aiSkills;
+  if (!isRecord(aiSkills)) {
+    settings.aiSkills = {
       mode: "manual",
       autoSelectorTarget: null,
-    }
+    };
   } else {
-    aiSkills.mode = aiSkills.mode === "auto" ? "auto" : "manual"
-    const target = aiSkills.autoSelectorTarget
+    aiSkills.mode = aiSkills.mode === "auto" ? "auto" : "manual";
+    const target = aiSkills.autoSelectorTarget;
     if (
-      target &&
-      typeof target === "object" &&
+      isRecord(target) &&
       typeof target.providerId === "string" &&
       typeof target.modelId === "string"
     ) {
       aiSkills.autoSelectorTarget = {
         providerId: target.providerId,
         modelId: target.modelId,
-      }
+      };
     } else {
-      aiSkills.autoSelectorTarget = null
+      aiSkills.autoSelectorTarget = null;
     }
   }
-  const vectorSearch = (settings as any).vectorSearch
-  if (!vectorSearch || typeof vectorSearch !== "object") {
-    ;(settings as any).vectorSearch = {
+  const vectorSearch = settings.vectorSearch;
+  if (!isRecord(vectorSearch)) {
+    settings.vectorSearch = {
       enabled: false,
       target: null,
       lastTest: null,
       matchThreshold: 0.5,
-    }
+    };
   } else {
-    vectorSearch.enabled = Boolean(vectorSearch.enabled)
-    const target = vectorSearch.target
+    vectorSearch.enabled = Boolean(vectorSearch.enabled);
+    const target = vectorSearch.target;
     if (
-      target &&
-      typeof target === "object" &&
+      isRecord(target) &&
       typeof target.providerId === "string" &&
       typeof target.modelId === "string"
     ) {
-      vectorSearch.target = { providerId: target.providerId, modelId: target.modelId }
+      vectorSearch.target = {
+        providerId: target.providerId,
+        modelId: target.modelId,
+      };
     } else {
-      vectorSearch.target = null
+      vectorSearch.target = null;
     }
 
-    const lastTest = vectorSearch.lastTest
-    if (lastTest && typeof lastTest === "object") {
+    const lastTest = isRecord(vectorSearch.lastTest)
+      ? vectorSearch.lastTest
+      : null;
+    if (lastTest) {
       vectorSearch.lastTest = {
         ok: Boolean(lastTest.ok),
         message: typeof lastTest.message === "string" ? lastTest.message : "",
-        testedAt: typeof lastTest.testedAt === "string" ? lastTest.testedAt : "",
-        providerId: typeof lastTest.providerId === "string" ? lastTest.providerId : "",
+        testedAt:
+          typeof lastTest.testedAt === "string" ? lastTest.testedAt : "",
+        providerId:
+          typeof lastTest.providerId === "string" ? lastTest.providerId : "",
         modelId: typeof lastTest.modelId === "string" ? lastTest.modelId : "",
         model: typeof lastTest.model === "string" ? lastTest.model : "",
-      }
-    } else if (lastTest === null) {
-      vectorSearch.lastTest = null
+      };
+    } else if (vectorSearch.lastTest === null) {
+      vectorSearch.lastTest = null;
     } else {
-      vectorSearch.lastTest = null
+      vectorSearch.lastTest = null;
     }
 
-    const rawThreshold = vectorSearch.matchThreshold
+    const rawThreshold = vectorSearch.matchThreshold;
     const threshold =
       typeof rawThreshold === "number" && Number.isFinite(rawThreshold)
         ? rawThreshold
-        : 0.5
-    vectorSearch.matchThreshold = Math.min(1, Math.max(0.4, threshold))
+        : 0.5;
+    vectorSearch.matchThreshold = Math.min(1, Math.max(0.4, threshold));
   }
 
-  ;(settings as any).colorPalette = Array.isArray((settings as any).colorPalette)
-    ? (settings as any).colorPalette.filter((c: any) => typeof c === "string" && c.trim())
-    : []
+  settings.colorPalette = Array.isArray(settings.colorPalette)
+    ? settings.colorPalette.filter((c) => typeof c === "string" && c.trim())
+    : [];
 
   // Social import settings (extensible)
-  const socialImport = (settings as any).socialImport;
-  if (!socialImport || typeof socialImport !== "object") {
-    (settings as any).socialImport = {
+  const socialImport = settings.socialImport;
+  if (!isRecord(socialImport)) {
+    settings.socialImport = {
       twitter: { profileUrl: "" },
       mastodon: { profileUrl: "" },
     };
-  } else if (
-    !socialImport.twitter ||
-    typeof socialImport.twitter !== "object"
-  ) {
+  } else if (!isRecord(socialImport.twitter)) {
     socialImport.twitter = { profileUrl: "" };
   } else if (typeof socialImport.twitter.profileUrl !== "string") {
     socialImport.twitter.profileUrl = "";
   }
-  if (!socialImport.mastodon || typeof socialImport.mastodon !== "object") {
+  if (!isRecord(socialImport.mastodon)) {
     socialImport.mastodon = { profileUrl: "" };
   } else if (typeof socialImport.mastodon.profileUrl !== "string") {
     socialImport.mastodon.profileUrl = "";
   }
 
-  const sync = (settings as any).sync;
-  if (!sync || typeof sync !== "object") {
-    (settings as any).sync = {
+  const sync = settings.sync;
+  if (!isRecord(sync)) {
+    settings.sync = {
       enabled: false,
       s3: {
         endpoint: "",
@@ -452,7 +542,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     };
   } else {
     sync.enabled = Boolean(sync.enabled);
-    if (!sync.s3 || typeof sync.s3 !== "object") {
+    if (!isRecord(sync.s3)) {
       sync.s3 = {
         endpoint: "",
         region: "",
@@ -465,18 +555,17 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     } else {
       sync.s3.endpoint =
         typeof sync.s3.endpoint === "string" ? sync.s3.endpoint : "";
-      sync.s3.region =
-        typeof sync.s3.region === "string" ? sync.s3.region : "";
-      sync.s3.bucket =
-        typeof sync.s3.bucket === "string" ? sync.s3.bucket : "";
+      sync.s3.region = typeof sync.s3.region === "string" ? sync.s3.region : "";
+      sync.s3.bucket = typeof sync.s3.bucket === "string" ? sync.s3.bucket : "";
       sync.s3.accessKeyId =
         typeof sync.s3.accessKeyId === "string" ? sync.s3.accessKeyId : "";
       sync.s3.secretAccessKey =
-        typeof sync.s3.secretAccessKey === "string" ? sync.s3.secretAccessKey : "";
+        typeof sync.s3.secretAccessKey === "string"
+          ? sync.s3.secretAccessKey
+          : "";
       sync.s3.sessionToken =
         typeof sync.s3.sessionToken === "string" ? sync.s3.sessionToken : "";
-      sync.s3.prefix =
-        typeof sync.s3.prefix === "string" ? sync.s3.prefix : "";
+      sync.s3.prefix = typeof sync.s3.prefix === "string" ? sync.s3.prefix : "";
     }
   }
 
@@ -485,10 +574,11 @@ function normalizeSettings<T extends Settings>(settings: T): T {
 
 export async function saveHighlight(record: MyZRecord) {
   const db = await getDB();
+  const normalized = ensureRecordSchemaVersion(record);
   return new Promise<void>((resolve, reject) => {
     const tx = db.transaction("highlights", "readwrite");
     const store = tx.objectStore("highlights");
-    const request = store.put(record);
+    const request = store.put(normalized);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
@@ -538,28 +628,32 @@ export async function getAllHighlights(): Promise<MyZRecord[]> {
 }
 
 export async function readSettings(): Promise<Settings> {
-  const { [SETTINGS_KEY]: stored } =
-    await chrome.storage.local.get(SETTINGS_KEY) as { [SETTINGS_KEY]?: Partial<Settings> };
-  if (!stored) {
-    return normalizeSettings({ ...DEFAULT_SETTINGS });
-  }
-  const merged = normalizeSettings({ ...DEFAULT_SETTINGS, ...stored });
+  const { [SETTINGS_KEY]: stored } = (await chrome.storage.local.get(
+    SETTINGS_KEY,
+  )) as {
+    [SETTINGS_KEY]?: SettingsBundle | Partial<Settings>;
+  };
+  const raw = unwrapStoredSettings(stored) || {};
+  const merged = normalizeSettings({ ...DEFAULT_SETTINGS, ...raw });
   merged.lastUsedStyle = normalizeHighlightStyle(merged.lastUsedStyle);
   return merged;
 }
 
-export async function writeSettings(patch: Partial<Settings>): Promise<Settings> {
+export async function writeSettings(
+  patch: Partial<Settings>,
+): Promise<Settings> {
   const current = await readSettings();
   const updated = normalizeSettings({ ...current, ...patch });
   updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
-  await chrome.storage.local.set({ [SETTINGS_KEY]: updated });
+  const bundle = wrapSettingsBundle(updated);
+  await chrome.storage.local.set({ [SETTINGS_KEY]: bundle });
   try {
     await syncAiRequestHeaderRules(updated);
   } catch (error) {
     console.warn("Failed to sync AI header rules", error);
   }
   try {
-    applyVectorSearchSettings(updated as any);
+    applyVectorSearchSettings(updated);
   } catch (error) {
     console.warn("Failed to apply vector search settings", error);
   }

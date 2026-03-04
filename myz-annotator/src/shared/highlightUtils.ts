@@ -12,7 +12,7 @@ import { HighlightStyleSchema, SanitizedColorSchema } from "@/shared/schemas";
 // pastel values so highlights remain readable when the page uses a dark
 // color scheme.
 
-export function normalizeHighlightStyle(style: any): HIGHLIGHT_STYLES {
+export function normalizeHighlightStyle(style: unknown): HIGHLIGHT_STYLES {
   return HighlightStyleSchema.parse(style);
 }
 

@@ -5,6 +5,7 @@ import {
   buildSkillMetadata,
   buildSkillInstruction,
 } from "@/background/ai/skills/parser.ts";
+import { isRecord } from "@/shared/typeUtils";
 
 const sampleSkill = `---\nname: demo-skill\ndescription: \"A demo skill\"\nmetadata:\n  author: \"me\"\n---\n\n# Title\n\nBody content.`;
 
@@ -14,12 +15,16 @@ describe("skills parser", () => {
     expect(error).toBeNull();
     expect(frontmatter?.name).toBe("demo-skill");
     expect(frontmatter?.description).toBe("A demo skill");
-    expect(frontmatter?.metadata?.author).toBe("me");
+    const meta = isRecord(frontmatter?.metadata) ? frontmatter?.metadata : {};
+    expect(meta.author).toBe("me");
     expect(body).toContain("Body content");
   });
 
   it("returns errors for invalid metadata", () => {
-    const { errors } = validateSkillMetadata({ name: "Bad Name", description: "" });
+    const { errors } = validateSkillMetadata({
+      name: "Bad Name",
+      description: "",
+    });
     expect(errors.length).toBeGreaterThan(0);
   });
 

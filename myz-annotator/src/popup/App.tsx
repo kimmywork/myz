@@ -5,10 +5,11 @@ import {
   recordToMarkdown,
 } from "@/dashboard/utils/records.js";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
-import { IconSettings } from "@/shared/icons.js";
 import { normalizeWhitespace } from "@/shared/highlightUtils.js";
+import { IconSettings } from "@/shared/icons.js";
 
 import { sendMessage } from "@/shared/messaging.js";
+import { isRecord } from "@/shared/typeUtils";
 import { RECORD_KINDS, MyZRecord } from "@/shared/types.js";
 
 import {
@@ -308,7 +309,9 @@ export default defineComponent({
                 onClick={runAutoHighlight}
                 disabled={isAutoHighlighting.value}
               >
-                {isAutoHighlighting.value ? "正在生成标注..." : "AI 自动生成标注"}
+                {isAutoHighlighting.value
+                  ? "正在生成标注..."
+                  : "AI 自动生成标注"}
               </button>
             </div>
           )}
@@ -336,12 +339,23 @@ function getPageHighlightState(
     chrome.tabs.sendMessage(
       tabId,
       { type: "myz:getHighlightState" },
-      (response: { ok: boolean; data?: any }) => {
+      (response: { ok: boolean; data?: unknown }) => {
         if (chrome.runtime.lastError || !response) {
           resolve(null);
           return;
         }
-        resolve(response.ok ? response.data || null : null);
+        if (!response.ok) {
+          resolve(null);
+          return;
+        }
+        const data = isRecord(response.data) ? response.data : null;
+        const unreachableIds = Array.isArray(data?.unreachableIds)
+          ? data.unreachableIds.filter(
+              (value): value is string =>
+                typeof value === "string" && value.trim().length > 0,
+            )
+          : null;
+        resolve(unreachableIds ? { unreachableIds } : null);
       },
     );
   });

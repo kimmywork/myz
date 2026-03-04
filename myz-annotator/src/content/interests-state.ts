@@ -8,7 +8,9 @@ import {
 import { useInterestsStore } from "./stores/interests-store.ts";
 import { type VectoriaSearchResult } from "@/background/vectoria-index.ts";
 import { sendMessage } from "@/shared/messaging.ts";
+import type { VectoriaSearchMessageResult } from "@/background/messages/vectoria";
 import { canonicalUrl } from "@/shared/url.ts";
+import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 // -------- Vectoria interest surface --------
 const INTEREST_MAX_COUNT = 300;
@@ -23,27 +25,37 @@ let settingsSyncInstalled = false;
 let vectorSearchEnabled = false;
 let monitoringActive = false;
 
-function normalizeMatchThreshold(value: any): number {
+function normalizeMatchThreshold(value: unknown): number {
   const n =
-    typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_MATCH_THRESHOLD;
+    typeof value === "number" && Number.isFinite(value)
+      ? value
+      : DEFAULT_MATCH_THRESHOLD;
   return Math.min(1, Math.max(0.4, n));
 }
 
-function resolveVectorSearchEnabled(settings: any): boolean {
-  const target = settings?.vectorSearch?.target;
+function resolveVectorSearchEnabled(
+  settings: UnknownRecord | null | undefined,
+): boolean {
+  const vectorSearch = isRecord(settings?.vectorSearch)
+    ? settings?.vectorSearch
+    : null
+  const target = isRecord(vectorSearch?.target) ? vectorSearch.target : null
+  const enabled = Boolean(vectorSearch?.enabled)
   return Boolean(
-    settings?.vectorSearch?.enabled &&
+    enabled &&
       target &&
-      typeof target?.modelId === "string" &&
+      typeof target.modelId === "string" &&
       target.modelId.trim(),
-  );
+  )
 }
 
 async function loadVectorSearchEnabled(): Promise<boolean> {
   try {
     const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
     const settings = stored?.[SETTINGS_STORAGE_KEY];
-    interestMatchThreshold = normalizeMatchThreshold(settings?.vectorSearch?.matchThreshold);
+    interestMatchThreshold = normalizeMatchThreshold(
+      settings?.vectorSearch?.matchThreshold,
+    );
     const enabled = resolveVectorSearchEnabled(settings);
     updateVectorSearchEnabled(enabled);
     return enabled;
@@ -279,11 +291,16 @@ async function runSemanticLookup(
   try {
     const trimmed =
       finalText.length > 800 ? `${finalText.slice(0, 800)}…` : finalText;
-    const response = (await sendMessage("myz:vectoriaSearch", {
+    const response = await sendMessage<
+      { text?: string; topK?: number },
+      VectoriaSearchMessageResult
+    >("myz:vectoriaSearch", {
       text: trimmed,
       topK: 3,
-    })) as { results?: VectoriaSearchResult[] };
-    const results = Array.isArray(response?.results) ? response.results : [];
+    });
+    const results: VectoriaSearchResult[] = Array.isArray(response?.results)
+      ? response.results
+      : [];
     const currentCanonical = canonicalUrl(window.location.href);
     filtered = results.filter((item) => {
       const targetUrl = item?.metadata?.url || "";
@@ -359,7 +376,11 @@ function pruneMatchesBelowThreshold(threshold: number): void {
   const entries = Array.from(interestStore.interestMatchesByRecord.entries());
   entries.forEach(([key, entry]) => {
     const score = entry?.match?.score || 0;
-    if (typeof score !== "number" || !Number.isFinite(score) || score < threshold) {
+    if (
+      typeof score !== "number" ||
+      !Number.isFinite(score) ||
+      score < threshold
+    ) {
       interestStore.interestMatchesByRecord.delete(key);
     }
   });

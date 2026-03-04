@@ -1,7 +1,7 @@
 import { findPrimaryContentElement } from "./content-extraction.js";
+import { collectLeafBlocks } from "./html.js";
 import { normalizeWhitespace } from "@/shared/highlightUtils.js";
 import { isNodeFromMyz } from "@/shared/serializer.js";
-import { collectLeafBlocks } from "./html.js";
 
 const IGNORED_CLASS_PATTERN =
   /(comment|nav|menu|sidebar|footer|header|login|subscribe|popup|modal|ads?)/;
@@ -141,7 +141,7 @@ export function captureAiPageContext(options: AIContextOptions = {}) {
       flushChunk();
       break;
     }
-    
+
     const tag = node.tagName?.toLowerCase() || "";
     const isHeading = /^h[1-6]$/.test(tag);
     const minLength = isHeading ? 5 : 30;

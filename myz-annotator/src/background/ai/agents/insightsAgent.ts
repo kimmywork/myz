@@ -1,27 +1,38 @@
-import type { ChatCompletionClient } from "../providers/types.js"
-import type { ContextChunk, PageInsightPayload } from "../types.js"
-import { normalizeMessagePayload } from "../normalize/message.js"
-import { PromptBuilder } from "../prompt/builder.js"
-import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js"
-import type { AIModelSetting, AIProviderSetting, MaxOutputTokenParam } from "../../settings.js"
+import type {
+  AIModelSetting,
+  AIProviderSetting,
+  MaxOutputTokenParam,
+} from "../../settings.js";
+import { normalizeMessagePayload } from "../normalize/message.js";
+import { PromptBuilder } from "../prompt/builder.js";
+import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js";
+import type {
+  ChatCompletionClient,
+  ProviderChatCompletionRequest,
+} from "../providers/types.js";
+import type { ContextChunk, PageInsightPayload } from "../types.js";
 
 export interface InsightsAgentDeps {
-  client: ChatCompletionClient
+  client: ChatCompletionClient;
 }
 
 export class InsightsAgent {
-  private deps: InsightsAgentDeps
+  private deps: InsightsAgentDeps;
 
   constructor(deps: InsightsAgentDeps) {
-    this.deps = deps
+    this.deps = deps;
   }
 
-  private buildInsightsPrompt(action: string, { totalGroups = 1 } = {}): string {
-    const actionLabel = action === "key_points" ? "发现关键要点" : "总结页面内容"
+  private buildInsightsPrompt(
+    action: string,
+    { totalGroups = 1 } = {},
+  ): string {
+    const actionLabel =
+      action === "key_points" ? "发现关键要点" : "总结页面内容";
     const multiPartHint =
       totalGroups > 1
         ? `你会在多批（共 ${totalGroups} 批）中收到片段。编号必须跨批延续，并保持 MECE。`
-        : "所有片段一次提供，请按金字塔结构组织。"
+        : "所有片段一次提供，请按金字塔结构组织。";
     return [
       "使用中文，输出 Markdown 的结构化总结。",
       multiPartHint,
@@ -32,8 +43,8 @@ export class InsightsAgent {
       `4) 当前任务：${actionLabel}。`,
       "5) 只有完全输出完毕时才以 [[END]] 结尾。",
       "示例：",
-      "[观点](myz-chunk://xyz \"原文前缀\") ...",
-    ].join("\n")
+      '[观点](myz-chunk://xyz "原文前缀") ...',
+    ].join("\n");
   }
 
   private normalizeInsightChunks(
@@ -41,7 +52,7 @@ export class InsightsAgent {
     maxChunks = Infinity,
   ): ContextChunk[] {
     if (!Array.isArray(chunks)) {
-      return []
+      return [];
     }
     const filtered = chunks.filter(
       (chunk) =>
@@ -49,22 +60,22 @@ export class InsightsAgent {
         typeof chunk.id !== "undefined" &&
         typeof chunk.text === "string" &&
         chunk.text.trim(),
-    )
-    const limit = Number.isFinite(maxChunks) ? maxChunks : filtered.length
+    );
+    const limit = Number.isFinite(maxChunks) ? maxChunks : filtered.length;
     return filtered.slice(0, Math.max(1, limit)).map((chunk, index) => {
       const safeText =
-        typeof chunk.text === "string" ? chunk.text : String(chunk.text || "")
+        typeof chunk.text === "string" ? chunk.text : String(chunk.text || "");
       const prefix = (chunk.prefix || safeText.slice(0, 160)).replace(
         /\s+/g,
         " ",
-      )
+      );
       return {
         id: String(chunk.id),
         order: index,
         text: safeText,
         prefix: prefix.trim(),
-      }
-    })
+      };
+    });
   }
 
   private splitChunksIntoGroups(
@@ -73,74 +84,80 @@ export class InsightsAgent {
     maxCharsPerGroup = Infinity,
   ) {
     if (!Array.isArray(chunks) || !chunks.length) {
-      return []
+      return [];
     }
-    const limitCount = Math.max(1, Number(perGroup) || 20)
-    const groups: ContextChunk[][] = []
-    let current: ContextChunk[] = []
-    let currentChars = 0
+    const limitCount = Math.max(1, Number(perGroup) || 20);
+    const groups: ContextChunk[][] = [];
+    let current: ContextChunk[] = [];
+    let currentChars = 0;
 
     const flush = () => {
       if (!current.length) {
-        return
+        return;
       }
-      groups.push(current)
-      current = []
-      currentChars = 0
-    }
+      groups.push(current);
+      current = [];
+      currentChars = 0;
+    };
 
     chunks.forEach((chunk) => {
-      const text = typeof chunk.text === "string" ? chunk.text : ""
-      const chunkChars = text.length
+      const text = typeof chunk.text === "string" ? chunk.text : "";
+      const chunkChars = text.length;
       if (
         current.length &&
         (current.length >= limitCount ||
           currentChars + chunkChars > maxCharsPerGroup)
       ) {
-        flush()
+        flush();
       }
-      current.push(chunk)
-      currentChars += chunkChars
-    })
+      current.push(chunk);
+      currentChars += chunkChars;
+    });
 
-    flush()
-    return groups
+    flush();
+    return groups;
   }
 
   async generatePageInsights(payload: Partial<PageInsightPayload> = {}) {
-    throw new Error("InsightsAgent.generatePageInsights must be called with run config")
+    throw new Error(
+      "InsightsAgent.generatePageInsights must be called with run config",
+    );
   }
 
   async generatePageInsightsWithConfig(
     payload: Partial<PageInsightPayload> = {},
     deps: {
-      isEnabled: boolean
-      callConfig: { provider: AIProviderSetting; model: AIModelSetting; temperature: number }
+      isEnabled: boolean;
+      callConfig: {
+        provider: AIProviderSetting;
+        model: AIModelSetting;
+        temperature: number;
+      };
     },
   ) {
     if (!deps.isEnabled) {
-      throw new Error("AI Assistant is not enabled")
+      throw new Error("AI Assistant is not enabled");
     }
-    const action = payload.action === "key_points" ? "key_points" : "summarize"
-    const chunks = this.normalizeInsightChunks(payload.chunks || [], Infinity)
+    const action = payload.action === "key_points" ? "key_points" : "summarize";
+    const chunks = this.normalizeInsightChunks(payload.chunks || [], Infinity);
     if (!chunks.length) {
-      throw new Error("No page context available to summarize")
+      throw new Error("No page context available to summarize");
     }
 
-    const maxOutputTokens = deps.callConfig.model.limits.maxOutputTokens
+    const maxOutputTokens = deps.callConfig.model.limits.maxOutputTokens;
     const maxOutputTokenParam: MaxOutputTokenParam =
-      deps.callConfig.model.limits.maxOutputTokenParam
-    const approximateCharsPerToken = 4
+      deps.callConfig.model.limits.maxOutputTokenParam;
+    const approximateCharsPerToken = 4;
     const targetCharsPerBatch = Math.min(
       80000,
       Math.max(
         4000,
         Math.floor((maxOutputTokens / 2) * approximateCharsPerToken),
       ),
-    )
+    );
     const chunkGroups = [
       ...this.splitChunksIntoGroups(chunks, chunks.length, targetCharsPerBatch),
-    ]
+    ];
 
     const prompt = new PromptBuilder()
       .addSystem(
@@ -155,76 +172,79 @@ export class InsightsAgent {
           `任务: ${action === "key_points" ? "提取关键要点" : "总结页面内容"}`,
           "请一次性阅读以下全部片段，按照指引输出 Markdown，并在全部完成后以 [[END]] 结尾。",
         ].join("\n"),
-      )
+      );
 
-    let chunkCounter = 0
+    let chunkCounter = 0;
     chunkGroups.forEach((group) => {
       group.forEach((chunk) => {
         prompt.addUser(
           [`CHUNK ${chunkCounter + 1}: ${chunk.id}`, "正文:", chunk.text].join(
             "\n",
           ),
-        )
-        chunkCounter += 1
-      })
-    })
+        );
+        chunkCounter += 1;
+      });
+    });
 
     const conversationMessages = injectSystemPromptAsUserMessage(
       prompt.build(),
       Boolean(deps.callConfig.model?.systemPromptInUserMessage),
-    )
-    const markdownParts = []
-    const rawResponses = []
-    let attempts = 0
-    const maxAttempts = 6
+    );
+    const markdownParts = [];
+    const rawResponses = [];
+    let attempts = 0;
+    const maxAttempts = 6;
 
-    const model = deps.callConfig.model.model
+    const model = deps.callConfig.model.model;
 
     while (attempts < maxAttempts) {
-      const request: any = {
+      const request: ProviderChatCompletionRequest = {
         model,
-        messages: conversationMessages as any,
+        messages:
+          conversationMessages as ProviderChatCompletionRequest["messages"],
         temperature:
           typeof payload.temperature === "number"
             ? payload.temperature
             : deps.callConfig.temperature,
-      }
+      };
       if (maxOutputTokenParam === "max_completion_tokens") {
-        request.max_completion_tokens = maxOutputTokens
+        request.max_completion_tokens = maxOutputTokens;
       } else {
-        request.max_tokens = maxOutputTokens
+        request.max_tokens = maxOutputTokens;
       }
 
       const response = await this.deps.client.createCompletion(request, {
-        enableGeminiThinking: Boolean(deps.callConfig.model.capabilities.reasoning),
-      })
+        enableGeminiThinking: Boolean(
+          deps.callConfig.model.capabilities.reasoning,
+        ),
+      });
 
       const normalizedResponse = normalizeMessagePayload(
         response?.choices?.[0]?.message,
-      )
-      let content = (normalizedResponse.content || "").trim()
-      const done = content.endsWith("[[END]]")
+      );
+      let content = (normalizedResponse.content || "").trim();
+      const done = content.endsWith("[[END]]");
       if (done) {
-        content = content.slice(0, -5).trimEnd()
+        content = content.slice(0, -5).trimEnd();
       }
       if (content) {
-        markdownParts.push(content)
+        markdownParts.push(content);
       }
-      rawResponses.push(content)
+      rawResponses.push(content);
 
       if (done) {
-        break
+        break;
       }
 
       if (content) {
-        conversationMessages.push({ role: "assistant", content })
+        conversationMessages.push({ role: "assistant", content });
       }
       conversationMessages.push({
         role: "user",
         content:
           "请继续尚未输出的内容，延续上一条的编号，并在全部完成后以 [[END]] 结尾。",
-      })
-      attempts += 1
+      });
+      attempts += 1;
     }
 
     return {
@@ -234,6 +254,6 @@ export class InsightsAgent {
       raw: rawResponses,
       chunkGroups: chunkGroups.length,
       generatedAt: new Date().toISOString(),
-    }
+    };
   }
 }

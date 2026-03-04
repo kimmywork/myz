@@ -1,4 +1,4 @@
-import { defineComponent } from "vue"
+import { defineComponent } from "vue";
 
 export default defineComponent({
   name: "DashboardConversationEmptyState",
@@ -8,6 +8,6 @@ export default defineComponent({
         <p class="text-base font-medium">💬 开始与AI对话</p>
         <p class="mt-1 text-xs">输入您的问题开始新的对话</p>
       </div>
-    )
+    );
   },
-})
+});

@@ -63,7 +63,9 @@ export const useInterestsStore = defineStore("interests", () => {
 
   async function loadPopupCollapsedState() {
     try {
-      const stored = await chrome.storage.local.get(INTEREST_POPUP_COLLAPSED_KEY);
+      const stored = await chrome.storage.local.get(
+        INTEREST_POPUP_COLLAPSED_KEY,
+      );
       popupCollapsed.value = Boolean(stored?.[INTEREST_POPUP_COLLAPSED_KEY]);
     } catch (error) {
       // ignore: keep default

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installFakeChrome } from "./testUtils.ts";
+import { isRecord } from "@/shared/typeUtils";
 
 const { LOCAL_TOOL_HANDLERS } = await import("@/background/ai/tools/local.ts");
 
@@ -25,7 +26,11 @@ describe("local browser tools", () => {
         remove: vi.fn(async () => undefined),
         sendMessage: vi.fn(async (_tabId: number, message: any) => {
           if (message.type === "myz:extractSearchResults") {
-            return { data: { results: [{ title: "A", url: "https://a", snippet: "x" }] } };
+            return {
+              data: {
+                results: [{ title: "A", url: "https://a", snippet: "x" }],
+              },
+            };
           }
           if (message.type === "myz:extractPrimaryContent") {
             return {
@@ -53,7 +58,13 @@ describe("local browser tools", () => {
           windowId: 1,
         })),
         query: vi.fn(async () => [
-          { id: 1, title: "Tab", url: "https://example.com", active: true, windowId: 1 },
+          {
+            id: 1,
+            title: "Tab",
+            url: "https://example.com",
+            active: true,
+            windowId: 1,
+          },
         ]),
         captureVisibleTab: vi.fn(async () => "data:image/jpeg;base64,abc"),
       },
@@ -67,8 +78,14 @@ describe("local browser tools", () => {
   });
 
   it("web search returns results", async () => {
-    const result = await LOCAL_TOOL_HANDLERS.WebSearch({ query: "test", engine: "google" });
-    expect(result.data?.length).toBe(1);
+    const result = await LOCAL_TOOL_HANDLERS.WebSearch({
+      query: "test",
+      engine: "google",
+    });
+    expect(Array.isArray(result.data)).toBe(true);
+    if (Array.isArray(result.data)) {
+      expect(result.data.length).toBe(1);
+    }
     expect(chromeMock.tabs.remove).toHaveBeenCalled();
   });
 
@@ -79,14 +96,20 @@ describe("local browser tools", () => {
       status: "complete",
       windowId: 1,
     });
-    const result = await LOCAL_TOOL_HANDLERS.WebFetch({ url: "https://example.com" });
-    expect(result.data?.url).toBe("https://example.com");
+    const result = await LOCAL_TOOL_HANDLERS.WebFetch({
+      url: "https://example.com",
+    });
+    const data = isRecord(result.data) ? result.data : {};
+    expect(data.url).toBe("https://example.com");
     expect(chromeMock.tabs.remove).toHaveBeenCalled();
   });
 
   it("lists tabs", async () => {
     const result = await LOCAL_TOOL_HANDLERS.ListTabs({ currentWindow: true });
-    expect(result.data?.length).toBe(1);
+    expect(Array.isArray(result.data)).toBe(true);
+    if (Array.isArray(result.data)) {
+      expect(result.data.length).toBe(1);
+    }
   });
 
   it("activates tab", async () => {
@@ -96,8 +119,11 @@ describe("local browser tools", () => {
   });
 
   it("opens new tab", async () => {
-    const result = await LOCAL_TOOL_HANDLERS.NewTab({ url: "https://example.com" });
-    expect(result.data?.url).toContain("https://example.com");
+    const result = await LOCAL_TOOL_HANDLERS.NewTab({
+      url: "https://example.com",
+    });
+    const data = isRecord(result.data) ? result.data : {};
+    expect(String(data.url || "")).toContain("https://example.com");
   });
 
   it("runs dom actions", async () => {
@@ -105,16 +131,24 @@ describe("local browser tools", () => {
       tabId: 1,
       actions: [{ type: "query", selector: "body" }],
     });
-    expect(result.data?.results?.length).toBe(1);
+    const data = isRecord(result.data) ? result.data : {};
+    const results = Array.isArray(data.results) ? data.results : [];
+    expect(results.length).toBe(1);
   });
 
   it("gets page context", async () => {
     const result = await LOCAL_TOOL_HANDLERS.GetPageContext({ tabId: 1 });
-    expect(result.data?.content).toBe("Page content");
+    const data = isRecord(result.data) ? result.data : {};
+    expect(data.content).toBe("Page content");
   });
 
   it("evals in page", async () => {
-    const result = await LOCAL_TOOL_HANDLERS.EvalInPage({ tabId: 1, code: "return 1" });
-    expect(result.data?.results?.length).toBe(1);
+    const result = await LOCAL_TOOL_HANDLERS.EvalInPage({
+      tabId: 1,
+      code: "return 1",
+    });
+    const data = isRecord(result.data) ? result.data : {};
+    const results = Array.isArray(data.results) ? data.results : [];
+    expect(results.length).toBe(1);
   });
 });

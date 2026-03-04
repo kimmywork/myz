@@ -1,6 +1,11 @@
 import { defineComponent } from "vue";
 import { useToolbarStore } from "@/content/stores/toolbar-store.js";
-import { IconPencil, IconNotebook, IconCamera, IconSparkles } from "@/shared/icons.js";
+import {
+  IconPencil,
+  IconNotebook,
+  IconCamera,
+  IconSparkles,
+} from "@/shared/icons.js";
 
 export default defineComponent({
   name: "MyZToolbar",
@@ -46,7 +51,11 @@ export default defineComponent({
         <button type="button" aria-label="截取选区截图" onClick={handleCapture}>
           <IconCamera size={18} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="发送到AI助理" onClick={handleSendToAi}>
+        <button
+          type="button"
+          aria-label="发送到AI助理"
+          onClick={handleSendToAi}
+        >
           <IconSparkles size={18} aria-hidden="true" />
         </button>
       </div>
