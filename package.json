@@ -1,0 +1,13 @@
+{
+  "name": "myz-workspace",
+  "private": true,
+  "workspaces": [
+    "myz-annotator",
+    "myz-danmaku",
+    "myz-suite-tool",
+    "vectoria",
+    "website",
+    "packages/*",
+    "myz-bot"
+  ]
+}

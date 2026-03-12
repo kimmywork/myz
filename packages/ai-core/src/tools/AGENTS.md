@@ -1,25 +1,26 @@
 # Tools (Local + MCP) Guide
 
-This folder defines the **tool layer** used by the AI assistant in the MV3 background worker.
+This folder defines the **tool layer** used by the AI assistant.
+Core tool registry lives in `@myz/ai-core`, while local tool implementations are registered by each environment.
 
 ## Overview
 
 MyZ has two kinds of tools:
 
-1. **Local tools** (built-in, runs inside the extension)
-   - Definitions: `myz-annotator/src/background/ai/tools/localDefinitions.ts`
-   - Implementations: `myz-annotator/src/background/ai/tools/local.ts`
-   - Listed as tools with `server: "myz-local"`.
+1. **Local tools** (environment-specific)
+   - Browser definitions + handlers live in `myz-annotator/src/background/ai/tools/`.
+   - Node tools live in `myz-bot/src/tools.ts`.
+   - Registered via `registerLocalTools({ definitions, handlers })`.
 2. **MCP tools** (remote tools exposed by MCP servers)
    - Connected via `McpClient` and merged into the tool list at runtime.
 
 Tool listing + execution are centralized in:
 
-- `myz-annotator/src/background/ai/tools/registry.ts`
+- `packages/ai-core/src/tools/registry.ts`
 
 Tool exposure + per-request filtering are handled by:
 
-- `myz-annotator/src/background/ai/capabilities/mcp.ts`
+- `packages/ai-core/src/capabilities/mcp.ts`
 
 ## How tools are used at runtime
 
@@ -29,10 +30,7 @@ The tool-calling capability asks for available tools each request:
 
 - `providerSession.ts` → `mcp.listTools()` → `registry.listAvailableTools()`
 
-`listAvailableTools()` returns:
-
-- `LOCAL_TOOL_DEFINITIONS` (tagged with `server: "myz-local"`)
-- plus any tools from connected MCP servers.
+`listAvailableTools()` returns the registered local tools (tagged with `server: "myz-local"`) plus MCP server tools.
 
 ### 2) Executing tool calls
 

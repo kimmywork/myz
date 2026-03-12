@@ -1,13 +1,13 @@
-# myz-annotator Provider Architecture Guide
+# @myz/ai-core Provider Architecture Guide
 
 This folder contains all provider adapters (transport + protocol mapping) used by the background AI runtime. Providers are responsible for turning our internal `ProviderChatCompletionRequest` into a vendor-specific HTTP call, then normalizing responses back into a unified `ProviderChatCompletionResponse`.
 
 ## How Providers Are Wired
 
-- Provider settings live in `myz-annotator/src/background/settings.ts` (`AIProviderType`, `AIProviderSetting`).
-- The runtime creates a provider session in `myz-annotator/src/background/ai/runtime/providerSession.ts`.
-- Provider clients are built via `createProviderClients()` in `myz-annotator/src/background/ai/providers/registry.ts`.
-- The UI config (type, base URL, API key) is in the dashboard under:
+- Provider settings types live in `packages/ai-core/src/settings.ts`.
+- The runtime creates a provider session in `packages/ai-core/src/runtime/providerSession.ts`.
+- Provider clients are built via `createProviderClients()` in `packages/ai-core/src/providers/registry.ts`.
+- The UI config (type, base URL, API key) is still in the extension dashboard under:
   - `myz-annotator/src/dashboard/components/ai-settings/providerCatalog.ts`
   - `myz-annotator/src/dashboard/components/ai-settings/AiProviderEditor.tsx`
 

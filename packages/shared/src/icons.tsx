@@ -1,0 +1,307 @@
+import { defineComponent, SVGAttributes } from "vue";
+import { JSX } from "vue/jsx-runtime";
+import { HIGHLIGHT_STYLES } from "./types";
+
+function normalizeSize(value: number | string): string {
+  if (value === null || value === undefined) {
+    return "20";
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  const text = String(value).trim();
+  if (!text) {
+    return "20";
+  }
+  return text;
+}
+
+export function makeIcon(
+  name: string,
+  renderPaths: () => JSX.Element,
+  { strokeWidth = 1.5, filled = false } = {},
+) {
+  return defineComponent({
+    name,
+    inheritAttrs: false,
+    props: {
+      size: {
+        type: [Number, String],
+        default: 20,
+      },
+    },
+    setup(props, { attrs }) {
+      return () => {
+        const size = normalizeSize(props.size);
+        const hasLabel =
+          typeof attrs["aria-label"] === "string" && attrs["aria-label"].trim();
+        const baseAttrs: SVGAttributes = filled
+          ? {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: size,
+              height: size,
+              viewBox: "0 0 24 24",
+              role: "img",
+              focusable: "false",
+              fill: "currentColor",
+            }
+          : {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: size,
+              height: size,
+              viewBox: "0 0 24 24",
+              role: "img",
+              focusable: "false",
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-width": strokeWidth,
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round",
+            };
+
+        return (
+          <svg
+            {...baseAttrs}
+            {...attrs}
+            aria-hidden={hasLabel ? undefined : "true"}
+          >
+            {renderPaths()}
+          </svg>
+        );
+      };
+    },
+  });
+}
+
+export const IconPencil = makeIcon(
+  "IconPencil",
+  () => (
+    <g>
+      <path
+        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"
+        fill="currentColor"
+        stroke="none"
+      />
+      <path
+        d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </g>
+  ),
+  { filled: true },
+);
+
+export const IconEdit = IconPencil;
+
+export const IconNotebook = makeIcon("IconNotebook", () => (
+  <g>
+    <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+    <path d="M14 3v5h5" />
+    <path d="M9 12h6" />
+    <path d="M9 16h4" />
+  </g>
+));
+
+export const IconCamera = makeIcon("IconCamera", () => (
+  <g>
+    <rect x="3" y="7" width="18" height="12" rx="2" ry="2" />
+    <circle cx="12" cy="13" r="3.5" />
+    <path d="M10.2 7l1.2-2h3.2L15.8 7" />
+  </g>
+));
+
+export const IconSparkles = makeIcon("IconSparkles", () => (
+  <g>
+    <path d="M12 2l1.2 3.6L17 7l-3.8 1.4L12 12l-1.2-3.6L7 7l3.8-1.4L12 2z" />
+    <path d="M19 12l0.8 2.4L22 15l-2.2 0.6L19 18l-0.8-2.4L16 15l2.2-0.6L19 12z" />
+    <path d="M4 13l0.7 2.1L7 16l-2.3 0.9L4 19l-0.7-2.1L1 16l2.3-0.9L4 13z" />
+  </g>
+));
+
+export const IconSlider = makeIcon("IconSlider", () => (
+  <g>
+    <path d="M5 7.5h14" />
+    <path d="M5 12h14" />
+    <path d="M5 16.5h14" />
+    <circle cx="15.5" cy="7.5" r="1.75" />
+    <circle cx="9" cy="12" r="1.75" />
+    <circle cx="17" cy="16.5" r="1.75" />
+  </g>
+));
+
+export const IconCalendar = makeIcon("IconCalendar", () => (
+  <g>
+    <rect x="4" y="5" width="16" height="15" rx="2" ry="2" />
+    <path d="M8 3v4" />
+    <path d="M16 3v4" />
+    <path d="M4 10h16" />
+  </g>
+));
+
+export const IconWarning = makeIcon("IconWarning", () => (
+  <g>
+    <path d="M12 4l8 14H4l8-14z" fill="none" />
+    <path d="M12 10v4" />
+    <circle cx="12" cy="16.5" r="0.9" fill="currentColor" stroke="none" />
+  </g>
+));
+
+export const IconSun = makeIcon("IconSun", () => (
+  <g>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2" />
+    <path d="M12 20v2" />
+    <path d="M4.93 4.93l1.41 1.41" />
+    <path d="M17.66 17.66l1.41 1.41" />
+    <path d="M2 12h2" />
+    <path d="M20 12h2" />
+    <path d="M4.93 19.07l1.41-1.41" />
+    <path d="M17.66 6.34l1.41-1.41" />
+  </g>
+));
+
+export const IconMoon = makeIcon("IconMoon", () => (
+  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+));
+
+export const IconSettings = makeIcon(
+  "IconSettings",
+  () => (
+    <g>
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.7l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05a1.6 1.6 0 0 0-1.7-.3 1.6 1.6 0 0 0-1 1.45V22a2 2 0 1 1-4 0v-.08a1.6 1.6 0 0 0-1-1.45 1.6 1.6 0 0 0-1.7.3l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05a1.6 1.6 0 0 0 .3-1.7 1.6 1.6 0 0 0-1.45-1H2a2 2 0 1 1 0-4h.08a1.6 1.6 0 0 0 1.45-1 1.6 1.6 0 0 0-.3-1.7l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05a1.6 1.6 0 0 0 1.7.3 1.6 1.6 0 0 0 1-1.45V2a2 2 0 1 1 4 0v.08a1.6 1.6 0 0 0 1 1.45 1.6 1.6 0 0 0 1.7-.3l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05a1.6 1.6 0 0 0-.3 1.7 1.6 1.6 0 0 0 1.45 1H22a2 2 0 1 1 0 4h-.08a1.6 1.6 0 0 0-1.45 1z" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconChatPlus = makeIcon(
+  "IconChatPlus",
+  () => (
+    <g>
+      <path d="M6.4 4.8h10.3a5 5 0 0 1 5 5v1.6a5 5 0 0 1-5 5H12.3L7.3 19v-3.2H6.4a5 5 0 0 1-5-5V9.8a5 5 0 0 1 5-5z" />
+      <path d="M18.4 16.5v4.5" />
+      <path d="M16.2 18.8h4.5" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconChat = makeIcon(
+  "IconChat",
+  () => (
+    <g>
+      <path d="M6.4 4.8h10.3a5 5 0 0 1 5 5v1.6a5 5 0 0 1-5 5H12.3L7.3 19v-3.2H6.4a5 5 0 0 1-5-5V9.8a5 5 0 0 1 5-5z" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconAgent = makeIcon(
+  "IconAgent",
+  () => (
+    <g>
+      <rect x="6" y="7" width="12" height="9" rx="2" />
+      <circle cx="10" cy="11.5" r="1" />
+      <circle cx="14" cy="11.5" r="1" />
+      <path d="M12 3v4" />
+      <path d="M9 20h6" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconSwitch = makeIcon(
+  "IconSwitch",
+  () => (
+    <g>
+      <path d="M4 7h12" />
+      <path d="M12 4l4 3-4 3" />
+      <path d="M20 17H8" />
+      <path d="M12 14l-4 3 4 3" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconHistory = makeIcon(
+  "IconHistory",
+  () => (
+    <g>
+      <path d="M4 12a8 8 0 1 0 2.4-5.7" />
+      <path d="M4 4v4h4" />
+      <path d="M12 7v5l3 2" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconTrash = makeIcon(
+  "IconTrash",
+  () => (
+    <g>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <rect x="6.5" y="6" width="11" height="14" rx="2" ry="2" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </g>
+  ),
+  { strokeWidth: 1.6 },
+);
+
+export const IconClose = makeIcon(
+  "IconClose",
+  () => (
+    <g>
+      <path d="M18 6L6 18" />
+      <path d="M6 6l12 12" />
+    </g>
+  ),
+  { strokeWidth: 2 },
+);
+
+export const IconHighlightPaint = makeIcon("IconHighlightPaint", () => (
+  <g>
+    <path d="M6 7h12" />
+    <path d="M6 11h12" />
+    <rect
+      x="6"
+      y="15"
+      width="12"
+      height="3"
+      rx="1.5"
+      fill="currentColor"
+      stroke="none"
+    />
+  </g>
+));
+
+export const IconHighlightUnderline = makeIcon(
+  "IconHighlightUnderline",
+  () => (
+    <g>
+      <path d="M6 4v6a6 6 0 0 0 12 0V4" />
+      <path d="M4 20h16" />
+    </g>
+  ),
+  { strokeWidth: 1.8 },
+);
+
+export const IconHighlightWavy = makeIcon("IconHighlightWavy", () => (
+  <g>
+    <path d="M6 7h12" />
+    <path d="M6 11h12" />
+    <path d="M6 16.5c1.2-1.6 2.4-1.6 3.6 0 1.2 1.6 2.4 1.6 3.6 0 1.2-1.6 2.4-1.6 3.6 0" />
+  </g>
+));
+
+export const highlightStyleIconMap: Record<
+  HIGHLIGHT_STYLES,
+  ReturnType<typeof makeIcon>
+> = {
+  paint: IconHighlightPaint,
+  underline: IconHighlightUnderline,
+  wavy: IconHighlightWavy,
+};

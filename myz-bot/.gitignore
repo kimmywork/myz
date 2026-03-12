@@ -1,0 +1,7 @@
+memory/
+conversations/
+bot.yml
+.env
+.myz
+SOUL.md
+dist/
