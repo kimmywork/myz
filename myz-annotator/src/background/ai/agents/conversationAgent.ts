@@ -38,8 +38,8 @@ import {
   type TaskItem,
   type TaskPlan,
 } from "../tasks/taskManager.js";
-import type { JsonRecord } from "@/shared/typeUtils";
-import { isRecord, toJsonRecord } from "@/shared/typeUtils";
+import type { JsonRecord } from "@myz/shared/typeUtils";
+import { isRecord, toJsonRecord } from "@myz/shared/typeUtils";
 
 const AUTO_CONTINUE_MAX_TURNS = 4;
 const REQUIRE_USER_INPUT_MARKER = "[REQUIRE_USER_INPUT]";

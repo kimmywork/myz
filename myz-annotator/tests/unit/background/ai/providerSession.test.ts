@@ -7,7 +7,7 @@ const listToolsMock = vi.hoisted(() =>
   ]),
 );
 
-vi.mock("@/background/ai/capabilities/mcp.js", () => ({
+vi.mock("@myz/ai-core/capabilities/mcp", () => ({
   McpCapability: class {
     listTools = listToolsMock;
     connect = vi.fn(async () => undefined);
@@ -25,7 +25,7 @@ const createProviderClientsMock = vi.hoisted(() =>
   })),
 );
 
-vi.mock("@/background/ai/providers/registry.js", () => ({
+vi.mock("@myz/ai-core/providers/registry", () => ({
   createProviderClients: createProviderClientsMock,
 }));
 

@@ -20,6 +20,18 @@ Import shared AI types from `@/background/ai/types.ts`.
   - Builds provider clients (base + tool-calling) and owns `McpCapability`.
 - OpenAI-compatible URL/headers helpers: `myz-annotator/src/background/ai/runtime/openaiCompatible.ts`
 
+## Extraction Note (2026-03-04)
+
+- Core AI logic has been extracted to `packages/ai-core/` (providers/runtime/prompt/normalize/schemas/types/MCP).
+- `myz-annotator/src/background/ai/` now contains:
+  - Browser-specific modules (conversationAgent, skills storage, local tools, vfs, task manager).
+  - Thin wrappers that re-export from `@myz/ai-core` for the shared core.
+
+- Core Sync logic has been extracted to `packages/sync-core/` (crypto/manifest/chunks/s3/lock/schemas/registry/utils).
+- `myz-annotator/src/background/sync/` now contains:
+  - Browser-specific modules (storage, scheduler, records, deletions, syncEngine, keyring).
+  - Thin wrappers that re-export from `@myz/sync-core` for the shared core.
+
 ## Folder Map
 
 ### Types (shared by background + UI)

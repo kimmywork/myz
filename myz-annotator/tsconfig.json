@@ -6,7 +6,10 @@
     "lib": ["DOM", "ESNext"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@myz/ai-core/*": ["../packages/ai-core/src/*"],
+      "@myz/sync-core/*": ["../packages/sync-core/src/*"],
+      "@myz/shared/*": ["../packages/shared/src/*"]
     },
     "module": "ESNext",
     "moduleResolution": "bundler",

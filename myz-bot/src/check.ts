@@ -1,0 +1,90 @@
+import { loadConfig } from "./config"
+import { createTelegramClient } from "./telegram"
+import { generateReply } from "./ai"
+import { createBotAssistantAgent } from "./agents/botAssistant"
+import { loadSoul } from "./soul"
+import { renderMemoryContext } from "./memory"
+import { AI_MESSAGE_SCHEMA_VERSION, type Message } from "@myz/ai-core/types"
+
+function buildMessage(role: Message["role"], content: string): Message {
+  return {
+    schemaVersion: AI_MESSAGE_SCHEMA_VERSION,
+    id: `check-${role}-${Date.now()}`,
+    role,
+    content,
+    timestamp: new Date().toISOString(),
+  }
+}
+
+export async function checkConfig() {
+  const config = loadConfig()
+  const results: Array<{ name: string; ok: boolean; detail?: string }> = []
+
+  try {
+    const telegram = createTelegramClient({ token: config.telegram.token })
+    const me = await telegram.getMe()
+    results.push({ name: "telegram", ok: true, detail: me.username || "ok" })
+  } catch (error) {
+    results.push({
+      name: "telegram",
+      ok: false,
+      detail: (error as Error).message,
+    })
+  }
+
+  try {
+    const agent = createBotAssistantAgent({
+      workspaceRoot: config.workspaceRoot,
+    })
+    const soul = loadSoul(config.workspaceRoot)
+    const memoryContext = renderMemoryContext(config.memoryDir)
+    const systemPrompt = agent.buildSystemPrompt({
+      soul,
+      memoryContext,
+      user: {},
+    })
+    const systemMessage = buildMessage("system", systemPrompt)
+    const userMessage = buildMessage("user", "请回复 ok。")
+    const checkConfig = {
+      ...config,
+      ai: {
+        ...config.ai,
+        capabilities: {
+          ...config.ai.capabilities,
+          toolCalling: false,
+        },
+      },
+      mcpServers: [],
+    }
+    const reply = await generateReply({
+      config: checkConfig,
+      messages: agent.prepareMessages({
+        systemMessage,
+        history: [],
+        userMessage,
+      }),
+    })
+    const ok = Boolean(reply.content && reply.content.trim().length > 0)
+    results.push({
+      name: "llm",
+      ok,
+      detail: ok ? "ok" : "empty response",
+    })
+  } catch (error) {
+    results.push({
+      name: "llm",
+      ok: false,
+      detail: (error as Error).message,
+    })
+  }
+
+  const failed = results.filter((item) => !item.ok)
+  results.forEach((item) => {
+    const status = item.ok ? "OK" : "FAILED"
+    console.log(`[${status}] ${item.name}${item.detail ? `: ${item.detail}` : ""}`)
+  })
+
+  if (failed.length) {
+    process.exitCode = 1
+  }
+}

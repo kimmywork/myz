@@ -1,5 +1,5 @@
 import type { SkillInstruction, SkillMetadata } from "./types.js";
-import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
+import { isRecord, type UnknownRecord } from "@myz/shared/typeUtils";
 
 const FRONTMATTER_DELIMITER = "---";
 const SKILL_NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

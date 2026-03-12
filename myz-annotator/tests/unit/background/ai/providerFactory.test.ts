@@ -3,7 +3,7 @@ import { createOpenAICompatibleClients } from "@/background/ai/providers/factory
 
 const baseCreate = vi.fn(async () => ({ choices: [] }));
 
-vi.mock("@/background/ai/providers/openaiCompatible/jsonClient.js", () => ({
+vi.mock("@myz/ai-core/providers/openaiCompatible/jsonClient", () => ({
   OpenAICompatibleJsonClient: class {
     createCompletion = baseCreate;
     constructor() {}
@@ -17,19 +17,19 @@ const toolCallingWrapper = vi.fn((client: any) => ({
   },
 }));
 
-vi.mock("@/background/ai/providers/capabilities/toolCalling.js", () => ({
+vi.mock("@myz/ai-core/providers/capabilities/toolCalling", () => ({
   createToolCallingCapability: () => toolCallingWrapper,
 }));
 
-vi.mock("@/background/ai/providers/capabilities/googleGemini.js", () => ({
+vi.mock("@myz/ai-core/providers/capabilities/googleGemini", () => ({
   createGoogleGeminiThinkingCapability: () => (client: any) => client,
 }));
 
-vi.mock("@/background/ai/providers/capabilities/reasoning.js", () => ({
+vi.mock("@myz/ai-core/providers/capabilities/reasoning", () => ({
   createReasoningNormalizationCapability: () => (client: any) => client,
 }));
 
-vi.mock("@/background/ai/providers/capabilities/sseStreaming.js", () => ({
+vi.mock("@myz/ai-core/providers/capabilities/sseStreaming", () => ({
   createSseStreamingCapability: () => (client: any) => client,
 }));
 

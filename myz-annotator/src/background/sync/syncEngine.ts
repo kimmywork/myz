@@ -53,7 +53,7 @@ import type {
   SyncRecordPayload,
 } from "./types";
 import { bytesToBase64, bytesToHex } from "./utils";
-import { SYNC_PROTOCOL_VERSION } from "@/shared/versioning";
+import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
 
 const MANIFEST_KEEP_COUNT = 30;
 const LOCK_PATH = "lock/lease.bin";

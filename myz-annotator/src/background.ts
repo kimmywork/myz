@@ -2,6 +2,13 @@ import {
   resolveAgentTarget,
   resolveConversationMultimodalTarget,
 } from "./background/ai/runtime/agentSelection.js";
+import {
+  registerLocalTools,
+} from "./background/ai/tools/registry.js";
+import {
+  LOCAL_TOOL_DEFINITIONS,
+  LOCAL_TOOL_HANDLERS,
+} from "./background/ai/tools/local.js";
 import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
 import { initializeAIMessageHandlers } from "./background/messages/ai.js";
@@ -22,6 +29,11 @@ import {
 import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
+
+registerLocalTools({
+  definitions: LOCAL_TOOL_DEFINITIONS,
+  handlers: LOCAL_TOOL_HANDLERS,
+});
 
 function generateDraftId(prefix = "draft") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;

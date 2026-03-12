@@ -2,7 +2,7 @@ import {
   getConversation,
   updateConversationMetadata,
 } from "@/sidepanel/aiStorage";
-import { isRecord } from "@/shared/typeUtils";
+import { isRecord } from "@myz/shared/typeUtils";
 
 export type TaskPlanStatus =
   | "planning"

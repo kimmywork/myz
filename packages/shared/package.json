@@ -1,0 +1,17 @@
+{
+  "name": "@myz/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./typeUtils": "./src/typeUtils.ts",
+    "./schemaRegistry": "./src/schemaRegistry.ts",
+    "./versioning": "./src/versioning.ts",
+    "./aiHeaderUtils": "./src/aiHeaderUtils.ts",
+    "./types": "./src/types.ts",
+    "./schemas": "./src/schemas.ts"
+  },
+  "dependencies": {
+    "zod": "^4.2.1"
+  }
+}

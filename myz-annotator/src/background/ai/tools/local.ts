@@ -35,7 +35,7 @@ import type { VirtualFileRecord } from "../vfs.js";
 import { executeSandboxedCode } from "./codeExecution.js";
 import { LOCAL_TOOL_DEFINITIONS } from "./localDefinitions.js";
 import type { ToolExecutionResult } from "../types.js";
-import { isRecord } from "@/shared/typeUtils";
+import { isRecord } from "@myz/shared/typeUtils";
 
 function normalizeLimit(value: unknown, fallback = 20, max = 50): number {
   if (typeof value !== "number") return fallback;

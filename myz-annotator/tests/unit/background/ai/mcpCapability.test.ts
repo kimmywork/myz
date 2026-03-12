@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { McpCapability } from "@/background/ai/capabilities/mcp.ts";
 
 const executeToolCallMock = vi.hoisted(() =>
@@ -6,20 +7,28 @@ const executeToolCallMock = vi.hoisted(() =>
 );
 const listAvailableToolsMock = vi.hoisted(() =>
   vi.fn(() => [
-    { name: "Task", server: "myz-local" },
-    { name: "RemoteTool", server: "remote" },
+    { name: "Task", server: "myz-local", inputSchema: z.object({}) },
+    { name: "RemoteTool", server: "remote", inputSchema: z.object({}) },
   ]),
 );
 
-vi.mock("@/background/ai/tools/registry.js", () => ({
-  executeToolCall: executeToolCallMock,
-  listAvailableTools: listAvailableToolsMock,
-}));
+vi.mock("@myz/ai-core/tools/registry", async () => {
+  const actual =
+    await vi.importActual<typeof import("@myz/ai-core/tools/registry")>(
+      "@myz/ai-core/tools/registry",
+    );
+  return {
+    ...actual,
+    executeToolCall: executeToolCallMock,
+    listAvailableTools:
+      listAvailableToolsMock as unknown as typeof actual.listAvailableTools,
+  };
+});
 
 const connectMock = vi.hoisted(() => vi.fn(async () => undefined));
 const disconnectMock = vi.hoisted(() => vi.fn(async () => undefined));
 
-vi.mock("@/background/mcp.js", () => ({
+vi.mock("@myz/ai-core/mcp", () => ({
   McpClient: class {
     connect = connectMock;
     disconnect = disconnectMock;

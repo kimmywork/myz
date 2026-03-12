@@ -17,9 +17,10 @@ import {
   encodeBinaryPayload,
   stableStringify,
 } from "./utils";
-import type { MyZRecord } from "@/shared/types";
+import type { MyZRecord } from "@myz/shared/types";
 import type { ConversationInfo } from "@/sidepanel/aiStorage";
-import { SYNC_PROTOCOL_VERSION } from "@/shared/versioning";
+import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
+import { toJsonRecord } from "@myz/shared/typeUtils";
 
 const HIGHLIGHT_PREFIX = "h:";
 const CONVERSATION_PREFIX = "ai:";
@@ -107,7 +108,13 @@ export async function collectLocalRecords(): Promise<SyncRecord[]> {
     );
     const messages = await getMessagesForConversation(conversation.id, 10_000);
     const recordId = recordIdForConversation(conversation.id);
-    const data = { conversation, messages };
+    const metadata = conversation.metadata
+      ? toJsonRecord(conversation.metadata)
+      : undefined;
+    const data = {
+      conversation: { ...conversation, metadata },
+      messages,
+    };
     const payload: SyncRecordPayload = {
       protocolVersion: SYNC_PROTOCOL_VERSION,
       recordId,
