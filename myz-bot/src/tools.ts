@@ -3,7 +3,11 @@ import { resolve, join, relative, dirname } from "node:path"
 import { exec } from "node:child_process"
 import type { Tool } from "@modelcontextprotocol/sdk/types.js"
 import type { ToolExecutionResult } from "@myz/ai-core/types"
-import { formatAgentsNotice, readNearestAgentsForTarget } from "./agentsContext"
+import {
+  formatAgentsNotice,
+  readNearestAgentsForTarget,
+  readWorkspaceAgentsFile,
+} from "./agentsContext"
 import { addMemory } from "./memory"
 import {
   appendMessage,
@@ -50,11 +54,23 @@ function withAgentsContext(options: {
   workspaceRoot: string
   targetPath: string
   body: string
+  bodyPath?: string
 }) {
   const agents = readNearestAgentsForTarget({
     workspaceRoot: options.workspaceRoot,
     targetPath: options.targetPath,
   })
+  const workspaceAgents = readWorkspaceAgentsFile(options.workspaceRoot)
+  const bodyPath = options.bodyPath ? resolve(options.bodyPath) : ""
+  const nearestAgentsPath = agents.path ? resolve(agents.path) : ""
+  const workspaceAgentsPath = workspaceAgents.path ? resolve(workspaceAgents.path) : ""
+  const isWorkspaceRootAgents =
+    Boolean(nearestAgentsPath) && nearestAgentsPath === workspaceAgentsPath
+  const isReadingAgentsFile =
+    Boolean(bodyPath) && Boolean(nearestAgentsPath) && bodyPath === nearestAgentsPath
+  if (isWorkspaceRootAgents || isReadingAgentsFile) {
+    return options.body
+  }
   const notice = formatAgentsNotice({
     relativePath: agents.relativePath,
     content: agents.content,
@@ -587,6 +603,7 @@ export function createLocalTools(options: {
         withAgentsContext({
           workspaceRoot: options.workspaceRoot,
           targetPath: dirname(resolved.path),
+          bodyPath: resolved.path,
           body: content,
         }),
       )

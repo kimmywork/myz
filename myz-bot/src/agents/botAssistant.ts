@@ -1,5 +1,8 @@
+import { existsSync, readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import type { Message } from "@myz/ai-core/types"
 import { readNearestAgentsForTarget } from "../agentsContext"
+import { loadSoul } from "../soul"
 
 export interface BotAssistantAgentOptions {
   workspaceRoot: string
@@ -12,6 +15,7 @@ export interface BotAssistantSystemContext {
   chatChronicle?: string
   recoveredContext?: string
   replyMode?: "required" | "optional"
+  scope?: "private" | "group"
   sessionWorkspace?: string
   user: {
     userId?: number
@@ -36,6 +40,45 @@ export function createBotAssistantAgent(
   options: BotAssistantAgentOptions,
 ): BotAssistantAgent {
   const id = "bot-assistant"
+  const PROFILE_DOC_MAX_CHARS = 2_000
+
+  function trimDocContent(value: string, maxChars = PROFILE_DOC_MAX_CHARS) {
+    const normalized = value.replace(/\r\n/g, "\n").trim()
+    if (!normalized) return ""
+    if (normalized.length <= maxChars) return normalized
+    return `${normalized.slice(0, maxChars - 8).trim()}\n[已截断]`
+  }
+
+  function readWorkspaceDoc(filename: string) {
+    const path = resolve(options.workspaceRoot, filename)
+    if (!existsSync(path)) return ""
+    return trimDocContent(readFileSync(path, "utf-8"))
+  }
+
+  function buildProfileContext(scope?: "private" | "group") {
+    if (!existsSync(options.workspaceRoot)) {
+      return ""
+    }
+
+    const sections = [
+      { heading: "SOUL.md", content: loadSoul(options.workspaceRoot) },
+      { heading: "IDENTITY.md", content: readWorkspaceDoc("IDENTITY.md") },
+      { heading: "TOOLS.md", content: readWorkspaceDoc("TOOLS.md") },
+      { heading: "BOOTSTRAP.md", content: readWorkspaceDoc("BOOTSTRAP.md") },
+    ]
+
+    if (scope === "private") {
+      sections.splice(2, 0, {
+        heading: "USER.md",
+        content: readWorkspaceDoc("USER.md"),
+      })
+    }
+
+    return sections
+      .filter((section) => section.content.trim())
+      .map((section) => `### ${section.heading}\n${section.content}`)
+      .join("\n\n")
+  }
 
   function buildSystemPrompt(context: BotAssistantSystemContext) {
     const displayName =
@@ -51,6 +94,7 @@ export function createBotAssistantAgent(
       workspaceRoot: options.workspaceRoot,
       targetPath: sessionWorkspace,
     })
+    const profileContext = buildProfileContext(context.scope)
     const guardrail = [
       "运行约束：",
       `- 当前时间是 ${new Date().toISOString()}`,
@@ -87,6 +131,7 @@ export function createBotAssistantAgent(
       "- 如果你准备调用工具，不要一声不吭地直接开做；应先在带 tool call 的 assistant 内容里，用自然、简短、有人味的话告诉用户你接下来要看什么或确认什么。",
       "- 这种工具前置说明必须像正常对话，不要写成系统播报；除非用户明确偏技术语境，否则避免出现“调用工具”“参数”“函数”这类字眼。",
       "- 如果工具返回后你还要继续调用别的工具，下一次带 tool call 的 assistant 内容应顺着刚拿到的结果自然衔接，而不是重复机械模板。",
+      "- 根目录身份档案（如 SOUL.md、IDENTITY.md、USER.md、TOOLS.md、BOOTSTRAP.md）已在当前提示里预加载；除非用户明确要求查看原文或你需要核对某个未提供的文件，否则不要重复读取这些根目录身份文件。",
       "- 如果工具返回“已创建授权请求”，不要假装操作已经完成；应明确说明还在等待管理员执行 `/permit approve <requestId>`。",
       "- 只有在用户明确要求你联系/通知另一个已知联系人，且目标已可解析、内容不越界时，才允许使用发送消息工具。",
       "- 向他人发送消息时，正文要自然简洁，必要时在正文里自行说明是代为转告；不要堆砌固定抬头。来源与原因会由系统内部审计记录，且不能冒充用户本人，也不要转发敏感信息或秘密。",
@@ -109,6 +154,7 @@ export function createBotAssistantAgent(
       context.relationshipContext?.trim()
         ? `关系与印象：\n${context.relationshipContext.trim()}`
         : "",
+      profileContext ? `根目录身份档案：\n${profileContext}` : "",
       workspaceAgents.content
         ? `工作区约定（${workspaceAgents.relativePath}）：\n${workspaceAgents.content}`
         : "",

@@ -84,10 +84,10 @@ soul:
 ```
 
 ### SOUL.md
-用于定义人设与表达风格（名字、外观、性格、语气等）。默认不再整段直接注入主 system prompt，而是由 `AGENTS.md` 驱动 bot 在需要时自行读取。
+用于定义人设与表达风格（名字、外观、性格、语气等）。根目录下的 `SOUL.md` 会与 `IDENTITY.md` / `USER.md` / `TOOLS.md` / `BOOTSTRAP.md` 一起作为身份档案预载到主 system prompt；如果用户明确要求查看原文或需要核对未预载的文件，bot 才应再次读取。
 
 ### AGENTS.md
-工作区级协作约定模板。默认会结合 myz-bot 的运行特性约束会话启动、记忆、群聊行为、任务调度、权限边界、维护命令与渐进式工具反馈。bot 在启动某个工作区时会默认读取最近的 `AGENTS.md` 注入主 system prompt；通过 `List` / `Read` 访问目录内容时，也会把目标目录最近的 `AGENTS.md` 一起返回。
+工作区级协作约定模板。默认会结合 myz-bot 的运行特性约束会话启动、记忆、群聊行为、任务调度、权限边界、维护命令与渐进式工具反馈。bot 在启动某个工作区时会默认读取最近的 `AGENTS.md` 注入主 system prompt；通过 `List` / `Read` 访问目录内容时，会把目标目录最近的嵌套 `AGENTS.md` 一起返回，但不会把根目录 `AGENTS.md` 反复回灌进 `/bot` 读取结果。
 
 ### BOOTSTRAP.md
 首次启动引导模板。参考 OpenClaw 的 bootstrap 思路，但改成适配 myz-bot 的 Telegram 入口、SOUL 文件、任务调度和运行时目录；当身份与用户关系建立稳定后，应由 assistant 删除。
@@ -108,6 +108,7 @@ soul:
 - `context/chat-chronicle.md` 会基于 Telegram 对话滚动生成长期编年摘要，供后续对话参考；它会主动压缩旧内容，不会无限追加。
 - 当运行时 `llm-history.jsonl` 很薄时，bot 会触发一次 LLM 主导的跨层恢复：从 chronicle、会话摘要、growth、relationship、memory 和近期 archive 候选中挑出当前相关部分，结果缓存到 `context/recovered-context.json`。
 - 当 bot 进入工具调用链时，会额外发送渐进式进度反馈；这些中间消息优先复用 assistant 在 tool-call 回合里自然写出的前置说明，必要时再由单独提示词补一句简短的人话，避免只在最后一次性发长总结。
+- 渐进式进度反馈按 tool-call 批次去重：一批 public tools 最多发送 1 条开始消息和 1 条结果消息，并自动折叠重复文本，减少刷屏。
 - 这类工具进度反馈会记入 `telegram-history.jsonl` 的 `progress` 事件，但不会进入 reflection、chronicle 或恢复层候选。
 - 支持会话级定时任务。LLM 可通过任务工具自动创建提醒/待办，触发后会回到原对话继续回复；`direct` 模式直接发送提醒，`llm` 模式会带上下文继续处理。
 - `/todo` 可直接查看和控制当前会话任务：`/todo list`、`/todo postpone <taskId> <dueAt-ISO8601>`、`/todo complete <taskId>`、`/todo archive <taskId>`、`/todo delete <taskId>`、`/todo reopen <taskId>`。

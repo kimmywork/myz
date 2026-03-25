@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { mkdtempSync, writeFileSync } from "node:fs"
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createBotAssistantAgent } from "../src/agents/botAssistant"
@@ -102,15 +102,18 @@ test("bot assistant prompt exposes recovered context", () => {
 
 test("bot assistant prompt loads workspace AGENTS.md by default", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-agent-"))
+  mkdirSync(join(root, "soul"), { recursive: true })
   writeFileSync(
     join(root, "AGENTS.md"),
     "# AGENTS.md\n\n## Rule\n- 回复前先确认工作区约定。",
   )
+  writeFileSync(join(root, "SOUL.md"), "# Soul\n- 保持稳定。")
   const agent = createBotAssistantAgent({ workspaceRoot: root })
   const prompt = agent.buildSystemPrompt({
     memoryContext: "",
     conversationSummary: "",
     replyMode: "required",
+    scope: "private",
     user: {},
   })
 
@@ -120,6 +123,8 @@ test("bot assistant prompt loads workspace AGENTS.md by default", () => {
 
 test("bot assistant prompt tolerates missing workspace AGENTS.md", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-agent-"))
+  mkdirSync(join(root, "soul"), { recursive: true })
+  writeFileSync(join(root, "SOUL.md"), "# Soul\n- 保持稳定。")
   const agent = createBotAssistantAgent({ workspaceRoot: root })
   const prompt = agent.buildSystemPrompt({
     memoryContext: "",
@@ -129,4 +134,46 @@ test("bot assistant prompt tolerates missing workspace AGENTS.md", () => {
   })
 
   assert.doesNotMatch(prompt, /工作区约定（AGENTS\.md）：/)
+})
+
+test("bot assistant prompt preloads root identity docs for private chats", () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-agent-"))
+  mkdirSync(join(root, "soul"), { recursive: true })
+  writeFileSync(join(root, "SOUL.md"), "# Soul\n- 保持稳定。")
+  writeFileSync(join(root, "IDENTITY.md"), "# Identity\n- 名字：Akasa")
+  writeFileSync(join(root, "USER.md"), "# User\n- 称呼：Stanley")
+  writeFileSync(join(root, "BOOTSTRAP.md"), "# Bootstrap\n- 初次自我建立")
+  const agent = createBotAssistantAgent({ workspaceRoot: root })
+  const prompt = agent.buildSystemPrompt({
+    memoryContext: "",
+    conversationSummary: "",
+    replyMode: "required",
+    scope: "private",
+    user: {},
+  })
+
+  assert.match(prompt, /根目录身份档案：/)
+  assert.match(prompt, /### SOUL\.md/)
+  assert.match(prompt, /### IDENTITY\.md/)
+  assert.match(prompt, /### USER\.md/)
+  assert.match(prompt, /### BOOTSTRAP\.md/)
+  assert.match(prompt, /不要重复读取这些根目录身份文件/)
+})
+
+test("bot assistant prompt does not preload USER.md outside private scope", () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-agent-"))
+  mkdirSync(join(root, "soul"), { recursive: true })
+  writeFileSync(join(root, "SOUL.md"), "# Soul\n- 保持稳定。")
+  writeFileSync(join(root, "USER.md"), "# User\n- 称呼：Stanley")
+  const agent = createBotAssistantAgent({ workspaceRoot: root })
+  const prompt = agent.buildSystemPrompt({
+    memoryContext: "",
+    conversationSummary: "",
+    replyMode: "required",
+    scope: "group",
+    user: {},
+  })
+
+  assert.match(prompt, /### SOUL\.md/)
+  assert.doesNotMatch(prompt, /### USER\.md/)
 })

@@ -117,6 +117,25 @@ test("draftToolProgressMessage prefers assistant-authored draft content", async 
   assert.equal(text, "我先看一下这份 README。")
 })
 
+test("draftToolProgressMessage collapses duplicated assistant-authored progress text", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
+  const text = await draftToolProgressMessage({
+    config: createTestConfig(root),
+    conversationId: "c1",
+    soul: "# Bot\n自然、简洁。",
+    latestUserInput: "帮我看一下 README",
+    phase: "start",
+    assistantDraft: [
+      "我先把这边的引导要求看清了：这轮确实该把角色档案补得更鲜明一点。",
+      "我先把这边的引导要求看清了：这轮确实该把角色档案补得更鲜明一点。",
+    ].join("\n"),
+    toolNames: ["Read"],
+    toolArgsSummary: "path=/bot/README.md",
+  })
+
+  assert.equal(text, "我先把这边的引导要求看清了：这轮确实该把角色档案补得更鲜明一点。")
+})
+
 test("draftToolProgressMessage falls back to natural phrasing when helper drafting fails", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
   const config = createTestConfig(root)
@@ -265,4 +284,88 @@ test("createToolProgressNotifier skips internal SelectTools activity", async () 
   await notifier.flush()
 
   assert.equal(sent, 0)
+})
+
+test("createToolProgressNotifier batches a multi-tool round into one start and one result message", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
+  const conversationDir = ensureConversationDir(join(root, "conversations"), "c1")
+  const sent: string[] = []
+  let messageId = 300
+
+  const notifier = createToolProgressNotifier({
+    config: createTestConfig(root),
+    telegram: {
+      sendMessage: async (
+        _chatId: number,
+        text: string,
+        _options?: TelegramSendMessageOptions,
+      ) => {
+        sent.push(text)
+        messageId += 1
+        return [
+          {
+            message_id: messageId,
+            date: Math.floor(Date.now() / 1000),
+            text,
+            chat: { id: 101, type: "private" },
+            from: { id: 999, username: "testbot" },
+          },
+        ]
+      },
+    } as any,
+    conversationDir,
+    conversationId: "c1",
+    chatId: 101,
+    latestUserInput: "帮我看看这两个文件",
+    soul: "# Bot\n自然、简洁。",
+    draftMessage: async (options) =>
+      options.phase === "start"
+        ? `start:${options.toolNames.join(",")}`
+        : `result:${options.toolNames.join(",")}:${options.resultSummary || ""}`,
+  })
+
+  notifier.onToolCallMessage({
+    role: "assistant",
+    content: "",
+    tool_calls: [
+      {
+        id: "call-1",
+        type: "function",
+        function: {
+          name: "Read",
+          arguments: JSON.stringify({ path: "/bot/README.md" }),
+        },
+      },
+      {
+        id: "call-2",
+        type: "function",
+        function: {
+          name: "List",
+          arguments: JSON.stringify({ path: "/bot/src" }),
+        },
+      },
+    ],
+  })
+  notifier.onToolResultMessage({
+    role: "tool",
+    tool_call_id: "call-1",
+    content: "README ready",
+    metadata: {
+      toolName: "Read",
+    },
+  })
+  notifier.onToolResultMessage({
+    role: "tool",
+    tool_call_id: "call-2",
+    content: "src entries ready",
+    metadata: {
+      toolName: "List",
+    },
+  })
+  await notifier.flush()
+
+  assert.deepEqual(sent, [
+    "start:Read,List",
+    "result:Read,List:README ready | src entries ready",
+  ])
 })

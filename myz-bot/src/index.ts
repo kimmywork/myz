@@ -902,6 +902,7 @@ async function handleConversationMessage(options: {
       chatChronicle,
       recoveredContext: recoveredContextState.recoveredContext,
       replyMode: options.shouldReply ? "required" : "optional",
+      scope: route.scope,
       sessionWorkspace,
       user: {
         userId,

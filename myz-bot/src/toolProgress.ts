@@ -12,11 +12,38 @@ function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim()
 }
 
+function normalizeComparisonText(value: string) {
+  return normalizeWhitespace(value).toLowerCase()
+}
+
+function collapseRepeatedProgressText(value: string) {
+  const normalized = value.replace(/\r\n/g, "\n").trim()
+  if (!normalized) return ""
+  const lines = normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length >= 2 && lines.every((line) => line === lines[0])) {
+    return lines[0] || ""
+  }
+  if (normalized.length % 2 === 0) {
+    const half = normalized.length / 2
+    const first = normalized.slice(0, half).trim()
+    const second = normalized.slice(half).trim()
+    if (first && first === second) {
+      return first
+    }
+  }
+  return normalized
+}
+
 function normalizeProgressText(value: string) {
-  const normalized = value
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/^["'`]+|["'`]+$/g, "")
-    .trim()
+  const normalized = collapseRepeatedProgressText(
+    value
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/^["'`]+|["'`]+$/g, "")
+      .trim(),
+  )
   if (!normalized) return ""
   if (normalized.length <= TOOL_PROGRESS_MAX_CHARS) return normalized
   return `${normalized.slice(0, TOOL_PROGRESS_MAX_CHARS - 3).trim()}...`
@@ -97,6 +124,18 @@ function summarizeToolResult(content: string) {
   if (!text) return ""
   if (text.length <= TOOL_RESULT_MAX_CHARS) return text
   return `${text.slice(0, TOOL_RESULT_MAX_CHARS - 3)}...`
+}
+
+function combineResultSummaries(summaries: string[]) {
+  const combined = Array.from(
+    new Set(
+      summaries
+        .map((summary) => summarizeToolResult(summary))
+        .filter(Boolean),
+    ),
+  ).slice(0, 3)
+  if (!combined.length) return ""
+  return summarizeToolResult(combined.join(" | "))
 }
 
 function buildFallbackStartMessage(options: {
@@ -243,9 +282,46 @@ export function createToolProgressNotifier(options: {
   const startedToolIds = new Set<string>()
   const toolNamesById = new Map<string, string>()
   const draftMessage = options.draftMessage || draftToolProgressMessage
+  let lastSentProgressText = ""
+  let currentBatch:
+    | {
+        toolIds: Set<string>
+        toolNames: string[]
+        resultSummaries: string[]
+        startSent: boolean
+      }
+    | null = null
 
   const enqueue = (task: () => Promise<void>) => {
     queue = queue.then(task, task).catch(() => undefined)
+  }
+
+  const appendUnique = (list: string[], value: string) => {
+    const normalized = normalizeWhitespace(value)
+    if (!normalized) return
+    if (!list.includes(normalized)) {
+      list.push(normalized)
+    }
+  }
+
+  const getOrCreateBatch = () => {
+    if (!currentBatch) {
+      currentBatch = {
+        toolIds: new Set<string>(),
+        toolNames: [],
+        resultSummaries: [],
+        startSent: false,
+      }
+    }
+    return currentBatch
+  }
+
+  const shouldSendProgressText = (text: string) => {
+    const normalized = normalizeComparisonText(text)
+    if (!normalized) return false
+    if (normalized === lastSentProgressText) return false
+    lastSentProgressText = normalized
+    return true
   }
 
   return {
@@ -260,6 +336,16 @@ export function createToolProgressNotifier(options: {
         toolNamesById.set(toolCall.id, normalizeToolName(toolCall.function?.name))
       })
       if (!publicToolCalls.length) return
+
+      const batch = getOrCreateBatch()
+      publicToolCalls.forEach((toolCall) => {
+        if (toolCall?.id) {
+          batch.toolIds.add(toolCall.id)
+        }
+        appendUnique(batch.toolNames, normalizeToolName(toolCall.function?.name))
+      })
+      if (batch.startSent) return
+      batch.startSent = true
 
       enqueue(async () => {
         const assistantDraft = typeof message.content === "string" ? message.content : ""
@@ -280,7 +366,7 @@ export function createToolProgressNotifier(options: {
           toolNames,
           toolArgsSummary,
         })
-        if (!text) return
+        if (!shouldSendProgressText(text)) return
         await sendRecordedTelegramMessage({
           telegram: options.telegram,
           conversationDir: options.conversationDir,
@@ -295,8 +381,22 @@ export function createToolProgressNotifier(options: {
 
     onToolResultMessage(message: ProviderMessage) {
       const toolNameFromMetadata = getToolNameFromProviderMessage(message)
-      const toolName = toolNameFromMetadata || toolNamesById.get(message.tool_call_id || "")
+      const toolCallId = message.tool_call_id || ""
+      const toolName = toolNameFromMetadata || toolNamesById.get(toolCallId)
       if (!toolName || isInternalTool(toolName)) return
+      const batch = getOrCreateBatch()
+      appendUnique(batch.toolNames, normalizeToolName(toolName))
+      appendUnique(
+        batch.resultSummaries,
+        typeof message.content === "string" ? message.content : "",
+      )
+      if (toolCallId) {
+        batch.toolIds.delete(toolCallId)
+      }
+      if (batch.toolIds.size > 0) return
+
+      const completedBatch = batch
+      currentBatch = null
       enqueue(async () => {
         const text = await draftMessage({
           config: options.config,
@@ -304,12 +404,10 @@ export function createToolProgressNotifier(options: {
           soul: options.soul,
           latestUserInput: options.latestUserInput,
           phase: "result",
-          toolNames: [normalizeToolName(toolName)],
-          resultSummary: summarizeToolResult(
-            typeof message.content === "string" ? message.content : "",
-          ),
+          toolNames: completedBatch.toolNames,
+          resultSummary: combineResultSummaries(completedBatch.resultSummaries),
         })
-        if (!text) return
+        if (!shouldSendProgressText(text)) return
         await sendRecordedTelegramMessage({
           telegram: options.telegram,
           conversationDir: options.conversationDir,
