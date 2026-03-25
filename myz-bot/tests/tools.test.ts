@@ -299,7 +299,7 @@ test("Run resolves /workspace virtual paths inside shell commands", async () => 
   assert.doesNotMatch(text, /已创建授权请求/)
 })
 
-test("Read can access bot root files through /bot virtual path", async () => {
+test("Read can access bot root files through /bot virtual path without reinjecting root AGENTS", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
   const conversationsDir = join(root, "conversations")
   const memoryDir = join(root, "memory")
@@ -321,7 +321,8 @@ test("Read can access bot root files through /bot virtual path", async () => {
 
   assert.equal(result.isError, undefined)
   const text = extractText(result as { content: Array<{ type: string; text?: string }> })
-  assert.match(text, /bot 根目录规则/)
+  assert.doesNotMatch(text, /\[AGENTS instructions from/)
+  assert.doesNotMatch(text, /bot 根目录规则/)
   assert.match(text, /from bot root/)
 })
 
@@ -353,4 +354,37 @@ test("List includes nearest AGENTS.md when reading a directory", async () => {
   assert.match(text, /repo 目录规则/)
   assert.match(text, /a\.txt/)
   assert.match(text, /b\.txt/)
+})
+
+test("Read keeps nested AGENTS context but does not duplicate the AGENTS file itself", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
+  const conversationsDir = join(root, "conversations")
+  const workspaceDir = ensureConversationWorkspaceDir(conversationsDir, "100-1")
+  const projectDir = join(workspaceDir, "repo")
+  mkdirSync(projectDir, { recursive: true })
+  writeFileSync(join(projectDir, "AGENTS.md"), "# AGENTS.md\n\n- repo 目录规则")
+  writeFileSync(join(projectDir, "note.txt"), "nested note")
+
+  const registry = createLocalTools({
+    workspaceRoot: root,
+    skillSources: [],
+    memoryDir: join(root, "memory"),
+    conversationsDir,
+  })
+
+  const nestedFile = await registry.handlers.Read({
+    path: "/workspace/repo/note.txt",
+    __conversationId: "100-1",
+  })
+  const nestedText = extractText(nestedFile as { content: Array<{ type: string; text?: string }> })
+  assert.match(nestedText, /\[AGENTS instructions from/)
+  assert.match(nestedText, /repo 目录规则/)
+  assert.match(nestedText, /nested note/)
+
+  const agentsFile = await registry.handlers.Read({
+    path: "/workspace/repo/AGENTS.md",
+    __conversationId: "100-1",
+  })
+  const agentsText = extractText(agentsFile as { content: Array<{ type: string; text?: string }> })
+  assert.equal(agentsText.match(/repo 目录规则/g)?.length, 1)
 })

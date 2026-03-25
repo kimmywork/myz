@@ -198,6 +198,7 @@ async function processScheduledLlmTask(options: {
       chatChronicle,
       recoveredContext: recoveredContextState.recoveredContext,
       replyMode: "required",
+      scope: metadata.scope,
       sessionWorkspace,
       user: {
         userId: metadata.userId,
