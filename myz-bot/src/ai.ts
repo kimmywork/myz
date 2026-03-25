@@ -5,6 +5,7 @@ import { buildConversationPromptMessages } from "@myz/ai-core/prompt/conversatio
 import type { Message } from "@myz/ai-core/types"
 import type {
   ProviderChatCompletionRequest,
+  ProviderMessage,
   ProviderToolChoice,
 } from "@myz/ai-core/providers/types"
 import type {
@@ -17,6 +18,7 @@ import type {
   AIToolControlSettings,
 } from "@myz/ai-core/settings"
 import type { BotConfig } from "./config"
+import { withRetry } from "./retry"
 
 function normalizeHeaders(
   headers: Record<string, unknown> | undefined,
@@ -68,6 +70,46 @@ function normalizeTooling(settings: AIToolControlSettings | undefined) {
   }
 }
 
+function normalizeProviderMessageContent(content: ProviderMessage["content"]) {
+  if (typeof content === "string") return content
+  if (!Array.isArray(content)) return ""
+  return content
+    .map((part) => {
+      if (!part || typeof part !== "object") return ""
+      if (part.type === "text" && typeof part.text === "string") {
+        return part.text
+      }
+      if (part.type === "image_url") {
+        return "[Image omitted]"
+      }
+      return ""
+    })
+    .filter(Boolean)
+    .join("\n")
+}
+
+export function mapSystemMessagesToUserMessages(
+  messages: ProviderMessage[],
+  enabled: boolean,
+) {
+  if (!enabled) return messages
+  return messages.map((message) => {
+    if (message.role !== "system" && message.role !== "developer") {
+      return message
+    }
+    return {
+      ...message,
+      role: "user" as const,
+      content: [
+        "[System Instruction]",
+        normalizeProviderMessageContent(message.content),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    }
+  })
+}
+
 function buildModel(config: BotConfig): AIModelSetting {
   const limits = config.ai.limits
   const tooling = config.ai.tooling
@@ -93,6 +135,7 @@ function buildModel(config: BotConfig): AIModelSetting {
       strict: tooling.strict as AIToolFlagSetting,
       parallelToolCalls: tooling.parallelToolCalls as AIToolFlagSetting,
     },
+    systemPromptInUserMessage: Boolean(config.ai.systemPromptInUserMessage),
   }
 }
 
@@ -128,11 +171,18 @@ function buildMcpServers(config: BotConfig): McpServerSetting[] {
   }))
 }
 
+function shouldRetryLlmError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return /fetch failed|network|timeout|429|5\d\d|temporar/i.test(message)
+}
+
 export async function generateReply(options: {
   config: BotConfig
   messages: Message[]
   temperature?: number
   conversationId?: string
+  onToolCallMessage?: (message: ProviderMessage) => void | Promise<void>
+  onToolResultMessage?: (message: ProviderMessage) => void | Promise<void>
 }) {
   const model = buildModel(options.config)
   const provider = buildProvider(options.config, model)
@@ -150,15 +200,32 @@ export async function generateReply(options: {
   }
 
   try {
-    const payload = buildConversationPromptMessages(options.messages, {
-      includeVision: Boolean(model.capabilities.vision),
-    })
+    const payload = mapSystemMessagesToUserMessages(
+      buildConversationPromptMessages(options.messages, {
+        includeVision: Boolean(model.capabilities.vision),
+      }),
+      Boolean(model.systemPromptInUserMessage),
+    )
+    const toolTrace: ProviderMessage[] = []
+    const toolCallbackTasks: Promise<void>[] = []
+    const stream =
+      options.config.ai.provider === "openai_responses"
+
+    const enqueueToolCallback = (
+      handler: ((message: ProviderMessage) => void | Promise<void>) | undefined,
+      message: ProviderMessage,
+    ) => {
+      toolTrace.push(message)
+      if (!handler) return
+      const task = Promise.resolve(handler(message)).catch(() => undefined)
+      toolCallbackTasks.push(task)
+    }
 
     const request: ProviderChatCompletionRequest = {
       model: model.model,
       messages: payload,
       temperature: typeof options.temperature === "number" ? options.temperature : 0.7,
-      stream: false,
+      stream,
     }
 
     if (model.limits.maxOutputTokenParam === "max_completion_tokens") {
@@ -168,15 +235,33 @@ export async function generateReply(options: {
     }
 
     const client = useTools ? session.clientWithTools : session.client
-    const response = await client.createCompletion(request, {
-      tooling: normalizeTooling(model.tooling),
-      enableGeminiThinking: Boolean(model.capabilities.reasoning),
-    })
+    const response = await withRetry(
+      async () =>
+        client.createCompletion(request, {
+          tooling: normalizeTooling(model.tooling),
+          enableGeminiThinking: Boolean(model.capabilities.reasoning),
+          onToolCallMessage: async (message) => {
+            enqueueToolCallback(options.onToolCallMessage, message)
+          },
+          onToolResultMessage: async (message) => {
+            enqueueToolCallback(options.onToolResultMessage, message)
+          },
+        }),
+      {
+        retries: Math.max(0, options.config.ai.retry?.retries ?? 2),
+        baseDelayMs: Math.max(0, options.config.ai.retry?.baseDelayMs ?? 1000),
+        shouldRetry: shouldRetryLlmError,
+      },
+    )
 
     const message = response?.choices?.[0]?.message
+    if (toolCallbackTasks.length) {
+      await Promise.allSettled(toolCallbackTasks)
+    }
     return {
       content: typeof message?.content === "string" ? message.content : "",
       toolCalls: message?.tool_calls || [],
+      toolTrace,
       usage: message?.usage,
     }
   } finally {

@@ -1,0 +1,268 @@
+import { test } from "node:test"
+import assert from "node:assert/strict"
+import { mkdtempSync, readFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import type { ProviderMessage } from "@myz/ai-core/providers/types"
+import type { BotRuntimeConfig } from "../src/config"
+import { ensureConversationDir } from "../src/conversations"
+import type { TelegramSendMessageOptions } from "../src/telegram"
+import {
+  createToolProgressNotifier,
+  draftToolProgressMessage,
+} from "../src/toolProgress"
+
+function createTestConfig(root: string): BotRuntimeConfig {
+  return {
+    telegram: {
+      username: "testbot",
+      token: "token",
+      timeoutSeconds: 25,
+      allowedUsers: [],
+      allowedChats: [],
+      adminUsers: [],
+      saveIncomingMedia: true,
+      groupResponseMode: {
+        onlyWhenMentioned: true,
+        allowReplyToBot: true,
+        allowAdminCommands: true,
+      },
+      retry: { retries: 2, baseDelayMs: 800 },
+    },
+    network: {
+      requestTimeoutMs: 180000,
+      connectTimeoutMs: 10000,
+      keepAliveTimeoutMs: 4000,
+      keepAliveTimeoutThresholdMs: 2000,
+      proxyUrl: "",
+    },
+    ai: {
+      provider: "openai_compatible",
+      baseUrl: "",
+      accessToken: "",
+      headers: {},
+      model: "gpt-test",
+      systemPromptInUserMessage: false,
+      retry: { retries: 2, baseDelayMs: 1000 },
+      capabilities: {
+        toolCalling: true,
+        reasoning: false,
+        vision: false,
+        imageOutput: false,
+      },
+      limits: {
+        contextWindow: 8192,
+        maxOutputTokens: 1024,
+        maxOutputTokenParam: "max_tokens",
+      },
+      tooling: {
+        toolChoice: "auto",
+        strict: "auto",
+        parallelToolCalls: "auto",
+      },
+    },
+    mcpServers: [],
+    workspaceRoot: root,
+    skillsDir: join(root, ".myz/skills"),
+    skills: { sources: [], allowlist: [], denylist: [] },
+    tools: { allowlist: [], denylist: [] },
+    conversationsDir: join(root, "conversations"),
+    memoryDir: join(root, "memory"),
+    scheduler: {
+      enabled: true,
+      pollIntervalMs: 15000,
+      maxBatchSize: 20,
+      failureRetryBaseDelayMs: 60000,
+    },
+    context: {
+      maxHistoryMessages: 30,
+      maxHistoryChars: 120000,
+      compressionThreshold: 40,
+      compressionCooldownMs: 300000,
+      summaryMaxMessages: 12,
+      summaryMaxChars: 6000,
+    },
+    soul: {
+      autoDraft: true,
+      autoApply: true,
+      reviewRequired: true,
+      autoDraftMessageInterval: 12,
+      autoDraftTimeIntervalMs: 3600000,
+      growthFeedbackBatchMessageInterval: 12,
+      growthFeedbackTimeIntervalMs: 1800000,
+      relationshipReflectionMessageInterval: 12,
+      relationshipReflectionTimeIntervalMs: 1800000,
+    },
+    skillSources: [],
+    skillAllowlist: [],
+    skillDenylist: [],
+    toolAllowlist: [],
+    toolDenylist: [],
+  }
+}
+
+test("draftToolProgressMessage prefers assistant-authored draft content", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
+  const text = await draftToolProgressMessage({
+    config: createTestConfig(root),
+    conversationId: "c1",
+    soul: "# Bot\n自然、简洁。",
+    latestUserInput: "帮我看一下 README",
+    phase: "start",
+    assistantDraft: ' <thought>ignore</thought> "我先看一下这份 README。" ',
+    toolNames: ["Read"],
+    toolArgsSummary: "path=/bot/README.md",
+  })
+
+  assert.equal(text, "我先看一下这份 README。")
+})
+
+test("draftToolProgressMessage falls back to natural phrasing when helper drafting fails", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
+  const config = createTestConfig(root)
+  const text = await draftToolProgressMessage({
+    config: {
+      ...config,
+      ai: {
+        ...config.ai,
+        baseUrl: "http://127.0.0.1:1",
+        retry: {
+          retries: 0,
+          baseDelayMs: 0,
+        },
+      },
+    },
+    conversationId: "c1",
+    soul: "# Bot\n自然、简洁。",
+    latestUserInput: "帮我看一下 README",
+    phase: "result",
+    toolNames: ["Read"],
+    resultSummary: "README content preview",
+  })
+
+  assert.match(text, /README content preview/)
+  assert.doesNotMatch(text, /工具完成|调用工具|参数/)
+})
+
+test("createToolProgressNotifier sends natural progress messages and records them as telegram progress history", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
+  const conversationDir = ensureConversationDir(join(root, "conversations"), "c1")
+  const sent: string[] = []
+  let messageId = 200
+
+  const notifier = createToolProgressNotifier({
+    config: createTestConfig(root),
+    telegram: {
+      sendMessage: async (
+        _chatId: number,
+        text: string,
+        _options?: TelegramSendMessageOptions,
+      ) => {
+        sent.push(text)
+        messageId += 1
+        return [
+          {
+            message_id: messageId,
+            date: Math.floor(Date.now() / 1000),
+            text,
+            chat: { id: 101, type: "private" },
+            from: { id: 999, username: "testbot" },
+          },
+        ]
+      },
+    } as any,
+    conversationDir,
+    conversationId: "c1",
+    chatId: 101,
+    latestUserInput: "帮我看一下 README",
+    soul: "# Bot\n自然、简洁。",
+    draftMessage: async (options) =>
+      options.phase === "start"
+        ? "我先看一下这份 README。"
+        : "我已经看到里面的关键内容了，接着给你收一下。",
+  })
+
+  const toolCallMessage: ProviderMessage = {
+    role: "assistant",
+    content: "",
+    tool_calls: [
+      {
+        id: "call-1",
+        type: "function",
+        function: {
+          name: "Read",
+          arguments: JSON.stringify({ path: "/bot/README.md" }),
+        },
+      },
+    ],
+  }
+  const toolResultMessage: ProviderMessage = {
+    role: "tool",
+    tool_call_id: "call-1",
+    content: "README content preview",
+    metadata: {
+      toolName: "Read",
+    },
+  }
+
+  notifier.onToolCallMessage(toolCallMessage)
+  notifier.onToolResultMessage(toolResultMessage)
+  await notifier.flush()
+
+  assert.equal(sent.length, 2)
+  assert.equal(sent[0], "我先看一下这份 README。")
+  assert.equal(sent[1], "我已经看到里面的关键内容了，接着给你收一下。")
+
+  const telegramHistory = readFileSync(
+    join(conversationDir, "telegram-history.jsonl"),
+    "utf-8",
+  )
+  assert.match(telegramHistory, /"kind":"progress"/)
+  assert.match(telegramHistory, /我先看一下这份 README/)
+})
+
+test("createToolProgressNotifier skips internal SelectTools activity", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
+  const conversationDir = ensureConversationDir(join(root, "conversations"), "c1")
+  let sent = 0
+
+  const notifier = createToolProgressNotifier({
+    config: createTestConfig(root),
+    telegram: {
+      sendMessage: async () => {
+        sent += 1
+        return []
+      },
+    } as any,
+    conversationDir,
+    conversationId: "c1",
+    chatId: 101,
+    latestUserInput: "帮我查一下",
+    soul: "# Bot\n自然、简洁。",
+    draftMessage: async () => "placeholder",
+  })
+
+  notifier.onToolCallMessage({
+    role: "assistant",
+    content: "",
+    tool_calls: [
+      {
+        id: "call-1",
+        type: "function",
+        function: {
+          name: "SelectTools",
+          arguments: "{}",
+        },
+      },
+    ],
+  })
+  notifier.onToolResultMessage({
+    role: "tool",
+    tool_call_id: "call-1",
+    content: '{"tool_names":["Read"]}',
+    metadata: { toolName: "SelectTools" },
+  })
+  await notifier.flush()
+
+  assert.equal(sent, 0)
+})

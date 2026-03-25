@@ -135,7 +135,13 @@ export class McpCapability {
       throw new Error(`Tool not enabled: ${rawName}`)
     }
     const contextId = this.conversationContext?.conversationId
-    if (contextId && candidates.includes("Task")) {
+    const localToolNames = new Set(
+      (this.localTools.definitions || [])
+        .map((tool) => tool?.name)
+        .filter((name): name is string => typeof name === "string" && name.length > 0),
+    )
+    const isLocalTool = candidates.some((candidate) => localToolNames.has(candidate))
+    if (contextId && (candidates.includes("Task") || isLocalTool)) {
       const rawArgs = toolCall?.function?.arguments
       let parsed: Record<string, unknown> = {}
       if (typeof rawArgs === "string") {
@@ -147,7 +153,12 @@ export class McpCapability {
       } else if (isRecord(rawArgs)) {
         parsed = { ...rawArgs }
       }
-      parsed.conversationId = contextId
+      if (candidates.includes("Task")) {
+        parsed.conversationId = contextId
+      }
+      if (isLocalTool) {
+        parsed.__conversationId = contextId
+      }
       const nextArgs = JSON.stringify(parsed)
       toolCall = {
         ...toolCall,

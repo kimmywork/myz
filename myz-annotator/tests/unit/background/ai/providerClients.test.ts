@@ -110,6 +110,176 @@ describe("provider clients", () => {
     expect(message?.reasoning_content).toBe("because");
   });
 
+  it("OpenAI responses client omits temperature for GPT-5 models", async () => {
+    const fetchMock = installFetchMock();
+    mockFetchOnce({
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "hello" }],
+          },
+        ],
+      }),
+    });
+
+    const client = new OpenAIResponsesJsonClient({
+      baseUrl: "http://localhost/v1",
+      apiKey: "key",
+      headers: "",
+    });
+
+    await client.createCompletion({
+      model: "gpt-5",
+      temperature: 0.7,
+      messages: [],
+    } as any);
+
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body || "{}"));
+    expect(requestBody.temperature).toBeUndefined();
+  });
+
+  it("OpenAI responses client drops tool history from older turns", async () => {
+    const fetchMock = installFetchMock();
+    mockFetchOnce({
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "ok" }],
+          },
+        ],
+      }),
+    });
+
+    const client = new OpenAIResponsesJsonClient({
+      baseUrl: "http://localhost/v1",
+      apiKey: "key",
+      headers: "",
+    });
+
+    await client.createCompletion({
+      model: "gpt-4",
+      messages: [
+        { role: "user", content: "clone repo" },
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "call-old",
+              type: "function",
+              function: {
+                name: "Run",
+                arguments: '{"command":"git clone repo"}',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "call-old",
+          content: "Cloning into 'repo'...",
+        },
+        { role: "assistant", content: "repo cloned" },
+        { role: "user", content: "delete it" },
+      ],
+    } as any);
+
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body || "{}"));
+    expect(requestBody.input).not.toContainEqual(
+      expect.objectContaining({
+        type: "function_call",
+        call_id: "call-old",
+      }),
+    );
+    expect(requestBody.input).not.toContainEqual(
+      expect.objectContaining({
+        type: "function_call_output",
+        call_id: "call-old",
+      }),
+    );
+    expect(requestBody.input).toContainEqual(
+      expect.objectContaining({
+        type: "message",
+        role: "assistant",
+      }),
+    );
+    expect(requestBody.input).toContainEqual(
+      expect.objectContaining({
+        type: "message",
+        role: "user",
+      }),
+    );
+  });
+
+  it("OpenAI responses client keeps tool calls for the active turn", async () => {
+    const fetchMock = installFetchMock();
+    mockFetchOnce({
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [{ type: "output_text", text: "done" }],
+          },
+        ],
+      }),
+    });
+
+    const client = new OpenAIResponsesJsonClient({
+      baseUrl: "http://localhost/v1",
+      apiKey: "key",
+      headers: "",
+    });
+
+    await client.createCompletion({
+      model: "gpt-4",
+      messages: [
+        { role: "user", content: "delete repo" },
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "call-active",
+              type: "function",
+              function: {
+                name: "Run",
+                arguments: '{"command":"rm -rf repo"}',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "call-active",
+          content: "removed",
+        },
+      ],
+    } as any);
+
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body || "{}"));
+    expect(requestBody.input).toContainEqual(
+      expect.objectContaining({
+        type: "function_call",
+        call_id: "call-active",
+      }),
+    );
+    expect(requestBody.input).toContainEqual(
+      expect.objectContaining({
+        type: "function_call_output",
+        call_id: "call-active",
+        output: "removed",
+      }),
+    );
+  });
+
   it("Gemini client extracts message", async () => {
     installFetchMock();
     mockFetchOnce({

@@ -1,22 +1,82 @@
 import { readFileSync, existsSync } from "node:fs"
-import { resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 import dotenv from "dotenv"
 import { z } from "zod"
 import yaml from "yaml"
 
 dotenv.config({ path: resolve(process.cwd(), ".env") })
 
+const SkillSourceConfigSchema = z.object({
+  id: z.string().min(1),
+  dir: z.string().min(1),
+  readonly: z.boolean().optional().default(false),
+})
+
 const BotConfigSchema = z.object({
   telegram: z.object({
     username: z.string().min(1),
     token: z.string().min(1),
+    timeoutSeconds: z.number().int().positive().optional().default(25),
+    allowedUsers: z.array(z.string().min(1)).optional().default([]),
+    allowedChats: z.array(z.number().int()).optional().default([]),
+    adminUsers: z.array(z.string().min(1)).optional().default([]),
+    saveIncomingMedia: z.boolean().optional().default(true),
+    groupResponseMode: z
+      .object({
+        onlyWhenMentioned: z.boolean().optional().default(true),
+        allowReplyToBot: z.boolean().optional().default(true),
+        allowAdminCommands: z.boolean().optional().default(true),
+      })
+      .optional()
+      .default({
+        onlyWhenMentioned: true,
+        allowReplyToBot: true,
+        allowAdminCommands: true,
+      }),
+    retry: z
+      .object({
+        retries: z.number().int().min(0).optional().default(2),
+        baseDelayMs: z.number().int().min(0).optional().default(800),
+      })
+      .optional()
+      .default({
+        retries: 2,
+        baseDelayMs: 800,
+      }),
   }),
+  network: z
+    .object({
+      requestTimeoutMs: z.number().int().min(0).optional().default(180_000),
+      connectTimeoutMs: z.number().int().positive().optional().default(10_000),
+      keepAliveTimeoutMs: z.number().int().positive().optional().default(4_000),
+      keepAliveTimeoutThresholdMs: z.number().int().min(0).optional().default(2_000),
+      proxyUrl: z.string().optional().default(""),
+    })
+    .optional()
+    .default({
+      requestTimeoutMs: 180_000,
+      connectTimeoutMs: 10_000,
+      keepAliveTimeoutMs: 4_000,
+      keepAliveTimeoutThresholdMs: 2_000,
+      proxyUrl: "",
+    }),
   ai: z.object({
     provider: z.string().min(1),
     baseUrl: z.string().optional().default(""),
     accessToken: z.string().optional().default(""),
     headers: z.record(z.string(), z.string()).default({}),
     model: z.string().min(1),
+    systemPromptInUserMessage: z.boolean().optional().default(false),
+    retry: z
+      .object({
+        retries: z.number().int().min(0).optional().default(2),
+        baseDelayMs: z.number().int().min(0).optional().default(1000),
+      })
+      .optional()
+      .default({
+        retries: 2,
+        baseDelayMs: 1000,
+      }),
     capabilities: z
       .object({
         toolCalling: z.boolean().default(true),
@@ -66,9 +126,84 @@ const BotConfigSchema = z.object({
     .optional()
     .default([]),
   workspaceRoot: z.string().default("."),
-  skillsDir: z.string().default(".myz/skills"),
-  conversationsDir: z.string().default("conversations"),
-  memoryDir: z.string().default("memory"),
+  skills: z
+    .object({
+      sources: z.array(SkillSourceConfigSchema).optional().default([]),
+      allowlist: z.array(z.string().min(1)).optional().default([]),
+      denylist: z.array(z.string().min(1)).optional().default([]),
+    })
+    .optional()
+    .default({
+      sources: [],
+      allowlist: [],
+      denylist: [],
+    }),
+  tools: z
+    .object({
+      allowlist: z.array(z.string().min(1)).optional().default([]),
+      denylist: z.array(z.string().min(1)).optional().default([]),
+    })
+    .optional()
+    .default({
+      allowlist: [],
+      denylist: [],
+    }),
+  scheduler: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+      pollIntervalMs: z.number().int().positive().optional().default(15_000),
+      maxBatchSize: z.number().int().positive().optional().default(20),
+      failureRetryBaseDelayMs: z.number().int().positive().optional().default(60_000),
+    })
+    .optional()
+    .default({
+      enabled: true,
+      pollIntervalMs: 15_000,
+      maxBatchSize: 20,
+      failureRetryBaseDelayMs: 60_000,
+    }),
+  context: z
+    .object({
+      maxHistoryMessages: z.number().int().positive().optional().default(120),
+      maxHistoryChars: z.number().int().positive().optional().default(120_000),
+      compressionThreshold: z.number().int().positive().optional().default(160),
+      compressionCooldownMs: z.number().int().min(0).optional().default(300_000),
+      summaryMaxMessages: z.number().int().positive().optional().default(20),
+      summaryMaxChars: z.number().int().positive().optional().default(6_000),
+    })
+    .optional()
+    .default({
+      maxHistoryMessages: 120,
+      maxHistoryChars: 120_000,
+      compressionThreshold: 160,
+      compressionCooldownMs: 300_000,
+      summaryMaxMessages: 20,
+      summaryMaxChars: 6_000,
+    }),
+  soul: z
+    .object({
+      autoDraft: z.boolean().optional().default(true),
+      autoApply: z.boolean().optional().default(true),
+      reviewRequired: z.boolean().optional().default(true),
+      autoDraftMessageInterval: z.number().int().positive().optional().default(40),
+      autoDraftTimeIntervalMs: z.number().int().positive().optional().default(14_400_000),
+      growthFeedbackBatchMessageInterval: z.number().int().positive().optional().default(20),
+      growthFeedbackTimeIntervalMs: z.number().int().positive().optional().default(3_600_000),
+      relationshipReflectionMessageInterval: z.number().int().positive().optional().default(20),
+      relationshipReflectionTimeIntervalMs: z.number().int().positive().optional().default(3_600_000),
+    })
+    .optional()
+    .default({
+      autoDraft: true,
+      autoApply: true,
+      reviewRequired: true,
+      autoDraftMessageInterval: 40,
+      autoDraftTimeIntervalMs: 14_400_000,
+      growthFeedbackBatchMessageInterval: 20,
+      growthFeedbackTimeIntervalMs: 3_600_000,
+      relationshipReflectionMessageInterval: 20,
+      relationshipReflectionTimeIntervalMs: 3_600_000,
+    }),
 })
 
 export type BotConfig = z.infer<typeof BotConfigSchema>
@@ -84,6 +219,10 @@ export type BotRuntimeConfig = BotConfig & {
   conversationsDir: string
   memoryDir: string
   skillSources: SkillSourceConfig[]
+  skillAllowlist: string[]
+  skillDenylist: string[]
+  toolAllowlist: string[]
+  toolDenylist: string[]
 }
 
 function normalizeValue(value: unknown) {
@@ -143,31 +282,73 @@ function applyEnvFallback(config: unknown) {
   return next
 }
 
+function normalizeSkillPolicies(entries: string[] = []) {
+  return Array.from(
+    new Set(
+      entries
+        .filter((entry) => typeof entry === "string")
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  )
+}
+
+function buildSkillSources(config: BotConfig, workspaceRoot: string) {
+  const builtinSkillsDir = resolve(
+    workspaceRoot,
+    "myz-annotator/src/skills/builtin",
+  )
+  const configuredSources = (config.skills?.sources || []).map((source) => ({
+    id: source.id,
+    dir: resolve(workspaceRoot, source.dir),
+    readonly: Boolean(source.readonly),
+  }))
+  const projectSkillSource = {
+    id: "project",
+    dir: resolve(workspaceRoot, ".myz/skills"),
+    readonly: false,
+  }
+  const defaults: SkillSourceConfig[] = [
+    { id: "builtin", dir: builtinSkillsDir, readonly: true },
+    projectSkillSource,
+  ]
+  const merged = [...defaults, ...configuredSources]
+  const unique = new Map<string, SkillSourceConfig>()
+  merged.forEach((source) => {
+    if (!source.id || unique.has(source.id)) return
+    unique.set(source.id, source)
+  })
+  return Array.from(unique.values())
+}
+
 export function loadConfig(
   configPath = resolve(process.cwd(), "bot.yml"),
 ): BotRuntimeConfig {
   if (!existsSync(configPath)) {
     throw new Error(`bot.yml not found at ${configPath}`)
   }
+  const configDir = dirname(resolve(configPath))
   const raw = readFileSync(configPath, "utf-8")
   const parsed = yaml.parse(raw) || {}
   const withEnv = applyEnvFallback(parsed)
   const config = BotConfigSchema.parse(withEnv)
-  const workspaceRoot = resolve(config.workspaceRoot)
-  const builtinSkillsDir = resolve(
-    workspaceRoot,
-    "myz-annotator/src/skills/builtin",
-  )
-  const skillSources: SkillSourceConfig[] = [
-    { id: "builtin", dir: builtinSkillsDir, readonly: true },
-  ]
+  const workspaceRoot = resolve(configDir, config.workspaceRoot)
+  const skillSources = buildSkillSources(config, workspaceRoot)
+  const skillAllowlist = normalizeSkillPolicies(config.skills?.allowlist)
+  const skillDenylist = normalizeSkillPolicies(config.skills?.denylist)
+  const toolAllowlist = normalizeSkillPolicies(config.tools?.allowlist)
+  const toolDenylist = normalizeSkillPolicies(config.tools?.denylist)
 
   return {
     ...config,
     workspaceRoot,
-    skillsDir: resolve(workspaceRoot, config.skillsDir),
-    conversationsDir: resolve(workspaceRoot, config.conversationsDir),
-    memoryDir: resolve(workspaceRoot, config.memoryDir),
+    skillsDir: resolve(workspaceRoot, ".myz/skills"),
+    conversationsDir: resolve(workspaceRoot, "conversations"),
+    memoryDir: resolve(workspaceRoot, "memory"),
     skillSources,
+    skillAllowlist,
+    skillDenylist,
+    toolAllowlist,
+    toolDenylist,
   }
 }

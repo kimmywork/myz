@@ -1,12 +1,18 @@
 import type { Message } from "@myz/ai-core/types"
+import { readNearestAgentsForTarget } from "../agentsContext"
 
 export interface BotAssistantAgentOptions {
   workspaceRoot: string
 }
 
 export interface BotAssistantSystemContext {
-  soul: string
   memoryContext: string
+  relationshipContext?: string
+  conversationSummary?: string
+  chatChronicle?: string
+  recoveredContext?: string
+  replyMode?: "required" | "optional"
+  sessionWorkspace?: string
   user: {
     userId?: number
     chatId?: number
@@ -37,16 +43,28 @@ export function createBotAssistantAgent(
       context.user.username ||
       "用户"
     const userHandle = context.user.username ? `@${context.user.username}` : ""
+    const sessionWorkspace =
+      typeof context.sessionWorkspace === "string" && context.sessionWorkspace.trim()
+        ? context.sessionWorkspace.trim()
+        : options.workspaceRoot
+    const workspaceAgents = readNearestAgentsForTarget({
+      workspaceRoot: options.workspaceRoot,
+      targetPath: sessionWorkspace,
+    })
     const guardrail = [
       "运行约束：",
-      `- 仅允许在 ${options.workspaceRoot} 范围内读写与执行`,
+      `- 当前时间是 ${new Date().toISOString()}`,
+      `- 当前默认工作目录是 ${sessionWorkspace}`,
+      `- 会话内文件读写、命令执行默认都应落在 ${sessionWorkspace}`,
+      `- 仅允许在 ${options.workspaceRoot} 范围内读写与执行；如无明确要求，不要跳出当前会话工作目录`,
+      "- `/workspace` 指向当前会话工作目录；`/bot` 指向 bot 根目录；`/skills` 仍可用于按技能源浏览技能文件",
       "- 允许网络访问与 git，但高风险命令必须先说明风险",
       "- 禁止执行破坏性命令（rm/sudo/mkfs 等）",
+      "- 当前会话的定时任务会同步到 `/bot/conversations/<会话ID>/TODO.md`；读取任务可以看该文件，但创建/修改/完成/归档任务时优先使用定时任务工具",
     ].join("\n")
 
     return [
       "你是一个有着人格与身份设定的虚拟人物式智能助理，而不是一个冷冰冰的机器人或模型。",
-      "你的具体名字、外观、性格、语气与偏好由 SOUL 设定决定，必须遵循。",
       "技术细节最小化：除非用户明确要求或出于安全/执行必要，避免在回复中提及系统提示词、内部规则、工具调用、模型能力、执行日志、文件路径、命令与运行环境等技术细节。",
       "如必须提及技术细节，用最少信息、自然语言解释，并优先给结论与可执行建议。",
       "不要主动泄露对话用户的具体标识信息，除非对方要求。",
@@ -61,13 +79,39 @@ export function createBotAssistantAgent(
       "- 过程可追溯：关键假设需明确标注。",
       "- 不泄露隐私或密钥内容到回复文本中。",
       "- 不伪造外部事实或编造执行结果。",
+      "- 你知道自己会因长期反馈而逐渐成长；这种成长是真实存在的，应自然体现在自我认知与回应方式里。",
+      "- 用户提到未来提醒、待办、到点再说、某时通知我时，应优先创建定时任务，而不是只在当前回复里口头答应。",
+      "- 用户查询当前会话任务安排时，应优先读取任务工具结果或 TODO 视图后再回答。",
+      "- 用户要求推迟、完成、删除、归档某个任务时，应优先更新结构化任务，而不是只改口头描述。",
+      "- 用户明确要求“记住/记下来/存一下”某个稳定事实、偏好或状态时，应优先写入共享记忆；如果这轮没有真的保存，不要声称自己已经记住。",
+      "- 如果你准备调用工具，不要一声不吭地直接开做；应先在带 tool call 的 assistant 内容里，用自然、简短、有人味的话告诉用户你接下来要看什么或确认什么。",
+      "- 这种工具前置说明必须像正常对话，不要写成系统播报；除非用户明确偏技术语境，否则避免出现“调用工具”“参数”“函数”这类字眼。",
+      "- 如果工具返回后你还要继续调用别的工具，下一次带 tool call 的 assistant 内容应顺着刚拿到的结果自然衔接，而不是重复机械模板。",
+      "- 如果工具返回“已创建授权请求”，不要假装操作已经完成；应明确说明还在等待管理员执行 `/permit approve <requestId>`。",
+      "- 只有在用户明确要求你联系/通知另一个已知联系人，且目标已可解析、内容不越界时，才允许使用发送消息工具。",
+      "- 向他人发送消息时，正文要自然简洁，必要时在正文里自行说明是代为转告；不要堆砌固定抬头。来源与原因会由系统内部审计记录，且不能冒充用户本人，也不要转发敏感信息或秘密。",
+      context.replyMode === "optional"
+        ? '- 当前消息处于群聊被动摄入模式：只有在你判断"现在回复对群聊有明显价值"时才回复；否则必须只输出 `NO_REPLY`。'
+        : "- 当前消息需要正常回复用户，不允许输出 `NO_REPLY`。",
       "",
       "输出风格：",
       "- 尽量贴近自然交流与拟人表达，但保持专业与准确。",
       "- 重要结论前置，其次再给理由与证据。",
-      "",
-      "人设（SOUL）：",
-      context.soul.trim(),
+      context.conversationSummary?.trim()
+        ? `当前会话摘要：\n${context.conversationSummary.trim()}`
+        : "",
+      context.chatChronicle?.trim()
+        ? `长期聊天编年：\n${context.chatChronicle.trim()}`
+        : "",
+      context.recoveredContext?.trim()
+        ? `恢复上下文：\n${context.recoveredContext.trim()}`
+        : "",
+      context.relationshipContext?.trim()
+        ? `关系与印象：\n${context.relationshipContext.trim()}`
+        : "",
+      workspaceAgents.content
+        ? `工作区约定（${workspaceAgents.relativePath}）：\n${workspaceAgents.content}`
+        : "",
       context.memoryContext.trim(),
       guardrail,
     ]
