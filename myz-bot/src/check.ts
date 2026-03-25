@@ -2,7 +2,7 @@ import { loadConfig } from "./config"
 import { createTelegramClient } from "./telegram"
 import { generateReply } from "./ai"
 import { createBotAssistantAgent } from "./agents/botAssistant"
-import { loadSoul } from "./soul"
+import { configureGlobalNetwork } from "./network"
 import { renderMemoryContext } from "./memory"
 import { AI_MESSAGE_SCHEMA_VERSION, type Message } from "@myz/ai-core/types"
 
@@ -16,12 +16,17 @@ function buildMessage(role: Message["role"], content: string): Message {
   }
 }
 
-export async function checkConfig() {
-  const config = loadConfig()
+export async function checkConfig(options: { configPath?: string } = {}) {
+  const config = loadConfig(options.configPath)
+  configureGlobalNetwork(config.network)
   const results: Array<{ name: string; ok: boolean; detail?: string }> = []
 
   try {
-    const telegram = createTelegramClient({ token: config.telegram.token })
+    const telegram = createTelegramClient({
+      token: config.telegram.token,
+      timeoutSeconds: config.telegram.timeoutSeconds,
+      retry: config.telegram.retry,
+    })
     const me = await telegram.getMe()
     results.push({ name: "telegram", ok: true, detail: me.username || "ok" })
   } catch (error) {
@@ -36,10 +41,8 @@ export async function checkConfig() {
     const agent = createBotAssistantAgent({
       workspaceRoot: config.workspaceRoot,
     })
-    const soul = loadSoul(config.workspaceRoot)
     const memoryContext = renderMemoryContext(config.memoryDir)
     const systemPrompt = agent.buildSystemPrompt({
-      soul,
       memoryContext,
       user: {},
     })

@@ -13,6 +13,12 @@ export interface SkillInfo {
   sourceId: string
 }
 
+export interface SkillFilterOptions {
+  allowlist?: string[]
+  denylist?: string[]
+  sourceId?: string
+}
+
 function extractDescription(content: string) {
   const lines = content.split(/\r?\n/).map((line) => line.trim())
   for (const line of lines) {
@@ -28,9 +34,52 @@ function extractDescription(content: string) {
   return ""
 }
 
-export function listSkills(sources: SkillSource[]): SkillInfo[] {
+function normalizeSkillKey(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function isSkillAllowed(
+  skill: SkillInfo,
+  allowlist: Set<string> | null,
+  denylist: Set<string>,
+) {
+  const keys = [
+    normalizeSkillKey(skill.name),
+    normalizeSkillKey(`${skill.sourceId}/${skill.name}`),
+  ]
+  if (keys.some((key) => denylist.has(key))) return false
+  if (!allowlist || !allowlist.size) return true
+  return keys.some((key) => allowlist.has(key))
+}
+
+function toPolicySets(options: SkillFilterOptions = {}) {
+  return {
+    allowlist:
+      options.allowlist && options.allowlist.length
+        ? new Set(options.allowlist.map(normalizeSkillKey))
+        : null,
+    denylist: new Set((options.denylist || []).map(normalizeSkillKey)),
+  }
+}
+
+function assertSkillAllowed(
+  skill: SkillInfo,
+  options: SkillFilterOptions = {},
+) {
+  const { allowlist, denylist } = toPolicySets(options)
+  if (!isSkillAllowed(skill, allowlist, denylist)) {
+    throw new Error(`Skill not allowed: ${skill.sourceId}/${skill.name}`)
+  }
+}
+
+export function listSkills(
+  sources: SkillSource[],
+  options: SkillFilterOptions = {},
+): SkillInfo[] {
   const results: SkillInfo[] = []
+  const { allowlist, denylist } = toPolicySets(options)
   for (const source of sources) {
+    if (options.sourceId && source.id !== options.sourceId) continue
     if (!existsSync(source.dir)) continue
     const entries = readdirSync(source.dir, { withFileTypes: true })
     for (const entry of entries) {
@@ -39,11 +88,13 @@ export function listSkills(sources: SkillSource[]): SkillInfo[] {
       const skillFile = resolve(source.dir, skillName, "SKILL.md")
       if (!existsSync(skillFile)) continue
       const content = readFileSync(skillFile, "utf-8")
-      results.push({
+      const skill = {
         name: skillName,
         description: extractDescription(content),
         sourceId: source.id,
-      })
+      }
+      if (!isSkillAllowed(skill, allowlist, denylist)) continue
+      results.push(skill)
     }
   }
   return results
@@ -68,6 +119,7 @@ export function resolveSkillFile(
   skillName: string,
   filePath = "SKILL.md",
   sourceId?: string,
+  options: SkillFilterOptions = {},
 ) {
   const matches = findSkillSources(sources, skillName, filePath, sourceId)
   if (!matches.length) {
@@ -79,6 +131,13 @@ export function resolveSkillFile(
       `Skill name is ambiguous: ${skillName}. Available sources: ${sourceList}`,
     )
   }
+  assertSkillAllowed(
+    {
+      name: skillName,
+      sourceId: matches[0].id,
+    },
+    options,
+  )
   return resolve(matches[0].dir, skillName, filePath)
 }
 
@@ -87,8 +146,15 @@ export function readSkillFile(
   skillName: string,
   filePath = "SKILL.md",
   sourceId?: string,
+  options: SkillFilterOptions = {},
 ) {
-  const absolute = resolveSkillFile(sources, skillName, filePath, sourceId)
+  const absolute = resolveSkillFile(
+    sources,
+    skillName,
+    filePath,
+    sourceId,
+    options,
+  )
   return readFileSync(absolute, "utf-8")
 }
 

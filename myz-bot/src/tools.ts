@@ -3,9 +3,40 @@ import { resolve, join, relative, dirname } from "node:path"
 import { exec } from "node:child_process"
 import type { Tool } from "@modelcontextprotocol/sdk/types.js"
 import type { ToolExecutionResult } from "@myz/ai-core/types"
+import { formatAgentsNotice, readNearestAgentsForTarget } from "./agentsContext"
 import { addMemory } from "./memory"
-import { assertInsideWorkspace, validateCommand } from "./guardrails"
+import {
+  appendMessage,
+  createAssistantMessage,
+  createUserMessage,
+  ensureConversationDir,
+  ensureConversationWorkspaceDir,
+  getConversationWorkspaceDir,
+  loadMetadata,
+} from "./conversations"
+import {
+  assertInsideWorkspace,
+  resolveCommandVirtualPaths,
+  validateCommand,
+} from "./guardrails"
+import {
+  createElevatedPermissionRequest,
+  findAdminPrivateChatTargets,
+  isPathAllowedByGrant,
+} from "./elevatedPermissions"
 import { parseSkillsPath, listSkills, readSkillFile, type SkillSource } from "./skills"
+import {
+  listKnownContacts,
+  resolveKnownContact,
+} from "./relationships"
+import { recordOutgoingTelegramMessages } from "./telegramHistory"
+import {
+  createScheduledTask,
+  formatTasksForTool,
+  listConversationTasks,
+  updateScheduledTask,
+} from "./tasks"
+import type { TelegramClient } from "./telegram"
 
 const textBlock = (text: string): ToolExecutionResult => ({
   content: [{ type: "text", text }],
@@ -15,22 +46,74 @@ function errorBlock(text: string): ToolExecutionResult {
   return { content: [{ type: "text", text }], isError: true }
 }
 
+function withAgentsContext(options: {
+  workspaceRoot: string
+  targetPath: string
+  body: string
+}) {
+  const agents = readNearestAgentsForTarget({
+    workspaceRoot: options.workspaceRoot,
+    targetPath: options.targetPath,
+  })
+  const notice = formatAgentsNotice({
+    relativePath: agents.relativePath,
+    content: agents.content,
+  })
+  return [notice, options.body].filter(Boolean).join("\n\n")
+}
+
+function resolveToolWorkspaceRoot(options: {
+  workspaceRoot: string
+  conversationsDir: string
+  conversationId?: string
+}) {
+  const conversationId =
+    typeof options.conversationId === "string"
+      ? options.conversationId.trim()
+      : ""
+  if (!conversationId) {
+    return options.workspaceRoot
+  }
+  ensureConversationWorkspaceDir(options.conversationsDir, conversationId)
+  return getConversationWorkspaceDir(options.conversationsDir, conversationId)
+}
+
 function resolveVirtualPath(options: {
   rawPath: string
   workspaceRoot: string
   skillSources: SkillSource[]
   memoryDir: string
   conversationsDir: string
+  conversationId?: string
+  allowExternalPaths?: boolean
 }) {
+  const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
+    workspaceRoot: options.workspaceRoot,
+    conversationsDir: options.conversationsDir,
+    conversationId: options.conversationId,
+  })
   const raw = options.rawPath || ""
   if (!raw) {
     return {
       kind: "path" as const,
-      path: assertInsideWorkspace(options.workspaceRoot, options.workspaceRoot),
+      path: options.allowExternalPaths
+        ? resolve(effectiveWorkspaceRoot)
+        : assertInsideWorkspace(effectiveWorkspaceRoot, options.workspaceRoot),
     }
   }
 
   const normalized = raw.startsWith("/") ? raw : `/${raw}`
+  if (normalized === "/bot" || normalized.startsWith("/bot/")) {
+    const next = normalized.replace(/^\/bot\/?/, "")
+    const target = resolve(options.workspaceRoot, next)
+    return {
+      kind: "path" as const,
+      path: options.allowExternalPaths
+        ? target
+        : assertInsideWorkspace(target, options.workspaceRoot),
+    }
+  }
+
   if (normalized.startsWith("/skills")) {
     const info = parseSkillsPath(
       normalized,
@@ -49,20 +132,26 @@ function resolveVirtualPath(options: {
     }
   }
 
-  if (normalized.startsWith("/memory")) {
-    const next = normalized.replace(/^\/memory\/?/, "")
-    const target = resolve(options.memoryDir, next)
-    return { kind: "path" as const, path: assertInsideWorkspace(target, options.workspaceRoot) }
+  if (normalized.startsWith("/workspace")) {
+    const next = normalized.replace(/^\/workspace\/?/, "")
+    const target = resolve(effectiveWorkspaceRoot, next)
+    return {
+      kind: "path" as const,
+      path: options.allowExternalPaths
+        ? target
+        : assertInsideWorkspace(target, options.workspaceRoot),
+    }
   }
 
-  if (normalized.startsWith("/conversations")) {
-    const next = normalized.replace(/^\/conversations\/?/, "")
-    const target = resolve(options.conversationsDir, next)
-    return { kind: "path" as const, path: assertInsideWorkspace(target, options.workspaceRoot) }
+  const target = raw.startsWith("/")
+    ? resolve(raw)
+    : resolve(effectiveWorkspaceRoot, normalized.replace(/^\/+/, ""))
+  return {
+    kind: "path" as const,
+    path: options.allowExternalPaths
+      ? target
+      : assertInsideWorkspace(target, options.workspaceRoot),
   }
-
-  const target = resolve(options.workspaceRoot, normalized.replace(/^\/+/, ""))
-  return { kind: "path" as const, path: assertInsideWorkspace(target, options.workspaceRoot) }
 }
 
 function walkDir(root: string, maxEntries = 2000) {
@@ -108,13 +197,83 @@ function globToRegex(pattern: string) {
 export function createLocalTools(options: {
   workspaceRoot: string
   skillSources: SkillSource[]
+  skillAllowlist?: string[]
+  skillDenylist?: string[]
+  toolAllowlist?: string[]
+  toolDenylist?: string[]
   memoryDir: string
   conversationsDir: string
+  adminUsers?: string[]
+  telegram?: Pick<TelegramClient, "sendMessage">
 }) {
-  const definitions: Tool[] = [
+  async function notifyAdminsForPermissionRequest(request: {
+    id: string
+    access: string
+    matcher: string
+    pattern: string
+    toolName: string
+    conversationId?: string
+    reason: string
+  }) {
+    if (!options.telegram || !(options.adminUsers || []).length) return
+    const targets = findAdminPrivateChatTargets({
+      workspaceRoot: options.workspaceRoot,
+      conversationsDir: options.conversationsDir,
+      adminUsers: options.adminUsers || [],
+    })
+    await Promise.all(
+      targets.map(async (target) => {
+        await options.telegram?.sendMessage(
+          target.chatId,
+          [
+            "收到新的权限请求。",
+            `requestId: ${request.id}`,
+            `tool: ${request.toolName}`,
+            `access: ${request.access}`,
+            `rule: ${request.matcher}:${request.pattern}`,
+            `reason: ${request.reason}`,
+            `approve: /permit approve ${request.id}`,
+            `reject: /permit reject ${request.id}`,
+          ].join("\n"),
+        )
+      }),
+    )
+  }
+
+  async function requestElevatedPathPermission(payload: {
+    access: "read" | "write" | "run"
+    targetPath: string
+    rawTarget: string
+    toolName: string
+    reason: string
+    conversationId?: string
+  }) {
+    const request = createElevatedPermissionRequest({
+      workspaceRoot: options.workspaceRoot,
+      access: payload.access,
+      targetPath: payload.targetPath,
+      rawTarget: payload.rawTarget,
+      toolName: payload.toolName,
+      reason: payload.reason,
+      conversationId: payload.conversationId,
+    })
+    await notifyAdminsForPermissionRequest(request)
+    return errorBlock(
+      [
+        `当前权限不足，已创建授权请求：${request.id}`,
+        `请求类型：${request.access}`,
+        `授权规则：${request.matcher}:${request.pattern}`,
+        `原因：${request.reason}`,
+        "请管理员执行：",
+        `/permit approve ${request.id}`,
+      ].join("\n"),
+    )
+  }
+
+  const allDefinitions: Tool[] = [
     {
       name: "List",
-      description: "列出目录下的文件（可传 path）。支持 /skills /memory /conversations 虚拟路径。",
+      description: "列出目录下的文件（默认当前会话 /workspace，可传 path）。支持 /workspace、/bot、/skills 虚拟路径。",
       inputSchema: {
         type: "object",
         properties: {
@@ -124,7 +283,7 @@ export function createLocalTools(options: {
     },
     {
       name: "Read",
-      description: "读取文件内容（支持 /skills 路径）。",
+      description: "读取文件内容（默认当前会话 /workspace，支持 /bot、/skills 路径）。",
       inputSchema: {
         type: "object",
         required: ["path"],
@@ -135,7 +294,7 @@ export function createLocalTools(options: {
     },
     {
       name: "Write",
-      description: "写入文件内容（支持 /memory /conversations 路径）。",
+      description: "写入文件内容（默认当前会话 /workspace，支持 /bot 路径）。",
       inputSchema: {
         type: "object",
         required: ["path", "content"],
@@ -148,7 +307,7 @@ export function createLocalTools(options: {
     },
     {
       name: "Edit",
-      description: "替换文件内容（oldText -> newText）。",
+      description: "替换文件内容（默认当前会话 /workspace，oldText -> newText）。",
       inputSchema: {
         type: "object",
         required: ["path", "oldText", "newText"],
@@ -162,7 +321,7 @@ export function createLocalTools(options: {
     },
     {
       name: "Glob",
-      description: "按 glob 模式匹配文件路径（默认相对 workspaceRoot）。",
+      description: "按 glob 模式匹配文件路径（默认相对当前会话 /workspace）。",
       inputSchema: {
         type: "object",
         required: ["pattern"],
@@ -174,7 +333,7 @@ export function createLocalTools(options: {
     },
     {
       name: "Run",
-      description: "在 workspaceRoot 下执行命令（带 guardrail）。",
+      description: "在当前会话 /workspace 下执行命令（带 guardrail，可引用 /workspace 与 /bot）。",
       inputSchema: {
         type: "object",
         required: ["command"],
@@ -197,21 +356,102 @@ export function createLocalTools(options: {
         },
       },
     },
+    {
+      name: "ListKnownContacts",
+      description: "列出 bot 已知的可联系对象（基于现有私聊会话和关系记录）。",
+      inputSchema: {
+        type: "object",
+        properties: {},
+      },
+    },
+    {
+      name: "SendMessageToContact",
+      description:
+        "向一个已知联系人发送转告消息。只能发给已有私聊会话的对象。传入的 message 会作为最终正文直接送达；来源与原因由系统内部审计记录。",
+      inputSchema: {
+        type: "object",
+        required: ["target", "message"],
+        properties: {
+          target: { type: "string" },
+          message: { type: "string" },
+          reason: { type: "string" },
+        },
+      },
+    },
+    {
+      name: "ListScheduledTasks",
+      description: "列出当前会话的定时任务与状态。任务会同步到 conversations/<id>/TODO.md。",
+      inputSchema: {
+        type: "object",
+        properties: {
+          includeDeleted: { type: "boolean" },
+        },
+      },
+    },
+    {
+      name: "CreateScheduledTask",
+      description: "创建当前会话的定时任务。dueAt 必须使用未来时间的 ISO 8601 格式。",
+      inputSchema: {
+        type: "object",
+        required: ["title", "dueAt"],
+        properties: {
+          title: { type: "string" },
+          dueAt: { type: "string" },
+          instructions: { type: "string" },
+          triggerMode: {
+            type: "string",
+            enum: ["llm", "direct"],
+          },
+          directReply: { type: "string" },
+        },
+      },
+    },
+    {
+      name: "UpdateScheduledTask",
+      description: "更新当前会话的定时任务，可执行 postpone/complete/delete/archive/reopen/edit/merge。",
+      inputSchema: {
+        type: "object",
+        required: ["taskId", "action"],
+        properties: {
+          taskId: { type: "string" },
+          action: {
+            type: "string",
+            enum: ["postpone", "complete", "delete", "archive", "reopen", "edit", "merge"],
+          },
+          mergeTaskIds: { type: "array", items: { type: "string" } },
+          dueAt: { type: "string" },
+          title: { type: "string" },
+          instructions: { type: "string" },
+          triggerMode: {
+            type: "string",
+            enum: ["llm", "direct"],
+          },
+          directReply: { type: "string" },
+        },
+      },
+    },
   ]
 
-  const handlers: Record<string, (args: Record<string, unknown>) => Promise<ToolExecutionResult> | ToolExecutionResult> = {
+  const allHandlers: Record<string, (args: Record<string, unknown>) => Promise<ToolExecutionResult> | ToolExecutionResult> = {
     List: async (args) => {
       const rawPath = typeof args.path === "string" ? args.path : "/"
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId : undefined
       const resolved = resolveVirtualPath({
         rawPath,
         workspaceRoot: options.workspaceRoot,
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
         conversationsDir: options.conversationsDir,
+        conversationId,
+        allowExternalPaths: true,
       })
       if (!resolved) return errorBlock("路径无效")
       if (resolved.kind === "skills-root") {
-        const skills = listSkills(options.skillSources)
+        const skills = listSkills(options.skillSources, {
+          allowlist: options.skillAllowlist,
+          denylist: options.skillDenylist,
+        })
         if (!skills.length) return textBlock("暂无技能")
         return textBlock(
           skills
@@ -223,9 +463,11 @@ export function createLocalTools(options: {
         )
       }
       if (resolved.kind === "skills-source") {
-        const skills = listSkills(options.skillSources).filter(
-          (skill) => skill.sourceId === resolved.sourceId,
-        )
+        const skills = listSkills(options.skillSources, {
+          sourceId: resolved.sourceId,
+          allowlist: options.skillAllowlist,
+          denylist: options.skillDenylist,
+        })
         if (!skills.length) return textBlock("暂无技能")
         return textBlock(
           skills
@@ -239,12 +481,46 @@ export function createLocalTools(options: {
       if (resolved.kind === "skill-file") {
         return errorBlock("请指定 /skills/<source>/<name>/... 文件路径")
       }
+      const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
+        workspaceRoot: options.workspaceRoot,
+        conversationsDir: options.conversationsDir,
+        conversationId,
+      })
+      if (
+        resolved.kind === "path" &&
+        !isPathAllowedByGrant({
+          workspaceRoot: options.workspaceRoot,
+          access: "read",
+          targetPath: resolved.path,
+        }) &&
+        !resolved.path.startsWith(`${effectiveWorkspaceRoot}/`) &&
+        resolved.path !== effectiveWorkspaceRoot &&
+        !resolved.path.startsWith(`${options.workspaceRoot}/`) &&
+        resolved.path !== options.workspaceRoot
+      ) {
+        return requestElevatedPathPermission({
+          access: "read",
+          targetPath: resolved.path,
+          rawTarget: rawPath,
+          toolName: "List",
+          reason: "需要列出当前工作区之外的目录",
+          conversationId,
+        })
+      }
       if (!existsSync(resolved.path)) return errorBlock("路径不存在")
       const entries = readdirSync(resolved.path)
-      return textBlock(entries.join("\n"))
+      return textBlock(
+        withAgentsContext({
+          workspaceRoot: options.workspaceRoot,
+          targetPath: resolved.path,
+          body: entries.join("\n"),
+        }),
+      )
     },
     Read: async (args) => {
       const rawPath = typeof args.path === "string" ? args.path : ""
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId : undefined
       if (!rawPath) return errorBlock("path 必填")
       const resolved = resolveVirtualPath({
         rawPath,
@@ -252,6 +528,8 @@ export function createLocalTools(options: {
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
         conversationsDir: options.conversationsDir,
+        conversationId,
+        allowExternalPaths: true,
       })
       if (!resolved) return errorBlock("路径无效")
       if (resolved.kind === "skills-root") {
@@ -267,20 +545,58 @@ export function createLocalTools(options: {
             resolved.skillName,
             resolved.filePath,
             resolved.sourceId,
+            {
+              allowlist: options.skillAllowlist,
+              denylist: options.skillDenylist,
+            },
           )
           return textBlock(content)
         } catch (error) {
           return errorBlock((error as Error).message)
         }
       }
+      const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
+        workspaceRoot: options.workspaceRoot,
+        conversationsDir: options.conversationsDir,
+        conversationId,
+      })
+      if (
+        resolved.kind === "path" &&
+        !isPathAllowedByGrant({
+          workspaceRoot: options.workspaceRoot,
+          access: "read",
+          targetPath: resolved.path,
+        }) &&
+        !resolved.path.startsWith(`${effectiveWorkspaceRoot}/`) &&
+        resolved.path !== effectiveWorkspaceRoot &&
+        !resolved.path.startsWith(`${options.workspaceRoot}/`) &&
+        resolved.path !== options.workspaceRoot
+      ) {
+        return requestElevatedPathPermission({
+          access: "read",
+          targetPath: resolved.path,
+          rawTarget: rawPath,
+          toolName: "Read",
+          reason: "需要读取当前工作区之外的文件",
+          conversationId,
+        })
+      }
       if (!existsSync(resolved.path)) return errorBlock("路径不存在")
       const content = readFileSync(resolved.path, "utf-8")
-      return textBlock(content)
+      return textBlock(
+        withAgentsContext({
+          workspaceRoot: options.workspaceRoot,
+          targetPath: dirname(resolved.path),
+          body: content,
+        }),
+      )
     },
     Write: async (args) => {
       const rawPath = typeof args.path === "string" ? args.path : ""
       const content = typeof args.content === "string" ? args.content : ""
       const append = Boolean(args.append)
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId : undefined
       if (!rawPath) return errorBlock("path 必填")
       const resolved = resolveVirtualPath({
         rawPath,
@@ -288,9 +604,36 @@ export function createLocalTools(options: {
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
         conversationsDir: options.conversationsDir,
+        conversationId,
+        allowExternalPaths: true,
       })
       if (!resolved || resolved.kind !== "path") {
         return errorBlock("路径无效或不允许写入")
+      }
+      const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
+        workspaceRoot: options.workspaceRoot,
+        conversationsDir: options.conversationsDir,
+        conversationId,
+      })
+      if (
+        !isPathAllowedByGrant({
+          workspaceRoot: options.workspaceRoot,
+          access: "write",
+          targetPath: resolved.path,
+        }) &&
+        !resolved.path.startsWith(`${effectiveWorkspaceRoot}/`) &&
+        resolved.path !== effectiveWorkspaceRoot &&
+        !resolved.path.startsWith(`${options.workspaceRoot}/`) &&
+        resolved.path !== options.workspaceRoot
+      ) {
+        return requestElevatedPathPermission({
+          access: "write",
+          targetPath: resolved.path,
+          rawTarget: rawPath,
+          toolName: "Write",
+          reason: "需要写入当前工作区之外的路径",
+          conversationId,
+        })
       }
       mkdirSync(dirname(resolved.path), { recursive: true })
       const existing = existsSync(resolved.path) ? readFileSync(resolved.path, "utf-8") : ""
@@ -303,6 +646,8 @@ export function createLocalTools(options: {
       const oldText = typeof args.oldText === "string" ? args.oldText : ""
       const newText = typeof args.newText === "string" ? args.newText : ""
       const replaceAll = Boolean(args.replaceAll)
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId : undefined
       if (!rawPath) return errorBlock("path 必填")
       const resolved = resolveVirtualPath({
         rawPath,
@@ -310,9 +655,36 @@ export function createLocalTools(options: {
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
         conversationsDir: options.conversationsDir,
+        conversationId,
+        allowExternalPaths: true,
       })
       if (!resolved || resolved.kind !== "path") {
         return errorBlock("路径无效或不允许修改")
+      }
+      const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
+        workspaceRoot: options.workspaceRoot,
+        conversationsDir: options.conversationsDir,
+        conversationId,
+      })
+      if (
+        !isPathAllowedByGrant({
+          workspaceRoot: options.workspaceRoot,
+          access: "write",
+          targetPath: resolved.path,
+        }) &&
+        !resolved.path.startsWith(`${effectiveWorkspaceRoot}/`) &&
+        resolved.path !== effectiveWorkspaceRoot &&
+        !resolved.path.startsWith(`${options.workspaceRoot}/`) &&
+        resolved.path !== options.workspaceRoot
+      ) {
+        return requestElevatedPathPermission({
+          access: "write",
+          targetPath: resolved.path,
+          rawTarget: rawPath,
+          toolName: "Edit",
+          reason: "需要修改当前工作区之外的文件",
+          conversationId,
+        })
       }
       if (!existsSync(resolved.path)) return errorBlock("路径不存在")
       const content = readFileSync(resolved.path, "utf-8")
@@ -325,25 +697,72 @@ export function createLocalTools(options: {
     },
     Glob: async (args) => {
       const pattern = typeof args.pattern === "string" ? args.pattern : ""
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId : undefined
       if (!pattern) return errorBlock("pattern 必填")
       const maxEntries = typeof args.maxEntries === "number" ? Math.max(1, Math.min(5000, args.maxEntries)) : 2000
       const regex = globToRegex(pattern.replace(/\\/g, "/"))
-      const files = walkDir(options.workspaceRoot, maxEntries)
+      const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
+        workspaceRoot: options.workspaceRoot,
+        conversationsDir: options.conversationsDir,
+        conversationId,
+      })
+      const files = walkDir(effectiveWorkspaceRoot, maxEntries)
       const matched = files
-        .map((file) => relative(options.workspaceRoot, file).replace(/\\/g, "/"))
+        .map((file) => relative(effectiveWorkspaceRoot, file).replace(/\\/g, "/"))
         .filter((file) => regex.test(file))
       return textBlock(matched.join("\n"))
     },
     Run: async (args) => {
       const command = typeof args.command === "string" ? args.command : ""
       const timeoutMs = typeof args.timeoutMs === "number" ? args.timeoutMs : 60000
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId : undefined
       if (!command) return errorBlock("command 必填")
-      const guard = validateCommand(command, options.workspaceRoot)
-      if (!guard.ok) return errorBlock(`命令被拒绝: ${guard.reason}`)
+      const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
+        workspaceRoot: options.workspaceRoot,
+        conversationsDir: options.conversationsDir,
+        conversationId,
+      })
+      const resolvedCommand = resolveCommandVirtualPaths(command, {
+        "/bot": options.workspaceRoot,
+        "/workspace": effectiveWorkspaceRoot,
+      })
+      const guard = validateCommand(resolvedCommand, effectiveWorkspaceRoot)
+      if (!guard.ok) {
+        const deniedPaths = Array.isArray(guard.deniedPaths) ? guard.deniedPaths : []
+        const guardReason = typeof guard.reason === "string" ? guard.reason : "guardrail denied"
+        const granted =
+          deniedPaths.length > 0 &&
+          deniedPaths.every((path) =>
+            isPathAllowedByGrant({
+              workspaceRoot: options.workspaceRoot,
+              access: "run",
+              targetPath: path,
+            }),
+          )
+        if (granted) {
+          // fall through and execute with the approved external-path rule
+        } else if (
+          deniedPaths.length &&
+          !guardReason.startsWith("Command blocked:")
+        ) {
+          return requestElevatedPathPermission({
+            access: "run",
+            targetPath: deniedPaths[0] || effectiveWorkspaceRoot,
+            rawTarget: deniedPaths[0] || command,
+            toolName: "Run",
+            reason: `需要在当前工作区之外执行命令相关路径访问：${command}`,
+            conversationId,
+          })
+        } else {
+          return errorBlock(`命令被拒绝: ${guardReason}`)
+        }
+      }
       return new Promise((resolvePromise) => {
         exec(
-          command,
-          { cwd: options.workspaceRoot, timeout: timeoutMs, maxBuffer: 1024 * 1024 },
+          resolvedCommand,
+          { cwd: effectiveWorkspaceRoot, timeout: timeoutMs, maxBuffer: 1024 * 1024 },
           (error, stdout, stderr) => {
             if (error) {
               resolvePromise(
@@ -366,7 +785,263 @@ export function createLocalTools(options: {
       const result = addMemory(options.memoryDir, { title, content, tags })
       return textBlock(`记忆已保存: ${result.id}`)
     },
+    ListKnownContacts: async () => {
+      const contacts = listKnownContacts({
+        workspaceRoot: options.workspaceRoot,
+        conversationsDir: options.conversationsDir,
+      })
+      if (!contacts.length) return textBlock("暂无可联系对象")
+      return textBlock(
+        contacts
+          .map((contact) =>
+            [
+              `- ${contact.displayName}`,
+              contact.username ? `username: @${contact.username}` : "",
+              typeof contact.actorUserId === "number" ? `userId: ${contact.actorUserId}` : "",
+              contact.conversationId ? `conversationId: ${contact.conversationId}` : "",
+              contact.aliases.length ? `aliases: ${contact.aliases.join(", ")}` : "",
+              `messagingPolicy: ${contact.messagingPolicy}`,
+              contact.relationshipSummary ? `relationship: ${contact.relationshipSummary}` : "",
+            ]
+              .filter(Boolean)
+              .join(" | "),
+          )
+          .join("\n"),
+      )
+    },
+    SendMessageToContact: async (args) => {
+      if (!options.telegram) {
+        return errorBlock("当前运行环境未注入 Telegram 客户端，无法发送消息")
+      }
+      const target = typeof args.target === "string" ? args.target : ""
+      const message = typeof args.message === "string" ? args.message.trim() : ""
+      const reason = typeof args.reason === "string" ? args.reason.trim() : ""
+      const normalizedMessageLines = message
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+      const deliveredMessage =
+        normalizedMessageLines[normalizedMessageLines.length - 1] || ""
+      const sourceConversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
+      if (!sourceConversationId) {
+        return errorBlock("当前没有会话上下文，无法代为联系其他对象")
+      }
+      if (!target || !message || !deliveredMessage) {
+        return errorBlock("target/message 必填")
+      }
+      const resolved = resolveKnownContact({
+        workspaceRoot: options.workspaceRoot,
+        conversationsDir: options.conversationsDir,
+        target,
+      })
+      if (!resolved || !resolved.conversationId || typeof resolved.chatId !== "number") {
+        return errorBlock("目标联系人不存在、不可解析，或没有可发送的私聊会话")
+      }
+      if (resolved.conversationId === sourceConversationId) {
+        return errorBlock("不能把消息再次发回当前会话")
+      }
+      if (resolved.messagingPolicy === "blocked") {
+        return errorBlock("该联系人当前关系边界不允许主动联系")
+      }
+      const sourceConversationDir = ensureConversationDir(
+        options.conversationsDir,
+        sourceConversationId,
+      )
+      const sourceMetadata = loadMetadata(sourceConversationDir)
+      const sourceName =
+        sourceMetadata?.lastActorDisplayName ||
+        sourceMetadata?.username ||
+        sourceMetadata?.firstName ||
+        sourceConversationId
+
+      const targetConversationDir = ensureConversationDir(
+        options.conversationsDir,
+        resolved.conversationId,
+      )
+      appendMessage(
+        targetConversationDir,
+        createUserMessage(
+          resolved.conversationId,
+          `来自 ${sourceName} 的转告请求：${deliveredMessage}`,
+          {
+            type: "relayed_request",
+            sourceConversationId,
+            sourceDisplayName: sourceName,
+            targetKey: resolved.key,
+            reason,
+            requestedMessage: message,
+            deliveredMessage,
+          },
+        ),
+      )
+      appendMessage(
+        targetConversationDir,
+        createAssistantMessage(
+          resolved.conversationId,
+          deliveredMessage,
+          {
+            type: "outbound_relay",
+            sourceConversationId,
+            sourceDisplayName: sourceName,
+            targetKey: resolved.key,
+            reason,
+            requestedMessage: message,
+            deliveredMessage,
+          },
+        ),
+      )
+      const sendResult = await options.telegram.sendMessage(resolved.chatId, deliveredMessage)
+      recordOutgoingTelegramMessages({
+        conversationDir: targetConversationDir,
+        conversationId: resolved.conversationId,
+        sendResult,
+        kind: "relay",
+      })
+      return textBlock(
+        JSON.stringify(
+          {
+            ok: true,
+            target: resolved.displayName,
+            conversationId: resolved.conversationId,
+            messagingPolicy: resolved.messagingPolicy,
+          },
+          null,
+          2,
+        ),
+      )
+    },
+    ListScheduledTasks: async (args) => {
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
+      if (!conversationId) {
+        return errorBlock("当前没有会话上下文，无法读取定时任务")
+      }
+      const conversationDir = ensureConversationDir(
+        options.conversationsDir,
+        conversationId,
+      )
+      const tasks = listConversationTasks({
+        conversationDir,
+        conversationId,
+        includeDeleted: Boolean(args.includeDeleted),
+      })
+      return textBlock(formatTasksForTool(tasks))
+    },
+    CreateScheduledTask: async (args) => {
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
+      if (!conversationId) {
+        return errorBlock("当前没有会话上下文，无法创建定时任务")
+      }
+      try {
+        const conversationDir = ensureConversationDir(
+          options.conversationsDir,
+          conversationId,
+        )
+        const task = createScheduledTask({
+          conversationDir,
+          conversationId,
+          title: typeof args.title === "string" ? args.title : "",
+          dueAt: typeof args.dueAt === "string" ? args.dueAt : "",
+          instructions: typeof args.instructions === "string" ? args.instructions : "",
+          triggerMode: args.triggerMode === "direct" ? "direct" : "llm",
+          directReply: typeof args.directReply === "string" ? args.directReply : "",
+        })
+        return textBlock(
+          JSON.stringify(
+            {
+              ok: true,
+              task,
+              todoPath: `/bot/conversations/${conversationId}/TODO.md`,
+            },
+            null,
+            2,
+          ),
+        )
+      } catch (error) {
+        return errorBlock((error as Error).message)
+      }
+    },
+    UpdateScheduledTask: async (args) => {
+      const conversationId =
+        typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
+      if (!conversationId) {
+        return errorBlock("当前没有会话上下文，无法更新定时任务")
+      }
+      try {
+        const conversationDir = ensureConversationDir(
+          options.conversationsDir,
+          conversationId,
+        )
+        const action =
+          typeof args.action === "string" ? args.action.trim().toLowerCase() : ""
+        if (
+          action !== "postpone" &&
+          action !== "complete" &&
+          action !== "delete" &&
+          action !== "archive" &&
+          action !== "reopen" &&
+          action !== "edit" &&
+          action !== "merge"
+        ) {
+          return errorBlock("action 无效")
+        }
+        const task = updateScheduledTask({
+          conversationDir,
+          conversationId,
+          taskId: typeof args.taskId === "string" ? args.taskId : "",
+          action,
+          dueAt: typeof args.dueAt === "string" ? args.dueAt : undefined,
+          title: typeof args.title === "string" ? args.title : undefined,
+          instructions:
+            typeof args.instructions === "string" ? args.instructions : undefined,
+          triggerMode:
+            args.triggerMode === "direct"
+              ? "direct"
+              : args.triggerMode === "llm"
+                ? "llm"
+                : undefined,
+          directReply:
+            typeof args.directReply === "string" ? args.directReply : undefined,
+          mergeTaskIds: Array.isArray(args.mergeTaskIds)
+            ? args.mergeTaskIds.map((value) => String(value))
+            : undefined,
+        })
+        return textBlock(
+          JSON.stringify(
+            {
+              ok: true,
+              task,
+              todoPath: `/bot/conversations/${conversationId}/TODO.md`,
+            },
+            null,
+            2,
+          ),
+        )
+      } catch (error) {
+        return errorBlock((error as Error).message)
+      }
+    },
   }
+
+  const normalizeName = (value: string) => value.trim().toLowerCase()
+  const allowlist =
+    options.toolAllowlist && options.toolAllowlist.length
+      ? new Set(options.toolAllowlist.map(normalizeName))
+      : null
+  const denylist = new Set((options.toolDenylist || []).map(normalizeName))
+  const isEnabled = (name: string) => {
+    const normalized = normalizeName(name)
+    if (denylist.has(normalized)) return false
+    if (!allowlist) return true
+    return allowlist.has(normalized)
+  }
+
+  const definitions = allDefinitions.filter((definition) => isEnabled(definition.name))
+  const handlers = Object.fromEntries(
+    Object.entries(allHandlers).filter(([name]) => isEnabled(name)),
+  )
 
   return { definitions, handlers }
 }

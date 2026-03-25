@@ -3,16 +3,26 @@ import { resolve } from "node:path"
 import { AI_SCHEMA_VERSION } from "@myz/shared/versioning"
 import type { Message } from "@myz/ai-core/types"
 
+const CONVERSATION_GITIGNORE = "workspace/*\n"
+
 export interface ConversationMetadata {
   schemaVersion: string
   conversationId: string
   chatId: number
   userId: number
+  scope?: "private" | "group"
+  chatType?: string
+  threadId?: number
   username?: string
   firstName?: string
   lastName?: string
+  title?: string
   createdAt: string
   updatedAt: string
+  lastMessageAt?: string
+  lastCompressionAt?: string
+  lastActorUserId?: number
+  lastActorDisplayName?: string
 }
 
 export function ensureConversationDir(
@@ -23,7 +33,44 @@ export function ensureConversationDir(
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true })
   }
+  ensureConversationGitignore(dir)
+  ensureConversationWorkspaceDir(conversationsDir, conversationId)
   return dir
+}
+
+function ensureConversationGitignore(dir: string) {
+  const path = resolve(dir, ".gitignore")
+  if (!existsSync(path)) {
+    writeFileSync(path, CONVERSATION_GITIGNORE)
+    return path
+  }
+  const content = readFileSync(path, "utf-8")
+  if (content.includes("workspace/*")) {
+    return path
+  }
+  const normalized = content.length > 0 && !content.endsWith("\n")
+    ? `${content}\n`
+    : content
+  writeFileSync(path, `${normalized}${CONVERSATION_GITIGNORE}`)
+  return path
+}
+
+export function getConversationWorkspaceDir(
+  conversationsDir: string,
+  conversationId: string,
+) {
+  return resolve(conversationsDir, conversationId, "workspace")
+}
+
+export function ensureConversationWorkspaceDir(
+  conversationsDir: string,
+  conversationId: string,
+) {
+  const workspaceDir = getConversationWorkspaceDir(conversationsDir, conversationId)
+  if (!existsSync(workspaceDir)) {
+    mkdirSync(workspaceDir, { recursive: true })
+  }
+  return workspaceDir
 }
 
 export function loadMetadata(dir: string): ConversationMetadata | null {
@@ -37,23 +84,88 @@ export function saveMetadata(dir: string, meta: ConversationMetadata) {
   writeFileSync(path, JSON.stringify(meta, null, 2))
 }
 
+export function getLegacyHistoryPath(dir: string) {
+  return resolve(dir, "history.jsonl")
+}
+
+export function getLlmHistoryPath(dir: string) {
+  return resolve(dir, "llm-history.jsonl")
+}
+
+export function getLlmTracePath(dir: string) {
+  return resolve(dir, "llm-trace.jsonl")
+}
+
+export function getTelegramHistoryPath(dir: string) {
+  return resolve(dir, "telegram-history.jsonl")
+}
+
+function appendJsonl<T>(path: string, entry: T) {
+  appendFileSync(path, JSON.stringify(entry) + "\n")
+}
+
+function loadJsonl<T>(path: string) {
+  if (!existsSync(path)) return []
+  return readFileSync(path, "utf-8")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as T)
+}
+
+function writeJsonl<T>(path: string, entries: T[]) {
+  const content =
+    entries.length > 0
+      ? `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`
+      : ""
+  writeFileSync(path, content)
+}
+
+function getReadableLlmHistoryPath(dir: string) {
+  const llmPath = getLlmHistoryPath(dir)
+  if (existsSync(llmPath)) return llmPath
+  const legacyPath = getLegacyHistoryPath(dir)
+  return existsSync(legacyPath) ? legacyPath : llmPath
+}
+
+function ensureWritableLlmHistoryPath(dir: string) {
+  const llmPath = getLlmHistoryPath(dir)
+  if (!existsSync(llmPath)) {
+    const legacyPath = getLegacyHistoryPath(dir)
+    if (existsSync(legacyPath)) {
+      writeFileSync(llmPath, readFileSync(legacyPath, "utf-8"))
+    }
+  }
+  return llmPath
+}
+
 export function appendMessage(dir: string, message: Message) {
-  const path = resolve(dir, "history.jsonl")
-  appendFileSync(path, JSON.stringify(message) + "\n")
+  appendJsonl(ensureWritableLlmHistoryPath(dir), message)
+}
+
+export function appendTraceMessage(dir: string, message: Message) {
+  appendJsonl(getLlmTracePath(dir), message)
+}
+
+export function rewriteLlmHistory(dir: string, messages: Message[]) {
+  writeJsonl(ensureWritableLlmHistoryPath(dir), messages)
 }
 
 export function loadMessages(dir: string, limit = 40): Message[] {
-  const path = resolve(dir, "history.jsonl")
-  if (!existsSync(path)) return []
-  const lines = readFileSync(path, "utf-8")
-    .split(/\r?\n/)
-    .filter(Boolean)
-  const slice = lines.slice(-limit)
-  return slice.map((line) => JSON.parse(line) as Message)
+  const path = getReadableLlmHistoryPath(dir)
+  const lines = loadJsonl<Message>(path)
+  return lines.slice(-limit)
+}
+
+export function loadAllMessages(dir: string): Message[] {
+  return loadJsonl<Message>(getReadableLlmHistoryPath(dir))
+}
+
+export function loadAllTraceMessages(dir: string): Message[] {
+  return loadJsonl<Message>(getLlmTracePath(dir))
 }
 
 export function loadLatestSystemMessage(dir: string): Message | null {
-  const path = resolve(dir, "history.jsonl")
+  const path = getReadableLlmHistoryPath(dir)
   if (!existsSync(path)) return null
   const lines = readFileSync(path, "utf-8")
     .split(/\r?\n/)
@@ -114,6 +226,24 @@ export function createSystemMessage(
     conversationId,
     role: "system",
     content,
+    timestamp: new Date().toISOString(),
+    metadata,
+  }
+}
+
+export function createToolMessage(
+  conversationId: string,
+  content: string,
+  toolCallId: string,
+  metadata: Message["metadata"] = {},
+): Message {
+  return {
+    schemaVersion: AI_SCHEMA_VERSION,
+    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    conversationId,
+    role: "tool",
+    content,
+    tool_call_id: toolCallId,
     timestamp: new Date().toISOString(),
     metadata,
   }

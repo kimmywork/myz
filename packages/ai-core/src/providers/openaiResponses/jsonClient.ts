@@ -85,8 +85,12 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
 } {
   const instructions: string[] = []
   const input: JsonRecord[] = []
+  const lastUserMessageIndex = messages.reduce((latestIndex, message, index) => {
+    return message?.role === "user" ? index : latestIndex
+  }, -1)
+  const activeToolCallIds = new Set<string>()
 
-  messages.forEach((message) => {
+  messages.forEach((message, index) => {
     if (!message) return
     if (message.role === "system" || message.role === "developer") {
       const text = coerceContentToText(message.content)
@@ -95,15 +99,20 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
     }
 
     if (message.role === "tool") {
+      if (index <= lastUserMessageIndex) return
+      const callId =
+        typeof message.tool_call_id === "string" ? message.tool_call_id : ""
+      if (!callId || !activeToolCallIds.has(callId)) return
       const output =
         typeof message.content === "string"
           ? message.content
           : coerceContentToText(message.content)
       const toolOutput: JsonRecord = {
         type: "function_call_output",
-        call_id: message.tool_call_id || "",
+        call_id: callId,
         output: output || "",
       }
+      activeToolCallIds.delete(callId)
       input.push(toolOutput)
       return
     }
@@ -119,12 +128,14 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
         input.push(messageEntry)
       }
 
-      if (Array.isArray(message.tool_calls)) {
+      if (index > lastUserMessageIndex && Array.isArray(message.tool_calls)) {
         message.tool_calls.forEach((toolCall, index) => {
           if (!toolCall?.function?.name) return
+          const callId = toolCall.id || `call-${index + 1}`
+          activeToolCallIds.add(callId)
           const callEntry: JsonRecord = {
             type: "function_call",
-            call_id: toolCall.id || `call-${index + 1}`,
+            call_id: callId,
             name: toolCall.function.name,
             arguments: toolCall.function.arguments || "{}",
           }
@@ -164,6 +175,23 @@ function normalizeToolChoice(choice: unknown) {
       : "")
   if (!name) return undefined
   return { type: "function", name }
+}
+
+function normalizeModelName(model: unknown) {
+  return typeof model === "string" ? model.trim().toLowerCase() : ""
+}
+
+function supportsResponsesTemperature(model: unknown) {
+  const normalized = normalizeModelName(model)
+  if (!normalized.startsWith("gpt-5")) {
+    return true
+  }
+
+  // OpenAI Responses API currently rejects `temperature` on GPT-5 family
+  // models unless a compatible reasoning mode is explicitly selected.
+  // This client does not yet model `reasoning: { effort: "none" }`, so the
+  // safe behavior is to omit `temperature` for all GPT-5 variants.
+  return false
 }
 
 async function parseResponsesStream(
@@ -419,7 +447,8 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
         model: request.model,
         input,
         ...(instructions ? { instructions } : {}),
-        ...(typeof request.temperature === "number"
+        ...(typeof request.temperature === "number" &&
+        supportsResponsesTemperature(request.model)
           ? { temperature: request.temperature }
           : {}),
         ...(typeof request.max_tokens === "number"

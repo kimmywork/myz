@@ -5,3 +5,7 @@ bot.yml
 .myz
 SOUL.md
 dist/
+
+soul/
+relationships/
+bot/
