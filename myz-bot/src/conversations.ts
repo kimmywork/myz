@@ -3,8 +3,6 @@ import { resolve } from "node:path"
 import { AI_SCHEMA_VERSION } from "@myz/shared/versioning"
 import type { Message } from "@myz/ai-core/types"
 
-const CONVERSATION_GITIGNORE = "workspace/*\n"
-
 export interface ConversationMetadata {
   schemaVersion: string
   conversationId: string
@@ -33,44 +31,7 @@ export function ensureConversationDir(
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true })
   }
-  ensureConversationGitignore(dir)
-  ensureConversationWorkspaceDir(conversationsDir, conversationId)
   return dir
-}
-
-function ensureConversationGitignore(dir: string) {
-  const path = resolve(dir, ".gitignore")
-  if (!existsSync(path)) {
-    writeFileSync(path, CONVERSATION_GITIGNORE)
-    return path
-  }
-  const content = readFileSync(path, "utf-8")
-  if (content.includes("workspace/*")) {
-    return path
-  }
-  const normalized = content.length > 0 && !content.endsWith("\n")
-    ? `${content}\n`
-    : content
-  writeFileSync(path, `${normalized}${CONVERSATION_GITIGNORE}`)
-  return path
-}
-
-export function getConversationWorkspaceDir(
-  conversationsDir: string,
-  conversationId: string,
-) {
-  return resolve(conversationsDir, conversationId, "workspace")
-}
-
-export function ensureConversationWorkspaceDir(
-  conversationsDir: string,
-  conversationId: string,
-) {
-  const workspaceDir = getConversationWorkspaceDir(conversationsDir, conversationId)
-  if (!existsSync(workspaceDir)) {
-    mkdirSync(workspaceDir, { recursive: true })
-  }
-  return workspaceDir
 }
 
 export function loadMetadata(dir: string): ConversationMetadata | null {

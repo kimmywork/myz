@@ -2,7 +2,7 @@ import {
   createProviderSession,
 } from "@myz/ai-core/runtime/providerSession"
 import { buildConversationPromptMessages } from "@myz/ai-core/prompt/conversation"
-import type { Message } from "@myz/ai-core/types"
+import type { Message, TokenUsage } from "@myz/ai-core/types"
 import type {
   ProviderChatCompletionRequest,
   ProviderMessage,
@@ -86,6 +86,84 @@ function normalizeProviderMessageContent(content: ProviderMessage["content"]) {
     })
     .filter(Boolean)
     .join("\n")
+}
+
+function readUsageNumber(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value
+    }
+  }
+  return undefined
+}
+
+function normalizeTokenUsage(usage: unknown): TokenUsage | undefined {
+  if (!usage || typeof usage !== "object") return undefined
+  const record = usage as Record<string, unknown>
+  const inputDetails =
+    record.input_tokens_details &&
+    typeof record.input_tokens_details === "object" &&
+    record.input_tokens_details !== null
+      ? (record.input_tokens_details as Record<string, unknown>)
+      : undefined
+  const outputDetails =
+    record.output_tokens_details &&
+    typeof record.output_tokens_details === "object" &&
+    record.output_tokens_details !== null
+      ? (record.output_tokens_details as Record<string, unknown>)
+      : undefined
+
+  const promptTokens = readUsageNumber(record, [
+    "prompt_tokens",
+    "promptTokens",
+    "input_tokens",
+    "inputTokens",
+  ])
+  const completionTokens = readUsageNumber(record, [
+    "completion_tokens",
+    "completionTokens",
+    "output_tokens",
+    "outputTokens",
+  ])
+  const reasoningTokens =
+    readUsageNumber(record, ["reasoning_tokens", "reasoningTokens"]) ??
+    (outputDetails
+      ? readUsageNumber(outputDetails, ["reasoning_tokens", "reasoningTokens"])
+      : undefined)
+  const cachedPromptTokens =
+    readUsageNumber(record, ["cached_prompt_tokens", "cachedPromptTokens"]) ??
+    (inputDetails
+      ? readUsageNumber(inputDetails, ["cached_tokens", "cachedTokens"])
+      : undefined)
+
+  return {
+    ...record,
+    ...(promptTokens != null
+      ? {
+          prompt_tokens: promptTokens,
+          promptTokens: promptTokens,
+        }
+      : {}),
+    ...(completionTokens != null
+      ? {
+          completion_tokens: completionTokens,
+          completionTokens: completionTokens,
+        }
+      : {}),
+    ...(reasoningTokens != null
+      ? {
+          reasoning_tokens: reasoningTokens,
+          reasoningTokens: reasoningTokens,
+        }
+      : {}),
+    ...(cachedPromptTokens != null
+      ? {
+          cached_prompt_tokens: cachedPromptTokens,
+          cachedPromptTokens: cachedPromptTokens,
+        }
+      : {}),
+  }
 }
 
 export function mapSystemMessagesToUserMessages(
@@ -255,6 +333,10 @@ export async function generateReply(options: {
     )
 
     const message = response?.choices?.[0]?.message
+    const responseUsage =
+      response && typeof response === "object" && "usage" in response
+        ? (response as { usage?: unknown }).usage
+        : undefined
     if (toolCallbackTasks.length) {
       await Promise.allSettled(toolCallbackTasks)
     }
@@ -262,7 +344,7 @@ export async function generateReply(options: {
       content: typeof message?.content === "string" ? message.content : "",
       toolCalls: message?.tool_calls || [],
       toolTrace,
-      usage: message?.usage,
+      usage: normalizeTokenUsage(message?.usage ?? responseUsage),
     }
   } finally {
     if (useTools) {

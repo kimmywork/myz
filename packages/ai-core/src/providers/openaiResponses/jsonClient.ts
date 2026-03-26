@@ -209,6 +209,18 @@ async function parseResponsesStream(
   let finalResponse: JsonRecord | null = null
   const toolCalls = new Map<string, ProviderToolCall>()
 
+  const mergeToolArguments = (current: string, incoming: string, mode: "delta" | "snapshot") => {
+    if (!incoming) return current
+    if (mode === "delta") {
+      return current + incoming
+    }
+    if (!current) return incoming
+    if (current === incoming) return current
+    if (incoming.startsWith(current)) return incoming
+    if (current.startsWith(incoming)) return current
+    return incoming
+  }
+
   const ensureToolCall = (id: string) => {
     if (!toolCalls.has(id)) {
       toolCalls.set(id, {
@@ -225,35 +237,53 @@ async function parseResponsesStream(
 
   const appendToolCallDelta = (payload: unknown) => {
     if (!isRecord(payload)) return
+    const type = typeof payload.type === "string" ? payload.type : ""
+    const source = isRecord(payload.item) ? payload.item : payload
     const callId =
-      typeof payload.call_id === "string"
-        ? payload.call_id
-        : typeof payload.id === "string"
-          ? payload.id
-          : typeof payload.tool_call_id === "string"
-            ? payload.tool_call_id
-            : typeof payload.item_id === "string"
-              ? payload.item_id
-              : ""
+      typeof source.call_id === "string"
+        ? source.call_id
+        : typeof source.id === "string"
+          ? source.id
+          : typeof payload.call_id === "string"
+            ? payload.call_id
+            : typeof payload.id === "string"
+              ? payload.id
+              : typeof payload.tool_call_id === "string"
+                ? payload.tool_call_id
+                : typeof payload.item_id === "string"
+                  ? payload.item_id
+                  : typeof source.item_id === "string"
+                    ? source.item_id
+                    : ""
     if (!callId) return
     const toolCall = ensureToolCall(callId)
     const name =
+      source.name ||
       payload.name ||
+      (isRecord(source.function) ? source.function.name : "") ||
       (isRecord(payload.function) ? payload.function.name : "")
     if (typeof name === "string" && name) {
       toolCall.function.name = name
     }
-    const argsDelta =
-      payload.arguments ??
-      payload.delta ??
-      payload.input ??
-      (isRecord(payload.function) ? payload.function.arguments : undefined)
-    if (argsDelta != null) {
+    const isDeltaEvent = /\.delta$/i.test(type)
+    const rawArgs = isDeltaEvent
+      ? payload.delta
+      : source.arguments ??
+        source.input ??
+        payload.arguments ??
+        payload.input ??
+        (isRecord(source.function) ? source.function.arguments : undefined) ??
+        (isRecord(payload.function) ? payload.function.arguments : undefined)
+    if (rawArgs != null) {
       const text =
-        typeof argsDelta === "string"
-          ? argsDelta
-          : JSON.stringify(argsDelta || {})
-      toolCall.function.arguments = (toolCall.function.arguments || "") + text
+        typeof rawArgs === "string"
+          ? rawArgs
+          : JSON.stringify(rawArgs || {})
+      toolCall.function.arguments = mergeToolArguments(
+        toolCall.function.arguments || "",
+        text,
+        isDeltaEvent ? "delta" : "snapshot",
+      )
     }
   }
 

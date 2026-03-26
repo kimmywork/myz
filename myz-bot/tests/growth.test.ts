@@ -15,6 +15,7 @@ import {
 } from "../src/growth"
 import type { Message } from "@myz/ai-core/types"
 import type { BotRuntimeConfig } from "../src/config"
+import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 const SOUL = [
   "# 星乃綺美",
@@ -23,98 +24,7 @@ const SOUL = [
 ].join("\n")
 
 function createConfig(): BotRuntimeConfig {
-  return {
-    telegram: {
-      username: "testbot",
-      token: "token",
-      timeoutSeconds: 25,
-      allowedUsers: [],
-      allowedChats: [],
-      adminUsers: [],
-      saveIncomingMedia: true,
-      groupResponseMode: {
-        onlyWhenMentioned: true,
-        allowReplyToBot: true,
-        allowAdminCommands: true,
-      },
-      retry: {
-        retries: 2,
-        baseDelayMs: 800,
-      },
-    },
-    network: {
-      requestTimeoutMs: 180000,
-      connectTimeoutMs: 10000,
-      keepAliveTimeoutMs: 4000,
-      keepAliveTimeoutThresholdMs: 2000,
-      proxyUrl: "",
-    },
-    ai: {
-      provider: "openai_compatible",
-      baseUrl: "",
-      accessToken: "",
-      headers: {},
-      model: "gpt-test",
-      systemPromptInUserMessage: false,
-      retry: {
-        retries: 2,
-        baseDelayMs: 1000,
-      },
-      capabilities: {
-        toolCalling: true,
-        reasoning: false,
-        vision: false,
-        imageOutput: false,
-      },
-      limits: {
-        contextWindow: 8192,
-        maxOutputTokens: 1024,
-        maxOutputTokenParam: "max_tokens",
-      },
-      tooling: {
-        toolChoice: "auto",
-        strict: "auto",
-        parallelToolCalls: "auto",
-      },
-    },
-    mcpServers: [],
-    workspaceRoot: "/tmp/workspace",
-    skillsDir: "/tmp/workspace/.myz/skills",
-    skills: { sources: [], allowlist: [], denylist: [] },
-    tools: { allowlist: [], denylist: [] },
-    conversationsDir: "/tmp/workspace/conversations",
-    memoryDir: "/tmp/workspace/memory",
-    scheduler: {
-      enabled: true,
-      pollIntervalMs: 15000,
-      maxBatchSize: 20,
-      failureRetryBaseDelayMs: 60000,
-    },
-    context: {
-      maxHistoryMessages: 30,
-      maxHistoryChars: 120000,
-      compressionThreshold: 40,
-      compressionCooldownMs: 300000,
-      summaryMaxMessages: 12,
-      summaryMaxChars: 6000,
-    },
-    soul: {
-      autoDraft: true,
-      autoApply: true,
-      reviewRequired: true,
-      autoDraftMessageInterval: 12,
-      autoDraftTimeIntervalMs: 3600000,
-      growthFeedbackBatchMessageInterval: 12,
-      growthFeedbackTimeIntervalMs: 1800000,
-      relationshipReflectionMessageInterval: 12,
-      relationshipReflectionTimeIntervalMs: 1800000,
-    },
-    skillSources: [],
-    skillAllowlist: [],
-    skillDenylist: [],
-    toolAllowlist: [],
-    toolDenylist: [],
-  }
+  return createRuntimeConfig("/tmp/workspace")
 }
 
 test("inferSoulGrowthBaseProfile reflects current soul bias", () => {
@@ -188,11 +98,11 @@ test("analyzeSoulGrowthFeedback uses llm result on a transcript batch", async ()
 })
 
 test("recordSoulGrowthFeedback persists gradual growth and exposes context", async () => {
-  const workspaceRoot = mkdtempSync(join(tmpdir(), "myz-bot-growth-"))
+  const runtimeRoot = mkdtempSync(join(tmpdir(), "myz-bot-growth-"))
 
   const first = await recordSoulGrowthFeedback({
     config: createConfig(),
-    workspaceRoot,
+    runtimeRoot,
     soul: SOUL,
     conversationId: "c1",
     messages: createTranscript([
@@ -215,7 +125,7 @@ test("recordSoulGrowthFeedback persists gradual growth and exposes context", asy
 
   const second = await recordSoulGrowthFeedback({
     config: createConfig(),
-    workspaceRoot,
+    runtimeRoot,
     soul: SOUL,
     conversationId: "c1",
     messages: createTranscript([
@@ -236,24 +146,24 @@ test("recordSoulGrowthFeedback persists gradual growth and exposes context", asy
   })
   assert.ok(second)
 
-  const state = loadSoulGrowthState(workspaceRoot)
+  const state = loadSoulGrowthState(runtimeRoot)
   assert.ok(state.recentEvents.length >= 2)
   assert.ok(Math.abs(state.traits.warmth.offset) > 0)
 
-  const context = renderSoulGrowthContext(workspaceRoot, SOUL)
+  const context = renderSoulGrowthContext(runtimeRoot, SOUL)
   assert.match(context, /角色成长状态/)
   assert.match(context, /成长边界/)
   assert.match(context, /最近反馈/)
 })
 
 test("growth event log archives older entries while keeping recent ones", async () => {
-  const workspaceRoot = mkdtempSync(join(tmpdir(), "myz-bot-growth-"))
+  const runtimeRoot = mkdtempSync(join(tmpdir(), "myz-bot-growth-"))
   const config = createConfig()
 
   for (let index = 0; index < 205; index += 1) {
     await recordSoulGrowthFeedback({
       config,
-      workspaceRoot,
+      runtimeRoot,
       soul: SOUL,
       conversationId: `c${index}`,
       messages: createTranscript([
@@ -273,8 +183,8 @@ test("growth event log archives older entries while keeping recent ones", async 
     })
   }
 
-  const eventFile = join(workspaceRoot, "soul", "growth-events.jsonl")
-  const archiveDir = join(workspaceRoot, "soul", "archive")
+  const eventFile = join(runtimeRoot, "soul", "growth-events.jsonl")
+  const archiveDir = join(runtimeRoot, "soul", "archive")
   const activeLines = readFileSync(eventFile, "utf-8").trim().split(/\r?\n/).filter(Boolean)
 
   assert.equal(activeLines.length, 200)
@@ -282,4 +192,34 @@ test("growth event log archives older entries while keeping recent ones", async 
   assert.ok(
     readdirSync(archiveDir).some((name) => name.startsWith("growth-events-") && name.endsWith(".jsonl")),
   )
+})
+
+test("recordSoulGrowthFeedback writes runtime state outside the workspace root", async () => {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "myz-bot-growth-workspace-"))
+  const runtimeRoot = mkdtempSync(join(tmpdir(), "myz-bot-growth-runtime-"))
+
+  await recordSoulGrowthFeedback({
+    config: createConfig(),
+    runtimeRoot,
+    soul: SOUL,
+    conversationId: "c1",
+    messages: createTranscript([
+      { role: "assistant", content: "我会继续跟进。" },
+      { role: "user", content: "这样就很好，再主动一点。" },
+    ]),
+    createCompletion: async () =>
+      JSON.stringify({
+        shouldRecord: true,
+        tone: "directive",
+        feedbackSummary: "用户希望更主动",
+        assistantSummary: "bot 在逐步贴近需求",
+        adjustments: [
+          { trait: "initiative", delta: 0.8, reason: "用户明确提出更主动" },
+        ],
+      }),
+  })
+
+  assert.equal(existsSync(join(runtimeRoot, "soul", "growth.json")), true)
+  assert.equal(existsSync(join(runtimeRoot, "soul", "growth-events.jsonl")), true)
+  assert.equal(existsSync(join(workspaceRoot, "soul")), false)
 })

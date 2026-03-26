@@ -3,7 +3,6 @@ import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import type { BotRuntimeConfig } from "../src/config"
 import {
   ensureConversationDir,
   saveMetadata,
@@ -21,100 +20,21 @@ import {
   recordIncomingTelegramMessage,
   recordOutgoingTelegramMessages,
 } from "../src/telegramHistory"
+import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
-function createConfig(root: string): BotRuntimeConfig {
-  return {
+function createConfig(root: string) {
+  return createRuntimeConfig(root, {
     telegram: {
-      username: "testbot",
-      token: "token",
-      timeoutSeconds: 25,
-      allowedUsers: [],
-      allowedChats: [],
       adminUsers: ["admin"],
-      saveIncomingMedia: true,
-      groupResponseMode: {
-        onlyWhenMentioned: true,
-        allowReplyToBot: true,
-        allowAdminCommands: true,
-      },
-      retry: {
-        retries: 2,
-        baseDelayMs: 800,
-      },
     },
-    network: {
-      requestTimeoutMs: 180000,
-      connectTimeoutMs: 10000,
-      keepAliveTimeoutMs: 4000,
-      keepAliveTimeoutThresholdMs: 2000,
-      proxyUrl: "",
-    },
-    ai: {
-      provider: "openai_compatible",
-      baseUrl: "",
-      accessToken: "",
-      headers: {},
-      model: "gpt-test",
-      systemPromptInUserMessage: false,
-      retry: {
-        retries: 2,
-        baseDelayMs: 1000,
-      },
-      capabilities: {
-        toolCalling: true,
-        reasoning: false,
-        vision: false,
-        imageOutput: false,
-      },
-      limits: {
-        contextWindow: 8192,
-        maxOutputTokens: 1024,
-        maxOutputTokenParam: "max_tokens",
-      },
-      tooling: {
-        toolChoice: "auto",
-        strict: "auto",
-        parallelToolCalls: "auto",
-      },
-    },
-    mcpServers: [],
-    workspaceRoot: root,
-    skillsDir: join(root, ".myz/skills"),
-    skills: { sources: [], allowlist: [], denylist: [] },
-    tools: { allowlist: [], denylist: [] },
-    conversationsDir: join(root, "conversations"),
-    memoryDir: join(root, "memory"),
     scheduler: {
-      enabled: true,
-      pollIntervalMs: 15000,
-      maxBatchSize: 20,
       failureRetryBaseDelayMs: 1000,
-    },
-    context: {
-      maxHistoryMessages: 30,
-      maxHistoryChars: 120000,
-      compressionThreshold: 40,
-      compressionCooldownMs: 300000,
-      summaryMaxMessages: 12,
-      summaryMaxChars: 6000,
     },
     soul: {
       autoDraft: false,
       autoApply: true,
-      reviewRequired: true,
-      autoDraftMessageInterval: 12,
-      autoDraftTimeIntervalMs: 3600000,
-      growthFeedbackBatchMessageInterval: 12,
-      growthFeedbackTimeIntervalMs: 1800000,
-      relationshipReflectionMessageInterval: 12,
-      relationshipReflectionTimeIntervalMs: 1800000,
     },
-    skillSources: [],
-    skillAllowlist: [],
-    skillDenylist: [],
-    toolAllowlist: [],
-    toolDenylist: [],
-  }
+  })
 }
 
 test("processDueScheduledTasks sends direct reminders and marks task triggered", async () => {
@@ -235,6 +155,8 @@ test("processDueConversationReflections runs time-based catch-up once per conver
 
   const telegram = {
     sendMessage: async () => [],
+    sendChatAction: async () => true,
+    setMessageReaction: async () => true,
     getUpdates: async () => [],
     getMe: async () => ({ id: 1, username: "testbot" }),
     getFile: async () => ({ file_id: "file" }),
@@ -288,5 +210,5 @@ test("processDueConversationReflections runs time-based catch-up once per conver
   assert.equal(growthCalls, 1)
   assert.equal(relationshipCalls, 1)
   assert.equal(draftCalls, 1)
-  assert.equal(listSoulDrafts(root).length, 1)
+  assert.equal(listSoulDrafts(config.workspaceRuntimeRoot).length, 1)
 })

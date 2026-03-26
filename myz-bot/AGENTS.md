@@ -1,47 +1,129 @@
 # myz-bot Agent Guide
 
 ## Build
+
 - Entry: `src/cli.ts`
-- Bundle: `vite build` -> `dist/myz-bot.cjs` (single file)
-- Dist prep: `scripts/prepare-dist.mjs` creates `dist/package.json` with `bin`
+- Bundle: `vite build` -> `dist/myz-bot.cjs`
+- Dist prep: `scripts/prepare-dist.mjs` writes `dist/package.json` and copies `README.md`
+- 发布形态仍然是单文件入口，`launch` 和 `serve` 都来自同一个 `myz-bot.cjs`
 
 ## Commands
-- `serve`: start bot (default)
-- `init`: generate `bot.yml`, `SOUL.md`, `AGENTS.md`, `BOOTSTRAP.md`, and work dirs
-- `check`: validate Telegram + LLM connectivity
-- `test`: run `node --import tsx --test tests/*.test.ts`
-- `serve --config /abs/path/to/bot.yml`: start with an explicit config file; relative paths inside that config resolve from the config file directory
-- `check --config /abs/path/to/bot.yml`: validate a non-default config file
-- Admin slash commands include `/permit`, `/soul`, and `/ops`; `/ops` covers runtime status, token usage, memory reset, housekeeping, and restart requests
+
+- `serve -w <workspace>`: 直接启动 worker
+- `launch -w <workspace>`: 启动内置 launcher supervisor
+- `init -w <workspace>`: 交互生成 runtime `bot.yml` 和 workspace Markdown 模板
+- `check -w <workspace>`: 检查 Telegram + LLM 连通性
+- `upgrade [status|check|apply] -w <workspace>`: 查询或申请升级
+- `migrate-layout -w <workspace>`: 迁移旧布局
+- `test`: `node --import tsx --test tests/*.test.ts`
+
+## Architecture
+
+- runtime 固定在 `~/.myz-bot`
+- `bot.yml` 固定在 `~/.myz-bot/bot.yml`
+- workspace 默认为 `process.cwd()`，也可以由 `-w` 显式指定
+- `bot.yml.workspaceRoot` 已废弃，代码必须忽略它
+- agent 只能默认读取 workspace 和当前会话附件，不允许直读 runtime
+- 不再暴露 `/bot` 虚拟目录
 
 ## Runtime Layout
-- `bot.yml`, `SOUL.md`, `AGENTS.md`, and `BOOTSTRAP.md` live in the working directory
-- `AGENTS.md` and `BOOTSTRAP.md` are workspace templates for the bot persona itself, distinct from this repository guide
-- `conversations/<id>/` stores `metadata.json`, `telegram-history.jsonl`, `llm-history.jsonl`, `llm-trace.jsonl`, `attachments/`, `context/`, `logs/`, per-conversation `workspace/`, plus task state in `tasks.json` and a generated `TODO.md`
-- Each conversation directory also gets a `.gitignore` that ignores `workspace/*`, so per-conversation worktrees do not pollute the bot runtime repo by default
-- `memory/` stores shared notes plus `conversation-summaries/`
-- `.myz/skills/` under the bot root is the default project skill source
-- `soul/` stores draft/audit/version history for `SOUL.md`, plus `growth.json` and `growth-events.jsonl` for long-term role reinforcement
-- `relationships/` stores `index.json` as the current stable relationship state and `reflections.jsonl` as the raw reflection audit stream used for later archiving
-- `permissions/` stores pending permission requests plus approved external-path grants remembered across sessions; grants can be directory-prefix or glob-based
-- Skills load from builtin + project sources; allow/deny lists are enforced from `bot.yml`
-- Telegram/LLM requests both use retry settings from `bot.yml`
-- Shared HTTP timeout/keep-alive behavior is configured under `bot.yml -> network`; if a proxy is needed, set `network.proxyUrl` explicitly and it will apply process-wide to Telegram plus LLM fetches
-- Background scheduler uses `bot.yml.scheduler` and re-enters the original conversation/thread when due tasks fire
-- User-visible tool progress updates are delivered during long tool chains and recorded in `telegram-history.jsonl` as `progress`; these updates should read like natural assistant dialogue rather than fixed status banners, and they are intentionally excluded from reflection / chronicle / recovery inputs
-- `telegram-history.jsonl` is the factual source for growth, relationship, and SOUL auto-draft reflections; `context/reflections.json` stores per-conversation Telegram message watermarks rather than visible-message offsets
-- `context/chat-chronicle.md` is the bounded long-term conversation chronicle derived from Telegram history; it is meant for durable context, not verbatim replay
-- `context/recovered-context.json` caches LLM-selected cross-layer recovery context when runtime history is thin; candidates are pulled from chronicle, summaries, growth, relationships, memories, and recent archives
-- `llm-trace.jsonl` holds tool audit / tool response traces so runtime prompt history can be compressed without dragging tool noise forward
-- Context compression rewrites `llm-history.jsonl`, archives dropped runtime messages under `context/archive/`, excludes tool traces from summaries, and respects a cooldown to avoid repeated compressions in the same short window
-- Ops housekeeping also archives live `llm-history.jsonl` / `llm-trace.jsonl` into `context/archive/` and resets `context/recovered-context.json`, but it intentionally preserves `telegram-history.jsonl`, task state, and metadata
-- Live `llm-history.jsonl` keeps tool responses until a compression rewrite happens; tool responses are dropped only during compression so the model does not lose just-executed tool outcomes in normal turns
-- Role growth is a separate layer from `SOUL.md`: user praise/critique updates growth state first, and auto-draft absorbs it gradually under continuity constraints
-- SOUL draft creation/apply is serialized process-wide and audited in `soul/audit.jsonl` to reduce cross-conversation overwrite races; prompt-visible SOUL content is compacted to stay bounded instead of growing without limit
-- `soul/growth.json` is the current growth state, while `soul/growth-events.jsonl` is the recent raw event stream; older events are rolled into `soul/archive/`
-- `relationships/index.json` is the current relationship state, while `relationships/reflections.jsonl` is the recent raw reflection stream; older entries are rolled into `relationships/archive/`
-- Cross-layer recovery should stay LLM-led: code gathers candidate long-term materials, but the model decides which parts are relevant to the current turn and compresses them into prompt-ready context
-- External path escalation is admin-mediated: when a tool needs access outside the normal workspace, it creates a permission request and waits for `/permit approve <requestId>` before retrying; admins can also grant broader reusable rules with `/permit grant <read|write|run> <path-or-glob>` and revoke them later
-- Compression summaries only retain visible conversation turns; tool responses and tool-audit traces are excluded from archived summaries
-- Local tools can list known contacts and relay a message to an existing private-contact conversation, but the relay is always marked as a bot-mediated transfer rather than impersonating the requester
-- Virtual tool paths are intentionally simple: `/bot` is the bot root, `/workspace` is the current conversation workspace, and `memory/`, `conversations/`, `soul/`, `relationships/`, `permissions/`, and `.myz/skills/` all live under `/bot`
+
+每个 workspace 的运行态数据在：
+
+- `~/.myz-bot/workspaces/<workspaceId>/conversations/`
+- `~/.myz-bot/workspaces/<workspaceId>/permissions/`
+- `~/.myz-bot/workspaces/<workspaceId>/relationships/`
+- `~/.myz-bot/workspaces/<workspaceId>/soul/`
+- `~/.myz-bot/workspaces/<workspaceId>/system/`
+
+`system/` 当前包含：
+
+- `launch.json`
+- `upgrade-state.json`
+- `restart-request.json`
+- `layout-migration.json`
+- `handoffs/` 升级 handoff 确认文件
+
+`launch.json` 记录 launcher 模式、workspace、命令参数、当前版本、重启次数和最近错误。
+
+`upgrade-state.json` 记录：
+
+- 当前版本
+- 当前启动模式
+- 上次检查时间
+- 最近已知版本
+- pendingVersion
+- 升级状态
+- 最近错误
+
+## Workspace Layout
+
+workspace 只保留协作文件和长期记忆：
+
+- `AGENTS.md`
+- `BOOTSTRAP.md`
+- `SOUL.md`
+- `IDENTITY.md`
+- `USER.md`
+- `memory/MEMORY.md`
+- `memory/YYYY-MM-DD.md`
+
+初始化生成的 `.gitignore` 只放行这些 Markdown 文档。
+
+## Tool Model
+
+- `/workspace` 指向当前 workspace 根目录
+- `/attachments` 指向当前会话已保存附件目录，只读
+- `Run` 只能把 `/workspace` 映射到真实命令工作区
+- `Write` / `Edit` 不允许写 `/attachments`
+- runtime 内部文件只允许 bot 自己处理，不作为 agent 常规工具面暴露
+- Telegram UX 状态不记入 history：
+  - `sendChatAction` 用来表示 LLM / 工具执行中的忙碌态
+  - `setMessageReaction` 用来给源消息打 `👌` / `👎` 结果标记
+
+## Memory
+
+- 长期记忆：`memory/MEMORY.md`
+- 每日日志：`memory/YYYY-MM-DD.md`
+- `Remember` 和对话摘要都落到日期文档
+- 首次访问 `memory/` 时会自动迁移旧版 `index.json` / `notes/` / `conversation-summaries/`
+- `/ops reset-memory [current|all] [journal|full]`
+  - `journal` 只清日记
+  - `full` 额外清 `MEMORY.md`
+
+## Launch And Upgrade
+
+- 推荐生产命令只有 `launch -w <workspace>`
+- `serve` 裸跑只适合开发或短时会话
+- launcher 会监听 `restart-request.json`
+- 外部 CLI 写入升级请求时，launcher 会主动结束旧 worker 再接管重启
+- 如果请求里包含更高的 `targetVersion`，launcher 会执行：
+  - `npx -y <package>@<version> launch -w <workspace> --handoff <token>`
+- 新 launcher 在成功拉起 worker 后写入 handoff ack，旧 launcher 再退出
+
+## Ops Surface
+
+管理员命令：
+
+- `/ops status`
+- `/ops usage [current|all]`
+- `/ops reset-memory [current|all] [journal|full]`
+- `/ops housekeeping [current|all]`
+- `/ops upgrade [status|check|apply]`
+- `/ops restart`
+
+非 launcher 模式下，`upgrade apply` 必须拒绝并明确提示切换到 `launch -w ...`。
+
+## Init And Migration
+
+- `init` 必须优先保护已有 `~/.myz-bot/bot.yml`
+- 如果检测到已有配置，非交互模式下必须显式指定 `reuse` 或 `update`
+- `migrate-layout` 负责把旧版 runtime 文件从 workspace 根迁入 `~/.myz-bot/workspaces/<workspaceId>/`
+- memory 迁移由 `ensureMemoryDir()` 自动处理
+
+## Editing Notes
+
+- 新增行为先改 schema 和状态文件模型，再改 CLI / `/ops` / launcher
+- 只用 `apply_patch` 改文件
+- 不要恢复用户已有改动
+- 如果 `README.md`、此文件、`docs/track/v11...`、`docs/track/v12...` 与真实行为脱节，必须一起更新

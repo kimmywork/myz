@@ -244,7 +244,7 @@ export async function generateSoulDraftContent(options: {
 }) {
   const soul = loadSoul(options.config.workspaceRoot)
   const roleGrowthContext = renderSoulGrowthContext(
-    options.config.workspaceRoot,
+    options.config.workspaceRuntimeRoot,
     soul,
   )
   const transcript = options.recentMessages
@@ -345,7 +345,7 @@ async function processConversationReflectionPassUnlocked(options: {
   if (growthPlan.trigger) {
     const event = await recordSoulGrowthFeedback({
       config: options.config,
-      workspaceRoot: options.config.workspaceRoot,
+      runtimeRoot: options.config.workspaceRuntimeRoot,
       soul: loadSoul(options.config.workspaceRoot),
       conversationId: options.conversationId,
       messages: convertTelegramEntriesToMessages(
@@ -377,7 +377,7 @@ async function processConversationReflectionPassUnlocked(options: {
   if (relationshipPlan.trigger) {
     const record = await reflectRelationshipRecord({
       config: options.config,
-      workspaceRoot: options.config.workspaceRoot,
+      workspaceRoot: options.config.workspaceRuntimeRoot,
       conversationsDir: options.config.conversationsDir,
       conversationId: options.conversationId,
       actorUserId: options.identity.actorUserId,
@@ -433,15 +433,24 @@ async function processConversationReflectionPassUnlocked(options: {
               recentMessages: draftMessages,
               actor: options.actor,
             })
-        const nextDraft = createSoulDraft(options.config.workspaceRoot, content, {
-          actor: options.actor,
-          trigger: "auto",
-          conversationId: options.conversationId,
+        const nextDraft = createSoulDraft({
+          runtimeRoot: options.config.workspaceRuntimeRoot,
+          content,
+          metadata: {
+            actor: options.actor,
+            trigger: "auto",
+            conversationId: options.conversationId,
+          },
         })
         const shouldApply = options.config.soul.autoApply !== false
         if (shouldApply) {
-          applySoulDraft(options.config.workspaceRoot, nextDraft.id, {
-            actor: options.actor,
+          applySoulDraft({
+            workspaceRoot: options.config.workspaceRoot,
+            runtimeRoot: options.config.workspaceRuntimeRoot,
+            draftId: nextDraft.id,
+            metadata: {
+              actor: options.actor,
+            },
           })
         }
         return {

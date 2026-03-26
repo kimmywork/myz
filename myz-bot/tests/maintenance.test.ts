@@ -11,11 +11,13 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { BotRuntimeConfig } from "../src/config"
+import { createRuntimeConfig } from "./helpers/runtimeConfig"
 import { ensureConversationDir } from "../src/conversations"
 import {
   __resetRestartStateForTest,
   __setRestartExitHandlerForTest,
   collectTokenUsageSummary,
+  formatTokenUsageSummary,
   getBotRuntimeStatus,
   requestProcessRestart,
   resetAllMemory,
@@ -33,99 +35,16 @@ import {
 } from "../src/memory"
 import { createScheduledTask } from "../src/tasks"
 
+function listDailyLogs(memoryDir: string) {
+  return readdirSync(memoryDir).filter((name) => /^\d{4}-\d{2}-\d{2}\.md$/.test(name))
+}
+
 function createConfig(root: string): BotRuntimeConfig {
-  return {
+  return createRuntimeConfig(root, {
     telegram: {
-      username: "testbot",
-      token: "token",
-      timeoutSeconds: 25,
-      allowedUsers: [],
-      allowedChats: [],
       adminUsers: ["admin"],
-      saveIncomingMedia: true,
-      groupResponseMode: {
-        onlyWhenMentioned: true,
-        allowReplyToBot: true,
-        allowAdminCommands: true,
-      },
-      retry: {
-        retries: 2,
-        baseDelayMs: 800,
-      },
-    },
-    network: {
-      requestTimeoutMs: 180000,
-      connectTimeoutMs: 10000,
-      keepAliveTimeoutMs: 4000,
-      keepAliveTimeoutThresholdMs: 2000,
-      proxyUrl: "",
-    },
-    ai: {
-      provider: "openai_compatible",
-      baseUrl: "",
-      accessToken: "",
-      headers: {},
-      model: "gpt-test",
-      systemPromptInUserMessage: false,
-      retry: {
-        retries: 2,
-        baseDelayMs: 1000,
-      },
-      capabilities: {
-        toolCalling: true,
-        reasoning: false,
-        vision: false,
-        imageOutput: false,
-      },
-      limits: {
-        contextWindow: 8192,
-        maxOutputTokens: 1024,
-        maxOutputTokenParam: "max_tokens",
-      },
-      tooling: {
-        toolChoice: "auto",
-        strict: "auto",
-        parallelToolCalls: "auto",
-      },
-    },
-    mcpServers: [],
-    workspaceRoot: root,
-    skillsDir: join(root, ".myz/skills"),
-    skills: { sources: [], allowlist: [], denylist: [] },
-    tools: { allowlist: [], denylist: [] },
-    conversationsDir: join(root, "conversations"),
-    memoryDir: join(root, "memory"),
-    scheduler: {
-      enabled: true,
-      pollIntervalMs: 15000,
-      maxBatchSize: 20,
-      failureRetryBaseDelayMs: 60000,
-    },
-    context: {
-      maxHistoryMessages: 30,
-      maxHistoryChars: 120000,
-      compressionThreshold: 40,
-      compressionCooldownMs: 300000,
-      summaryMaxMessages: 12,
-      summaryMaxChars: 6000,
-    },
-    soul: {
-      autoDraft: true,
-      autoApply: true,
-      reviewRequired: true,
-      autoDraftMessageInterval: 12,
-      autoDraftTimeIntervalMs: 3600000,
-      growthFeedbackBatchMessageInterval: 12,
-      growthFeedbackTimeIntervalMs: 1800000,
-      relationshipReflectionMessageInterval: 12,
-      relationshipReflectionTimeIntervalMs: 1800000,
-    },
-    skillSources: [],
-    skillAllowlist: [],
-    skillDenylist: [],
-    toolAllowlist: [],
-    toolDenylist: [],
-  }
+    } as BotRuntimeConfig["telegram"],
+  })
 }
 
 function writeJsonl(path: string, entries: unknown[]) {
@@ -204,6 +123,7 @@ test("collectTokenUsageSummary aggregates live and archived llm usage", () => {
   assert.equal(current.promptTokens, 18)
   assert.equal(current.completionTokens, 12)
   assert.equal(current.reasoningTokens, 3)
+  assert.equal(current.cachedPromptTokens, 0)
   assert.equal(current.toolCallCount, 3)
   assert.equal(current.byConversation.length, 1)
 
@@ -214,6 +134,50 @@ test("collectTokenUsageSummary aggregates live and archived llm usage", () => {
   assert.equal(all.totalTokens, 35)
   assert.equal(all.byConversation[0]?.conversationId, "c1")
   assert.equal(all.byConversation[1]?.conversationId, "c2")
+})
+
+test("collectTokenUsageSummary understands responses-style input/output token fields", () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-maintenance-"))
+  const config = createConfig(root)
+  const c1Dir = ensureConversationDir(config.conversationsDir, "c1")
+
+  writeJsonl(join(c1Dir, "llm-history.jsonl"), [
+    {
+      id: "m1",
+      conversationId: "c1",
+      role: "assistant",
+      content: "reply 1",
+      timestamp: new Date().toISOString(),
+      metadata: {
+        toolCallCount: 0,
+        usage: {
+          total_tokens: 90,
+          input_tokens: 60,
+          output_tokens: 30,
+          input_tokens_details: {
+            cached_tokens: 40,
+          },
+          output_tokens_details: {
+            reasoning_tokens: 12,
+          },
+        },
+      },
+    },
+  ])
+
+  const summary = collectTokenUsageSummary({
+    config,
+    scope: "current",
+    conversationId: "c1",
+  })
+
+  assert.equal(summary.totalTokens, 90)
+  assert.equal(summary.promptTokens, 60)
+  assert.equal(summary.cachedPromptTokens, 40)
+  assert.equal(summary.completionTokens, 30)
+  assert.equal(summary.reasoningTokens, 12)
+  assert.match(formatTokenUsageSummary(summary), /cachedPromptTokens: 40/)
+  assert.match(formatTokenUsageSummary(summary), /cached=40/)
 })
 
 test("resetConversationMemory removes only current conversation bound memories", () => {
@@ -234,18 +198,23 @@ test("resetConversationMemory removes only current conversation bound memories",
   saveConversationSummary(memoryDir, "c1", "summary 1")
   saveConversationSummary(memoryDir, "c2", "summary 2")
 
-  const result = resetConversationMemory(memoryDir, "c1")
+  const result = resetConversationMemory({
+    memoryDir,
+    conversationId: "c1",
+  })
   assert.equal(result.removedItems, 1)
   assert.equal(result.removedNotes, 1)
   assert.equal(result.removedSummaries, 1)
-  assert.equal(existsSync(current.file), false)
+  assert.equal(result.clearedLongTermMemory, false)
+  assert.equal(readFileSync(current.file, "utf-8").includes("Current"), false)
   assert.equal(existsSync(other.file), true)
-  assert.equal(existsSync(join(memoryDir, "conversation-summaries", "c1.md")), false)
-  assert.equal(existsSync(join(memoryDir, "conversation-summaries", "c2.md")), true)
+  const remainingLog = readFileSync(other.file, "utf-8")
+  assert.equal(remainingLog.includes("会话摘要 c1"), false)
+  assert.equal(remainingLog.includes("会话摘要 c2"), true)
   assert.equal(loadMemoryIndex(memoryDir).length, 1)
 })
 
-test("resetAllMemory clears notes, summaries, and index", () => {
+test("resetAllMemory clears daily logs and derived memory index", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-maintenance-"))
   const memoryDir = join(root, "memory")
   ensureMemoryDir(memoryDir)
@@ -263,14 +232,54 @@ test("resetAllMemory clears notes, summaries, and index", () => {
   saveConversationSummary(memoryDir, "c1", "summary 1")
   saveConversationSummary(memoryDir, "c2", "summary 2")
 
-  const result = resetAllMemory(memoryDir)
+  const result = resetAllMemory({
+    memoryDir,
+  })
   assert.equal(result.removedItems, 2)
+  assert.equal(result.clearedLongTermMemory, false)
   assert.equal(loadMemoryIndex(memoryDir).length, 0)
+  assert.equal(listDailyLogs(memoryDir).length, 0)
+  assert.equal(existsSync(join(memoryDir, "MEMORY.md")), true)
+})
+
+test("resetAllMemory can also clear long-term MEMORY.md", () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-maintenance-"))
+  const memoryDir = join(root, "memory")
+  ensureMemoryDir(memoryDir)
+  writeFileSync(join(memoryDir, "MEMORY.md"), "# MEMORY.md\n\n- 长期偏好：保持简洁。\n")
+  addMemory(memoryDir, {
+    title: "One",
+    content: "one",
+    tags: ["conversation:c1"],
+  })
+
+  const result = resetAllMemory({
+    memoryDir,
+    includeLongTerm: true,
+  })
+
+  assert.equal(result.clearedLongTermMemory, true)
+  assert.equal(listDailyLogs(memoryDir).length, 0)
   assert.equal(
-    readdirSync(join(memoryDir, "conversation-summaries")).filter(Boolean).length,
-    0,
+    readFileSync(join(memoryDir, "MEMORY.md"), "utf-8"),
+    "# MEMORY.md\n\n这里记录长期稳定记忆。\n",
   )
-  assert.equal(readdirSync(join(memoryDir, "notes")).filter(Boolean).length, 0)
+})
+
+test("resetConversationMemory rejects clearing long-term memory in current scope", () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-maintenance-"))
+  const memoryDir = join(root, "memory")
+  ensureMemoryDir(memoryDir)
+
+  assert.throws(
+    () =>
+      resetConversationMemory({
+        memoryDir,
+        conversationId: "c1",
+        includeLongTerm: true,
+      }),
+    /current scope 不允许清空全局长期记忆/,
+  )
 })
 
 test("runHousekeeping archives live llm files and resets recovered context", () => {
@@ -337,7 +346,7 @@ test("getBotRuntimeStatus reports conversations, memory, permissions, and active
     tags: ["conversation:c1"],
   })
   createElevatedPermissionRequest({
-    workspaceRoot: config.workspaceRoot,
+    workspaceRoot: config.workspaceRuntimeRoot,
     access: "read",
     targetPath: join(root, "secret.txt"),
     rawTarget: join(root, "secret.txt"),
@@ -363,17 +372,37 @@ test("getBotRuntimeStatus reports conversations, memory, permissions, and active
 
 test("requestProcessRestart schedules a single exit request", async () => {
   const exitCodes: number[] = []
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-restart-"))
+  const requestFilePath = join(root, "system", "restart-request.json")
   __resetRestartStateForTest()
   __setRestartExitHandlerForTest((exitCode) => {
     exitCodes.push(exitCode)
   })
 
-  assert.equal(requestProcessRestart({ delayMs: 0, exitCode: 91 }), true)
+  assert.equal(
+    requestProcessRestart({
+      delayMs: 0,
+      exitCode: 91,
+      requestFilePath,
+      reason: "ops_restart",
+      requestedBy: "admin",
+    }),
+    true,
+  )
   assert.equal(requestProcessRestart({ delayMs: 0, exitCode: 92 }), false)
 
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 5))
 
   assert.deepEqual(exitCodes, [91])
+  assert.equal(existsSync(requestFilePath), true)
+  const request = JSON.parse(readFileSync(requestFilePath, "utf-8")) as {
+    reason?: string
+    requestedBy?: string
+    exitCode?: number
+  }
+  assert.equal(request.reason, "ops_restart")
+  assert.equal(request.requestedBy, "admin")
+  assert.equal(request.exitCode, 91)
   __setRestartExitHandlerForTest(null)
   __resetRestartStateForTest()
 })

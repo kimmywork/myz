@@ -1,15 +1,74 @@
 # myz-bot
 
-## 命令
-- `npx myz-bot -- serve`：启动 Telegram Bot（默认命令，可省略 `serve`）
-- `npx myz-bot -- serve --config /path/to/bot.yml`：使用指定配置文件启动；该配置里的相对路径会按该 `bot.yml` 所在目录解析
-- `npx myz-bot -- init`：在当前目录生成 `bot.yml`、`SOUL.md`、`AGENTS.md`、`BOOTSTRAP.md`，并创建 `.myz/skills/`、`memory/`、`conversations/`
-- `npx myz-bot -- check`：检测 Telegram 与 LLM 连接性（getMe + 发送一条测试消息）
-- `npx myz-bot -- check --config /path/to/bot.yml`：检测指定配置文件
-- `npm test`：运行 `node --import tsx --test tests/*.test.ts`
+`myz-bot` 现在采用固定 runtime + 显式 workspace 的布局：
 
-## 配置文件
-### bot.yml
+- runtime 固定在 `~/.myz-bot`
+- `bot.yml` 固定在 `~/.myz-bot/bot.yml`
+- workspace 默认为当前执行目录，也可以通过 `-w <path>` 指定
+- 生产启动推荐只用 `launch`，不要长期裸跑 `serve`
+
+## Commands
+
+- `npx myz-bot -- init -w /abs/path/to/workspace`
+  - 交互式初始化 Telegram / LLM 配置
+  - 写入 `~/.myz-bot/bot.yml`
+  - 在 workspace 创建 `AGENTS.md`、`BOOTSTRAP.md`、`SOUL.md`、`IDENTITY.md`、`USER.md`、`memory/MEMORY.md`、`.gitignore`
+- `npx myz-bot -- serve -w /abs/path/to/workspace`
+  - 直接启动 worker 进程
+  - 适合开发、调试、短时运行
+- `npx myz-bot -- launch -w /abs/path/to/workspace`
+  - 启动内置 launcher supervisor
+  - 推荐生产模式
+  - `/ops restart` 和 `/ops upgrade apply` 依赖这个模式自动接管重启
+- `npx myz-bot -- check -w /abs/path/to/workspace`
+  - 检查 Telegram 和 LLM 连通性
+- `npx myz-bot -- upgrade status -w /abs/path/to/workspace`
+- `npx myz-bot -- upgrade check -w /abs/path/to/workspace`
+- `npx myz-bot -- upgrade apply -w /abs/path/to/workspace`
+  - 只会在 launcher 模式下自动 apply
+- `npx myz-bot -- migrate-layout -w /abs/path/to/workspace`
+  - 把旧版“workspace 里混放 runtime”的布局迁移到新结构
+- `npm test`
+  - 运行 `node --import tsx --test tests/*.test.ts`
+
+## Runtime And Workspace
+
+### Runtime
+
+全局配置和每个 workspace 的运行态数据都放在 `~/.myz-bot`：
+
+- `bot.yml`
+- `workspaces/<workspaceId>/conversations/`
+- `workspaces/<workspaceId>/permissions/`
+- `workspaces/<workspaceId>/relationships/`
+- `workspaces/<workspaceId>/soul/`
+- `workspaces/<workspaceId>/system/`
+
+`system/` 里目前会维护：
+
+- `launch.json`
+- `upgrade-state.json`
+- `restart-request.json`
+- `layout-migration.json`
+
+### Workspace
+
+workspace 只保留协作文档和长期记忆：
+
+- `AGENTS.md`
+- `BOOTSTRAP.md`
+- `SOUL.md`
+- `IDENTITY.md`
+- `USER.md`
+- `memory/MEMORY.md`
+- `memory/YYYY-MM-DD.md`
+
+默认 `.gitignore` 只放行这些 Markdown 文档，其他工作区文件模式默认忽略。
+
+## bot.yml
+
+`workspaceRoot` 已废弃且会被忽略。workspace 只能由 CLI 的 `-w` 决定。
+
 ```yaml
 telegram:
   username: "your_bot_username"
@@ -25,6 +84,13 @@ telegram:
   retry:
     retries: 2
     baseDelayMs: 800
+
+network:
+  requestTimeoutMs: 180000
+  connectTimeoutMs: 10000
+  keepAliveTimeoutMs: 4000
+  keepAliveTimeoutThresholdMs: 2000
+  proxyUrl: ""
 
 ai:
   provider: openai_compatible
@@ -51,7 +117,6 @@ ai:
     parallelToolCalls: auto
 
 mcpServers: []
-workspaceRoot: "."
 skills:
   sources: []
   allowlist: []
@@ -64,6 +129,14 @@ scheduler:
   pollIntervalMs: 15000
   maxBatchSize: 20
   failureRetryBaseDelayMs: 60000
+upgrade:
+  enabled: true
+  packageName: "myz-bot"
+  channel: "latest"
+  checkIntervalMs: 21600000
+  strategy: "notify"
+  applyMode: "manual"
+  allowPrerelease: false
 context:
   maxHistoryMessages: 120
   maxHistoryChars: 120000
@@ -83,53 +156,68 @@ soul:
   relationshipReflectionTimeIntervalMs: 3600000
 ```
 
-### SOUL.md
-用于定义人设与表达风格（名字、外观、性格、语气等）。根目录下的 `SOUL.md` 会与 `IDENTITY.md` / `USER.md` / `TOOLS.md` / `BOOTSTRAP.md` 一起作为身份档案预载到主 system prompt；如果用户明确要求查看原文或需要核对未预载的文件，bot 才应再次读取。
+## Tool Paths
 
-### AGENTS.md
-工作区级协作约定模板。默认会结合 myz-bot 的运行特性约束会话启动、记忆、群聊行为、任务调度、权限边界、维护命令与渐进式工具反馈。bot 在启动某个工作区时会默认读取最近的 `AGENTS.md` 注入主 system prompt；通过 `List` / `Read` 访问目录内容时，会把目标目录最近的嵌套 `AGENTS.md` 一起返回，但不会把根目录 `AGENTS.md` 反复回灌进 `/bot` 读取结果。
+提供给 agent 的虚拟路径只有两类：
 
-### BOOTSTRAP.md
-首次启动引导模板。参考 OpenClaw 的 bootstrap 思路，但改成适配 myz-bot 的 Telegram 入口、SOUL 文件、任务调度和运行时目录；当身份与用户关系建立稳定后，应由 assistant 删除。
+- `/workspace`
+  - 当前 workspace 根目录
+  - `Run` 的默认工作目录也在这里
+- `/attachments`
+  - 当前会话已保存的附件目录
+  - 只读
 
-## 交互行为
-- 私聊默认响应；群聊默认仅响应 `@bot`、回复 bot 的消息，或管理员命令。
-- 工具路径语义统一为两层：`/bot` 指 bot 根目录，`/workspace` 指当前会话工作目录。`memory/`、`conversations/`、`.myz/skills/` 都位于 `/bot` 下。
-- 若 `telegram.groupResponseMode.onlyWhenMentioned: false`，则群聊中所有消息都会进入 bot 处理链；对普通群消息也会调用 LLM，但仅当模型返回实际内容时才发送回复。被动摄入场景下，模型应返回 `NO_REPLY` 表示不回群。
-- 支持文本、图片、文件、语音、转发和回复消息；媒体可保存到会话目录的 `attachments/`。
-- `/skills` 可列出可见技能；`/skills/<source>/<name>` 可读取技能说明。
-- `/ops` 是管理员维护命令，支持 `status`、`usage [current|all]`、`reset-memory [current|all]`、`housekeeping [current|all]`、`restart`。
-- `/soul draft` 生成 SOUL 草案；`/soul apply <draftId>` 由管理员应用并自动保留历史版本。
-- 当工具需要访问当前工作区之外的路径时，会自动创建权限请求；管理员可以用 `/permit list` 查看，再用 `/permit approve <requestId>` 或 `/permit reject <requestId>` 处理。也可以直接手工添加规则：`/permit grant <read|write|run> <path-or-glob>`。普通目录路径表示放开该目录子树，带 `*` 的模式会按 glob 匹配；`/permit revoke <grantId>` 可撤销。已批准的路径规则会持久保存。
-- `soul.autoDraft` 默认开启。除了消息阈值以外，达到对应时间周期后也会补做 growth / relationship / auto-draft 反思，避免用户停在某轮对话后长期不结算。默认上，growth / relationship 比 auto-draft 更勤，SOUL 草案会明显更稀疏。
-- 用户的鼓励、点赞、感谢、纠偏与明确风格偏好，会写入 `soul/growth.json` / `soul/growth-events.jsonl`，逐步强化或减弱 bot 的某些气质与动机。
-- 角色成长不会直接覆盖 `SOUL.md`；它会先作为独立状态影响日常回复，并在 auto-draft 时渐进吸收，避免人格漂移。
-- growth / relationship / SOUL 反思统一基于 `telegram-history.jsonl`，并用 Telegram message id 水位去重，不再依赖可见消息 offset 计数。
-- `context/chat-chronicle.md` 会基于 Telegram 对话滚动生成长期编年摘要，供后续对话参考；它会主动压缩旧内容，不会无限追加。
-- 当运行时 `llm-history.jsonl` 很薄时，bot 会触发一次 LLM 主导的跨层恢复：从 chronicle、会话摘要、growth、relationship、memory 和近期 archive 候选中挑出当前相关部分，结果缓存到 `context/recovered-context.json`。
-- 当 bot 进入工具调用链时，会额外发送渐进式进度反馈；这些中间消息优先复用 assistant 在 tool-call 回合里自然写出的前置说明，必要时再由单独提示词补一句简短的人话，避免只在最后一次性发长总结。
-- 渐进式进度反馈按 tool-call 批次去重：一批 public tools 最多发送 1 条开始消息和 1 条结果消息，并自动折叠重复文本，减少刷屏。
-- 这类工具进度反馈会记入 `telegram-history.jsonl` 的 `progress` 事件，但不会进入 reflection、chronicle 或恢复层候选。
-- 支持会话级定时任务。LLM 可通过任务工具自动创建提醒/待办，触发后会回到原对话继续回复；`direct` 模式直接发送提醒，`llm` 模式会带上下文继续处理。
-- `/todo` 可直接查看和控制当前会话任务：`/todo list`、`/todo postpone <taskId> <dueAt-ISO8601>`、`/todo complete <taskId>`、`/todo archive <taskId>`、`/todo delete <taskId>`、`/todo reopen <taskId>`。
-- 当用户明确要求“记住/记下来”某个稳定事实或状态时，即使模型没有主动调用 `Remember`，bot 也会把该轮总结自动写入 `memory/notes/` 作为共享记忆。
-- 当 `ai.systemPromptInUserMessage: true` 时，bot 会把 system/developer 指令改写成 user 消息发送，用于兼容不正确处理 `instructions` 的 Responses 实现。
-- Telegram API 与 LLM API 都支持指数退避重试，分别由 `telegram.retry` 和 `ai.retry` 控制。
-- 对话错误会记录到 `conversations/<id>/logs/errors.jsonl`；管理员收到完整错误与 stack，普通用户只收到简短错误。
-- 会话任务保存在 `conversations/<id>/tasks.json`，并自动同步到 `conversations/<id>/TODO.md` 供人查看。
-- `/ops housekeeping` 会把 live `llm-history.jsonl` / `llm-trace.jsonl` 归档到 `context/archive/` 后清空，同时重置 `context/recovered-context.json`；默认不删除 `telegram-history.jsonl`、任务和元数据。
-- `/ops usage` 会汇总 live + archive 中 assistant 消息记录的 token usage，可按当前会话或全局统计。
-- `/ops reset-memory all` 会清空 `memory/index.json`、`memory/notes/`、`memory/conversation-summaries/`；`current` 仅移除当前会话绑定的记忆与 summary。
-- 每个新建会话目录都会自动生成 `.gitignore`，默认忽略 `workspace/*`，避免会话工作区文件污染 bot 自身运行时仓库。
-- SOUL 自动草案和应用会记录到 `soul/audit.jsonl`，并在同一进程内串行执行，减少多个会话同时触发时的覆盖冲突。
-- SOUL 在进入提示词和自动草案链路前会做结构化收敛，自动草案不会再把“角色成长状态”与“最近反馈摘要”这类波动段直接沉回基础 SOUL，避免长期膨胀。
-- `soul/growth.json` / `relationships/index.json` 表示当前稳定状态；`soul/growth-events.jsonl` / `relationships/reflections.jsonl` 保留近期原始反思流水，超过阈值的旧记录会自动归档到各自的 `archive/` 目录。
-- 运行态 `llm-history.jsonl` 在未触发 compression 前会保留 tool response，保证模型能看到刚发生过的工具结果；只有 compression 重写历史时才会排除 tool response，压缩摘要也不会保留 tool response / tool audit。
+不再暴露 `/bot`，agent 也不允许直接读取 runtime。
 
-## 目录结构
-- `conversations/`：私聊按 `chatId-userId` 分目录，群聊按 `chatId-group` 或 `chatId-thread-<id>` 分目录存储 `telegram-history.jsonl`、`llm-history.jsonl`、`llm-trace.jsonl`、`context/chat-chronicle.md`、附件、错误日志、上下文压缩记录、`tasks.json`、`TODO.md`，以及每个会话独立的 `workspace/`
-- `memory/`：共享记忆与会话摘要
-- `soul/`：SOUL 草案、审计日志、版本回滚文件、`growth.json` 当前成长状态、`growth-events.jsonl` 近期成长流水，以及 `archive/` 历史归档
-- `relationships/`：`index.json` 当前关系状态、`reflections.jsonl` 近期关系反思流水，以及 `archive/` 历史归档
-- `permissions/`：待处理权限请求和已批准的外部路径授权规则，支持目录前缀规则与 glob 规则
-- `.myz/skills/`：项目侧自定义技能目录，作为默认 `project` skill source
+## Memory Model
+
+记忆改成 Markdown-first：
+
+- 长期整理记忆在 `memory/MEMORY.md`
+- 日志型共享记忆和会话摘要按日期写入 `memory/YYYY-MM-DD.md`
+- 旧版 `memory/index.json`、`memory/notes/`、`memory/conversation-summaries/` 会在首次访问时自动迁移
+
+管理员命令：
+
+- `/ops reset-memory [current|all] [journal|full]`
+  - `journal` 只清日记型记忆
+  - `full` 额外清空 `memory/MEMORY.md`
+
+## Telegram Behavior
+
+- 私聊默认响应
+- 群聊默认只响应 `@bot`、回复 bot，或管理员命令
+- 附件会保存到当前会话 runtime，并以 `/attachments/<file>` 暴露给 agent
+- 在需要回复的会话里，bot 会用 `sendChatAction` 暴露当前正在忙，不把这类状态写入 `telegram-history.jsonl`
+- 完成一轮处理后，bot 会用 `setMessageReaction` 给触发消息打结果标记；当前实现使用 Telegram 允许列表里的 `👌` / `👎`
+- `/skills`、`/todo`、`/permit`、`/soul`、`/ops` 都保留可用
+
+`/ops` 当前支持：
+
+- `status`
+- `usage [current|all]`
+- `reset-memory [current|all] [journal|full]`
+- `housekeeping [current|all]`
+- `upgrade [status|check|apply]`
+- `restart`
+
+## Upgrade Notes
+
+- `launch` 会维护 `system/launch.json`
+- `upgrade check` / `/ops upgrade check` 会更新 `system/upgrade-state.json`
+- `upgrade apply` / `/ops upgrade apply` 会写入 `system/restart-request.json`
+- 只有 launcher 模式会自动 apply 升级
+- `serve` 裸跑时可以检查版本，但不会承诺无人值守升级
+- launcher 收到带 `targetVersion` 的重启请求后，会用 `npx -y <package>@<version> launch -w ...` 做代际 handoff
+
+## Migration
+
+如果历史工作区里还混放这些旧目录：
+
+- `bot.yml`
+- `conversations/`
+- `permissions/`
+- `relationships/`
+- `soul/`
+
+执行 `migrate-layout -w <workspace>` 会把 runtime 部分搬到 `~/.myz-bot/workspaces/<workspaceId>/`，同时保留 workspace 文档并触发 memory 迁移。

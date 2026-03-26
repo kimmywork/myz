@@ -14,8 +14,6 @@ import {
   createAssistantMessage,
   createUserMessage,
   ensureConversationDir,
-  ensureConversationWorkspaceDir,
-  getConversationWorkspaceDir,
   loadMetadata,
 } from "./conversations"
 import {
@@ -80,6 +78,11 @@ function withAgentsContext(options: {
 
 function resolveToolWorkspaceRoot(options: {
   workspaceRoot: string
+}) {
+  return options.workspaceRoot
+}
+
+function resolveConversationAttachmentsDir(options: {
   conversationsDir: string
   conversationId?: string
 }) {
@@ -88,10 +91,10 @@ function resolveToolWorkspaceRoot(options: {
       ? options.conversationId.trim()
       : ""
   if (!conversationId) {
-    return options.workspaceRoot
+    throw new Error("当前没有会话上下文，无法访问附件")
   }
-  ensureConversationWorkspaceDir(options.conversationsDir, conversationId)
-  return getConversationWorkspaceDir(options.conversationsDir, conversationId)
+  const conversationDir = ensureConversationDir(options.conversationsDir, conversationId)
+  return resolve(conversationDir, "attachments")
 }
 
 function resolveVirtualPath(options: {
@@ -105,8 +108,6 @@ function resolveVirtualPath(options: {
 }) {
   const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
     workspaceRoot: options.workspaceRoot,
-    conversationsDir: options.conversationsDir,
-    conversationId: options.conversationId,
   })
   const raw = options.rawPath || ""
   if (!raw) {
@@ -119,14 +120,18 @@ function resolveVirtualPath(options: {
   }
 
   const normalized = raw.startsWith("/") ? raw : `/${raw}`
-  if (normalized === "/bot" || normalized.startsWith("/bot/")) {
-    const next = normalized.replace(/^\/bot\/?/, "")
-    const target = resolve(options.workspaceRoot, next)
+  if (normalized === "/attachments" || normalized.startsWith("/attachments/")) {
+    const next = normalized.replace(/^\/attachments\/?/, "")
+    const attachmentRoot = resolveConversationAttachmentsDir({
+      conversationsDir: options.conversationsDir,
+      conversationId: options.conversationId,
+    })
+    const target = resolve(attachmentRoot, next)
     return {
       kind: "path" as const,
       path: options.allowExternalPaths
         ? target
-        : assertInsideWorkspace(target, options.workspaceRoot),
+        : assertInsideWorkspace(target, attachmentRoot),
     }
   }
 
@@ -210,8 +215,13 @@ function globToRegex(pattern: string) {
   return new RegExp(`^${escaped}$`)
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
 export function createLocalTools(options: {
   workspaceRoot: string
+  runtimeRoot?: string
   skillSources: SkillSource[]
   skillAllowlist?: string[]
   skillDenylist?: string[]
@@ -222,6 +232,96 @@ export function createLocalTools(options: {
   adminUsers?: string[]
   telegram?: Pick<TelegramClient, "sendMessage">
 }) {
+  const runtimeRoot = options.runtimeRoot || options.workspaceRoot
+  function resolveWriteEntries(args: Record<string, unknown>) {
+    const conversationId =
+      typeof args.__conversationId === "string" ? args.__conversationId : undefined
+    const files = Array.isArray(args.files)
+      ? args.files.filter(isRecord)
+      : []
+    const writeRequests =
+      files.length > 0
+        ? files.map((file) => ({
+            rawPath: typeof file.path === "string" ? file.path : "",
+            content: typeof file.content === "string" ? file.content : "",
+            append: Boolean(file.append),
+          }))
+        : [
+            {
+              rawPath: typeof args.path === "string" ? args.path : "",
+              content: typeof args.content === "string" ? args.content : "",
+              append: Boolean(args.append),
+            },
+          ]
+    if (!writeRequests.length) {
+      return errorBlock("path 必填")
+    }
+
+    const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
+      workspaceRoot: options.workspaceRoot,
+    })
+    const resolvedPaths = new Set<string>()
+    const entries: Array<{
+      rawPath: string
+      resolvedPath: string
+      content: string
+      append: boolean
+    }> = []
+
+    for (const request of writeRequests) {
+      if (!request.rawPath) {
+        return errorBlock("path 必填")
+      }
+      if (/^\/attachments(?:\/|$)/.test(request.rawPath)) {
+        return errorBlock("附件目录是只读的，不允许写入")
+      }
+      const resolved = resolveVirtualPath({
+        rawPath: request.rawPath,
+        workspaceRoot: options.workspaceRoot,
+        skillSources: options.skillSources,
+        memoryDir: options.memoryDir,
+        conversationsDir: options.conversationsDir,
+        conversationId,
+        allowExternalPaths: true,
+      })
+      if (!resolved || resolved.kind !== "path") {
+        return errorBlock("路径无效或不允许写入")
+      }
+      if (
+        !isPathAllowedByGrant({
+          workspaceRoot: runtimeRoot,
+          access: "write",
+          targetPath: resolved.path,
+        }) &&
+        !resolved.path.startsWith(`${effectiveWorkspaceRoot}/`) &&
+        resolved.path !== effectiveWorkspaceRoot &&
+        !resolved.path.startsWith(`${options.workspaceRoot}/`) &&
+        resolved.path !== options.workspaceRoot
+      ) {
+        return requestElevatedPathPermission({
+          access: "write",
+          targetPath: resolved.path,
+          rawTarget: request.rawPath,
+          toolName: "Write",
+          reason: "需要写入当前工作区之外的路径",
+          conversationId,
+        })
+      }
+      if (resolvedPaths.has(resolved.path)) {
+        return errorBlock(`批量写入中存在重复路径：${request.rawPath}`)
+      }
+      resolvedPaths.add(resolved.path)
+      entries.push({
+        rawPath: request.rawPath,
+        resolvedPath: resolved.path,
+        content: request.content,
+        append: request.append,
+      })
+    }
+
+    return entries
+  }
+
   async function notifyAdminsForPermissionRequest(request: {
     id: string
     access: string
@@ -233,7 +333,7 @@ export function createLocalTools(options: {
   }) {
     if (!options.telegram || !(options.adminUsers || []).length) return
     const targets = findAdminPrivateChatTargets({
-      workspaceRoot: options.workspaceRoot,
+      workspaceRoot: runtimeRoot,
       conversationsDir: options.conversationsDir,
       adminUsers: options.adminUsers || [],
     })
@@ -265,7 +365,7 @@ export function createLocalTools(options: {
     conversationId?: string
   }) {
     const request = createElevatedPermissionRequest({
-      workspaceRoot: options.workspaceRoot,
+      workspaceRoot: runtimeRoot,
       access: payload.access,
       targetPath: payload.targetPath,
       rawTarget: payload.rawTarget,
@@ -289,7 +389,7 @@ export function createLocalTools(options: {
   const allDefinitions: Tool[] = [
     {
       name: "List",
-      description: "列出目录下的文件（默认当前会话 /workspace，可传 path）。支持 /workspace、/bot、/skills 虚拟路径。",
+      description: "列出目录下的文件（默认 /workspace，可传 path）。支持 /workspace、/attachments、/skills 虚拟路径。",
       inputSchema: {
         type: "object",
         properties: {
@@ -299,7 +399,7 @@ export function createLocalTools(options: {
     },
     {
       name: "Read",
-      description: "读取文件内容（默认当前会话 /workspace，支持 /bot、/skills 路径）。",
+      description: "读取文件内容（默认 /workspace，支持 /attachments、/skills 路径）。",
       inputSchema: {
         type: "object",
         required: ["path"],
@@ -310,14 +410,25 @@ export function createLocalTools(options: {
     },
     {
       name: "Write",
-      description: "写入文件内容（默认当前会话 /workspace，支持 /bot 路径）。",
+      description: "写入一个或多个文件内容（默认 /workspace）。可用 path/content 写单文件，或用 files 数组批量写入。",
       inputSchema: {
         type: "object",
-        required: ["path", "content"],
         properties: {
           path: { type: "string" },
           content: { type: "string" },
           append: { type: "boolean" },
+          files: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["path", "content"],
+              properties: {
+                path: { type: "string" },
+                content: { type: "string" },
+                append: { type: "boolean" },
+              },
+            },
+          },
         },
       },
     },
@@ -349,7 +460,7 @@ export function createLocalTools(options: {
     },
     {
       name: "Run",
-      description: "在当前会话 /workspace 下执行命令（带 guardrail，可引用 /workspace 与 /bot）。",
+      description: "在 /workspace 下执行命令（带 guardrail，可引用 /workspace）。",
       inputSchema: {
         type: "object",
         required: ["command"],
@@ -361,7 +472,7 @@ export function createLocalTools(options: {
     },
     {
       name: "Remember",
-      description: "写入共享记忆（memory/notes）。",
+      description: "写入共享记忆日志（memory/YYYY-MM-DD.md）。",
       inputSchema: {
         type: "object",
         required: ["title", "content"],
@@ -396,7 +507,7 @@ export function createLocalTools(options: {
     },
     {
       name: "ListScheduledTasks",
-      description: "列出当前会话的定时任务与状态。任务会同步到 conversations/<id>/TODO.md。",
+      description: "列出当前会话的定时任务与状态。",
       inputSchema: {
         type: "object",
         properties: {
@@ -499,13 +610,11 @@ export function createLocalTools(options: {
       }
       const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
         workspaceRoot: options.workspaceRoot,
-        conversationsDir: options.conversationsDir,
-        conversationId,
       })
       if (
         resolved.kind === "path" &&
         !isPathAllowedByGrant({
-          workspaceRoot: options.workspaceRoot,
+          workspaceRoot: runtimeRoot,
           access: "read",
           targetPath: resolved.path,
         }) &&
@@ -538,6 +647,9 @@ export function createLocalTools(options: {
       const conversationId =
         typeof args.__conversationId === "string" ? args.__conversationId : undefined
       if (!rawPath) return errorBlock("path 必填")
+      if (/^\/attachments(?:\/|$)/.test(rawPath)) {
+        return errorBlock("附件目录是只读的，不允许修改")
+      }
       const resolved = resolveVirtualPath({
         rawPath,
         workspaceRoot: options.workspaceRoot,
@@ -573,13 +685,11 @@ export function createLocalTools(options: {
       }
       const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
         workspaceRoot: options.workspaceRoot,
-        conversationsDir: options.conversationsDir,
-        conversationId,
       })
       if (
         resolved.kind === "path" &&
         !isPathAllowedByGrant({
-          workspaceRoot: options.workspaceRoot,
+          workspaceRoot: runtimeRoot,
           access: "read",
           targetPath: resolved.path,
         }) &&
@@ -609,54 +719,27 @@ export function createLocalTools(options: {
       )
     },
     Write: async (args) => {
-      const rawPath = typeof args.path === "string" ? args.path : ""
-      const content = typeof args.content === "string" ? args.content : ""
-      const append = Boolean(args.append)
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId : undefined
-      if (!rawPath) return errorBlock("path 必填")
-      const resolved = resolveVirtualPath({
-        rawPath,
-        workspaceRoot: options.workspaceRoot,
-        skillSources: options.skillSources,
-        memoryDir: options.memoryDir,
-        conversationsDir: options.conversationsDir,
-        conversationId,
-        allowExternalPaths: true,
-      })
-      if (!resolved || resolved.kind !== "path") {
-        return errorBlock("路径无效或不允许写入")
+      const resolvedEntries = resolveWriteEntries(args)
+      if (!Array.isArray(resolvedEntries)) {
+        return resolvedEntries
       }
-      const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
-        workspaceRoot: options.workspaceRoot,
-        conversationsDir: options.conversationsDir,
-        conversationId,
+      resolvedEntries.forEach((entry) => {
+        mkdirSync(dirname(entry.resolvedPath), { recursive: true })
+        const existing = existsSync(entry.resolvedPath)
+          ? readFileSync(entry.resolvedPath, "utf-8")
+          : ""
+        const next = entry.append ? existing + entry.content : entry.content
+        writeFileSync(entry.resolvedPath, next)
       })
-      if (
-        !isPathAllowedByGrant({
-          workspaceRoot: options.workspaceRoot,
-          access: "write",
-          targetPath: resolved.path,
-        }) &&
-        !resolved.path.startsWith(`${effectiveWorkspaceRoot}/`) &&
-        resolved.path !== effectiveWorkspaceRoot &&
-        !resolved.path.startsWith(`${options.workspaceRoot}/`) &&
-        resolved.path !== options.workspaceRoot
-      ) {
-        return requestElevatedPathPermission({
-          access: "write",
-          targetPath: resolved.path,
-          rawTarget: rawPath,
-          toolName: "Write",
-          reason: "需要写入当前工作区之外的路径",
-          conversationId,
-        })
+      if (resolvedEntries.length === 1) {
+        return textBlock("写入完成")
       }
-      mkdirSync(dirname(resolved.path), { recursive: true })
-      const existing = existsSync(resolved.path) ? readFileSync(resolved.path, "utf-8") : ""
-      const next = append ? existing + content : content
-      writeFileSync(resolved.path, next)
-      return textBlock("写入完成")
+      return textBlock(
+        [
+          `批量写入完成（${resolvedEntries.length} 个文件）`,
+          ...resolvedEntries.map((entry) => `- ${entry.rawPath}`),
+        ].join("\n"),
+      )
     },
     Edit: async (args) => {
       const rawPath = typeof args.path === "string" ? args.path : ""
@@ -680,12 +763,10 @@ export function createLocalTools(options: {
       }
       const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
         workspaceRoot: options.workspaceRoot,
-        conversationsDir: options.conversationsDir,
-        conversationId,
       })
       if (
         !isPathAllowedByGrant({
-          workspaceRoot: options.workspaceRoot,
+          workspaceRoot: runtimeRoot,
           access: "write",
           targetPath: resolved.path,
         }) &&
@@ -721,8 +802,6 @@ export function createLocalTools(options: {
       const regex = globToRegex(pattern.replace(/\\/g, "/"))
       const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
         workspaceRoot: options.workspaceRoot,
-        conversationsDir: options.conversationsDir,
-        conversationId,
       })
       const files = walkDir(effectiveWorkspaceRoot, maxEntries)
       const matched = files
@@ -738,11 +817,8 @@ export function createLocalTools(options: {
       if (!command) return errorBlock("command 必填")
       const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
         workspaceRoot: options.workspaceRoot,
-        conversationsDir: options.conversationsDir,
-        conversationId,
       })
       const resolvedCommand = resolveCommandVirtualPaths(command, {
-        "/bot": options.workspaceRoot,
         "/workspace": effectiveWorkspaceRoot,
       })
       const guard = validateCommand(resolvedCommand, effectiveWorkspaceRoot)
@@ -753,7 +829,7 @@ export function createLocalTools(options: {
           deniedPaths.length > 0 &&
           deniedPaths.every((path) =>
             isPathAllowedByGrant({
-              workspaceRoot: options.workspaceRoot,
+              workspaceRoot: runtimeRoot,
               access: "run",
               targetPath: path,
             }),
@@ -804,7 +880,7 @@ export function createLocalTools(options: {
     },
     ListKnownContacts: async () => {
       const contacts = listKnownContacts({
-        workspaceRoot: options.workspaceRoot,
+        workspaceRoot: runtimeRoot,
         conversationsDir: options.conversationsDir,
       })
       if (!contacts.length) return textBlock("暂无可联系对象")
@@ -848,7 +924,7 @@ export function createLocalTools(options: {
         return errorBlock("target/message 必填")
       }
       const resolved = resolveKnownContact({
-        workspaceRoot: options.workspaceRoot,
+        workspaceRoot: runtimeRoot,
         conversationsDir: options.conversationsDir,
         target,
       })
@@ -970,7 +1046,7 @@ export function createLocalTools(options: {
             {
               ok: true,
               task,
-              todoPath: `/bot/conversations/${conversationId}/TODO.md`,
+              todoPath: "内部运行时 TODO 视图",
             },
             null,
             2,
@@ -1030,7 +1106,7 @@ export function createLocalTools(options: {
             {
               ok: true,
               task,
-              todoPath: `/bot/conversations/${conversationId}/TODO.md`,
+              todoPath: "内部运行时 TODO 视图",
             },
             null,
             2,

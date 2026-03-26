@@ -7,7 +7,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs"
-import { resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 import type { Message } from "@myz/ai-core/types"
 import type { BotRuntimeConfig } from "./config"
 import {
@@ -16,7 +16,12 @@ import {
   getLlmTracePath,
 } from "./conversations"
 import { listElevatedPermissionRequests } from "./elevatedPermissions"
-import { ensureMemoryDir, loadMemoryIndex, saveMemoryIndex } from "./memory"
+import {
+  ensureMemoryDir,
+  loadMemoryIndex,
+  removeMemoryEntries,
+  resetLongTermMemory,
+} from "./memory"
 import { listConversationTasks } from "./tasks"
 
 const PROCESS_STARTED_AT = Date.now()
@@ -45,6 +50,7 @@ export interface TokenUsageTotals {
   promptTokens: number
   completionTokens: number
   reasoningTokens: number
+  cachedPromptTokens: number
 }
 
 export interface ConversationTokenUsageSummary extends TokenUsageTotals {
@@ -68,6 +74,7 @@ export interface MemoryResetResult {
   removedItems: number
   removedNotes: number
   removedSummaries: number
+  clearedLongTermMemory: boolean
 }
 
 export interface HousekeepingResult {
@@ -120,6 +127,7 @@ function sumUsageTotals(target: TokenUsageTotals, source: Partial<TokenUsageTota
   target.promptTokens += normalizeUsageValue(source.promptTokens)
   target.completionTokens += normalizeUsageValue(source.completionTokens)
   target.reasoningTokens += normalizeUsageValue(source.reasoningTokens)
+  target.cachedPromptTokens += normalizeUsageValue(source.cachedPromptTokens)
 }
 
 function extractUsageTotals(message: Message): TokenUsageTotals {
@@ -130,16 +138,46 @@ function extractUsageTotals(message: Message): TokenUsageTotals {
       promptTokens: 0,
       completionTokens: 0,
       reasoningTokens: 0,
+      cachedPromptTokens: 0,
     }
   }
+  const inputDetails =
+    usage.input_tokens_details &&
+    typeof usage.input_tokens_details === "object" &&
+    usage.input_tokens_details !== null
+      ? (usage.input_tokens_details as Record<string, unknown>)
+      : undefined
+  const outputDetails =
+    usage.output_tokens_details &&
+    typeof usage.output_tokens_details === "object" &&
+    usage.output_tokens_details !== null
+      ? (usage.output_tokens_details as Record<string, unknown>)
+      : undefined
   return {
     totalTokens: normalizeUsageValue(usage.total_tokens ?? usage.totalTokens),
-    promptTokens: normalizeUsageValue(usage.prompt_tokens ?? usage.promptTokens),
+    promptTokens: normalizeUsageValue(
+      usage.prompt_tokens ??
+        usage.promptTokens ??
+        usage.input_tokens ??
+        usage.inputTokens,
+    ),
     completionTokens: normalizeUsageValue(
-      usage.completion_tokens ?? usage.completionTokens,
+      usage.completion_tokens ??
+        usage.completionTokens ??
+        usage.output_tokens ??
+        usage.outputTokens,
     ),
     reasoningTokens: normalizeUsageValue(
-      usage.reasoning_tokens ?? usage.reasoningTokens,
+      usage.reasoning_tokens ??
+        usage.reasoningTokens ??
+        outputDetails?.reasoning_tokens ??
+        outputDetails?.reasoningTokens,
+    ),
+    cachedPromptTokens: normalizeUsageValue(
+      usage.cached_prompt_tokens ??
+        usage.cachedPromptTokens ??
+        inputDetails?.cached_tokens ??
+        inputDetails?.cachedTokens,
     ),
   }
 }
@@ -163,6 +201,7 @@ function readConversationUsageSummary(conversationDir: string, conversationId: s
     promptTokens: 0,
     completionTokens: 0,
     reasoningTokens: 0,
+    cachedPromptTokens: 0,
     assistantMessages: 0,
     meteredMessages: 0,
     toolCallCount: 0,
@@ -245,7 +284,7 @@ export function getBotRuntimeStatus(config: BotRuntimeConfig): BotRuntimeStatus 
     conversations: conversationEntries.length,
     memoryItems: loadMemoryIndex(config.memoryDir).length,
     pendingPermissionRequests: listElevatedPermissionRequests(
-      config.workspaceRoot,
+      config.workspaceRuntimeRoot,
       "pending",
     ).length,
     activeTasks,
@@ -298,6 +337,7 @@ export function collectTokenUsageSummary(options: {
     promptTokens: 0,
     completionTokens: 0,
     reasoningTokens: 0,
+    cachedPromptTokens: 0,
     byConversation,
   }
 
@@ -320,6 +360,7 @@ export function formatTokenUsageSummary(summary: TokenUsageSummary, maxConversat
     `- toolCallCount: ${summary.toolCallCount}`,
     `- totalTokens: ${summary.totalTokens}`,
     `- promptTokens: ${summary.promptTokens}`,
+    `- cachedPromptTokens: ${summary.cachedPromptTokens}`,
     `- completionTokens: ${summary.completionTokens}`,
     `- reasoningTokens: ${summary.reasoningTokens}`,
   ]
@@ -328,7 +369,7 @@ export function formatTokenUsageSummary(summary: TokenUsageSummary, maxConversat
     lines.push("", "按会话统计：")
     summary.byConversation.slice(0, Math.max(1, maxConversations)).forEach((entry) => {
       lines.push(
-        `- ${entry.conversationId} | total=${entry.totalTokens} | prompt=${entry.promptTokens} | completion=${entry.completionTokens} | replies=${entry.assistantMessages} | tools=${entry.toolCallCount}`,
+        `- ${entry.conversationId} | total=${entry.totalTokens} | prompt=${entry.promptTokens} | cached=${entry.cachedPromptTokens} | completion=${entry.completionTokens} | replies=${entry.assistantMessages} | tools=${entry.toolCallCount}`,
       )
     })
   }
@@ -336,65 +377,50 @@ export function formatTokenUsageSummary(summary: TokenUsageSummary, maxConversat
   return lines.join("\n")
 }
 
-export function resetConversationMemory(memoryDir: string, conversationId: string) {
-  ensureMemoryDir(memoryDir)
-  const items = loadMemoryIndex(memoryDir)
-  const kept = items.filter((item) => !item.tags.includes(`conversation:${conversationId}`))
-  const removed = items.filter((item) => item.tags.includes(`conversation:${conversationId}`))
-
-  let removedNotes = 0
-  removed.forEach((item) => {
-    if (deleteFileIfExists(item.file)) {
-      removedNotes += 1
-    }
-  })
-  saveMemoryIndex(memoryDir, kept)
-
-  const summaryPath = resolve(memoryDir, "conversation-summaries", `${conversationId}.md`)
-  const removedSummaries = deleteFileIfExists(summaryPath) ? 1 : 0
+export function resetConversationMemory(options: {
+  memoryDir: string
+  conversationId: string
+  includeLongTerm?: boolean
+}) {
+  ensureMemoryDir(options.memoryDir)
+  const removed = removeMemoryEntries(
+    options.memoryDir,
+    (entry) => entry.tags.includes(`conversation:${options.conversationId}`),
+  )
+  const removedNotes = removed.filter((entry) => entry.kind === "memory").length
+  const removedSummaries = removed.filter((entry) => entry.kind === "summary").length
+  if (options.includeLongTerm) {
+    throw new Error("current scope 不允许清空全局长期记忆，请改用 /ops reset-memory all full")
+  }
 
   return {
     scope: "current",
-    removedItems: removed.length,
+    removedItems: removedNotes,
     removedNotes,
     removedSummaries,
+    clearedLongTermMemory: false,
   } satisfies MemoryResetResult
 }
 
-export function resetAllMemory(memoryDir: string) {
-  ensureMemoryDir(memoryDir)
-  const items = loadMemoryIndex(memoryDir)
-  let removedNotes = 0
-  items.forEach((item) => {
-    if (deleteFileIfExists(item.file)) {
-      removedNotes += 1
-    }
-  })
-
-  const summariesDir = resolve(memoryDir, "conversation-summaries")
-  let removedSummaries = 0
-  if (existsSync(summariesDir)) {
-    readdirSync(summariesDir).forEach((name) => {
-      if (deleteFileIfExists(resolve(summariesDir, name))) {
-        removedSummaries += 1
-      }
-    })
+export function resetAllMemory(options: {
+  memoryDir: string
+  includeLongTerm?: boolean
+}) {
+  ensureMemoryDir(options.memoryDir)
+  const removed = removeMemoryEntries(options.memoryDir, () => true)
+  const removedNotes = removed.filter((entry) => entry.kind === "memory").length
+  const removedSummaries = removed.filter((entry) => entry.kind === "summary").length
+  const clearedLongTermMemory = Boolean(options.includeLongTerm)
+  if (clearedLongTermMemory) {
+    resetLongTermMemory(options.memoryDir)
   }
-
-  const notesDir = resolve(memoryDir, "notes")
-  if (existsSync(notesDir)) {
-    readdirSync(notesDir).forEach((name) => {
-      deleteFileIfExists(resolve(notesDir, name))
-    })
-  }
-
-  saveMemoryIndex(memoryDir, [])
 
   return {
     scope: "all",
-    removedItems: items.length,
+    removedItems: removedNotes,
     removedNotes,
     removedSummaries,
+    clearedLongTermMemory,
   } satisfies MemoryResetResult
 }
 
@@ -404,6 +430,7 @@ export function formatMemoryResetResult(result: MemoryResetResult) {
     `- removedItems: ${result.removedItems}`,
     `- removedNotes: ${result.removedNotes}`,
     `- removedSummaries: ${result.removedSummaries}`,
+    `- clearedLongTermMemory: ${result.clearedLongTermMemory ? "true" : "false"}`,
   ].join("\n")
 }
 
@@ -489,11 +516,39 @@ export function formatHousekeepingResult(result: HousekeepingResult) {
 export function requestProcessRestart(options: {
   delayMs?: number
   exitCode?: number
+  requestFilePath?: string
+  reason?: string
+  requestedBy?: string
+  targetVersion?: string
+  packageName?: string
+  scheduleExit?: boolean
 } = {}) {
   if (restartScheduled) {
     return false
   }
   restartScheduled = true
+  if (options.requestFilePath) {
+    mkdirSync(dirname(options.requestFilePath), { recursive: true })
+    writeFileSync(
+      options.requestFilePath,
+      JSON.stringify(
+        {
+          schemaVersion: "1.0.0",
+          requestedAt: new Date().toISOString(),
+          reason: options.reason || "manual_restart",
+          requestedBy: options.requestedBy || "system",
+          exitCode: options.exitCode ?? RESTART_EXIT_CODE,
+          targetVersion: options.targetVersion || null,
+          packageName: options.packageName || null,
+        },
+        null,
+        2,
+      ),
+    )
+  }
+  if (options.scheduleExit === false) {
+    return true
+  }
   const timer = setTimeout(() => {
     restartExitHandler(options.exitCode ?? RESTART_EXIT_CODE)
   }, Math.max(0, options.delayMs ?? 200))

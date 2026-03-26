@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { existsSync, mkdtempSync, readFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { prepareConversationContext } from "../src/context"
@@ -35,9 +35,12 @@ test("prepareConversationContext writes summary when threshold exceeded", () => 
   assert.equal(result.history.length, 4)
 
   const summaryFile = join(conversationDir, "context", "summary.json")
-  const memorySummary = join(memoryDir, "conversation-summaries", "c1.md")
   assert.equal(existsSync(summaryFile), true)
-  assert.equal(existsSync(memorySummary), true)
+  const dailyLogs = readdirSync(memoryDir).filter((name: string) => /^\d{4}-\d{2}-\d{2}\.md$/.test(name))
+  assert.equal(dailyLogs.length, 1)
+  const memorySummary = readFileSync(join(memoryDir, dailyLogs[0] || ""), "utf-8")
+  assert.match(memorySummary, /会话摘要 c1/)
+  assert.match(memorySummary, /会话压缩摘要/)
 
   const stored = JSON.parse(readFileSync(summaryFile, "utf-8")) as { summary?: string }
   assert.equal(stored.summary, result.summary)

@@ -1,13 +1,14 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { loadConfig } from "../src/config"
 
 test("loadConfig parses minimal bot.yml", () => {
-  const dir = mkdtempSync(join(tmpdir(), "myz-bot-"))
-  const path = join(dir, "bot.yml")
+  const workspaceDir = mkdtempSync(join(tmpdir(), "myz-bot-workspace-"))
+  const runtimeDir = mkdtempSync(join(tmpdir(), "myz-bot-runtime-"))
+  const path = join(runtimeDir, "bot.yml")
   writeFileSync(
     path,
     [
@@ -20,10 +21,11 @@ test("loadConfig parses minimal bot.yml", () => {
     ].join("\n"),
   )
 
-  const config = loadConfig(path)
+  const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
   assert.equal(config.telegram.username, "testbot")
   assert.equal(config.ai.model, "gpt-test")
-  assert.ok(config.workspaceRoot)
+  assert.equal(config.workspaceRoot, realpathSync(workspaceDir))
+  assert.equal(config.runtimeRoot, runtimeDir)
   assert.equal(config.skillSources[0]?.id, "builtin")
   assert.equal(config.skillSources[1]?.id, "project")
   assert.equal(config.telegram.timeoutSeconds, 25)
@@ -32,6 +34,13 @@ test("loadConfig parses minimal bot.yml", () => {
   assert.equal(config.ai.retry.retries, 2)
   assert.equal(config.scheduler.enabled, true)
   assert.equal(config.scheduler.pollIntervalMs, 15000)
+  assert.equal(config.upgrade.enabled, true)
+  assert.equal(config.upgrade.packageName, "myz-bot")
+  assert.equal(config.upgrade.channel, "latest")
+  assert.equal(config.upgrade.checkIntervalMs, 21600000)
+  assert.equal(config.upgrade.strategy, "notify")
+  assert.equal(config.upgrade.applyMode, "manual")
+  assert.equal(config.upgrade.allowPrerelease, false)
   assert.equal(config.context.maxHistoryMessages, 120)
   assert.equal(config.context.maxHistoryChars, 120000)
   assert.equal(config.context.compressionThreshold, 160)
@@ -49,8 +58,9 @@ test("loadConfig parses minimal bot.yml", () => {
 })
 
 test("loadConfig parses permissions and skill policies", () => {
-  const dir = mkdtempSync(join(tmpdir(), "myz-bot-"))
-  const path = join(dir, "bot.yml")
+  const workspaceDir = mkdtempSync(join(tmpdir(), "myz-bot-workspace-"))
+  const runtimeDir = mkdtempSync(join(tmpdir(), "myz-bot-runtime-"))
+  const path = join(runtimeDir, "bot.yml")
   writeFileSync(
     path,
     [
@@ -91,6 +101,14 @@ test("loadConfig parses permissions and skill policies", () => {
       "  pollIntervalMs: 5000",
       "  maxBatchSize: 5",
       "  failureRetryBaseDelayMs: 10000",
+      "upgrade:",
+      "  enabled: true",
+      "  packageName: custom-bot",
+      "  channel: 0.2.0",
+      "  checkIntervalMs: 120000",
+      "  strategy: prepare-and-restart",
+      "  applyMode: launcher-only",
+      "  allowPrerelease: true",
       "context:",
       "  maxHistoryMessages: 10",
       "  maxHistoryChars: 20000",
@@ -109,7 +127,7 @@ test("loadConfig parses permissions and skill policies", () => {
     ].join("\n"),
   )
 
-  const config = loadConfig(path)
+  const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
   assert.deepEqual(config.telegram.allowedUsers, ["alice"])
   assert.deepEqual(config.telegram.allowedChats, [42])
   assert.deepEqual(config.telegram.adminUsers, ["admin"])
@@ -125,6 +143,12 @@ test("loadConfig parses permissions and skill policies", () => {
   assert.equal(config.ai.retry.retries, 4)
   assert.equal(config.scheduler.pollIntervalMs, 5000)
   assert.equal(config.scheduler.maxBatchSize, 5)
+  assert.equal(config.upgrade.packageName, "custom-bot")
+  assert.equal(config.upgrade.channel, "0.2.0")
+  assert.equal(config.upgrade.checkIntervalMs, 120000)
+  assert.equal(config.upgrade.strategy, "prepare-and-restart")
+  assert.equal(config.upgrade.applyMode, "launcher-only")
+  assert.equal(config.upgrade.allowPrerelease, true)
   assert.equal(config.context.maxHistoryMessages, 10)
   assert.equal(config.context.maxHistoryChars, 20000)
   assert.equal(config.context.compressionThreshold, 20)
@@ -140,28 +164,30 @@ test("loadConfig parses permissions and skill policies", () => {
   assert.equal(config.soul.relationshipReflectionTimeIntervalMs, 900000)
 })
 
-test("loadConfig resolves workspaceRoot relative to bot.yml location", () => {
+test("loadConfig ignores legacy workspaceRoot in bot.yml and uses the provided workspace", () => {
   const dir = mkdtempSync(join(tmpdir(), "myz-bot-"))
-  const configDir = join(dir, "configs")
-  const workspaceDir = join(dir, "runtime")
-  const path = join(configDir, "bot.yml")
-  mkdirSync(configDir, { recursive: true })
+  const runtimeDir = join(dir, "runtime")
+  const workspaceDir = join(dir, "workspace")
+  const path = join(runtimeDir, "bot.yml")
+  mkdirSync(runtimeDir, { recursive: true })
+  mkdirSync(workspaceDir, { recursive: true })
   writeFileSync(
     path,
     [
       "telegram:",
       "  username: testbot",
       "  token: testtoken",
-      'ai:',
+      "ai:",
       "  provider: openai_compatible",
       "  model: gpt-test",
-      'workspaceRoot: "../runtime"',
+      'workspaceRoot: "../ignored"',
     ].join("\n"),
   )
 
-  const config = loadConfig(path)
-  assert.equal(config.workspaceRoot, workspaceDir)
-  assert.equal(config.skillsDir, join(workspaceDir, ".myz/skills"))
-  assert.equal(config.conversationsDir, join(workspaceDir, "conversations"))
-  assert.equal(config.memoryDir, join(workspaceDir, "memory"))
+  const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
+  assert.equal(config.workspaceRoot, realpathSync(workspaceDir))
+  assert.equal(config.skillsDir, join(config.workspaceRoot, ".myz/skills"))
+  assert.equal(config.runtimeRoot, runtimeDir)
+  assert.equal(config.conversationsDir, join(config.runtimeRoot, "workspaces", config.workspaceId, "conversations"))
+  assert.equal(config.memoryDir, join(config.workspaceRoot, "memory"))
 })

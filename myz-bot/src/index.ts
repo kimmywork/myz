@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs"
+import { resolve } from "node:path"
 import type { Message, TokenUsage } from "@myz/ai-core/types"
 import { registerLocalTools } from "@myz/ai-core/tools/registry"
 import { createBotAssistantAgent } from "./agents/botAssistant"
@@ -14,7 +15,6 @@ import {
   createToolMessage,
   createUserMessage,
   ensureConversationDir,
-  ensureConversationWorkspaceDir,
   loadAllMessages,
   loadMetadata,
   saveMetadata,
@@ -89,6 +89,7 @@ import {
 import { recordIncomingTelegramMessage } from "./telegramHistory"
 import { buildReplyOptions } from "./replyOptions"
 import { createToolProgressNotifier } from "./toolProgress"
+import { createTelegramFeedbackController } from "./telegramFeedback"
 import {
   listSkills,
   readSkillFile,
@@ -104,6 +105,12 @@ import {
   updateScheduledTask,
 } from "./tasks"
 import { createLocalTools } from "./tools"
+import {
+  applyUpgrade,
+  checkForUpgrade,
+  formatUpgradeStatus,
+  syncUpgradeState,
+} from "./upgrade"
 
 function formatSkillList(skills: SkillInfo[]) {
   if (!skills.length) {
@@ -216,7 +223,7 @@ async function handleCommand(options: {
       })
       await options.sendMessage(
         options.message.chat.id,
-        `${formatTasksForChat(tasks)}\n\nTODO 视图：/bot/conversations/${options.conversationId}/TODO.md`,
+        `${formatTasksForChat(tasks)}\n\n需要继续操作时可直接使用 /todo 命令。`,
         buildReplyOptions(options.message),
       )
       return true
@@ -355,6 +362,7 @@ async function handleCommand(options: {
     const action = (command.args[0] || "status").toLowerCase()
     const scope = (command.args[1] || "current").toLowerCase()
     const normalizedScope = scope === "all" ? "all" : "current"
+    const resetLevel = (command.args[2] || "journal").toLowerCase()
 
     if (action === "status") {
       await options.sendMessage(
@@ -381,10 +389,35 @@ async function handleCommand(options: {
     }
 
     if (action === "reset-memory") {
-      const result =
-        normalizedScope === "all"
-          ? resetAllMemory(options.config.memoryDir)
-          : resetConversationMemory(options.config.memoryDir, options.conversationId)
+      if (resetLevel !== "journal" && resetLevel !== "full") {
+        await options.sendMessage(
+          options.message.chat.id,
+          "用法：/ops reset-memory [current|all] [journal|full]",
+          buildReplyOptions(options.message),
+        )
+        return true
+      }
+      let result
+      try {
+        result =
+          normalizedScope === "all"
+            ? resetAllMemory({
+                memoryDir: options.config.memoryDir,
+                includeLongTerm: resetLevel === "full",
+              })
+            : resetConversationMemory({
+                memoryDir: options.config.memoryDir,
+                conversationId: options.conversationId,
+                includeLongTerm: resetLevel === "full",
+              })
+      } catch (error) {
+        await options.sendMessage(
+          options.message.chat.id,
+          (error as Error).message,
+          buildReplyOptions(options.message),
+        )
+        return true
+      }
       await options.sendMessage(
         options.message.chat.id,
         formatMemoryResetResult(result),
@@ -407,19 +440,89 @@ async function handleCommand(options: {
       return true
     }
 
+    if (action === "upgrade") {
+      const subaction = (command.args[1] || "status").toLowerCase()
+
+      if (subaction === "status") {
+        const state = syncUpgradeState(options.config)
+        await options.sendMessage(
+          options.message.chat.id,
+          formatUpgradeStatus(state),
+          buildReplyOptions(options.message),
+        )
+        return true
+      }
+
+      if (subaction === "check") {
+        try {
+          const result = await checkForUpgrade({
+            config: options.config,
+          })
+          await options.sendMessage(
+            options.message.chat.id,
+            formatUpgradeStatus(result.state),
+            buildReplyOptions(options.message),
+          )
+        } catch (error) {
+          const state = syncUpgradeState(options.config)
+          await options.sendMessage(
+            options.message.chat.id,
+            `${formatUpgradeStatus(state)}\n\n升级检查失败：${(error as Error).message}`,
+            buildReplyOptions(options.message),
+          )
+        }
+        return true
+      }
+
+      if (subaction === "apply") {
+        try {
+          const result = await applyUpgrade({
+            config: options.config,
+            requestedBy:
+              options.message.from?.username || options.message.from?.id?.toString() || "unknown",
+            scheduleExit: true,
+          })
+          await options.sendMessage(
+            options.message.chat.id,
+            `${result.message}\n\n${formatUpgradeStatus(result.state)}`,
+            buildReplyOptions(options.message),
+          )
+        } catch (error) {
+          const state = syncUpgradeState(options.config)
+          await options.sendMessage(
+            options.message.chat.id,
+            `${formatUpgradeStatus(state)}\n\n升级申请失败：${(error as Error).message}`,
+            buildReplyOptions(options.message),
+          )
+        }
+        return true
+      }
+
+      await options.sendMessage(
+        options.message.chat.id,
+        "用法：/ops upgrade [status|check|apply]",
+        buildReplyOptions(options.message),
+      )
+      return true
+    }
+
     if (action === "restart") {
       await options.sendMessage(
         options.message.chat.id,
-        "已请求重启当前进程；若外部有 supervisor，将由外部拉起新进程。",
+        "已请求重启当前进程；若当前由 launch 托管，将自动拉起新进程。",
         buildReplyOptions(options.message),
       )
-      requestProcessRestart()
+      requestProcessRestart({
+        requestFilePath: resolve(options.config.systemDir, "restart-request.json"),
+        reason: "ops_restart",
+        requestedBy: options.message.from?.username || options.message.from?.id?.toString() || "unknown",
+      })
       return true
     }
 
     await options.sendMessage(
       options.message.chat.id,
-      "可用命令：/ops status | /ops usage [current|all] | /ops reset-memory [current|all] | /ops housekeeping [current|all] | /ops restart",
+      "可用命令：/ops status | /ops usage [current|all] | /ops reset-memory [current|all] [journal|full] | /ops housekeeping [current|all] | /ops upgrade [status|check|apply] | /ops restart",
       buildReplyOptions(options.message),
     )
     return true
@@ -438,7 +541,7 @@ async function handleCommand(options: {
     const action = (command.args[0] || "list").toLowerCase()
     if (action === "list") {
       const requests = listElevatedPermissionRequests(
-        options.config.workspaceRoot,
+        options.config.workspaceRuntimeRoot,
         "pending",
       )
       if (!requests.length) {
@@ -463,7 +566,7 @@ async function handleCommand(options: {
     }
 
     if (action === "grants") {
-      const grants = listElevatedPermissionGrants(options.config.workspaceRoot)
+      const grants = listElevatedPermissionGrants(options.config.workspaceRuntimeRoot)
       if (!grants.length) {
         await options.sendMessage(
           options.message.chat.id,
@@ -498,7 +601,7 @@ async function handleCommand(options: {
       }
       const actor = options.message.from?.username || String(options.message.from?.id || "admin")
       const grant = createElevatedPermissionGrant({
-        workspaceRoot: options.config.workspaceRoot,
+        workspaceRoot: options.config.workspaceRuntimeRoot,
         access,
         target,
         actor,
@@ -527,7 +630,7 @@ async function handleCommand(options: {
       }
       const actor = options.message.from?.username || String(options.message.from?.id || "admin")
       const { request, grant } = approveElevatedPermissionRequest({
-        workspaceRoot: options.config.workspaceRoot,
+        workspaceRoot: options.config.workspaceRuntimeRoot,
         requestId,
         actor,
       })
@@ -556,7 +659,7 @@ async function handleCommand(options: {
       }
       const actor = options.message.from?.username || String(options.message.from?.id || "admin")
       const request = rejectElevatedPermissionRequest({
-        workspaceRoot: options.config.workspaceRoot,
+        workspaceRoot: options.config.workspaceRuntimeRoot,
         requestId,
         actor,
       })
@@ -579,7 +682,7 @@ async function handleCommand(options: {
         return true
       }
       const grant = revokeElevatedPermissionGrant({
-        workspaceRoot: options.config.workspaceRoot,
+        workspaceRoot: options.config.workspaceRuntimeRoot,
         grantId,
       })
       await options.sendMessage(
@@ -609,7 +712,7 @@ async function handleCommand(options: {
 
   const action = (command.args[0] || "").toLowerCase()
   if (!action || action === "list") {
-    const drafts = listSoulDrafts(options.config.workspaceRoot)
+    const drafts = listSoulDrafts(options.config.workspaceRuntimeRoot)
     const text = drafts.length
       ? ["当前 SOUL 草案：", ...drafts.map((draft) => `- ${draft.id}`)].join("\n")
       : "当前没有 SOUL 草案。"
@@ -632,10 +735,14 @@ async function handleCommand(options: {
       recentMessages: existingMessages,
       actor,
     })
-    const draft = createSoulDraft(options.config.workspaceRoot, content, {
-      actor,
-      trigger: "manual",
-      conversationId: options.conversationId,
+    const draft = createSoulDraft({
+      runtimeRoot: options.config.workspaceRuntimeRoot,
+      content,
+      metadata: {
+        actor,
+        trigger: "manual",
+        conversationId: options.conversationId,
+      },
     })
     await options.sendMessage(
       options.message.chat.id,
@@ -663,10 +770,15 @@ async function handleCommand(options: {
       )
       return true
     }
-    applySoulDraft(options.config.workspaceRoot, draftId, {
-      actor: options.message.from?.username || String(options.message.from?.id || "admin"),
+    applySoulDraft({
+      workspaceRoot: options.config.workspaceRoot,
+      runtimeRoot: options.config.workspaceRuntimeRoot,
+      draftId,
+      metadata: {
+        actor: options.message.from?.username || String(options.message.from?.id || "admin"),
+      },
     })
-    const preview = readSoulDraft(options.config.workspaceRoot, draftId)
+    const preview = readSoulDraft(options.config.workspaceRuntimeRoot, draftId)
       .split(/\r?\n/)
       .filter(Boolean)
       .slice(0, 4)
@@ -746,10 +858,7 @@ async function handleConversationMessage(options: {
     conversationId,
   )
   ensureConversationTaskFiles(conversationDir, conversationId)
-  const sessionWorkspace = ensureConversationWorkspaceDir(
-    options.config.conversationsDir,
-    conversationId,
-  )
+  const sessionWorkspace = options.config.workspaceRoot
 
   const now = new Date().toISOString()
   const existing = loadMetadata(conversationDir)
@@ -776,7 +885,7 @@ async function handleConversationMessage(options: {
   metadata.lastActorDisplayName = route.actorDisplayName
   saveMetadata(conversationDir, metadata)
   touchRelationshipRecord({
-    workspaceRoot: options.config.workspaceRoot,
+    workspaceRoot: options.config.workspaceRuntimeRoot,
     conversationId,
     scope: route.scope,
     chatId: options.message.chat.id,
@@ -878,7 +987,7 @@ async function handleConversationMessage(options: {
     conversationId,
     conversationDir,
     memoryDir: options.config.memoryDir,
-    workspaceRoot: options.config.workspaceRoot,
+    workspaceRoot: options.config.workspaceRuntimeRoot,
     actorUserId: route.actorUserId,
     username: options.message.from?.username,
     latestUserInput: incoming.content,
@@ -886,7 +995,7 @@ async function handleConversationMessage(options: {
     maxHistoryMessages: options.config.context.maxHistoryMessages,
   })
   const relationshipContext = renderRelationshipContext({
-    workspaceRoot: options.config.workspaceRoot,
+    workspaceRoot: options.config.workspaceRuntimeRoot,
     actorUserId: route.actorUserId,
     username: options.message.from?.username,
   })
@@ -918,8 +1027,40 @@ async function handleConversationMessage(options: {
       compressed: contextState.compressed,
     },
   )
+  const contextPrompt = agent.buildContextPrompt({
+    memoryContext: renderMemoryContext(options.config.memoryDir),
+    relationshipContext,
+    conversationSummary: contextState.summary,
+    chatChronicle,
+    recoveredContext: recoveredContextState.recoveredContext,
+    replyMode: options.shouldReply ? "required" : "optional",
+    scope: route.scope,
+    sessionWorkspace,
+    user: {
+      userId,
+      chatId: options.message.chat.id,
+      username: options.message.from?.username,
+      firstName: options.message.from?.first_name,
+      lastName: options.message.from?.last_name,
+    },
+  })
+  const contextMessage = contextPrompt
+    ? createUserMessage(conversationId, contextPrompt, {
+        type: "context_injection",
+        source: "bot",
+        hiddenFromHistory: true,
+      })
+    : null
 
   appendMessage(conversationDir, userMessage)
+  const telegramFeedback = options.shouldReply
+    ? createTelegramFeedbackController({
+        telegram: options.telegram,
+        chatId: options.message.chat.id,
+        messageThreadId: options.message.message_thread_id,
+        reactionMessageId: options.message.message_id,
+      })
+    : null
 
   try {
     const progressNotifier = options.shouldReply
@@ -934,19 +1075,28 @@ async function handleConversationMessage(options: {
           sendOptions: buildReplyOptions(options.message),
         })
       : null
+    telegramFeedback?.setPhase("llm")
     const reply = await generateReply({
       config: options.config,
       messages: agent.prepareMessages({
         systemMessage,
         history: contextState.history,
+        contextMessage,
         userMessage,
       }),
       conversationId,
       onToolCallMessage: progressNotifier
-        ? (message) => progressNotifier.onToolCallMessage(message)
+        ? (message) => {
+            telegramFeedback?.setPhase("tool")
+            progressNotifier.onToolCallMessage(message)
+          }
         : undefined,
       onToolResultMessage: progressNotifier
-        ? (message) => progressNotifier.onToolResultMessage(message)
+        ? (message) => {
+            telegramFeedback?.noteToolResult(message)
+            telegramFeedback?.setPhase("llm")
+            progressNotifier.onToolResultMessage(message)
+          }
         : undefined,
     })
     if (progressNotifier) {
@@ -1020,6 +1170,7 @@ async function handleConversationMessage(options: {
         kind: "conversation",
       })
     }
+    await telegramFeedback?.complete()
 
     const allMessages = loadAllMessages(conversationDir)
     try {
@@ -1079,35 +1230,46 @@ async function handleConversationMessage(options: {
     })
     const canSendErrorReply =
       options.shouldReply || isAdminUser(options.config, options.message.from)
-    if (canSendErrorReply) {
-      const assistantMessage = createAssistantMessage(
-        conversationId,
-        formatErrorReply({
-          config: options.config,
-          user: options.message.from,
-          error,
-        }),
-        { error: normalized.message },
-      )
-      appendMessage(conversationDir, assistantMessage)
-      await sendRecordedTelegramMessage({
-        telegram: options.telegram,
-        conversationDir,
-        conversationId,
-        chatId: options.message.chat.id,
-        text: assistantMessage.content,
-        sendOptions: buildReplyOptions(options.message),
-        kind: "error",
-      })
+    try {
+      if (canSendErrorReply) {
+        const assistantMessage = createAssistantMessage(
+          conversationId,
+          formatErrorReply({
+            config: options.config,
+            user: options.message.from,
+            error,
+          }),
+          { error: normalized.message },
+        )
+        appendMessage(conversationDir, assistantMessage)
+        await sendRecordedTelegramMessage({
+          telegram: options.telegram,
+          conversationDir,
+          conversationId,
+          chatId: options.message.chat.id,
+          text: assistantMessage.content,
+          sendOptions: buildReplyOptions(options.message),
+          kind: "error",
+        })
+      }
+    } finally {
+      await telegramFeedback?.complete({ failed: true })
     }
   }
 }
 
-export async function serveBot(options: { configPath?: string } = {}) {
-  const config = loadConfig(options.configPath)
+export async function serveBot(options: { workspaceRoot?: string } = {}) {
+  const config = loadConfig({
+    workspaceRoot: options.workspaceRoot,
+  })
   configureGlobalNetwork(config.network)
   mkdirSync(config.conversationsDir, { recursive: true })
   ensureMemoryDir(config.memoryDir)
+  mkdirSync(config.permissionsDir, { recursive: true })
+  mkdirSync(config.relationshipsDir, { recursive: true })
+  mkdirSync(config.soulRuntimeDir, { recursive: true })
+  mkdirSync(config.systemDir, { recursive: true })
+  syncUpgradeState(config)
 
   const telegram = createTelegramClient({
     token: config.telegram.token,
@@ -1117,6 +1279,7 @@ export async function serveBot(options: { configPath?: string } = {}) {
   registerLocalTools(
     createLocalTools({
       workspaceRoot: config.workspaceRoot,
+      runtimeRoot: config.workspaceRuntimeRoot,
       skillSources: config.skillSources,
       skillAllowlist: config.skillAllowlist,
       skillDenylist: config.skillDenylist,

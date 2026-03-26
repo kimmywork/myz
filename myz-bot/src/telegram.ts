@@ -88,13 +88,115 @@ export interface TelegramSendMessageOptions {
   messageThreadId?: number
 }
 
+export type TelegramChatAction =
+  | "typing"
+  | "upload_photo"
+  | "record_video"
+  | "upload_video"
+  | "record_voice"
+  | "upload_voice"
+  | "upload_document"
+  | "choose_sticker"
+  | "find_location"
+  | "record_video_note"
+  | "upload_video_note"
+
+export const TELEGRAM_REACTION_EMOJIS = [
+  "👍",
+  "👎",
+  "❤",
+  "🔥",
+  "🥰",
+  "👏",
+  "😁",
+  "🤔",
+  "🤯",
+  "😱",
+  "🤬",
+  "😢",
+  "🎉",
+  "🤩",
+  "🤮",
+  "💩",
+  "🙏",
+  "👌",
+  "🕊",
+  "🤡",
+  "🥱",
+  "🥴",
+  "😍",
+  "🐳",
+  "❤‍🔥",
+  "🌚",
+  "🌭",
+  "💯",
+  "🤣",
+  "⚡",
+  "🍌",
+  "🏆",
+  "💔",
+  "🤨",
+  "😐",
+  "🍓",
+  "🍾",
+  "💋",
+  "🖕",
+  "😈",
+  "😴",
+  "😭",
+  "🤓",
+  "👻",
+  "👨‍💻",
+  "👀",
+  "🎃",
+  "🙈",
+  "😇",
+  "😨",
+  "🤝",
+  "✍",
+  "🤗",
+  "🫡",
+  "🎅",
+  "🎄",
+  "☃",
+  "💅",
+  "🤪",
+  "🗿",
+  "🆒",
+  "💘",
+  "🙉",
+  "🦄",
+  "😘",
+  "💊",
+  "🙊",
+  "😎",
+  "👾",
+  "🤷‍♂",
+  "🤷",
+  "🤷‍♀",
+  "😡",
+] as const
+
+export type TelegramReactionEmoji = (typeof TELEGRAM_REACTION_EMOJIS)[number]
+
 export interface TelegramClient {
   getUpdates: (offset: number) => Promise<TelegramUpdate[]>
   sendMessage: (
     chatId: number,
     text: string,
     options?: TelegramSendMessageOptions,
-  ) => Promise<unknown>
+  ) => Promise<TelegramMessage[]>
+  sendChatAction: (
+    chatId: number,
+    action: TelegramChatAction,
+    options?: { messageThreadId?: number },
+  ) => Promise<boolean>
+  setMessageReaction: (
+    chatId: number,
+    messageId: number,
+    reaction: TelegramReactionEmoji | null,
+    options?: { isBig?: boolean },
+  ) => Promise<boolean>
   getMe: () => Promise<TelegramUser>
   getFile: (fileId: string) => Promise<TelegramFile>
   downloadFile: (filePath: string) => Promise<ArrayBuffer>
@@ -213,6 +315,82 @@ export function createTelegramClient(
     )
   }
 
+  async function sendChatAction(
+    chatId: number,
+    action: TelegramChatAction,
+    sendOptions: { messageThreadId?: number } = {},
+  ) {
+    return withRetry(
+      async () => {
+        const url = buildUrl(options.token, "sendChatAction")
+        const payload: Record<string, unknown> = {
+          chat_id: chatId,
+          action,
+        }
+        if (typeof sendOptions.messageThreadId === "number") {
+          payload.message_thread_id = sendOptions.messageThreadId
+        }
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        if (!resp.ok) {
+          const body = await resp.text()
+          throw new Error(`Telegram sendChatAction failed: ${resp.status} ${body}`)
+        }
+        const data = (await resp.json()) as { ok: boolean }
+        if (!data.ok) {
+          throw new Error("Telegram sendChatAction not ok")
+        }
+        return true
+      },
+      {
+        ...retryOptions,
+        shouldRetry: shouldRetryTelegramError,
+      },
+    )
+  }
+
+  async function setMessageReaction(
+    chatId: number,
+    messageId: number,
+    reaction: TelegramReactionEmoji | null,
+    reactionOptions: { isBig?: boolean } = {},
+  ) {
+    return withRetry(
+      async () => {
+        const url = buildUrl(options.token, "setMessageReaction")
+        const payload: Record<string, unknown> = {
+          chat_id: chatId,
+          message_id: messageId,
+          reaction: reaction ? [{ type: "emoji", emoji: reaction }] : [],
+        }
+        if (typeof reactionOptions.isBig === "boolean") {
+          payload.is_big = reactionOptions.isBig
+        }
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        if (!resp.ok) {
+          const body = await resp.text()
+          throw new Error(`Telegram setMessageReaction failed: ${resp.status} ${body}`)
+        }
+        const data = (await resp.json()) as { ok: boolean }
+        if (!data.ok) {
+          throw new Error("Telegram setMessageReaction not ok")
+        }
+        return true
+      },
+      {
+        ...retryOptions,
+        shouldRetry: shouldRetryTelegramError,
+      },
+    )
+  }
+
   async function getMe() {
     return withRetry(
       async () => {
@@ -279,5 +457,13 @@ export function createTelegramClient(
     )
   }
 
-  return { getUpdates, sendMessage, getMe, getFile, downloadFile }
+  return {
+    getUpdates,
+    sendMessage,
+    sendChatAction,
+    setMessageReaction,
+    getMe,
+    getFile,
+    downloadFile,
+  }
 }

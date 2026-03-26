@@ -119,12 +119,12 @@ const TRAITS: TraitDefinition[] = [
   },
 ]
 
-function getGrowthPaths(workspaceRoot: string) {
+function getGrowthPaths(runtimeRoot: string) {
   return {
-    stateDir: resolve(workspaceRoot, "soul"),
-    stateFile: resolve(workspaceRoot, "soul", "growth.json"),
-    eventFile: resolve(workspaceRoot, "soul", "growth-events.jsonl"),
-    archiveDir: resolve(workspaceRoot, "soul", "archive"),
+    stateDir: resolve(runtimeRoot, "soul"),
+    stateFile: resolve(runtimeRoot, "soul", "growth.json"),
+    eventFile: resolve(runtimeRoot, "soul", "growth-events.jsonl"),
+    archiveDir: resolve(runtimeRoot, "soul", "archive"),
   }
 }
 
@@ -141,8 +141,8 @@ function buildDefaultTraits(): Record<SoulGrowthTraitId, SoulGrowthTraitState> {
   ) as Record<SoulGrowthTraitId, SoulGrowthTraitState>
 }
 
-export function ensureSoulGrowthRuntime(workspaceRoot: string) {
-  const paths = getGrowthPaths(workspaceRoot)
+export function ensureSoulGrowthRuntime(runtimeRoot: string) {
+  const paths = getGrowthPaths(runtimeRoot)
   mkdirSync(paths.stateDir, { recursive: true })
   mkdirSync(paths.archiveDir, { recursive: true })
   if (!existsSync(paths.stateFile)) {
@@ -422,8 +422,8 @@ export async function analyzeSoulGrowthFeedback(options: {
   }
 }
 
-export function loadSoulGrowthState(workspaceRoot: string): SoulGrowthState {
-  const paths = ensureSoulGrowthRuntime(workspaceRoot)
+export function loadSoulGrowthState(runtimeRoot: string): SoulGrowthState {
+  const paths = ensureSoulGrowthRuntime(runtimeRoot)
   try {
     const parsed = JSON.parse(readFileSync(paths.stateFile, "utf-8")) as SoulGrowthState
     return {
@@ -445,19 +445,19 @@ export function loadSoulGrowthState(workspaceRoot: string): SoulGrowthState {
   }
 }
 
-function saveSoulGrowthState(workspaceRoot: string, state: SoulGrowthState) {
-  const paths = ensureSoulGrowthRuntime(workspaceRoot)
+function saveSoulGrowthState(runtimeRoot: string, state: SoulGrowthState) {
+  const paths = ensureSoulGrowthRuntime(runtimeRoot)
   writeFileSync(paths.stateFile, JSON.stringify(state, null, 2))
 }
 
-function appendSoulGrowthEvent(workspaceRoot: string, event: SoulGrowthEvent) {
-  const paths = ensureSoulGrowthRuntime(workspaceRoot)
+function appendSoulGrowthEvent(runtimeRoot: string, event: SoulGrowthEvent) {
+  const paths = ensureSoulGrowthRuntime(runtimeRoot)
   appendFileSync(paths.eventFile, JSON.stringify(event) + "\n")
-  compactSoulGrowthEventLog(workspaceRoot)
+  compactSoulGrowthEventLog(runtimeRoot)
 }
 
-function compactSoulGrowthEventLog(workspaceRoot: string) {
-  const paths = ensureSoulGrowthRuntime(workspaceRoot)
+function compactSoulGrowthEventLog(runtimeRoot: string) {
+  const paths = ensureSoulGrowthRuntime(runtimeRoot)
   const raw = readFileSync(paths.eventFile, "utf-8")
   const lines = raw
     .split(/\r?\n/)
@@ -494,7 +494,7 @@ function applyAdjustment(
 
 export async function recordSoulGrowthFeedback(options: {
   config: BotRuntimeConfig
-  workspaceRoot: string
+  runtimeRoot: string
   soul: string
   conversationId: string
   messages: Message[]
@@ -509,7 +509,7 @@ export async function recordSoulGrowthFeedback(options: {
   })
   if (!event) return null
 
-  const state = loadSoulGrowthState(options.workspaceRoot)
+  const state = loadSoulGrowthState(options.runtimeRoot)
   const nextTraits = { ...state.traits }
   const appliedAdjustments = event.adjustments.map((adjustment) => {
     const current = nextTraits[adjustment.trait] || {
@@ -537,13 +537,13 @@ export async function recordSoulGrowthFeedback(options: {
     traits: nextTraits,
     recentEvents: [storedEvent, ...state.recentEvents].slice(0, MAX_RECENT_EVENTS),
   }
-  saveSoulGrowthState(options.workspaceRoot, nextState)
-  appendSoulGrowthEvent(options.workspaceRoot, storedEvent)
+  saveSoulGrowthState(options.runtimeRoot, nextState)
+  appendSoulGrowthEvent(options.runtimeRoot, storedEvent)
   return storedEvent
 }
 
-export function renderSoulGrowthContext(workspaceRoot: string, soul: string) {
-  const state = loadSoulGrowthState(workspaceRoot)
+export function renderSoulGrowthContext(runtimeRoot: string, soul: string) {
+  const state = loadSoulGrowthState(runtimeRoot)
   const baseProfile = inferSoulGrowthBaseProfile(soul)
   const rankedTraits = TRAITS.map((trait) => {
     const offset = state.traits[trait.id]?.offset || 0

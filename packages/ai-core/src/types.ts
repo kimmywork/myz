@@ -55,10 +55,25 @@ export interface TokenUsage {
   completion_tokens?: number
   prompt_tokens?: number
   reasoning_tokens?: number
+  input_tokens?: number
+  output_tokens?: number
+  cached_prompt_tokens?: number
   totalTokens?: number
   completionTokens?: number
   promptTokens?: number
   reasoningTokens?: number
+  inputTokens?: number
+  outputTokens?: number
+  cachedPromptTokens?: number
+  input_tokens_details?: {
+    cached_tokens?: number
+    [key: string]: unknown
+  }
+  output_tokens_details?: {
+    reasoning_tokens?: number
+    [key: string]: unknown
+  }
+  [key: string]: unknown
 }
 
 export interface MessageMetadata {

@@ -14,7 +14,40 @@ import { resolveConversationRoute } from "./routing"
 const INLINE_IMAGE_MAX_BYTES = 4 * 1024 * 1024
 
 function sanitizeFileSegment(value: string) {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "")
+  return value
+    .replace(/[^\p{L}\p{N}._-]+/gu, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
+function sanitizeExtension(value: string) {
+  if (!value) return ""
+  const normalized = value.startsWith(".") ? value : `.${value}`
+  const safe = normalized.replace(/[^\p{L}\p{N}.-]+/gu, "").toLowerCase()
+  if (safe === ".") return ""
+  return safe
+}
+
+function buildAttachmentFileName(options: {
+  baseName: string
+  filePath: string
+  fallbackExt: string
+  fallbackStem: string
+}) {
+  const rawBaseName = (options.baseName || "").trim()
+  const originalExt = sanitizeExtension(extname(rawBaseName))
+  const stemSource =
+    originalExt && rawBaseName.endsWith(originalExt)
+      ? rawBaseName.slice(0, -originalExt.length)
+      : rawBaseName
+  const stem =
+    sanitizeFileSegment(stemSource) ||
+    sanitizeFileSegment(options.fallbackStem) ||
+    "attachment"
+  const pathExt = sanitizeExtension(extname(options.filePath))
+  const fallbackExt = sanitizeExtension(options.fallbackExt) || ".bin"
+  const finalExt = originalExt || pathExt || fallbackExt
+  return `${Date.now()}-${stem}${finalExt}`
 }
 
 function buildForwardLabel(message: TelegramMessage) {
@@ -72,10 +105,12 @@ function getExtensionFromPath(filePath: string, fallback: string) {
 
 async function saveAttachment(options: {
   conversationDir: string
+  conversationId: string
   telegram: TelegramClient
   fileId: string
   baseName: string
   fallbackExt: string
+  fallbackStem: string
   mimeType?: string
   attachmentType: "photo" | "document" | "voice"
 }) {
@@ -84,9 +119,15 @@ async function saveAttachment(options: {
     throw new Error(`Telegram file path missing for ${options.fileId}`)
   }
   const buffer = Buffer.from(await options.telegram.downloadFile(file.file_path))
-  const fileName = `${Date.now()}-${sanitizeFileSegment(options.baseName)}${getExtensionFromPath(file.file_path, options.fallbackExt)}`
+  const fileName = buildAttachmentFileName({
+    baseName: options.baseName,
+    filePath: file.file_path,
+    fallbackExt: getExtensionFromPath(file.file_path, options.fallbackExt),
+    fallbackStem: options.fallbackStem,
+  })
   const dir = ensureAttachmentDir(options.conversationDir)
   const path = resolve(dir, fileName)
+  const virtualPath = `/attachments/${fileName}`
   writeFileSync(path, buffer)
 
   const isImage =
@@ -105,6 +146,7 @@ async function saveAttachment(options: {
 
   return {
     path,
+    virtualPath,
     fileName,
     size: buffer.byteLength,
     inlineImage,
@@ -124,10 +166,12 @@ async function savePhoto(
   if (!photo?.file_id) return null
   return saveAttachment({
     conversationDir,
+    conversationId: resolveConversationRoute(message).conversationId,
     telegram,
     fileId: photo.file_id,
     baseName: `photo-${message.message_id}`,
     fallbackExt: ".jpg",
+    fallbackStem: `photo-${message.message_id}`,
     mimeType: "image/jpeg",
     attachmentType: "photo",
   })
@@ -141,10 +185,12 @@ async function saveDocument(
 ) {
   return saveAttachment({
     conversationDir,
+    conversationId: resolveConversationRoute(message).conversationId,
     telegram,
     fileId: document.file_id,
     baseName: document.file_name || `document-${message.message_id}`,
     fallbackExt: ".bin",
+    fallbackStem: `document-${message.message_id}`,
     mimeType: document.mime_type,
     attachmentType: "document",
   })
@@ -158,10 +204,12 @@ async function saveVoice(
 ) {
   return saveAttachment({
     conversationDir,
+    conversationId: resolveConversationRoute(message).conversationId,
     telegram,
     fileId: voice.file_id,
     baseName: `voice-${message.message_id}`,
     fallbackExt: ".ogg",
+    fallbackStem: `voice-${message.message_id}`,
     mimeType: voice.mime_type || "audio/ogg",
     attachmentType: "voice",
   })
@@ -218,11 +266,12 @@ export async function buildIncomingMessage(options: {
     if (Array.isArray(message.photo) && message.photo.length) {
       const saved = await savePhoto(telegram, message, conversationDir)
       if (saved) {
-        attachmentSummaries.push(`图片已保存：${saved.fileName}`)
+        attachmentSummaries.push(`图片已保存：${saved.virtualPath}`)
         storedAttachments.push({
           type: "photo",
           fileName: saved.fileName,
           path: saved.path,
+          virtualPath: saved.virtualPath,
           size: saved.size,
         })
         if (saved.inlineImage) {
@@ -238,11 +287,12 @@ export async function buildIncomingMessage(options: {
         message,
         conversationDir,
       )
-      attachmentSummaries.push(`文件已保存：${saved.fileName}`)
+      attachmentSummaries.push(`文件已保存：${saved.virtualPath}`)
       storedAttachments.push({
         type: "document",
         fileName: saved.fileName,
         path: saved.path,
+        virtualPath: saved.virtualPath,
         size: saved.size,
         mimeType: message.document.mime_type,
       })
@@ -253,11 +303,12 @@ export async function buildIncomingMessage(options: {
 
     if (message.voice?.file_id) {
       const saved = await saveVoice(telegram, message.voice, message, conversationDir)
-      attachmentSummaries.push(`语音已保存：${saved.fileName}`)
+      attachmentSummaries.push(`语音已保存：${saved.virtualPath}`)
       storedAttachments.push({
         type: "voice",
         fileName: saved.fileName,
         path: saved.path,
+        virtualPath: saved.virtualPath,
         size: saved.size,
         mimeType: message.voice.mime_type,
       })

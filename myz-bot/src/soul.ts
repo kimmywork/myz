@@ -124,13 +124,15 @@ function readRawSoul(workspaceRoot: string) {
   return readFileSync(path, "utf-8")
 }
 
-export function ensureSoulFile(workspaceRoot: string) {
+export function ensureSoulFile(workspaceRoot: string, runtimeRoot?: string) {
   const path = resolve(workspaceRoot, "SOUL.md")
   if (!existsSync(path)) {
     writeFileSync(path, DEFAULT_SOUL)
   }
-  ensureSoulRuntime(workspaceRoot)
-  ensureSoulGrowthRuntime(workspaceRoot)
+  if (runtimeRoot) {
+    ensureSoulRuntime(runtimeRoot)
+    ensureSoulGrowthRuntime(runtimeRoot)
+  }
   return path
 }
 
@@ -153,18 +155,17 @@ export interface SoulDraftRecord {
   createdAt: string
 }
 
-function getSoulPaths(workspaceRoot: string) {
+function getSoulPaths(runtimeRoot: string) {
   return {
-    root: resolve(workspaceRoot, "SOUL.md"),
-    stateDir: resolve(workspaceRoot, "soul"),
-    draftsDir: resolve(workspaceRoot, "soul", "drafts"),
-    versionsDir: resolve(workspaceRoot, "soul", "versions"),
-    auditFile: resolve(workspaceRoot, "soul", "audit.jsonl"),
+    stateDir: resolve(runtimeRoot, "soul"),
+    draftsDir: resolve(runtimeRoot, "soul", "drafts"),
+    versionsDir: resolve(runtimeRoot, "soul", "versions"),
+    auditFile: resolve(runtimeRoot, "soul", "audit.jsonl"),
   }
 }
 
-export function ensureSoulRuntime(workspaceRoot: string) {
-  const paths = getSoulPaths(workspaceRoot)
+export function ensureSoulRuntime(runtimeRoot: string) {
+  const paths = getSoulPaths(runtimeRoot)
   mkdirSync(paths.draftsDir, { recursive: true })
   mkdirSync(paths.versionsDir, { recursive: true })
   if (!existsSync(paths.auditFile)) {
@@ -174,39 +175,39 @@ export function ensureSoulRuntime(workspaceRoot: string) {
 }
 
 function appendSoulAudit(
-  workspaceRoot: string,
+  runtimeRoot: string,
   payload: Record<string, unknown>,
 ) {
-  const paths = ensureSoulRuntime(workspaceRoot)
+  const paths = ensureSoulRuntime(runtimeRoot)
   appendFileSync(
     paths.auditFile,
     JSON.stringify({ timestamp: new Date().toISOString(), ...payload }) + "\n",
   )
 }
 
-export function createSoulDraft(
-  workspaceRoot: string,
-  content: string,
+export function createSoulDraft(options: {
+  runtimeRoot: string
+  content: string
   metadata: {
     actor: string
     trigger: "manual" | "auto"
     conversationId?: string
-  },
-): SoulDraftRecord {
-  const paths = ensureSoulRuntime(workspaceRoot)
+  }
+}): SoulDraftRecord {
+  const paths = ensureSoulRuntime(options.runtimeRoot)
   const id = `draft-${Date.now()}`
   const path = resolve(paths.draftsDir, `${id}.md`)
   const normalizedContent =
-    metadata.trigger === "auto"
-      ? stripVolatileSoulSections(content)
-      : content
+    options.metadata.trigger === "auto"
+      ? stripVolatileSoulSections(options.content)
+      : options.content
   writeFileSync(path, `${compactSoulContent(normalizedContent)}\n`)
-  appendSoulAudit(workspaceRoot, {
+  appendSoulAudit(options.runtimeRoot, {
     type: "draft_created",
     draftId: id,
-    actor: metadata.actor,
-    trigger: metadata.trigger,
-    conversationId: metadata.conversationId,
+    actor: options.metadata.actor,
+    trigger: options.metadata.trigger,
+    conversationId: options.metadata.conversationId,
   })
   return {
     id,
@@ -215,8 +216,8 @@ export function createSoulDraft(
   }
 }
 
-export function listSoulDrafts(workspaceRoot: string): SoulDraftRecord[] {
-  const paths = ensureSoulRuntime(workspaceRoot)
+export function listSoulDrafts(runtimeRoot: string): SoulDraftRecord[] {
+  const paths = ensureSoulRuntime(runtimeRoot)
   return readdirSync(paths.draftsDir)
     .filter((name) => name.endsWith(".md"))
     .sort()
@@ -228,8 +229,8 @@ export function listSoulDrafts(workspaceRoot: string): SoulDraftRecord[] {
     }))
 }
 
-export function readSoulDraft(workspaceRoot: string, draftId: string) {
-  const paths = ensureSoulRuntime(workspaceRoot)
+export function readSoulDraft(runtimeRoot: string, draftId: string) {
+  const paths = ensureSoulRuntime(runtimeRoot)
   const path = resolve(paths.draftsDir, `${draftId}.md`)
   if (!existsSync(path)) {
     throw new Error(`SOUL draft not found: ${draftId}`)
@@ -237,29 +238,31 @@ export function readSoulDraft(workspaceRoot: string, draftId: string) {
   return readFileSync(path, "utf-8")
 }
 
-export function applySoulDraft(
-  workspaceRoot: string,
-  draftId: string,
-  metadata: { actor: string },
-) {
-  const paths = ensureSoulRuntime(workspaceRoot)
-  const draftPath = resolve(paths.draftsDir, `${draftId}.md`)
+export function applySoulDraft(options: {
+  workspaceRoot: string
+  runtimeRoot: string
+  draftId: string
+  metadata: { actor: string }
+}) {
+  const paths = ensureSoulRuntime(options.runtimeRoot)
+  const draftPath = resolve(paths.draftsDir, `${options.draftId}.md`)
   if (!existsSync(draftPath)) {
-    throw new Error(`SOUL draft not found: ${draftId}`)
+    throw new Error(`SOUL draft not found: ${options.draftId}`)
   }
-  const currentSoul = readRawSoul(workspaceRoot)
+  const currentSoul = readRawSoul(options.workspaceRoot)
   const nextSoul = compactSoulContent(readFileSync(draftPath, "utf-8"))
   const versionPath = resolve(
     paths.versionsDir,
-    `${new Date().toISOString().replace(/[:.]/g, "-")}-${draftId}.md`,
+    `${new Date().toISOString().replace(/[:.]/g, "-")}-${options.draftId}.md`,
   )
   writeFileSync(versionPath, currentSoul)
-  writeFileSync(paths.root, nextSoul)
-  appendSoulAudit(workspaceRoot, {
+  const soulPath = resolve(options.workspaceRoot, "SOUL.md")
+  writeFileSync(soulPath, nextSoul)
+  appendSoulAudit(options.runtimeRoot, {
     type: "draft_applied",
-    draftId,
-    actor: metadata.actor,
+    draftId: options.draftId,
+    actor: options.metadata.actor,
     versionPath,
   })
-  return { versionPath, soulPath: paths.root }
+  return { versionPath, soulPath }
 }

@@ -21,7 +21,7 @@ export const DEFAULT_AGENTS_TEMPLATE = `# AGENTS.md
 
 你每次启动都可能是“新醒来”的，所以重要的事必须写下来，而不是假装自己会一直记得。
 
-- 共享记忆主要在 \`memory/\`、\`relationships/\`、\`soul/\` 这些运行时目录里。
+- 共享记忆主要在工作区的 \`memory/\` 里；运行时状态不会直接暴露给你。
 - 如果用户明确要求“记住”“记下来”，优先真的写入记忆，而不是只在回复里口头答应。
 - 如果你学到稳定的工作约定、工具坑点、用户偏好，写进合适的文件：\`MEMORY.md\`、\`TOOLS.md\`、\`USER.md\`、技能文档或对应说明。
 - 不要编造“我记住了”；只有在真的写入文件或调用记忆能力后，才可以这样说。
@@ -36,7 +36,7 @@ export const DEFAULT_AGENTS_TEMPLATE = `# AGENTS.md
 ## Tasks And Follow-ups
 
 - 用户提到提醒、待办、某个时间再说、定期检查时，优先使用结构化定时任务，而不是只口头答应。
-- 当前会话任务以任务工具为准；需要人工查看时，可参考 \`/bot/conversations/<conversationId>/TODO.md\`。
+- 当前会话任务以任务工具为准，不要依赖内部运行时路径。
 - 精确触发、周期任务、之后再提醒我，这些都更适合任务调度而不是临时记在脑子里。
 
 ## Group Chats
@@ -51,7 +51,7 @@ export const DEFAULT_AGENTS_TEMPLATE = `# AGENTS.md
 - 能直接做就做，但在开始一段工具链前，要先用自然的人话告诉对方你准备先看什么、确认什么。
 - 不要写成系统播报。除非用户明确偏技术语境，否则避免“调用工具”“参数”“函数”“系统提示”这类词。
 - 工具结果回来后，如果还在继续推进，顺着上下文给一点自然反馈，不要把所有过程都堆到最后一条长总结里。
-- \`/workspace\` 指当前会话工作目录，\`/bot\` 指 bot 根目录；优先在这两个边界内工作。
+- \`/workspace\` 指当前工作区；\`/attachments\` 指当前会话已保存的附件；不要尝试读取内部 runtime 目录。
 - 访问工作区外路径时，走权限申请流程，不要绕过 \`/permit\` 约束。
 
 ## Ops And Maintenance
@@ -120,7 +120,7 @@ export const DEFAULT_BOOTSTRAP_TEMPLATE = `# BOOTSTRAP.md
 - 模型、API、重试和工具权限是否符合当前用途
 - 是否需要定时任务、维护命令、project skills 或额外 MCP 服务
 
-这些通常落在 \`bot.yml\`、\`.myz/skills/\` 和运行时目录里。
+这些通常落在全局 runtime 的 \`bot.yml\` 和运行时目录里。
 
 ## When Bootstrap Is Done
 

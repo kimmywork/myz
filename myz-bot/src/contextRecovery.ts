@@ -6,7 +6,7 @@ import { loadChatChronicle } from "./chatChronicle"
 import type { BotRuntimeConfig } from "./config"
 import { createSystemMessage, createUserMessage, getTelegramHistoryPath } from "./conversations"
 import { loadSoulGrowthState, renderSoulGrowthContext } from "./growth"
-import { loadMemoryIndex } from "./memory"
+import { loadLatestConversationSummary, loadMemoryEntries } from "./memory"
 import {
   loadRelationshipRecords,
   renderRelationshipContext,
@@ -96,16 +96,19 @@ function shouldAttemptContextRecovery(options: {
 }
 
 function readRecentMemoryCandidates(memoryDir: string, conversationId: string) {
-  return loadMemoryIndex(memoryDir)
-    .filter((item) => {
-      if (!item || !existsSync(item.file)) return false
-      return item.tags.includes(`conversation:${conversationId}`) || item.tags.includes("auto-memory")
+  return loadMemoryEntries(memoryDir)
+    .filter((entry) => {
+      if (entry.kind !== "memory") return false
+      return (
+        entry.tags.includes(`conversation:${conversationId}`) ||
+        entry.tags.includes("auto-memory")
+      )
     })
     .slice(0, 4)
-    .map((item) => {
-      const content = normalizeText(readFileSync(item.file, "utf-8"))
+    .map((entry) => {
+      const content = normalizeText(entry.content)
       return {
-        label: `memory:${item.title}`,
+        label: `memory:${entry.title}`,
         content: snippet(content, 500),
       } satisfies RecoveryCandidate
     })
@@ -154,10 +157,13 @@ function readRelationshipArchiveCandidates(workspaceRoot: string) {
   )
 }
 
-function readGrowthCandidates(workspaceRoot: string) {
-  const soul = loadSoul(workspaceRoot)
-  const state = loadSoulGrowthState(workspaceRoot)
-  const rendered = renderSoulGrowthContext(workspaceRoot, soul)
+function readGrowthCandidates(options: {
+  profileWorkspaceRoot: string
+  runtimeRoot: string
+}) {
+  const soul = loadSoul(options.profileWorkspaceRoot)
+  const state = loadSoulGrowthState(options.runtimeRoot)
+  const rendered = renderSoulGrowthContext(options.runtimeRoot, soul)
   const recentEvents = state.recentEvents
     .slice(0, 4)
     .map((event) => {
@@ -173,7 +179,7 @@ function readGrowthCandidates(workspaceRoot: string) {
       content: [rendered, recentEvents].filter(Boolean).join("\n"),
     } satisfies RecoveryCandidate,
     ...readArchiveTailCandidates(
-      resolve(workspaceRoot, "soul", "archive"),
+      resolve(options.runtimeRoot, "soul", "archive"),
       "growth.archive",
     ),
   ].filter((candidate) => candidate.content)
@@ -204,9 +210,9 @@ function readRelationshipStateCandidates(workspaceRoot: string) {
 }
 
 function readConversationSummaryCandidate(memoryDir: string, conversationId: string) {
-  const path = resolve(memoryDir, "conversation-summaries", `${conversationId}.md`)
-  if (!existsSync(path)) return null
-  const content = normalizeText(readFileSync(path, "utf-8"))
+  const summary = loadLatestConversationSummary(memoryDir, conversationId)
+  if (!summary) return null
+  const content = normalizeText(summary.content)
   if (!content) return null
   return {
     label: "conversation-summary",
@@ -291,6 +297,7 @@ export async function recoverContextIfNeeded(options: {
   conversationDir: string
   memoryDir: string
   workspaceRoot: string
+  profileWorkspaceRoot?: string
   actorUserId?: number
   username?: string
   latestUserInput: string
@@ -318,7 +325,10 @@ export async function recoverContextIfNeeded(options: {
     conversationSummary,
     relationship,
     telegramTail,
-    ...readGrowthCandidates(options.workspaceRoot),
+    ...readGrowthCandidates({
+      profileWorkspaceRoot: options.profileWorkspaceRoot || options.config.workspaceRoot,
+      runtimeRoot: options.workspaceRoot,
+    }),
     ...readRelationshipStateCandidates(options.workspaceRoot),
     ...readRecentMemoryCandidates(options.memoryDir, options.conversationId),
   ].filter((candidate): candidate is RecoveryCandidate => Boolean(candidate?.content))

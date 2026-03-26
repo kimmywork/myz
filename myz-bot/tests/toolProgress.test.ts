@@ -4,101 +4,16 @@ import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ProviderMessage } from "@myz/ai-core/providers/types"
-import type { BotRuntimeConfig } from "../src/config"
 import { ensureConversationDir } from "../src/conversations"
 import type { TelegramSendMessageOptions } from "../src/telegram"
 import {
   createToolProgressNotifier,
   draftToolProgressMessage,
 } from "../src/toolProgress"
+import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
-function createTestConfig(root: string): BotRuntimeConfig {
-  return {
-    telegram: {
-      username: "testbot",
-      token: "token",
-      timeoutSeconds: 25,
-      allowedUsers: [],
-      allowedChats: [],
-      adminUsers: [],
-      saveIncomingMedia: true,
-      groupResponseMode: {
-        onlyWhenMentioned: true,
-        allowReplyToBot: true,
-        allowAdminCommands: true,
-      },
-      retry: { retries: 2, baseDelayMs: 800 },
-    },
-    network: {
-      requestTimeoutMs: 180000,
-      connectTimeoutMs: 10000,
-      keepAliveTimeoutMs: 4000,
-      keepAliveTimeoutThresholdMs: 2000,
-      proxyUrl: "",
-    },
-    ai: {
-      provider: "openai_compatible",
-      baseUrl: "",
-      accessToken: "",
-      headers: {},
-      model: "gpt-test",
-      systemPromptInUserMessage: false,
-      retry: { retries: 2, baseDelayMs: 1000 },
-      capabilities: {
-        toolCalling: true,
-        reasoning: false,
-        vision: false,
-        imageOutput: false,
-      },
-      limits: {
-        contextWindow: 8192,
-        maxOutputTokens: 1024,
-        maxOutputTokenParam: "max_tokens",
-      },
-      tooling: {
-        toolChoice: "auto",
-        strict: "auto",
-        parallelToolCalls: "auto",
-      },
-    },
-    mcpServers: [],
-    workspaceRoot: root,
-    skillsDir: join(root, ".myz/skills"),
-    skills: { sources: [], allowlist: [], denylist: [] },
-    tools: { allowlist: [], denylist: [] },
-    conversationsDir: join(root, "conversations"),
-    memoryDir: join(root, "memory"),
-    scheduler: {
-      enabled: true,
-      pollIntervalMs: 15000,
-      maxBatchSize: 20,
-      failureRetryBaseDelayMs: 60000,
-    },
-    context: {
-      maxHistoryMessages: 30,
-      maxHistoryChars: 120000,
-      compressionThreshold: 40,
-      compressionCooldownMs: 300000,
-      summaryMaxMessages: 12,
-      summaryMaxChars: 6000,
-    },
-    soul: {
-      autoDraft: true,
-      autoApply: true,
-      reviewRequired: true,
-      autoDraftMessageInterval: 12,
-      autoDraftTimeIntervalMs: 3600000,
-      growthFeedbackBatchMessageInterval: 12,
-      growthFeedbackTimeIntervalMs: 1800000,
-      relationshipReflectionMessageInterval: 12,
-      relationshipReflectionTimeIntervalMs: 1800000,
-    },
-    skillSources: [],
-    skillAllowlist: [],
-    skillDenylist: [],
-    toolAllowlist: [],
-    toolDenylist: [],
-  }
+function createTestConfig(root: string) {
+  return createRuntimeConfig(root)
 }
 
 test("draftToolProgressMessage prefers assistant-authored draft content", async () => {
@@ -111,7 +26,7 @@ test("draftToolProgressMessage prefers assistant-authored draft content", async 
     phase: "start",
     assistantDraft: ' <thought>ignore</thought> "我先看一下这份 README。" ',
     toolNames: ["Read"],
-    toolArgsSummary: "path=/bot/README.md",
+    toolArgsSummary: "path=/workspace/README.md",
   })
 
   assert.equal(text, "我先看一下这份 README。")
@@ -130,7 +45,7 @@ test("draftToolProgressMessage collapses duplicated assistant-authored progress 
       "我先把这边的引导要求看清了：这轮确实该把角色档案补得更鲜明一点。",
     ].join("\n"),
     toolNames: ["Read"],
-    toolArgsSummary: "path=/bot/README.md",
+    toolArgsSummary: "path=/workspace/README.md",
   })
 
   assert.equal(text, "我先把这边的引导要求看清了：这轮确实该把角色档案补得更鲜明一点。")
@@ -210,7 +125,7 @@ test("createToolProgressNotifier sends natural progress messages and records the
         type: "function",
         function: {
           name: "Read",
-          arguments: JSON.stringify({ path: "/bot/README.md" }),
+          arguments: JSON.stringify({ path: "/workspace/README.md" }),
         },
       },
     ],
@@ -333,7 +248,7 @@ test("createToolProgressNotifier batches a multi-tool round into one start and o
         type: "function",
         function: {
           name: "Read",
-          arguments: JSON.stringify({ path: "/bot/README.md" }),
+          arguments: JSON.stringify({ path: "/workspace/README.md" }),
         },
       },
       {
@@ -341,7 +256,7 @@ test("createToolProgressNotifier batches a multi-tool round into one start and o
         type: "function",
         function: {
           name: "List",
-          arguments: JSON.stringify({ path: "/bot/src" }),
+          arguments: JSON.stringify({ path: "/workspace/src" }),
         },
       },
     ],

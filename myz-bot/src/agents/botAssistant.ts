@@ -29,9 +29,11 @@ export interface BotAssistantSystemContext {
 export interface BotAssistantAgent {
   id: string
   buildSystemPrompt: (context: BotAssistantSystemContext) => string
+  buildContextPrompt: (context: BotAssistantSystemContext) => string
   prepareMessages: (options: {
     systemMessage: Message
     history: Message[]
+    contextMessage?: Message | null
     userMessage: Message
   }) => Message[]
 }
@@ -41,6 +43,14 @@ export function createBotAssistantAgent(
 ): BotAssistantAgent {
   const id = "bot-assistant"
   const PROFILE_DOC_MAX_CHARS = 2_000
+
+  function formatCurrentDate() {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, "0")
+    const day = String(now.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  }
 
   function trimDocContent(value: string, maxChars = PROFILE_DOC_MAX_CHARS) {
     const normalized = value.replace(/\r\n/g, "\n").trim()
@@ -94,17 +104,16 @@ export function createBotAssistantAgent(
       workspaceRoot: options.workspaceRoot,
       targetPath: sessionWorkspace,
     })
-    const profileContext = buildProfileContext(context.scope)
     const guardrail = [
       "运行约束：",
-      `- 当前时间是 ${new Date().toISOString()}`,
+      `- 当前日期是 ${formatCurrentDate()}`,
       `- 当前默认工作目录是 ${sessionWorkspace}`,
       `- 会话内文件读写、命令执行默认都应落在 ${sessionWorkspace}`,
-      `- 仅允许在 ${options.workspaceRoot} 范围内读写与执行；如无明确要求，不要跳出当前会话工作目录`,
-      "- `/workspace` 指向当前会话工作目录；`/bot` 指向 bot 根目录；`/skills` 仍可用于按技能源浏览技能文件",
+      `- 仅允许在 ${options.workspaceRoot} 范围内读写与执行；如无明确要求，不要跳出当前工作区`,
+      "- `/workspace` 指向当前工作区；`/attachments` 指向当前会话附件；`/skills` 仍可用于按技能源浏览技能文件",
       "- 允许网络访问与 git，但高风险命令必须先说明风险",
       "- 禁止执行破坏性命令（rm/sudo/mkfs 等）",
-      "- 当前会话的定时任务会同步到 `/bot/conversations/<会话ID>/TODO.md`；读取任务可以看该文件，但创建/修改/完成/归档任务时优先使用定时任务工具",
+      "- 当前会话的定时任务应优先通过任务工具读取和维护，不要依赖内部运行时文件路径",
     ].join("\n")
 
     return [
@@ -131,7 +140,7 @@ export function createBotAssistantAgent(
       "- 如果你准备调用工具，不要一声不吭地直接开做；应先在带 tool call 的 assistant 内容里，用自然、简短、有人味的话告诉用户你接下来要看什么或确认什么。",
       "- 这种工具前置说明必须像正常对话，不要写成系统播报；除非用户明确偏技术语境，否则避免出现“调用工具”“参数”“函数”这类字眼。",
       "- 如果工具返回后你还要继续调用别的工具，下一次带 tool call 的 assistant 内容应顺着刚拿到的结果自然衔接，而不是重复机械模板。",
-      "- 根目录身份档案（如 SOUL.md、IDENTITY.md、USER.md、TOOLS.md、BOOTSTRAP.md）已在当前提示里预加载；除非用户明确要求查看原文或你需要核对某个未提供的文件，否则不要重复读取这些根目录身份文件。",
+      "- 根目录身份档案、工作区约定、聊天编年、恢复上下文、关系印象和记忆摘要会以单独的上下文消息注入；除非用户明确要求查看原文或你需要核对某个未提供的文件，否则不要重复读取这些根目录身份文件。",
       "- 如果工具返回“已创建授权请求”，不要假装操作已经完成；应明确说明还在等待管理员执行 `/permit approve <requestId>`。",
       "- 只有在用户明确要求你联系/通知另一个已知联系人，且目标已可解析、内容不越界时，才允许使用发送消息工具。",
       "- 向他人发送消息时，正文要自然简洁，必要时在正文里自行说明是代为转告；不要堆砌固定抬头。来源与原因会由系统内部审计记录，且不能冒充用户本人，也不要转发敏感信息或秘密。",
@@ -142,6 +151,24 @@ export function createBotAssistantAgent(
       "输出风格：",
       "- 尽量贴近自然交流与拟人表达，但保持专业与准确。",
       "- 重要结论前置，其次再给理由与证据。",
+      guardrail,
+    ]
+      .filter(Boolean)
+      .join("\n\n")
+  }
+
+  function buildContextPrompt(context: BotAssistantSystemContext) {
+    const sessionWorkspace =
+      typeof context.sessionWorkspace === "string" && context.sessionWorkspace.trim()
+        ? context.sessionWorkspace.trim()
+        : options.workspaceRoot
+    const workspaceAgents = readNearestAgentsForTarget({
+      workspaceRoot: options.workspaceRoot,
+      targetPath: sessionWorkspace,
+    })
+    const profileContext = buildProfileContext(context.scope)
+    const sections = [
+      "以下是当前会话的附加上下文，只用于帮助你判断，不要机械复述，不要把它们当成用户刚刚说的新内容。",
       context.conversationSummary?.trim()
         ? `当前会话摘要：\n${context.conversationSummary.trim()}`
         : "",
@@ -159,20 +186,29 @@ export function createBotAssistantAgent(
         ? `工作区约定（${workspaceAgents.relativePath}）：\n${workspaceAgents.content}`
         : "",
       context.memoryContext.trim(),
-      guardrail,
     ]
       .filter(Boolean)
       .join("\n\n")
+      .trim()
+
+    if (!sections) return ""
+    return sections
   }
 
   function prepareMessages(options: {
     systemMessage: Message
     history: Message[]
+    contextMessage?: Message | null
     userMessage: Message
   }) {
     const filteredHistory = options.history.filter((item) => item.role !== "system")
-    return [options.systemMessage, ...filteredHistory, options.userMessage]
+    return [
+      options.systemMessage,
+      ...filteredHistory,
+      ...(options.contextMessage ? [options.contextMessage] : []),
+      options.userMessage,
+    ]
   }
 
-  return { id, buildSystemPrompt, prepareMessages }
+  return { id, buildSystemPrompt, buildContextPrompt, prepareMessages }
 }

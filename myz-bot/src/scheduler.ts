@@ -15,7 +15,6 @@ import {
   createToolMessage,
   createUserMessage,
   ensureConversationDir,
-  ensureConversationWorkspaceDir,
   loadAllMessages,
   loadMetadata,
   saveMetadata,
@@ -35,6 +34,7 @@ import {
 import { loadSoul } from "./soul"
 import type { TelegramClient, TelegramUser } from "./telegram"
 import { sendRecordedTelegramMessage } from "./telegramDelivery"
+import { createTelegramFeedbackController } from "./telegramFeedback"
 import { createToolProgressNotifier } from "./toolProgress"
 
 function sleep(ms: number) {
@@ -107,10 +107,18 @@ function buildSyntheticSchedulerUser(metadata: {
   }
 }
 
+function formatCurrentDate() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const day = String(now.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 function buildTaskTriggerMessage(task: ScheduledTask) {
   return [
     "[Scheduled Task Trigger]",
-    `当前时间: ${new Date().toISOString()}`,
+    `当前日期: ${formatCurrentDate()}`,
     `任务 ID: ${task.id}`,
     `标题: ${task.title}`,
     `计划触发时间: ${task.dueAt}`,
@@ -134,10 +142,7 @@ async function processScheduledLlmTask(options: {
     throw new Error(`会话元数据不存在: ${options.conversationId}`)
   }
 
-  const sessionWorkspace = ensureConversationWorkspaceDir(
-    options.config.conversationsDir,
-    options.conversationId,
-  )
+  const sessionWorkspace = options.config.workspaceRoot
   const historyBefore = loadAllMessages(options.conversationDir)
   const contextState = prepareConversationContext({
     conversationDir: options.conversationDir,
@@ -178,7 +183,7 @@ async function processScheduledLlmTask(options: {
     conversationId: options.conversationId,
     conversationDir: options.conversationDir,
     memoryDir: options.config.memoryDir,
-    workspaceRoot: options.config.workspaceRoot,
+    workspaceRoot: options.config.workspaceRuntimeRoot,
     actorUserId: metadata.userId,
     username: metadata.username,
     latestUserInput: userMessage.content,
@@ -190,7 +195,7 @@ async function processScheduledLlmTask(options: {
     agent.buildSystemPrompt({
       memoryContext: renderMemoryContext(options.config.memoryDir),
       relationshipContext: renderRelationshipContext({
-        workspaceRoot: options.config.workspaceRoot,
+        workspaceRoot: options.config.workspaceRuntimeRoot,
         actorUserId: metadata.userId,
         username: metadata.username,
       }),
@@ -215,6 +220,34 @@ async function processScheduledLlmTask(options: {
       compressed: contextState.compressed,
     },
   )
+  const contextPrompt = agent.buildContextPrompt({
+    memoryContext: renderMemoryContext(options.config.memoryDir),
+    relationshipContext: renderRelationshipContext({
+      workspaceRoot: options.config.workspaceRuntimeRoot,
+      actorUserId: metadata.userId,
+      username: metadata.username,
+    }),
+    conversationSummary: contextState.summary,
+    chatChronicle,
+    recoveredContext: recoveredContextState.recoveredContext,
+    replyMode: "required",
+    scope: metadata.scope,
+    sessionWorkspace,
+    user: {
+      userId: metadata.userId,
+      chatId: metadata.chatId,
+      username: metadata.username,
+      firstName: metadata.firstName,
+      lastName: metadata.lastName,
+    },
+  })
+  const contextMessage = contextPrompt
+    ? createUserMessage(options.conversationId, contextPrompt, {
+        type: "context_injection",
+        source: "scheduler",
+        hiddenFromHistory: true,
+      })
+    : null
 
   const progressNotifier = createToolProgressNotifier({
     config: options.config,
@@ -228,58 +261,78 @@ async function processScheduledLlmTask(options: {
       messageThreadId: metadata.threadId,
     },
   })
-  const reply = await generateReply({
-    config: options.config,
-    messages: agent.prepareMessages({
-      systemMessage,
-      history: contextState.history,
-      userMessage,
-    }),
-    conversationId: options.conversationId,
-    onToolCallMessage: (message) => progressNotifier.onToolCallMessage(message),
-    onToolResultMessage: (message) => progressNotifier.onToolResultMessage(message),
-  })
-  await progressNotifier.flush()
-
-  if (Array.isArray(reply.toolTrace) && reply.toolTrace.length) {
-    appendToolTrace({
-      conversationId: options.conversationId,
-      conversationDir: options.conversationDir,
-      trace: reply.toolTrace as Array<{
-        role: string
-        content: unknown
-        tool_calls?: unknown
-        tool_call_id?: unknown
-        metadata?: Record<string, unknown>
-      }>,
-    })
-  }
-
-  const assistantMessage = createAssistantMessage(
-    options.conversationId,
-    reply.content || "(无响应)",
-    {
-      type: "scheduled_task_reply",
-      taskId: options.task.id,
-      toolCallCount: Array.isArray(reply.toolCalls) ? reply.toolCalls.length : 0,
-      usage: reply.usage as TokenUsage | undefined,
-    },
-  )
-  if (Array.isArray(reply.toolCalls) && reply.toolCalls.length) {
-    assistantMessage.tool_calls = reply.toolCalls as Message["tool_calls"]
-  }
-  appendMessage(options.conversationDir, assistantMessage)
-  await sendRecordedTelegramMessage({
+  const telegramFeedback = createTelegramFeedbackController({
     telegram: options.telegram,
-    conversationDir: options.conversationDir,
-    conversationId: options.conversationId,
     chatId: metadata.chatId,
-    text: assistantMessage.content,
-    sendOptions: {
-      messageThreadId: metadata.threadId,
-    },
-    kind: "scheduler",
+    messageThreadId: metadata.threadId,
   })
+  try {
+    telegramFeedback.setPhase("llm")
+    const reply = await generateReply({
+      config: options.config,
+      messages: agent.prepareMessages({
+        systemMessage,
+        history: contextState.history,
+        contextMessage,
+        userMessage,
+      }),
+      conversationId: options.conversationId,
+      onToolCallMessage: (message) => {
+        telegramFeedback.setPhase("tool")
+        progressNotifier.onToolCallMessage(message)
+      },
+      onToolResultMessage: (message) => {
+        telegramFeedback.noteToolResult(message)
+        telegramFeedback.setPhase("llm")
+        progressNotifier.onToolResultMessage(message)
+      },
+    })
+    await progressNotifier.flush()
+
+    if (Array.isArray(reply.toolTrace) && reply.toolTrace.length) {
+      appendToolTrace({
+        conversationId: options.conversationId,
+        conversationDir: options.conversationDir,
+        trace: reply.toolTrace as Array<{
+          role: string
+          content: unknown
+          tool_calls?: unknown
+          tool_call_id?: unknown
+          metadata?: Record<string, unknown>
+        }>,
+      })
+    }
+
+    const assistantMessage = createAssistantMessage(
+      options.conversationId,
+      reply.content || "(无响应)",
+      {
+        type: "scheduled_task_reply",
+        taskId: options.task.id,
+        toolCallCount: Array.isArray(reply.toolCalls) ? reply.toolCalls.length : 0,
+        usage: reply.usage as TokenUsage | undefined,
+      },
+    )
+    if (Array.isArray(reply.toolCalls) && reply.toolCalls.length) {
+      assistantMessage.tool_calls = reply.toolCalls as Message["tool_calls"]
+    }
+    appendMessage(options.conversationDir, assistantMessage)
+    await sendRecordedTelegramMessage({
+      telegram: options.telegram,
+      conversationDir: options.conversationDir,
+      conversationId: options.conversationId,
+      chatId: metadata.chatId,
+      text: assistantMessage.content,
+      sendOptions: {
+        messageThreadId: metadata.threadId,
+      },
+      kind: "scheduler",
+    })
+    await telegramFeedback.complete()
+  } catch (error) {
+    await telegramFeedback.complete({ failed: true })
+    throw error
+  }
 }
 
 async function processScheduledDirectTask(options: {

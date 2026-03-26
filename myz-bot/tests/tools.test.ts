@@ -5,7 +5,6 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   ensureConversationDir,
-  ensureConversationWorkspaceDir,
   getLlmHistoryPath,
   saveMetadata,
 } from "../src/conversations"
@@ -78,7 +77,7 @@ test("SendMessageToContact relays to a known private contact and records target 
     telegram: {
       sendMessage: async (chatId, text) => {
         sent.push({ chatId, text })
-        return { ok: true }
+        return []
       },
     },
   })
@@ -140,7 +139,7 @@ test("external path access creates permission request, notifies admin, and works
     telegram: {
       sendMessage: async (chatId, text) => {
         sent.push({ chatId, text })
-        return { ok: true }
+        return []
       },
     },
   })
@@ -274,8 +273,7 @@ test("Run resolves /workspace virtual paths inside shell commands", async () => 
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
   const conversationsDir = join(root, "conversations")
   const conversationId = "100-1"
-  const workspaceDir = ensureConversationWorkspaceDir(conversationsDir, conversationId)
-  const repoDir = join(workspaceDir, "kimici")
+  const repoDir = join(root, "kimici")
   mkdirSync(repoDir, { recursive: true })
   writeFileSync(join(repoDir, "README.md"), "hello")
 
@@ -299,7 +297,72 @@ test("Run resolves /workspace virtual paths inside shell commands", async () => 
   assert.doesNotMatch(text, /已创建授权请求/)
 })
 
-test("Read can access bot root files through /bot virtual path without reinjecting root AGENTS", async () => {
+test("Write supports batch file creation in a single call", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
+  const conversationsDir = join(root, "conversations")
+  const conversationId = "100-1"
+
+  const registry = createLocalTools({
+    workspaceRoot: root,
+    skillSources: [],
+    memoryDir: join(root, "memory"),
+    conversationsDir,
+  })
+
+  const result = await registry.handlers.Write({
+    __conversationId: conversationId,
+    files: [
+      {
+        path: "/workspace/project/a.md",
+        content: "# A\n",
+      },
+      {
+        path: "/workspace/project/b.md",
+        content: "# B\n",
+      },
+    ],
+  })
+
+  assert.equal(result.isError, undefined)
+  const text = extractText(result as { content: Array<{ type: string; text?: string }> })
+  assert.match(text, /批量写入完成（2 个文件）/)
+  assert.match(text, /\/workspace\/project\/a\.md/)
+  assert.match(text, /\/workspace\/project\/b\.md/)
+  assert.equal(readFileSync(join(root, "project", "a.md"), "utf-8"), "# A\n")
+  assert.equal(readFileSync(join(root, "project", "b.md"), "utf-8"), "# B\n")
+})
+
+test("Write batch validates all paths before writing to avoid partial success", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
+  const conversationsDir = join(root, "conversations")
+  const conversationId = "100-1"
+  const externalDir = mkdtempSync(join(tmpdir(), "myz-bot-write-batch-"))
+  const registry = createLocalTools({
+    workspaceRoot: root,
+    skillSources: [],
+    memoryDir: join(root, "memory"),
+    conversationsDir,
+  })
+
+  const result = await registry.handlers.Write({
+    __conversationId: conversationId,
+    files: [
+      {
+        path: "/workspace/project/a.md",
+        content: "# A\n",
+      },
+      {
+        path: join(externalDir, "b.md"),
+        content: "# B\n",
+      },
+    ],
+  })
+
+  assert.equal(result.isError, true)
+  assert.equal(existsSync(join(root, "project", "a.md")), false)
+})
+
+test("Read can access workspace files through /workspace virtual path without reinjecting root AGENTS", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
   const conversationsDir = join(root, "conversations")
   const memoryDir = join(root, "memory")
@@ -315,7 +378,7 @@ test("Read can access bot root files through /bot virtual path without reinjecti
   })
 
   const result = await registry.handlers.Read({
-    path: "/bot/memory/note.txt",
+    path: "/workspace/memory/note.txt",
     __conversationId: "100-1",
   })
 
@@ -329,8 +392,7 @@ test("Read can access bot root files through /bot virtual path without reinjecti
 test("List includes nearest AGENTS.md when reading a directory", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
   const conversationsDir = join(root, "conversations")
-  const workspaceDir = ensureConversationWorkspaceDir(conversationsDir, "100-1")
-  const projectDir = join(workspaceDir, "repo")
+  const projectDir = join(root, "repo")
   mkdirSync(projectDir, { recursive: true })
   writeFileSync(join(projectDir, "AGENTS.md"), "# AGENTS.md\n\n- repo 目录规则")
   writeFileSync(join(projectDir, "a.txt"), "a")
@@ -359,8 +421,7 @@ test("List includes nearest AGENTS.md when reading a directory", async () => {
 test("Read keeps nested AGENTS context but does not duplicate the AGENTS file itself", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
   const conversationsDir = join(root, "conversations")
-  const workspaceDir = ensureConversationWorkspaceDir(conversationsDir, "100-1")
-  const projectDir = join(workspaceDir, "repo")
+  const projectDir = join(root, "repo")
   mkdirSync(projectDir, { recursive: true })
   writeFileSync(join(projectDir, "AGENTS.md"), "# AGENTS.md\n\n- repo 目录规则")
   writeFileSync(join(projectDir, "note.txt"), "nested note")
@@ -387,4 +448,31 @@ test("Read keeps nested AGENTS context but does not duplicate the AGENTS file it
   })
   const agentsText = extractText(agentsFile as { content: Array<{ type: string; text?: string }> })
   assert.equal(agentsText.match(/repo 目录规则/g)?.length, 1)
+})
+
+test("Read does not inject parent AGENTS outside workspace root", async () => {
+  const parent = mkdtempSync(join(tmpdir(), "myz-bot-tools-parent-"))
+  const root = join(parent, "workspace")
+  mkdirSync(root, { recursive: true })
+  const conversationsDir = join(root, "conversations")
+  writeFileSync(join(parent, "AGENTS.md"), "# AGENTS.md\n\n- 父目录规则")
+  writeFileSync(join(root, "note.txt"), "inside workspace")
+
+  const registry = createLocalTools({
+    workspaceRoot: root,
+    skillSources: [],
+    memoryDir: join(root, "memory"),
+    conversationsDir,
+  })
+
+  const result = await registry.handlers.Read({
+    path: "/workspace/note.txt",
+    __conversationId: "100-1",
+  })
+
+  assert.equal(result.isError, undefined)
+  const text = extractText(result as { content: Array<{ type: string; text?: string }> })
+  assert.doesNotMatch(text, /\[AGENTS instructions from/)
+  assert.doesNotMatch(text, /父目录规则/)
+  assert.match(text, /inside workspace/)
 })

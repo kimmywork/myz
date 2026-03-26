@@ -14,25 +14,42 @@ import {
 
 test("applySoulDraft versions previous soul and updates SOUL.md", () => {
   const workspaceRoot = mkdtempSync(join(tmpdir(), "myz-bot-soul-"))
-  ensureSoulFile(workspaceRoot)
+  const runtimeRoot = join(workspaceRoot, ".runtime")
+  ensureSoulFile(workspaceRoot, runtimeRoot)
   const originalSoul = loadSoul(workspaceRoot)
 
-  const draft = createSoulDraft(
-    workspaceRoot,
-    "# New Soul\n\nUpdated persona",
-    {
+  const draft = createSoulDraft({
+    runtimeRoot,
+    content: "# New Soul\n\nUpdated persona",
+    metadata: {
       actor: "admin",
       trigger: "manual",
       conversationId: "c1",
     },
-  )
-  const applied = applySoulDraft(workspaceRoot, draft.id, {
-    actor: "admin",
+  })
+  const applied = applySoulDraft({
+    workspaceRoot,
+    runtimeRoot,
+    draftId: draft.id,
+    metadata: {
+      actor: "admin",
+    },
   })
 
   assert.equal(existsSync(applied.versionPath), true)
   assert.equal(readFileSync(join(workspaceRoot, "SOUL.md"), "utf-8").includes("New Soul"), true)
   assert.equal(readFileSync(applied.versionPath, "utf-8").trim(), originalSoul.trim())
+})
+
+test("loadSoul and ensureSoulFile do not create runtime soul directories inside workspace by default", () => {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "myz-bot-soul-"))
+
+  ensureSoulFile(workspaceRoot)
+  const soul = loadSoul(workspaceRoot)
+
+  assert.match(soul, /名字与身份/)
+  assert.equal(existsSync(join(workspaceRoot, "SOUL.md")), true)
+  assert.equal(existsSync(join(workspaceRoot, "soul")), false)
 })
 
 test("compactSoulContent keeps structure while shrinking oversized soul", () => {

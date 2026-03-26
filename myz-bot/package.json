@@ -1,9 +1,9 @@
 {
   "name": "myz-bot",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/cli.ts -c ../../../ml/bot/bot.yml",
+    "dev": "tsx src/cli.ts serve -w ../../../ml/bot",
     "test": "node --import tsx --test tests/*.test.ts",
     "build": "vite build && node scripts/prepare-dist.mjs"
   },

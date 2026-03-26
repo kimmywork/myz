@@ -16,8 +16,10 @@ function buildMessage(role: Message["role"], content: string): Message {
   }
 }
 
-export async function checkConfig(options: { configPath?: string } = {}) {
-  const config = loadConfig(options.configPath)
+export async function checkConfig(options: { workspaceRoot?: string } = {}) {
+  const config = loadConfig({
+    workspaceRoot: options.workspaceRoot,
+  })
   configureGlobalNetwork(config.network)
   const results: Array<{ name: string; ok: boolean; detail?: string }> = []
 

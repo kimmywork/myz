@@ -14,14 +14,22 @@ function trimAgentsContent(value: string) {
   return `${normalized.slice(0, AGENTS_MAX_CHARS - 8).trim()}\n[已截断]`
 }
 
+function isInsideOrEqual(rootPath: string, targetPath: string) {
+  const rel = relative(rootPath, targetPath)
+  return rel === "" || (!rel.startsWith("..") && rel !== "..")
+}
+
 export function findNearestAgentsFile(options: {
   workspaceRoot: string
   targetPath: string
 }) {
+  const workspaceRoot = resolve(options.workspaceRoot)
   let current = resolve(options.targetPath)
+  const boundedToWorkspace = isInsideOrEqual(workspaceRoot, current)
   while (true) {
     const candidate = resolve(current, "AGENTS.md")
     if (existsSync(candidate)) return candidate
+    if (boundedToWorkspace && current === workspaceRoot) break
     if (current === dirname(current)) break
     const next = dirname(current)
     current = next

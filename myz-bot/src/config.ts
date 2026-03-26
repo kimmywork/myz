@@ -1,10 +1,14 @@
-import { readFileSync, existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
+import { readFileSync, existsSync, realpathSync } from "node:fs"
+import { homedir } from "node:os"
+import { resolve } from "node:path"
+import { createHash } from "node:crypto"
 import dotenv from "dotenv"
 import { z } from "zod"
 import yaml from "yaml"
 
 dotenv.config({ path: resolve(process.cwd(), ".env") })
+
+export const BOT_RUNTIME_DIRNAME = ".myz-bot"
 
 const SkillSourceConfigSchema = z.object({
   id: z.string().min(1),
@@ -125,7 +129,6 @@ const BotConfigSchema = z.object({
     )
     .optional()
     .default([]),
-  workspaceRoot: z.string().default("."),
   skills: z
     .object({
       sources: z.array(SkillSourceConfigSchema).optional().default([]),
@@ -180,6 +183,26 @@ const BotConfigSchema = z.object({
       summaryMaxMessages: 20,
       summaryMaxChars: 6_000,
     }),
+  upgrade: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+      packageName: z.string().min(1).optional().default("myz-bot"),
+      channel: z.string().min(1).optional().default("latest"),
+      checkIntervalMs: z.number().int().positive().optional().default(21_600_000),
+      strategy: z.enum(["notify", "prepare-and-restart"]).optional().default("notify"),
+      applyMode: z.enum(["manual", "launcher-only"]).optional().default("manual"),
+      allowPrerelease: z.boolean().optional().default(false),
+    })
+    .optional()
+    .default({
+      enabled: true,
+      packageName: "myz-bot",
+      channel: "latest",
+      checkIntervalMs: 21_600_000,
+      strategy: "notify",
+      applyMode: "manual",
+      allowPrerelease: false,
+    }),
   soul: z
     .object({
       autoDraft: z.boolean().optional().default(true),
@@ -214,15 +237,46 @@ export interface SkillSourceConfig {
 }
 
 export type BotRuntimeConfig = BotConfig & {
+  runtimeRoot: string
   workspaceRoot: string
+  workspaceId: string
+  workspaceRuntimeRoot: string
   skillsDir: string
   conversationsDir: string
+  permissionsDir: string
+  relationshipsDir: string
+  soulRuntimeDir: string
+  systemDir: string
   memoryDir: string
   skillSources: SkillSourceConfig[]
   skillAllowlist: string[]
   skillDenylist: string[]
   toolAllowlist: string[]
   toolDenylist: string[]
+}
+
+export function resolveRuntimeRoot(home = homedir()) {
+  return resolve(home, BOT_RUNTIME_DIRNAME)
+}
+
+export function resolveConfigPath(runtimeRoot = resolveRuntimeRoot()) {
+  return resolve(runtimeRoot, "bot.yml")
+}
+
+export function normalizeWorkspaceRoot(workspaceRoot = process.cwd()) {
+  const absolute = resolve(workspaceRoot)
+  if (!existsSync(absolute)) {
+    throw new Error(`workspace not found: ${absolute}`)
+  }
+  try {
+    return realpathSync(absolute)
+  } catch {
+    return absolute
+  }
+}
+
+export function buildWorkspaceId(workspaceRoot: string) {
+  return createHash("sha256").update(workspaceRoot).digest("hex").slice(0, 16)
 }
 
 function normalizeValue(value: unknown) {
@@ -321,18 +375,22 @@ function buildSkillSources(config: BotConfig, workspaceRoot: string) {
   return Array.from(unique.values())
 }
 
-export function loadConfig(
-  configPath = resolve(process.cwd(), "bot.yml"),
-): BotRuntimeConfig {
+export function loadConfig(options: {
+  workspaceRoot?: string
+  runtimeRoot?: string
+} = {}): BotRuntimeConfig {
+  const runtimeRoot = resolve(options.runtimeRoot || resolveRuntimeRoot())
+  const configPath = resolveConfigPath(runtimeRoot)
   if (!existsSync(configPath)) {
     throw new Error(`bot.yml not found at ${configPath}`)
   }
-  const configDir = dirname(resolve(configPath))
   const raw = readFileSync(configPath, "utf-8")
   const parsed = yaml.parse(raw) || {}
   const withEnv = applyEnvFallback(parsed)
   const config = BotConfigSchema.parse(withEnv)
-  const workspaceRoot = resolve(configDir, config.workspaceRoot)
+  const workspaceRoot = normalizeWorkspaceRoot(options.workspaceRoot)
+  const workspaceId = buildWorkspaceId(workspaceRoot)
+  const workspaceRuntimeRoot = resolve(runtimeRoot, "workspaces", workspaceId)
   const skillSources = buildSkillSources(config, workspaceRoot)
   const skillAllowlist = normalizeSkillPolicies(config.skills?.allowlist)
   const skillDenylist = normalizeSkillPolicies(config.skills?.denylist)
@@ -341,9 +399,16 @@ export function loadConfig(
 
   return {
     ...config,
+    runtimeRoot,
     workspaceRoot,
+    workspaceId,
+    workspaceRuntimeRoot,
     skillsDir: resolve(workspaceRoot, ".myz/skills"),
-    conversationsDir: resolve(workspaceRoot, "conversations"),
+    conversationsDir: resolve(workspaceRuntimeRoot, "conversations"),
+    permissionsDir: resolve(workspaceRuntimeRoot, "permissions"),
+    relationshipsDir: resolve(workspaceRuntimeRoot, "relationships"),
+    soulRuntimeDir: resolve(workspaceRuntimeRoot, "soul"),
+    systemDir: resolve(workspaceRuntimeRoot, "system"),
     memoryDir: resolve(workspaceRoot, "memory"),
     skillSources,
     skillAllowlist,
