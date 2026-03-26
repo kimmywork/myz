@@ -17,11 +17,6 @@ import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 function createConfig(root: string) {
   return createRuntimeConfig(root, {
-    context: {
-      maxHistoryMessages: 120,
-      compressionThreshold: 160,
-      summaryMaxMessages: 20,
-    },
     soul: {
       autoDraft: true,
       autoApply: false,

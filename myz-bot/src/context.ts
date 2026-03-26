@@ -10,6 +10,15 @@ import type { Message } from "@myz/ai-core/types"
 import { rewriteLlmHistory } from "./conversations"
 import { saveConversationSummary } from "./memory"
 
+const ESTIMATED_CHARS_PER_TOKEN = 4
+const CONTEXT_RESERVED_TOKENS = 2048
+const CONTEXT_HISTORY_RATIO = 0.6
+const DEFAULT_MAX_HISTORY_MESSAGES = 120
+const DEFAULT_MAX_HISTORY_CHARS = 120_000
+const DEFAULT_COMPRESSION_COOLDOWN_MS = 300_000
+const DEFAULT_SUMMARY_MAX_MESSAGES = 20
+const DEFAULT_SUMMARY_MAX_CHARS = 6_000
+
 function isVisibleConversationMessage(message: Message) {
   if (message.role === "user") return true
   if (message.role !== "assistant") return false
@@ -57,6 +66,72 @@ function estimateMessageChars(message: Message) {
   return content + toolCalls + 64
 }
 
+function estimateHistoryChars(messages: Message[]) {
+  return messages.reduce((sum, message) => sum + estimateMessageChars(message), 0)
+}
+
+function deriveHistoryCharBudget(options: {
+  maxHistoryChars: number
+  contextWindowTokens?: number
+  maxOutputTokens?: number
+}) {
+  const configured = Math.max(4096, options.maxHistoryChars)
+  const contextWindowTokens =
+    typeof options.contextWindowTokens === "number" &&
+    Number.isFinite(options.contextWindowTokens)
+      ? options.contextWindowTokens
+      : 0
+  if (contextWindowTokens <= 0) {
+    return configured
+  }
+
+  const maxOutputTokens =
+    typeof options.maxOutputTokens === "number" && Number.isFinite(options.maxOutputTokens)
+      ? options.maxOutputTokens
+      : 0
+  const reservedTokens = Math.max(
+    1024,
+    maxOutputTokens + CONTEXT_RESERVED_TOKENS,
+  )
+  const remainingTokens = Math.max(1024, contextWindowTokens - reservedTokens)
+  const derived = Math.max(
+    4096,
+    Math.floor(remainingTokens * CONTEXT_HISTORY_RATIO * ESTIMATED_CHARS_PER_TOKEN),
+  )
+  return Math.min(configured, derived)
+}
+
+function deriveAdaptiveMessageBudget(maxHistoryChars: number, configuredMaxHistoryMessages: number) {
+  const derived = Math.max(12, Math.ceil(maxHistoryChars / 300))
+  return Math.max(1, Math.max(configuredMaxHistoryMessages, derived))
+}
+
+function deriveCompressionKeepMessages(maxHistoryMessages: number) {
+  return Math.max(1, Math.min(maxHistoryMessages, Math.max(2, Math.ceil(maxHistoryMessages / 6))))
+}
+
+function deriveCompressionKeepChars(maxHistoryChars: number) {
+  return Math.max(2048, Math.min(maxHistoryChars, Math.floor(maxHistoryChars / 6)))
+}
+
+export function deriveThinHistoryThreshold(options: {
+  maxHistoryMessages?: number
+  maxHistoryChars?: number
+  contextWindowTokens?: number
+  maxOutputTokens?: number
+}) {
+  const effectiveMaxHistoryChars = deriveHistoryCharBudget({
+    maxHistoryChars: options.maxHistoryChars ?? DEFAULT_MAX_HISTORY_CHARS,
+    contextWindowTokens: options.contextWindowTokens,
+    maxOutputTokens: options.maxOutputTokens,
+  })
+  const effectiveMaxHistoryMessages = deriveAdaptiveMessageBudget(
+    effectiveMaxHistoryChars,
+    Math.max(1, options.maxHistoryMessages ?? DEFAULT_MAX_HISTORY_MESSAGES),
+  )
+  return Math.max(8, Math.floor(effectiveMaxHistoryMessages / 4))
+}
+
 function takeRecentMessagesWithinBudget(
   messages: Message[],
   maxHistoryMessages: number,
@@ -97,31 +172,43 @@ export function prepareConversationContext(options: {
   conversationId: string
   memoryDir: string
   messages: Message[]
-  maxHistoryMessages: number
-  compressionThreshold: number
-  summaryMaxMessages: number
+  maxHistoryMessages?: number
+  compressionThreshold?: number
+  summaryMaxMessages?: number
   summaryMaxChars?: number
   maxHistoryChars?: number
   compressionCooldownMs?: number
+  contextWindowTokens?: number
+  maxOutputTokens?: number
 }) {
   const {
     conversationDir,
     conversationId,
     memoryDir,
     messages,
-    maxHistoryMessages,
-    compressionThreshold,
-    summaryMaxMessages,
-    summaryMaxChars = 6000,
-    maxHistoryChars = 120000,
-    compressionCooldownMs = 300000,
+    maxHistoryMessages = DEFAULT_MAX_HISTORY_MESSAGES,
+    compressionThreshold: _compressionThreshold,
+    summaryMaxMessages = DEFAULT_SUMMARY_MAX_MESSAGES,
+    summaryMaxChars = DEFAULT_SUMMARY_MAX_CHARS,
+    maxHistoryChars = DEFAULT_MAX_HISTORY_CHARS,
+    compressionCooldownMs = DEFAULT_COMPRESSION_COOLDOWN_MS,
+    contextWindowTokens,
+    maxOutputTokens,
   } = options
 
   const runtimeMessages = messages.filter(isRuntimeHistoryMessage)
   const compressedRuntimeMessages = runtimeMessages.filter(isCompressedHistoryMessage)
-  const visibleMessages = runtimeMessages.filter(isVisibleConversationMessage)
-  const effectiveMaxHistoryMessages = Math.max(1, maxHistoryMessages)
-  const effectiveMaxHistoryChars = Math.max(4096, maxHistoryChars)
+  const effectiveMaxHistoryChars = deriveHistoryCharBudget({
+    maxHistoryChars,
+    contextWindowTokens,
+    maxOutputTokens,
+  })
+  const effectiveMaxHistoryMessages = deriveAdaptiveMessageBudget(
+    effectiveMaxHistoryChars,
+    Math.max(1, maxHistoryMessages),
+  )
+  const compressionKeepMessages = deriveCompressionKeepMessages(effectiveMaxHistoryMessages)
+  const compressionKeepChars = deriveCompressionKeepChars(effectiveMaxHistoryChars)
   const paths = getContextPaths(conversationDir)
   const previousSummaryState = existsSync(paths.summaryFile)
     ? (() => {
@@ -143,17 +230,14 @@ export function prepareConversationContext(options: {
   )
   const compressedRecentHistory = takeRecentMessagesWithinBudget(
     compressedRuntimeMessages,
-    effectiveMaxHistoryMessages,
-    effectiveMaxHistoryChars,
+    compressionKeepMessages,
+    compressionKeepChars,
   )
-  const threshold = Math.max(
-    effectiveMaxHistoryMessages + 1,
-    compressionThreshold,
-  )
+  const totalCompressedRuntimeChars = estimateHistoryChars(compressedRuntimeMessages)
 
   const runtimeOverflow =
     compressedRuntimeMessages.length > compressedRecentHistory.length &&
-    visibleMessages.length >= threshold
+    totalCompressedRuntimeChars > effectiveMaxHistoryChars
   if (!runtimeOverflow) {
     return {
       history: recentHistory,
@@ -162,7 +246,10 @@ export function prepareConversationContext(options: {
     }
   }
 
-  const archivedMessages = runtimeMessages.slice(0, runtimeMessages.length - recentHistory.length)
+  const archivedMessages = runtimeMessages.slice(
+    0,
+    Math.max(0, runtimeMessages.length - compressedRecentHistory.length),
+  )
   const archivedVisibleMessages = archivedMessages.filter(isVisibleConversationMessage)
   mkdirSync(paths.dir, { recursive: true })
   mkdirSync(paths.archiveDir, { recursive: true })

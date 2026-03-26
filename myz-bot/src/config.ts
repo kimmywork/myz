@@ -165,24 +165,6 @@ const BotConfigSchema = z.object({
       maxBatchSize: 20,
       failureRetryBaseDelayMs: 60_000,
     }),
-  context: z
-    .object({
-      maxHistoryMessages: z.number().int().positive().optional().default(120),
-      maxHistoryChars: z.number().int().positive().optional().default(120_000),
-      compressionThreshold: z.number().int().positive().optional().default(160),
-      compressionCooldownMs: z.number().int().min(0).optional().default(300_000),
-      summaryMaxMessages: z.number().int().positive().optional().default(20),
-      summaryMaxChars: z.number().int().positive().optional().default(6_000),
-    })
-    .optional()
-    .default({
-      maxHistoryMessages: 120,
-      maxHistoryChars: 120_000,
-      compressionThreshold: 160,
-      compressionCooldownMs: 300_000,
-      summaryMaxMessages: 20,
-      summaryMaxChars: 6_000,
-    }),
   upgrade: z
     .object({
       enabled: z.boolean().optional().default(true),
@@ -242,6 +224,7 @@ export type BotRuntimeConfig = BotConfig & {
   workspaceId: string
   workspaceRuntimeRoot: string
   skillsDir: string
+  attachmentsDir: string
   conversationsDir: string
   permissionsDir: string
   relationshipsDir: string
@@ -336,6 +319,18 @@ function applyEnvFallback(config: unknown) {
   return next
 }
 
+function assertNoLegacyContextConfig(config: unknown) {
+  if (
+    typeof config === "object" &&
+    config !== null &&
+    "context" in (config as Record<string, unknown>)
+  ) {
+    throw new Error(
+      "bot.yml `context` section has been removed; delete it and retry",
+    )
+  }
+}
+
 function normalizeSkillPolicies(entries: string[] = []) {
   return Array.from(
     new Set(
@@ -359,7 +354,7 @@ function buildSkillSources(config: BotConfig, workspaceRoot: string) {
   }))
   const projectSkillSource = {
     id: "project",
-    dir: resolve(workspaceRoot, ".myz/skills"),
+    dir: resolve(workspaceRoot, "skills"),
     readonly: false,
   }
   const defaults: SkillSourceConfig[] = [
@@ -386,6 +381,7 @@ export function loadConfig(options: {
   }
   const raw = readFileSync(configPath, "utf-8")
   const parsed = yaml.parse(raw) || {}
+  assertNoLegacyContextConfig(parsed)
   const withEnv = applyEnvFallback(parsed)
   const config = BotConfigSchema.parse(withEnv)
   const workspaceRoot = normalizeWorkspaceRoot(options.workspaceRoot)
@@ -403,7 +399,8 @@ export function loadConfig(options: {
     workspaceRoot,
     workspaceId,
     workspaceRuntimeRoot,
-    skillsDir: resolve(workspaceRoot, ".myz/skills"),
+    skillsDir: resolve(workspaceRoot, "skills"),
+    attachmentsDir: resolve(workspaceRuntimeRoot, "attachments"),
     conversationsDir: resolve(workspaceRuntimeRoot, "conversations"),
     permissionsDir: resolve(workspaceRuntimeRoot, "permissions"),
     relationshipsDir: resolve(workspaceRuntimeRoot, "relationships"),

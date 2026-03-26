@@ -1,6 +1,6 @@
 {
   "name": "myz-bot",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "type": "module",
   "scripts": {
     "dev": "tsx src/cli.ts serve -w ../../../ml/bot",

@@ -41,12 +41,6 @@ test("loadConfig parses minimal bot.yml", () => {
   assert.equal(config.upgrade.strategy, "notify")
   assert.equal(config.upgrade.applyMode, "manual")
   assert.equal(config.upgrade.allowPrerelease, false)
-  assert.equal(config.context.maxHistoryMessages, 120)
-  assert.equal(config.context.maxHistoryChars, 120000)
-  assert.equal(config.context.compressionThreshold, 160)
-  assert.equal(config.context.compressionCooldownMs, 300000)
-  assert.equal(config.context.summaryMaxMessages, 20)
-  assert.equal(config.context.summaryMaxChars, 6000)
   assert.equal(config.soul.autoDraft, true)
   assert.equal(config.soul.autoApply, true)
   assert.equal(config.soul.autoDraftMessageInterval, 40)
@@ -109,13 +103,6 @@ test("loadConfig parses permissions and skill policies", () => {
       "  strategy: prepare-and-restart",
       "  applyMode: launcher-only",
       "  allowPrerelease: true",
-      "context:",
-      "  maxHistoryMessages: 10",
-      "  maxHistoryChars: 20000",
-      "  compressionThreshold: 20",
-      "  compressionCooldownMs: 1000",
-      "  summaryMaxMessages: 8",
-      "  summaryMaxChars: 4000",
       "soul:",
       "  autoDraft: true",
       "  autoApply: false",
@@ -149,12 +136,6 @@ test("loadConfig parses permissions and skill policies", () => {
   assert.equal(config.upgrade.strategy, "prepare-and-restart")
   assert.equal(config.upgrade.applyMode, "launcher-only")
   assert.equal(config.upgrade.allowPrerelease, true)
-  assert.equal(config.context.maxHistoryMessages, 10)
-  assert.equal(config.context.maxHistoryChars, 20000)
-  assert.equal(config.context.compressionThreshold, 20)
-  assert.equal(config.context.compressionCooldownMs, 1000)
-  assert.equal(config.context.summaryMaxMessages, 8)
-  assert.equal(config.context.summaryMaxChars, 4000)
   assert.equal(config.soul.autoDraft, true)
   assert.equal(config.soul.autoApply, false)
   assert.equal(config.soul.autoDraftTimeIntervalMs, 7200000)
@@ -186,8 +167,33 @@ test("loadConfig ignores legacy workspaceRoot in bot.yml and uses the provided w
 
   const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
   assert.equal(config.workspaceRoot, realpathSync(workspaceDir))
-  assert.equal(config.skillsDir, join(config.workspaceRoot, ".myz/skills"))
+  assert.equal(config.skillsDir, join(config.workspaceRoot, "skills"))
+  assert.equal(config.attachmentsDir, join(config.runtimeRoot, "workspaces", config.workspaceId, "attachments"))
   assert.equal(config.runtimeRoot, runtimeDir)
   assert.equal(config.conversationsDir, join(config.runtimeRoot, "workspaces", config.workspaceId, "conversations"))
   assert.equal(config.memoryDir, join(config.workspaceRoot, "memory"))
+})
+
+test("loadConfig rejects removed legacy context section", () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), "myz-bot-workspace-"))
+  const runtimeDir = mkdtempSync(join(tmpdir(), "myz-bot-runtime-"))
+  const path = join(runtimeDir, "bot.yml")
+  writeFileSync(
+    path,
+    [
+      "telegram:",
+      "  username: testbot",
+      "  token: testtoken",
+      "ai:",
+      "  provider: openai_compatible",
+      "  model: gpt-test",
+      "context:",
+      "  maxHistoryMessages: 10",
+    ].join("\n"),
+  )
+
+  assert.throws(
+    () => loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir }),
+    /context.*removed/i,
+  )
 })

@@ -92,8 +92,8 @@ function summarizeReferencedMessage(message?: TelegramMessage) {
     : `引用消息：${preview.slice(0, 120)}`
 }
 
-function ensureAttachmentDir(conversationDir: string) {
-  const dir = resolve(conversationDir, "attachments")
+function ensureAttachmentDir(attachmentsRoot: string, conversationId: string) {
+  const dir = resolve(attachmentsRoot, conversationId)
   mkdirSync(dir, { recursive: true })
   return dir
 }
@@ -104,7 +104,7 @@ function getExtensionFromPath(filePath: string, fallback: string) {
 }
 
 async function saveAttachment(options: {
-  conversationDir: string
+  attachmentsRoot: string
   conversationId: string
   telegram: TelegramClient
   fileId: string
@@ -125,7 +125,7 @@ async function saveAttachment(options: {
     fallbackExt: getExtensionFromPath(file.file_path, options.fallbackExt),
     fallbackStem: options.fallbackStem,
   })
-  const dir = ensureAttachmentDir(options.conversationDir)
+  const dir = ensureAttachmentDir(options.attachmentsRoot, options.conversationId)
   const path = resolve(dir, fileName)
   const virtualPath = `/attachments/${fileName}`
   writeFileSync(path, buffer)
@@ -160,12 +160,12 @@ function getBestPhoto(photo: TelegramPhotoSize[] = []) {
 async function savePhoto(
   telegram: TelegramClient,
   message: TelegramMessage,
-  conversationDir: string,
+  attachmentsRoot: string,
 ) {
   const photo = getBestPhoto(message.photo)
   if (!photo?.file_id) return null
   return saveAttachment({
-    conversationDir,
+    attachmentsRoot,
     conversationId: resolveConversationRoute(message).conversationId,
     telegram,
     fileId: photo.file_id,
@@ -181,10 +181,10 @@ async function saveDocument(
   telegram: TelegramClient,
   document: TelegramDocument,
   message: TelegramMessage,
-  conversationDir: string,
+  attachmentsRoot: string,
 ) {
   return saveAttachment({
-    conversationDir,
+    attachmentsRoot,
     conversationId: resolveConversationRoute(message).conversationId,
     telegram,
     fileId: document.file_id,
@@ -200,10 +200,10 @@ async function saveVoice(
   telegram: TelegramClient,
   voice: TelegramVoice,
   message: TelegramMessage,
-  conversationDir: string,
+  attachmentsRoot: string,
 ) {
   return saveAttachment({
-    conversationDir,
+    attachmentsRoot,
     conversationId: resolveConversationRoute(message).conversationId,
     telegram,
     fileId: voice.file_id,
@@ -264,7 +264,7 @@ export async function buildIncomingMessage(options: {
 
   if (config.telegram.saveIncomingMedia) {
     if (Array.isArray(message.photo) && message.photo.length) {
-      const saved = await savePhoto(telegram, message, conversationDir)
+      const saved = await savePhoto(telegram, message, config.attachmentsDir)
       if (saved) {
         attachmentSummaries.push(`图片已保存：${saved.virtualPath}`)
         storedAttachments.push({
@@ -285,7 +285,7 @@ export async function buildIncomingMessage(options: {
         telegram,
         message.document,
         message,
-        conversationDir,
+        config.attachmentsDir,
       )
       attachmentSummaries.push(`文件已保存：${saved.virtualPath}`)
       storedAttachments.push({
@@ -302,7 +302,7 @@ export async function buildIncomingMessage(options: {
     }
 
     if (message.voice?.file_id) {
-      const saved = await saveVoice(telegram, message.voice, message, conversationDir)
+      const saved = await saveVoice(telegram, message.voice, message, config.attachmentsDir)
       attachmentSummaries.push(`语音已保存：${saved.virtualPath}`)
       storedAttachments.push({
         type: "voice",

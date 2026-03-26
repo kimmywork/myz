@@ -1,18 +1,11 @@
-import { existsSync, readFileSync } from "node:fs"
-import { resolve } from "node:path"
 import type { Message } from "@myz/ai-core/types"
-import { readNearestAgentsForTarget } from "../agentsContext"
-import { loadSoul } from "../soul"
 
 export interface BotAssistantAgentOptions {
   workspaceRoot: string
 }
 
 export interface BotAssistantSystemContext {
-  memoryContext: string
-  relationshipContext?: string
   conversationSummary?: string
-  chatChronicle?: string
   recoveredContext?: string
   replyMode?: "required" | "optional"
   scope?: "private" | "group"
@@ -42,7 +35,6 @@ export function createBotAssistantAgent(
   options: BotAssistantAgentOptions,
 ): BotAssistantAgent {
   const id = "bot-assistant"
-  const PROFILE_DOC_MAX_CHARS = 2_000
 
   function formatCurrentDate() {
     const now = new Date()
@@ -52,42 +44,24 @@ export function createBotAssistantAgent(
     return `${year}-${month}-${day}`
   }
 
-  function trimDocContent(value: string, maxChars = PROFILE_DOC_MAX_CHARS) {
-    const normalized = value.replace(/\r\n/g, "\n").trim()
-    if (!normalized) return ""
-    if (normalized.length <= maxChars) return normalized
-    return `${normalized.slice(0, maxChars - 8).trim()}\n[已截断]`
-  }
-
-  function readWorkspaceDoc(filename: string) {
-    const path = resolve(options.workspaceRoot, filename)
-    if (!existsSync(path)) return ""
-    return trimDocContent(readFileSync(path, "utf-8"))
-  }
-
-  function buildProfileContext(scope?: "private" | "group") {
-    if (!existsSync(options.workspaceRoot)) {
-      return ""
-    }
-
-    const sections = [
-      { heading: "SOUL.md", content: loadSoul(options.workspaceRoot) },
-      { heading: "IDENTITY.md", content: readWorkspaceDoc("IDENTITY.md") },
-      { heading: "TOOLS.md", content: readWorkspaceDoc("TOOLS.md") },
-      { heading: "BOOTSTRAP.md", content: readWorkspaceDoc("BOOTSTRAP.md") },
+  function buildWorkspaceDocNotice(scope?: "private" | "group") {
+    const docs = [
+      "/workspace/AGENTS.md",
+      "/workspace/IDENTITY.md",
+      "/workspace/SOUL.md",
+      "/workspace/BOOTSTRAP.md",
+      "/workspace/memory/MEMORY.md",
     ]
-
     if (scope === "private") {
-      sections.splice(2, 0, {
-        heading: "USER.md",
-        content: readWorkspaceDoc("USER.md"),
-      })
+      docs.splice(4, 0, "/workspace/USER.md")
     }
-
-    return sections
-      .filter((section) => section.content.trim())
-      .map((section) => `### ${section.heading}\n${section.content}`)
-      .join("\n\n")
+    return [
+      "工作区文档约定：",
+      "- 下列文件默认不会内嵌进对话上下文，需要时你应主动读取原文：",
+      ...docs.map((docPath) => `  - ${docPath}`),
+      "- 如果当前目录或其父目录存在额外的 AGENTS.md，优先读取离当前工作目录最近的一份。",
+      "- 不要假设这些文件已经被预读；只有在当前任务确实相关时再去读取。",
+    ].join("\n")
   }
 
   function buildSystemPrompt(context: BotAssistantSystemContext) {
@@ -100,10 +74,6 @@ export function createBotAssistantAgent(
       typeof context.sessionWorkspace === "string" && context.sessionWorkspace.trim()
         ? context.sessionWorkspace.trim()
         : options.workspaceRoot
-    const workspaceAgents = readNearestAgentsForTarget({
-      workspaceRoot: options.workspaceRoot,
-      targetPath: sessionWorkspace,
-    })
     const guardrail = [
       "运行约束：",
       `- 当前日期是 ${formatCurrentDate()}`,
@@ -140,7 +110,6 @@ export function createBotAssistantAgent(
       "- 如果你准备调用工具，不要一声不吭地直接开做；应先在带 tool call 的 assistant 内容里，用自然、简短、有人味的话告诉用户你接下来要看什么或确认什么。",
       "- 这种工具前置说明必须像正常对话，不要写成系统播报；除非用户明确偏技术语境，否则避免出现“调用工具”“参数”“函数”这类字眼。",
       "- 如果工具返回后你还要继续调用别的工具，下一次带 tool call 的 assistant 内容应顺着刚拿到的结果自然衔接，而不是重复机械模板。",
-      "- 根目录身份档案、工作区约定、聊天编年、恢复上下文、关系印象和记忆摘要会以单独的上下文消息注入；除非用户明确要求查看原文或你需要核对某个未提供的文件，否则不要重复读取这些根目录身份文件。",
       "- 如果工具返回“已创建授权请求”，不要假装操作已经完成；应明确说明还在等待管理员执行 `/permit approve <requestId>`。",
       "- 只有在用户明确要求你联系/通知另一个已知联系人，且目标已可解析、内容不越界时，才允许使用发送消息工具。",
       "- 向他人发送消息时，正文要自然简洁，必要时在正文里自行说明是代为转告；不要堆砌固定抬头。来源与原因会由系统内部审计记录，且不能冒充用户本人，也不要转发敏感信息或秘密。",
@@ -151,6 +120,7 @@ export function createBotAssistantAgent(
       "输出风格：",
       "- 尽量贴近自然交流与拟人表达，但保持专业与准确。",
       "- 重要结论前置，其次再给理由与证据。",
+      buildWorkspaceDocNotice(context.scope),
       guardrail,
     ]
       .filter(Boolean)
@@ -158,41 +128,20 @@ export function createBotAssistantAgent(
   }
 
   function buildContextPrompt(context: BotAssistantSystemContext) {
-    const sessionWorkspace =
-      typeof context.sessionWorkspace === "string" && context.sessionWorkspace.trim()
-        ? context.sessionWorkspace.trim()
-        : options.workspaceRoot
-    const workspaceAgents = readNearestAgentsForTarget({
-      workspaceRoot: options.workspaceRoot,
-      targetPath: sessionWorkspace,
-    })
-    const profileContext = buildProfileContext(context.scope)
-    const sections = [
-      "以下是当前会话的附加上下文，只用于帮助你判断，不要机械复述，不要把它们当成用户刚刚说的新内容。",
+    const contextSections = [
       context.conversationSummary?.trim()
         ? `当前会话摘要：\n${context.conversationSummary.trim()}`
-        : "",
-      context.chatChronicle?.trim()
-        ? `长期聊天编年：\n${context.chatChronicle.trim()}`
         : "",
       context.recoveredContext?.trim()
         ? `恢复上下文：\n${context.recoveredContext.trim()}`
         : "",
-      context.relationshipContext?.trim()
-        ? `关系与印象：\n${context.relationshipContext.trim()}`
-        : "",
-      profileContext ? `根目录身份档案：\n${profileContext}` : "",
-      workspaceAgents.content
-        ? `工作区约定（${workspaceAgents.relativePath}）：\n${workspaceAgents.content}`
-        : "",
-      context.memoryContext.trim(),
     ]
       .filter(Boolean)
-      .join("\n\n")
-      .trim()
-
-    if (!sections) return ""
-    return sections
+    if (!contextSections.length) return ""
+    return [
+      "以下是当前会话的附加上下文，只用于帮助你判断，不要机械复述，不要把它们当成用户刚刚说的新内容。",
+      ...contextSections,
+    ].join("\n\n")
   }
 
   function prepareMessages(options: {

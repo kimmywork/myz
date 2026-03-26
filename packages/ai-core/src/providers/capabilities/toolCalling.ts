@@ -81,6 +81,57 @@ function serializeToolResult(result: unknown) {
   }
 }
 
+function mergeUsageValues(existing: unknown, incoming: unknown): unknown {
+  if (incoming == null) return existing
+
+  if (typeof incoming === "number" && Number.isFinite(incoming)) {
+    const current =
+      typeof existing === "number" && Number.isFinite(existing) ? existing : 0
+    return current + incoming
+  }
+
+  if (isRecord(incoming)) {
+    const base = isRecord(existing) ? existing : {}
+    const merged: Record<string, unknown> = {}
+    const keys = new Set([...Object.keys(base), ...Object.keys(incoming)])
+    keys.forEach((key) => {
+      const nextValue = mergeUsageValues(base[key], incoming[key])
+      if (nextValue !== undefined) {
+        merged[key] = nextValue
+      }
+    })
+    return merged
+  }
+
+  if (Array.isArray(incoming)) {
+    return incoming.slice()
+  }
+
+  return incoming
+}
+
+function extractResponseUsage(response: unknown) {
+  if (isRecord(response) && isRecord(response.usage)) {
+    return response.usage
+  }
+  const message =
+    isRecord(response) &&
+    Array.isArray(response.choices) &&
+    isRecord(response.choices[0]) &&
+    isRecord(response.choices[0].message)
+      ? response.choices[0].message
+      : null
+  return message && isRecord(message.usage) ? message.usage : null
+}
+
+function withAggregatedUsage<T>(response: T, usage: Record<string, unknown> | null): T {
+  if (!usage || !isRecord(response)) return response
+  return {
+    ...response,
+    usage,
+  }
+}
+
 export function createToolCallingCapability(
   options: ToolCallingCapabilityOptions,
 ): Capability {
@@ -109,6 +160,7 @@ export function createToolCallingCapability(
         typeof toolingOverrides?.strict === "boolean"
           ? toolingOverrides.strict
           : undefined
+      let aggregatedUsage: Record<string, unknown> | null = null
 
       while (true) {
         const rawTools = await options.getTools()
@@ -138,16 +190,19 @@ export function createToolCallingCapability(
           currentRequest,
           completionOptions,
         )
+        const usage = extractResponseUsage(response)
+        const mergedUsage = mergeUsageValues(aggregatedUsage || {}, usage)
+        aggregatedUsage = isRecord(mergedUsage) ? mergedUsage : aggregatedUsage
         const message = response?.choices?.[0]?.message
         if (!message) {
-          return response
+          return withAggregatedUsage(response, aggregatedUsage)
         }
         const toolCalls = Array.isArray(message?.tool_calls)
           ? message.tool_calls
           : []
 
         if (!toolCalls.length) {
-          return response
+          return withAggregatedUsage(response, aggregatedUsage)
         }
 
         completionOptions.onToolCallMessage?.(message)

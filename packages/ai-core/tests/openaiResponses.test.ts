@@ -263,3 +263,235 @@ test("OpenAIResponsesJsonClient preserves top-level usage in streaming completed
     globalThis.fetch = originalFetch
   }
 })
+
+test("OpenAIResponsesJsonClient normalizes tool payload ordering for stable cache prefixes", async () => {
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>
+    return new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [
+              {
+                type: "output_text",
+                text: "ok",
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      },
+    )
+  }
+
+  try {
+    const client = new OpenAIResponsesJsonClient({
+      baseUrl: "https://example.com/v1",
+      apiKey: "token",
+      headers: "",
+    })
+    await client.createCompletion({
+      model: "gpt-test",
+      messages: [
+        {
+          role: "user",
+          content: "hello",
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "Write",
+            description: "write files",
+            parameters: {
+              type: "object",
+              required: ["content", "path"],
+              properties: {
+                path: {
+                  type: "string",
+                },
+                content: {
+                  type: "string",
+                },
+              },
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "Read",
+            description: "read files",
+            parameters: {
+              type: "object",
+              required: ["path"],
+              properties: {
+                path: {
+                  type: "string",
+                },
+              },
+            },
+          },
+        },
+      ],
+    })
+
+    assert.ok(capturedBody)
+    assert.deepEqual(capturedBody.tools, [
+      {
+        type: "function",
+        name: "Read",
+        description: "read files",
+        parameters: {
+          properties: {
+            path: {
+              type: "string",
+            },
+          },
+          required: ["path"],
+          type: "object",
+        },
+      },
+      {
+        type: "function",
+        name: "Write",
+        description: "write files",
+        parameters: {
+          properties: {
+            content: {
+              type: "string",
+            },
+            path: {
+              type: "string",
+            },
+          },
+          required: ["content", "path"],
+          type: "object",
+        },
+      },
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test("OpenAIResponsesJsonClient keeps prior-turn tool chain in request input", async () => {
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>
+    return new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [
+              {
+                type: "output_text",
+                text: "ok",
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      },
+    )
+  }
+
+  try {
+    const client = new OpenAIResponsesJsonClient({
+      baseUrl: "https://example.com/v1",
+      apiKey: "token",
+      headers: "",
+    })
+    await client.createCompletion({
+      model: "gpt-test",
+      messages: [
+        {
+          role: "user",
+          content: "read the file",
+        },
+        {
+          role: "assistant",
+          content: "我先看一下文件",
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: {
+                name: "Read",
+                arguments: "{\"path\":\"/workspace/a.md\"}",
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          tool_call_id: "call-1",
+          content: "# A\nhello",
+        },
+        {
+          role: "assistant",
+          content: "文件里写的是 hello",
+        },
+        {
+          role: "user",
+          content: "那继续",
+        },
+      ],
+    })
+
+    assert.ok(capturedBody)
+    assert.deepEqual(capturedBody.input, [
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "read the file" }],
+      },
+      {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "我先看一下文件" }],
+      },
+      {
+        type: "function_call",
+        call_id: "call-1",
+        name: "Read",
+        arguments: "{\"path\":\"/workspace/a.md\"}",
+      },
+      {
+        type: "function_call_output",
+        call_id: "call-1",
+        output: "# A\nhello",
+      },
+      {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "文件里写的是 hello" }],
+      },
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "那继续" }],
+      },
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})

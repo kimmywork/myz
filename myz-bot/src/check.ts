@@ -3,7 +3,6 @@ import { createTelegramClient } from "./telegram"
 import { generateReply } from "./ai"
 import { createBotAssistantAgent } from "./agents/botAssistant"
 import { configureGlobalNetwork } from "./network"
-import { renderMemoryContext } from "./memory"
 import { AI_MESSAGE_SCHEMA_VERSION, type Message } from "@myz/ai-core/types"
 
 function buildMessage(role: Message["role"], content: string): Message {
@@ -43,9 +42,7 @@ export async function checkConfig(options: { workspaceRoot?: string } = {}) {
     const agent = createBotAssistantAgent({
       workspaceRoot: config.workspaceRoot,
     })
-    const memoryContext = renderMemoryContext(config.memoryDir)
     const systemPrompt = agent.buildSystemPrompt({
-      memoryContext,
       user: {},
     })
     const systemMessage = buildMessage("system", systemPrompt)

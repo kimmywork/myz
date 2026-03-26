@@ -31,6 +31,7 @@
 每个 workspace 的运行态数据在：
 
 - `~/.myz-bot/workspaces/<workspaceId>/conversations/`
+- `~/.myz-bot/workspaces/<workspaceId>/attachments/`
 - `~/.myz-bot/workspaces/<workspaceId>/permissions/`
 - `~/.myz-bot/workspaces/<workspaceId>/relationships/`
 - `~/.myz-bot/workspaces/<workspaceId>/soul/`
@@ -65,6 +66,7 @@ workspace 只保留协作文件和长期记忆：
 - `SOUL.md`
 - `IDENTITY.md`
 - `USER.md`
+- `skills/`
 - `memory/MEMORY.md`
 - `memory/YYYY-MM-DD.md`
 

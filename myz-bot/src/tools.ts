@@ -83,7 +83,7 @@ function resolveToolWorkspaceRoot(options: {
 }
 
 function resolveConversationAttachmentsDir(options: {
-  conversationsDir: string
+  attachmentsDir: string
   conversationId?: string
 }) {
   const conversationId =
@@ -93,8 +93,7 @@ function resolveConversationAttachmentsDir(options: {
   if (!conversationId) {
     throw new Error("当前没有会话上下文，无法访问附件")
   }
-  const conversationDir = ensureConversationDir(options.conversationsDir, conversationId)
-  return resolve(conversationDir, "attachments")
+  return resolve(options.attachmentsDir, conversationId)
 }
 
 function resolveVirtualPath(options: {
@@ -103,6 +102,7 @@ function resolveVirtualPath(options: {
   skillSources: SkillSource[]
   memoryDir: string
   conversationsDir: string
+  attachmentsDir: string
   conversationId?: string
   allowExternalPaths?: boolean
 }) {
@@ -123,7 +123,7 @@ function resolveVirtualPath(options: {
   if (normalized === "/attachments" || normalized.startsWith("/attachments/")) {
     const next = normalized.replace(/^\/attachments\/?/, "")
     const attachmentRoot = resolveConversationAttachmentsDir({
-      conversationsDir: options.conversationsDir,
+      attachmentsDir: options.attachmentsDir,
       conversationId: options.conversationId,
     })
     const target = resolve(attachmentRoot, next)
@@ -219,6 +219,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
 
+function isAttachmentsVirtualPath(rawPath: string) {
+  return /^\/attachments(?:\/|$)/.test(rawPath)
+}
+
 export function createLocalTools(options: {
   workspaceRoot: string
   runtimeRoot?: string
@@ -229,10 +233,12 @@ export function createLocalTools(options: {
   toolDenylist?: string[]
   memoryDir: string
   conversationsDir: string
+  attachmentsDir?: string
   adminUsers?: string[]
   telegram?: Pick<TelegramClient, "sendMessage">
 }) {
   const runtimeRoot = options.runtimeRoot || options.workspaceRoot
+  const attachmentsDir = options.attachmentsDir || resolve(runtimeRoot, "attachments")
   function resolveWriteEntries(args: Record<string, unknown>) {
     const conversationId =
       typeof args.__conversationId === "string" ? args.__conversationId : undefined
@@ -272,7 +278,7 @@ export function createLocalTools(options: {
       if (!request.rawPath) {
         return errorBlock("path 必填")
       }
-      if (/^\/attachments(?:\/|$)/.test(request.rawPath)) {
+      if (isAttachmentsVirtualPath(request.rawPath)) {
         return errorBlock("附件目录是只读的，不允许写入")
       }
       const resolved = resolveVirtualPath({
@@ -281,6 +287,7 @@ export function createLocalTools(options: {
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
         conversationsDir: options.conversationsDir,
+        attachmentsDir,
         conversationId,
         allowExternalPaths: true,
       })
@@ -570,6 +577,7 @@ export function createLocalTools(options: {
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
         conversationsDir: options.conversationsDir,
+        attachmentsDir,
         conversationId,
         allowExternalPaths: true,
       })
@@ -613,6 +621,7 @@ export function createLocalTools(options: {
       })
       if (
         resolved.kind === "path" &&
+        !isAttachmentsVirtualPath(rawPath) &&
         !isPathAllowedByGrant({
           workspaceRoot: runtimeRoot,
           access: "read",
@@ -647,15 +656,13 @@ export function createLocalTools(options: {
       const conversationId =
         typeof args.__conversationId === "string" ? args.__conversationId : undefined
       if (!rawPath) return errorBlock("path 必填")
-      if (/^\/attachments(?:\/|$)/.test(rawPath)) {
-        return errorBlock("附件目录是只读的，不允许修改")
-      }
       const resolved = resolveVirtualPath({
         rawPath,
         workspaceRoot: options.workspaceRoot,
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
         conversationsDir: options.conversationsDir,
+        attachmentsDir,
         conversationId,
         allowExternalPaths: true,
       })
@@ -688,6 +695,7 @@ export function createLocalTools(options: {
       })
       if (
         resolved.kind === "path" &&
+        !isAttachmentsVirtualPath(rawPath) &&
         !isPathAllowedByGrant({
           workspaceRoot: runtimeRoot,
           access: "read",
@@ -749,12 +757,16 @@ export function createLocalTools(options: {
       const conversationId =
         typeof args.__conversationId === "string" ? args.__conversationId : undefined
       if (!rawPath) return errorBlock("path 必填")
+      if (isAttachmentsVirtualPath(rawPath)) {
+        return errorBlock("附件目录是只读的，不允许修改")
+      }
       const resolved = resolveVirtualPath({
         rawPath,
         workspaceRoot: options.workspaceRoot,
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
         conversationsDir: options.conversationsDir,
+        attachmentsDir,
         conversationId,
         allowExternalPaths: true,
       })

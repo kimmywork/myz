@@ -2,17 +2,17 @@ import { existsSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
 import type { Message, TokenUsage } from "@myz/ai-core/types"
 import { createBotAssistantAgent } from "./agents/botAssistant"
-import { loadChatChronicle } from "./chatChronicle"
 import { processConversationReflectionPass } from "./conversationReflections"
-import { recoverContextIfNeeded } from "./contextRecovery"
+import {
+  loadRecoveredContext,
+  recoverContextIfNeeded,
+} from "./contextRecovery"
 import { generateReply } from "./ai"
 import type { BotRuntimeConfig } from "./config"
 import {
   appendMessage,
-  appendTraceMessage,
   createAssistantMessage,
   createSystemMessage,
-  createToolMessage,
   createUserMessage,
   ensureConversationDir,
   loadAllMessages,
@@ -21,8 +21,6 @@ import {
 } from "./conversations"
 import { prepareConversationContext } from "./context"
 import { appendConversationErrorLog, formatErrorReply } from "./errors"
-import { renderMemoryContext } from "./memory"
-import { renderRelationshipContext } from "./relationships"
 import {
   beginScheduledTaskRun,
   failScheduledTaskRun,
@@ -36,53 +34,13 @@ import type { TelegramClient, TelegramUser } from "./telegram"
 import { sendRecordedTelegramMessage } from "./telegramDelivery"
 import { createTelegramFeedbackController } from "./telegramFeedback"
 import { createToolProgressNotifier } from "./toolProgress"
+import {
+  appendToolAuditTrace,
+  appendToolMessagesToHistory,
+} from "./toolHistory"
 
 function sleep(ms: number) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms))
-}
-
-function appendToolTrace(options: {
-  conversationId: string
-  conversationDir: string
-  trace: Array<{
-    role: string
-    content: unknown
-    tool_calls?: unknown
-    tool_call_id?: unknown
-    metadata?: Record<string, unknown>
-  }>
-}) {
-  options.trace.forEach((entry) => {
-    if (entry.role === "assistant" && Array.isArray(entry.tool_calls)) {
-      const assistantMessage = createAssistantMessage(
-        options.conversationId,
-        typeof entry.content === "string" ? entry.content : "",
-        {
-          type: "tool_audit",
-          toolInvocationOnly: true,
-          auditedAt: new Date().toISOString(),
-          ...(entry.metadata || {}),
-        },
-      )
-      assistantMessage.tool_calls = entry.tool_calls as Message["tool_calls"]
-      appendTraceMessage(options.conversationDir, assistantMessage)
-      return
-    }
-
-    if (entry.role === "tool" && typeof entry.tool_call_id === "string") {
-      const toolMessage = createToolMessage(
-        options.conversationId,
-        typeof entry.content === "string" ? entry.content : "",
-        entry.tool_call_id,
-        {
-          type: "tool_audit",
-          auditedAt: new Date().toISOString(),
-          ...(entry.metadata || {}),
-        },
-      )
-      appendTraceMessage(options.conversationDir, toolMessage)
-    }
-  })
 }
 
 function buildSyntheticSchedulerUser(metadata: {
@@ -149,12 +107,8 @@ async function processScheduledLlmTask(options: {
     conversationId: options.conversationId,
     memoryDir: options.config.memoryDir,
     messages: historyBefore,
-    maxHistoryMessages: options.config.context.maxHistoryMessages,
-    maxHistoryChars: options.config.context.maxHistoryChars,
-    compressionThreshold: options.config.context.compressionThreshold,
-    compressionCooldownMs: options.config.context.compressionCooldownMs,
-    summaryMaxMessages: options.config.context.summaryMaxMessages,
-    summaryMaxChars: options.config.context.summaryMaxChars,
+    contextWindowTokens: options.config.ai.limits.contextWindow,
+    maxOutputTokens: options.config.ai.limits.maxOutputTokens,
   })
   if (contextState.compressed) {
     metadata.lastCompressionAt = new Date().toISOString()
@@ -177,31 +131,26 @@ async function processScheduledLlmTask(options: {
   const agent = createBotAssistantAgent({
     workspaceRoot: options.config.workspaceRoot,
   })
-  const chatChronicle = loadChatChronicle(options.conversationDir)
-  const recoveredContextState = await recoverContextIfNeeded({
-    config: options.config,
-    conversationId: options.conversationId,
-    conversationDir: options.conversationDir,
-    memoryDir: options.config.memoryDir,
-    workspaceRoot: options.config.workspaceRuntimeRoot,
-    actorUserId: metadata.userId,
-    username: metadata.username,
-    latestUserInput: userMessage.content,
-    runtimeHistoryLength: contextState.history.length,
-    maxHistoryMessages: options.config.context.maxHistoryMessages,
-  })
+  const recoveredContext = contextState.compressed
+    ? (
+        await recoverContextIfNeeded({
+          config: options.config,
+          conversationId: options.conversationId,
+          conversationDir: options.conversationDir,
+          memoryDir: options.config.memoryDir,
+          latestUserInput: userMessage.content,
+          runtimeHistoryLength: contextState.history.length,
+          contextWindowTokens: options.config.ai.limits.contextWindow,
+          maxOutputTokens: options.config.ai.limits.maxOutputTokens,
+          force: true,
+        })
+      ).recoveredContext
+    : loadRecoveredContext(options.conversationDir)
   const systemMessage = createSystemMessage(
     options.conversationId,
     agent.buildSystemPrompt({
-      memoryContext: renderMemoryContext(options.config.memoryDir),
-      relationshipContext: renderRelationshipContext({
-        workspaceRoot: options.config.workspaceRuntimeRoot,
-        actorUserId: metadata.userId,
-        username: metadata.username,
-      }),
       conversationSummary: contextState.summary,
-      chatChronicle,
-      recoveredContext: recoveredContextState.recoveredContext,
+      recoveredContext,
       replyMode: "required",
       scope: metadata.scope,
       sessionWorkspace,
@@ -221,15 +170,8 @@ async function processScheduledLlmTask(options: {
     },
   )
   const contextPrompt = agent.buildContextPrompt({
-    memoryContext: renderMemoryContext(options.config.memoryDir),
-    relationshipContext: renderRelationshipContext({
-      workspaceRoot: options.config.workspaceRuntimeRoot,
-      actorUserId: metadata.userId,
-      username: metadata.username,
-    }),
     conversationSummary: contextState.summary,
-    chatChronicle,
-    recoveredContext: recoveredContextState.recoveredContext,
+    recoveredContext,
     replyMode: "required",
     scope: metadata.scope,
     sessionWorkspace,
@@ -290,7 +232,18 @@ async function processScheduledLlmTask(options: {
     await progressNotifier.flush()
 
     if (Array.isArray(reply.toolTrace) && reply.toolTrace.length) {
-      appendToolTrace({
+      appendToolMessagesToHistory({
+        conversationId: options.conversationId,
+        conversationDir: options.conversationDir,
+        trace: reply.toolTrace as Array<{
+          role: string
+          content: unknown
+          tool_calls?: unknown
+          tool_call_id?: unknown
+          metadata?: Record<string, unknown>
+        }>,
+      })
+      appendToolAuditTrace({
         conversationId: options.conversationId,
         conversationDir: options.conversationDir,
         trace: reply.toolTrace as Array<{

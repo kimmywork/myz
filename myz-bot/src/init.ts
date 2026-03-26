@@ -115,13 +115,6 @@ upgrade:
   strategy: "notify"
   applyMode: "manual"
   allowPrerelease: false
-context:
-  maxHistoryMessages: 120
-  maxHistoryChars: 120000
-  compressionThreshold: 160
-  compressionCooldownMs: 300000
-  summaryMaxMessages: 20
-  summaryMaxChars: 6000
 soul:
   autoDraft: true
   autoApply: true

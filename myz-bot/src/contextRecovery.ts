@@ -1,17 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { resolve } from "node:path"
 import { generateReply } from "./ai"
-import { loadChatChronicle } from "./chatChronicle"
 import type { BotRuntimeConfig } from "./config"
+import { deriveThinHistoryThreshold } from "./context"
 import { createSystemMessage, createUserMessage, getTelegramHistoryPath } from "./conversations"
-import { loadSoulGrowthState, renderSoulGrowthContext } from "./growth"
 import { loadLatestConversationSummary, loadMemoryEntries } from "./memory"
-import {
-  loadRelationshipRecords,
-  renderRelationshipContext,
-} from "./relationships"
-import { loadSoul } from "./soul"
 import { loadTelegramHistory } from "./telegramHistory"
 
 interface RecoveryCacheState {
@@ -88,10 +82,14 @@ function buildFingerprint(parts: string[]) {
 
 function shouldAttemptContextRecovery(options: {
   runtimeHistoryLength: number
-  maxHistoryMessages: number
+  contextWindowTokens?: number
+  maxOutputTokens?: number
   latestUserInput: string
 }) {
-  const thinHistoryThreshold = Math.max(8, Math.floor(options.maxHistoryMessages / 4))
+  const thinHistoryThreshold = deriveThinHistoryThreshold({
+    contextWindowTokens: options.contextWindowTokens,
+    maxOutputTokens: options.maxOutputTokens,
+  })
   return Boolean(options.latestUserInput.trim()) && options.runtimeHistoryLength <= thinHistoryThreshold
 }
 
@@ -114,101 +112,6 @@ function readRecentMemoryCandidates(memoryDir: string, conversationId: string) {
     })
 }
 
-function readArchiveTailCandidates(archiveDir: string, labelPrefix: string) {
-  if (!existsSync(archiveDir)) return [] as RecoveryCandidate[]
-  return readdirSync(archiveDir)
-    .filter((name) => name.endsWith(".jsonl") || name.endsWith(".md"))
-    .sort()
-    .reverse()
-    .slice(0, 2)
-    .map((name) => {
-      const path = resolve(archiveDir, name)
-      const content = normalizeText(readFileSync(path, "utf-8"))
-      const tail = content
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .slice(-3)
-        .join("\n")
-      return {
-        label: `${labelPrefix}:${name}`,
-        content: snippet(tail, 500),
-      } satisfies RecoveryCandidate
-    })
-    .filter((candidate) => candidate.content)
-}
-
-function readRelationshipCandidate(options: {
-  workspaceRoot: string
-  actorUserId?: number
-  username?: string
-}) {
-  const rendered = renderRelationshipContext(options)
-  if (!rendered) return null
-  return {
-    label: "relationship.current",
-    content: rendered,
-  } satisfies RecoveryCandidate
-}
-
-function readRelationshipArchiveCandidates(workspaceRoot: string) {
-  return readArchiveTailCandidates(
-    resolve(workspaceRoot, "relationships", "archive"),
-    "relationship.archive",
-  )
-}
-
-function readGrowthCandidates(options: {
-  profileWorkspaceRoot: string
-  runtimeRoot: string
-}) {
-  const soul = loadSoul(options.profileWorkspaceRoot)
-  const state = loadSoulGrowthState(options.runtimeRoot)
-  const rendered = renderSoulGrowthContext(options.runtimeRoot, soul)
-  const recentEvents = state.recentEvents
-    .slice(0, 4)
-    .map((event) => {
-      const adjustmentText = event.adjustments
-        .map((adjustment) => `${adjustment.trait}${adjustment.delta > 0 ? "+" : ""}${adjustment.delta.toFixed(1)}`)
-        .join(", ")
-      return `- ${event.userExcerpt} -> ${adjustmentText}`
-    })
-    .join("\n")
-  return [
-    {
-      label: "growth.current",
-      content: [rendered, recentEvents].filter(Boolean).join("\n"),
-    } satisfies RecoveryCandidate,
-    ...readArchiveTailCandidates(
-      resolve(options.runtimeRoot, "soul", "archive"),
-      "growth.archive",
-    ),
-  ].filter((candidate) => candidate.content)
-}
-
-function readRelationshipStateCandidates(workspaceRoot: string) {
-  const records = loadRelationshipRecords(workspaceRoot)
-    .slice(0, 6)
-    .map((record) =>
-      [
-        record.displayNames[0] || record.usernames[0] || record.key,
-        record.relationshipSummary,
-        record.impressionSummary,
-        `policy=${record.messagingPolicy}`,
-      ]
-        .filter(Boolean)
-        .join(" | "),
-    )
-    .join("\n")
-  if (!records) return [] as RecoveryCandidate[]
-  return [
-    {
-      label: "relationship.index",
-      content: records,
-    } satisfies RecoveryCandidate,
-    ...readRelationshipArchiveCandidates(workspaceRoot),
-  ]
-}
-
 function readConversationSummaryCandidate(memoryDir: string, conversationId: string) {
   const summary = loadLatestConversationSummary(memoryDir, conversationId)
   if (!summary) return null
@@ -217,15 +120,6 @@ function readConversationSummaryCandidate(memoryDir: string, conversationId: str
   return {
     label: "conversation-summary",
     content: snippet(content, 700),
-  } satisfies RecoveryCandidate
-}
-
-function readChronicleCandidate(conversationDir: string) {
-  const chronicle = loadChatChronicle(conversationDir)
-  if (!chronicle) return null
-  return {
-    label: "chat-chronicle",
-    content: snippet(chronicle, 1200),
   } satisfies RecoveryCandidate
 }
 
@@ -296,40 +190,25 @@ export async function recoverContextIfNeeded(options: {
   conversationId: string
   conversationDir: string
   memoryDir: string
-  workspaceRoot: string
-  profileWorkspaceRoot?: string
-  actorUserId?: number
-  username?: string
   latestUserInput: string
   runtimeHistoryLength: number
-  maxHistoryMessages: number
+  contextWindowTokens?: number
+  maxOutputTokens?: number
+  force?: boolean
   createCompletion?: (messages: ReturnType<typeof createSystemMessage>[]) => Promise<string>
 }) {
-  if (!shouldAttemptContextRecovery(options)) {
+  if (!options.force && !shouldAttemptContextRecovery(options)) {
     return { used: false, recoveredContext: "", cached: false }
   }
 
-  const chronicle = readChronicleCandidate(options.conversationDir)
   const conversationSummary = readConversationSummaryCandidate(
     options.memoryDir,
     options.conversationId,
   )
-  const relationship = readRelationshipCandidate({
-    workspaceRoot: options.workspaceRoot,
-    actorUserId: options.actorUserId,
-    username: options.username,
-  })
   const telegramTail = readTelegramTailCandidate(options.conversationDir)
   const candidates = [
-    chronicle,
     conversationSummary,
-    relationship,
     telegramTail,
-    ...readGrowthCandidates({
-      profileWorkspaceRoot: options.profileWorkspaceRoot || options.config.workspaceRoot,
-      runtimeRoot: options.workspaceRoot,
-    }),
-    ...readRelationshipStateCandidates(options.workspaceRoot),
     ...readRecentMemoryCandidates(options.memoryDir, options.conversationId),
   ].filter((candidate): candidate is RecoveryCandidate => Boolean(candidate?.content))
 

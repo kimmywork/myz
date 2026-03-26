@@ -11,13 +11,13 @@ import {
   createUserMessage,
 } from "../src/conversations"
 
-test("prepareConversationContext writes summary when threshold exceeded", () => {
+test("prepareConversationContext compresses aggressively when history exceeds context budget", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-context-"))
   const conversationDir = join(root, "conversations", "c1")
   const memoryDir = join(root, "memory")
   const messages = Array.from({ length: 8 }).flatMap((_, index) => [
-    createUserMessage("c1", `user message ${index + 1}`),
-    createAssistantMessage("c1", `assistant message ${index + 1}`),
+    createUserMessage("c1", `user message ${index + 1} ${"x".repeat(600)}`),
+    createAssistantMessage("c1", `assistant message ${index + 1} ${"y".repeat(600)}`),
   ])
 
   const result = prepareConversationContext({
@@ -28,11 +28,13 @@ test("prepareConversationContext writes summary when threshold exceeded", () => 
     maxHistoryMessages: 4,
     compressionThreshold: 6,
     summaryMaxMessages: 3,
+    contextWindowTokens: 4096,
+    maxOutputTokens: 512,
   })
 
   assert.equal(result.compressed, true)
   assert.ok(result.summary.includes("会话压缩摘要"))
-  assert.equal(result.history.length, 4)
+  assert.equal(result.history.length, 3)
 
   const summaryFile = join(conversationDir, "context", "summary.json")
   assert.equal(existsSync(summaryFile), true)
@@ -51,17 +53,17 @@ test("prepareConversationContext excludes tool responses from compressed summary
   const conversationDir = join(root, "conversations", "c2")
   const memoryDir = join(root, "memory")
   const messages = [
-    createUserMessage("c2", "user message 1"),
-    createAssistantMessage("c2", "assistant message 1"),
+    createUserMessage("c2", `user message 1 ${"x".repeat(700)}`),
+    createAssistantMessage("c2", `assistant message 1 ${"y".repeat(700)}`),
     createAssistantMessage("c2", "", { type: "tool_audit", toolName: "Remember" }),
     createToolMessage("c2", "tool result should not be summarized", "tool-1", {
       type: "tool_audit",
       toolName: "Remember",
     }),
-    createUserMessage("c2", "user message 2"),
-    createAssistantMessage("c2", "assistant message 2"),
-    createUserMessage("c2", "user message 3"),
-    createAssistantMessage("c2", "assistant message 3"),
+    createUserMessage("c2", `user message 2 ${"x".repeat(700)}`),
+    createAssistantMessage("c2", `assistant message 2 ${"y".repeat(700)}`),
+    createUserMessage("c2", `user message 3 ${"x".repeat(700)}`),
+    createAssistantMessage("c2", `assistant message 3 ${"y".repeat(700)}`),
   ]
 
   const result = prepareConversationContext({
@@ -72,6 +74,8 @@ test("prepareConversationContext excludes tool responses from compressed summary
     maxHistoryMessages: 2,
     compressionThreshold: 4,
     summaryMaxMessages: 4,
+    contextWindowTokens: 4096,
+    maxOutputTokens: 512,
   })
 
   assert.equal(result.compressed, true)
@@ -102,6 +106,8 @@ test("prepareConversationContext keeps tool responses in live history before com
     maxHistoryMessages: 10,
     compressionThreshold: 20,
     summaryMaxMessages: 4,
+    contextWindowTokens: 32768,
+    maxOutputTokens: 1024,
   })
 
   assert.equal(result.compressed, false)
@@ -118,15 +124,15 @@ test("prepareConversationContext drops tool responses only when compression rewr
   const memoryDir = join(root, "memory")
   const messages = [
     createSystemMessage("c4", "system"),
-    createUserMessage("c4", "user message 1"),
-    createAssistantMessage("c4", "assistant message 1"),
+    createUserMessage("c4", `user message 1 ${"x".repeat(700)}`),
+    createAssistantMessage("c4", `assistant message 1 ${"y".repeat(700)}`),
     createToolMessage("c4", "tool result should be dropped after compression", "tool-1", {
       toolName: "Read",
     }),
-    createUserMessage("c4", "user message 2"),
-    createAssistantMessage("c4", "assistant message 2"),
-    createUserMessage("c4", "user message 3"),
-    createAssistantMessage("c4", "assistant message 3"),
+    createUserMessage("c4", `user message 2 ${"x".repeat(700)}`),
+    createAssistantMessage("c4", `assistant message 2 ${"y".repeat(700)}`),
+    createUserMessage("c4", `user message 3 ${"x".repeat(700)}`),
+    createAssistantMessage("c4", `assistant message 3 ${"y".repeat(700)}`),
   ]
 
   const result = prepareConversationContext({
@@ -137,9 +143,36 @@ test("prepareConversationContext drops tool responses only when compression rewr
     maxHistoryMessages: 2,
     compressionThreshold: 4,
     summaryMaxMessages: 4,
+    contextWindowTokens: 4096,
+    maxOutputTokens: 512,
   })
 
   assert.equal(result.compressed, true)
   assert.equal(result.history.some((message) => message.role === "tool"), false)
   assert.doesNotMatch(result.summary, /tool result should be dropped after compression/)
+})
+
+test("prepareConversationContext does not compress just because message count is high when content still fits", () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-context-"))
+  const conversationDir = join(root, "conversations", "c5")
+  const memoryDir = join(root, "memory")
+  const messages = Array.from({ length: 90 }).flatMap((_, index) => [
+    createUserMessage("c5", `u${index + 1}`),
+    createAssistantMessage("c5", `a${index + 1}`),
+  ])
+
+  const result = prepareConversationContext({
+    conversationDir,
+    conversationId: "c5",
+    memoryDir,
+    messages,
+    maxHistoryMessages: 30,
+    compressionThreshold: 40,
+    summaryMaxMessages: 6,
+    contextWindowTokens: 32768,
+    maxOutputTokens: 1024,
+  })
+
+  assert.equal(result.compressed, false)
+  assert.equal(result.history.length, messages.length)
 })

@@ -72,6 +72,11 @@ test("buildIncomingMessage stores document attachments with a readable virtual p
   assert.doesNotMatch(stored?.fileName || "", /\.md\.md$/)
   assert.equal(stored?.virtualPath, `/attachments/${stored?.fileName}`)
   assert.equal(existsSync(stored?.path || ""), true)
+  assert.match(
+    stored?.path || "",
+    new RegExp(`${createConfig(root).attachmentsDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/100-200/`),
+  )
+  assert.doesNotMatch(stored?.path || "", /\/conversations\/100-200\/attachments\//)
 })
 
 test("buildIncomingMessage falls back to a stable stem when document name sanitizes to empty", async () => {

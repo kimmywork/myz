@@ -4,9 +4,11 @@ import type { Message, TokenUsage } from "@myz/ai-core/types"
 import { registerLocalTools } from "@myz/ai-core/tools/registry"
 import { createBotAssistantAgent } from "./agents/botAssistant"
 import { generateReply } from "./ai"
-import { loadChatChronicle } from "./chatChronicle"
 import { loadConfig, type BotRuntimeConfig } from "./config"
-import { recoverContextIfNeeded } from "./contextRecovery"
+import {
+  loadRecoveredContext,
+  recoverContextIfNeeded,
+} from "./contextRecovery"
 import {
   appendMessage,
   appendTraceMessage,
@@ -49,12 +51,8 @@ import {
   ensureMemoryDir,
   isExplicitMemoryRequest,
   rememberConversationExchange,
-  renderMemoryContext,
 } from "./memory"
-import {
-  renderRelationshipContext,
-  touchRelationshipRecord,
-} from "./relationships"
+import { touchRelationshipRecord } from "./relationships"
 import {
   collectTokenUsageSummary,
   formatBotRuntimeStatus,
@@ -104,6 +102,10 @@ import {
   listConversationTasks,
   updateScheduledTask,
 } from "./tasks"
+import {
+  appendToolAuditTrace,
+  appendToolMessagesToHistory,
+} from "./toolHistory"
 import { createLocalTools } from "./tools"
 import {
   applyUpgrade,
@@ -799,50 +801,6 @@ async function handleCommand(options: {
   return true
 }
 
-function appendToolTrace(options: {
-  conversationId: string
-  conversationDir: string
-  trace: Array<{
-    role: string
-    content: unknown
-    tool_calls?: unknown
-    tool_call_id?: unknown
-    metadata?: Record<string, unknown>
-  }>
-}) {
-  options.trace.forEach((entry) => {
-    if (entry.role === "assistant" && Array.isArray(entry.tool_calls)) {
-      const assistantMessage = createAssistantMessage(
-        options.conversationId,
-        typeof entry.content === "string" ? entry.content : "",
-        {
-          type: "tool_audit",
-          toolInvocationOnly: true,
-          auditedAt: new Date().toISOString(),
-          ...(entry.metadata || {}),
-        },
-      )
-      assistantMessage.tool_calls = entry.tool_calls as Message["tool_calls"]
-      appendTraceMessage(options.conversationDir, assistantMessage)
-      return
-    }
-
-    if (entry.role === "tool" && typeof entry.tool_call_id === "string") {
-      const toolMessage = createToolMessage(
-        options.conversationId,
-        typeof entry.content === "string" ? entry.content : "",
-        entry.tool_call_id,
-        {
-          type: "tool_audit",
-          auditedAt: new Date().toISOString(),
-          ...(entry.metadata || {}),
-        },
-      )
-      appendTraceMessage(options.conversationDir, toolMessage)
-    }
-  })
-}
-
 async function handleConversationMessage(options: {
   config: BotRuntimeConfig
   telegram: ReturnType<typeof createTelegramClient>
@@ -958,58 +916,44 @@ async function handleConversationMessage(options: {
     conversationId,
     memoryDir: options.config.memoryDir,
     messages: historyBefore,
-    maxHistoryMessages: options.config.context.maxHistoryMessages,
-    maxHistoryChars: options.config.context.maxHistoryChars,
-    compressionThreshold: options.config.context.compressionThreshold,
-    compressionCooldownMs: options.config.context.compressionCooldownMs,
-    summaryMaxMessages: options.config.context.summaryMaxMessages,
-    summaryMaxChars: options.config.context.summaryMaxChars,
+    contextWindowTokens: options.config.ai.limits.contextWindow,
+    maxOutputTokens: options.config.ai.limits.maxOutputTokens,
   })
   if (contextState.compressed) {
     metadata.lastCompressionAt = new Date().toISOString()
     saveMetadata(conversationDir, metadata)
   }
 
-  const visibleSkills = loadVisibleSkills(options.config)
   const incoming = await buildIncomingMessage({
     config: options.config,
     telegram: options.telegram,
     message: options.message,
     conversationDir,
   })
-  const userMessage = createUserMessage(conversationId, incoming.content, {
-    ...incoming.metadata,
-    skillList: visibleSkills,
-  })
-  const chatChronicle = loadChatChronicle(conversationDir)
-  const recoveredContextState = await recoverContextIfNeeded({
-    config: options.config,
-    conversationId,
-    conversationDir,
-    memoryDir: options.config.memoryDir,
-    workspaceRoot: options.config.workspaceRuntimeRoot,
-    actorUserId: route.actorUserId,
-    username: options.message.from?.username,
-    latestUserInput: incoming.content,
-    runtimeHistoryLength: contextState.history.length,
-    maxHistoryMessages: options.config.context.maxHistoryMessages,
-  })
-  const relationshipContext = renderRelationshipContext({
-    workspaceRoot: options.config.workspaceRuntimeRoot,
-    actorUserId: route.actorUserId,
-    username: options.message.from?.username,
-  })
+  const userMessage = createUserMessage(conversationId, incoming.content, incoming.metadata)
+  const recoveredContext = contextState.compressed
+    ? (
+        await recoverContextIfNeeded({
+          config: options.config,
+          conversationId,
+          conversationDir,
+          memoryDir: options.config.memoryDir,
+          latestUserInput: incoming.content,
+          runtimeHistoryLength: contextState.history.length,
+          contextWindowTokens: options.config.ai.limits.contextWindow,
+          maxOutputTokens: options.config.ai.limits.maxOutputTokens,
+          force: true,
+        })
+      ).recoveredContext
+    : loadRecoveredContext(conversationDir)
   const agent = createBotAssistantAgent({
     workspaceRoot: options.config.workspaceRoot,
   })
   const systemMessage = createSystemMessage(
     conversationId,
     agent.buildSystemPrompt({
-      memoryContext: renderMemoryContext(options.config.memoryDir),
-      relationshipContext,
       conversationSummary: contextState.summary,
-      chatChronicle,
-      recoveredContext: recoveredContextState.recoveredContext,
+      recoveredContext,
       replyMode: options.shouldReply ? "required" : "optional",
       scope: route.scope,
       sessionWorkspace,
@@ -1028,11 +972,8 @@ async function handleConversationMessage(options: {
     },
   )
   const contextPrompt = agent.buildContextPrompt({
-    memoryContext: renderMemoryContext(options.config.memoryDir),
-    relationshipContext,
     conversationSummary: contextState.summary,
-    chatChronicle,
-    recoveredContext: recoveredContextState.recoveredContext,
+    recoveredContext,
     replyMode: options.shouldReply ? "required" : "optional",
     scope: route.scope,
     sessionWorkspace,
@@ -1104,7 +1045,18 @@ async function handleConversationMessage(options: {
     }
 
     if (Array.isArray(reply.toolTrace) && reply.toolTrace.length) {
-      appendToolTrace({
+      appendToolMessagesToHistory({
+        conversationId,
+        conversationDir,
+        trace: reply.toolTrace as Array<{
+          role: string
+          content: unknown
+          tool_calls?: unknown
+          tool_call_id?: unknown
+          metadata?: Record<string, unknown>
+        }>,
+      })
+      appendToolAuditTrace({
         conversationId,
         conversationDir,
         trace: reply.toolTrace as Array<{
@@ -1264,6 +1216,7 @@ export async function serveBot(options: { workspaceRoot?: string } = {}) {
   })
   configureGlobalNetwork(config.network)
   mkdirSync(config.conversationsDir, { recursive: true })
+  mkdirSync(config.attachmentsDir, { recursive: true })
   ensureMemoryDir(config.memoryDir)
   mkdirSync(config.permissionsDir, { recursive: true })
   mkdirSync(config.relationshipsDir, { recursive: true })
@@ -1287,6 +1240,7 @@ export async function serveBot(options: { workspaceRoot?: string } = {}) {
       toolDenylist: config.toolDenylist,
       memoryDir: config.memoryDir,
       conversationsDir: config.conversationsDir,
+      attachmentsDir: config.attachmentsDir,
       adminUsers: config.telegram.adminUsers,
       telegram,
     }),

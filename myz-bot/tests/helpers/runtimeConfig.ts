@@ -4,7 +4,7 @@ import type { BotRuntimeConfig } from "../../src/config"
 type RuntimeConfigOverrides =
   Omit<
     Partial<BotRuntimeConfig>,
-    "telegram" | "network" | "ai" | "skills" | "tools" | "scheduler" | "upgrade" | "context" | "soul"
+    "telegram" | "network" | "ai" | "skills" | "tools" | "scheduler" | "upgrade" | "soul"
   > & {
     telegram?: Partial<BotRuntimeConfig["telegram"]> & {
       groupResponseMode?: Partial<BotRuntimeConfig["telegram"]["groupResponseMode"]>
@@ -21,7 +21,6 @@ type RuntimeConfigOverrides =
     tools?: Partial<BotRuntimeConfig["tools"]>
     scheduler?: Partial<BotRuntimeConfig["scheduler"]>
     upgrade?: Partial<BotRuntimeConfig["upgrade"]>
-    context?: Partial<BotRuntimeConfig["context"]>
     soul?: Partial<BotRuntimeConfig["soul"]>
   }
 
@@ -89,7 +88,8 @@ export function createRuntimeConfig(
     workspaceRoot: root,
     workspaceId: "test-workspace",
     workspaceRuntimeRoot,
-    skillsDir: join(root, ".myz/skills"),
+    skillsDir: join(root, "skills"),
+    attachmentsDir: join(workspaceRuntimeRoot, "attachments"),
     skills: { sources: [], allowlist: [], denylist: [] },
     tools: { allowlist: [], denylist: [] },
     conversationsDir: join(workspaceRuntimeRoot, "conversations"),
@@ -112,14 +112,6 @@ export function createRuntimeConfig(
       strategy: "notify",
       applyMode: "manual",
       allowPrerelease: false,
-    },
-    context: {
-      maxHistoryMessages: 30,
-      maxHistoryChars: 120000,
-      compressionThreshold: 40,
-      compressionCooldownMs: 300000,
-      summaryMaxMessages: 12,
-      summaryMaxChars: 6000,
     },
     soul: {
       autoDraft: true,
@@ -193,10 +185,6 @@ export function createRuntimeConfig(
     upgrade: {
       ...base.upgrade,
       ...overrides.upgrade,
-    },
-    context: {
-      ...base.context,
-      ...overrides.context,
     },
     soul: {
       ...base.soul,

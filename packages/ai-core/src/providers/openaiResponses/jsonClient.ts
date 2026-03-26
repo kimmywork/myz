@@ -9,7 +9,7 @@ import type {
   ProviderToolSpec,
 } from "../types"
 import { coerceContentToText, normalizeBaseUrl } from "../utils"
-import type { JsonRecord } from "@myz/shared/typeUtils"
+import type { JsonRecord, JsonValue } from "@myz/shared/typeUtils"
 import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
@@ -85,9 +85,6 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
 } {
   const instructions: string[] = []
   const input: JsonRecord[] = []
-  const lastUserMessageIndex = messages.reduce((latestIndex, message, index) => {
-    return message?.role === "user" ? index : latestIndex
-  }, -1)
   const activeToolCallIds = new Set<string>()
 
   messages.forEach((message, index) => {
@@ -99,7 +96,6 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
     }
 
     if (message.role === "tool") {
-      if (index <= lastUserMessageIndex) return
       const callId =
         typeof message.tool_call_id === "string" ? message.tool_call_id : ""
       if (!callId || !activeToolCallIds.has(callId)) return
@@ -128,7 +124,7 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
         input.push(messageEntry)
       }
 
-      if (index > lastUserMessageIndex && Array.isArray(message.tool_calls)) {
+      if (Array.isArray(message.tool_calls)) {
         message.tool_calls.forEach((toolCall, index) => {
           if (!toolCall?.function?.name) return
           const callId = toolCall.id || `call-${index + 1}`
@@ -192,6 +188,69 @@ function supportsResponsesTemperature(model: unknown) {
   // This client does not yet model `reasoning: { effort: "none" }`, so the
   // safe behavior is to omit `temperature` for all GPT-5 variants.
   return false
+}
+
+type ResponsesToolPayload = {
+  type: "function"
+  name: string
+  description: string
+  parameters: JsonRecord
+  strict?: boolean
+}
+
+function normalizeSchemaValue(value: unknown): JsonValue {
+  if (Array.isArray(value)) {
+    const normalized = value.map((item) => normalizeSchemaValue(item))
+    if (
+      normalized.every(
+        (item) =>
+          typeof item === "string" ||
+          typeof item === "number" ||
+          typeof item === "boolean",
+      )
+    ) {
+      return [...normalized].sort((left, right) =>
+        String(left).localeCompare(String(right)),
+      )
+    }
+    return normalized
+  }
+
+  if (!isRecord(value)) {
+    return (value ?? null) as JsonValue
+  }
+
+  return Object.keys(value)
+    .sort((left, right) => left.localeCompare(right))
+    .reduce<JsonRecord>((acc, key) => {
+      acc[key] = normalizeSchemaValue(value[key])
+      return acc
+    }, {})
+}
+
+function normalizeToolsForRequest(tools: ProviderToolSpec[]): ResponsesToolPayload[] {
+  return tools
+    .map((tool: ProviderToolSpec) => {
+      if (tool?.type !== "function" || !tool.function?.name) {
+        return null
+      }
+      return {
+        type: "function" as const,
+        name: tool.function.name,
+        description:
+          typeof tool.function.description === "string"
+            ? tool.function.description
+            : "",
+        parameters: normalizeSchemaValue(tool.function.parameters) as JsonRecord,
+        ...(typeof tool.function.strict === "boolean"
+          ? { strict: tool.function.strict }
+          : {}),
+      }
+    })
+    .filter((tool): tool is ResponsesToolPayload => tool !== null)
+    .sort((left, right) => {
+      return left.name.localeCompare(right.name)
+    })
 }
 
 async function parseResponsesStream(
@@ -467,6 +526,7 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
       request.messages || [],
     )
     const toolChoice = normalizeToolChoice(request.tool_choice)
+    const tools = request.tools ? normalizeToolsForRequest(request.tools) : []
     const response = await fetch(endpoint, {
       method: "POST",
       headers: buildProviderHeaders(
@@ -487,26 +547,8 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
         ...(typeof request.max_completion_tokens === "number"
           ? { max_output_tokens: request.max_completion_tokens }
           : {}),
-        ...(request.tools
-          ? (() => {
-              const tools = request.tools
-                .map((tool: ProviderToolSpec) => {
-                  if (tool?.type === "function" && tool.function) {
-                    return {
-                      type: "function",
-                      name: tool.function?.name,
-                      description: tool.function?.description,
-                      parameters: tool.function?.parameters,
-                      ...(typeof tool.function?.strict === "boolean"
-                        ? { strict: tool.function.strict }
-                        : {}),
-                    }
-                  }
-                  return tool
-                })
-                .filter((tool) => isRecord(tool) && tool.name)
-              return tools.length ? { tools } : {}
-            })()
+        ...(tools.length
+          ? { tools }
           : {}),
         ...(toolChoice ? { tool_choice: toolChoice } : {}),
         ...(typeof request.parallel_tool_calls === "boolean"

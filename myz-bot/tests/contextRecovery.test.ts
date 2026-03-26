@@ -8,7 +8,6 @@ import { createRuntimeConfig } from "./helpers/runtimeConfig"
 import { ensureConversationDir } from "../src/conversations"
 import { recoverContextIfNeeded } from "../src/contextRecovery"
 import { addMemory, ensureMemoryDir, saveConversationSummary } from "../src/memory"
-import { touchRelationshipRecord } from "../src/relationships"
 import {
   recordIncomingTelegramMessage,
   recordOutgoingTelegramMessages,
@@ -24,16 +23,6 @@ test("recoverContextIfNeeded uses llm-selected long-term context and caches it",
   const conversationDir = ensureConversationDir(config.conversationsDir, "c1")
   mkdirSync(join(conversationDir, "context"), { recursive: true })
 
-  writeFileSync(join(root, "SOUL.md"), "# Bot\n温柔、可靠。")
-  writeFileSync(
-    join(conversationDir, "context", "chat-chronicle.md"),
-    [
-      "# Chat Chronicle",
-      "",
-      "## 长期脉络",
-      "- 用户最近在整理 bot 的长期记忆、关系和成长层。",
-    ].join("\n"),
-  )
   saveConversationSummary(config.memoryDir, "c1", "会话压缩摘要\n\n用户最近一直在收敛上下文结构。")
   ensureMemoryDir(config.memoryDir)
   addMemory(config.memoryDir, {
@@ -41,26 +30,6 @@ test("recoverContextIfNeeded uses llm-selected long-term context and caches it",
     content: "用户希望 bot 在长期状态恢复时更多依赖 LLM 判断相关性。",
     tags: ["auto-memory", "conversation:c1"],
   })
-  touchRelationshipRecord({
-    workspaceRoot: root,
-    conversationId: "c1",
-    scope: "private",
-    chatId: 101,
-    actorUserId: 7,
-    username: "alice",
-    firstName: "Alice",
-    displayName: "Alice (@alice)",
-  })
-  mkdirSync(join(root, "relationships", "archive"), { recursive: true })
-  mkdirSync(join(root, "soul", "archive"), { recursive: true })
-  writeFileSync(
-    join(root, "relationships", "archive", "relationship-reflections-1.jsonl"),
-    '{"summary":"用户偏好通过长期记忆衔接上下文"}\n',
-  )
-  writeFileSync(
-    join(root, "soul", "archive", "growth-events-1.jsonl"),
-    '{"userExcerpt":"用户希望 bot 更会延续长期脉络"}\n',
-  )
 
   recordIncomingTelegramMessage({
     conversationDir,
@@ -95,22 +64,21 @@ test("recoverContextIfNeeded uses llm-selected long-term context and caches it",
     conversationId: "c1",
     conversationDir,
     memoryDir: config.memoryDir,
-    workspaceRoot: root,
-    actorUserId: 7,
-    username: "alice",
     latestUserInput: "你还记得我们前面聊过的上下文恢复策略吗？",
     runtimeHistoryLength: 3,
-    maxHistoryMessages: config.context.maxHistoryMessages,
+    contextWindowTokens: config.ai.limits.contextWindow,
+    maxOutputTokens: config.ai.limits.maxOutputTokens,
     createCompletion: async (messages) => {
       completionCalls += 1
       const prompt = messages.map((message) => String(message.content || "")).join("\n")
-      assert.match(prompt, /chat-chronicle/i)
+      assert.match(prompt, /conversation-summary/)
       assert.match(prompt, /memory:用户偏好/)
+      assert.doesNotMatch(prompt, /relationship/i)
       return [
         "## 恢复上下文",
         "- 用户最近一直在推动 bot 的长期上下文恢复机制。",
         "## 当前相关长期线索",
-        "- 偏好让模型自己判断 chronicle、growth、relationship 和记忆哪些更相关。",
+        "- 偏好让模型自己判断会话摘要、记忆日志和最近对话哪些更相关。",
       ].join("\n")
     },
   })
@@ -128,12 +96,10 @@ test("recoverContextIfNeeded uses llm-selected long-term context and caches it",
     conversationId: "c1",
     conversationDir,
     memoryDir: config.memoryDir,
-    workspaceRoot: root,
-    actorUserId: 7,
-    username: "alice",
     latestUserInput: "你还记得我们前面聊过的上下文恢复策略吗？",
     runtimeHistoryLength: 3,
-    maxHistoryMessages: config.context.maxHistoryMessages,
+    contextWindowTokens: config.ai.limits.contextWindow,
+    maxOutputTokens: config.ai.limits.maxOutputTokens,
     createCompletion: async () => {
       completionCalls += 1
       return "NONE"
@@ -183,12 +149,10 @@ test("recoverContextIfNeeded ignores progress telegram entries in tail candidate
     conversationId: "c2",
     conversationDir,
     memoryDir: config.memoryDir,
-    workspaceRoot: root,
-    actorUserId: 7,
-    username: "alice",
     latestUserInput: "继续上次的话题",
     runtimeHistoryLength: 1,
-    maxHistoryMessages: config.context.maxHistoryMessages,
+    contextWindowTokens: config.ai.limits.contextWindow,
+    maxOutputTokens: config.ai.limits.maxOutputTokens,
     createCompletion: async (messages) => {
       const prompt = messages.map((message) => String(message.content || "")).join("\n")
       assert.doesNotMatch(prompt, /正在调用工具：Read/)

@@ -450,6 +450,33 @@ test("Read keeps nested AGENTS context but does not duplicate the AGENTS file it
   assert.equal(agentsText.match(/repo 目录规则/g)?.length, 1)
 })
 
+test("Read resolves /attachments from dedicated runtime attachments directory", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
+  const runtimeAttachmentsDir = join(root, ".runtime", "attachments")
+  const conversationsDir = join(root, "conversations")
+  const attachmentDir = join(runtimeAttachmentsDir, "100-1")
+  mkdirSync(attachmentDir, { recursive: true })
+  writeFileSync(join(attachmentDir, "note.txt"), "attached note")
+
+  const registry = createLocalTools({
+    workspaceRoot: root,
+    runtimeRoot: join(root, ".runtime"),
+    skillSources: [],
+    memoryDir: join(root, "memory"),
+    conversationsDir,
+    attachmentsDir: runtimeAttachmentsDir,
+  })
+
+  const result = await registry.handlers.Read({
+    path: "/attachments/note.txt",
+    __conversationId: "100-1",
+  })
+
+  assert.equal(result.isError, undefined)
+  const text = extractText(result as { content: Array<{ type: string; text?: string }> })
+  assert.match(text, /attached note/)
+})
+
 test("Read does not inject parent AGENTS outside workspace root", async () => {
   const parent = mkdtempSync(join(tmpdir(), "myz-bot-tools-parent-"))
   const root = join(parent, "workspace")
