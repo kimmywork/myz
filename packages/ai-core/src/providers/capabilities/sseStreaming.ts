@@ -12,6 +12,7 @@ import type {
   ProviderMessage,
   ProviderToolCall,
 } from "../types"
+import { emitProviderRequestDebug } from "../debug"
 import { isRecord } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
@@ -214,17 +215,23 @@ async function requestSseCompletion(
   options: ProviderStreamOptions = {},
 ): Promise<ProviderChatCompletionResponse> {
   let usage: unknown = null
+  const payload = {
+    ...request,
+    stream: true,
+    stream_options: {
+      ...(isRecord(request.stream_options) ? request.stream_options : {}),
+      include_usage: true,
+    },
+  }
+  await emitProviderRequestDebug(options, {
+    endpoint,
+    transport: "sse",
+    body: payload,
+  })
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      ...request,
-      stream: true,
-      stream_options: {
-        ...(isRecord(request.stream_options) ? request.stream_options : {}),
-        include_usage: true,
-      },
-    }),
+    body: JSON.stringify(payload),
   })
 
   if (!response.ok) {

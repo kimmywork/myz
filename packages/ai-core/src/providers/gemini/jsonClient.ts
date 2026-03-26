@@ -6,6 +6,7 @@ import type {
   ProviderStreamOptions,
   ProviderToolCall,
 } from "../types"
+import { emitProviderRequestDebug } from "../debug"
 import {
   coerceContentToText,
   normalizeBaseUrl,
@@ -547,6 +548,11 @@ export class GeminiJsonClient implements ChatCompletionClient {
     }
 
     const { body } = buildGeminiRequest(request)
+    await emitProviderRequestDebug(options, {
+      endpoint,
+      transport: "json",
+      body,
+    })
     const response = await fetch(endpoint, {
       method: "POST",
       headers: buildGeminiHeaders(

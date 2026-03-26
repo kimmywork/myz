@@ -4,6 +4,7 @@ import type {
   ProviderChatCompletionResponse,
   ProviderStreamOptions,
 } from "../types"
+import { emitProviderRequestDebug } from "../debug"
 
 type ValueOrGetter<T> = T | (() => T)
 
@@ -30,7 +31,7 @@ export class OpenAICompatibleJsonClient implements ChatCompletionClient {
 
   async createCompletion(
     request: ProviderChatCompletionRequest,
-    _options: ProviderStreamOptions = {},
+    options: ProviderStreamOptions = {},
   ): Promise<ProviderChatCompletionResponse> {
     await this.syncHeaders?.()
 
@@ -50,13 +51,20 @@ export class OpenAICompatibleJsonClient implements ChatCompletionClient {
         : request.messages,
     }
 
+    const payload = {
+      ...normalizedRequest,
+      stream: false,
+    }
+    await emitProviderRequestDebug(options, {
+      endpoint,
+      transport: "json",
+      body: payload,
+    })
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers: resolveValue(this.buildHeaders),
-      body: JSON.stringify({
-        ...normalizedRequest,
-        stream: false,
-      }),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {

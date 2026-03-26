@@ -6,6 +6,7 @@ import type {
   ProviderStreamOptions,
   ProviderToolCall,
 } from "../types"
+import { emitProviderRequestDebug } from "../debug"
 import {
   coerceContentToText,
   normalizeBaseUrl,
@@ -481,6 +482,11 @@ export class AnthropicJsonClient implements ChatCompletionClient {
       ...buildAnthropicPayload(request),
       ...(request.stream ? { stream: true } : {}),
     }
+    await emitProviderRequestDebug(options, {
+      endpoint,
+      transport: "json",
+      body: payload,
+    })
     const response = await fetch(endpoint, {
       method: "POST",
       headers: buildAnthropicHeaders(

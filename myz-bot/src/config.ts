@@ -141,6 +141,7 @@ const BotConfigSchema = z.object({
       allowlist: [],
       denylist: [],
     }),
+  debug: z.boolean().optional().default(false),
   tools: z
     .object({
       allowlist: z.array(z.string().min(1)).optional().default([]),

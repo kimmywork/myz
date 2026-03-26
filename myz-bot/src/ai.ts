@@ -17,7 +17,8 @@ import type {
   AIToolChoiceSetting,
   AIToolControlSettings,
 } from "@myz/ai-core/settings"
-import type { BotConfig } from "./config"
+import type { BotRuntimeConfig } from "./config"
+import { writeLlmRequestDebugLog } from "./debug"
 import { withRetry } from "./retry"
 
 function normalizeHeaders(
@@ -188,7 +189,7 @@ export function mapSystemMessagesToUserMessages(
   })
 }
 
-function buildModel(config: BotConfig): AIModelSetting {
+function buildModel(config: BotRuntimeConfig): AIModelSetting {
   const limits = config.ai.limits
   const tooling = config.ai.tooling
   return {
@@ -217,7 +218,7 @@ function buildModel(config: BotConfig): AIModelSetting {
   }
 }
 
-function buildProvider(config: BotConfig, model: AIModelSetting): AIProviderSetting {
+function buildProvider(config: BotRuntimeConfig, model: AIModelSetting): AIProviderSetting {
   const headers = normalizeHeaders(config.ai.headers)
   return {
     id: "bot-provider",
@@ -238,7 +239,7 @@ function buildProvider(config: BotConfig, model: AIModelSetting): AIProviderSett
   }
 }
 
-function buildMcpServers(config: BotConfig): McpServerSetting[] {
+function buildMcpServers(config: BotRuntimeConfig): McpServerSetting[] {
   return (config.mcpServers || []).map((server, index) => ({
     id: server.id || `mcp-${index}`,
     name: server.name,
@@ -255,7 +256,7 @@ function shouldRetryLlmError(error: unknown) {
 }
 
 export async function generateReply(options: {
-  config: BotConfig
+  config: BotRuntimeConfig
   messages: Message[]
   temperature?: number
   conversationId?: string
@@ -318,6 +319,15 @@ export async function generateReply(options: {
         client.createCompletion(request, {
           tooling: normalizeTooling(model.tooling),
           enableGeminiThinking: Boolean(model.capabilities.reasoning),
+          debug: {
+            onRequest: async (record) => {
+              await writeLlmRequestDebugLog({
+                config: options.config,
+                conversationId: options.conversationId,
+                record,
+              })
+            },
+          },
           onToolCallMessage: async (message) => {
             enqueueToolCallback(options.onToolCallMessage, message)
           },

@@ -5,6 +5,7 @@ import type {
   ProviderMessage,
   ProviderStreamOptions,
 } from "../types"
+import { emitProviderRequestDebug } from "../debug"
 import { coerceContentToText, normalizeBaseUrl } from "../utils"
 import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
 import { isRecord } from "@myz/shared/typeUtils"
@@ -144,6 +145,11 @@ export class OllamaJsonClient implements ChatCompletionClient {
         ...(typeof maxTokens === "number" ? { num_predict: maxTokens } : {}),
       }
     }
+    await emitProviderRequestDebug(options, {
+      endpoint,
+      transport: "json",
+      body: payload,
+    })
 
     const response = await fetch(endpoint, {
       method: "POST",

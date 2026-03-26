@@ -35,6 +35,7 @@ test("loadConfig parses minimal bot.yml", () => {
   assert.equal(config.scheduler.enabled, true)
   assert.equal(config.scheduler.pollIntervalMs, 15000)
   assert.equal(config.upgrade.enabled, true)
+  assert.equal(config.debug, false)
   assert.equal(config.upgrade.packageName, "myz-bot")
   assert.equal(config.upgrade.channel, "latest")
   assert.equal(config.upgrade.checkIntervalMs, 21600000)
@@ -87,6 +88,7 @@ test("loadConfig parses permissions and skill policies", () => {
       "    - builtin/planning",
       "  denylist:",
       "    - builtin/problem-solving",
+      "debug: true",
       "tools:",
       "  allowlist:",
       "    - Read",
@@ -126,6 +128,7 @@ test("loadConfig parses permissions and skill policies", () => {
   assert.deepEqual(config.skillAllowlist, ["builtin/planning"])
   assert.deepEqual(config.skillDenylist, ["builtin/problem-solving"])
   assert.deepEqual(config.toolAllowlist, ["read"])
+  assert.equal(config.debug, true)
   assert.equal(config.ai.systemPromptInUserMessage, true)
   assert.equal(config.ai.retry.retries, 4)
   assert.equal(config.scheduler.pollIntervalMs, 5000)

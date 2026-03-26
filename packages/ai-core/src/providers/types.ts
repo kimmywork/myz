@@ -83,6 +83,12 @@ export interface ProviderChatCompletionResponse {
   [key: string]: unknown
 }
 
+export interface ProviderRequestDebugRecord {
+  endpoint: string
+  transport: "json" | "sse"
+  body: unknown
+}
+
 export interface ProviderStreamDelta {
   content?: string
   reasoning?: string
@@ -106,6 +112,11 @@ export interface ProviderStreamOptions {
    * Only enable it when the selected model is configured to support reasoning.
    */
   enableGeminiThinking?: boolean
+  debug?: {
+    onRequest?: (
+      record: ProviderRequestDebugRecord,
+    ) => void | Promise<void>
+  }
 }
 
 export interface ChatCompletionClient {

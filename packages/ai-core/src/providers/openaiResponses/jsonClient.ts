@@ -8,6 +8,7 @@ import type {
   ProviderToolCall,
   ProviderToolSpec,
 } from "../types"
+import { emitProviderRequestDebug } from "../debug"
 import { coerceContentToText, normalizeBaseUrl } from "../utils"
 import type { JsonRecord, JsonValue } from "@myz/shared/typeUtils"
 import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
@@ -513,7 +514,7 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
 
   async createCompletion(
     request: ProviderChatCompletionRequest,
-    _options: ProviderStreamOptions = {},
+    options: ProviderStreamOptions = {},
   ): Promise<ProviderChatCompletionResponse> {
     await this.syncHeaders?.()
 
@@ -527,39 +528,45 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
     )
     const toolChoice = normalizeToolChoice(request.tool_choice)
     const tools = request.tools ? normalizeToolsForRequest(request.tools) : []
+    const payload = {
+      model: request.model,
+      input,
+      ...(instructions ? { instructions } : {}),
+      ...(typeof request.temperature === "number" &&
+      supportsResponsesTemperature(request.model)
+        ? { temperature: request.temperature }
+        : {}),
+      ...(typeof request.max_tokens === "number"
+        ? { max_output_tokens: request.max_tokens }
+        : {}),
+      ...(typeof request.max_completion_tokens === "number"
+        ? { max_output_tokens: request.max_completion_tokens }
+        : {}),
+      ...(tools.length
+        ? { tools }
+        : {}),
+      ...(toolChoice ? { tool_choice: toolChoice } : {}),
+      ...(typeof request.parallel_tool_calls === "boolean"
+        ? { parallel_tool_calls: request.parallel_tool_calls }
+        : {}),
+      ...(request.response_format
+        ? { response_format: request.response_format }
+        : {}),
+      ...(request.extra_body ? request.extra_body : {}),
+      stream: Boolean(request.stream),
+    }
+    await emitProviderRequestDebug(options, {
+      endpoint,
+      transport: "json",
+      body: payload,
+    })
     const response = await fetch(endpoint, {
       method: "POST",
       headers: buildProviderHeaders(
         resolveValue(this.apiKey),
         resolveValue(this.headers) || "",
       ),
-      body: JSON.stringify({
-        model: request.model,
-        input,
-        ...(instructions ? { instructions } : {}),
-        ...(typeof request.temperature === "number" &&
-        supportsResponsesTemperature(request.model)
-          ? { temperature: request.temperature }
-          : {}),
-        ...(typeof request.max_tokens === "number"
-          ? { max_output_tokens: request.max_tokens }
-          : {}),
-        ...(typeof request.max_completion_tokens === "number"
-          ? { max_output_tokens: request.max_completion_tokens }
-          : {}),
-        ...(tools.length
-          ? { tools }
-          : {}),
-        ...(toolChoice ? { tool_choice: toolChoice } : {}),
-        ...(typeof request.parallel_tool_calls === "boolean"
-          ? { parallel_tool_calls: request.parallel_tool_calls }
-          : {}),
-        ...(request.response_format
-          ? { response_format: request.response_format }
-          : {}),
-        ...(request.extra_body ? request.extra_body : {}),
-        stream: Boolean(request.stream),
-      }),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {
@@ -571,11 +578,11 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
 
     const contentType = response.headers.get("content-type") || ""
     if (request.stream && contentType.includes("text/event-stream")) {
-      return parseResponsesStream(response, _options)
+      return parseResponsesStream(response, options)
     }
 
-    const payload = await response.json()
-    const message = extractResponseMessage(payload)
+    const responsePayload = await response.json()
+    const message = extractResponseMessage(responsePayload)
 
     return {
       choices: [
@@ -584,7 +591,7 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
           message,
         },
       ],
-      ...(isRecord(payload) ? payload : {}),
+      ...(isRecord(responsePayload) ? responsePayload : {}),
     }
   }
 }

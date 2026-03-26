@@ -84,6 +84,7 @@ export function createRuntimeConfig(
       },
     },
     mcpServers: [],
+    debug: false,
     runtimeRoot: join(root, ".home"),
     workspaceRoot: root,
     workspaceId: "test-workspace",
