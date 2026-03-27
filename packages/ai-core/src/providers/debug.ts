@@ -7,5 +7,9 @@ export async function emitProviderRequestDebug(
   options: ProviderStreamOptions | undefined,
   record: ProviderRequestDebugRecord,
 ) {
-  await options?.debug?.onRequest?.(record)
+  try {
+    await options?.debug?.onRequest?.(record)
+  } catch {
+    // Debug logging must never block or fail the actual LLM request path.
+  }
 }

@@ -87,6 +87,16 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
   const instructions: string[] = []
   const input: JsonRecord[] = []
   const activeToolCallIds = new Set<string>()
+  const toolOutputIds = new Set(
+    messages
+      .filter(
+        (message) =>
+          message?.role === "tool" &&
+          typeof message.tool_call_id === "string" &&
+          message.tool_call_id,
+      )
+      .map((message) => message.tool_call_id as string),
+  )
 
   messages.forEach((message, index) => {
     if (!message) return
@@ -116,6 +126,15 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
 
     if (message.role === "assistant") {
       const parts = buildInputParts(message.content, "assistant")
+      const matchedToolCalls = Array.isArray(message.tool_calls)
+        ? message.tool_calls.filter((toolCall, index) => {
+            const callId =
+              typeof toolCall?.id === "string" && toolCall.id
+                ? toolCall.id
+                : `call-${index + 1}`
+            return Boolean(toolCall?.function?.name) && toolOutputIds.has(callId)
+          })
+        : []
       if (parts.length) {
         const messageEntry: JsonRecord = {
           type: "message",
@@ -125,9 +144,8 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
         input.push(messageEntry)
       }
 
-      if (Array.isArray(message.tool_calls)) {
-        message.tool_calls.forEach((toolCall, index) => {
-          if (!toolCall?.function?.name) return
+      if (matchedToolCalls.length) {
+        matchedToolCalls.forEach((toolCall, index) => {
           const callId = toolCall.id || `call-${index + 1}`
           activeToolCallIds.add(callId)
           const callEntry: JsonRecord = {

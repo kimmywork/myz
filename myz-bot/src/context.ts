@@ -33,11 +33,6 @@ function isRuntimeHistoryMessage(message: Message) {
   return false
 }
 
-function isCompressedHistoryMessage(message: Message) {
-  if (message.role === "tool") return false
-  return isRuntimeHistoryMessage(message)
-}
-
 function summarizeMessage(message: Message, index: number) {
   const content = typeof message.content === "string" ? message.content.trim() : ""
   const snippet = content.replace(/\s+/g, " ").slice(0, 160)
@@ -132,6 +127,76 @@ export function deriveThinHistoryThreshold(options: {
   return Math.max(8, Math.floor(effectiveMaxHistoryMessages / 4))
 }
 
+function hasMatchingToolCall(messages: Message[], toolCallId: string) {
+  return messages.some((message) => {
+    if (message.role !== "assistant" || !Array.isArray(message.tool_calls)) {
+      return false
+    }
+    return message.tool_calls.some((toolCall) => toolCall?.id === toolCallId)
+  })
+}
+
+function normalizeMessagesForToolChains(messages: Message[]) {
+  const outputIds = new Set(
+    messages
+      .filter(
+        (message) =>
+          message.role === "tool" && typeof message.tool_call_id === "string",
+      )
+      .map((message) => message.tool_call_id as string),
+  )
+  const normalized: Message[] = []
+  const activeCallIds = new Set<string>()
+
+  messages.forEach((message) => {
+    if (message.role === "assistant" && Array.isArray(message.tool_calls)) {
+      const matchedToolCalls = message.tool_calls.filter((toolCall) => {
+        return (
+          typeof toolCall?.id === "string" &&
+          outputIds.has(toolCall.id) &&
+          hasMatchingToolCall(messages, toolCall.id)
+        )
+      })
+      const content = typeof message.content === "string" ? message.content : ""
+      if (!matchedToolCalls.length && !content.trim()) {
+        return
+      }
+      const nextMessage =
+        matchedToolCalls.length === message.tool_calls.length
+          ? message
+          : ({
+              ...message,
+              ...(matchedToolCalls.length ? { tool_calls: matchedToolCalls } : {}),
+            } satisfies Message)
+      if (!matchedToolCalls.length) {
+        delete nextMessage.tool_calls
+      }
+      normalized.push(nextMessage)
+      matchedToolCalls.forEach((toolCall) => {
+        if (typeof toolCall?.id === "string") {
+          activeCallIds.add(toolCall.id)
+        }
+      })
+      return
+    }
+
+    if (message.role === "tool") {
+      const callId =
+        typeof message.tool_call_id === "string" ? message.tool_call_id : ""
+      if (!callId || !activeCallIds.has(callId)) {
+        return
+      }
+      normalized.push(message)
+      activeCallIds.delete(callId)
+      return
+    }
+
+    normalized.push(message)
+  })
+
+  return normalized
+}
+
 function takeRecentMessagesWithinBudget(
   messages: Message[],
   maxHistoryMessages: number,
@@ -152,7 +217,11 @@ function takeRecentMessagesWithinBudget(
     capped.unshift(message)
     chars = nextChars
   }
-  return capped
+
+  return {
+    startIndex: Math.max(0, messages.length - capped.length),
+    messages: normalizeMessagesForToolChains(capped),
+  }
 }
 
 function trimSummary(summary: string, maxChars: number) {
@@ -197,7 +266,6 @@ export function prepareConversationContext(options: {
   } = options
 
   const runtimeMessages = messages.filter(isRuntimeHistoryMessage)
-  const compressedRuntimeMessages = runtimeMessages.filter(isCompressedHistoryMessage)
   const effectiveMaxHistoryChars = deriveHistoryCharBudget({
     maxHistoryChars,
     contextWindowTokens,
@@ -223,21 +291,23 @@ export function prepareConversationContext(options: {
       })()
     : {}
   const previousSummary = previousSummaryState.summary || ""
-  const recentHistory = takeRecentMessagesWithinBudget(
+  const recentHistoryState = takeRecentMessagesWithinBudget(
     runtimeMessages,
     effectiveMaxHistoryMessages,
     effectiveMaxHistoryChars,
   )
-  const compressedRecentHistory = takeRecentMessagesWithinBudget(
-    compressedRuntimeMessages,
+  const compressedRecentHistoryState = takeRecentMessagesWithinBudget(
+    runtimeMessages,
     compressionKeepMessages,
     compressionKeepChars,
   )
-  const totalCompressedRuntimeChars = estimateHistoryChars(compressedRuntimeMessages)
+  const recentHistory = recentHistoryState.messages
+  const compressedRecentHistory = compressedRecentHistoryState.messages
+  const totalRuntimeChars = estimateHistoryChars(runtimeMessages)
 
   const runtimeOverflow =
-    compressedRuntimeMessages.length > compressedRecentHistory.length &&
-    totalCompressedRuntimeChars > effectiveMaxHistoryChars
+    runtimeMessages.length > compressedRecentHistory.length &&
+    totalRuntimeChars > effectiveMaxHistoryChars
   if (!runtimeOverflow) {
     return {
       history: recentHistory,
@@ -246,10 +316,7 @@ export function prepareConversationContext(options: {
     }
   }
 
-  const archivedMessages = runtimeMessages.slice(
-    0,
-    Math.max(0, runtimeMessages.length - compressedRecentHistory.length),
-  )
+  const archivedMessages = runtimeMessages.slice(0, compressedRecentHistoryState.startIndex)
   const archivedVisibleMessages = archivedMessages.filter(isVisibleConversationMessage)
   mkdirSync(paths.dir, { recursive: true })
   mkdirSync(paths.archiveDir, { recursive: true })

@@ -83,17 +83,28 @@ test("prepareConversationContext excludes tool responses from compressed summary
   assert.doesNotMatch(result.summary, /assistant:Remember/)
 })
 
-test("prepareConversationContext keeps tool responses in live history before compression", () => {
+test("prepareConversationContext keeps complete tool chains in live history before compression", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-context-"))
   const conversationDir = join(root, "conversations", "c3")
   const memoryDir = join(root, "memory")
+  const assistantWithTool = createAssistantMessage("c3", "assistant message 1")
+  assistantWithTool.tool_calls = [
+    {
+      id: "tool-1",
+      type: "function",
+      function: {
+        name: "Read",
+        arguments: "{\"path\":\"/workspace/a.md\"}",
+      },
+    },
+  ]
   const toolMessage = createToolMessage("c3", "tool result is still visible", "tool-1", {
     toolName: "Read",
   })
   const messages = [
     createSystemMessage("c3", "system"),
     createUserMessage("c3", "user message 1"),
-    createAssistantMessage("c3", "assistant message 1"),
+    assistantWithTool,
     toolMessage,
     createUserMessage("c3", "user message 2"),
   ]
@@ -118,21 +129,31 @@ test("prepareConversationContext keeps tool responses in live history before com
   )
 })
 
-test("prepareConversationContext drops tool responses only when compression rewrites history", () => {
+test("prepareConversationContext preserves tool responses when compression rewrites history", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-context-"))
   const conversationDir = join(root, "conversations", "c4")
   const memoryDir = join(root, "memory")
+  const assistantWithTool = createAssistantMessage("c4", "我先读取文件")
+  assistantWithTool.tool_calls = [
+    {
+      id: "tool-1",
+      type: "function",
+      function: {
+        name: "Read",
+        arguments: "{\"path\":\"/workspace/a.md\"}",
+      },
+    },
+  ]
   const messages = [
     createSystemMessage("c4", "system"),
-    createUserMessage("c4", `user message 1 ${"x".repeat(700)}`),
-    createAssistantMessage("c4", `assistant message 1 ${"y".repeat(700)}`),
+    createUserMessage("c4", `user message 1 ${"x".repeat(1500)}`),
+    createAssistantMessage("c4", `assistant message 1 ${"y".repeat(1500)}`),
+    createUserMessage("c4", `user message 2 ${"x".repeat(1500)}`),
+    assistantWithTool,
     createToolMessage("c4", "tool result should be dropped after compression", "tool-1", {
       toolName: "Read",
     }),
-    createUserMessage("c4", `user message 2 ${"x".repeat(700)}`),
-    createAssistantMessage("c4", `assistant message 2 ${"y".repeat(700)}`),
-    createUserMessage("c4", `user message 3 ${"x".repeat(700)}`),
-    createAssistantMessage("c4", `assistant message 3 ${"y".repeat(700)}`),
+    createUserMessage("c4", "user message 3"),
   ]
 
   const result = prepareConversationContext({
@@ -148,8 +169,68 @@ test("prepareConversationContext drops tool responses only when compression rewr
   })
 
   assert.equal(result.compressed, true)
-  assert.equal(result.history.some((message) => message.role === "tool"), false)
+  assert.equal(result.history.some((message) => message.role === "tool"), true)
+  assert.equal(
+    result.history.some((message) => message.role === "assistant" && Array.isArray(message.tool_calls)),
+    true,
+  )
+  assert.equal(
+    result.history.some((message) => message.content === "tool result should be dropped after compression"),
+    true,
+  )
   assert.doesNotMatch(result.summary, /tool result should be dropped after compression/)
+})
+
+test("prepareConversationContext does not keep orphaned tool outputs at compression boundary", () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-context-"))
+  const conversationDir = join(root, "conversations", "c6")
+  const memoryDir = join(root, "memory")
+  const assistantWithTool = createAssistantMessage("c6", "我先读一下")
+  assistantWithTool.tool_calls = [
+    {
+      id: "call-1",
+      type: "function",
+      function: {
+        name: "Read",
+        arguments: "{\"path\":\"/workspace/a.md\"}",
+      },
+    },
+  ]
+  const messages = [
+    createSystemMessage("c6", "system"),
+    createUserMessage("c6", `user message 0 ${"x".repeat(1600)}`),
+    createAssistantMessage("c6", `assistant message 0 ${"y".repeat(1600)}`),
+    createUserMessage("c6", `user message 1 ${"x".repeat(1200)}`),
+    assistantWithTool,
+    createToolMessage("c6", "# A\nhello", "call-1", {
+      toolName: "Read",
+    }),
+    createUserMessage("c6", "user message 2"),
+  ]
+
+  const result = prepareConversationContext({
+    conversationDir,
+    conversationId: "c6",
+    memoryDir,
+    messages,
+    maxHistoryMessages: 2,
+    summaryMaxMessages: 4,
+    contextWindowTokens: 4096,
+    maxOutputTokens: 512,
+  })
+
+  assert.equal(result.compressed, true)
+  const toolMessage = result.history.find((message) => message.role === "tool")
+  assert.equal(toolMessage?.tool_call_id, "call-1")
+  assert.equal(
+    result.history.some(
+      (message) =>
+        message.role === "assistant" &&
+        Array.isArray(message.tool_calls) &&
+        message.tool_calls.some((toolCall) => toolCall?.id === "call-1"),
+    ),
+    true,
+  )
 })
 
 test("prepareConversationContext does not compress just because message count is high when content still fits", () => {

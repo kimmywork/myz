@@ -100,7 +100,9 @@ test("migrateLegacyLayout moves legacy runtime directories and writes migration 
   assert.equal(existsSync(join(memoryDir, "conversation-summaries")), false)
   const dailyLogs = readdirSync(memoryDir).filter((name) => /^\d{4}-\d{2}-\d{2}\.md$/.test(name))
   assert.equal(dailyLogs.length >= 1, true)
-  const memoryContent = readFileSync(join(memoryDir, dailyLogs[0] || ""), "utf-8")
+  const memoryContent = dailyLogs
+    .map((name) => readFileSync(join(memoryDir, name), "utf-8"))
+    .join("\n")
   assert.match(memoryContent, /用户偏好简洁/)
   assert.match(memoryContent, /会话摘要 c1/)
 })

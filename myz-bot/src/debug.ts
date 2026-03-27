@@ -23,21 +23,24 @@ export async function writeLlmRequestDebugLog(options: {
   record: ProviderRequestDebugRecord
 }) {
   if (!options.config.debug) return
-
-  const dir = resolve(options.config.systemDir, "debug", "llm")
-  mkdirSync(dir, { recursive: true })
-  const now = new Date()
-  const file = resolve(dir, buildTimestampFileName(now))
-  const payload = {
-    loggedAt: now.toISOString(),
-    conversationId: options.conversationId || "",
-    provider: options.config.ai.provider,
-    model: typeof options.record.body === "object" && options.record.body
-      ? (options.record.body as { model?: unknown }).model || ""
-      : "",
-    endpoint: options.record.endpoint,
-    transport: options.record.transport,
-    requestBody: options.record.body,
+  try {
+    const dir = resolve(options.config.systemDir, "debug", "llm")
+    mkdirSync(dir, { recursive: true })
+    const now = new Date()
+    const file = resolve(dir, buildTimestampFileName(now))
+    const payload = {
+      loggedAt: now.toISOString(),
+      conversationId: options.conversationId || "",
+      provider: options.config.ai.provider,
+      model: typeof options.record.body === "object" && options.record.body
+        ? (options.record.body as { model?: unknown }).model || ""
+        : "",
+      endpoint: options.record.endpoint,
+      transport: options.record.transport,
+      requestBody: options.record.body,
+    }
+    writeFileSync(file, JSON.stringify(payload, null, 2))
+  } catch {
+    // Debug logging is best-effort only.
   }
-  writeFileSync(file, JSON.stringify(payload, null, 2))
 }

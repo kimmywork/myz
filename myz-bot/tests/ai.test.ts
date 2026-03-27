@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { mkdtempSync, readFileSync, readdirSync } from "node:fs"
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createUserMessage } from "../src/conversations"
@@ -182,6 +182,61 @@ test("generateReply logs final llm request json when debug is enabled", async ()
       payload.requestBody?.input?.[0]?.content?.[0]?.text,
       "debug this",
     )
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test("generateReply ignores debug log write failures", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-ai-debug-fail-"))
+  const blockingFile = join(root, "not-a-dir")
+  writeFileSync(blockingFile, "x")
+  const config = createRuntimeConfig(root, {
+    debug: true,
+    systemDir: blockingFile,
+    ai: {
+      provider: "openai_responses",
+      baseUrl: "https://example.com/v1",
+      accessToken: "token",
+      capabilities: {
+        toolCalling: false,
+        reasoning: false,
+        vision: false,
+        imageOutput: false,
+      },
+    },
+  })
+
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () =>
+    createSseResponse([
+      {
+        type: "response.completed",
+        response: {
+          output: [
+            {
+              type: "message",
+              role: "assistant",
+              content: [
+                {
+                  type: "output_text",
+                  text: "still ok",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ])
+
+  try {
+    const reply = await generateReply({
+      config,
+      conversationId: "c-debug-fail",
+      messages: [createUserMessage("c-debug-fail", "debug fail")],
+    })
+
+    assert.equal(reply.content, "still ok")
   } finally {
     globalThis.fetch = originalFetch
   }

@@ -495,3 +495,89 @@ test("OpenAIResponsesJsonClient keeps prior-turn tool chain in request input", a
     globalThis.fetch = originalFetch
   }
 })
+
+test("OpenAIResponsesJsonClient drops incomplete prior-turn tool calls from request input", async () => {
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>
+    return new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [
+              {
+                type: "output_text",
+                text: "ok",
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      },
+    )
+  }
+
+  try {
+    const client = new OpenAIResponsesJsonClient({
+      baseUrl: "https://example.com/v1",
+      apiKey: "token",
+      headers: "",
+    })
+    await client.createCompletion({
+      model: "gpt-test",
+      messages: [
+        {
+          role: "user",
+          content: "read the file",
+        },
+        {
+          role: "assistant",
+          content: "我先看一下文件",
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: {
+                name: "Read",
+                arguments: "{\"path\":\"/workspace/a.md\"}",
+              },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: "继续说后面的事",
+        },
+      ],
+    })
+
+    assert.ok(capturedBody)
+    assert.deepEqual(capturedBody.input, [
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "read the file" }],
+      },
+      {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "我先看一下文件" }],
+      },
+      {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "继续说后面的事" }],
+      },
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
