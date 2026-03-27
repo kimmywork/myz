@@ -102,6 +102,10 @@ export interface MessageMetadata {
   attachments?: ImageAttachment[]
   pageTitle?: string
   titleGenerated?: boolean
+  providerResponseId?: string
+  providerResponseResumable?: boolean
+  providerPreviousResponseId?: string
+  providerPromptCacheKey?: string
   [key: string]: unknown
 }
 

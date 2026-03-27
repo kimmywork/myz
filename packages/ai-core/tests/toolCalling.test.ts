@@ -94,3 +94,94 @@ test("tool-calling capability aggregates usage across multiple provider round-tr
     },
   })
 })
+
+test("tool-calling capability uses response continuation id for follow-up tool outputs", async () => {
+  const requests: ProviderChatCompletionRequest[] = []
+  const responses: ProviderChatCompletionResponse[] = [
+    {
+      id: "resp-1",
+      object: "response",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "先看一下",
+            tool_calls: [
+              {
+                id: "call-1",
+                type: "function",
+                function: {
+                  name: "Write",
+                  arguments: "{\"path\":\"/workspace/a.md\"}",
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+    {
+      id: "resp-2",
+      object: "response",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "done",
+          },
+        },
+      ],
+    },
+  ]
+
+  const baseClient: ChatCompletionClient = {
+    async createCompletion(request) {
+      requests.push(request)
+      const next = responses.shift()
+      if (!next) {
+        throw new Error("No more mocked responses")
+      }
+      return next
+    },
+  }
+
+  const capability = createToolCallingCapability({
+    getTools: async () => [],
+    executeToolCall: async () => "ok",
+  })
+  const client = capability(baseClient)
+
+  await client.createCompletion({
+    model: "gpt-test",
+    messages: [
+      {
+        role: "system",
+        content: "you are helpful",
+      },
+      {
+        role: "user",
+        content: "hello",
+      },
+    ],
+  })
+
+  assert.equal(requests.length, 2)
+  assert.equal(requests[1]?.previous_response_id, "resp-1")
+  assert.deepEqual(requests[1]?.messages, [
+    {
+      role: "system",
+      content: "you are helpful",
+    },
+    {
+      role: "tool",
+      tool_call_id: "call-1",
+      content: "ok",
+      metadata: {
+        toolName: "Write",
+        toolArgs: "{\"path\":\"/workspace/a.md\"}",
+      },
+    },
+  ])
+})

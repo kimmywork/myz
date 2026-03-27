@@ -6,6 +6,32 @@ import type { BotRuntimeConfig } from "./config"
 let lastTimestampLabel = ""
 let sameTimestampCount = 0
 
+function summarizeRequestBody(body: unknown) {
+  if (!body || typeof body !== "object") {
+    return {
+      previousResponseId: "",
+      promptCacheKey: "",
+      inputItems: 0,
+    }
+  }
+  const record = body as {
+    previous_response_id?: unknown
+    prompt_cache_key?: unknown
+    input?: unknown
+  }
+  return {
+    previousResponseId:
+      typeof record.previous_response_id === "string"
+        ? record.previous_response_id
+        : "",
+    promptCacheKey:
+      typeof record.prompt_cache_key === "string"
+        ? record.prompt_cache_key
+        : "",
+    inputItems: Array.isArray(record.input) ? record.input.length : 0,
+  }
+}
+
 function buildTimestampFileName(date = new Date()) {
   const label = date.toISOString().replace(/[:.]/g, "-")
   if (label === lastTimestampLabel) {
@@ -37,6 +63,7 @@ export async function writeLlmRequestDebugLog(options: {
         : "",
       endpoint: options.record.endpoint,
       transport: options.record.transport,
+      requestSummary: summarizeRequestBody(options.record.body),
       requestBody: options.record.body,
     }
     writeFileSync(file, JSON.stringify(payload, null, 2))

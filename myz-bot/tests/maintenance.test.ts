@@ -70,6 +70,7 @@ test("collectTokenUsageSummary aggregates live and archived llm usage", () => {
       timestamp: new Date().toISOString(),
       metadata: {
         toolCallCount: 1,
+        providerPreviousResponseId: "resp-prev",
         usage: {
           total_tokens: 10,
           prompt_tokens: 6,
@@ -92,6 +93,7 @@ test("collectTokenUsageSummary aggregates live and archived llm usage", () => {
           promptTokens: 12,
           completionTokens: 8,
           reasoningTokens: 3,
+          cachedPromptTokens: 5,
         },
       },
     },
@@ -123,8 +125,10 @@ test("collectTokenUsageSummary aggregates live and archived llm usage", () => {
   assert.equal(current.promptTokens, 18)
   assert.equal(current.completionTokens, 12)
   assert.equal(current.reasoningTokens, 3)
-  assert.equal(current.cachedPromptTokens, 0)
+  assert.equal(current.cachedPromptTokens, 5)
   assert.equal(current.toolCallCount, 3)
+  assert.equal(current.resumedReplies, 1)
+  assert.equal(current.cacheHitReplies, 1)
   assert.equal(current.byConversation.length, 1)
 
   const all = collectTokenUsageSummary({
@@ -132,6 +136,9 @@ test("collectTokenUsageSummary aggregates live and archived llm usage", () => {
     scope: "all",
   })
   assert.equal(all.totalTokens, 35)
+  assert.equal(all.cachedPromptTokens, 5)
+  assert.equal(all.resumedReplies, 1)
+  assert.equal(all.cacheHitReplies, 1)
   assert.equal(all.byConversation[0]?.conversationId, "c1")
   assert.equal(all.byConversation[1]?.conversationId, "c2")
 })
@@ -150,6 +157,7 @@ test("collectTokenUsageSummary understands responses-style input/output token fi
       timestamp: new Date().toISOString(),
       metadata: {
         toolCallCount: 0,
+        providerPreviousResponseId: "resp-prev",
         usage: {
           total_tokens: 90,
           input_tokens: 60,
@@ -176,8 +184,14 @@ test("collectTokenUsageSummary understands responses-style input/output token fi
   assert.equal(summary.cachedPromptTokens, 40)
   assert.equal(summary.completionTokens, 30)
   assert.equal(summary.reasoningTokens, 12)
+  assert.equal(summary.resumedReplies, 1)
+  assert.equal(summary.cacheHitReplies, 1)
+  assert.match(formatTokenUsageSummary(summary), /resumedReplies: 1/)
+  assert.match(formatTokenUsageSummary(summary), /cacheHitReplies: 1/)
   assert.match(formatTokenUsageSummary(summary), /cachedPromptTokens: 40/)
   assert.match(formatTokenUsageSummary(summary), /cached=40/)
+  assert.match(formatTokenUsageSummary(summary), /resumed=1/)
+  assert.match(formatTokenUsageSummary(summary), /cacheHits=1/)
 })
 
 test("resetConversationMemory removes only current conversation bound memories", () => {

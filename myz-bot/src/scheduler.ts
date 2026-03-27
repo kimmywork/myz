@@ -264,6 +264,18 @@ async function processScheduledLlmTask(options: {
         taskId: options.task.id,
         toolCallCount: Array.isArray(reply.toolCalls) ? reply.toolCalls.length : 0,
         usage: reply.usage as TokenUsage | undefined,
+        ...(reply.responseId
+          ? {
+              providerResponseId: reply.responseId,
+              providerResponseResumable: Boolean(reply.responseResumable),
+            }
+          : {}),
+        ...(reply.previousResponseId
+          ? { providerPreviousResponseId: reply.previousResponseId }
+          : {}),
+        ...(reply.promptCacheKey
+          ? { providerPromptCacheKey: reply.promptCacheKey }
+          : {}),
       },
     )
     if (Array.isArray(reply.toolCalls) && reply.toolCalls.length) {

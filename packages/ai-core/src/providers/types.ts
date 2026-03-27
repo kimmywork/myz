@@ -58,6 +58,7 @@ export type ProviderToolChoice =
 export interface ProviderChatCompletionRequest {
   model: string
   messages: ProviderMessage[]
+  previous_response_id?: string
   max_tokens?: number
   temperature?: number
   tools?: ProviderToolSpec[]

@@ -255,6 +255,106 @@ function shouldRetryLlmError(error: unknown) {
   return /fetch failed|network|timeout|429|5\d\d|temporar/i.test(message)
 }
 
+function buildResponsesExtraBody(
+  config: BotRuntimeConfig,
+  conversationId?: string,
+) {
+  if (config.ai.provider !== "openai_responses") {
+    return undefined
+  }
+
+  const scope =
+    typeof conversationId === "string" && conversationId.trim()
+      ? conversationId.trim()
+      : "session"
+
+  return {
+    prompt_cache_key: `myz-bot:${config.workspaceId}:${scope}`,
+  }
+}
+
+function readResponsesPromptCacheKey(extraBody: ProviderChatCompletionRequest["extra_body"]) {
+  return extraBody &&
+    typeof extraBody.prompt_cache_key === "string" &&
+    extraBody.prompt_cache_key.trim()
+    ? extraBody.prompt_cache_key.trim()
+    : undefined
+}
+
+function hasEphemeralResponsesContext(messages: Message[]) {
+  return messages.some((message) => {
+    return (
+      message?.metadata?.hiddenFromHistory === true ||
+      message?.metadata?.type === "context_injection"
+    )
+  })
+}
+
+function buildResponsesContinuationRequest(options: {
+  config: BotRuntimeConfig
+  model: AIModelSetting
+  messages: Message[]
+  payload: ProviderMessage[]
+}) {
+  if (options.config.ai.provider !== "openai_responses") {
+    return null
+  }
+
+  if (options.model.systemPromptInUserMessage) {
+    return null
+  }
+
+  let previousResponseId = ""
+  let lastAssistantIndex = -1
+  options.messages.forEach((message, index) => {
+    if (message.role !== "assistant") return
+    const resumable =
+      typeof message.metadata?.providerResponseResumable === "boolean"
+        ? message.metadata.providerResponseResumable
+        : true
+    if (!resumable) {
+      previousResponseId = ""
+      lastAssistantIndex = -1
+      return
+    }
+    const responseId =
+      typeof message.metadata?.providerResponseId === "string"
+        ? message.metadata.providerResponseId.trim()
+        : ""
+    if (!responseId) return
+    previousResponseId = responseId
+    lastAssistantIndex = index
+  })
+
+  if (!previousResponseId || lastAssistantIndex < 0) {
+    return null
+  }
+
+  const instructions = options.payload.filter(
+    (message) => message.role === "system" || message.role === "developer",
+  )
+  const deltaMessages = options.payload
+    .slice(lastAssistantIndex + 1)
+    .filter((message) => message.role !== "system" && message.role !== "developer")
+
+  if (!deltaMessages.length) {
+    return null
+  }
+
+  return {
+    previousResponseId,
+    messages: [...instructions, ...deltaMessages],
+  }
+}
+
+function readProviderResponseId(response: unknown) {
+  if (!response || typeof response !== "object") return undefined
+  const record = response as Record<string, unknown>
+  return typeof record.id === "string" && record.id.trim()
+    ? record.id.trim()
+    : undefined
+}
+
 export async function generateReply(options: {
   config: BotRuntimeConfig
   messages: Message[]
@@ -285,6 +385,20 @@ export async function generateReply(options: {
       }),
       Boolean(model.systemPromptInUserMessage),
     )
+    const continuationRequest = buildResponsesContinuationRequest({
+      config: options.config,
+      model,
+      messages: options.messages,
+      payload,
+    })
+    const responseResumable =
+      options.config.ai.provider === "openai_responses" &&
+      !model.systemPromptInUserMessage &&
+      !hasEphemeralResponsesContext(options.messages)
+    const responsesExtraBody = buildResponsesExtraBody(
+      options.config,
+      options.conversationId,
+    )
     const toolTrace: ProviderMessage[] = []
     const toolCallbackTasks: Promise<void>[] = []
     const stream =
@@ -302,9 +416,13 @@ export async function generateReply(options: {
 
     const request: ProviderChatCompletionRequest = {
       model: model.model,
-      messages: payload,
+      messages: continuationRequest?.messages || payload,
       temperature: typeof options.temperature === "number" ? options.temperature : 0.7,
       stream,
+      ...(continuationRequest?.previousResponseId
+        ? { previous_response_id: continuationRequest.previousResponseId }
+        : {}),
+      ...(responsesExtraBody ? { extra_body: responsesExtraBody } : {}),
     }
 
     if (model.limits.maxOutputTokenParam === "max_completion_tokens") {
@@ -347,6 +465,9 @@ export async function generateReply(options: {
       response && typeof response === "object" && "usage" in response
         ? (response as { usage?: unknown }).usage
         : undefined
+    const responseId = readProviderResponseId(response)
+    const previousResponseId = continuationRequest?.previousResponseId
+    const promptCacheKey = readResponsesPromptCacheKey(responsesExtraBody)
     if (toolCallbackTasks.length) {
       await Promise.allSettled(toolCallbackTasks)
     }
@@ -355,6 +476,10 @@ export async function generateReply(options: {
       toolCalls: message?.tool_calls || [],
       toolTrace,
       usage: normalizeTokenUsage(message?.usage ?? responseUsage),
+      responseId,
+      responseResumable,
+      previousResponseId,
+      promptCacheKey,
     }
   } finally {
     if (useTools) {

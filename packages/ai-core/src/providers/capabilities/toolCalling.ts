@@ -132,6 +132,19 @@ function withAggregatedUsage<T>(response: T, usage: Record<string, unknown> | nu
   }
 }
 
+function extractResponsesContinuationId(response: unknown) {
+  if (!isRecord(response)) return ""
+  const id = typeof response.id === "string" ? response.id.trim() : ""
+  if (!id) return ""
+  if (response.object === "response") return id
+  if (Array.isArray(response.output)) return id
+  return ""
+}
+
+function isInstructionMessage(message: ProviderMessage | undefined) {
+  return message?.role === "system" || message?.role === "developer"
+}
+
 export function createToolCallingCapability(
   options: ToolCallingCapabilityOptions,
 ): Capability {
@@ -314,9 +327,20 @@ export function createToolCallingCapability(
 
         followUpMessages.push(...toolMessages)
 
+        const continuationResponseId = extractResponsesContinuationId(response)
+        const continuationMessages = continuationResponseId
+          ? [
+              ...(currentRequest.messages || []).filter(isInstructionMessage),
+              ...toolMessages,
+            ]
+          : followUpMessages
+
         currentRequest = {
           ...currentRequest,
-          messages: followUpMessages,
+          messages: continuationMessages,
+          ...(continuationResponseId
+            ? { previous_response_id: continuationResponseId }
+            : { previous_response_id: undefined }),
         }
       }
     },

@@ -550,6 +550,10 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
       model: request.model,
       input,
       ...(instructions ? { instructions } : {}),
+      ...(typeof request.previous_response_id === "string" &&
+      request.previous_response_id.trim()
+        ? { previous_response_id: request.previous_response_id.trim() }
+        : {}),
       ...(typeof request.temperature === "number" &&
       supportsResponsesTemperature(request.model)
         ? { temperature: request.temperature }

@@ -1097,6 +1097,18 @@ async function handleConversationMessage(options: {
           ? reply.toolCalls.length
           : 0,
         usage: reply.usage as TokenUsage | undefined,
+        ...(reply.responseId
+          ? {
+              providerResponseId: reply.responseId,
+              providerResponseResumable: Boolean(reply.responseResumable),
+            }
+          : {}),
+        ...(reply.previousResponseId
+          ? { providerPreviousResponseId: reply.previousResponseId }
+          : {}),
+        ...(reply.promptCacheKey
+          ? { providerPromptCacheKey: reply.promptCacheKey }
+          : {}),
         ...(autoRemembered
           ? {
               memorySaved: true,

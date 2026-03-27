@@ -58,6 +58,8 @@ export interface ConversationTokenUsageSummary extends TokenUsageTotals {
   assistantMessages: number
   meteredMessages: number
   toolCallCount: number
+  resumedReplies: number
+  cacheHitReplies: number
 }
 
 export interface TokenUsageSummary extends TokenUsageTotals {
@@ -66,6 +68,8 @@ export interface TokenUsageSummary extends TokenUsageTotals {
   assistantMessages: number
   meteredMessages: number
   toolCallCount: number
+  resumedReplies: number
+  cacheHitReplies: number
   byConversation: ConversationTokenUsageSummary[]
 }
 
@@ -205,6 +209,8 @@ function readConversationUsageSummary(conversationDir: string, conversationId: s
     assistantMessages: 0,
     meteredMessages: 0,
     toolCallCount: 0,
+    resumedReplies: 0,
+    cacheHitReplies: 0,
   }
 
   messages.forEach((message) => {
@@ -223,6 +229,12 @@ function readConversationUsageSummary(conversationDir: string, conversationId: s
       typeof message.metadata?.toolCallCount === "number"
         ? message.metadata.toolCallCount
         : 0
+    totals.resumedReplies +=
+      typeof message.metadata?.providerPreviousResponseId === "string" &&
+      message.metadata.providerPreviousResponseId.trim()
+        ? 1
+        : 0
+    totals.cacheHitReplies += usage.cachedPromptTokens > 0 ? 1 : 0
     sumUsageTotals(totals, usage)
   })
 
@@ -338,6 +350,8 @@ export function collectTokenUsageSummary(options: {
     completionTokens: 0,
     reasoningTokens: 0,
     cachedPromptTokens: 0,
+    resumedReplies: 0,
+    cacheHitReplies: 0,
     byConversation,
   }
 
@@ -345,6 +359,8 @@ export function collectTokenUsageSummary(options: {
     summary.assistantMessages += entry.assistantMessages
     summary.meteredMessages += entry.meteredMessages
     summary.toolCallCount += entry.toolCallCount
+    summary.resumedReplies += entry.resumedReplies
+    summary.cacheHitReplies += entry.cacheHitReplies
     sumUsageTotals(summary, entry)
   })
 
@@ -358,6 +374,8 @@ export function formatTokenUsageSummary(summary: TokenUsageSummary, maxConversat
     `- assistantMessages: ${summary.assistantMessages}`,
     `- meteredMessages: ${summary.meteredMessages}`,
     `- toolCallCount: ${summary.toolCallCount}`,
+    `- resumedReplies: ${summary.resumedReplies}`,
+    `- cacheHitReplies: ${summary.cacheHitReplies}`,
     `- totalTokens: ${summary.totalTokens}`,
     `- promptTokens: ${summary.promptTokens}`,
     `- cachedPromptTokens: ${summary.cachedPromptTokens}`,
@@ -369,7 +387,7 @@ export function formatTokenUsageSummary(summary: TokenUsageSummary, maxConversat
     lines.push("", "按会话统计：")
     summary.byConversation.slice(0, Math.max(1, maxConversations)).forEach((entry) => {
       lines.push(
-        `- ${entry.conversationId} | total=${entry.totalTokens} | prompt=${entry.promptTokens} | cached=${entry.cachedPromptTokens} | completion=${entry.completionTokens} | replies=${entry.assistantMessages} | tools=${entry.toolCallCount}`,
+        `- ${entry.conversationId} | total=${entry.totalTokens} | prompt=${entry.promptTokens} | cached=${entry.cachedPromptTokens} | replies=${entry.assistantMessages} | resumed=${entry.resumedReplies} | cacheHits=${entry.cacheHitReplies} | tools=${entry.toolCallCount}`,
       )
     })
   }
