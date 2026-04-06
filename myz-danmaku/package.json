@@ -31,7 +31,7 @@
     "prettier": "^3.6.2",
     "sharp": "^0.33.3",
     "typescript": "^5.9.3",
-    "vite": "^7.0.5",
+    "vite": "^7.3.2",
     "vite-plugin-zip-pack": "^1.2.4"
   }
 }
