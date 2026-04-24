@@ -3,6 +3,7 @@ import {
 } from "@myz/ai-core/runtime/providerSession"
 import { buildConversationPromptMessages } from "@myz/ai-core/prompt/conversation"
 import type { Message, TokenUsage } from "@myz/ai-core/types"
+import { isOfficialOpenAIApiBaseUrl } from "@myz/ai-core/runtime/openaiCompatible"
 import type {
   ProviderChatCompletionRequest,
   ProviderMessage,
@@ -263,6 +264,10 @@ function buildResponsesExtraBody(
     return undefined
   }
 
+  if (!isOfficialOpenAIApiBaseUrl(config.ai.baseUrl || "")) {
+    return undefined
+  }
+
   const scope =
     typeof conversationId === "string" && conversationId.trim()
       ? conversationId.trim()
@@ -301,6 +306,10 @@ function buildResponsesContinuationRequest(options: {
   }
 
   if (options.model.systemPromptInUserMessage) {
+    return null
+  }
+
+  if (!isOfficialOpenAIApiBaseUrl(options.config.ai.baseUrl || "")) {
     return null
   }
 
@@ -393,6 +402,7 @@ export async function generateReply(options: {
     })
     const responseResumable =
       options.config.ai.provider === "openai_responses" &&
+      isOfficialOpenAIApiBaseUrl(options.config.ai.baseUrl || "") &&
       !model.systemPromptInUserMessage &&
       !hasEphemeralResponsesContext(options.messages)
     const responsesExtraBody = buildResponsesExtraBody(
@@ -419,6 +429,9 @@ export async function generateReply(options: {
       messages: continuationRequest?.messages || payload,
       temperature: typeof options.temperature === "number" ? options.temperature : 0.7,
       stream,
+      supports_previous_response_id: isOfficialOpenAIApiBaseUrl(
+        options.config.ai.baseUrl || "",
+      ),
       ...(continuationRequest?.previousResponseId
         ? { previous_response_id: continuationRequest.previousResponseId }
         : {}),

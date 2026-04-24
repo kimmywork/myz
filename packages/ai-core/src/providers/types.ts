@@ -59,6 +59,7 @@ export interface ProviderChatCompletionRequest {
   model: string
   messages: ProviderMessage[]
   previous_response_id?: string
+  supports_previous_response_id?: boolean
   max_tokens?: number
   temperature?: number
   tools?: ProviderToolSpec[]

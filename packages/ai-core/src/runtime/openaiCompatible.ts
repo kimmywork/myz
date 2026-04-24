@@ -5,6 +5,17 @@ export function normalizeBaseUrl(baseUrl: string) {
   return typeof baseUrl === "string" ? baseUrl.replace(/\/+$/, "") : ""
 }
 
+export function isOfficialOpenAIApiBaseUrl(baseUrl: string) {
+  const normalized = normalizeBaseUrl(baseUrl)
+  if (!normalized) return false
+  try {
+    const url = new URL(normalized)
+    return url.hostname === "api.openai.com"
+  } catch {
+    return false
+  }
+}
+
 export function buildModelsUrl(baseUrl: string) {
   const normalized = normalizeBaseUrl(baseUrl)
   return normalized ? `${normalized}/models` : ""

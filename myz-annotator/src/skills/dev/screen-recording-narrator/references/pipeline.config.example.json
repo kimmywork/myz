@@ -37,7 +37,7 @@
     "python": "/ABS/PATH/python3"
   },
   "stt": {
-    "command": "whisper-cli -m /Users/qliu23/workspace/ml/whisper/whisper.cpp/models/ggml-large-v3-turbo.bin -f {input} -osrt -of {outputBase}"
+    "command": "whisper-cli -m ~/workspace/ml/whisper/whisper.cpp/models/ggml-large-v3-turbo.bin -f {input} -osrt -of {outputBase}"
   },
   "ocr": {
     "engine": "tesseract",

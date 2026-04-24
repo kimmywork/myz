@@ -145,6 +145,10 @@ function isInstructionMessage(message: ProviderMessage | undefined) {
   return message?.role === "system" || message?.role === "developer"
 }
 
+function supportsPreviousResponseId(request: ProviderChatCompletionRequest) {
+  return request.supports_previous_response_id === true
+}
+
 export function createToolCallingCapability(
   options: ToolCallingCapabilityOptions,
 ): Capability {
@@ -327,7 +331,9 @@ export function createToolCallingCapability(
 
         followUpMessages.push(...toolMessages)
 
-        const continuationResponseId = extractResponsesContinuationId(response)
+        const continuationResponseId = supportsPreviousResponseId(currentRequest)
+          ? extractResponsesContinuationId(response)
+          : ""
         const continuationMessages = continuationResponseId
           ? [
               ...(currentRequest.messages || []).filter(isInstructionMessage),

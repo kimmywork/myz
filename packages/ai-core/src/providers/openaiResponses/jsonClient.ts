@@ -550,7 +550,8 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
       model: request.model,
       input,
       ...(instructions ? { instructions } : {}),
-      ...(typeof request.previous_response_id === "string" &&
+      ...(request.supports_previous_response_id === true &&
+      typeof request.previous_response_id === "string" &&
       request.previous_response_id.trim()
         ? { previous_response_id: request.previous_response_id.trim() }
         : {}),

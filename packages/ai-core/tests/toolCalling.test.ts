@@ -155,6 +155,7 @@ test("tool-calling capability uses response continuation id for follow-up tool o
 
   await client.createCompletion({
     model: "gpt-test",
+    supports_previous_response_id: true,
     messages: [
       {
         role: "system",
@@ -173,6 +174,106 @@ test("tool-calling capability uses response continuation id for follow-up tool o
     {
       role: "system",
       content: "you are helpful",
+    },
+    {
+      role: "tool",
+      tool_call_id: "call-1",
+      content: "ok",
+      metadata: {
+        toolName: "Write",
+        toolArgs: "{\"path\":\"/workspace/a.md\"}",
+      },
+    },
+  ])
+})
+
+test("tool-calling capability does not use response continuation id when support is disabled", async () => {
+  const requests: ProviderChatCompletionRequest[] = []
+  const responses: ProviderChatCompletionResponse[] = [
+    {
+      id: "resp-1",
+      object: "response",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "先看一下",
+            tool_calls: [
+              {
+                id: "call-1",
+                type: "function",
+                function: {
+                  name: "Write",
+                  arguments: "{\"path\":\"/workspace/a.md\"}",
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+    {
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "done",
+          },
+        },
+      ],
+    },
+  ]
+
+  const baseClient: ChatCompletionClient = {
+    async createCompletion(request) {
+      requests.push(request)
+      const next = responses.shift()
+      if (!next) {
+        throw new Error("No more mocked responses")
+      }
+      return next
+    },
+  }
+
+  const capability = createToolCallingCapability({
+    getTools: async () => [],
+    executeToolCall: async () => "ok",
+  })
+  const client = capability(baseClient)
+
+  await client.createCompletion({
+    model: "gpt-test",
+    supports_previous_response_id: false,
+    messages: [
+      {
+        role: "user",
+        content: "hello",
+      },
+    ],
+  })
+
+  assert.equal(requests.length, 2)
+  assert.equal(requests[1]?.previous_response_id, undefined)
+  assert.deepEqual(requests[1]?.messages, [
+    {
+      role: "user",
+      content: "hello",
+    },
+    {
+      role: "assistant",
+      content: "先看一下",
+      tool_calls: [
+        {
+          id: "call-1",
+          type: "function",
+          function: {
+            name: "Write",
+            arguments: "{\"path\":\"/workspace/a.md\"}",
+          },
+        },
+      ],
     },
     {
       role: "tool",

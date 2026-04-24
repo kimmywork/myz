@@ -32,7 +32,7 @@ test("generateReply keeps responses usage from top-level payload and normalizes 
   const config = createRuntimeConfig(root, {
     ai: {
       provider: "openai_responses",
-      baseUrl: "https://example.com/v1",
+      baseUrl: "https://api.openai.com/v1",
       accessToken: "token",
       capabilities: {
         toolCalling: false,
@@ -113,7 +113,7 @@ test("generateReply sends a stable prompt cache key for responses requests", asy
   const config = createRuntimeConfig(root, {
     ai: {
       provider: "openai_responses",
-      baseUrl: "https://example.com/v1",
+      baseUrl: "https://api.openai.com/v1",
       accessToken: "token",
       capabilities: {
         toolCalling: false,
@@ -171,7 +171,7 @@ test("generateReply uses previous_response_id for incremental responses turns", 
   const config = createRuntimeConfig(root, {
     ai: {
       provider: "openai_responses",
-      baseUrl: "https://example.com/v1",
+      baseUrl: "https://api.openai.com/v1",
       accessToken: "token",
       capabilities: {
         toolCalling: false,
@@ -243,7 +243,7 @@ test("generateReply can continue from a resumable response even when current tur
   const config = createRuntimeConfig(root, {
     ai: {
       provider: "openai_responses",
-      baseUrl: "https://example.com/v1",
+      baseUrl: "https://api.openai.com/v1",
       accessToken: "token",
       capabilities: {
         toolCalling: false,
@@ -326,7 +326,7 @@ test("generateReply does not continue from a non-resumable response id", async (
   const config = createRuntimeConfig(root, {
     ai: {
       provider: "openai_responses",
-      baseUrl: "https://example.com/v1",
+      baseUrl: "https://api.openai.com/v1",
       accessToken: "token",
       capabilities: {
         toolCalling: false,
@@ -402,13 +402,98 @@ test("generateReply does not continue from a non-resumable response id", async (
   }
 })
 
+test("generateReply does not send OpenAI-only continuation fields to non-OpenAI responses backends", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-ai-third-party-responses-"))
+  const config = createRuntimeConfig(root, {
+    ai: {
+      provider: "openai_responses",
+      baseUrl: "https://example.com/v1",
+      accessToken: "token",
+      capabilities: {
+        toolCalling: false,
+        reasoning: false,
+        vision: false,
+        imageOutput: false,
+      },
+    },
+  })
+
+  const previousAssistant = createAssistantMessage("c-3p", "first reply", {
+    providerResponseId: "resp-prev",
+    providerResponseResumable: true,
+  })
+
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>
+    return createSseResponse([
+      {
+        type: "response.completed",
+        response: {
+          id: "resp-next",
+          output: [
+            {
+              type: "message",
+              role: "assistant",
+              content: [
+                {
+                  type: "output_text",
+                  text: "second reply",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ])
+  }
+
+  try {
+    const reply = await generateReply({
+      config,
+      conversationId: "c-3p",
+      messages: [
+        createUserMessage("c-3p", "first question"),
+        previousAssistant,
+        createUserMessage("c-3p", "follow up question"),
+      ],
+    })
+
+    assert.equal(reply.content, "second reply")
+    assert.equal(reply.previousResponseId, undefined)
+    assert.equal(reply.promptCacheKey, undefined)
+    assert.equal(capturedBody?.previous_response_id, undefined)
+    assert.equal(capturedBody?.prompt_cache_key, undefined)
+    assert.deepEqual(capturedBody?.input, [
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "first question" }],
+      },
+      {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "first reply" }],
+      },
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "follow up question" }],
+      },
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 test("generateReply logs final llm request json when debug is enabled", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-ai-debug-"))
   const config = createRuntimeConfig(root, {
     debug: true,
     ai: {
       provider: "openai_responses",
-      baseUrl: "https://example.com/v1",
+      baseUrl: "https://api.openai.com/v1",
       accessToken: "token",
       capabilities: {
         toolCalling: false,
@@ -507,7 +592,7 @@ test("generateReply ignores debug log write failures", async () => {
     systemDir: blockingFile,
     ai: {
       provider: "openai_responses",
-      baseUrl: "https://example.com/v1",
+      baseUrl: "https://api.openai.com/v1",
       accessToken: "token",
       capabilities: {
         toolCalling: false,

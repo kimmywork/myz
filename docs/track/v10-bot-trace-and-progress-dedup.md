@@ -90,6 +90,7 @@
   - Bot + AI Core: 接入 `previous_response_id` 续写链路。tool loop 的下一跳改为基于上一轮 `response.id` 只发送 `system/developer + tool outputs`；bot 在无隐藏 context 注入时会复用最近一次 assistant 的 `providerResponseId` 做跨轮增量续写。
   - Bot: 续写策略细化为“上一轮可续写则本轮即使带 `context_injection` 也继续复用 `previous_response_id`，但本轮返回的 response 会标记为 `providerResponseResumable: false`”，避免临时摘要持续污染后续链路。
   - Bot: 新增观测字段。debug LLM 日志会提炼 `previousResponseId` / `promptCacheKey` / `inputItems`；assistant metadata 会落 `providerPreviousResponseId` 与 `providerPromptCacheKey`；`/ops usage` 汇总新增 `resumedReplies` 与 `cacheHitReplies`，便于直接判断“是否续写”和“是否真的 hit cache”。
+  - Bot: 仅在官方 OpenAI `api.openai.com` Responses API 上启用 `previous_response_id` 与 `prompt_cache_key`。第三方 `/v1/responses` 兼容后端只发送基础字段，避免因不支持 OpenAI 专有参数而返回 400。
 - 2026-03-25
   - 新增去重修复计划，收敛根目录 AGENTS 重复注入与 tool progress 刷屏问题。
   - 预载根目录身份档案到 bot assistant prompt，减少对 `SOUL.md` / `IDENTITY.md` / `USER.md` / `BOOTSTRAP.md` 的重复读取。

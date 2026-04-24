@@ -581,3 +581,57 @@ test("OpenAIResponsesJsonClient drops incomplete prior-turn tool calls from requ
     globalThis.fetch = originalFetch
   }
 })
+
+test("OpenAIResponsesJsonClient only sends previous_response_id when explicitly enabled", async () => {
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>
+    return new Response(
+      JSON.stringify({
+        output: [
+          {
+            type: "message",
+            role: "assistant",
+            content: [
+              {
+                type: "output_text",
+                text: "ok",
+              },
+            ],
+          },
+        ],
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      },
+    )
+  }
+
+  try {
+    const client = new OpenAIResponsesJsonClient({
+      baseUrl: "https://example.com/v1",
+      apiKey: "token",
+      headers: "",
+    })
+    await client.createCompletion({
+      model: "gpt-test",
+      messages: [
+        {
+          role: "user",
+          content: "hello",
+        },
+      ],
+      previous_response_id: "resp-1",
+      supports_previous_response_id: false,
+    })
+
+    assert.ok(capturedBody)
+    assert.equal(capturedBody.previous_response_id, undefined)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
