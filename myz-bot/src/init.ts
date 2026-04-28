@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
 import { resolve } from "node:path"
+import { AI_PROVIDER_TYPES, type AIProviderType } from "@myz/ai-core/settings"
 import yaml from "yaml"
 import { DEFAULT_SOUL, ensureSoulFile } from "./soul"
 import { DEFAULT_MEMORY_FILE_CONTENT, ensureMemoryDir } from "./memory"
@@ -39,10 +40,20 @@ const DEFAULT_USER = `# USER.md
 - 边界：
 `
 
+function normalizeAiProvider(value: string): AIProviderType {
+  const provider = value.trim()
+  if ((AI_PROVIDER_TYPES as readonly string[]).includes(provider)) {
+    return provider as AIProviderType
+  }
+  throw new Error(
+    `Unsupported ai provider: ${provider}. Supported values: ${AI_PROVIDER_TYPES.join(", ")}`,
+  )
+}
+
 function buildBotConfigYml(options: {
   telegramUsername: string
   telegramToken: string
-  aiProvider: string
+  aiProvider: AIProviderType
   aiBaseUrl: string
   aiAccessToken: string
   aiModel: string
@@ -75,7 +86,11 @@ ai:
   baseUrl: "${options.aiBaseUrl}"
   accessToken: "${options.aiAccessToken}"
   headers: {}
+  compatProfile: auto
+  reasoningMode: provider_default
+  reasoningEffort: provider_default
   model: "${options.aiModel}"
+  streamingEnabled: true
   systemPromptInUserMessage: false
   retry:
     retries: 2
@@ -131,7 +146,7 @@ soul:
 export interface InitAnswers {
   telegramUsername: string
   telegramToken: string
-  aiProvider: string
+  aiProvider: AIProviderType
   aiBaseUrl: string
   aiAccessToken: string
   aiModel: string
@@ -173,14 +188,14 @@ const PROMPTS: Array<{
   },
   {
     key: "aiProvider",
-    label: "LLM provider",
+    label: `LLM provider (${AI_PROVIDER_TYPES.join(" | ")})`,
     defaultValue: "openai_compatible",
     required: true,
   },
   {
     key: "aiBaseUrl",
     label: "LLM base URL",
-    defaultValue: "https://api.openai.com/v1/chat/completions",
+    defaultValue: "https://api.openai.com/v1",
     required: false,
   },
   {
@@ -261,7 +276,11 @@ async function collectAnswers(options: InitWorkspaceOptions): Promise<InitAnswer
   if (hasAllPresetAnswers) {
     const answers = {} as InitAnswers
     PROMPTS.forEach((prompt) => {
-      answers[prompt.key] = String(initial[prompt.key] || prompt.defaultValue).trim()
+      const value = String(initial[prompt.key] || prompt.defaultValue).trim()
+      answers[prompt.key] =
+        prompt.key === "aiProvider"
+          ? normalizeAiProvider(value)
+          : value
     })
     return answers
   }
@@ -284,7 +303,10 @@ async function collectAnswers(options: InitWorkspaceOptions): Promise<InitAnswer
         value = String(reply || "").trim() || prompt.defaultValue.trim()
         if (!prompt.required || value) break
       }
-      answers[prompt.key] = value
+      answers[prompt.key] =
+        prompt.key === "aiProvider"
+          ? normalizeAiProvider(value)
+          : value
     }
     return answers
   }
@@ -309,7 +331,10 @@ async function collectAnswers(options: InitWorkspaceOptions): Promise<InitAnswer
         value = reply.trim() || prompt.defaultValue.trim()
         if (!prompt.required || value) break
       }
-      answers[prompt.key] = value
+      answers[prompt.key] =
+        prompt.key === "aiProvider"
+          ? normalizeAiProvider(value)
+          : value
     }
     return answers
   } finally {

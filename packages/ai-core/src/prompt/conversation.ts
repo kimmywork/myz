@@ -76,9 +76,22 @@ function buildUserContent(
 function appendStoredMessage(
   builder: PromptBuilder,
   message: Message,
-  options: { includeVision: boolean },
+  options: {
+    includeVision: boolean
+    includeAssistantReasoning?: boolean | ((message: Message) => boolean)
+  },
 ) {
   const content = typeof message?.content === "string" ? message.content : ""
+  const includeAssistantReasoning =
+    typeof options.includeAssistantReasoning === "function"
+      ? options.includeAssistantReasoning(message)
+      : options.includeAssistantReasoning === true
+  const reasoningContent =
+    includeAssistantReasoning &&
+    typeof message?.reasoning_content === "string" &&
+    message.reasoning_content
+      ? message.reasoning_content
+      : undefined
 
   switch (message?.role) {
     case "system":
@@ -88,7 +101,7 @@ function appendStoredMessage(
       builder.addUser(buildUserContent(message, options.includeVision))
       return
     case "assistant":
-      builder.addAssistant(content, message.tool_calls)
+      builder.addAssistant(content, message.tool_calls, { reasoningContent })
       return
     case "tool":
       if (message.tool_call_id) {
@@ -104,12 +117,18 @@ function appendStoredMessage(
 
 export function buildConversationPromptMessages(
   messages: Message[] = [],
-  options: { includeVision?: boolean } = {},
+  options: {
+    includeVision?: boolean
+    includeAssistantReasoning?: boolean | ((message: Message) => boolean)
+  } = {},
 ): MessageInPayload[] {
   const builder = new PromptBuilder()
   const includeVision = Boolean(options.includeVision)
   messages.forEach((message) =>
-    appendStoredMessage(builder, message, { includeVision }),
+    appendStoredMessage(builder, message, {
+      includeVision,
+      includeAssistantReasoning: options.includeAssistantReasoning,
+    }),
   )
   return builder.build()
 }

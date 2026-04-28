@@ -20,10 +20,17 @@ export class PromptBuilder {
     return this.addMessage({ role: "user", content })
   }
 
-  addAssistant(content: string, toolCalls?: ToolCall[]) {
+  addAssistant(
+    content: string,
+    toolCalls?: ToolCall[],
+    options: { reasoningContent?: string } = {},
+  ) {
     const message: MessageInPayload = { role: "assistant", content }
     if (Array.isArray(toolCalls) && toolCalls.length) {
       message.tool_calls = toolCalls
+    }
+    if (typeof options.reasoningContent === "string" && options.reasoningContent) {
+      message.reasoning_content = options.reasoningContent
     }
     return this.addMessage(message)
   }

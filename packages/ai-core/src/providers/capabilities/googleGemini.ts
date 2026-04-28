@@ -15,7 +15,7 @@ function patchGeminiThinkingConfig(
     return request
   }
 
-  if (!options?.enableGeminiThinking) {
+  if (!options?.enableGeminiThinking && !options?.enableReasoning) {
     return request
   }
 

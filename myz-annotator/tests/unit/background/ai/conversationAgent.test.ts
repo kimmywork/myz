@@ -30,10 +30,6 @@ vi.mock("@/background/storage.js", () => ({
   })),
 }));
 
-vi.mock("@/background/ai/skills/storage.js", () => ({
-  listSkills: vi.fn(async () => []),
-}));
-
 const { ConversationAgent } = await import(
   "@/background/ai/agents/conversationAgent.ts"
 );
@@ -126,7 +122,7 @@ describe("ConversationAgent", () => {
     conversationMetadata = {
       taskPlan: {
         status: "executing",
-        originalUserRequest: "do stuff",
+        goal: "do stuff",
         tasks: [
           {
             id: "t1",
@@ -135,7 +131,8 @@ describe("ConversationAgent", () => {
             owner: "executor",
             category: "quick",
             skills: ["browser-ops"],
-            deliverables: [{ description: "deliver" }],
+            summary: "deliver",
+            notes: [],
             blockedBy: [],
           },
         ],
@@ -326,5 +323,76 @@ describe("ConversationAgent", () => {
       ? payload.messages[0].content.map((part: any) => part.text || "").join("")
       : String(payload.messages[0].content || "");
     expect(firstContent).toContain("你是浏览器智能助理");
+    expect(firstContent).toContain("当前日期:");
+    expect(firstContent).not.toContain("当前时间:");
+  });
+
+  it("normalizes streamed usage metadata for persisted messages and stream completion events", async () => {
+    const chromeMock = installFakeChrome();
+    savedMessages.length = 0;
+    superpowerEnabled = false;
+    conversationMetadata = null;
+
+    const agent = new ConversationAgent();
+    await agent.processConversation(
+      "c1",
+      "chat",
+      "hello",
+      {
+        stream: true,
+        streamId: "stream-usage-1",
+      },
+      {
+        isEnabled: true,
+        client: {
+          createCompletion: vi.fn(async () => ({
+            choices: [{ message: { content: "streamed reply" } }],
+            usage: {
+              promptTokenCount: 120,
+              candidatesTokenCount: 45,
+              totalTokenCount: 165,
+              thoughtsTokenCount: 12,
+              cachedContentTokenCount: 30,
+            },
+          })),
+        } as any,
+        callConfig: {
+          provider: { id: "p1", name: "p" } as any,
+          model: {
+            model: "gemini-2.5-flash",
+            capabilities: { vision: true, reasoning: true },
+            limits: {
+              maxOutputTokens: 128,
+              maxOutputTokenParam: "max_tokens",
+              contextWindow: 2048,
+            },
+          } as any,
+          temperature: 0.2,
+          compressImages: false,
+        },
+      },
+    );
+
+    const persisted = savedMessages.find(
+      (msg) => msg.role === "assistant" && msg.content === "streamed reply",
+    );
+    expect(persisted?.metadata?.usage).toMatchObject({
+      total_tokens: 165,
+      prompt_tokens: 120,
+      completion_tokens: 45,
+      reasoning_tokens: 12,
+      cached_prompt_tokens: 30,
+    });
+
+    const completeEvent = (chromeMock.runtime.sendMessage as any).mock.calls
+      .map((call: any[]) => call[0])
+      .find((payload: any) => payload?.type === "myz:aiStreamComplete");
+    expect(completeEvent?.data?.metadata?.usage).toMatchObject({
+      total_tokens: 165,
+      prompt_tokens: 120,
+      completion_tokens: 45,
+      reasoning_tokens: 12,
+      cached_prompt_tokens: 30,
+    });
   });
 });

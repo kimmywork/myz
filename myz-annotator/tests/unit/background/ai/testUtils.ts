@@ -298,6 +298,7 @@ export interface ToolCallSequenceStep {
   message?: Record<string, any>;
   role?: string;
   content?: any;
+  reasoning_content?: string;
   extra_content?: Record<string, any>;
   tool_calls?: any[];
   response?: Record<string, any>;
@@ -339,6 +340,9 @@ export function createToolCallSequenceClient(options: {
     }
     if (step.extra_content) {
       message.extra_content = step.extra_content;
+    }
+    if (typeof (step as any).reasoning_content === "string") {
+      message.reasoning_content = (step as any).reasoning_content
     }
     return message;
   };

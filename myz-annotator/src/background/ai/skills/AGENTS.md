@@ -9,7 +9,7 @@ Skills are instruction bundles (mostly `SKILL.md`) that can be:
 - **Imported by users** (stored in IndexedDB)
 - **Built-in** (bundled in source, then seeded into IndexedDB on first use)
 
-The runtime injects selected skill content into user messages before model calls.
+The runtime keeps skill exposure minimal and only passes current-turn skill metadata into the conversation. The model reads `/skills/...` on demand.
 
 ## Storage & runtime flow
 
@@ -24,6 +24,7 @@ Implementations:
 
 - `storage.ts` handles list/get/update/import/delete.
 - Built-in skills are seeded by `ensureBuiltinSkills()` on first access.
+- Removed built-in skills are pruned from IndexedDB during seeding so stale defaults do not linger after upgrades.
 
 ### Skill selection
 
@@ -37,13 +38,18 @@ Selector agent:
 - `agents/skillSelectionAgent.ts`
 - Outputs JSON `{ "skill_names": [...] }`
 
-The final skill context is injected in:
-
-- `ai/prompt/conversation.ts` → appended as `技能说明:\n...`
+In Superpower mode, auto skill selection should stay off by default. The main prompt only references the minimal built-in browser skill plus any explicit current-turn skill mentions.
 
 Note: `allowed-tools` is stored but not enforced; tools still follow normal allowlists.
 
 ## Built-in skills (how to add)
+
+Current default policy:
+
+- Only `myz-annotator/src/skills/builtin/browser-operations/` and `myz-annotator/src/skills/builtin/planning-mode/` are bundled as built-in skills.
+- Planning guidance is exposed at `/skills/planning-mode/SKILL.md` and can be referenced from the stable system prompt.
+
+If a new built-in skill is truly required:
 
 1. **Create the skill file**
    - Add a folder under `myz-annotator/src/skills/builtin/<skill-name>/`

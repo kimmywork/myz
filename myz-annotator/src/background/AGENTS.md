@@ -2,7 +2,7 @@
 
 This folder contains the MV3 service worker background logic. The AI integration is structured as:
 
-- **Providers (transport + capabilities)**: OpenAI-compatible chat completions, plus composable capabilities (streaming/tool-calling/reasoning/vendor quirks).
+- **Providers (transport + capabilities)**: `openai_compatible` / `openai_responses` / `gemini` / `anthropic` / `mistral`, plus composable capabilities (streaming/tool-calling/reasoning/vendor quirks).
 - **Agents (application layer)**: Conversation + Insights workflows built on top of providers.
 - **Runtime (selection + caching)**: Resolves agent→(provider, model, temperature), creates sessions (provider + MCP), caches them globally, and ref-counts MCP connect/disconnect.
 
@@ -91,11 +91,12 @@ Import shared AI types from `@/background/ai/types.ts`.
    - Resolves `aiAgents.conversation.target` via `resolveAgentTarget(settings, "conversation")`.
    - Acquires a cached provider runtime via `acquireProviderRuntime(target.provider, settings.aiMcpServers)`.
    - Connects MCP only when `target.model.capabilities.toolCalling === true`.
-   - Resolves Skill selection (explicit `@skill` + auto selection) and injects only `{ name, description }` into the user message metadata.
+   - Resolves Skill selection (explicit `@skill` + optional auto selection) and injects only the current-turn skill metadata into the user message metadata.
 3. `ConversationAgent.processConversation()`:
    - Persists the user message.
    - Loads history from IndexedDB; falls back to legacy storage when empty.
    - Builds the model payload via `buildConversationPromptMessages()`.
+   - In Superpower mode, keeps the system prompt stable and points complex tasks at `/skills/planning-mode/SKILL.md`, while volatile task summaries stay in user turns / Task state.
    - Calls `clientWithTools.createCompletion({ stream: true })`.
    - Emits UI streaming events:
      - `myz:aiStreamStart` → `myz:aiStreamChunk` → `myz:aiStreamComplete` or `myz:aiStreamError`
@@ -132,14 +133,29 @@ Gemini’s OpenAI-compatible API differs from typical providers:
 ## Tool Calling Rules
 
 - Tool loop is implemented by `toolCalling.ts` capability.
-- Follow-up requests should **not** forward any `reasoning_content` or `<thought>` output back to the model.
-  - The tool-calling capability sanitizes assistant content using Gemini thought tag splitting.
+- Follow-up requests must be provider-aware:
+  - Gemini `<thought>` output must **not** be forwarded back as visible content.
+  - OpenAI-compatible replay is now profile-aware: Tier 1 profiles such as DeepSeek / Moonshot / GLM may require assistant `reasoning_content` to be echoed back on tool continuations.
+  - The tool-calling capability sanitizes assistant content and conditionally preserves `reasoning_content` only for providers that opt into replay.
+
+## Provider Profiles
+
+- `openai_compatible` no longer assumes a universal reasoning contract.
+- Settings now include:
+  - `compatProfile`
+  - `reasoningMode`
+  - `reasoningEffort`
+  - `reasoningBudget`
+- Tier 1 support is currently centered on `deepseek` / `moonshot` / `glm`.
+- Tier 2 support is currently `qwen` / `minimax` / `longcat` / `mimo` / `custom`.
+- `mistral` is a Tier 0 provider and must go through the official `@mistralai/mistralai` SDK path, not `openai_compatible`.
 
 ## Skill + Local Tools
 
 - Skill storage lives in IndexedDB and is exposed via `/skills/...` paths:
-  - The prompt injects `<available_skills>` blocks with locations like `/skills/{name}/SKILL.md`.
-  - The model should call `Read` to load skill content.
+  - Built-in skills are intentionally minimal; `browser-operations` and `planning-mode` are bundled by default.
+  - Superpower mode should not inject the full skill catalog into the system prompt.
+  - The model should call `Read` to load `/skills/...` content when a specific skill is needed.
 - Virtual file system for agent memory is implemented in a separate IndexedDB and exposed via:
   - `List`, `Read`, `Write`, `Edit`, `Glob`
   - `/skills` paths are routed to skill storage; `/skills` is read-only.

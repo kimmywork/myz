@@ -14,18 +14,19 @@ This folder contains all provider adapters (transport + protocol mapping) used b
 ## Core Building Blocks
 
 - **OpenAI-compatible transport** (chat completions + /models):
-  - `openaiCompatible/jsonClient.ts` + `runtime/openaiCompatible.ts`
-  - Used by `openai_compatible`, `moonshot`, `qwen`, `vllm`, `llama_cpp`
+  - `openaiCompatible/jsonClient.ts` + `openaiCompatible/sdkClient.ts` + `runtime/openaiCompatible.ts`
+  - Used only by `openai_compatible`
 - **Non-OpenAI adapters**:
   - OpenAI Responses: `openaiResponses/jsonClient.ts`
   - Gemini: `gemini/jsonClient.ts`
   - Anthropic: `anthropic/jsonClient.ts`
-  - Ollama: `ollama/jsonClient.ts`
+  - Mistral: `mistral/jsonClient.ts`
 - **Capabilities** (composable middleware):
   - Tool loop: `capabilities/toolCalling.ts`
   - Reasoning normalization: `capabilities/reasoning.ts`
   - Streaming (OpenAI SSE): `capabilities/sseStreaming.ts`
-  - Vendor quirks (Gemini, Qwen): `capabilities/googleGemini.ts`, `capabilities/qwenThinking.ts`
+  - Vendor quirks (Gemini thinking): `capabilities/googleGemini.ts`
+  - Vendor quirks (OpenAI-compatible profiles): `capabilities/openaiCompatibleProfile.ts`
 
 ## Adding a New Provider
 
@@ -50,18 +51,25 @@ This folder contains all provider adapters (transport + protocol mapping) used b
 - Provider adapters should:
   - Return tool calls in `message.tool_calls` (OpenAI-style).
   - Accept tool results as `role: "tool"` messages (stringified content).
+  - Preserve assistant `reasoning_content` on follow-up requests only when the target OpenAI-compatible provider requires reasoning replay.
+- OpenAI-compatible, OpenAI Responses, Anthropic, and Gemini transports should use their official SDKs; keep custom logic only for request shaping, debug hooks, and response normalization.
+- Mistral should use `@mistralai/mistralai`; do not re-route it through `openai_compatible`.
 
 ## Common Pitfalls
 
 - Some vendors do not accept `system` role messages in `messages`:
   - Gemini and Anthropic require system instructions in top-level fields.
   - OpenAI Responses uses `instructions` + `input`.
+- Gemini transport and model listing should go through `@google/genai`; avoid reintroducing manual `fetch`/SSE code unless the SDK path is proven insufficient.
+- Some third-party OpenAI-compatible reasoning APIs reject follow-up requests unless the previous assistant `reasoning_content` is echoed back; official `api.openai.com` requests must not use that replay path.
+- `openai_compatible` reasoning behavior is now profile-driven. Do not assume one generic `thinking` / `reasoning_effort` contract across all vendors.
 - Self-hosted servers may not require API keys; the UI supports custom headers.
+- The SDK wrappers must not blindly inject default auth headers; preserve explicit custom headers and no-key self-hosted OpenAI-compatible setups.
 - Always normalize `content` into a string for `Message` storage in the agents.
 
 ## Quick Map (Provider → Adapter)
 
-- `openai_compatible` / `moonshot` / `qwen` / `vllm` / `llama_cpp`
+- `openai_compatible`
   - OpenAI-compatible Chat Completions `/v1/chat/completions`
 - `openai_responses`
   - OpenAI Responses API `/v1/responses`
@@ -69,5 +77,5 @@ This folder contains all provider adapters (transport + protocol mapping) used b
   - Google Gemini `generateContent`
 - `anthropic`
   - Anthropic Messages `/v1/messages`
-- `ollama`
-  - Ollama `/api/generate`
+- `mistral`
+  - Mistral Chat Completions `/v1/chat/completions`

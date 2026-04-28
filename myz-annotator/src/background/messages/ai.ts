@@ -14,7 +14,6 @@ import {
 import { ConversationAgent } from "../ai/agents/conversationAgent.js";
 import { ConversationTitleAgent } from "../ai/agents/conversationTitleAgent.js";
 import { InsightsAgent } from "../ai/agents/insightsAgent.js";
-import { PlanningAgent } from "../ai/agents/planningAgent.js";
 import { SkillSelectionAgent } from "../ai/agents/skillSelectionAgent.js";
 import { ToolSelectionAgent } from "../ai/agents/toolSelectionAgent.js";
 import { McpCapability } from "../ai/capabilities/mcp.js";
@@ -59,17 +58,6 @@ import {
 } from "@/sidepanel/aiStorage";
 import { recordConversationDeletion } from "../sync/deletions";
 import { acquireProviderRuntime } from "../ai/runtime/providerRuntime.js";
-import { QuickStartAgent } from "../ai/agents/quickStartAgent.js";
-import { PlanReviewAgent } from "../ai/agents/planReviewAgent.js";
-import { ValidatorAgent } from "../ai/agents/validatorAgent.js";
-import {
-  getTaskPlan,
-  initTaskPlan,
-  startTaskPlanExecution,
-  TaskPlanReview,
-  updatePlanReviewResult,
-  updateValidationResult,
-} from "../ai/tasks/taskManager.js";
 import {
   LOCAL_TOOL_NAMES,
   SUPERPOWER_TOOL_NAMES,
@@ -146,39 +134,11 @@ function supportsProviderStreaming(provider: AIProviderSetting) {
     case "openai_responses":
     case "gemini":
     case "anthropic":
-    case "moonshot":
-    case "qwen":
-    case "vllm":
-    case "llama_cpp":
-    case "ollama":
+    case "mistral":
       return true;
     default:
       return false;
   }
-}
-
-function buildPreflightTask(review?: {
-  issues?: string[];
-  missingInfo?: string[];
-}) {
-  const issues = Array.isArray(review?.issues) ? review?.issues : [];
-  const missingInfo = Array.isArray(review?.missingInfo)
-    ? review?.missingInfo
-    : [];
-  const deliverables = [...issues, ...missingInfo]
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter(Boolean)
-    .map((item) => ({ description: `补齐/确认：${item}` }));
-  if (deliverables.length === 0) {
-    deliverables.push({ description: "补齐目标、约束、验收标准或账号权限" });
-  }
-  return {
-    title: "补齐执行前提与关键信息",
-    deliverables,
-    priority: "high",
-    owner: "executor",
-    category: "quick",
-  };
 }
 
 function notifySidePanel(type: string, data?: unknown) {
@@ -242,6 +202,7 @@ async function resolveSkillContext(options: {
   message: string;
   settings: Settings;
   forceAllSkills?: boolean;
+  disableAutoSelection?: boolean;
 }) {
   const message = typeof options.message === "string" ? options.message : "";
   const skills = await listSkills();
@@ -263,7 +224,8 @@ async function resolveSkillContext(options: {
 
   const skillSettings = options.settings.aiSkills;
   const selectorTarget = skillSettings?.autoSelectorTarget;
-  const shouldAutoSelect = skillSettings?.mode === "auto";
+  const shouldAutoSelect =
+    !options.disableAutoSelection && skillSettings?.mode === "auto";
 
   if (
     shouldAutoSelect &&
@@ -426,6 +388,7 @@ async function generateContextSummary(options: {
   }
 
   const response = await options.client.createCompletion(request, {
+    enableReasoning: Boolean(options.model.capabilities.reasoning),
     enableGeminiThinking: Boolean(options.model.capabilities.reasoning),
   });
 
@@ -517,7 +480,15 @@ export function initializeAIMessageHandlers() {
     async (payload: {
       provider: Pick<
         AIProviderSetting,
-        "baseUrl" | "apiKey" | "headers" | "type"
+        | "baseUrl"
+        | "apiKey"
+        | "headers"
+        | "type"
+        | "streamingEnabled"
+        | "compatProfile"
+        | "reasoningMode"
+        | "reasoningEffort"
+        | "reasoningBudget"
       >;
       model: string;
       maxOutputTokens?: number;
@@ -525,337 +496,6 @@ export function initializeAIMessageHandlers() {
     }) => {
       const result = await testProviderConnection(payload);
       return result satisfies AIProviderTestConnectionMessageResult;
-    },
-  );
-
-  registerMessageHandler(
-    "myz:aiPlanRequest",
-    async (payload: {
-      conversationId: string;
-      message?: string;
-      options?: {
-        quickStart?: boolean;
-        autoStart?: boolean;
-        selectionContextText?: string;
-      };
-    }) => {
-      const settings = await readSettings();
-      if (!settings.aiAssistantEnabled) {
-        throw new Error("AI Assistant is not enabled");
-      }
-      const superpowerEnabled = Boolean(
-        settings?.aiAgents?.conversation?.superpowerMode,
-      );
-      if (!superpowerEnabled) {
-        throw new Error("Superpower Mode is not enabled");
-      }
-
-      const conversationId = payload?.conversationId;
-      const normalizedMessage =
-        typeof payload?.message === "string" ? payload.message.trim() : "";
-      if (!conversationId) {
-        throw new Error("conversationId is required");
-      }
-      if (!normalizedMessage) {
-        throw new Error("message is required");
-      }
-
-      const existingPlan = await getTaskPlan(conversationId);
-      const quickStart = Boolean(payload?.options?.quickStart);
-      const selectionContextText =
-        typeof payload?.options?.selectionContextText === "string"
-          ? payload.options.selectionContextText.trim()
-          : "";
-      const baseRequest = selectionContextText
-        ? [normalizedMessage, `选中内容:\n${selectionContextText}`]
-            .filter(Boolean)
-            .join("\n\n")
-        : normalizedMessage;
-      const originalUserRequest =
-        existingPlan?.originalUserRequest || baseRequest;
-      const reviewStatus = existingPlan?.planReview?.status;
-      const reviewIssues = Array.isArray(existingPlan?.planReview?.issues)
-        ? existingPlan?.planReview?.issues
-        : [];
-      const reviewMissing = Array.isArray(existingPlan?.planReview?.missingInfo)
-        ? existingPlan?.planReview?.missingInfo
-        : [];
-      const isRevision = reviewStatus === "needs_revision";
-      const planningPrompt = isRevision
-        ? [
-            "请根据原始需求与补充信息重新规划任务。",
-            "要求：保持原始目标，补齐缺失信息或转为前置任务；输出新的完整任务计划。",
-            "",
-            `原始需求：${originalUserRequest}`,
-            `补充信息：${normalizedMessage}`,
-            selectionContextText
-              ? `补充选中内容：\n${selectionContextText}`
-              : "补充选中内容：无",
-            reviewIssues.length
-              ? `审核问题：${reviewIssues.join("；")}`
-              : "审核问题：无",
-            reviewMissing.length
-              ? `缺失信息：${reviewMissing.join("；")}`
-              : "缺失信息：无",
-          ].join("\n")
-        : baseRequest;
-
-      const target = resolveAgentTarget(settings, "conversation");
-      const runtime = await acquireProviderRuntime(target.provider, []);
-      try {
-        const planner = quickStart
-          ? new QuickStartAgent()
-          : new PlanningAgent();
-        const result = await planner.createPlan({
-          prompt: planningPrompt,
-          client: runtime.session.client,
-          model: target.model,
-        });
-        const resultMode =
-          isRecord(result) && typeof result.mode === "string"
-            ? result.mode
-            : undefined;
-
-        let plan = await initTaskPlan({
-          conversationId,
-          originalUserRequest,
-          tasks: result.tasks,
-          mode: resultMode,
-          assumptions: Array.isArray(result.assumptions)
-            ? result.assumptions
-            : [],
-        });
-
-        const reviewer = new PlanReviewAgent();
-        let reviewResult: TaskPlanReview | null = null;
-        const reviewPlan = async (currentPlan: typeof plan) => {
-          try {
-            return await reviewer.review({
-              originalUserRequest,
-              taskPlan: currentPlan,
-              client: runtime.session.client,
-              model: target.model,
-            });
-          } catch (error) {
-            console.warn("Plan review failed", error);
-            return null;
-          }
-        };
-
-        reviewResult = await reviewPlan(plan);
-
-        if (reviewResult?.status === "needs_revision") {
-          const revisionPrompt = [
-            "请根据原始需求、补充信息、现有计划与审核意见重新生成完整任务计划。",
-            "要求：不要向用户提问；缺失信息转为前置任务；必要时做合理假设并写入 assumptions。",
-            "仅输出 JSON。",
-            "",
-            `原始需求：${originalUserRequest}`,
-            `补充信息：${normalizedMessage}`,
-            selectionContextText
-              ? `补充选中内容：\n${selectionContextText}`
-              : "补充选中内容：无",
-            "现有计划：",
-            JSON.stringify(
-              {
-                tasks: plan.tasks,
-                assumptions: Array.isArray(plan.assumptions)
-                  ? plan.assumptions
-                  : [],
-              },
-              null,
-              2,
-            ),
-            reviewResult.issues?.length
-              ? `审核问题：${reviewResult.issues.join("；")}`
-              : "审核问题：无",
-            reviewResult.missingInfo?.length
-              ? `缺失信息：${reviewResult.missingInfo.join("；")}`
-              : "缺失信息：无",
-          ].join("\n");
-          const revised = await planner.createPlan({
-            prompt: revisionPrompt,
-            client: runtime.session.client,
-            model: target.model,
-          });
-          const revisedMode =
-            isRecord(revised) && typeof revised.mode === "string"
-              ? revised.mode
-              : undefined;
-          if (Array.isArray(revised.tasks) && revised.tasks.length > 0) {
-            plan = await initTaskPlan({
-              conversationId,
-              originalUserRequest,
-              tasks: revised.tasks,
-              mode: revisedMode ?? resultMode,
-              assumptions: Array.isArray(revised.assumptions)
-                ? revised.assumptions
-                : Array.isArray(result.assumptions)
-                  ? result.assumptions
-                  : [],
-            });
-            const revisedReview = await reviewPlan(plan);
-            if (revisedReview) {
-              reviewResult = revisedReview;
-            }
-          }
-        }
-
-        if (reviewResult?.status === "needs_revision") {
-          const preflight = buildPreflightTask(reviewResult);
-          plan = await initTaskPlan({
-            conversationId,
-            originalUserRequest,
-            tasks: [preflight, ...plan.tasks],
-            mode: plan.mode,
-            assumptions: Array.isArray(plan.assumptions)
-              ? plan.assumptions
-              : [],
-          });
-          reviewResult = { status: "pass", issues: [], missingInfo: [] };
-        }
-
-        if (reviewResult) {
-          await updatePlanReviewResult({
-            conversationId,
-            review: reviewResult,
-          });
-        }
-
-        if (payload?.options?.autoStart && reviewResult?.status === "pass") {
-          const started = await startTaskPlanExecution(conversationId);
-          if (started) {
-            plan = started;
-          }
-        }
-
-        return { plan, review: reviewResult, result };
-      } finally {
-        await runtime.release();
-      }
-    },
-  );
-
-  registerMessageHandler(
-    "myz:aiValidateRequest",
-    async (payload: { conversationId: string }) => {
-      const settings = await readSettings();
-      if (!settings.aiAssistantEnabled) {
-        throw new Error("AI Assistant is not enabled");
-      }
-      const superpowerEnabled = Boolean(
-        settings?.aiAgents?.conversation?.superpowerMode,
-      );
-      if (!superpowerEnabled) {
-        throw new Error("Superpower Mode is not enabled");
-      }
-
-      const conversationId = payload?.conversationId;
-      if (!conversationId) {
-        throw new Error("conversationId is required");
-      }
-
-      const plan = await getTaskPlan(conversationId);
-      if (!plan) {
-        throw new Error("No task plan found for this conversation");
-      }
-      if (plan.planReview?.status !== "pass") {
-        throw new Error("Plan review has not passed yet");
-      }
-      const allDone = plan.tasks.every((task) => task.status === "done");
-      if (!allDone) {
-        throw new Error("Tasks are not completed yet");
-      }
-
-      const target = resolveAgentTarget(settings, "conversation");
-      const runtime = await acquireProviderRuntime(target.provider, []);
-      try {
-        const validator = new ValidatorAgent();
-        const result = await validator.validate({
-          originalUserRequest: plan.originalUserRequest,
-          taskPlan: plan,
-          client: runtime.session.client,
-          model: target.model,
-        });
-        await updateValidationResult({ conversationId, validation: result });
-        return result;
-      } finally {
-        await runtime.release();
-      }
-    },
-  );
-
-  registerMessageHandler(
-    "myz:aiPlanReviewRequest",
-    async (payload: { conversationId: string }) => {
-      const settings = await readSettings();
-      if (!settings.aiAssistantEnabled) {
-        throw new Error("AI Assistant is not enabled");
-      }
-      const superpowerEnabled = Boolean(
-        settings?.aiAgents?.conversation?.superpowerMode,
-      );
-      if (!superpowerEnabled) {
-        throw new Error("Superpower Mode is not enabled");
-      }
-
-      const conversationId = payload?.conversationId;
-      if (!conversationId) {
-        throw new Error("conversationId is required");
-      }
-      const plan = await getTaskPlan(conversationId);
-      if (!plan) {
-        throw new Error("No task plan found for this conversation");
-      }
-
-      const target = resolveAgentTarget(settings, "conversation");
-      const runtime = await acquireProviderRuntime(target.provider, []);
-      try {
-        const reviewer = new PlanReviewAgent();
-        const review = await reviewer.review({
-          originalUserRequest: plan.originalUserRequest,
-          taskPlan: plan,
-          client: runtime.session.client,
-          model: target.model,
-        });
-        await updatePlanReviewResult({ conversationId, review });
-        return review;
-      } finally {
-        await runtime.release();
-      }
-    },
-  );
-
-  registerMessageHandler(
-    "myz:taskPlanStart",
-    async (payload: { conversationId: string }) => {
-      const settings = await readSettings();
-      if (!settings.aiAssistantEnabled) {
-        throw new Error("AI Assistant is not enabled");
-      }
-      const superpowerEnabled = Boolean(
-        settings?.aiAgents?.conversation?.superpowerMode,
-      );
-      if (!superpowerEnabled) {
-        throw new Error("Superpower Mode is not enabled");
-      }
-
-      const conversationId = payload?.conversationId;
-      if (!conversationId) {
-        throw new Error("conversationId is required");
-      }
-      const existing = await getTaskPlan(conversationId);
-      if (!existing) {
-        throw new Error("No task plan found for this conversation");
-      }
-      if (existing.planReview?.status !== "pass") {
-        throw new Error("Plan review has not passed yet");
-      }
-      const plan = await startTaskPlanExecution(conversationId);
-      if (!plan) {
-        throw new Error("No task plan found for this conversation");
-      }
-      return plan;
     },
   );
 
@@ -939,13 +579,12 @@ export function initializeAIMessageHandlers() {
         const superpowerEnabled =
           Boolean(settings.aiAgents?.conversation?.superpowerMode) &&
           conversationMode !== "chat";
-        const skillPayload = superpowerEnabled
-          ? { skillNames: [], skillList: [] }
-          : await resolveSkillContext({
-              conversationId,
-              message: normalizedMessage,
-              settings,
-            });
+        const skillPayload = await resolveSkillContext({
+          conversationId,
+          message: normalizedMessage,
+          settings,
+          disableAutoSelection: superpowerEnabled,
+        });
         if (enableTools) {
           const enabledToolNames = Array.isArray(
             settings.aiLocalTools?.enabledToolNames,
@@ -1485,7 +1124,8 @@ export function initializeAIMessageHandlers() {
           conversationId,
           message: content,
           settings,
-          forceAllSkills: superpowerEnabled,
+          forceAllSkills: false,
+          disableAutoSelection: superpowerEnabled,
         });
         if (enableTools) {
           const enabledToolNames = Array.isArray(

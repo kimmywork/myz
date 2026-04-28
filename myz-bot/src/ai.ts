@@ -2,14 +2,16 @@ import {
   createProviderSession,
 } from "@myz/ai-core/runtime/providerSession"
 import { buildConversationPromptMessages } from "@myz/ai-core/prompt/conversation"
-import type { Message, TokenUsage } from "@myz/ai-core/types"
+import type { Message } from "@myz/ai-core/types"
 import { isOfficialOpenAIApiBaseUrl } from "@myz/ai-core/runtime/openaiCompatible"
+import { normalizeTokenUsage } from "@myz/ai-core/tokenUsage"
 import type {
   ProviderChatCompletionRequest,
   ProviderMessage,
   ProviderToolChoice,
 } from "@myz/ai-core/providers/types"
 import type {
+  AIProviderType,
   AIProviderSetting,
   AIModelSetting,
   McpServerSetting,
@@ -90,84 +92,6 @@ function normalizeProviderMessageContent(content: ProviderMessage["content"]) {
     .join("\n")
 }
 
-function readUsageNumber(source: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value
-    }
-  }
-  return undefined
-}
-
-function normalizeTokenUsage(usage: unknown): TokenUsage | undefined {
-  if (!usage || typeof usage !== "object") return undefined
-  const record = usage as Record<string, unknown>
-  const inputDetails =
-    record.input_tokens_details &&
-    typeof record.input_tokens_details === "object" &&
-    record.input_tokens_details !== null
-      ? (record.input_tokens_details as Record<string, unknown>)
-      : undefined
-  const outputDetails =
-    record.output_tokens_details &&
-    typeof record.output_tokens_details === "object" &&
-    record.output_tokens_details !== null
-      ? (record.output_tokens_details as Record<string, unknown>)
-      : undefined
-
-  const promptTokens = readUsageNumber(record, [
-    "prompt_tokens",
-    "promptTokens",
-    "input_tokens",
-    "inputTokens",
-  ])
-  const completionTokens = readUsageNumber(record, [
-    "completion_tokens",
-    "completionTokens",
-    "output_tokens",
-    "outputTokens",
-  ])
-  const reasoningTokens =
-    readUsageNumber(record, ["reasoning_tokens", "reasoningTokens"]) ??
-    (outputDetails
-      ? readUsageNumber(outputDetails, ["reasoning_tokens", "reasoningTokens"])
-      : undefined)
-  const cachedPromptTokens =
-    readUsageNumber(record, ["cached_prompt_tokens", "cachedPromptTokens"]) ??
-    (inputDetails
-      ? readUsageNumber(inputDetails, ["cached_tokens", "cachedTokens"])
-      : undefined)
-
-  return {
-    ...record,
-    ...(promptTokens != null
-      ? {
-          prompt_tokens: promptTokens,
-          promptTokens: promptTokens,
-        }
-      : {}),
-    ...(completionTokens != null
-      ? {
-          completion_tokens: completionTokens,
-          completionTokens: completionTokens,
-        }
-      : {}),
-    ...(reasoningTokens != null
-      ? {
-          reasoning_tokens: reasoningTokens,
-          reasoningTokens: reasoningTokens,
-        }
-      : {}),
-    ...(cachedPromptTokens != null
-      ? {
-          cached_prompt_tokens: cachedPromptTokens,
-          cachedPromptTokens: cachedPromptTokens,
-        }
-      : {}),
-  }
-}
-
 export function mapSystemMessagesToUserMessages(
   messages: ProviderMessage[],
   enabled: boolean,
@@ -226,7 +150,11 @@ function buildProvider(config: BotRuntimeConfig, model: AIModelSetting): AIProvi
     name: "myz-bot",
     type: config.ai.provider as AIProviderSetting["type"],
     enabled: true,
-    streamingEnabled: true,
+    streamingEnabled: config.ai.streamingEnabled !== false,
+    compatProfile: config.ai.compatProfile,
+    reasoningMode: config.ai.reasoningMode,
+    reasoningEffort: config.ai.reasoningEffort,
+    reasoningBudget: config.ai.reasoningBudget,
     baseUrl: config.ai.baseUrl || "",
     apiKey: config.ai.accessToken || "",
     headers: headersToString(headers),
@@ -237,6 +165,19 @@ function buildProvider(config: BotRuntimeConfig, model: AIModelSetting): AIProvi
       testedAt: new Date().toISOString(),
       model: model.model,
     },
+  }
+}
+
+function supportsStreaming(provider: AIProviderType) {
+  switch (provider) {
+    case "openai_compatible":
+    case "openai_responses":
+    case "gemini":
+    case "anthropic":
+    case "mistral":
+      return true
+    default:
+      return false
   }
 }
 
@@ -412,7 +353,8 @@ export async function generateReply(options: {
     const toolTrace: ProviderMessage[] = []
     const toolCallbackTasks: Promise<void>[] = []
     const stream =
-      options.config.ai.provider === "openai_responses"
+      options.config.ai.streamingEnabled !== false &&
+      supportsStreaming(options.config.ai.provider)
 
     const enqueueToolCallback = (
       handler: ((message: ProviderMessage) => void | Promise<void>) | undefined,
@@ -449,6 +391,7 @@ export async function generateReply(options: {
       async () =>
         client.createCompletion(request, {
           tooling: normalizeTooling(model.tooling),
+          enableReasoning: Boolean(model.capabilities.reasoning),
           enableGeminiThinking: Boolean(model.capabilities.reasoning),
           debug: {
             onRequest: async (record) => {

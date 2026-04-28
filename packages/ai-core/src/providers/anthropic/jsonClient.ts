@@ -13,6 +13,7 @@ import {
   parseDataUrl,
   safeJsonParse,
 } from "../utils"
+import Anthropic from "@anthropic-ai/sdk"
 import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
 import type { JsonRecord } from "@myz/shared/typeUtils"
 import { isJsonRecord, isRecord, toJsonRecord } from "@myz/shared/typeUtils"
@@ -299,16 +300,66 @@ function extractAnthropicMessage(payload: unknown): ProviderMessage {
   return message
 }
 
-async function parseAnthropicStream(
-  response: Response,
-  options: ProviderStreamOptions,
-): Promise<ProviderChatCompletionResponse> {
-  if (!response.body) {
-    throw new Error("Empty streaming response body")
+class BrowserAnthropic extends Anthropic {
+  protected override validateHeaders() {
+    return
   }
 
-  const decoder = new TextDecoder("utf-8")
-  let buffer = ""
+  protected override async authHeaders() {
+    return undefined
+  }
+}
+
+function createAnthropicSdkClient(options: {
+  baseUrl: string
+  apiKey: string
+  headers: string
+  requestOptions?: ProviderStreamOptions
+}) {
+  return new BrowserAnthropic({
+    apiKey: options.apiKey || null,
+    authToken: null,
+    baseURL: options.baseUrl,
+    defaultHeaders: buildAnthropicHeaders(options.apiKey, options.headers || ""),
+    dangerouslyAllowBrowser: true,
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      const endpoint =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : typeof Request !== "undefined" && input instanceof Request
+              ? input.url
+              : String(input)
+      const rawBody = typeof init?.body === "string" ? init.body : init?.body
+      let parsedBody: unknown = rawBody ?? null
+      if (typeof rawBody === "string") {
+        try {
+          parsedBody = JSON.parse(rawBody)
+        } catch {
+          parsedBody = rawBody
+        }
+      }
+      await emitProviderRequestDebug(options.requestOptions, {
+        endpoint,
+        transport:
+          parsedBody &&
+          typeof parsedBody === "object" &&
+          "stream" in (parsedBody as Record<string, unknown>) &&
+          (parsedBody as Record<string, unknown>).stream === true
+            ? "sse"
+            : "json",
+        body: parsedBody,
+      })
+      return fetch(input, init)
+    },
+  })
+}
+
+async function parseAnthropicStream(
+  events: AsyncIterable<unknown>,
+  options: ProviderStreamOptions,
+): Promise<ProviderChatCompletionResponse> {
   let content = ""
   let usage: unknown = null
   const toolBlocks = new Map<
@@ -388,34 +439,8 @@ async function parseAnthropicStream(
     }
   }
 
-  const reader = response.body.getReader()
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    buffer = buffer.replace(/\r\n/g, "\n")
-    let boundary = buffer.indexOf("\n\n")
-    while (boundary >= 0) {
-      const rawEvent = buffer.slice(0, boundary)
-      buffer = buffer.slice(boundary + 2)
-      const dataLines = rawEvent
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim())
-        .filter(Boolean)
-      if (dataLines.length) {
-        const dataStr = dataLines.join("\n")
-        if (dataStr === "[DONE]") {
-          boundary = -1
-          break
-        }
-        const parsed = safeJsonParse(dataStr)
-        if (parsed) {
-          handlePayload(parsed)
-        }
-      }
-      boundary = buffer.indexOf("\n\n")
-    }
+  for await (const event of events) {
+    handlePayload(event)
   }
 
   const toolCalls: ProviderToolCall[] = Array.from(toolBlocks.entries())
@@ -477,40 +502,26 @@ export class AnthropicJsonClient implements ChatCompletionClient {
     if (!endpoint) {
       throw new Error("API endpoint not configured")
     }
+    const client = createAnthropicSdkClient({
+      baseUrl: endpoint.replace(/\/messages\/?$/, ""),
+      apiKey: resolveValue(this.apiKey),
+      headers: resolveValue(this.headers) || "",
+      requestOptions: options,
+    })
 
     const payload = {
       ...buildAnthropicPayload(request),
       ...(request.stream ? { stream: true } : {}),
     }
-    await emitProviderRequestDebug(options, {
-      endpoint,
-      transport: "json",
-      body: payload,
-    })
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: buildAnthropicHeaders(
-        resolveValue(this.apiKey),
-        resolveValue(this.headers) || "",
-      ),
-      body: JSON.stringify(payload),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
-      )
+    if (payload.stream) {
+      const stream = await client.messages.create({
+        ...payload,
+        stream: true,
+      } as any)
+      return parseAnthropicStream(stream as unknown as AsyncIterable<unknown>, options)
     }
 
-    if (request.stream) {
-      const contentType = response.headers.get("content-type") || ""
-      if (response.body && contentType.includes("text/event-stream")) {
-        return parseAnthropicStream(response, options)
-      }
-    }
-
-    const data = await response.json()
+    const data = await client.messages.create(payload as any)
     const message = extractAnthropicMessage(data)
     return {
       choices: [

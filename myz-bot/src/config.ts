@@ -2,6 +2,12 @@ import { readFileSync, existsSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { resolve } from "node:path"
 import { createHash } from "node:crypto"
+import {
+  AI_PROVIDER_TYPES,
+  AI_REASONING_EFFORT_SETTINGS,
+  AI_REASONING_MODES,
+  OPENAI_COMPATIBLE_PROFILES,
+} from "@myz/ai-core/settings"
 import dotenv from "dotenv"
 import { z } from "zod"
 import yaml from "yaml"
@@ -65,11 +71,19 @@ const BotConfigSchema = z.object({
       proxyUrl: "",
     }),
   ai: z.object({
-    provider: z.string().min(1),
+    provider: z.enum(AI_PROVIDER_TYPES),
     baseUrl: z.string().optional().default(""),
     accessToken: z.string().optional().default(""),
     headers: z.record(z.string(), z.string()).default({}),
+    compatProfile: z.enum(OPENAI_COMPATIBLE_PROFILES).optional().default("auto"),
+    reasoningMode: z.enum(AI_REASONING_MODES).optional().default("provider_default"),
+    reasoningEffort: z
+      .enum(AI_REASONING_EFFORT_SETTINGS)
+      .optional()
+      .default("provider_default"),
+    reasoningBudget: z.number().int().min(0).optional(),
     model: z.string().min(1),
+    streamingEnabled: z.boolean().optional().default(true),
     systemPromptInUserMessage: z.boolean().optional().default(false),
     retry: z
       .object({

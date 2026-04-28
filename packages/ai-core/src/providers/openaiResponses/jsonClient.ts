@@ -1,4 +1,3 @@
-import { buildProviderHeaders } from "../../runtime/openaiCompatible"
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
@@ -8,8 +7,8 @@ import type {
   ProviderToolCall,
   ProviderToolSpec,
 } from "../types"
-import { emitProviderRequestDebug } from "../debug"
 import { coerceContentToText, normalizeBaseUrl } from "../utils"
+import { createOpenAISdkClient } from "../openaiCompatible/sdkClient"
 import type { JsonRecord, JsonValue } from "@myz/shared/typeUtils"
 import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
 
@@ -86,11 +85,15 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
 } {
   const instructions: string[] = []
   const input: JsonRecord[] = []
+  const lastUserIndex = messages.reduce((index, message, currentIndex) => {
+    return message?.role === "user" ? currentIndex : index
+  }, -1)
   const activeToolCallIds = new Set<string>()
   const toolOutputIds = new Set(
     messages
       .filter(
-        (message) =>
+        (message, index) =>
+          index > lastUserIndex &&
           message?.role === "tool" &&
           typeof message.tool_call_id === "string" &&
           message.tool_call_id,
@@ -273,15 +276,9 @@ function normalizeToolsForRequest(tools: ProviderToolSpec[]): ResponsesToolPaylo
 }
 
 async function parseResponsesStream(
-  response: Response,
+  events: AsyncIterable<unknown>,
   options: ProviderStreamOptions,
 ): Promise<ProviderChatCompletionResponse> {
-  if (!response.body) {
-    throw new Error("Empty streaming response body")
-  }
-
-  const decoder = new TextDecoder()
-  let buffer = ""
   let content = ""
   let reasoning = ""
   let finalResponse: JsonRecord | null = null
@@ -392,34 +389,8 @@ async function parseResponsesStream(
     }
   }
 
-  const reader = response.body.getReader()
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    buffer = buffer.replace(/\r\n/g, "\n")
-    let boundary = buffer.indexOf("\n\n")
-    while (boundary >= 0) {
-      const rawEvent = buffer.slice(0, boundary)
-      buffer = buffer.slice(boundary + 2)
-      const lines = rawEvent.split("\n")
-      for (const line of lines) {
-        if (!line.startsWith("data:")) continue
-        const dataStr = line.slice(5).trim()
-        if (!dataStr) continue
-        if (dataStr === "[DONE]") {
-          boundary = -1
-          break
-        }
-        try {
-          const payload = JSON.parse(dataStr) as unknown
-          handlePayload(payload)
-        } catch {
-          // ignore parse errors
-        }
-      }
-      boundary = buffer.indexOf("\n\n")
-    }
+  for await (const payload of events) {
+    handlePayload(payload)
   }
 
   if (finalResponse) {
@@ -540,6 +511,14 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
     if (!endpoint) {
       throw new Error("API endpoint not configured")
     }
+    const headers = resolveValue(this.headers) || ""
+    const apiKey = resolveValue(this.apiKey)
+    const client = createOpenAISdkClient({
+      baseURL: endpoint.replace(/\/responses\/?$/, ""),
+      apiKey,
+      headers,
+      requestOptions: options,
+    })
 
     const { instructions, input } = buildInputFromMessages(
       request.messages || [],
@@ -578,33 +557,15 @@ export class OpenAIResponsesJsonClient implements ChatCompletionClient {
       ...(request.extra_body ? request.extra_body : {}),
       stream: Boolean(request.stream),
     }
-    await emitProviderRequestDebug(options, {
-      endpoint,
-      transport: "json",
-      body: payload,
-    })
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: buildProviderHeaders(
-        resolveValue(this.apiKey),
-        resolveValue(this.headers) || "",
-      ),
-      body: JSON.stringify(payload),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
-      )
+    if (payload.stream) {
+      const stream = await client.responses.create({
+        ...payload,
+        stream: true,
+      } as any)
+      return parseResponsesStream(stream as unknown as AsyncIterable<unknown>, options)
     }
 
-    const contentType = response.headers.get("content-type") || ""
-    if (request.stream && contentType.includes("text/event-stream")) {
-      return parseResponsesStream(response, options)
-    }
-
-    const responsePayload = await response.json()
+    const responsePayload = await client.responses.create(payload as any)
     const message = extractResponseMessage(responsePayload)
 
     return {

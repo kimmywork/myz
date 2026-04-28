@@ -4,21 +4,8 @@ import {
   validateSkillMetadata,
 } from "./parser.js";
 import type { SkillFileRecord, SkillMetadata } from "./types.js";
-import agilePrinciplesSkill from "@/skills/builtin/agile-principles/SKILL.md?raw";
-import analyticalSkill from "@/skills/builtin/analytical-thinking/SKILL.md?raw";
-import brainstormingSkill from "@/skills/builtin/brainstorming/SKILL.md?raw";
 import browserOperationsSkill from "@/skills/builtin/browser-operations/SKILL.md?raw";
-import criticalSkill from "@/skills/builtin/critical-thinking/SKILL.md?raw";
-import designSkill from "@/skills/builtin/design-thinking/SKILL.md?raw";
-import dialecticalSkill from "@/skills/builtin/dialectical-thinking/SKILL.md?raw";
-import estimatingSkill from "@/skills/builtin/estimating/SKILL.md?raw";
-import planningSkill from "@/skills/builtin/planning/SKILL.md?raw";
-import problemSolvingSkill from "@/skills/builtin/problem-solving/SKILL.md?raw";
-import sequentialSkill from "@/skills/builtin/sequential-thinking/SKILL.md?raw";
-import sixHatsSkill from "@/skills/builtin/six-thinking-hats/SKILL.md?raw";
-import socraticSkill from "@/skills/builtin/socratic/SKILL.md?raw";
-import taskingSkill from "@/skills/builtin/tasking/SKILL.md?raw";
-import thinkingToolsSkill from "@/skills/builtin/thinking-tools/SKILL.md?raw";
+import planningModeSkill from "@/skills/builtin/planning-mode/SKILL.md?raw";
 
 type BuiltinSkillSeed = {
   id: string;
@@ -27,76 +14,6 @@ type BuiltinSkillSeed = {
 };
 
 const BUILTIN_SKILL_SOURCES = [
-  {
-    rootDir: "brainstorming",
-    files: [
-      {
-        path: "SKILL.md",
-        content: brainstormingSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "tasking",
-    files: [
-      {
-        path: "SKILL.md",
-        content: taskingSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "estimating",
-    files: [
-      {
-        path: "SKILL.md",
-        content: estimatingSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "planning",
-    files: [
-      {
-        path: "SKILL.md",
-        content: planningSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "agile-principles",
-    files: [
-      {
-        path: "SKILL.md",
-        content: agilePrinciplesSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "problem-solving",
-    files: [
-      {
-        path: "SKILL.md",
-        content: problemSolvingSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "thinking-tools",
-    files: [
-      {
-        path: "SKILL.md",
-        content: thinkingToolsSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
   {
     rootDir: "browser-operations",
     files: [
@@ -108,71 +25,11 @@ const BUILTIN_SKILL_SOURCES = [
     ],
   },
   {
-    rootDir: "analytical-thinking",
+    rootDir: "planning-mode",
     files: [
       {
         path: "SKILL.md",
-        content: analyticalSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "critical-thinking",
-    files: [
-      {
-        path: "SKILL.md",
-        content: criticalSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "design-thinking",
-    files: [
-      {
-        path: "SKILL.md",
-        content: designSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "sequential-thinking",
-    files: [
-      {
-        path: "SKILL.md",
-        content: sequentialSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "dialectical-thinking",
-    files: [
-      {
-        path: "SKILL.md",
-        content: dialecticalSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "six-thinking-hats",
-    files: [
-      {
-        path: "SKILL.md",
-        content: sixHatsSkill,
-        encoding: "utf-8" as const,
-      },
-    ],
-  },
-  {
-    rootDir: "socratic",
-    files: [
-      {
-        path: "SKILL.md",
-        content: socraticSkill,
+        content: planningModeSkill,
         encoding: "utf-8" as const,
       },
     ],

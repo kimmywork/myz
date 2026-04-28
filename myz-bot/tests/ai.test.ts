@@ -27,6 +27,25 @@ function createSseResponse(events: unknown[]) {
   })
 }
 
+function createGeminiSseResponse(events: unknown[]) {
+  const encoder = new TextEncoder()
+  const body = new ReadableStream({
+    start(controller) {
+      const chunks = events
+        .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+        .join("")
+      controller.enqueue(encoder.encode(chunks))
+      controller.close()
+    },
+  })
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream",
+    },
+  })
+}
+
 test("generateReply keeps responses usage from top-level payload and normalizes cache fields", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-ai-"))
   const config = createRuntimeConfig(root, {
@@ -86,8 +105,11 @@ test("generateReply keeps responses usage from top-level payload and normalizes 
     assert.equal(reply.content, "已处理。")
     assert.deepEqual(reply.usage, {
       total_tokens: 120,
+      totalTokens: 120,
       input_tokens: 80,
+      inputTokens: 80,
       output_tokens: 40,
+      outputTokens: 40,
       input_tokens_details: {
         cached_tokens: 50,
       },
@@ -633,6 +655,241 @@ test("generateReply ignores debug log write failures", async () => {
     })
 
     assert.equal(reply.content, "still ok")
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test("generateReply streams openai-compatible requests through sdk-backed ai-core clients", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-ai-openai-compatible-"))
+  const config = createRuntimeConfig(root, {
+    ai: {
+      provider: "openai_compatible",
+      baseUrl: "https://api.openai.com/v1",
+      accessToken: "token",
+      capabilities: {
+        toolCalling: false,
+        reasoning: true,
+        vision: false,
+        imageOutput: false,
+      },
+    },
+  })
+
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>
+    return createSseResponse([
+      {
+        choices: [
+          {
+            delta: {
+              content: "streamed reply",
+              reasoning_content: "chain",
+            },
+          },
+        ],
+      },
+    ])
+  }
+
+  try {
+    const reply = await generateReply({
+      config,
+      conversationId: "c-openai-compatible",
+      messages: [createUserMessage("c-openai-compatible", "hello")],
+    })
+
+    assert.equal(reply.content, "streamed reply")
+    assert.equal(capturedBody?.stream, true)
+    assert.deepEqual(capturedBody?.stream_options, {
+      include_usage: true,
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test("generateReply applies deepseek reasoning profile controls to openai-compatible requests", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-ai-deepseek-profile-"))
+  const config = createRuntimeConfig(root, {
+    ai: {
+      provider: "openai_compatible",
+      baseUrl: "https://api.deepseek.com/v1",
+      accessToken: "token",
+      compatProfile: "deepseek",
+      reasoningMode: "disabled",
+      reasoningEffort: "low",
+      capabilities: {
+        toolCalling: false,
+        reasoning: true,
+        vision: false,
+        imageOutput: false,
+      },
+    },
+  })
+
+  const originalFetch = globalThis.fetch
+  let capturedBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (_input, init) => {
+    capturedBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>
+    return createSseResponse([
+      {
+        choices: [
+          {
+            delta: {
+              content: "deepseek reply",
+            },
+          },
+        ],
+      },
+    ])
+  }
+
+  try {
+    const reply = await generateReply({
+      config,
+      conversationId: "c-deepseek-profile",
+      messages: [createUserMessage("c-deepseek-profile", "hello")],
+    })
+
+    assert.equal(reply.content, "deepseek reply")
+    assert.deepEqual(capturedBody?.extra_body, {
+      thinking: {
+        type: "disabled",
+      },
+    })
+    assert.equal(capturedBody?.reasoning_effort, undefined)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test("generateReply passes gemini thinking config into sdk generateContentStream requests", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-ai-gemini-thinking-"))
+  const config = createRuntimeConfig(root, {
+    ai: {
+      provider: "gemini",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      accessToken: "token",
+      capabilities: {
+        toolCalling: false,
+        reasoning: true,
+        vision: false,
+        imageOutput: false,
+      },
+    },
+  })
+
+  const originalFetch = globalThis.fetch
+  let capturedUrl = ""
+  let capturedBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (input, init) => {
+    capturedUrl = String(input)
+    capturedBody = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>
+    return createGeminiSseResponse([
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "gemini streamed" }],
+            },
+          },
+        ],
+      },
+    ])
+  }
+
+  try {
+    const reply = await generateReply({
+      config,
+      conversationId: "c-gemini",
+      messages: [createUserMessage("c-gemini", "hello gemini")],
+    })
+
+    assert.equal(reply.content, "gemini streamed")
+    assert.match(capturedUrl, /streamGenerateContent\?alt=sse/)
+    assert.equal(
+      (capturedBody?.generationConfig as Record<string, unknown> | undefined)
+        ?.thinkingConfig &&
+        typeof (capturedBody?.generationConfig as Record<string, unknown>).thinkingConfig === "object"
+        ? ((capturedBody?.generationConfig as Record<string, any>).thinkingConfig
+            .includeThoughts as boolean)
+        : undefined,
+      true,
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test("generateReply normalizes gemini streaming usage metadata", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-ai-gemini-usage-"))
+  const config = createRuntimeConfig(root, {
+    ai: {
+      provider: "gemini",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      accessToken: "token",
+      capabilities: {
+        toolCalling: false,
+        reasoning: true,
+        vision: false,
+        imageOutput: false,
+      },
+    },
+  })
+
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () =>
+    createGeminiSseResponse([
+      {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: "gemini streamed usage" }],
+            },
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 120,
+          candidatesTokenCount: 45,
+          totalTokenCount: 165,
+          thoughtsTokenCount: 12,
+          cachedContentTokenCount: 30,
+        },
+      },
+    ])
+
+  try {
+    const reply = await generateReply({
+      config,
+      conversationId: "c-gemini-usage",
+      messages: [createUserMessage("c-gemini-usage", "hello gemini")],
+    })
+
+    assert.equal(reply.content, "gemini streamed usage")
+    assert.deepEqual(reply.usage, {
+      promptTokenCount: 120,
+      candidatesTokenCount: 45,
+      totalTokenCount: 165,
+      thoughtsTokenCount: 12,
+      cachedContentTokenCount: 30,
+      total_tokens: 165,
+      totalTokens: 165,
+      prompt_tokens: 120,
+      promptTokens: 120,
+      input_tokens: 120,
+      inputTokens: 120,
+      completion_tokens: 45,
+      completionTokens: 45,
+      output_tokens: 45,
+      outputTokens: 45,
+      reasoning_tokens: 12,
+      reasoningTokens: 12,
+      cached_prompt_tokens: 30,
+      cachedPromptTokens: 30,
+    })
   } finally {
     globalThis.fetch = originalFetch
   }

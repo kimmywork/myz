@@ -1,5 +1,20 @@
 # Changelog
 
+# v0.4.4 Provider Tiering 与 Mistral SDK 接入
+
+- 新增 `mistral` provider type，并接入官方 `@mistralai/mistralai` SDK，用于模型列表、连接测试、对话、streaming 与 tool calling。
+- 为 `openai_compatible` 新增 `compatProfile` / `reasoningMode` / `reasoningEffort` / `reasoningBudget` 设置项，按供应商 profile 进行 request patching，而不是再假设统一 reasoning 契约。
+- 将 Tier 1 兼容支持收敛为 `deepseek` / `moonshot` / `glm`，并把 reasoning replay 改成 profile-aware 策略。
+- 将 Qwen 等 Tier 2 兼容接口改成显式 profile 入口，避免继续暴露已删除的独立 provider type。
+
+# v0.4.3 OpenAI-compatible reasoning 续传修复
+
+- 修复第三方 OpenAI-compatible Chat Completions 接口在 thinking mode 下的多轮对话失败问题：当供应商要求回传 `reasoning_content` 时，后续对话与 tool-calling 续轮会自动回放该字段。
+- 限定 reasoning 回放只对非官方 `api.openai.com` 的 OpenAI-compatible provider 生效，避免误把该兼容字段发送到官方接口。
+- 修复 Settings 中启用 Streaming 后“测试连接”仍发送 `stream: false` 的问题，并让 OpenAI-compatible client 组装显式遵守该开关。
+- 将 OpenAI-compatible / OpenAI Responses 的传输层切换到 `openai` SDK，将 Anthropic 传输层切换到 `@anthropic-ai/sdk`，并将 Gemini 传输层与模型列表切换到 `@google/genai`，保留现有统一消息映射、tool calling 和自定义 headers 兼容。
+- 收缩 provider 类型范围：仅保留 `openai_compatible` / `openai_responses` / `anthropic` / `gemini`，删除 `moonshot` / `qwen` / `ollama` / `vllm` / `llama_cpp` 的设置入口与 runtime 支持。
+
 # v0.4.2 Dashboard 新查看器与页面聚合
 
 - 新增 `/highlights/:id` 查看器页面，支持同页标注连续阅读、滚动到底自动切换、上一页/下一页导航。

@@ -4,9 +4,9 @@
  */
 
 import { Message } from "@/background/ai/types.js";
+import { normalizeTokenUsage } from "@myz/ai-core/tokenUsage";
 import { AI_SCHEMA_VERSION } from "@/shared/versioning";
 import type { UnknownRecord } from "@/shared/typeUtils";
-import { isRecord } from "@/shared/typeUtils";
 
 const DB_NAME = "MyZAIAssistantDB";
 const DB_VERSION = 1;
@@ -358,19 +358,11 @@ export async function checkContextSize(
       if (includeFlag !== null && includeFlag !== includePageContext) {
         continue;
       }
-      const usage = isRecord(msg.metadata?.usage) ? msg.metadata.usage : null;
+      const usage = normalizeTokenUsage(msg.metadata?.usage);
       const total =
-        typeof usage?.total_tokens === "number"
-          ? usage.total_tokens
-          : typeof usage?.totalTokens === "number"
-            ? usage.totalTokens
-            : null;
+        typeof usage?.total_tokens === "number" ? usage.total_tokens : null;
       const prompt =
-        typeof usage?.prompt_tokens === "number"
-          ? usage.prompt_tokens
-          : typeof usage?.promptTokens === "number"
-            ? usage.promptTokens
-            : null;
+        typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : null;
       const candidate = total ?? prompt;
       if (
         typeof candidate === "number" &&

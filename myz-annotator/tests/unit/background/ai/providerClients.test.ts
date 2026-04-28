@@ -11,10 +11,9 @@ import {
   buildGeminiHeaders,
 } from "@/background/ai/providers/gemini/jsonClient.ts";
 import {
-  OllamaJsonClient,
-  extractOllamaModels,
-  buildOllamaHeaders,
-} from "@/background/ai/providers/ollama/jsonClient.ts";
+  MistralJsonClient,
+  extractMistralModels,
+} from "@/background/ai/providers/mistral/jsonClient.ts";
 import {
   OpenAICompatibleJsonClient,
   shouldUseDeveloperRole,
@@ -25,6 +24,7 @@ describe("provider clients", () => {
   it("OpenAI compatible client posts to endpoint", async () => {
     const fetchMock = installFetchMock();
     mockFetchOnce({
+      headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({ choices: [{ message: { content: "ok" } }] }),
     });
 
@@ -341,6 +341,7 @@ describe("provider clients", () => {
   it("Anthropic client extracts message", async () => {
     installFetchMock();
     mockFetchOnce({
+      headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({
         content: [{ type: "text", text: "anthropic" }],
       }),
@@ -362,6 +363,7 @@ describe("provider clients", () => {
   it("Anthropic client extracts tool calls", async () => {
     installFetchMock();
     mockFetchOnce({
+      headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({
         content: [
           { type: "text", text: "ok" },
@@ -384,21 +386,58 @@ describe("provider clients", () => {
     expect(message?.tool_calls?.[0]?.function?.name).toBe("ToolA");
   });
 
-  it("Ollama client extracts response", async () => {
+  it("Mistral client extracts messages and tool calls", async () => {
     installFetchMock();
+    const payload = {
+      id: "chatcmpl-1",
+      object: "chat.completion",
+      model: "mistral-small-latest",
+      created: 1700000000,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: "mistral" },
+              {
+                type: "thinking",
+                thinking: [{ type: "text", text: "why" }],
+              },
+            ],
+            tool_calls: [
+              {
+                id: "m1",
+                type: "function",
+                function: { name: "ToolA", arguments: '{"x":1}' },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+      usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+    };
     mockFetchOnce({
-      json: async () => ({ response: "ollama" }),
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => payload,
+      text: async () => JSON.stringify(payload),
     });
 
-    const client = new OllamaJsonClient({
-      baseUrl: "http://localhost",
+    const client = new MistralJsonClient({
+      baseUrl: "https://api.mistral.ai/v1",
+      apiKey: "key",
       headers: "",
     });
+
     const response = await client.createCompletion({
-      model: "llama3",
+      model: "mistral-small-latest",
       messages: [],
     } as any);
-    expect((response as any).choices?.[0]?.message?.content).toBe("ollama");
+    const message = (response as any).choices?.[0]?.message;
+    expect(Array.isArray(message?.content)).toBe(true);
+    expect(message?.tool_calls?.[0]?.function?.name).toBe("ToolA");
+    expect((response as any).usage?.promptTokens).toBe(2);
   });
 
   it("extracts model lists and headers", () => {
@@ -408,12 +447,11 @@ describe("provider clients", () => {
     expect(extractAnthropicModels({ data: [{ id: "claude" }] })).toEqual([
       "claude",
     ]);
-    expect(extractOllamaModels({ models: [{ name: "llama" }] })).toEqual([
-      "llama",
+    expect(extractMistralModels({ data: [{ id: "mistral-small-latest" }] })).toEqual([
+      "mistral-small-latest",
     ]);
     expect(buildGeminiHeaders("key", "")["x-goog-api-key"]).toBe("key");
     expect(buildAnthropicHeaders("key", "")["x-api-key"]).toBe("key");
-    expect(buildOllamaHeaders("")["Content-Type"]).toBe("application/json");
   });
 
   it("detects developer role support", () => {

@@ -1,5 +1,7 @@
 # Superpower Mode Implementation Plan
 
+> Status note (2026-04-28): this document describes the original v2 design with planner/review/validator subagents and deliverable artifacts. The active direction has moved to `docs/track/v17-superpower-main-dialog-planning.md`, which replaces that flow with main-dialog planning and a lightweight task model.
+
 ## Purpose
 Introduce Superpower Mode for the Conversation Agent. When enabled, the agent gains advanced tools (tab control, DOM actions, contextual page access) and a PDCA-style workflow using Planner → Plan Review → Task Manager → Execution → Validator. This document is the source of truth for plan, roadmap, detailed design, and implementation logs.
 

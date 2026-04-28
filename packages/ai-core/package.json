@@ -14,21 +14,26 @@
     "./schemas": "./src/schemas/index.ts",
     "./schemas/*": "./src/schemas/*.ts",
     "./settings": "./src/settings.ts",
+    "./tokenUsage": "./src/tokenUsage.ts",
     "./tools/*": "./src/tools/*.ts",
     "./vendors/*": "./src/vendors/*.ts",
     "./providers/*": "./src/providers/*.ts",
     "./providers/capabilities/*": "./src/providers/capabilities/*.ts",
     "./providers/anthropic/*": "./src/providers/anthropic/*.ts",
     "./providers/gemini/*": "./src/providers/gemini/*.ts",
-    "./providers/ollama/*": "./src/providers/ollama/*.ts",
+    "./providers/mistral/*": "./src/providers/mistral/*.ts",
     "./providers/openaiCompatible/*": "./src/providers/openaiCompatible/*.ts",
     "./providers/openaiResponses/*": "./src/providers/openaiResponses/*.ts",
     "./mcp": "./src/mcp.ts",
     "./mcp_schema": "./src/mcp_schema.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "@google/genai": "^1.50.1",
+    "@mistralai/mistralai": "^2.2.1",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "@myz/shared": "*",
+    "openai": "^6.34.0",
     "zod": "^4.2.1"
   }
 }

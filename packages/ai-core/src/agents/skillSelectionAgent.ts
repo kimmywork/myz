@@ -114,6 +114,7 @@ export class SkillSelectionAgent {
     }
 
     const response = await options.client.createCompletion(request, {
+      enableReasoning: Boolean(options.model.capabilities.reasoning),
       enableGeminiThinking: Boolean(options.model.capabilities.reasoning),
     })
     const text = String(response?.choices?.[0]?.message?.content || "").trim()

@@ -25,6 +25,10 @@
 - `bot.yml.workspaceRoot` 已废弃，代码必须忽略它
 - agent 只能默认读取 workspace 和当前会话附件，不允许直读 runtime
 - 不再暴露 `/bot` 虚拟目录
+- AI provider 只允许：`openai_compatible`、`openai_responses`、`gemini`、`anthropic`、`mistral`
+- `openai_compatible` 必须通过 `compatProfile` 区分 Tier 1 / Tier 2 供应商，不允许再把 DeepSeek / Moonshot / GLM / Qwen 等做成独立 provider type
+- LLM 请求统一通过 `@myz/ai-core/runtime/providerSession`，不要在 `myz-bot` 里重新实现 provider transport
+- 默认 builtin skill 目录来自 `myz-annotator/src/skills/builtin`，当前只应依赖 `browser-operations`
 
 ## Runtime Layout
 

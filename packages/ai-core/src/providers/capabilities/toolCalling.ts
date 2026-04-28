@@ -12,6 +12,7 @@ import { isRecord } from "@myz/shared/typeUtils"
 export interface ToolCallingCapabilityOptions {
   getTools: () => Promise<ProviderToolSpec[]>
   executeToolCall: (toolCall: ProviderToolCall) => Promise<unknown>
+  preserveAssistantReasoningContent?: boolean
 }
 
 const TOOL_SELECT_NAME = "SelectTools"
@@ -228,6 +229,13 @@ export function createToolCallingCapability(
           role: message.role || "assistant",
           content: sanitizeAssistantContent(message),
           tool_calls: toolCalls,
+        }
+        if (
+          options.preserveAssistantReasoningContent &&
+          typeof message.reasoning_content === "string" &&
+          message.reasoning_content
+        ) {
+          sanitizedAssistantMessage.reasoning_content = message.reasoning_content
         }
 
         const followUpMessages: ProviderMessage[] = [

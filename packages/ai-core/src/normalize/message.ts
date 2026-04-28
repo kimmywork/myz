@@ -49,6 +49,7 @@ export function splitContentAndReasoning(content: unknown): SplittedContent {
         : typeof part.content === "string"
           ? part.content
           : ""
+    const thinkingValue = Array.isArray(part.thinking) ? part.thinking : []
     const explicitReasoningText =
       typeof part.reasoning === "string"
         ? part.reasoning
@@ -61,7 +62,12 @@ export function splitContentAndReasoning(content: unknown): SplittedContent {
       Boolean(part.thought) ||
       Boolean(explicitReasoningText)
 
-    if (isReasoning && (textValue || explicitReasoningText)) {
+    if (isReasoning && Array.isArray(thinkingValue) && thinkingValue.length) {
+      const nested = splitContentAndReasoning(thinkingValue)
+      if (nested.reasoning || nested.text) {
+        append(nested.reasoning || nested.text, "reasoning")
+      }
+    } else if (isReasoning && (textValue || explicitReasoningText)) {
       append(explicitReasoningText || textValue, "reasoning")
     } else if (textValue) {
       append(textValue, "text")

@@ -301,7 +301,15 @@ export const createAiSettingsContext = () => {
         {
           provider: Pick<
             AIProviderSetting,
-            "baseUrl" | "apiKey" | "headers" | "type"
+            | "baseUrl"
+            | "apiKey"
+            | "headers"
+            | "type"
+            | "streamingEnabled"
+            | "compatProfile"
+            | "reasoningMode"
+            | "reasoningEffort"
+            | "reasoningBudget"
           >;
           model: string;
           maxOutputTokens?: number;
@@ -314,6 +322,11 @@ export const createAiSettingsContext = () => {
           apiKey: provider.apiKey,
           headers: provider.headers || "",
           type: provider.type,
+          streamingEnabled: provider.streamingEnabled,
+          compatProfile: provider.compatProfile,
+          reasoningMode: provider.reasoningMode,
+          reasoningEffort: provider.reasoningEffort,
+          reasoningBudget: provider.reasoningBudget,
         },
         model: model.model,
         maxOutputTokens: model.limits?.maxOutputTokens,

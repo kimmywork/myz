@@ -1,6 +1,7 @@
 import { computed, defineComponent, ref, watch } from "vue";
 import { resolveToolNames } from "./messageUtils.js";
 import ToolInlineNotice from "./ToolInlineNotice.jsx";
+import { normalizeTokenUsage } from "@myz/ai-core/tokenUsage";
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
 import type { Message } from "@/background/ai/types";
 
@@ -56,32 +57,54 @@ export default defineComponent({
       return String(value);
     };
     const usageSummary = computed(() => {
-      const usage = props.message?.metadata?.usage;
+      const usage = normalizeTokenUsage(props.message?.metadata?.usage);
       const contextWindow = props.message?.metadata?.contextWindow;
       if (!usage || !contextWindow) return "";
       const totalTokens =
-        typeof usage.total_tokens === "number"
-          ? usage.total_tokens
-          : typeof usage.totalTokens === "number"
-            ? usage.totalTokens
-            : 0;
+        typeof usage.total_tokens === "number" ? usage.total_tokens : 0;
       if (!totalTokens) return "";
       const percent = Math.min(100, (totalTokens / contextWindow) * 100);
       const completionTokens =
         typeof usage.completion_tokens === "number"
           ? usage.completion_tokens
-          : typeof usage.completionTokens === "number"
-            ? usage.completionTokens
-            : 0;
+          : 0;
+      const promptTokens =
+        typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : 0;
+      const reasoningTokens =
+        typeof usage.reasoning_tokens === "number"
+          ? usage.reasoning_tokens
+          : 0;
+      const cachedPromptTokens =
+        typeof usage.cached_prompt_tokens === "number"
+          ? usage.cached_prompt_tokens
+          : 0;
       const durationMs =
         typeof props.message?.metadata?.requestDurationMs === "number"
           ? props.message?.metadata?.requestDurationMs
           : 0;
       const seconds = durationMs > 0 ? durationMs / 1000 : 0;
       const rate = seconds > 0 ? completionTokens / seconds : 0;
-      return `Token用量： ${formatTokenCount(totalTokens)}/${formatTokenCount(
-        contextWindow,
-      )}(${percent.toFixed(0)} %)，Token速率：${rate.toFixed(2)} tokens/s`;
+      const parts = [
+        `总量 ${formatTokenCount(totalTokens)}/${formatTokenCount(
+          contextWindow,
+        )}(${percent.toFixed(0)} %)`,
+      ];
+      if (promptTokens > 0) {
+        parts.push(`输入 ${formatTokenCount(promptTokens)}`);
+      }
+      if (completionTokens > 0) {
+        parts.push(`输出 ${formatTokenCount(completionTokens)}`);
+      }
+      if (reasoningTokens > 0) {
+        parts.push(`推理 ${formatTokenCount(reasoningTokens)}`);
+      }
+      if (cachedPromptTokens > 0) {
+        parts.push(`缓存 ${formatTokenCount(cachedPromptTokens)}`);
+      }
+      if (rate > 0) {
+        parts.push(`速率 ${rate.toFixed(2)} tokens/s`);
+      }
+      return `Token用量：${parts.join("，")}`;
     });
 
     const copyLabel = computed(() => {

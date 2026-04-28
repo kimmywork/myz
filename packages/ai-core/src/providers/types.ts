@@ -66,6 +66,7 @@ export interface ProviderChatCompletionRequest {
   tool_choice?: ProviderToolChoice
   parallel_tool_calls?: boolean
   stream?: boolean
+  stream_options?: JsonRecord
   response_format?: ResponseFormat
   reasoning_effort?: ReasoningEffort
   extra_body?: JsonRecord
@@ -107,6 +108,12 @@ export interface ProviderStreamOptions {
     parallelToolCalls?: boolean
     strict?: boolean
   }
+  /**
+   * Generic reasoning toggle derived from the selected model capability.
+   *
+   * Provider-specific adapters may map this to vendor request fields.
+   */
+  enableReasoning?: boolean
   /**
    * Gemini OpenAI-compatible "thinking" output is controlled by
    * `extra_body.google.thinking_config.include_thoughts`.

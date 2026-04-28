@@ -22,7 +22,7 @@ import {
   MessageMetadata,
   ToolInvocationDetails,
 } from "@/background/ai/types.js";
-import type { TaskPlan, TaskPlanReview } from "@/background/ai/tasks/taskManager.js";
+import type { TaskPlan } from "@/background/ai/tasks/taskManager.js";
 import type { Settings } from "@/background/settings.js";
 import { VectoriaSearchResult } from "@/background/vectoria-index.js";
 import { sendMessage } from "@/shared/messaging.js";
@@ -53,22 +53,6 @@ interface SidePanelActionPayload {
   attachments?: ImageAttachment[];
   selectionText?: string;
   selectionAttachment?: ImageAttachment;
-}
-
-interface PlanRequestPayload {
-  conversationId: string;
-  message: string;
-  options?: {
-    quickStart?: boolean;
-    autoStart?: boolean;
-    selectionContextText?: string;
-  };
-}
-
-interface PlanRequestResult {
-  plan?: TaskPlan;
-  review?: TaskPlanReview;
-  result?: unknown;
 }
 
 interface CompactConversationPayload {
@@ -110,7 +94,6 @@ export const useChatStore = defineStore("chat", () => {
   const activeConversation = ref<ConversationInfo | null>(null);
   const messages: Ref<Message[]> = ref([]);
   const isLoading = ref(false);
-  const isValidating = ref(false);
   const error = ref("");
   const userInput = ref("");
   const pendingRequestId = ref<string | null>(null);
@@ -771,83 +754,6 @@ export const useChatStore = defineStore("chat", () => {
       resetAttachments();
       clearDraftContext();
 
-      const plan = taskPlanStore.taskPlan;
-      const needsPlanning =
-        autoMode && (!plan || plan.status === "needs_revision");
-      if (needsPlanning) {
-        try {
-          const planResult = await sendMessage<
-            PlanRequestPayload,
-            PlanRequestResult
-          >("myz:aiPlanRequest", {
-            conversationId: conversationId.value,
-            message: effectiveMessage,
-            options: {
-              quickStart: autoMode,
-              autoStart: autoMode,
-              selectionContextText,
-            },
-          });
-          await taskPlanStore.loadPlan(conversationId.value);
-          const plan = taskPlanStore.taskPlan;
-          const review = plan?.planReview || planResult?.review;
-          const reviewStatus = review?.status || "pending";
-          const issues = Array.isArray(review?.issues) ? review.issues : [];
-          const missingInfo = Array.isArray(review?.missingInfo)
-            ? review.missingInfo
-            : [];
-          const contentLines = [];
-          if (reviewStatus === "pass") {
-            contentLines.push(
-              autoMode
-                ? "已生成任务计划并进入自动执行。"
-                : "已生成任务计划并通过审核。请在任务面板点击“开始执行”。",
-            );
-          } else if (reviewStatus === "needs_revision") {
-            contentLines.push(
-              "任务计划需调整，请根据以下问题补充或修改需求后再试：",
-            );
-            if (issues.length === 0 && missingInfo.length === 0) {
-              contentLines.push(
-                "审核未给出具体问题，请补充目标、约束或验收标准，或点击“重新审核”重试。",
-              );
-            } else {
-              issues.forEach((issue: string, index: number) => {
-                contentLines.push(`${index + 1}. ${issue}`);
-              });
-              if (missingInfo.length) {
-                contentLines.push("缺失信息：");
-                missingInfo.forEach((item: string, index: number) => {
-                  contentLines.push(`- ${item}`);
-                });
-              }
-            }
-          } else {
-            contentLines.push("已生成任务计划，等待审核。");
-          }
-          const assistantMsg: Message = {
-            id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            conversationId: conversationId.value,
-            role: "assistant",
-            content: contentLines.join("\n"),
-            timestamp: new Date().toISOString(),
-            metadata: { type: "plan_notice" },
-          };
-          await saveMessage(assistantMsg);
-          messages.value.push(assistantMsg);
-          if (!autoMode || reviewStatus !== "pass") {
-            isLoading.value = false;
-            pendingRequestId.value = null;
-            return;
-          }
-        } catch (e) {
-          error.value = "规划失败: " + (e as Error).message;
-          pendingRequestId.value = null;
-          isLoading.value = false;
-          return;
-        }
-      }
-
       // Send to background (streaming via runtime messages)
       void sendMessage("myz:aiStreamRequest", {
         conversationId: conversationId.value,
@@ -1138,34 +1044,9 @@ export const useChatStore = defineStore("chat", () => {
     isLoading.value = false;
     pendingRequestId.value = null;
 
-    maybeTriggerValidation(taskPlanStore.taskPlan);
-
     const uiStore = useUIStore();
     uiStore.scrollToBottom();
     checkContext();
-  }
-
-  function maybeTriggerValidation(plan: TaskPlan | null) {
-    if (!isAgentMode.value || !conversationId.value || isValidating.value) {
-      return;
-    }
-    const reviewPassed = plan?.planReview?.status === "pass";
-    if (
-      reviewPassed &&
-      plan?.status === "done" &&
-      plan?.validation?.status !== "pass"
-    ) {
-      isValidating.value = true;
-      void sendMessage("myz:aiValidateRequest", {
-        conversationId: conversationId.value,
-      })
-        .catch((e) => {
-          console.warn("Validation failed", e);
-        })
-        .finally(() => {
-          isValidating.value = false;
-        });
-    }
   }
 
   function handleStreamErrorEvent(data: MessageStreamData) {
@@ -1368,7 +1249,6 @@ export const useChatStore = defineStore("chat", () => {
           payload.conversationId === conversationId.value
         ) {
           taskPlanStore.setPlan(plan || null);
-          maybeTriggerValidation(plan || null);
         }
       } else if (message.type === "myz:aiSkillSelection" && message.data) {
         const data = message.data! as MessageStreamData;

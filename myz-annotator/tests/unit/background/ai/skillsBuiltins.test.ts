@@ -7,9 +7,10 @@ import {
 describe("builtin skills", () => {
   it("lists built-in skill seeds", () => {
     const seeds = listBuiltinSkillSeeds();
-    expect(seeds.length).toBeGreaterThan(0);
-    const sample = seeds[0];
-    expect(sample.record.builtin).toBe(true);
+    expect(seeds.length).toBe(2);
+    expect(seeds.every((seed) => seed.record.builtin === true)).toBe(true);
+    const ids = seeds.map((seed) => seed.id).sort();
+    expect(ids).toEqual(["browser-operations", "planning-mode"]);
   });
 
   it("recognizes builtin ids", () => {

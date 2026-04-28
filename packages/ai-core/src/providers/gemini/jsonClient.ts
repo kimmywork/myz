@@ -7,6 +7,7 @@ import type {
   ProviderToolCall,
 } from "../types"
 import { emitProviderRequestDebug } from "../debug"
+import { GoogleGenAI } from "@google/genai"
 import {
   coerceContentToText,
   normalizeBaseUrl,
@@ -15,11 +16,7 @@ import {
 } from "../utils"
 import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
 import type { JsonRecord } from "@myz/shared/typeUtils"
-import {
-  isJsonRecord,
-  isRecord,
-  toJsonValue,
-} from "@myz/shared/typeUtils"
+import { isJsonRecord, isRecord, toJsonValue } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
 
@@ -67,6 +64,15 @@ function buildGeminiStreamUrl(baseUrl: string, model: string): string {
   return `${base}/${modelPath}:streamGenerateContent?alt=sse`
 }
 
+function buildGeminiSdkBaseUrl(baseUrl: string): string {
+  const normalized = normalizeBaseUrl(baseUrl)
+  if (!normalized) return ""
+  if (normalized.endsWith("/models")) {
+    return normalized.slice(0, -"/models".length)
+  }
+  return normalized
+}
+
 function buildGeminiHeaders(
   apiKey: string,
   headers: string,
@@ -93,6 +99,21 @@ function buildGeminiHeaders(
     ...merged,
     ...customHeaders,
   }
+}
+
+export function createGeminiSdkClient(options: {
+  baseUrl: string
+  apiKey: string
+  headers: string
+}) {
+  return new GoogleGenAI({
+    apiKey: options.apiKey || "myz-gemini-placeholder",
+    httpOptions: {
+      baseUrl: buildGeminiSdkBaseUrl(options.baseUrl),
+      apiVersion: "",
+      headers: buildGeminiHeaders(options.apiKey, options.headers || ""),
+    },
+  })
 }
 
 function toGeminiParts(content: ProviderMessage["content"]): JsonRecord[] {
@@ -153,8 +174,26 @@ function normalizeGeminiToolChoice(choice: unknown): JsonRecord {
   return { mode: "AUTO" }
 }
 
-function buildGeminiRequest(request: ProviderChatCompletionRequest): {
-  body: JsonRecord
+function normalizeGeminiThinkingConfig(request: ProviderChatCompletionRequest) {
+  const extraBody = isRecord(request.extra_body) ? request.extra_body : null
+  const google = extraBody && isRecord(extraBody.google) ? extraBody.google : null
+  const thinkingConfig =
+    google && isRecord(google.thinking_config) ? google.thinking_config : null
+  if (!thinkingConfig) return undefined
+
+  const normalized: JsonRecord = {}
+  if (typeof thinkingConfig.include_thoughts === "boolean") {
+    normalized.includeThoughts = thinkingConfig.include_thoughts
+  }
+  return Object.keys(normalized).length ? normalized : undefined
+}
+
+function buildGeminiRequest(
+  request: ProviderChatCompletionRequest,
+  options: ProviderStreamOptions = {},
+): {
+  contents: JsonRecord[]
+  config?: JsonRecord
 } {
   const contents: JsonRecord[] = []
   const systemParts: string[] = []
@@ -271,25 +310,23 @@ function buildGeminiRequest(request: ProviderChatCompletionRequest): {
         ]
       : undefined
 
-  const body: JsonRecord = {
-    contents,
+  if (!contents.length) {
+    contents.push({
+      role: "user",
+      parts: [{ text: "" }],
+    })
   }
 
+  const config: JsonRecord = {}
+
   if (systemParts.length) {
-    const parts: JsonRecord[] = [{ text: systemParts.join("\n\n") }]
-    body.systemInstruction = {
-      parts,
+    config.systemInstruction = {
+      parts: [{ text: systemParts.join("\n\n") }],
     }
   }
 
   if (typeof request.temperature === "number") {
-    const prevConfig = isJsonRecord(body.generationConfig)
-      ? body.generationConfig
-      : {}
-    body.generationConfig = {
-      ...prevConfig,
-      temperature: request.temperature,
-    }
+    config.temperature = request.temperature
   }
 
   const maxTokens =
@@ -300,24 +337,44 @@ function buildGeminiRequest(request: ProviderChatCompletionRequest): {
         : undefined
 
   if (typeof maxTokens === "number") {
-    const prevConfig = isJsonRecord(body.generationConfig)
-      ? body.generationConfig
-      : {}
-    body.generationConfig = {
-      ...prevConfig,
-      maxOutputTokens: maxTokens,
+    config.maxOutputTokens = maxTokens
+  }
+
+  const thinkingConfig = normalizeGeminiThinkingConfig(request)
+  if (thinkingConfig) {
+    config.thinkingConfig = thinkingConfig
+  } else if (options.enableGeminiThinking) {
+    config.thinkingConfig = {
+      includeThoughts: true,
     }
   }
 
   if (tools && tools[0]?.functionDeclarations?.length) {
-    body.tools = tools
-    const toolConfig: JsonRecord = {
+    config.tools = tools
+    config.toolConfig = {
       functionCallingConfig: normalizeGeminiToolChoice(request.tool_choice),
     }
-    body.toolConfig = toolConfig
   }
 
-  return { body }
+  return Object.keys(config).length ? { contents, config } : { contents }
+}
+
+function mergeGeminiSnapshotText(current: string, incoming: string) {
+  if (!incoming) return current
+  if (!current) return incoming
+  if (current === incoming) return current
+  if (incoming.startsWith(current)) return incoming
+  if (current.startsWith(incoming)) return current
+  return current + incoming
+}
+
+function mergeGeminiToolArguments(current: string, incoming: string) {
+  if (!incoming) return current
+  if (!current) return incoming
+  if (current === incoming) return current
+  if (incoming.startsWith(current)) return incoming
+  if (current.startsWith(incoming)) return current
+  return current + incoming
 }
 
 function extractGeminiMessage(payload: unknown): ProviderMessage {
@@ -374,113 +431,76 @@ function extractGeminiMessage(payload: unknown): ProviderMessage {
 }
 
 async function parseGeminiStream(
-  response: Response,
+  events: AsyncIterable<unknown>,
   options: ProviderStreamOptions,
 ): Promise<ProviderChatCompletionResponse> {
-  if (!response.body) {
-    throw new Error("Empty streaming response body")
-  }
-
-  const decoder = new TextDecoder("utf-8")
-  let buffer = ""
   let content = ""
   let usage: unknown = null
   const toolCalls = new Map<
     string,
-    { id: string; name: string; argsText: string; thoughtSignature?: string }
+    {
+      id: string
+      name: string
+      argsText: string
+      thoughtSignature?: string
+    }
   >()
-
-  const appendContent = (text: string) => {
-    if (!text) return
-    content += text
-    options.onStreamDelta?.({ content })
-  }
 
   const ensureToolCall = (id: string) => {
     if (!toolCalls.has(id)) {
-      toolCalls.set(id, { id, name: "", argsText: "" })
+      toolCalls.set(id, {
+        id,
+        name: "",
+        argsText: "",
+      })
     }
     return toolCalls.get(id)!
   }
 
-  const handleParts = (parts: unknown[]) => {
-    parts.forEach((part, index: number) => {
-      if (!isRecord(part)) return
-      if (typeof part.text === "string") {
-        appendContent(part.text)
-        return
+  for await (const payload of events) {
+    if (isRecord(payload) && payload.usageMetadata) {
+      usage = payload.usageMetadata
+    }
+
+    const message = extractGeminiMessage(payload)
+    const text =
+      typeof message.content === "string" ? message.content.trim() : ""
+    if (text) {
+      content = mergeGeminiSnapshotText(content, text)
+      options.onStreamDelta?.({ content })
+    }
+
+    if (!Array.isArray(message.tool_calls)) continue
+
+    message.tool_calls.forEach((toolCall, index) => {
+      const id =
+        typeof toolCall?.id === "string" && toolCall.id
+          ? toolCall.id
+          : `call-${index + 1}`
+      const entry = ensureToolCall(id)
+      if (toolCall.function?.name) {
+        entry.name = toolCall.function.name
       }
-      if (part.functionCall) {
-        const call = isRecord(part.functionCall) ? part.functionCall : {}
-        const callId =
-          typeof call.id === "string" && call.id
-            ? call.id
-            : `call-${index + 1}`
-        const entry = ensureToolCall(callId)
-        const callName = typeof call.name === "string" ? call.name : ""
-        if (callName) {
-          entry.name = callName
-        }
-        if (typeof call.args === "string") {
-          entry.argsText += call.args
-        } else if (isRecord(call.args)) {
-          entry.argsText = JSON.stringify(call.args)
-        }
-        if (typeof part.thoughtSignature === "string") {
-          entry.thoughtSignature = part.thoughtSignature
-        }
+      const argumentsText =
+        typeof toolCall.function?.arguments === "string"
+          ? toolCall.function.arguments
+          : ""
+      entry.argsText = mergeGeminiToolArguments(entry.argsText, argumentsText)
+      const thoughtSignature =
+        isRecord(toolCall.extra_content) &&
+        isRecord(toolCall.extra_content.google) &&
+        typeof toolCall.extra_content.google.thoughtSignature === "string"
+          ? toolCall.extra_content.google.thoughtSignature
+          : undefined
+      if (thoughtSignature) {
+        entry.thoughtSignature = thoughtSignature
       }
     })
   }
 
-  const handlePayload = (payload: unknown) => {
-    if (!isRecord(payload)) return
-    if (payload.usageMetadata) {
-      usage = payload.usageMetadata
-    }
-    const candidates = Array.isArray(payload.candidates) ? payload.candidates : []
-    const candidate = candidates[0]
-    const content = isRecord(candidate) ? candidate.content : null
-    const parts =
-      isRecord(content) && Array.isArray(content.parts) ? content.parts : []
-    if (parts.length) {
-      handleParts(parts)
-    }
-  }
-
-  const reader = response.body.getReader()
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    buffer = buffer.replace(/\r\n/g, "\n")
-    let boundary = buffer.indexOf("\n\n")
-    while (boundary >= 0) {
-      const rawEvent = buffer.slice(0, boundary)
-      buffer = buffer.slice(boundary + 2)
-      const dataLines = rawEvent
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim())
-        .filter(Boolean)
-      if (dataLines.length) {
-        const dataStr = dataLines.join("\n")
-        if (dataStr === "[DONE]") {
-          boundary = -1
-          break
-        }
-        const parsed = safeJsonParse(dataStr)
-        if (parsed) {
-          handlePayload(parsed)
-        }
-      }
-      boundary = buffer.indexOf("\n\n")
-    }
-  }
-
   const toolCallsArray: ProviderToolCall[] = Array.from(toolCalls.values()).map(
-    (call) => {
-      let argsText = call.argsText.trim()
+    (toolCall) => {
+      let argsText = toolCall.argsText.trim()
       if (!argsText) {
         argsText = "{}"
       } else {
@@ -490,16 +510,18 @@ async function parseGeminiStream(
         }
       }
       return {
-        id: call.id,
+        id: toolCall.id,
         type: "function",
         function: {
-          name: call.name || "unknown",
+          name: toolCall.name || "unknown",
           arguments: argsText,
         },
-        ...(call.thoughtSignature
+        ...(toolCall.thoughtSignature
           ? {
               extra_content: {
-                google: { thoughtSignature: call.thoughtSignature },
+                google: {
+                  thoughtSignature: toolCall.thoughtSignature,
+                },
               },
             }
           : {}),
@@ -540,44 +562,37 @@ export class GeminiJsonClient implements ChatCompletionClient {
   ): Promise<ProviderChatCompletionResponse> {
     await this.syncHeaders?.()
 
+    const baseUrl = resolveValue(this.baseUrl)
     const endpoint = request.stream
-      ? buildGeminiStreamUrl(resolveValue(this.baseUrl), request.model)
-      : buildGeminiGenerateUrl(resolveValue(this.baseUrl), request.model)
+      ? buildGeminiStreamUrl(baseUrl, request.model)
+      : buildGeminiGenerateUrl(baseUrl, request.model)
     if (!endpoint) {
       throw new Error("API endpoint not configured")
     }
 
-    const { body } = buildGeminiRequest(request)
+    const client = createGeminiSdkClient({
+      baseUrl,
+      apiKey: resolveValue(this.apiKey),
+      headers: resolveValue(this.headers) || "",
+    })
+    const payload = {
+      model: request.model,
+      ...buildGeminiRequest(request, options),
+    }
+
     await emitProviderRequestDebug(options, {
       endpoint,
-      transport: "json",
-      body,
+      transport: request.stream ? "sse" : "json",
+      body: payload,
     })
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: buildGeminiHeaders(
-        resolveValue(this.apiKey),
-        resolveValue(this.headers) || "",
-      ),
-      body: JSON.stringify(body),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText} - ${errorText}`,
-      )
-    }
 
     if (request.stream) {
-      const contentType = response.headers.get("content-type") || ""
-      if (response.body && contentType.includes("text/event-stream")) {
-        return parseGeminiStream(response, options)
-      }
+      const stream = await client.models.generateContentStream(payload as any)
+      return parseGeminiStream(stream as AsyncIterable<unknown>, options)
     }
 
-    const payload = await response.json()
-    const message = extractGeminiMessage(payload)
+    const response = await client.models.generateContent(payload as any)
+    const message = extractGeminiMessage(response)
     return {
       choices: [
         {
@@ -585,14 +600,17 @@ export class GeminiJsonClient implements ChatCompletionClient {
           message,
         },
       ],
-      ...(isRecord(payload) ? payload : {}),
+      ...(isRecord(response) ? response : {}),
     }
   }
 }
 
 export function extractGeminiModels(payload: unknown): string[] {
-  const items =
-    isRecord(payload) && Array.isArray(payload.models) ? payload.models : []
+  const items = Array.isArray(payload)
+    ? payload
+    : isRecord(payload) && Array.isArray(payload.models)
+      ? payload.models
+      : []
   return items
     .map((item) =>
       isRecord(item) && typeof item.name === "string" ? item.name : "",

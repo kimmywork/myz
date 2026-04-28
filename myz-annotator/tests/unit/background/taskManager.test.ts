@@ -1,16 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
-  attachDeliverableArtifact,
+  completeAllTasks,
   getTaskPlan,
   initTaskPlan,
   listUnblockedTasks,
+  normalizeTaskPlanPayload,
   startTaskPlanExecution,
-  updatePlanReviewResult,
-} from "@/background/ai/tasks/taskManager.ts";
-import { isRecord } from "@/shared/typeUtils";
+  updateTaskItem,
+} from "@/background/ai/tasks/taskManager.ts"
 
-type ConversationRecord = { metadata: Record<string, any> };
-let conversationStore: ConversationRecord = { metadata: {} };
+type ConversationRecord = { metadata: Record<string, any> }
+let conversationStore: ConversationRecord = { metadata: {} }
 
 vi.mock("@/sidepanel/aiStorage", () => {
   return {
@@ -19,193 +19,157 @@ vi.mock("@/sidepanel/aiStorage", () => {
       conversationStore = {
         ...conversationStore,
         metadata: { ...(conversationStore.metadata || {}), ...(data || {}) },
-      };
-      return true;
+      }
+      return true
     }),
-  };
-});
+  }
+})
 
 beforeEach(() => {
-  conversationStore = { metadata: {} };
-  (globalThis as any).chrome = {
+  conversationStore = { metadata: {} }
+  ;(globalThis as any).chrome = {
     runtime: {
       sendMessage: vi.fn(),
     },
-  };
-  vi.clearAllMocks();
-});
+  }
+  vi.clearAllMocks()
+})
 
-describe("taskManager v2", () => {
-  it("initializes plan with review status and blocked tasks", async () => {
+describe("taskManager v3", () => {
+  it("initializes a lightweight plan and blocks dependent tasks", async () => {
     const plan = await initTaskPlan({
       conversationId: "c1",
-      originalUserRequest: "do something",
+      goal: "do something",
       tasks: [
         {
           id: "t-1",
           title: "Task A",
-          deliverables: [{ description: "Deliver A" }],
+          summary: "Inspect the current page",
         },
         {
           id: "t-2",
           title: "Task B",
           blockedBy: ["t-1"],
-          deliverables: [{ description: "Deliver B" }],
         },
       ],
-    });
+    })
 
-    expect(plan.status).toBe("reviewing");
-    expect(plan.planReview.status).toBe("pending");
-    expect(plan.mode).toBe("orchestrated");
-    const blocked = plan.tasks.find((task) => task.id === "t-2");
-    expect(blocked?.status).toBe("blocked");
-  });
+    expect(plan.status).toBe("planning")
+    expect(plan.goal).toBe("do something")
+    const blocked = plan.tasks.find((task) => task.id === "t-2")
+    expect(blocked?.status).toBe("blocked")
+  })
 
-  it("starts execution and picks next unblocked task", async () => {
+  it("starts execution and picks the next runnable task", async () => {
     await initTaskPlan({
       conversationId: "c1",
-      originalUserRequest: "do something",
+      goal: "do something",
       tasks: [
-        {
-          id: "t-1",
-          title: "Task A",
-          deliverables: [{ description: "Deliver A" }],
-        },
-        {
-          id: "t-2",
-          title: "Task B",
-          blockedBy: ["t-1"],
-          deliverables: [{ description: "Deliver B" }],
-        },
+        { id: "t-1", title: "Task A" },
+        { id: "t-2", title: "Task B", blockedBy: ["t-1"] },
       ],
-    });
+    })
 
-    const plan = await startTaskPlanExecution("c1");
-    expect(plan?.status).toBe("executing");
-    expect(plan?.currentTaskId).toBe("t-1");
-    const taskA = plan?.tasks.find((task) => task.id === "t-1");
-    const taskB = plan?.tasks.find((task) => task.id === "t-2");
-    expect(taskA?.status).toBe("in_progress");
-    expect(taskB?.status).toBe("blocked");
-  });
+    const plan = await startTaskPlanExecution("c1")
+    expect(plan?.status).toBe("executing")
+    expect(plan?.currentTaskId).toBe("t-1")
+    const taskA = plan?.tasks.find((task) => task.id === "t-1")
+    const taskB = plan?.tasks.find((task) => task.id === "t-2")
+    expect(taskA?.status).toBe("in_progress")
+    expect(taskB?.status).toBe("blocked")
+  })
 
-  it("updates plan review to needs_revision", async () => {
+  it("updates task summary, notes and outcome", async () => {
     await initTaskPlan({
       conversationId: "c1",
-      originalUserRequest: "do something",
-      tasks: [
-        { title: "Task A", deliverables: [{ description: "Deliver A" }] },
-      ],
-    });
+      goal: "do something",
+      tasks: [{ id: "t-1", title: "Task A" }],
+    })
 
-    await updatePlanReviewResult({
+    const updated = await updateTaskItem({
       conversationId: "c1",
-      review: {
-        status: "needs_revision",
-        issues: ["缺少验收标准"],
-        missingInfo: [],
+      taskId: "t-1",
+      patch: {
+        status: "done",
+        summary: "Completed the page inspection",
+        notes: ["Captured the key fields"],
+        outcome: "Ready for the next step",
       },
-    });
+    })
 
-    const plan = await getTaskPlan("c1");
-    expect(plan?.status).toBe("needs_revision");
-    expect(plan?.planReview.status).toBe("needs_revision");
-  });
+    const task = updated?.tasks.find((item) => item.id === "t-1")
+    expect(task?.status).toBe("done")
+    expect(task?.summary).toContain("Completed")
+    expect(task?.notes).toContain("Captured the key fields")
+    expect(task?.outcome).toContain("Ready")
+  })
 
   it("lists only unblocked tasks when requested", async () => {
     await initTaskPlan({
       conversationId: "c1",
-      originalUserRequest: "do something",
+      goal: "do something",
       tasks: [
-        {
-          id: "t-1",
-          title: "Task A",
-          deliverables: [{ description: "Deliver A" }],
-        },
-        {
-          id: "t-2",
-          title: "Task B",
-          blockedBy: ["t-1"],
-          deliverables: [{ description: "Deliver B" }],
-        },
+        { id: "t-1", title: "Task A" },
+        { id: "t-2", title: "Task B", blockedBy: ["t-1"] },
       ],
-    });
-    await startTaskPlanExecution("c1");
+    })
+    await startTaskPlanExecution("c1")
+
     const list = await listUnblockedTasks({
       conversationId: "c1",
       status: ["pending", "in_progress"],
-    });
-    const ids = list.map((task) => task.id);
-    expect(ids).toContain("t-1");
-    expect(ids).not.toContain("t-2");
-  });
+    })
+    const ids = list.map((task) => task.id)
+    expect(ids).toContain("t-1")
+    expect(ids).not.toContain("t-2")
+  })
 
-  it("breaks cyclic dependencies to avoid deadlock", async () => {
-    const plan = await initTaskPlan({
-      conversationId: "c1",
-      originalUserRequest: "do something",
+  it("normalizes legacy deliverables into summary and notes", () => {
+    const plan = normalizeTaskPlanPayload({
+      id: "legacy-plan",
+      status: "executing",
+      originalUserRequest: "legacy goal",
       tasks: [
         {
-          id: "t-1",
-          title: "Task A",
-          blockedBy: ["t-2"],
-          deliverables: [{ description: "Deliver A" }],
-        },
-        {
-          id: "t-2",
-          title: "Task B",
-          blockedBy: ["t-1"],
-          deliverables: [{ description: "Deliver B" }],
+          id: "legacy-task",
+          title: "Legacy Task",
+          deliverables: [
+            {
+              description: "Primary deliverable",
+              artifacts: [{ type: "note", payload: "Observed value A" }],
+            },
+            {
+              description: "Secondary deliverable",
+            },
+          ],
         },
       ],
-    });
+    })
 
-    const unblocked = plan.tasks.filter((task) => task.status !== "blocked");
-    expect(unblocked.length).toBeGreaterThan(0);
-  });
+    expect(plan?.goal).toBe("legacy goal")
+    expect(plan?.tasks[0]?.summary).toBe("Primary deliverable")
+    expect(plan?.tasks[0]?.notes).toContain("Secondary deliverable")
+    expect(plan?.tasks[0]?.notes.some((item) => item.includes("Observed value A"))).toBe(true)
+  })
 
-  it("truncates oversized artifacts", async () => {
+  it("completes the whole plan with plan-level outcome", async () => {
     await initTaskPlan({
       conversationId: "c1",
-      originalUserRequest: "do something",
-      tasks: [
-        {
-          id: "t-1",
-          title: "Task A",
-          deliverables: [{ description: "Deliver A" }],
-        },
-      ],
-    });
+      goal: "finish the workflow",
+      tasks: [{ id: "t-1", title: "Task A" }],
+    })
 
-    const bigText = "x".repeat(40000);
-    const updated = await attachDeliverableArtifact({
+    const completed = await completeAllTasks({
       conversationId: "c1",
-      taskId: "t-1",
-      deliverableIndex: 0,
-      artifact: { type: "note", payload: bigText },
-    });
+      summary: "All planned steps were executed",
+      outcome: "Workflow finished successfully",
+    })
 
-    const payload =
-      updated?.tasks?.[0]?.deliverables?.[0]?.artifacts?.[0]?.payload;
-    expect(typeof payload).toBe("string");
-    if (typeof payload === "string") {
-      expect(payload.length).toBeLessThanOrEqual(32000);
-    }
-
-    const updatedObj = await attachDeliverableArtifact({
-      conversationId: "c1",
-      taskId: "t-1",
-      deliverableIndex: 0,
-      artifact: { type: "json", payload: { text: bigText } },
-    });
-
-    const payloadObj =
-      updatedObj?.tasks?.[0]?.deliverables?.[0]?.artifacts?.[1]?.payload;
-    const payloadRecord = isRecord(payloadObj) ? payloadObj : {};
-    expect(payloadRecord.truncated).toBe(true);
-    expect(String(payloadRecord.content || "").length).toBeLessThanOrEqual(
-      32000,
-    );
-  });
-});
+    expect(completed?.status).toBe("done")
+    expect(completed?.summary).toContain("executed")
+    expect(completed?.outcome).toContain("successfully")
+    expect(completed?.tasks.every((task) => task.status === "done")).toBe(true)
+    const persisted = await getTaskPlan("c1")
+    expect(persisted?.status).toBe("done")
+  })
+})

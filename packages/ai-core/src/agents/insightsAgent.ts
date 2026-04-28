@@ -214,6 +214,9 @@ export class InsightsAgent {
       }
 
       const response = await this.deps.client.createCompletion(request, {
+        enableReasoning: Boolean(
+          deps.callConfig.model.capabilities.reasoning,
+        ),
         enableGeminiThinking: Boolean(
           deps.callConfig.model.capabilities.reasoning,
         ),

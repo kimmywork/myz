@@ -1,6 +1,10 @@
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
-import { getProviderTypeMeta } from "./providerCatalog.js";
+import {
+  formatTierLabel,
+  getOpenAICompatibleProfileMeta,
+  getProviderTypeMeta,
+} from "./providerCatalog.js";
 import type { AIProviderSetting } from "@/background/settings.js";
 
 function statusLabel(provider: AIProviderSetting) {
@@ -97,6 +101,11 @@ export default defineComponent({
                     />
                     <div class="text-xs text-slate-500 dark:text-slate-400">
                       {getProviderTypeMeta(provider.type).label} ·{" "}
+                      {formatTierLabel(getProviderTypeMeta(provider.type).tier)}
+                      {provider.type === "openai_compatible"
+                        ? ` · ${getOpenAICompatibleProfileMeta(provider.compatProfile || "auto").label}`
+                        : ""}
+                      {" · "}
                       {statusLabel(provider)}
                       {provider.lastTest?.model
                         ? ` · ${provider.lastTest.model}`

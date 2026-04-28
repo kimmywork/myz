@@ -60,7 +60,11 @@ export function createRuntimeConfig(
       baseUrl: "",
       accessToken: "",
       headers: {},
+      compatProfile: "auto",
+      reasoningMode: "provider_default",
+      reasoningEffort: "provider_default",
       model: "gpt-test",
+      streamingEnabled: true,
       systemPromptInUserMessage: false,
       retry: {
         retries: 2,

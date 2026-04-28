@@ -6,6 +6,8 @@ import type {
   AIAgentConfig,
   AIAgentsSettings,
   AIModelSetting,
+  AIReasoningEffortSetting,
+  AIReasoningMode,
   AIProviderSetting,
   AIToolChoiceSetting,
   AIToolControlSettings,
@@ -13,6 +15,7 @@ import type {
   AutoHighlightCategoryStyle,
   AutoHighlightCategoryStyles,
   McpServerSetting,
+  OpenAICompatibleProfile,
   Settings,
   SettingsBundle,
 } from "./settings.js";
@@ -155,6 +158,44 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       parallelToolCalls: normalizeToolFlag(record?.parallelToolCalls),
     };
   };
+  const normalizeCompatProfile = (
+    value: unknown,
+  ): OpenAICompatibleProfile => {
+    switch (value) {
+      case "deepseek":
+      case "moonshot":
+      case "glm":
+      case "qwen":
+      case "minimax":
+      case "longcat":
+      case "mimo":
+      case "custom":
+        return value;
+      default:
+        return "auto";
+    }
+  };
+  const normalizeReasoningMode = (value: unknown): AIReasoningMode => {
+    switch (value) {
+      case "enabled":
+      case "disabled":
+        return value;
+      default:
+        return "provider_default";
+    }
+  };
+  const normalizeReasoningEffort = (
+    value: unknown,
+  ): AIReasoningEffortSetting => {
+    switch (value) {
+      case "low":
+      case "medium":
+      case "high":
+        return value;
+      default:
+        return "provider_default";
+    }
+  };
   const normalizeModelSetting = (model: unknown): AIModelSetting => {
     const record = isRecord(model) ? model : {};
     const limits = isRecord(record.limits) ? record.limits : {};
@@ -208,6 +249,14 @@ function normalizeSettings<T extends Settings>(settings: T): T {
         typeof record.streamingEnabled === "boolean"
           ? record.streamingEnabled
           : true,
+      compatProfile: normalizeCompatProfile(record.compatProfile),
+      reasoningMode: normalizeReasoningMode(record.reasoningMode),
+      reasoningEffort: normalizeReasoningEffort(record.reasoningEffort),
+      reasoningBudget:
+        typeof record.reasoningBudget === "number" &&
+        Number.isFinite(record.reasoningBudget)
+          ? Math.max(0, Math.floor(record.reasoningBudget))
+          : undefined,
       models: Array.isArray(record.models)
         ? record.models.map((model) => normalizeModelSetting(model))
         : [],

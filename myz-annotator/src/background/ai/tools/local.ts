@@ -11,7 +11,6 @@ import type {
   ProviderToolCall,
 } from "../providers/types.js";
 import {
-  attachDeliverableArtifact,
   completeAllTasks,
   getTaskPlan,
   initTaskPlan,
@@ -21,11 +20,9 @@ import {
   updateTaskStatus,
 } from "../tasks/taskManager.js";
 import type {
-  DeliverableStatus,
   TaskCategory,
   TaskItem,
   TaskOwner,
-  TaskPlanMode,
   TaskPlanStatus,
   TaskPriority,
   TaskStatus,
@@ -68,7 +65,6 @@ function normalizeTaskAction(value: unknown) {
   const allowed = new Set([
     "init",
     "update",
-    "attach",
     "get",
     "list",
     "complete_all",
@@ -80,21 +76,12 @@ function normalizeCompatText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function parseTaskPlanMode(value: unknown): TaskPlanMode | undefined {
-  if (value === "quick" || value === "orchestrated") return value;
-  return undefined;
-}
-
 function parseTaskPlanStatus(value: unknown): TaskPlanStatus | undefined {
   switch (value) {
     case "planning":
-    case "reviewing":
-    case "needs_revision":
     case "executing":
+    case "blocked":
     case "done":
-    case "validating":
-    case "validated":
-    case "needs_rework":
       return value;
     default:
       return undefined;
@@ -111,10 +98,6 @@ function parseTaskStatus(value: unknown): TaskStatus | undefined {
     default:
       return undefined;
   }
-}
-
-function parseDeliverableStatus(value: unknown): DeliverableStatus | undefined {
-  return value === "done" || value === "pending" ? value : undefined;
 }
 
 function parseTaskPriority(value: unknown): TaskPriority | undefined {
@@ -157,8 +140,10 @@ function parseStringArray(value: unknown): string[] | undefined {
   return cleaned.length ? cleaned : [];
 }
 
-function buildTaskItemPatch(raw: Record<string, unknown>): Partial<TaskItem> {
-  const patch: Partial<TaskItem> = {};
+function buildTaskItemPatch(
+  raw: Record<string, unknown>,
+): Partial<TaskItem> & { appendNote?: string } {
+  const patch: Partial<TaskItem> & { appendNote?: string } = {};
   if (typeof raw.title === "string") {
     patch.title = raw.title.trim();
   }
@@ -190,6 +175,19 @@ function buildTaskItemPatch(raw: Record<string, unknown>): Partial<TaskItem> {
   if (blocks) {
     patch.blocks = blocks;
   }
+  if (typeof raw.summary === "string") {
+    patch.summary = raw.summary.trim();
+  }
+  if (typeof raw.outcome === "string") {
+    patch.outcome = raw.outcome.trim();
+  }
+  const notes = parseStringArray(raw.notes);
+  if (notes) {
+    patch.notes = notes;
+  }
+  if (typeof raw.note === "string") {
+    patch.appendNote = raw.note.trim();
+  }
   return patch;
 }
 
@@ -218,12 +216,12 @@ function resolveCompatTaskPayload(payload: unknown) {
     source.patch,
     source.currentTaskId,
     source.originalUserRequest,
+    source.goal,
     source.tasks,
     source.assumptions,
-    source.deliverableId,
-    source.deliverableIndex,
-    source.artifact,
-    source.artifacts,
+    source.summary,
+    source.outcome,
+    source.note,
   ];
   const hasManagementSignals = managementSignals.some(
     (item) => typeof item !== "undefined",
@@ -1284,6 +1282,7 @@ const LOCAL_TOOL_HANDLERS: Record<
     if (!action) {
       if (
         typeof payload.originalUserRequest === "string" ||
+        typeof payload.goal === "string" ||
         Array.isArray(payload.tasks) ||
         Array.isArray(payload.assumptions)
       ) {
@@ -1291,22 +1290,17 @@ const LOCAL_TOOL_HANDLERS: Record<
       } else if (
         typeof payload.status === "string" ||
         typeof payload.currentTaskId === "string" ||
+        typeof payload.summary === "string" ||
+        typeof payload.outcome === "string" ||
+        typeof payload.note === "string" ||
         (payload.patch && typeof payload.patch === "object")
       ) {
         action = "update";
-      } else if (
-        typeof payload.deliverableId === "string" ||
-        typeof payload.deliverableIndex === "number" ||
-        typeof payload.description === "string" ||
-        payload.artifact ||
-        payload.artifacts
-      ) {
-        action = "attach";
       } else if (typeof payload.taskId === "string") {
         action = "update";
       } else if (
-        typeof payload.reason === "string" ||
-        typeof payload.role === "string"
+        typeof payload.summary === "string" ||
+        typeof payload.outcome === "string"
       ) {
         action = "complete_all";
       } else if (
@@ -1322,21 +1316,23 @@ const LOCAL_TOOL_HANDLERS: Record<
     }
 
     if (action === "init") {
-      const originalUserRequest =
-        typeof payload.originalUserRequest === "string"
-          ? payload.originalUserRequest.trim()
-          : "";
       const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
       const assumptions = Array.isArray(payload.assumptions)
         ? payload.assumptions
         : [];
-      const mode = parseTaskPlanMode(payload.mode);
       const plan = await initTaskPlan({
         conversationId,
-        originalUserRequest,
+        goal:
+          typeof payload.goal === "string"
+            ? payload.goal.trim()
+            : typeof payload.originalUserRequest === "string"
+              ? payload.originalUserRequest.trim()
+              : "",
         tasks,
-        mode,
         assumptions,
+        summary:
+          typeof payload.summary === "string" ? payload.summary.trim() : "",
+        status: parseTaskPlanStatus(payload.status),
       });
       const contentText = appendToolData("任务计划已初始化。", plan, 6000);
       return { content: [{ type: "text", text: contentText }], data: plan };
@@ -1350,26 +1346,17 @@ const LOCAL_TOOL_HANDLERS: Record<
           isRecord(payload.patch) ? payload.patch : {},
         );
         const nextStatus = parseTaskStatus(payload.status);
-        const effectiveStatus = nextStatus || patch.status;
-        if (effectiveStatus === "done") {
-          const plan = await getTaskPlan(conversationId);
-          const task = plan?.tasks?.find((item) => item.id === taskId);
-          if (
-            task &&
-            (!Array.isArray(task.deliverables) ||
-              task.deliverables.length === 0)
-          ) {
-            return {
-              content: [
-                { type: "text", text: "交付物为空，禁止直接标记完成。" },
-              ],
-              data: null,
-              isError: true,
-            };
-          }
-        }
         if (nextStatus) {
           patch.status = nextStatus;
+        }
+        if (typeof payload.summary === "string") {
+          patch.summary = payload.summary.trim();
+        }
+        if (typeof payload.outcome === "string") {
+          patch.outcome = payload.outcome.trim();
+        }
+        if (typeof payload.note === "string") {
+          patch.appendNote = payload.note.trim();
         }
         const hasPatchKeys = Object.keys(patch).length > 0;
         const plan = hasPatchKeys
@@ -1395,44 +1382,16 @@ const LOCAL_TOOL_HANDLERS: Record<
           typeof payload.currentTaskId === "string"
             ? payload.currentTaskId.trim()
             : undefined,
-        mode: parseTaskPlanMode(payload.mode),
+        goal: typeof payload.goal === "string" ? payload.goal.trim() : undefined,
+        assumptions: Array.isArray(payload.assumptions)
+          ? payload.assumptions
+          : undefined,
+        summary:
+          typeof payload.summary === "string" ? payload.summary.trim() : undefined,
+        outcome:
+          typeof payload.outcome === "string" ? payload.outcome.trim() : undefined,
       });
       const contentText = appendToolData("计划状态已更新。", plan, 6000);
-      return { content: [{ type: "text", text: contentText }], data: plan };
-    }
-
-    if (action === "attach") {
-      const taskId =
-        typeof payload.taskId === "string" ? payload.taskId.trim() : "";
-      if (!taskId) {
-        return {
-          content: [{ type: "text", text: "taskId 是必填项。" }],
-          data: null,
-          isError: true,
-        };
-      }
-      const plan = await attachDeliverableArtifact({
-        conversationId,
-        taskId,
-        deliverableId:
-          typeof payload.deliverableId === "string"
-            ? payload.deliverableId.trim()
-            : undefined,
-        deliverableIndex:
-          typeof payload.deliverableIndex === "number"
-            ? payload.deliverableIndex
-            : undefined,
-        description:
-          typeof payload.description === "string"
-            ? payload.description.trim()
-            : undefined,
-        artifact: payload.artifact,
-        artifacts: Array.isArray(payload.artifacts)
-          ? payload.artifacts
-          : undefined,
-        status: parseDeliverableStatus(payload.status),
-      });
-      const contentText = appendToolData("交付物已记录。", plan, 6000);
       return { content: [{ type: "text", text: contentText }], data: plan };
     }
 
@@ -1485,45 +1444,13 @@ const LOCAL_TOOL_HANDLERS: Record<
     }
 
     if (action === "complete_all") {
-      const reason =
-        typeof payload.reason === "string" ? payload.reason.trim() : "";
-      const role = typeof payload.role === "string" ? payload.role.trim() : "";
-      if (!reason) {
-        return {
-          content: [{ type: "text", text: "complete_all 需要提供 reason。" }],
-          data: null,
-          isError: true,
-        };
-      }
-      if (!role) {
-        return {
-          content: [
-            { type: "text", text: "complete_all 需要提供 role=validator。" },
-          ],
-          data: null,
-          isError: true,
-        };
-      }
-      if (role !== "validator") {
-        return {
-          content: [
-            { type: "text", text: "complete_all 仅允许 validator 调用。" },
-          ],
-          data: null,
-          isError: true,
-        };
-      }
-      const existingPlan = await getTaskPlan(conversationId);
-      if (existingPlan?.planReview?.status !== "pass") {
-        return {
-          content: [
-            { type: "text", text: "complete_all 需要 Plan Review 通过。" },
-          ],
-          data: null,
-          isError: true,
-        };
-      }
-      const plan = await completeAllTasks(conversationId);
+      const plan = await completeAllTasks({
+        conversationId,
+        summary:
+          typeof payload.summary === "string" ? payload.summary.trim() : undefined,
+        outcome:
+          typeof payload.outcome === "string" ? payload.outcome.trim() : undefined,
+      });
       const contentText = appendToolData("所有任务已标记完成。", plan, 6000);
       return { content: [{ type: "text", text: contentText }], data: plan };
     }
@@ -1712,6 +1639,7 @@ const LOCAL_TOOL_HANDLERS: Record<
       const usedTools = new Set<string>();
       const client = enableTools ? session.clientWithTools : session.client;
       const response = await client.createCompletion(request, {
+        enableReasoning: Boolean(target.model?.capabilities?.reasoning),
         enableGeminiThinking: Boolean(target.model?.capabilities?.reasoning),
         ...(enableTools
           ? {

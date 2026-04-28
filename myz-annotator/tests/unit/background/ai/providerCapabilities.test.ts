@@ -5,7 +5,6 @@ import {
   createToolCallSequenceClient,
 } from "./testUtils.ts";
 import { createGoogleGeminiThinkingCapability } from "@/background/ai/providers/capabilities/googleGemini.ts";
-import { createQwenThinkingCapability } from "@/background/ai/providers/capabilities/qwenThinking.ts";
 import { createReasoningNormalizationCapability } from "@/background/ai/providers/capabilities/reasoning.ts";
 import { createSseStreamingCapability } from "@/background/ai/providers/capabilities/sseStreaming.ts";
 import { createToolCallingCapability } from "@/background/ai/providers/capabilities/toolCalling.ts";
@@ -34,20 +33,30 @@ describe("provider capabilities", () => {
     expect(message?.reasoning_content).toBe("why");
   });
 
-  it("patches qwen thinking config", async () => {
+  it("normalizes mistral thinking chunks into reasoning content", async () => {
     const client = {
-      createCompletion: vi.fn(async () => ({ choices: [] })),
+      createCompletion: vi.fn(async () => ({
+        choices: [
+          {
+            message: {
+              content: [
+                { type: "text", text: "ok" },
+                {
+                  type: "thinking",
+                  thinking: [{ type: "text", text: "why" }],
+                },
+              ],
+            },
+          },
+        ],
+      })),
     } as any;
-    const wrapped = createQwenThinkingCapability()(client);
-    await wrapped.createCompletion(
-      { model: "qwen", messages: [] } as any,
-      {
-        enableGeminiThinking: true,
-      } as any,
-    );
-    expect(client.createCompletion).toHaveBeenCalled();
-    const request = client.createCompletion.mock.calls[0][0];
-    expect(request.extra_body.enable_thinking).toBe(true);
+
+    const wrapped = createReasoningNormalizationCapability()(client);
+    const response = await wrapped.createCompletion({} as any, {} as any);
+    const message = (response as any).choices?.[0]?.message as any;
+    expect(message?.content).toBe("ok");
+    expect(message?.reasoning_content).toBe("why");
   });
 
   it("patches gemini thinking config", async () => {
@@ -168,6 +177,7 @@ describe("provider capabilities", () => {
         {
           role: "assistant",
           content: "Visible <thought>hidden</thought>",
+          reasoning_content: "hidden",
           extra_content: { google: { thought: true } },
           tool_calls: [
             { id: "c1", function: { name: "ToolA", arguments: "{}" } },
@@ -208,6 +218,7 @@ describe("provider capabilities", () => {
         },
       ],
       executeToolCall,
+      preserveAssistantReasoningContent: true,
     });
 
     const wrapped = capability(client);
@@ -226,6 +237,7 @@ describe("provider capabilities", () => {
       (msg: any) => msg.role === "assistant",
     );
     expect(assistantMessage?.content).toBe("Visible");
+    expect(assistantMessage?.reasoning_content).toBe("hidden")
   });
 
   it("parses SSE streaming responses", async () => {

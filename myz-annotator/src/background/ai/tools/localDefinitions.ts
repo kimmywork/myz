@@ -260,11 +260,10 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
     description: "任务管理工具（仅用于 Superpower Mode）。",
     inputSchema: {
       type: "object",
-      required: ["action"],
       properties: {
         action: {
           type: "string",
-          enum: ["init", "update", "attach", "get", "list", "complete_all"],
+          enum: ["init", "update", "get", "list", "complete_all"],
           description: "任务动作类型。",
         },
         payload: {
@@ -273,19 +272,22 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
             "可选的统一载荷（推荐）。若提供，优先使用 payload 内字段。",
           additionalProperties: true,
         },
-        originalUserRequest: {
+        goal: {
           type: "string",
-          description: "用户原始需求。",
-        },
-        mode: {
-          type: "string",
-          description: "计划模式。",
-          enum: ["quick", "orchestrated"],
+          description: "当前任务目标或用户需求。",
         },
         assumptions: {
           type: "array",
           description: "计划假设列表。",
           items: { type: "string" },
+        },
+        summary: {
+          type: "string",
+          description: "计划级摘要或阶段进展说明。",
+        },
+        outcome: {
+          type: "string",
+          description: "计划或任务的最终结果说明。",
         },
         tasks: {
           type: "array",
@@ -331,43 +333,30 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
                 items: { type: "string" },
                 description: "建议技能列表。",
               },
-              deliverables: {
+              summary: {
+                type: "string",
+                description: "任务摘要或完成标准。",
+              },
+              notes: {
                 type: "array",
-                description: "交付物列表。",
-                items: {
-                  type: "object",
-                  required: ["description"],
-                  properties: {
-                    description: {
-                      type: "string",
-                      description: "交付物说明。",
-                    },
-                  },
-                },
+                items: { type: "string" },
+                description: "任务备注或执行观察。",
+              },
+              outcome: {
+                type: "string",
+                description: "任务完成后的结果说明。",
               },
             },
           },
         },
         taskId: {
           type: "string",
-          description: "任务 ID（更新/交付物时使用）。",
+          description: "任务 ID（task 级更新时使用）。",
         },
         status: {
           type: "string",
-          description: "状态值（update/attach 用）。",
-          enum: [
-            "pending",
-            "in_progress",
-            "done",
-            "blocked",
-            "planning",
-            "reviewing",
-            "needs_revision",
-            "executing",
-            "validating",
-            "validated",
-            "needs_rework",
-          ],
+          description: "状态值（task 或 plan 级 update 用）。",
+          enum: ["pending", "in_progress", "done", "blocked", "planning", "executing"],
         },
         patch: {
           type: "object",
@@ -378,19 +367,9 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
           type: "string",
           description: "更新当前任务 ID（仅计划级更新）。",
         },
-        deliverableId: { type: "string", description: "交付物 ID（可选）。" },
-        deliverableIndex: {
-          type: "integer",
-          description: "交付物序号（可选，0-based）。",
-        },
-        artifact: {
-          type: "object",
-          description: "交付物产出摘要或结构化内容。",
-        },
-        artifacts: {
-          type: "array",
-          description: "交付物产出列表。",
-          items: { type: "object" },
+        note: {
+          type: "string",
+          description: "追加一条任务备注。",
         },
         onlyUnblocked: {
           type: "boolean",
@@ -400,15 +379,6 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
           type: "array",
           description: "list 动作：按状态过滤。",
           items: { type: "string" },
-        },
-        reason: {
-          type: "string",
-          description: "complete_all 动作用：说明原因。",
-        },
-        role: {
-          type: "string",
-          enum: ["validator"],
-          description: "complete_all 动作用：调用角色。",
         },
       },
     },

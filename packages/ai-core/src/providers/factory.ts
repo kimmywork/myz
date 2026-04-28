@@ -1,6 +1,6 @@
 import { createGoogleGeminiThinkingCapability } from "./capabilities/googleGemini"
+import { createOpenAICompatibleProfileCapability } from "./capabilities/openaiCompatibleProfile"
 import { createReasoningNormalizationCapability } from "./capabilities/reasoning"
-import { createSseStreamingCapability } from "./capabilities/sseStreaming"
 import { createToolCallingCapability } from "./capabilities/toolCalling"
 import { composeCapabilities, type Capability } from "./capability"
 import {
@@ -15,6 +15,7 @@ import type {
   ProviderToolSpec,
 } from "./types"
 import type { ToolExecutionResult } from "../types"
+import type { AIProviderSetting } from "../settings"
 
 function mapDeveloperRole(
   request: ProviderChatCompletionRequest,
@@ -58,8 +59,10 @@ export interface ProviderClients {
 }
 
 export interface OpenAICompatibleClientOptions {
+  provider?: AIProviderSetting
   extraCapabilities?: Capability[]
   enableStreaming?: boolean
+  replayAssistantReasoning?: boolean
 }
 
 export function createOpenAICompatibleClients(
@@ -71,21 +74,16 @@ export function createOpenAICompatibleClients(
     endpoint: transport.endpoint,
     buildHeaders: transport.buildHeaders,
     syncHeaders: transport.syncHeaders,
+    streamingEnabled: options.enableStreaming !== false,
   })
 
   const baseCapabilities: Capability[] = [
-    ...(options.enableStreaming === false
-      ? []
-      : [
-          createSseStreamingCapability({
-            endpoint: transport.endpoint,
-            buildHeaders: transport.buildHeaders,
-            syncHeaders: transport.syncHeaders,
-          }),
-        ]),
     createGoogleGeminiThinkingCapability(),
     createReasoningNormalizationCapability(),
     createDeveloperRoleCapability(),
+    ...(options.provider
+      ? [createOpenAICompatibleProfileCapability(options.provider)]
+      : []),
     ...(options.extraCapabilities || []),
   ]
 
@@ -96,6 +94,9 @@ export function createOpenAICompatibleClients(
         createToolCallingCapability({
           getTools: tooling.getTools,
           executeToolCall: tooling.executeToolCall,
+          preserveAssistantReasoningContent: Boolean(
+            options.replayAssistantReasoning,
+          ),
         }),
       ])
     : client

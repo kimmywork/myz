@@ -32,6 +32,10 @@ test("loadConfig parses minimal bot.yml", () => {
   assert.equal(config.telegram.retry.retries, 2)
   assert.equal(config.network.requestTimeoutMs, 180000)
   assert.equal(config.ai.retry.retries, 2)
+  assert.equal(config.ai.streamingEnabled, true)
+  assert.equal(config.ai.compatProfile, "auto")
+  assert.equal(config.ai.reasoningMode, "provider_default")
+  assert.equal(config.ai.reasoningEffort, "provider_default")
   assert.equal(config.scheduler.enabled, true)
   assert.equal(config.scheduler.pollIntervalMs, 15000)
   assert.equal(config.upgrade.enabled, true)
@@ -79,15 +83,19 @@ test("loadConfig parses permissions and skill policies", () => {
       "  proxyUrl: http://127.0.0.1:7890",
       "ai:",
       "  provider: openai_compatible",
+      "  compatProfile: deepseek",
+      "  reasoningMode: disabled",
+      "  reasoningEffort: high",
+      "  reasoningBudget: 1024",
       "  model: gpt-test",
       "  systemPromptInUserMessage: true",
       "  retry:",
       "    retries: 4",
       "skills:",
       "  allowlist:",
-      "    - builtin/planning",
+      "    - builtin/browser-operations",
       "  denylist:",
-      "    - builtin/problem-solving",
+      "    - builtin/non-existent",
       "debug: true",
       "tools:",
       "  allowlist:",
@@ -125,11 +133,15 @@ test("loadConfig parses permissions and skill policies", () => {
   assert.equal(config.network.requestTimeoutMs, 90000)
   assert.equal(config.network.connectTimeoutMs, 5000)
   assert.equal(config.network.proxyUrl, "http://127.0.0.1:7890")
-  assert.deepEqual(config.skillAllowlist, ["builtin/planning"])
-  assert.deepEqual(config.skillDenylist, ["builtin/problem-solving"])
+  assert.deepEqual(config.skillAllowlist, ["builtin/browser-operations"])
+  assert.deepEqual(config.skillDenylist, ["builtin/non-existent"])
   assert.deepEqual(config.toolAllowlist, ["read"])
   assert.equal(config.debug, true)
   assert.equal(config.ai.systemPromptInUserMessage, true)
+  assert.equal(config.ai.compatProfile, "deepseek")
+  assert.equal(config.ai.reasoningMode, "disabled")
+  assert.equal(config.ai.reasoningEffort, "high")
+  assert.equal(config.ai.reasoningBudget, 1024)
   assert.equal(config.ai.retry.retries, 4)
   assert.equal(config.scheduler.pollIntervalMs, 5000)
   assert.equal(config.scheduler.maxBatchSize, 5)
@@ -198,5 +210,27 @@ test("loadConfig rejects removed legacy context section", () => {
   assert.throws(
     () => loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir }),
     /context.*removed/i,
+  )
+})
+
+test("loadConfig rejects unsupported ai provider types", () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), "myz-bot-workspace-"))
+  const runtimeDir = mkdtempSync(join(tmpdir(), "myz-bot-runtime-"))
+  const path = join(runtimeDir, "bot.yml")
+  writeFileSync(
+    path,
+    [
+      "telegram:",
+      "  username: testbot",
+      "  token: testtoken",
+      "ai:",
+      "  provider: ollama",
+      "  model: gpt-test",
+    ].join("\n"),
+  )
+
+  assert.throws(
+    () => loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir }),
+    /invalid_value|provider/i,
   )
 })

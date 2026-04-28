@@ -84,6 +84,37 @@ async function ensureBuiltinSkills() {
         });
       });
     }
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([SKILLS_STORE, FILES_STORE], "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      const skillsStore = tx.objectStore(SKILLS_STORE);
+      const filesStore = tx.objectStore(FILES_STORE);
+      const skillCursor = skillsStore.openCursor();
+      skillCursor.onsuccess = () => {
+        const cursor = skillCursor.result;
+        if (!cursor) return;
+        const record = cursor.value as SkillMetadata;
+        if (record?.builtin === true && !isBuiltinSkill(record.id)) {
+          const index = filesStore.index("skillId");
+          const fileCursor = index.openCursor(IDBKeyRange.only(record.id));
+          fileCursor.onsuccess = () => {
+            const item = fileCursor.result;
+            if (!item) {
+              cursor.delete();
+              cursor.continue();
+              return;
+            }
+            item.delete();
+            item.continue();
+          };
+          fileCursor.onerror = () => reject(fileCursor.error);
+          return;
+        }
+        cursor.continue();
+      };
+      skillCursor.onerror = () => reject(skillCursor.error);
+    });
   })();
   return builtinSeedPromise;
 }

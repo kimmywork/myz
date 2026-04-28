@@ -4,7 +4,10 @@ import ToggleSwitch from "../ToggleSwitch.jsx";
 import AiHeadersEditor from "./AiHeadersEditor.jsx";
 import AiModelListEditor from "./AiModelListEditor.jsx";
 import {
+  formatTierLabel,
+  getOpenAICompatibleProfileMeta,
   getProviderTypeMeta,
+  OPENAI_COMPATIBLE_PROFILE_OPTIONS,
   PROVIDER_TYPE_OPTIONS,
 } from "./providerCatalog.js";
 import type {
@@ -60,6 +63,59 @@ export default defineComponent({
       },
       { deep: true, immediate: true },
     );
+
+    const selectedCompatProfileMeta = computed(() =>
+      getOpenAICompatibleProfileMeta(props.provider.compatProfile || "auto"),
+    );
+    const selectedProviderMeta = computed(() =>
+      getProviderTypeMeta(props.provider.type),
+    );
+    const reasoningModeSupported = computed(() => {
+      if (props.provider.type === "mistral") return true;
+      if (props.provider.type !== "openai_compatible") return false;
+      return selectedCompatProfileMeta.value.supportsReasoningMode;
+    });
+    const reasoningEffortSupported = computed(() => {
+      if (props.provider.type === "mistral") return true;
+      if (props.provider.type !== "openai_compatible") return false;
+      return selectedCompatProfileMeta.value.supportsReasoningEffort;
+    });
+    const reasoningBudgetSupported = computed(() => {
+      if (props.provider.type !== "openai_compatible") return false;
+      return selectedCompatProfileMeta.value.supportsReasoningBudget;
+    });
+    const reasoningPanelTone = computed(() => {
+      if (props.provider.type === "mistral") {
+        return "border-sky-200 bg-sky-50 dark:border-sky-400/30 dark:bg-sky-500/10";
+      }
+      if (selectedCompatProfileMeta.value.tier === "tier_1") {
+        return "border-emerald-200 bg-emerald-50 dark:border-emerald-400/30 dark:bg-emerald-500/10";
+      }
+      return "border-amber-200 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-500/10";
+    });
+    const reasoningSummary = computed(() => {
+      if (props.provider.type === "mistral") {
+        return "Tier 0 官方 SDK 路线。当前 UI 仅暴露稳定可解释的 reasoning 控件。";
+      }
+      if (selectedCompatProfileMeta.value.supportLevel === "profile") {
+        return "该 profile 属于优先支持路径，reasoning 与续轮行为会按供应商契约显式适配。";
+      }
+      return "该 profile 仅提供基础兼容。未在官方文档明确的 reasoning 特性不会被假定支持。";
+    });
+    const reasoningEffortOptions = computed(() => {
+      if (props.provider.type === "mistral") {
+        return [
+          { value: "provider_default", label: "跟随默认" },
+          { value: "high", label: "High" },
+        ];
+      }
+      return [
+        { value: "provider_default", label: "跟随默认" },
+        { value: "low", label: "Low" },
+        { value: "medium", label: "Medium" },
+        { value: "high", label: "High" },
+      ];
+    });
 
     const canEnable = computed(() => {
       if (!props.provider.lastTest?.ok) return false;
@@ -133,6 +189,19 @@ export default defineComponent({
         baseUrl: shouldResetBaseUrl
           ? nextMeta.defaultBaseUrl
           : props.provider.baseUrl,
+        compatProfile: nextType === "openai_compatible" ? "auto" : "auto",
+        reasoningMode:
+          nextType === "openai_compatible" || nextType === "mistral"
+            ? props.provider.reasoningMode || "provider_default"
+            : "provider_default",
+        reasoningEffort:
+          nextType === "openai_compatible" || nextType === "mistral"
+            ? props.provider.reasoningEffort || "provider_default"
+            : "provider_default",
+        reasoningBudget:
+          nextType === "openai_compatible"
+            ? props.provider.reasoningBudget
+            : undefined,
         enabled: false,
         lastTest: null,
       });
@@ -152,7 +221,27 @@ export default defineComponent({
             <div class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
               {props.provider.name || "未命名 Provider"}
             </div>
-            <div class="truncate text-xs text-slate-500 dark:text-slate-400">
+            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
+              <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                {formatTierLabel(selectedProviderMeta.value.tier)}
+              </span>
+              <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                {selectedProviderMeta.value.label}
+              </span>
+              {props.provider.type === "openai_compatible" ? (
+                <span
+                  class={[
+                    "rounded-full px-2 py-0.5",
+                    selectedCompatProfileMeta.value.tier === "tier_1"
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200"
+                      : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
+                  ].join(" ")}
+                >
+                  {selectedCompatProfileMeta.value.label}
+                </span>
+              ) : null}
+            </div>
+            <div class="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
               {props.provider.baseUrl || "未配置 Base URL"}
             </div>
           </div>
@@ -189,6 +278,35 @@ export default defineComponent({
             ))}
           </select>
         </label>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 dark:border-white/10 dark:bg-slate-800/40 dark:text-slate-300">
+          {selectedProviderMeta.value.routeNote}
+        </div>
+
+        {props.provider.type === "openai_compatible" ? (
+          <label class="field">
+            <span>Compatibility Profile</span>
+            <select
+              class="input"
+              value={props.provider.compatProfile || "auto"}
+              onChange={(e) =>
+                updateProvider({
+                  compatProfile: (e.target as HTMLSelectElement)
+                    .value as AIProviderSetting["compatProfile"],
+                })
+              }
+            >
+              {OPENAI_COMPATIBLE_PROFILE_OPTIONS.map((item) => (
+                <option value={item.value}>
+                  {item.label} · {item.tier === "tier_1" ? "Tier 1" : "Tier 2"}
+                </option>
+              ))}
+            </select>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {selectedCompatProfileMeta.value.note}
+            </p>
+          </label>
+        ) : null}
 
         <label class="field">
           <span>Base URL</span>
@@ -235,6 +353,105 @@ export default defineComponent({
           value={props.provider.headers}
           onChange={(headers) => updateProvider({ headers })}
         />
+
+        {props.provider.type === "openai_compatible" ||
+        props.provider.type === "mistral" ? (
+          <div
+            class={[
+              "space-y-3 rounded-xl border p-3",
+              reasoningPanelTone.value,
+            ].join(" ")}
+          >
+            <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+              Reasoning
+            </div>
+
+            {reasoningModeSupported.value ? (
+              <label class="field">
+                <span>Reasoning Mode</span>
+                <select
+                  class="input"
+                  value={props.provider.reasoningMode || "provider_default"}
+                  onChange={(e) =>
+                    updateProvider({
+                      reasoningMode: (e.target as HTMLSelectElement)
+                        .value as AIProviderSetting["reasoningMode"],
+                    })
+                  }
+                >
+                  <option value="provider_default">跟随 Provider / 模型默认</option>
+                  <option value="enabled">显式开启</option>
+                  <option value="disabled">显式关闭</option>
+                </select>
+              </label>
+            ) : (
+              <div class="rounded-lg bg-white/70 px-3 py-2 text-xs text-slate-600 dark:bg-slate-900/30 dark:text-slate-300">
+                当前 profile 不提供统一的 reasoning 开关。请按供应商模型能力或模型名称选择 chat / thinking 变体。
+              </div>
+            )}
+
+            {reasoningEffortSupported.value ? (
+              <label class="field">
+                <span>Reasoning Effort</span>
+                <select
+                  class="input"
+                  value={props.provider.reasoningEffort || "provider_default"}
+                  disabled={
+                    props.provider.type === "mistral" &&
+                    props.provider.reasoningMode === "disabled"
+                  }
+                  onChange={(e) =>
+                    updateProvider({
+                      reasoningEffort: (e.target as HTMLSelectElement)
+                        .value as AIProviderSetting["reasoningEffort"],
+                    })
+                  }
+                >
+                  {reasoningEffortOptions.value.map((option) => (
+                    <option value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                {props.provider.type === "mistral" ? (
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    Mistral 当前仅建议暴露稳定的 effort 选项；关闭 reasoning 时该项不生效。
+                  </p>
+                ) : null}
+              </label>
+            ) : null}
+
+            {reasoningBudgetSupported.value ? (
+              <label class="field">
+                <span>Reasoning Budget</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={
+                    typeof props.provider.reasoningBudget === "number"
+                      ? String(props.provider.reasoningBudget)
+                      : ""
+                  }
+                  placeholder="例如 1024"
+                  onInput={(e) => {
+                    const value = (e.target as HTMLInputElement).value.trim();
+                    updateProvider({
+                      reasoningBudget: value ? Number(value) : undefined,
+                    });
+                  }}
+                />
+              </label>
+            ) : null}
+
+            <p class="text-xs text-slate-600 dark:text-slate-300">
+              {reasoningSummary.value}
+            </p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {props.provider.type === "mistral"
+                ? "官方 Mistral provider 和 openai-compatible 供应商是两条不同接入路径，不应混用。"
+                : selectedCompatProfileMeta.value.note}
+            </p>
+          </div>
+        ) : null}
 
         <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-800/40">
           <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">

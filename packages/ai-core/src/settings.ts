@@ -5,14 +5,43 @@ export const AI_PROVIDER_TYPES = [
   "openai_responses",
   "gemini",
   "anthropic",
-  "moonshot",
-  "qwen",
-  "ollama",
-  "vllm",
-  "llama_cpp",
+  "mistral",
 ] as const
 
 export type AIProviderType = (typeof AI_PROVIDER_TYPES)[number]
+
+export const OPENAI_COMPATIBLE_PROFILES = [
+  "auto",
+  "deepseek",
+  "moonshot",
+  "glm",
+  "qwen",
+  "minimax",
+  "longcat",
+  "mimo",
+  "custom",
+] as const
+
+export type OpenAICompatibleProfile =
+  (typeof OPENAI_COMPATIBLE_PROFILES)[number]
+
+export const AI_REASONING_MODES = [
+  "provider_default",
+  "enabled",
+  "disabled",
+] as const
+
+export type AIReasoningMode = (typeof AI_REASONING_MODES)[number]
+
+export const AI_REASONING_EFFORT_SETTINGS = [
+  "provider_default",
+  "low",
+  "medium",
+  "high",
+] as const
+
+export type AIReasoningEffortSetting =
+  (typeof AI_REASONING_EFFORT_SETTINGS)[number]
 
 export const MAX_OUTPUT_TOKEN_PARAMS = [
   "max_tokens",
@@ -76,6 +105,10 @@ export interface AIProviderSetting {
   type: AIProviderType
   enabled: boolean
   streamingEnabled?: boolean
+  compatProfile?: OpenAICompatibleProfile
+  reasoningMode?: AIReasoningMode
+  reasoningEffort?: AIReasoningEffortSetting
+  reasoningBudget?: number
   baseUrl: string
   apiKey: string
   headers: string

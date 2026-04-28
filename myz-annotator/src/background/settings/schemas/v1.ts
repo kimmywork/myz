@@ -1,6 +1,9 @@
 import { z } from "zod";
 import {
   AI_PROVIDER_TYPES,
+  AI_REASONING_EFFORT_SETTINGS,
+  AI_REASONING_MODES,
+  OPENAI_COMPATIBLE_PROFILES,
   AI_TOOL_CHOICE_MODES,
   AI_TOOL_FLAG_SETTINGS,
   AI_TOOL_SELECTION_MODES,
@@ -63,6 +66,10 @@ const AIProviderSettingSchema = z.object({
   type: z.enum(AI_PROVIDER_TYPES),
   enabled: z.boolean(),
   streamingEnabled: z.boolean().optional(),
+  compatProfile: z.enum(OPENAI_COMPATIBLE_PROFILES).optional(),
+  reasoningMode: z.enum(AI_REASONING_MODES).optional(),
+  reasoningEffort: z.enum(AI_REASONING_EFFORT_SETTINGS).optional(),
+  reasoningBudget: z.number().optional(),
   baseUrl: z.string(),
   apiKey: z.string(),
   headers: z.string(),

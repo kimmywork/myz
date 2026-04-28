@@ -13,6 +13,7 @@ import { readSettings } from "../../storage.js";
 import { normalizeMessagePayload } from "../normalize/message.js";
 import { buildConversationPromptMessages } from "../prompt/conversation.js";
 import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js";
+import { shouldReplayOpenAICompatibleReasoning } from "../runtime/openaiCompatible.js";
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
@@ -23,7 +24,6 @@ import type {
   ProviderToolChoice,
   ProviderToolCall,
 } from "../providers/types.js";
-import { listSkills } from "../skills/storage.js";
 import type {
   Message,
   MessageInPayload,
@@ -38,8 +38,9 @@ import {
   type TaskItem,
   type TaskPlan,
 } from "../tasks/taskManager.js";
+import { normalizeTokenUsage } from "@myz/ai-core/tokenUsage";
 import type { JsonRecord } from "@myz/shared/typeUtils";
-import { isRecord, toJsonRecord } from "@myz/shared/typeUtils";
+import { isRecord } from "@myz/shared/typeUtils";
 
 const AUTO_CONTINUE_MAX_TURNS = 4;
 const REQUIRE_USER_INPUT_MARKER = "[REQUIRE_USER_INPUT]";
@@ -92,16 +93,15 @@ function buildTaskPlanSummary(plan?: TaskPlan | null) {
   const lines = plan.tasks.map((task, index: number) => {
     const title = task?.title || "未命名任务";
     const status = task?.status || "pending";
-    const deliverables = Array.isArray(task?.deliverables)
-      ? task.deliverables
-          .map((deliverable) => {
-            const desc = deliverable?.description || "交付物";
-            const dStatus = deliverable?.status || "pending";
-            return `${desc}(${dStatus})`;
-          })
-          .join("; ")
-      : "";
-    const suffix = deliverables ? ` - 交付物: ${deliverables}` : "";
+    const suffixParts = [
+      typeof task?.summary === "string" && task.summary
+        ? `摘要: ${task.summary}`
+        : "",
+      typeof task?.outcome === "string" && task.outcome
+        ? `结果: ${task.outcome}`
+        : "",
+    ].filter(Boolean);
+    const suffix = suffixParts.length ? ` - ${suffixParts.join("；")}` : "";
     return `${index + 1}. ${title} [${status}]${suffix}`;
   });
   return lines.join("\n");
@@ -155,10 +155,7 @@ function getCurrentTask(plan?: TaskPlan | null): TaskItem | null {
 
 function buildTaskExecutionDirective(plan?: TaskPlan | null) {
   if (!plan || !plan.tasks.length) return "";
-  const original =
-    typeof plan.originalUserRequest === "string"
-      ? plan.originalUserRequest.trim()
-      : "";
+  const original = typeof plan.goal === "string" ? plan.goal.trim() : "";
   const currentTask = getCurrentTask(plan);
   const currentTitle =
     typeof currentTask?.title === "string" ? currentTask.title.trim() : "";
@@ -173,26 +170,24 @@ function buildTaskExecutionDirective(plan?: TaskPlan | null) {
         .map((skill) => (typeof skill === "string" ? skill.trim() : ""))
         .filter(Boolean)
     : [];
-  const deliverables = Array.isArray(currentTask?.deliverables)
-    ? currentTask.deliverables
-        .map((deliverable) =>
-          typeof deliverable?.description === "string"
-            ? deliverable.description.trim()
-            : "",
-        )
+  const notes = Array.isArray(currentTask?.notes)
+    ? currentTask.notes
+        .map((note) => (typeof note === "string" ? note.trim() : ""))
         .filter(Boolean)
     : [];
+  const summary =
+    typeof currentTask?.summary === "string" ? currentTask.summary.trim() : "";
 
   return [
-    "执行指令：严格按任务列表执行并使用 Task 更新进度与交付物。",
+    "执行指令：严格按任务列表执行，并使用 Task 更新状态、摘要、备注和结果。",
     "默认做合理假设并继续，仅在需要账号/权限或高风险操作时提问。",
-    "必要时可调用 PromptingAgent 处理一次性子任务，再回到当前任务继续执行。",
     original ? `原始请求：${original}` : "",
     currentTitle ? `当前任务：${currentTitle}` : "",
     owner ? `执行角色：${owner}` : "",
     category ? `任务类别：${category}` : "",
+    summary ? `任务摘要：${summary}` : "",
     skills.length ? `建议技能：${skills.join(", ")}` : "",
-    deliverables.length ? `当前交付物：${deliverables.join("; ")}` : "",
+    notes.length ? `任务备注：${notes.slice(-3).join("; ")}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -385,14 +380,30 @@ function hasPendingTasks(plan?: TaskPlan | null) {
     });
   };
   return plan.tasks.some((task) => {
-    if (task?.status !== "done" && !isBlocked(task)) return true;
-    const deliverables = Array.isArray(task?.deliverables)
-      ? task.deliverables
-      : [];
-    return deliverables.some(
-      (deliverable) => deliverable?.status !== "done",
-    );
+    return task?.status !== "done" && !isBlocked(task);
   });
+}
+
+function extractSkillListFromMetadata(messages: Message[]) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message?.role !== "user") continue;
+    const raw = Array.isArray(message.metadata?.skillList)
+      ? message.metadata.skillList
+      : [];
+    const normalized = raw
+      .map((item) => (isRecord(item) ? item : {}))
+      .map((item) => ({
+        name: typeof item.name === "string" ? item.name.trim() : "",
+        description:
+          typeof item.description === "string" ? item.description.trim() : "",
+      }))
+      .filter((item) => item.name);
+    if (normalized.length) {
+      return normalized;
+    }
+  }
+  return [];
 }
 
 function hasUserInputMarker(text: string) {
@@ -456,6 +467,31 @@ function applyContinuationPrompt(messages: Message[], prompt: string) {
   return next;
 }
 
+function shouldIncludeAssistantReasoningForReplay(
+  message: Message,
+  provider: AIProviderSetting,
+) {
+  if (
+    !shouldReplayOpenAICompatibleReasoning({
+      type: provider?.type,
+      baseUrl: provider?.baseUrl,
+    })
+  ) {
+    return false
+  }
+  if (typeof message?.reasoning_content !== "string" || !message.reasoning_content) {
+    return false
+  }
+  const sourceProviderId =
+    typeof message.metadata?.providerId === "string"
+      ? message.metadata.providerId
+      : ""
+  if (sourceProviderId && sourceProviderId !== provider.id) {
+    return false
+  }
+  return true
+}
+
 export interface ConversationCallConfig {
   provider: AIProviderSetting;
   model: AIModelSetting;
@@ -510,32 +546,12 @@ export class ConversationAgent {
     if (alreadyExists) return null;
 
     const nowDate = new Date();
-    let timeZone = "UTC";
-    try {
-      timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    } catch {
-      timeZone = "UTC";
-    }
-    const offsetMinutes = -nowDate.getTimezoneOffset();
-    const absOffsetMinutes = Math.abs(offsetMinutes);
-    const offsetSign = offsetMinutes >= 0 ? "+" : "-";
-    const offsetHours = String(Math.floor(absOffsetMinutes / 60)).padStart(
-      2,
-      "0",
-    );
-    const offsetMins = String(absOffsetMinutes % 60).padStart(2, "0");
-    const utcOffset = `UTC${offsetSign}${offsetHours}:${offsetMins}`;
-    const injectedAtLocal = (() => {
+    const injectedDateLocal = (() => {
       try {
         const parts = new Intl.DateTimeFormat("zh-CN", {
-          timeZone,
           year: "numeric",
           month: "2-digit",
           day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
         }).formatToParts(nowDate);
         const map: Record<string, string> = {};
         for (const part of parts) {
@@ -543,11 +559,9 @@ export class ConversationAgent {
             map[part.type] = part.value;
           }
         }
-        const datePart = `${map.year || "0000"}-${map.month || "00"}-${map.day || "00"}`;
-        const timePart = `${map.hour || "00"}:${map.minute || "00"}:${map.second || "00"}`;
-        return `${datePart} ${timePart}`;
+        return `${map.year || "0000"}-${map.month || "00"}-${map.day || "00"}`;
       } catch {
-        return nowDate.toLocaleString("zh-CN", { hour12: false });
+        return nowDate.toISOString().slice(0, 10);
       }
     })();
 
@@ -580,26 +594,10 @@ export class ConversationAgent {
         superpowerEnabled = false;
       }
     }
-    let skillBlock = "";
-    if (superpowerEnabled) {
-      try {
-        const skills = await listSkills();
-        const enabledSkills = skills.filter((skill) => skill.enabled);
-        skillBlock = buildSkillListBlock(
-          enabledSkills.map((skill) => ({
-            name: skill.name,
-            description: skill.description,
-          })),
-        );
-      } catch {
-        skillBlock = "";
-      }
-    }
-
     const baseLines = [
       "你是浏览器智能助理，运行于 Chrome Extension / MV3。",
       "优先用工具获取事实；需要最新信息时使用 WebSearch/WebFetch。",
-      `当前时间: ${injectedAtLocal} (${timeZone}, ${utcOffset})`,
+      `当前日期: ${injectedDateLocal}`,
       `本次对话创建时是否启用网页上下文: ${includePageContext ? "是" : "否"}`,
       `当前线程是否已保存网页上下文: ${hasSavedPageContext ? "是" : "否"}`,
     ];
@@ -609,11 +607,10 @@ export class ConversationAgent {
           "Superpower Mode 已启用：可控制标签页与页面元素。",
           `只有在确需用户输入时才可提问，且问题前必须输出 ${REQUIRE_USER_INPUT_MARKER}。`,
           "截图成本高，仅在必要时使用。",
-          "必须使用 Task 跟踪任务与交付物。",
-          "Superpower Mode 默认启用全部技能，可用 Read 访问 /skills/。",
-          "优先遵循 /skills/browser-operations/SKILL.md。",
+          "必须使用 Task 跟踪任务计划和执行进度。",
+          "复杂任务先 Read /skills/planning-mode/SKILL.md，再在主对话内完成规划和执行。",
+          "浏览器操作优先遵循 /skills/browser-operations/SKILL.md。",
           "EvalInPage 可能受 CSP 限制，失败时改用 RunDomActions / GetPageContext。",
-          skillBlock,
         ]
       : [];
 
@@ -626,10 +623,7 @@ export class ConversationAgent {
       metadata: {
         type: "system_prompt",
         injectedAt,
-        injectedAtLocal,
-        timeZone,
-        utcOffset,
-        utcOffsetMinutes: offsetMinutes,
+        injectedDateLocal,
         includePageContextAtCreation: includePageContext,
         hasSavedPageContext,
       },
@@ -969,26 +963,12 @@ export class ConversationAgent {
     const conversation =
       conversationSnapshot || (await getConversation(conversationId));
     const taskPlan = normalizeTaskPlanPayload(conversation?.metadata?.taskPlan);
-    let skillBlock = "";
-    if (superpowerEnabled) {
-      try {
-        const skills = await listSkills();
-        const enabledSkills = skills.filter((skill) => skill.enabled);
-        skillBlock = buildSkillListBlock(
-          enabledSkills.map((skill) => ({
-            name: skill.name,
-            description: skill.description,
-          })),
-        );
-      } catch {
-        skillBlock = "";
-      }
-    }
+    const selectedSkillBlock = buildSkillListBlock(
+      extractSkillListFromMetadata(payloadMessages),
+    );
 
     const shouldExecuteTasks =
-      superpowerEnabled &&
-      taskPlan &&
-      ["executing", "needs_rework"].includes(taskPlan.status);
+      superpowerEnabled && taskPlan && taskPlan.status === "executing";
     const currentTask = shouldExecuteTasks ? getCurrentTask(taskPlan) : null;
     const owner =
       typeof currentTask?.owner === "string" ? currentTask.owner : "";
@@ -1043,95 +1023,17 @@ export class ConversationAgent {
       }
     }
 
-    if (superpowerEnabled && !taskPlan) {
-      const systemPromptIndex = payloadMessages.findIndex(
-        (msg) =>
-          msg.role === "system" && msg.metadata?.type === "system_prompt",
-      );
-      const superpowerPrompt = [
-        "Superpower Mode 已启用。",
-        "必须使用 Task 跟踪任务与交付物。",
-        '调用 Task 时必须提供 action 字段，例如 {"action":"get"}。',
-        `仅在确需用户输入时提问，且问题前必须输出 ${REQUIRE_USER_INPUT_MARKER}。`,
-        "默认启用全部技能，可用 Read 访问 /skills/。",
-        "优先遵循 /skills/browser-operations/SKILL.md。",
-        "截图用 RunDomActions.captureViewport，谨慎使用。",
-        "EvalInPage 受 CSP 限制时改用 RunDomActions / GetPageContext。",
-        skillBlock,
-      ].join("\n");
-      if (systemPromptIndex >= 0) {
-        const existingPrompt = payloadMessages[systemPromptIndex];
-        const existingContent = String(existingPrompt.content || "");
-        const needsSuperpowerPrompt =
-          !existingContent.includes("Superpower Mode");
-        const needsSkillBlock =
-          Boolean(skillBlock) &&
-          !existingContent.includes("<available_skills>");
-        const additions: string[] = [];
-        if (needsSuperpowerPrompt) {
-          additions.push(superpowerPrompt);
-        } else if (needsSkillBlock) {
-          additions.push(skillBlock);
-        }
-        payloadMessages[systemPromptIndex] = {
-          ...existingPrompt,
-          content: additions.length
-            ? [existingContent, ...additions].filter(Boolean).join("\n\n")
-            : existingPrompt.content,
+    if (superpowerEnabled && selectedSkillBlock) {
+      for (let i = payloadMessages.length - 1; i >= 0; i -= 1) {
+        const message = payloadMessages[i];
+        if (message?.role !== "user") continue;
+        const baseText =
+          typeof message.content === "string" ? message.content : "";
+        payloadMessages[i] = {
+          ...message,
+          content: [baseText, selectedSkillBlock].filter(Boolean).join("\n\n"),
         };
-      } else {
-        payloadMessages.unshift({
-          id: generateId("sys"),
-          conversationId,
-          role: "system",
-          content: superpowerPrompt,
-          timestamp: new Date().toISOString(),
-          metadata: { type: "system_prompt" },
-        });
-      }
-    }
-    if (shouldExecuteTasks) {
-      const taskPlanPrompt = [
-        "Superpower Mode 已启用。",
-        "任务计划是唯一执行依据；严格按顺序执行。",
-        "开始执行前必须 Task.get 获取完整任务列表。",
-        '调用 Task 时必须提供 action 字段，例如 {"action":"get"}。',
-        "需要工具时必须实际发起 tool call，不得只描述。",
-        `仅在确需用户输入时提问，且问题前必须输出 ${REQUIRE_USER_INPUT_MARKER}。`,
-        "默认启用全部技能，可用 Read 访问 /skills/。",
-        "优先遵循 /skills/browser-operations/SKILL.md。",
-        "截图用 RunDomActions.captureViewport，谨慎使用。",
-        "EvalInPage 受 CSP 限制时改用 RunDomActions / GetPageContext。",
-        skillBlock,
-      ].join("\n");
-      const systemPromptIndex = payloadMessages.findIndex(
-        (msg) =>
-          msg.role === "system" && msg.metadata?.type === "system_prompt",
-      );
-      if (systemPromptIndex >= 0) {
-        const existingPrompt = payloadMessages[systemPromptIndex];
-        const existingContent = String(existingPrompt.content || "");
-        const needsSkillBlock =
-          Boolean(skillBlock) &&
-          !existingContent.includes("<available_skills>");
-        const promptText = needsSkillBlock
-          ? taskPlanPrompt
-          : taskPlanPrompt.replace(skillBlock, "").trim();
-        payloadMessages[systemPromptIndex] = {
-          ...existingPrompt,
-          content: [existingPrompt.content, promptText]
-            .filter(Boolean)
-            .join("\n\n"),
-        };
-      } else {
-        payloadMessages.unshift({
-          id: generateId("sys"),
-          conversationId,
-          role: "system",
-          content: taskPlanPrompt,
-          timestamp: new Date().toISOString(),
-          metadata: { type: "system_prompt" },
-        });
+        break;
       }
     }
     const runCompletion = async (options: {
@@ -1144,6 +1046,11 @@ export class ConversationAgent {
         injectSystemPromptAsUserMessage(
           buildConversationPromptMessages(options.messages, {
             includeVision: deps.callConfig.model.capabilities.vision,
+            includeAssistantReasoning: (message) =>
+              shouldIncludeAssistantReasoningForReplay(
+                message,
+                deps.callConfig.provider,
+              ),
           }),
           Boolean(deps.callConfig.model?.systemPromptInUserMessage),
         );
@@ -1220,6 +1127,9 @@ export class ConversationAgent {
         const completionOptions: ProviderStreamOptions & {
           dynamicToolSelection?: DynamicToolSelection | null;
         } = {
+          enableReasoning: Boolean(
+            deps.callConfig.model.capabilities.reasoning,
+          ),
           enableGeminiThinking: Boolean(
             deps.callConfig.model.capabilities.reasoning,
           ),
@@ -1274,9 +1184,7 @@ export class ConversationAgent {
       }
 
       const message = response?.choices?.[0]?.message;
-      const usage = isRecord(response?.usage)
-        ? toJsonRecord(response?.usage)
-        : null;
+      const usage = normalizeTokenUsage(response?.usage) || null;
       const requestCompletedAt = Date.now();
       const requestDurationMs = Math.max(
         0,
@@ -1400,7 +1308,7 @@ export class ConversationAgent {
 
         const continuationPrompt = [
           "继续执行任务，不要等待用户输入。",
-          "如需工具，立即发起 tool call，并及时更新任务与交付物状态。",
+          "如需工具，立即发起 tool call，并及时更新任务状态、摘要、备注和结果。",
           "当前任务计划概要:",
           buildTaskPlanSummary(latestPlan),
         ].join("\n");

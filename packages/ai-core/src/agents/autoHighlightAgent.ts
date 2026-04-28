@@ -379,6 +379,9 @@ export class AutoHighlightAgent {
           messages,
         },
         {
+          enableReasoning: Boolean(
+            deps.callConfig.model.capabilities.reasoning,
+          ),
           enableGeminiThinking: Boolean(
             deps.callConfig.model.capabilities.reasoning,
           ),

@@ -4,6 +4,7 @@ import {
   buildModelsUrl,
   buildProviderHeaders,
   extractOpenAICompatibleModels,
+  shouldReplayOpenAICompatibleReasoning,
 } from "../runtime/openaiCompatible"
 import {
   AnthropicJsonClient,
@@ -11,7 +12,7 @@ import {
   buildAnthropicModelsUrl,
   extractAnthropicModels,
 } from "./anthropic/jsonClient"
-import { createQwenThinkingCapability } from "./capabilities/qwenThinking"
+import { createGoogleGeminiThinkingCapability } from "./capabilities/googleGemini"
 import { createReasoningNormalizationCapability } from "./capabilities/reasoning"
 import { createToolCallingCapability } from "./capabilities/toolCalling"
 import { composeCapabilities } from "./capability"
@@ -20,40 +21,41 @@ import type { ProviderChatCompletionRequest } from "./types"
 import { createOpenAICompatibleClients } from "./factory"
 import {
   GeminiJsonClient,
-  buildGeminiHeaders,
-  buildGeminiModelsUrl,
+  createGeminiSdkClient,
   extractGeminiModels,
 } from "./gemini/jsonClient"
 import {
-  OllamaJsonClient,
-  buildOllamaHeaders,
-  buildOllamaTagsUrl,
-  extractOllamaModels,
-} from "./ollama/jsonClient"
+  MistralJsonClient,
+  buildMistralHeaders,
+  buildMistralSdkBaseUrl,
+  createMistralSdkClient,
+  extractMistralModels,
+} from "./mistral/jsonClient"
 import { OpenAIResponsesJsonClient } from "./openaiResponses/jsonClient"
 import { isRecord } from "@myz/shared/typeUtils"
+import OpenAI from "openai"
+import Anthropic from "@anthropic-ai/sdk"
 
 export function createProviderClients(
   provider: AIProviderSetting,
   tooling?: ProviderToolingOptions,
 ): ProviderClients {
   switch (provider.type) {
-    case "openai_compatible":
-    case "moonshot":
-    case "qwen":
-    case "vllm":
-    case "llama_cpp": {
+    case "openai_compatible": {
       const endpoint = buildChatCompletionsUrl(provider.baseUrl)
       const headers = buildProviderHeaders(provider.apiKey, provider.headers)
-      const extraCapabilities =
-        provider.type === "qwen" ? [createQwenThinkingCapability()] : []
       return createOpenAICompatibleClients(
         {
           endpoint: () => endpoint,
           buildHeaders: () => headers,
         },
         tooling,
-        { extraCapabilities },
+        {
+          provider,
+          enableStreaming: provider.streamingEnabled !== false,
+          replayAssistantReasoning:
+            shouldReplayOpenAICompatibleReasoning(provider),
+        },
       )
     }
     case "openai_responses": {
@@ -82,6 +84,7 @@ export function createProviderClients(
         headers: () => provider.headers,
       })
       const client = composeCapabilities(baseClient, [
+        createGoogleGeminiThinkingCapability(),
         createReasoningNormalizationCapability(),
       ])
       const clientWithTools = tooling
@@ -113,10 +116,12 @@ export function createProviderClients(
         : client
       return { client, clientWithTools }
     }
-    case "ollama": {
-      const baseClient = new OllamaJsonClient({
+    case "mistral": {
+      const baseClient = new MistralJsonClient({
         baseUrl: () => provider.baseUrl,
+        apiKey: () => provider.apiKey,
         headers: () => provider.headers,
+        provider,
       })
       const client = composeCapabilities(baseClient, [
         createReasoningNormalizationCapability(),
@@ -132,15 +137,7 @@ export function createProviderClients(
       return { client, clientWithTools }
     }
     default: {
-      const endpoint = buildChatCompletionsUrl(provider.baseUrl)
-      const headers = buildProviderHeaders(provider.apiKey, provider.headers)
-      return createOpenAICompatibleClients(
-        {
-          endpoint: () => endpoint,
-          buildHeaders: () => headers,
-        },
-        tooling,
-      )
+      throw new Error(`Unsupported provider type: ${String(provider.type)}`)
     }
   }
 }
@@ -154,72 +151,70 @@ export async function fetchProviderModels(payload: {
   const { type, baseUrl, apiKey, headers = "" } = payload
   switch (type) {
     case "gemini": {
-      const url = buildGeminiModelsUrl(baseUrl)
-      const response = await fetch(url, {
-        method: "GET",
-        headers: buildGeminiHeaders(apiKey, headers),
-      })
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(
-          `Fetch models failed: ${response.status} ${response.statusText} - ${errorText}`,
-        )
+      try {
+        const client = createGeminiSdkClient({
+          baseUrl,
+          apiKey,
+          headers,
+        })
+        const pager = await client.models.list()
+        return extractGeminiModels(pager.page)
+      } catch (error) {
+        throw new Error(`Fetch models failed: ${(error as Error).message}`)
       }
-      return extractGeminiModels(await response.json())
     }
     case "anthropic": {
-      const url = buildAnthropicModelsUrl(baseUrl)
-      const response = await fetch(url, {
-        method: "GET",
-        headers: buildAnthropicHeaders(apiKey, headers),
+      const client = new BrowserAnthropicRegistryClient({
+        apiKey: apiKey || null,
+        authToken: null,
+        baseURL: buildAnthropicModelsUrl(baseUrl).replace(/\/models\/?$/, ""),
+        defaultHeaders: buildAnthropicHeaders(apiKey, headers),
+        dangerouslyAllowBrowser: true,
       })
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(
-          `Fetch models failed: ${response.status} ${response.statusText} - ${errorText}`,
-        )
-      }
-      return extractAnthropicModels(await response.json())
+      return extractAnthropicModels(await client.models.list())
     }
-    case "ollama": {
-      const url = buildOllamaTagsUrl(baseUrl)
-      const response = await fetch(url, {
-        method: "GET",
-        headers: buildOllamaHeaders(headers),
+    case "mistral": {
+      const client = createMistralSdkClient({
+        baseUrl,
+        apiKey,
+        headers,
       })
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(
-          `Fetch models failed: ${response.status} ${response.statusText} - ${errorText}`,
-        )
-      }
-      return extractOllamaModels(await response.json())
+      return extractMistralModels(
+        await client.models.list(undefined, {
+          serverURL: buildMistralSdkBaseUrl(baseUrl),
+          headers: buildMistralHeaders(headers),
+        }),
+      )
     }
     case "openai_compatible":
-    case "openai_responses":
-    case "moonshot":
-    case "qwen":
-    case "vllm":
-    case "llama_cpp":
-    default: {
-      const url = buildModelsUrl(baseUrl)
-      const response = await fetch(url, {
-        method: "GET",
-        headers: buildProviderHeaders(apiKey, headers),
+    case "openai_responses": {
+      const client = new BrowserOpenAIRegistryClient({
+        apiKey: apiKey || "myz-openai-compatible-placeholder",
+        baseURL: buildModelsUrl(baseUrl).replace(/\/models\/?$/, ""),
+        defaultHeaders: buildProviderHeaders(apiKey, headers),
+        dangerouslyAllowBrowser: true,
       })
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(
-          `Fetch models failed: ${response.status} ${response.statusText} - ${errorText}`,
-        )
-      }
-      return extractOpenAICompatibleModels(await response.json())
+      return extractOpenAICompatibleModels(await client.models.list())
+    }
+    default: {
+      throw new Error(`Unsupported provider type: ${String(type)}`)
     }
   }
 }
 
 export async function testProviderConnection(payload: {
-  provider: Pick<AIProviderSetting, "baseUrl" | "apiKey" | "headers" | "type">
+  provider: Pick<
+    AIProviderSetting,
+    | "baseUrl"
+    | "apiKey"
+    | "headers"
+    | "type"
+    | "streamingEnabled"
+    | "compatProfile"
+    | "reasoningMode"
+    | "reasoningEffort"
+    | "reasoningBudget"
+  >
   model: string
   maxOutputTokens?: number
   maxOutputTokenParam?: MaxOutputTokenParam
@@ -252,6 +247,7 @@ export async function testProviderConnection(payload: {
       },
     ],
     temperature: 0.0,
+    stream: provider.streamingEnabled !== false,
   }
   if (maxOutputTokenParam === "max_completion_tokens") {
     request.max_completion_tokens = maxOutputTokens
@@ -282,5 +278,25 @@ export async function testProviderConnection(payload: {
     return { success: true, response: text }
   } catch (error) {
     return { success: false, error: (error as Error).message }
+  }
+}
+
+class BrowserOpenAIRegistryClient extends OpenAI {
+  protected override validateHeaders() {
+    return
+  }
+
+  protected override async authHeaders() {
+    return undefined
+  }
+}
+
+class BrowserAnthropicRegistryClient extends Anthropic {
+  protected override validateHeaders() {
+    return
+  }
+
+  protected override async authHeaders() {
+    return undefined
   }
 }

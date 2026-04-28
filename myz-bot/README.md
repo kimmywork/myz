@@ -2,6 +2,21 @@
 
 `myz-bot` 是一个通过 Telegram 与用户交互的命令行 bot。
 
+支持的 LLM provider 仅保留：
+- `openai_compatible`
+- `openai_responses`
+- `gemini`
+- `anthropic`
+- `mistral`
+
+`myz-bot` 通过 `@myz/ai-core` 复用统一的 provider session，因此会继承各官方 SDK 客户端的 streaming、tool calling、reasoning 归一化和 provider-specific 请求整形。
+
+`openai_compatible` 需要通过 `compatProfile` 区分供应商能力：
+- Tier 1：`deepseek` / `moonshot` / `glm`
+- Tier 2：`qwen` / `minimax` / `longcat` / `mimo` / `custom`
+
+`mistral` 走官方 `@mistralai/mistralai` SDK 路线，不通过 `openai_compatible` 兼容层。
+
 ## Usage
 
 ```bash
