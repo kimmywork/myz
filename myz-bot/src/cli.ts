@@ -3,7 +3,6 @@ import { serveBot } from "./index"
 import { initWorkspace } from "./init"
 import { checkConfig } from "./check"
 import { launchBot } from "./launch"
-import { formatLayoutMigrationResult, migrateLegacyLayout } from "./migrateLayout"
 import {
   applyUpgrade,
   checkForUpgrade,
@@ -22,9 +21,12 @@ program
   .command("serve", { isDefault: true })
   .description("Start telegram bot")
   .option("-w, --workspace <path>", "Workspace path")
-  .action(async (options: { workspace?: string }) => {
+  .option("--tui", "Force-enable terminal dashboard")
+  .option("--no-tui", "Disable terminal dashboard")
+  .action(async (options: { workspace?: string; tui?: boolean }) => {
     await serveBot({
       workspaceRoot: options.workspace,
+      enableTui: options.tui,
     })
   })
 
@@ -53,10 +55,13 @@ program
   .description("Run the built-in launcher supervisor")
   .option("-w, --workspace <path>", "Workspace path")
   .option("--handoff <token>", "Internal handoff token")
-  .action(async (options: { workspace?: string; handoff?: string }) => {
+  .option("--tui", "Force-enable terminal dashboard in worker")
+  .option("--no-tui", "Disable terminal dashboard in worker")
+  .action(async (options: { workspace?: string; handoff?: string; tui?: boolean }) => {
     await launchBot({
       workspaceRoot: options.workspace,
       handoffToken: options.handoff,
+      enableTui: options.tui,
     })
   })
 
@@ -112,17 +117,6 @@ program
     }
 
     throw new Error(`unknown upgrade action: ${action}`)
-  })
-
-program
-  .command("migrate-layout")
-  .description("Migrate legacy root layout into runtime/workspace split")
-  .option("-w, --workspace <path>", "Workspace path")
-  .action(async (options: { workspace?: string }) => {
-    const result = migrateLegacyLayout({
-      workspaceRoot: options.workspace,
-    })
-    console.log(formatLayoutMigrationResult(result))
   })
 
 program.parseAsync(process.argv).catch((error) => {

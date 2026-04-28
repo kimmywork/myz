@@ -3,7 +3,9 @@ import { resolve, join } from "node:path"
 
 export interface SkillSource {
   id: string
-  dir: string
+  kind?: "filesystem" | "inline"
+  dir?: string
+  skills?: Record<string, Record<string, string>>
   readonly?: boolean
 }
 
@@ -80,7 +82,22 @@ export function listSkills(
   const { allowlist, denylist } = toPolicySets(options)
   for (const source of sources) {
     if (options.sourceId && source.id !== options.sourceId) continue
-    if (!existsSync(source.dir)) continue
+    if (source.kind === "inline") {
+      const skillMap = source.skills || {}
+      for (const [skillName, files] of Object.entries(skillMap)) {
+        const content = typeof files?.["SKILL.md"] === "string" ? files["SKILL.md"] : ""
+        if (!content) continue
+        const skill = {
+          name: skillName,
+          description: extractDescription(content),
+          sourceId: source.id,
+        }
+        if (!isSkillAllowed(skill, allowlist, denylist)) continue
+        results.push(skill)
+      }
+      continue
+    }
+    if (!source.dir || !existsSync(source.dir)) continue
     const entries = readdirSync(source.dir, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
@@ -109,12 +126,15 @@ function findSkillSources(
   const candidates = sourceId
     ? sources.filter((source) => source.id === sourceId)
     : sources
-  return candidates.filter((source) =>
-    existsSync(resolve(source.dir, skillName, filePath)),
-  )
+  return candidates.filter((source) => {
+    if (source.kind === "inline") {
+      return typeof source.skills?.[skillName]?.[filePath] === "string"
+    }
+    return Boolean(source.dir) && existsSync(resolve(source.dir as string, skillName, filePath))
+  })
 }
 
-export function resolveSkillFile(
+function readSkillContentFromSource(
   sources: SkillSource[],
   skillName: string,
   filePath = "SKILL.md",
@@ -138,7 +158,15 @@ export function resolveSkillFile(
     },
     options,
   )
-  return resolve(matches[0].dir, skillName, filePath)
+  const source = matches[0]
+  if (source.kind === "inline") {
+    const content = source.skills?.[skillName]?.[filePath]
+    if (typeof content !== "string") {
+      throw new Error(`Skill file not found: ${skillName}/${filePath}`)
+    }
+    return content
+  }
+  return readFileSync(resolve(source.dir as string, skillName, filePath), "utf-8")
 }
 
 export function readSkillFile(
@@ -148,14 +176,7 @@ export function readSkillFile(
   sourceId?: string,
   options: SkillFilterOptions = {},
 ) {
-  const absolute = resolveSkillFile(
-    sources,
-    skillName,
-    filePath,
-    sourceId,
-    options,
-  )
-  return readFileSync(absolute, "utf-8")
+  return readSkillContentFromSource(sources, skillName, filePath, sourceId, options)
 }
 
 export type SkillPathInfo =

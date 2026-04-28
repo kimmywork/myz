@@ -8,13 +8,13 @@ import {
   getLlmHistoryPath,
   saveMetadata,
 } from "../src/conversations"
+import { getBuiltinSkillSource } from "../src/builtinSkills"
 import {
   approveElevatedPermissionRequest,
   createElevatedPermissionGrant,
   listElevatedPermissionRequests,
   revokeElevatedPermissionGrant,
 } from "../src/elevatedPermissions"
-import { touchRelationshipRecord } from "../src/relationships"
 import { createLocalTools } from "../src/tools"
 
 function extractText(result: { content: Array<{ type: string; text?: string }> }) {
@@ -23,86 +23,21 @@ function extractText(result: { content: Array<{ type: string; text?: string }> }
     .join("\n")
 }
 
-test("SendMessageToContact relays to a known private contact and records target history", async () => {
+test("createLocalTools does not expose Remember in the default tool surface", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
-  const conversationsDir = join(root, "conversations")
-  const sourceDir = ensureConversationDir(conversationsDir, "100-1")
-  const targetDir = ensureConversationDir(conversationsDir, "200-2")
-
-  saveMetadata(sourceDir, {
-    schemaVersion: "1.0.0",
-    conversationId: "100-1",
-    chatId: 100,
-    userId: 1,
-    scope: "private",
-    chatType: "private",
-    username: "alice",
-    firstName: "Alice",
-    lastName: "",
-    lastActorDisplayName: "Alice (@alice)",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  })
-  saveMetadata(targetDir, {
-    schemaVersion: "1.0.0",
-    conversationId: "200-2",
-    chatId: 200,
-    userId: 2,
-    scope: "private",
-    chatType: "private",
-    username: "bob",
-    firstName: "Bob",
-    lastName: "",
-    lastActorDisplayName: "Bob (@bob)",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  })
-  touchRelationshipRecord({
-    workspaceRoot: root,
-    conversationId: "200-2",
-    scope: "private",
-    chatId: 200,
-    actorUserId: 2,
-    username: "bob",
-    firstName: "Bob",
-    displayName: "Bob (@bob)",
-  })
-
-  const sent: Array<{ chatId: number; text: string }> = []
   const registry = createLocalTools({
     workspaceRoot: root,
     skillSources: [],
     memoryDir: join(root, "memory"),
-    conversationsDir,
-    telegram: {
-      sendMessage: async (chatId, text) => {
-        sent.push({ chatId, text })
-        return []
-      },
-    },
+    conversationsDir: join(root, "conversations"),
   })
 
-  const result = await registry.handlers.SendMessageToContact({
-    __conversationId: "100-1",
-    target: "bob",
-    message: [
-      "[转告自 Alice (@alice)]",
-      "原因：Alice 请我提醒你。",
-      "代 Alice 转告你一句：请记得今晚看一下日报。",
-    ].join("\n"),
-    reason: "Alice 请我提醒你。",
-  })
-
-  assert.equal(result.isError, undefined)
-  assert.equal(sent.length, 1)
-  assert.equal(sent[0]?.chatId, 200)
-  assert.equal(sent[0]?.text, "代 Alice 转告你一句：请记得今晚看一下日报。")
-
-  const historyFile = getLlmHistoryPath(targetDir)
-  assert.equal(existsSync(historyFile), true)
-  const history = readFileSync(historyFile, "utf-8")
-  assert.match(history, /outbound_relay/)
-  assert.match(history, /deliveredMessage/)
+  assert.equal(registry.definitions.some((tool) => tool.name === "Remember"), false)
+  assert.equal("Remember" in registry.handlers, false)
+  assert.equal(registry.definitions.some((tool) => tool.name === "ListKnownContacts"), false)
+  assert.equal(registry.definitions.some((tool) => tool.name === "SendMessageToContact"), false)
+  assert.equal("ListKnownContacts" in registry.handlers, false)
+  assert.equal("SendMessageToContact" in registry.handlers, false)
 })
 
 test("external path access creates permission request, notifies admin, and works after approval", async () => {
@@ -502,4 +437,85 @@ test("Read does not inject parent AGENTS outside workspace root", async () => {
   assert.doesNotMatch(text, /\[AGENTS instructions from/)
   assert.doesNotMatch(text, /父目录规则/)
   assert.match(text, /inside workspace/)
+})
+
+test("Read can access the inlined builtin planning-mode skill", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
+  const conversationsDir = join(root, "conversations")
+
+  const registry = createLocalTools({
+    workspaceRoot: root,
+    skillSources: [getBuiltinSkillSource()],
+    memoryDir: join(root, "memory"),
+    conversationsDir,
+  })
+
+  const result = await registry.handlers.Read({
+    path: "/skills/builtin/planning-mode/SKILL.md",
+    __conversationId: "100-1",
+  })
+
+  assert.equal(result.isError, undefined)
+  const text = extractText(result as { content: Array<{ type: string; text?: string }> })
+  assert.match(text, /复杂任务的主对话规划技能/)
+  assert.match(text, /Task\.init/)
+})
+
+test("Task manages a conversation-scoped plan", async () => {
+  const root = mkdtempSync(join(tmpdir(), "myz-bot-tools-"))
+  const conversationsDir = join(root, "conversations")
+
+  const registry = createLocalTools({
+    workspaceRoot: root,
+    skillSources: [getBuiltinSkillSource()],
+    memoryDir: join(root, "memory"),
+    conversationsDir,
+  })
+
+  const initResult = await registry.handlers.Task({
+    __conversationId: "100-1",
+    action: "init",
+    goal: "处理复杂任务",
+    tasks: [
+      { title: "先读技能说明", skills: ["planning-mode"] },
+      { title: "执行任务", blockedBy: ["1"] },
+    ],
+  })
+
+  assert.equal(initResult.isError, undefined)
+  const initText = extractText(initResult as { content: Array<{ type: string; text?: string }> })
+  assert.match(initText, /任务计划已初始化/)
+  assert.match(initText, /处理复杂任务/)
+  assert.match(initText, /先读技能说明/)
+
+  const listResult = await registry.handlers.Task({
+    __conversationId: "100-1",
+    action: "list",
+  })
+  assert.equal(listResult.isError, undefined)
+  const listText = extractText(listResult as { content: Array<{ type: string; text?: string }> })
+  assert.match(listText, /已获取 1 个任务。/)
+  assert.match(listText, /先读技能说明/)
+  assert.doesNotMatch(listText, /执行任务/)
+
+  const getResult = await registry.handlers.Task({
+    __conversationId: "100-1",
+    action: "get",
+  })
+  const getText = extractText(getResult as { content: Array<{ type: string; text?: string }> })
+  const ids = Array.from(getText.matchAll(/"id":\s*"([^"]+)"/g)).map((match) => match[1])
+  const taskId = ids[1]
+  assert.ok(taskId)
+
+  const updateResult = await registry.handlers.Task({
+    __conversationId: "100-1",
+    action: "update",
+    taskId,
+    status: "done",
+    summary: "已读完技能说明",
+  })
+  assert.equal(updateResult.isError, undefined)
+  const updateText = extractText(updateResult as { content: Array<{ type: string; text?: string }> })
+  assert.match(updateText, /任务状态已更新。/)
+  assert.match(updateText, /已读完技能说明/)
 })

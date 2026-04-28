@@ -9,12 +9,11 @@
 
 ## Commands
 
-- `serve -w <workspace>`: 直接启动 worker
-- `launch -w <workspace>`: 启动内置 launcher supervisor
+- `serve -w <workspace> [--tui|--no-tui]`: 直接启动 worker
+- `launch -w <workspace> [--tui|--no-tui]`: 启动内置 launcher supervisor
 - `init -w <workspace>`: 交互生成 runtime `bot.yml` 和 workspace Markdown 模板
 - `check -w <workspace>`: 检查 Telegram + LLM 连通性
 - `upgrade [status|check|apply] -w <workspace>`: 查询或申请升级
-- `migrate-layout -w <workspace>`: 迁移旧布局
 - `test`: `node --import tsx --test tests/*.test.ts`
 
 ## Architecture
@@ -28,7 +27,7 @@
 - AI provider 只允许：`openai_compatible`、`openai_responses`、`gemini`、`anthropic`、`mistral`
 - `openai_compatible` 必须通过 `compatProfile` 区分 Tier 1 / Tier 2 供应商，不允许再把 DeepSeek / Moonshot / GLM / Qwen 等做成独立 provider type
 - LLM 请求统一通过 `@myz/ai-core/runtime/providerSession`，不要在 `myz-bot` 里重新实现 provider transport
-- 默认 builtin skill 目录来自 `myz-annotator/src/skills/builtin`，当前只应依赖 `browser-operations`
+- builtin skills 以单文件资源方式内联进 `myz-bot` 构建产物；当前只内置 `planning-mode`
 
 ## Runtime Layout
 
@@ -37,7 +36,6 @@
 - `~/.myz-bot/workspaces/<workspaceId>/conversations/`
 - `~/.myz-bot/workspaces/<workspaceId>/attachments/`
 - `~/.myz-bot/workspaces/<workspaceId>/permissions/`
-- `~/.myz-bot/workspaces/<workspaceId>/relationships/`
 - `~/.myz-bot/workspaces/<workspaceId>/soul/`
 - `~/.myz-bot/workspaces/<workspaceId>/system/`
 
@@ -63,7 +61,7 @@
 
 ## Workspace Layout
 
-workspace 只保留协作文件和长期记忆：
+workspace 默认只保留协作文档与 skills：
 
 - `AGENTS.md`
 - `BOOTSTRAP.md`
@@ -71,8 +69,6 @@ workspace 只保留协作文件和长期记忆：
 - `IDENTITY.md`
 - `USER.md`
 - `skills/`
-- `memory/MEMORY.md`
-- `memory/YYYY-MM-DD.md`
 
 初始化生成的 `.gitignore` 只放行这些 Markdown 文档。
 
@@ -87,15 +83,20 @@ workspace 只保留协作文件和长期记忆：
   - `sendChatAction` 用来表示 LLM / 工具执行中的忙碌态
   - `setMessageReaction` 用来给源消息打 `👌` / `👎` 结果标记
 
-## Memory
+## Main Flow
 
-- 长期记忆：`memory/MEMORY.md`
-- 每日日志：`memory/YYYY-MM-DD.md`
-- `Remember` 和对话摘要都落到日期文档
-- 首次访问 `memory/` 时会自动迁移旧版 `index.json` / `notes/` / `conversation-summaries/`
-- `/ops reset-memory [current|all] [journal|full]`
-  - `journal` 只清日记
-  - `full` 额外清 `MEMORY.md`
+- 默认主聊天链路是 memory-less
+- 会话上下文保留 summary-only `context compaction`：必要时压缩 `llm-history.jsonl` 并生成当前会话摘要，但不做恢复上下文、归档历史或自动记忆
+- 复杂任务通过 builtin `planning-mode` + `Task` 工具在主对话中规划和执行
+- 长期状态默认写入 `AGENTS.md`、`SOUL.md`、`IDENTITY.md`、`USER.md` 及事实文档
+- 在交互式 TTY 中运行 `serve` / `launch` 时，默认显示被动式 terminal dashboard，用于展示聊天尾部、phase、请求数、context 估算和 token/seconds
+- 可用 `--no-tui` 或环境变量 `MYZ_BOT_TUI=0` 关闭；可用 `--tui` 或 `MYZ_BOT_TUI=1` 强制开启
+
+## Removed Paths
+
+- `context recovery` 已删除
+- `migrate-layout`、`/ops reset-memory`、`/ops housekeeping` 已删除
+- 联系人/跨会话转告工具已从默认 agent 能力面删除
 
 ## Launch And Upgrade
 
@@ -113,8 +114,6 @@ workspace 只保留协作文件和长期记忆：
 
 - `/ops status`
 - `/ops usage [current|all]`
-- `/ops reset-memory [current|all] [journal|full]`
-- `/ops housekeeping [current|all]`
 - `/ops upgrade [status|check|apply]`
 - `/ops restart`
 
@@ -124,8 +123,6 @@ workspace 只保留协作文件和长期记忆：
 
 - `init` 必须优先保护已有 `~/.myz-bot/bot.yml`
 - 如果检测到已有配置，非交互模式下必须显式指定 `reuse` 或 `update`
-- `migrate-layout` 负责把旧版 runtime 文件从 workspace 根迁入 `~/.myz-bot/workspaces/<workspaceId>/`
-- memory 迁移由 `ensureMemoryDir()` 自动处理
 
 ## Editing Notes
 

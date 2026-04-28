@@ -128,8 +128,6 @@ describe("ConversationAgent", () => {
             id: "t1",
             title: "Task one",
             status: "pending",
-            owner: "executor",
-            category: "quick",
             skills: ["browser-ops"],
             summary: "deliver",
             notes: [],

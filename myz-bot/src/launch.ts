@@ -236,19 +236,24 @@ async function spawnUpgradeLauncher(options: {
   targetVersion: string
   workspaceRoot: string
   handoffToken: string
+  enableTui?: boolean
 }) {
+  const launchArgs = [
+    "-y",
+    `${options.packageName}@${options.targetVersion}`,
+    "launch",
+    "-w",
+    options.workspaceRoot,
+    "--handoff",
+    options.handoffToken,
+  ]
+  if (typeof options.enableTui === "boolean") {
+    launchArgs.push(options.enableTui ? "--tui" : "--no-tui")
+  }
   return await new Promise<ChildProcess>((resolveChild, reject) => {
     const child = spawn(
       "npx",
-      [
-        "-y",
-        `${options.packageName}@${options.targetVersion}`,
-        "launch",
-        "-w",
-        options.workspaceRoot,
-        "--handoff",
-        options.handoffToken,
-      ],
+      launchArgs,
       {
         stdio: "inherit",
         env: process.env,
@@ -276,6 +281,7 @@ export async function launchBot(options: {
   workspaceRoot?: string
   runtimeRoot?: string
   handoffToken?: string
+  enableTui?: boolean
 } = {}) {
   const entryFile = process.argv[1]
   if (!entryFile) {
@@ -290,6 +296,9 @@ export async function launchBot(options: {
   const { launchStatePath, restartRequestPath, handoffDir } = getLaunchPaths(config.systemDir)
 
   const childArgs = [entryFile, "serve", "-w", config.workspaceRoot]
+  if (typeof options.enableTui === "boolean") {
+    childArgs.push(options.enableTui ? "--tui" : "--no-tui")
+  }
   let restartCount = 0
 
   writeLaunchState({
@@ -343,6 +352,7 @@ export async function launchBot(options: {
             targetVersion: upgradeTarget.targetVersion,
             workspaceRoot: config.workspaceRoot,
             handoffToken,
+            enableTui: options.enableTui,
           })
           const handoffReady = await waitForHandoffAck(handoffDir, handoffToken)
           if (handoffReady) {

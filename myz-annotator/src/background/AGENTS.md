@@ -24,7 +24,7 @@ Import shared AI types from `@/background/ai/types.ts`.
 
 - Core AI logic has been extracted to `packages/ai-core/` (providers/runtime/prompt/normalize/schemas/types/MCP).
 - `myz-annotator/src/background/ai/` now contains:
-  - Browser-specific modules (conversationAgent, skills storage, local tools, vfs, task manager).
+  - Browser-specific modules (conversationAgent, skills storage, local tools, vfs, task-plan persistence wrapper).
   - Thin wrappers that re-export from `@myz/ai-core` for the shared core.
 
 - Core Sync logic has been extracted to `packages/sync-core/` (crypto/manifest/chunks/s3/lock/schemas/registry/utils).
@@ -100,10 +100,11 @@ Import shared AI types from `@/background/ai/types.ts`.
    - Calls `clientWithTools.createCompletion({ stream: true })`.
    - Emits UI streaming events:
      - `myz:aiStreamStart` → `myz:aiStreamChunk` → `myz:aiStreamComplete` or `myz:aiStreamError`
-   - Persists final assistant message with:
-     - visible `content`
-     - extracted reasoning/thinking in `reasoning_content` and `metadata.reasoning` (if available)
-   - Persists tool messages as `role: "tool"` and emits `myz:newMessage` for tool-call/tool-result updates.
+  - Persists final assistant message with:
+    - visible `content`
+    - extracted reasoning/thinking in `reasoning_content` and `metadata.reasoning` (if available)
+  - Persists tool messages as `role: "tool"` and emits `myz:newMessage` for tool-call/tool-result updates.
+- Shared task-planning normalization/state progression now lives in `packages/ai-core/src/tasks/taskManager.ts`; annotator only persists the per-conversation plan into IndexedDB and notifies the UI.
 4. Handler `finally` disconnects MCP (ref-counted) and releases the provider runtime.
 
 ## Context Compaction (Sidepanel)

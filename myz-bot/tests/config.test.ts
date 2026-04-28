@@ -93,7 +93,7 @@ test("loadConfig parses permissions and skill policies", () => {
       "    retries: 4",
       "skills:",
       "  allowlist:",
-      "    - builtin/browser-operations",
+      "    - builtin/planning-mode",
       "  denylist:",
       "    - builtin/non-existent",
       "debug: true",
@@ -133,7 +133,7 @@ test("loadConfig parses permissions and skill policies", () => {
   assert.equal(config.network.requestTimeoutMs, 90000)
   assert.equal(config.network.connectTimeoutMs, 5000)
   assert.equal(config.network.proxyUrl, "http://127.0.0.1:7890")
-  assert.deepEqual(config.skillAllowlist, ["builtin/browser-operations"])
+  assert.deepEqual(config.skillAllowlist, ["builtin/planning-mode"])
   assert.deepEqual(config.skillDenylist, ["builtin/non-existent"])
   assert.deepEqual(config.toolAllowlist, ["read"])
   assert.equal(config.debug, true)

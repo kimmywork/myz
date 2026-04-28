@@ -8,7 +8,6 @@ import {
   readNearestAgentsForTarget,
   readWorkspaceAgentsFile,
 } from "./agentsContext"
-import { addMemory } from "./memory"
 import {
   appendMessage,
   createAssistantMessage,
@@ -28,16 +27,24 @@ import {
 } from "./elevatedPermissions"
 import { parseSkillsPath, listSkills, readSkillFile, type SkillSource } from "./skills"
 import {
-  listKnownContacts,
-  resolveKnownContact,
-} from "./relationships"
-import { recordOutgoingTelegramMessages } from "./telegramHistory"
-import {
   createScheduledTask,
   formatTasksForTool,
   listConversationTasks,
   updateScheduledTask,
 } from "./tasks"
+import {
+  completeAllTasks,
+  getTaskPlan,
+  initTaskPlan,
+  listUnblockedTasks,
+  updateTaskItem,
+  updateTaskPlanStatus,
+  updateTaskStatus,
+  type TaskItem,
+  type TaskPlanStatus,
+  type TaskPriority,
+  type TaskStatus,
+} from "./taskPlans"
 import type { TelegramClient } from "./telegram"
 
 const textBlock = (text: string): ToolExecutionResult => ({
@@ -46,6 +53,16 @@ const textBlock = (text: string): ToolExecutionResult => ({
 
 function errorBlock(text: string): ToolExecutionResult {
   return { content: [{ type: "text", text }], isError: true }
+}
+
+function formatJson(value: unknown, maxChars = 6000) {
+  const text = JSON.stringify(value, null, 2)
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars)}\n...truncated`
+}
+
+function withStructuredData(text: string, data: unknown, maxChars = 6000) {
+  return [text, formatJson(data, maxChars)].filter(Boolean).join("\n\n")
 }
 
 function withAgentsContext(options: {
@@ -221,6 +238,105 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isAttachmentsVirtualPath(rawPath: string) {
   return /^\/attachments(?:\/|$)/.test(rawPath)
+}
+
+function parseTaskPlanStatus(value: unknown): TaskPlanStatus | undefined {
+  switch (value) {
+    case "planning":
+    case "executing":
+    case "blocked":
+    case "done":
+      return value
+    default:
+      return undefined
+  }
+}
+
+function parseTaskStatus(value: unknown): TaskStatus | undefined {
+  switch (value) {
+    case "pending":
+    case "in_progress":
+    case "done":
+    case "blocked":
+      return value
+    default:
+      return undefined
+  }
+}
+
+function parseTaskPriority(value: unknown): TaskPriority | undefined {
+  return value === "high" || value === "low" || value === "medium"
+    ? value
+    : undefined
+}
+
+function parseTaskAction(value: unknown) {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : ""
+  if (!raw) return ""
+  const normalized = raw.replace(/[\s-]+/g, "_")
+  const aliases: Record<string, string> = {
+    completeall: "complete_all",
+    complete_all: "complete_all",
+    list_tasks: "list",
+    get_tasks: "get",
+    update_task: "update",
+    init_plan: "init",
+  }
+  const mapped = aliases[normalized] || normalized
+  const allowed = new Set(["init", "update", "get", "list", "complete_all"])
+  return allowed.has(mapped) ? mapped : ""
+}
+
+function parseStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const cleaned = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+  return cleaned.length ? cleaned : []
+}
+
+function buildTaskItemPatch(
+  raw: Record<string, unknown>,
+): Partial<TaskItem> & { appendNote?: string } {
+  const patch: Partial<TaskItem> & { appendNote?: string } = {}
+  if (typeof raw.title === "string") {
+    patch.title = raw.title.trim()
+  }
+  const status = parseTaskStatus(raw.status)
+  if (status) {
+    patch.status = status
+  }
+  const priority = parseTaskPriority(raw.priority)
+  if (priority) {
+    patch.priority = priority
+  }
+  const skills = parseStringArray(raw.skills)
+  if (skills) {
+    patch.skills = skills
+  }
+  const blockedBy = parseStringArray(raw.blockedBy)
+  if (blockedBy) {
+    patch.blockedBy = blockedBy
+  }
+  const blocks = parseStringArray(raw.blocks)
+  if (blocks) {
+    patch.blocks = blocks
+  }
+  if (typeof raw.summary === "string") {
+    patch.summary = raw.summary.trim()
+  }
+  if (typeof raw.outcome === "string") {
+    patch.outcome = raw.outcome.trim()
+  }
+  const notes = parseStringArray(raw.notes)
+  if (notes) {
+    patch.notes = notes
+  }
+  if (typeof raw.note === "string") {
+    patch.appendNote = raw.note.trim()
+  }
+  return patch
 }
 
 export function createLocalTools(options: {
@@ -478,37 +594,77 @@ export function createLocalTools(options: {
       },
     },
     {
-      name: "Remember",
-      description: "写入共享记忆日志（memory/YYYY-MM-DD.md）。",
+      name: "Task",
+      description: "管理当前会话的任务计划（用于复杂任务的规划、执行与收尾）。",
       inputSchema: {
         type: "object",
-        required: ["title", "content"],
         properties: {
-          title: { type: "string" },
-          content: { type: "string" },
-          tags: { type: "array", items: { type: "string" } },
-        },
-      },
-    },
-    {
-      name: "ListKnownContacts",
-      description: "列出 bot 已知的可联系对象（基于现有私聊会话和关系记录）。",
-      inputSchema: {
-        type: "object",
-        properties: {},
-      },
-    },
-    {
-      name: "SendMessageToContact",
-      description:
-        "向一个已知联系人发送转告消息。只能发给已有私聊会话的对象。传入的 message 会作为最终正文直接送达；来源与原因由系统内部审计记录。",
-      inputSchema: {
-        type: "object",
-        required: ["target", "message"],
-        properties: {
-          target: { type: "string" },
-          message: { type: "string" },
-          reason: { type: "string" },
+          action: {
+            type: "string",
+            enum: ["init", "update", "get", "list", "complete_all"],
+          },
+          payload: {
+            type: "object",
+            additionalProperties: true,
+          },
+          goal: { type: "string" },
+          assumptions: {
+            type: "array",
+            items: { type: "string" },
+          },
+          summary: { type: "string" },
+          outcome: { type: "string" },
+          tasks: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["title"],
+              properties: {
+                title: { type: "string" },
+                priority: {
+                  type: "string",
+                  enum: ["low", "medium", "high"],
+                },
+                blockedBy: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+                blocks: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+                skills: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+                summary: { type: "string" },
+                notes: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+                outcome: { type: "string" },
+              },
+            },
+          },
+          taskId: { type: "string" },
+          status: {
+            type: "string",
+            enum: ["pending", "in_progress", "done", "blocked", "planning", "executing"],
+          },
+          currentTaskId: { type: "string" },
+          statusList: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["pending", "in_progress", "done", "blocked"],
+            },
+          },
+          onlyUnblocked: { type: "boolean" },
+          note: { type: "string" },
+          patch: {
+            type: "object",
+            additionalProperties: true,
+          },
         },
       },
     },
@@ -882,139 +1038,164 @@ export function createLocalTools(options: {
         )
       })
     },
-    Remember: async (args) => {
-      const title = typeof args.title === "string" ? args.title : ""
-      const content = typeof args.content === "string" ? args.content : ""
-      if (!title || !content) return errorBlock("title/content 必填")
-      const tags = Array.isArray(args.tags) ? args.tags.map((t) => String(t)) : []
-      const result = addMemory(options.memoryDir, { title, content, tags })
-      return textBlock(`记忆已保存: ${result.id}`)
-    },
-    ListKnownContacts: async () => {
-      const contacts = listKnownContacts({
-        workspaceRoot: runtimeRoot,
-        conversationsDir: options.conversationsDir,
-      })
-      if (!contacts.length) return textBlock("暂无可联系对象")
-      return textBlock(
-        contacts
-          .map((contact) =>
-            [
-              `- ${contact.displayName}`,
-              contact.username ? `username: @${contact.username}` : "",
-              typeof contact.actorUserId === "number" ? `userId: ${contact.actorUserId}` : "",
-              contact.conversationId ? `conversationId: ${contact.conversationId}` : "",
-              contact.aliases.length ? `aliases: ${contact.aliases.join(", ")}` : "",
-              `messagingPolicy: ${contact.messagingPolicy}`,
-              contact.relationshipSummary ? `relationship: ${contact.relationshipSummary}` : "",
-            ]
-              .filter(Boolean)
-              .join(" | "),
-          )
-          .join("\n"),
-      )
-    },
-    SendMessageToContact: async (args) => {
-      if (!options.telegram) {
-        return errorBlock("当前运行环境未注入 Telegram 客户端，无法发送消息")
-      }
-      const target = typeof args.target === "string" ? args.target : ""
-      const message = typeof args.message === "string" ? args.message.trim() : ""
-      const reason = typeof args.reason === "string" ? args.reason.trim() : ""
-      const normalizedMessageLines = message
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-      const deliveredMessage =
-        normalizedMessageLines[normalizedMessageLines.length - 1] || ""
-      const sourceConversationId =
+    Task: async (args) => {
+      const conversationId =
         typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
-      if (!sourceConversationId) {
-        return errorBlock("当前没有会话上下文，无法代为联系其他对象")
+      if (!conversationId) {
+        return errorBlock("当前没有会话上下文，无法管理任务计划")
       }
-      if (!target || !message || !deliveredMessage) {
-        return errorBlock("target/message 必填")
-      }
-      const resolved = resolveKnownContact({
-        workspaceRoot: runtimeRoot,
-        conversationsDir: options.conversationsDir,
-        target,
-      })
-      if (!resolved || !resolved.conversationId || typeof resolved.chatId !== "number") {
-        return errorBlock("目标联系人不存在、不可解析，或没有可发送的私聊会话")
-      }
-      if (resolved.conversationId === sourceConversationId) {
-        return errorBlock("不能把消息再次发回当前会话")
-      }
-      if (resolved.messagingPolicy === "blocked") {
-        return errorBlock("该联系人当前关系边界不允许主动联系")
-      }
-      const sourceConversationDir = ensureConversationDir(
-        options.conversationsDir,
-        sourceConversationId,
-      )
-      const sourceMetadata = loadMetadata(sourceConversationDir)
-      const sourceName =
-        sourceMetadata?.lastActorDisplayName ||
-        sourceMetadata?.username ||
-        sourceMetadata?.firstName ||
-        sourceConversationId
 
-      const targetConversationDir = ensureConversationDir(
+      const conversationDir = ensureConversationDir(
         options.conversationsDir,
-        resolved.conversationId,
+        conversationId,
       )
-      appendMessage(
-        targetConversationDir,
-        createUserMessage(
-          resolved.conversationId,
-          `来自 ${sourceName} 的转告请求：${deliveredMessage}`,
-          {
-            type: "relayed_request",
-            sourceConversationId,
-            sourceDisplayName: sourceName,
-            targetKey: resolved.key,
-            reason,
-            requestedMessage: message,
-            deliveredMessage,
-          },
-        ),
-      )
-      appendMessage(
-        targetConversationDir,
-        createAssistantMessage(
-          resolved.conversationId,
-          deliveredMessage,
-          {
-            type: "outbound_relay",
-            sourceConversationId,
-            sourceDisplayName: sourceName,
-            targetKey: resolved.key,
-            reason,
-            requestedMessage: message,
-            deliveredMessage,
-          },
-        ),
-      )
-      const sendResult = await options.telegram.sendMessage(resolved.chatId, deliveredMessage)
-      recordOutgoingTelegramMessages({
-        conversationDir: targetConversationDir,
-        conversationId: resolved.conversationId,
-        sendResult,
-        kind: "relay",
+      const payload = isRecord(args.payload) ? args.payload : args
+      const rawAction =
+        typeof payload.action === "string"
+          ? payload.action
+          : typeof args.action === "string"
+            ? args.action
+            : ""
+      const isEmptyPayload =
+        Object.keys(payload).filter((key) => key !== "__conversationId").length === 0
+      const action = parseTaskAction(rawAction) || (isEmptyPayload ? "list" : "")
+
+      if (!action) {
+        return errorBlock("Task.action 无效，允许值：init/update/get/list/complete_all")
+      }
+
+      if (action === "init") {
+        const plan = initTaskPlan({
+          conversationDir,
+          goal:
+            typeof payload.goal === "string"
+              ? payload.goal.trim()
+              : typeof payload.originalUserRequest === "string"
+                ? payload.originalUserRequest.trim()
+                : "",
+          tasks: Array.isArray(payload.tasks) ? payload.tasks : [],
+          assumptions: Array.isArray(payload.assumptions) ? payload.assumptions : [],
+          summary: typeof payload.summary === "string" ? payload.summary.trim() : "",
+          status: parseTaskPlanStatus(payload.status),
+        })
+        return textBlock(withStructuredData("任务计划已初始化。", plan))
+      }
+
+      if (action === "update") {
+        const taskId =
+          typeof payload.taskId === "string" ? payload.taskId.trim() : ""
+        if (taskId) {
+          const patch = buildTaskItemPatch(
+            isRecord(payload.patch) ? payload.patch : {},
+          )
+          const nextStatus = parseTaskStatus(payload.status)
+          if (nextStatus) {
+            patch.status = nextStatus
+          }
+          if (typeof payload.summary === "string") {
+            patch.summary = payload.summary.trim()
+          }
+          if (typeof payload.outcome === "string") {
+            patch.outcome = payload.outcome.trim()
+          }
+          if (typeof payload.note === "string") {
+            patch.appendNote = payload.note.trim()
+          }
+          const hasPatchKeys = Object.keys(patch).length > 0
+          const plan = hasPatchKeys
+            ? updateTaskItem({
+                conversationDir,
+                taskId,
+                patch,
+              })
+            : updateTaskStatus({
+                conversationDir,
+                taskId,
+                status: nextStatus,
+              })
+          if (!plan) {
+            return errorBlock(`未找到任务：${taskId}`)
+          }
+          return textBlock(withStructuredData("任务状态已更新。", plan))
+        }
+
+        const plan = updateTaskPlanStatus({
+          conversationDir,
+          status: parseTaskPlanStatus(payload.status),
+          currentTaskId:
+            typeof payload.currentTaskId === "string"
+              ? payload.currentTaskId.trim()
+              : undefined,
+          goal: typeof payload.goal === "string" ? payload.goal.trim() : undefined,
+          assumptions: Array.isArray(payload.assumptions)
+            ? payload.assumptions
+            : undefined,
+          summary:
+            typeof payload.summary === "string"
+              ? payload.summary.trim()
+              : undefined,
+          outcome:
+            typeof payload.outcome === "string"
+              ? payload.outcome.trim()
+              : undefined,
+        })
+        if (!plan) {
+          return errorBlock("未找到任务计划")
+        }
+        return textBlock(withStructuredData("计划状态已更新。", plan))
+      }
+
+      if (action === "get") {
+        const plan = getTaskPlan(conversationDir)
+        const hint = isEmptyPayload
+          ? '提示: 调用 Task 时请提供 action 字段，例如 {"action":"get"}。'
+          : ""
+        const text = [hint, plan ? "已获取任务计划。" : "未找到任务计划。"]
+          .filter(Boolean)
+          .join("\n")
+        return plan
+          ? textBlock(withStructuredData(text, plan))
+          : errorBlock(text)
+      }
+
+      if (action === "list") {
+        const onlyUnblocked = payload.onlyUnblocked !== false
+        const statusListSource = Array.isArray(payload.statusList)
+          ? payload.statusList
+          : Array.isArray(payload.status)
+            ? payload.status
+            : []
+        const statusList = statusListSource
+          .map(parseTaskStatus)
+          .filter((value): value is TaskStatus => Boolean(value))
+        const tasks = onlyUnblocked
+          ? listUnblockedTasks({
+              conversationDir,
+              status: statusList.length ? statusList : undefined,
+            })
+          : getTaskPlan(conversationDir)?.tasks || []
+        const hint = isEmptyPayload
+          ? '提示: 调用 Task 时请提供 action 字段，例如 {"action":"list"}。'
+          : ""
+        return textBlock(
+          withStructuredData(
+            [hint, tasks.length ? `已获取 ${tasks.length} 个任务。` : "未找到任务。"]
+              .filter(Boolean)
+              .join("\n"),
+            tasks,
+          ),
+        )
+      }
+
+      const plan = completeAllTasks({
+        conversationDir,
+        summary: typeof payload.summary === "string" ? payload.summary.trim() : "",
+        outcome: typeof payload.outcome === "string" ? payload.outcome.trim() : "",
       })
-      return textBlock(
-        JSON.stringify(
-          {
-            ok: true,
-            target: resolved.displayName,
-            conversationId: resolved.conversationId,
-            messagingPolicy: resolved.messagingPolicy,
-          },
-          null,
-          2,
-        ),
-      )
+      if (!plan) {
+        return errorBlock("未找到任务计划")
+      }
+      return textBlock(withStructuredData("任务计划已完成。", plan))
     },
     ListScheduledTasks: async (args) => {
       const conversationId =

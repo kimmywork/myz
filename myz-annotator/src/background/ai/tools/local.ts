@@ -20,9 +20,7 @@ import {
   updateTaskStatus,
 } from "../tasks/taskManager.js";
 import type {
-  TaskCategory,
   TaskItem,
-  TaskOwner,
   TaskPlanStatus,
   TaskPriority,
   TaskStatus,
@@ -106,31 +104,6 @@ function parseTaskPriority(value: unknown): TaskPriority | undefined {
     : undefined;
 }
 
-function parseTaskOwner(value: unknown): TaskOwner | undefined {
-  switch (value) {
-    case "planner":
-    case "executor":
-    case "research":
-    case "automation":
-    case "review":
-      return value;
-    default:
-      return undefined;
-  }
-}
-
-function parseTaskCategory(value: unknown): TaskCategory | undefined {
-  switch (value) {
-    case "research":
-    case "automation":
-    case "reasoning":
-    case "quick":
-      return value;
-    default:
-      return undefined;
-  }
-}
-
 function parseStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const cleaned = value
@@ -154,14 +127,6 @@ function buildTaskItemPatch(
   const priority = parseTaskPriority(raw.priority);
   if (priority) {
     patch.priority = priority;
-  }
-  const owner = parseTaskOwner(raw.owner);
-  if (owner) {
-    patch.owner = owner;
-  }
-  const category = parseTaskCategory(raw.category);
-  if (category) {
-    patch.category = category;
   }
   const skills = parseStringArray(raw.skills);
   if (skills) {

@@ -11,6 +11,8 @@ import {
 import dotenv from "dotenv"
 import { z } from "zod"
 import yaml from "yaml"
+import { getBuiltinSkillSource } from "./builtinSkills"
+import type { SkillSource } from "./skills"
 
 dotenv.config({ path: resolve(process.cwd(), ".env") })
 
@@ -246,7 +248,7 @@ export type BotRuntimeConfig = BotConfig & {
   soulRuntimeDir: string
   systemDir: string
   memoryDir: string
-  skillSources: SkillSourceConfig[]
+  skillSources: SkillSource[]
   skillAllowlist: string[]
   skillDenylist: string[]
   toolAllowlist: string[]
@@ -358,26 +360,24 @@ function normalizeSkillPolicies(entries: string[] = []) {
 }
 
 function buildSkillSources(config: BotConfig, workspaceRoot: string) {
-  const builtinSkillsDir = resolve(
-    workspaceRoot,
-    "myz-annotator/src/skills/builtin",
-  )
   const configuredSources = (config.skills?.sources || []).map((source) => ({
     id: source.id,
+    kind: "filesystem" as const,
     dir: resolve(workspaceRoot, source.dir),
     readonly: Boolean(source.readonly),
   }))
   const projectSkillSource = {
     id: "project",
+    kind: "filesystem" as const,
     dir: resolve(workspaceRoot, "skills"),
     readonly: false,
   }
-  const defaults: SkillSourceConfig[] = [
-    { id: "builtin", dir: builtinSkillsDir, readonly: true },
+  const defaults: SkillSource[] = [
+    getBuiltinSkillSource(),
     projectSkillSource,
   ]
   const merged = [...defaults, ...configuredSources]
-  const unique = new Map<string, SkillSourceConfig>()
+  const unique = new Map<string, SkillSource>()
   merged.forEach((source) => {
     if (!source.id || unique.has(source.id)) return
     unique.set(source.id, source)

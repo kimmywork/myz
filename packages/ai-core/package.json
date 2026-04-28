@@ -14,6 +14,7 @@
     "./schemas": "./src/schemas/index.ts",
     "./schemas/*": "./src/schemas/*.ts",
     "./settings": "./src/settings.ts",
+    "./tasks/*": "./src/tasks/*.ts",
     "./tokenUsage": "./src/tokenUsage.ts",
     "./tools/*": "./src/tools/*.ts",
     "./vendors/*": "./src/vendors/*.ts",

@@ -2,11 +2,6 @@ import { existsSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
 import type { Message, TokenUsage } from "@myz/ai-core/types"
 import { createBotAssistantAgent } from "./agents/botAssistant"
-import { processConversationReflectionPass } from "./conversationReflections"
-import {
-  loadRecoveredContext,
-  recoverContextIfNeeded,
-} from "./contextRecovery"
 import { generateReply } from "./ai"
 import type { BotRuntimeConfig } from "./config"
 import {
@@ -17,9 +12,8 @@ import {
   ensureConversationDir,
   loadAllMessages,
   loadMetadata,
-  saveMetadata,
 } from "./conversations"
-import { prepareConversationContext } from "./context"
+import { prepareConversationContext } from "./contextCompaction"
 import { appendConversationErrorLog, formatErrorReply } from "./errors"
 import {
   beginScheduledTaskRun,
@@ -29,7 +23,6 @@ import {
   renderDirectTaskReply,
   type ScheduledTask,
 } from "./tasks"
-import { loadSoul } from "./soul"
 import type { TelegramClient, TelegramUser } from "./telegram"
 import { sendRecordedTelegramMessage } from "./telegramDelivery"
 import { createTelegramFeedbackController } from "./telegramFeedback"
@@ -38,6 +31,7 @@ import {
   appendToolAuditTrace,
   appendToolMessagesToHistory,
 } from "./toolHistory"
+import type { RuntimeMonitor } from "./runtimeMonitor"
 
 function sleep(ms: number) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms))
@@ -94,6 +88,7 @@ async function processScheduledLlmTask(options: {
   conversationId: string
   conversationDir: string
   task: ScheduledTask
+  monitor?: RuntimeMonitor
 }) {
   const metadata = loadMetadata(options.conversationDir)
   if (!metadata) {
@@ -105,15 +100,10 @@ async function processScheduledLlmTask(options: {
   const contextState = prepareConversationContext({
     conversationDir: options.conversationDir,
     conversationId: options.conversationId,
-    memoryDir: options.config.memoryDir,
     messages: historyBefore,
     contextWindowTokens: options.config.ai.limits.contextWindow,
     maxOutputTokens: options.config.ai.limits.maxOutputTokens,
   })
-  if (contextState.compressed) {
-    metadata.lastCompressionAt = new Date().toISOString()
-    saveMetadata(options.conversationDir, metadata)
-  }
 
   const userMessage = createUserMessage(
     options.conversationId,
@@ -127,30 +117,18 @@ async function processScheduledLlmTask(options: {
     },
   )
   appendMessage(options.conversationDir, userMessage)
+  options.monitor?.noteIncomingMessage({
+    conversationId: options.conversationId,
+    text: userMessage.content,
+    role: "scheduler",
+  })
 
   const agent = createBotAssistantAgent({
     workspaceRoot: options.config.workspaceRoot,
   })
-  const recoveredContext = contextState.compressed
-    ? (
-        await recoverContextIfNeeded({
-          config: options.config,
-          conversationId: options.conversationId,
-          conversationDir: options.conversationDir,
-          memoryDir: options.config.memoryDir,
-          latestUserInput: userMessage.content,
-          runtimeHistoryLength: contextState.history.length,
-          contextWindowTokens: options.config.ai.limits.contextWindow,
-          maxOutputTokens: options.config.ai.limits.maxOutputTokens,
-          force: true,
-        })
-      ).recoveredContext
-    : loadRecoveredContext(options.conversationDir)
   const systemMessage = createSystemMessage(
     options.conversationId,
     agent.buildSystemPrompt({
-      conversationSummary: contextState.summary,
-      recoveredContext,
       replyMode: "required",
       scope: metadata.scope,
       sessionWorkspace,
@@ -171,7 +149,6 @@ async function processScheduledLlmTask(options: {
   )
   const contextPrompt = agent.buildContextPrompt({
     conversationSummary: contextState.summary,
-    recoveredContext,
     replyMode: "required",
     scope: metadata.scope,
     sessionWorkspace,
@@ -198,9 +175,15 @@ async function processScheduledLlmTask(options: {
     conversationId: options.conversationId,
     chatId: metadata.chatId,
     latestUserInput: userMessage.content,
-    soul: loadSoul(options.config.workspaceRoot),
     sendOptions: {
       messageThreadId: metadata.threadId,
+    },
+    onProgressMessageSent: ({ text }) => {
+      options.monitor?.noteOutgoingMessage({
+        conversationId: options.conversationId,
+        text,
+        role: "progress",
+      })
     },
   })
   const telegramFeedback = createTelegramFeedbackController({
@@ -210,25 +193,44 @@ async function processScheduledLlmTask(options: {
   })
   try {
     telegramFeedback.setPhase("llm")
+    options.monitor?.notePhase("llm", options.conversationId)
+    const preparedMessages = agent.prepareMessages({
+      systemMessage,
+      history: contextState.history,
+      contextMessage,
+      userMessage,
+    })
+    const request = options.monitor?.noteRequestStart({
+      conversationId: options.conversationId,
+      source: "scheduler",
+      messages: preparedMessages,
+    })
     const reply = await generateReply({
       config: options.config,
-      messages: agent.prepareMessages({
-        systemMessage,
-        history: contextState.history,
-        contextMessage,
-        userMessage,
-      }),
+      messages: preparedMessages,
       conversationId: options.conversationId,
       onToolCallMessage: (message) => {
         telegramFeedback.setPhase("tool")
+        options.monitor?.notePhase("tool", options.conversationId)
         progressNotifier.onToolCallMessage(message)
       },
       onToolResultMessage: (message) => {
         telegramFeedback.noteToolResult(message)
         telegramFeedback.setPhase("llm")
+        options.monitor?.notePhase("llm", options.conversationId)
         progressNotifier.onToolResultMessage(message)
       },
     })
+    if (request) {
+      options.monitor?.noteRequestComplete({
+        conversationId: options.conversationId,
+        source: "scheduler",
+        startedAt: request.startedAt,
+        requestId: request.requestId,
+        usage: reply.usage as TokenUsage | undefined,
+        toolCallCount: Array.isArray(reply.toolCalls) ? reply.toolCalls.length : 0,
+      })
+    }
     await progressNotifier.flush()
 
     if (Array.isArray(reply.toolTrace) && reply.toolTrace.length) {
@@ -281,6 +283,12 @@ async function processScheduledLlmTask(options: {
     if (Array.isArray(reply.toolCalls) && reply.toolCalls.length) {
       assistantMessage.tool_calls = reply.toolCalls as Message["tool_calls"]
     }
+    options.monitor?.notePhase("send", options.conversationId)
+    options.monitor?.noteOutgoingMessage({
+      conversationId: options.conversationId,
+      text: assistantMessage.content,
+      role: "assistant",
+    })
     appendMessage(options.conversationDir, assistantMessage)
     await sendRecordedTelegramMessage({
       telegram: options.telegram,
@@ -294,8 +302,13 @@ async function processScheduledLlmTask(options: {
       kind: "scheduler",
     })
     await telegramFeedback.complete()
+    options.monitor?.notePhase("idle", options.conversationId)
   } catch (error) {
     await telegramFeedback.complete({ failed: true })
+    options.monitor?.noteError({
+      conversationId: options.conversationId,
+      error,
+    })
     throw error
   }
 }
@@ -306,6 +319,7 @@ async function processScheduledDirectTask(options: {
   conversationId: string
   conversationDir: string
   task: ScheduledTask
+  monitor?: RuntimeMonitor
 }) {
   const metadata = loadMetadata(options.conversationDir)
   if (!metadata) {
@@ -323,6 +337,11 @@ async function processScheduledDirectTask(options: {
     },
   )
   appendMessage(options.conversationDir, userMessage)
+  options.monitor?.noteIncomingMessage({
+    conversationId: options.conversationId,
+    text: userMessage.content,
+    role: "scheduler",
+  })
 
   const assistantMessage = createAssistantMessage(
     options.conversationId,
@@ -333,6 +352,12 @@ async function processScheduledDirectTask(options: {
       direct: true,
     },
   )
+  options.monitor?.notePhase("send", options.conversationId)
+  options.monitor?.noteOutgoingMessage({
+    conversationId: options.conversationId,
+    text: assistantMessage.content,
+    role: "assistant",
+  })
   appendMessage(options.conversationDir, assistantMessage)
   await sendRecordedTelegramMessage({
     telegram: options.telegram,
@@ -345,91 +370,13 @@ async function processScheduledDirectTask(options: {
     },
     kind: "scheduler",
   })
-}
-
-export async function processDueConversationReflections(options: {
-  config: BotRuntimeConfig
-  telegram: TelegramClient
-  processReflectionPass?: typeof processConversationReflectionPass
-}) {
-  if (!existsSync(options.config.conversationsDir)) {
-    return
-  }
-
-  const runReflectionPass =
-    options.processReflectionPass || processConversationReflectionPass
-
-  for (const name of readdirSync(options.config.conversationsDir)) {
-    const conversationDir = resolve(options.config.conversationsDir, name)
-    const metadata = loadMetadata(conversationDir)
-    if (!metadata) continue
-
-    try {
-      const reflection = await runReflectionPass({
-        config: options.config,
-        conversationId: metadata.conversationId,
-        conversationDir,
-        identity: {
-          actorUserId:
-            metadata.scope === "private"
-              ? metadata.userId
-              : metadata.lastActorUserId,
-          chatId: metadata.chatId,
-          username: metadata.username,
-          firstName: metadata.firstName,
-          lastName: metadata.lastName,
-          displayName:
-            metadata.lastActorDisplayName ||
-            [metadata.firstName, metadata.lastName].filter(Boolean).join(" ").trim() ||
-            metadata.username ||
-            metadata.conversationId,
-          scope:
-            metadata.scope === "group" || metadata.chatType === "group"
-              ? "group"
-              : "private",
-        },
-        actor: "auto",
-      })
-
-      if (
-        reflection.autoDraft.triggered &&
-        reflection.autoDraft.applied === false &&
-        reflection.autoDraft.draftId
-      ) {
-        const isAdminConversation =
-          Boolean(metadata.username) &&
-          options.config.telegram.adminUsers.includes(metadata.username || "")
-        if (isAdminConversation) {
-          await sendRecordedTelegramMessage({
-            telegram: options.telegram,
-            conversationDir,
-            conversationId: metadata.conversationId,
-            chatId: metadata.chatId,
-            text: `已自动生成 SOUL 草案：${reflection.autoDraft.draftId}`,
-            sendOptions: {
-              messageThreadId: metadata.threadId,
-            },
-            kind: "command",
-          })
-        }
-      }
-    } catch (error) {
-      appendConversationErrorLog({
-        conversationDir,
-        conversationId: metadata.conversationId,
-        phase: "periodic_reflection",
-        error,
-        context: {
-          chatId: metadata.chatId,
-        },
-      })
-    }
-  }
+  options.monitor?.notePhase("idle", options.conversationId)
 }
 
 export async function processDueScheduledTasks(options: {
   config: BotRuntimeConfig
   telegram: TelegramClient
+  monitor?: RuntimeMonitor
 }) {
   const dueTasks = listDueScheduledTasks({
     conversationsDir: options.config.conversationsDir,
@@ -456,6 +403,7 @@ export async function processDueScheduledTasks(options: {
           conversationId: due.conversationId,
           conversationDir,
           task: runningTask,
+          monitor: options.monitor,
         })
       } else {
         await processScheduledLlmTask({
@@ -464,6 +412,7 @@ export async function processDueScheduledTasks(options: {
           conversationId: due.conversationId,
           conversationDir,
           task: runningTask,
+          monitor: options.monitor,
         })
       }
 
@@ -524,6 +473,7 @@ export async function processDueScheduledTasks(options: {
 export function startTaskScheduler(options: {
   config: BotRuntimeConfig
   telegram: TelegramClient
+  monitor?: RuntimeMonitor
 }) {
   let stopped = false
 
@@ -531,7 +481,6 @@ export function startTaskScheduler(options: {
     while (!stopped) {
       try {
         await processDueScheduledTasks(options)
-        await processDueConversationReflections(options)
       } catch (error) {
         console.error("Task scheduler failed:", error)
       }

@@ -5,7 +5,6 @@ import { resolve } from "node:path"
 import { AI_PROVIDER_TYPES, type AIProviderType } from "@myz/ai-core/settings"
 import yaml from "yaml"
 import { DEFAULT_SOUL, ensureSoulFile } from "./soul"
-import { DEFAULT_MEMORY_FILE_CONTENT, ensureMemoryDir } from "./memory"
 import {
   DEFAULT_AGENTS_TEMPLATE,
   DEFAULT_BOOTSTRAP_TEMPLATE,
@@ -19,9 +18,6 @@ const DEFAULT_GITIGNORE = `*
 !SOUL.md
 !IDENTITY.md
 !USER.md
-!memory/
-memory/*
-!memory/*.md
 `
 
 const DEFAULT_IDENTITY = `# IDENTITY.md
@@ -277,10 +273,11 @@ async function collectAnswers(options: InitWorkspaceOptions): Promise<InitAnswer
     const answers = {} as InitAnswers
     PROMPTS.forEach((prompt) => {
       const value = String(initial[prompt.key] || prompt.defaultValue).trim()
-      answers[prompt.key] =
-        prompt.key === "aiProvider"
-          ? normalizeAiProvider(value)
-          : value
+      if (prompt.key === "aiProvider") {
+        answers.aiProvider = normalizeAiProvider(value)
+        return
+      }
+      answers[prompt.key] = value
     })
     return answers
   }
@@ -289,7 +286,11 @@ async function collectAnswers(options: InitWorkspaceOptions): Promise<InitAnswer
     for (const prompt of PROMPTS) {
       const preset = initial[prompt.key]?.trim() || ""
       if (preset) {
-        answers[prompt.key] = preset
+        if (prompt.key === "aiProvider") {
+          answers.aiProvider = normalizeAiProvider(preset)
+        } else {
+          answers[prompt.key] = preset
+        }
         continue
       }
       let value = ""
@@ -303,10 +304,11 @@ async function collectAnswers(options: InitWorkspaceOptions): Promise<InitAnswer
         value = String(reply || "").trim() || prompt.defaultValue.trim()
         if (!prompt.required || value) break
       }
-      answers[prompt.key] =
-        prompt.key === "aiProvider"
-          ? normalizeAiProvider(value)
-          : value
+      if (prompt.key === "aiProvider") {
+        answers.aiProvider = normalizeAiProvider(value)
+      } else {
+        answers[prompt.key] = value
+      }
     }
     return answers
   }
@@ -321,7 +323,11 @@ async function collectAnswers(options: InitWorkspaceOptions): Promise<InitAnswer
     for (const prompt of PROMPTS) {
       const preset = initial[prompt.key]?.trim() || ""
       if (preset) {
-        answers[prompt.key] = preset
+        if (prompt.key === "aiProvider") {
+          answers.aiProvider = normalizeAiProvider(preset)
+        } else {
+          answers[prompt.key] = preset
+        }
         continue
       }
       let value = ""
@@ -331,10 +337,11 @@ async function collectAnswers(options: InitWorkspaceOptions): Promise<InitAnswer
         value = reply.trim() || prompt.defaultValue.trim()
         if (!prompt.required || value) break
       }
-      answers[prompt.key] =
-        prompt.key === "aiProvider"
-          ? normalizeAiProvider(value)
-          : value
+      if (prompt.key === "aiProvider") {
+        answers.aiProvider = normalizeAiProvider(value)
+      } else {
+        answers[prompt.key] = value
+      }
     }
     return answers
   } finally {
@@ -376,7 +383,6 @@ export async function initWorkspace(options: string | InitWorkspaceOptions = {})
   mkdirSync(runtimeRoot, { recursive: true })
   mkdirSync(workspaceRuntimeRoot, { recursive: true })
   mkdirSync(workspaceRoot, { recursive: true })
-  mkdirSync(resolve(workspaceRoot, "memory"), { recursive: true })
 
   if (answers) {
     writeFileSync(configPath, buildBotConfigYml(answers))
@@ -389,8 +395,6 @@ export async function initWorkspace(options: string | InitWorkspaceOptions = {})
   ensureFile(resolve(workspaceRoot, "IDENTITY.md"), DEFAULT_IDENTITY)
   ensureFile(resolve(workspaceRoot, "USER.md"), DEFAULT_USER)
   ensureFile(resolve(workspaceRoot, ".gitignore"), DEFAULT_GITIGNORE)
-  ensureMemoryDir(resolve(workspaceRoot, "memory"))
-  ensureFile(resolve(workspaceRoot, "memory", "MEMORY.md"), DEFAULT_MEMORY_FILE_CONTENT)
 
   console.log(`init completed
 workspace: ${workspaceRoot}

@@ -34,6 +34,7 @@ import type {
   MessageStreamData,
 } from "../types.js";
 import {
+  getCurrentTask,
   normalizeTaskPlanPayload,
   type TaskItem,
   type TaskPlan,
@@ -127,44 +128,12 @@ function buildSkillListBlock(
   ].join("\n");
 }
 
-function getCurrentTask(plan?: TaskPlan | null): TaskItem | null {
-  if (!plan || !plan.tasks.length) return null;
-  const isBlocked = (task: TaskItem) => {
-    const blockedBy = Array.isArray(task?.blockedBy) ? task.blockedBy : [];
-    if (!blockedBy.length) return false;
-    return blockedBy.some((id: string) => {
-      const blocker = plan.tasks.find((item) => item?.id === id);
-      return !blocker || blocker.status !== "done";
-    });
-  };
-  const currentId =
-    typeof plan.currentTaskId === "string" ? plan.currentTaskId : "";
-  const byId = currentId
-    ? plan.tasks.find((task) => task?.id === currentId)
-    : null;
-  if (byId && byId.status !== "done" && !isBlocked(byId)) return byId;
-  const inProgress = plan.tasks.find(
-    (task) => task?.status === "in_progress" && !isBlocked(task),
-  );
-  if (inProgress) return inProgress;
-  const nextPending = plan.tasks.find(
-    (task) => task?.status !== "done" && !isBlocked(task),
-  );
-  return nextPending || plan.tasks[0] || null;
-}
-
 function buildTaskExecutionDirective(plan?: TaskPlan | null) {
   if (!plan || !plan.tasks.length) return "";
   const original = typeof plan.goal === "string" ? plan.goal.trim() : "";
   const currentTask = getCurrentTask(plan);
   const currentTitle =
     typeof currentTask?.title === "string" ? currentTask.title.trim() : "";
-  const owner =
-    typeof currentTask?.owner === "string" ? currentTask.owner.trim() : "";
-  const category =
-    typeof currentTask?.category === "string"
-      ? currentTask.category.trim()
-      : "";
   const skills = Array.isArray(currentTask?.skills)
     ? currentTask.skills
         .map((skill) => (typeof skill === "string" ? skill.trim() : ""))
@@ -183,91 +152,12 @@ function buildTaskExecutionDirective(plan?: TaskPlan | null) {
     "默认做合理假设并继续，仅在需要账号/权限或高风险操作时提问。",
     original ? `原始请求：${original}` : "",
     currentTitle ? `当前任务：${currentTitle}` : "",
-    owner ? `执行角色：${owner}` : "",
-    category ? `任务类别：${category}` : "",
     summary ? `任务摘要：${summary}` : "",
     skills.length ? `建议技能：${skills.join(", ")}` : "",
     notes.length ? `任务备注：${notes.slice(-3).join("; ")}` : "",
   ]
     .filter(Boolean)
     .join("\n");
-}
-
-function getRoleToolAllowlist(owner: string) {
-  const normalized = owner || "executor";
-  if (normalized === "research") {
-    return [
-      "Task",
-      "Read",
-      "Glob",
-      "ListTabs",
-      "GetPageContext",
-      "WebSearch",
-      "WebFetch",
-    ];
-  }
-  if (normalized === "automation") {
-    return [
-      "Task",
-      "ListTabs",
-      "ActivateTab",
-      "GotoPage",
-      "NewTab",
-      "RunDomActions",
-      "EvalInPage",
-      "GetPageContext",
-    ];
-  }
-  if (normalized === "review" || normalized === "planner") {
-    return ["Task"];
-  }
-  return null;
-}
-
-function getCategoryToolAllowlist(category: string) {
-  switch (category) {
-    case "research":
-    case "reasoning":
-      return [
-        "Task",
-        "Read",
-        "Glob",
-        "ListTabs",
-        "GetPageContext",
-        "WebSearch",
-        "WebFetch",
-      ];
-    case "automation":
-      return [
-        "Task",
-        "ListTabs",
-        "ActivateTab",
-        "GotoPage",
-        "NewTab",
-        "RunDomActions",
-        "EvalInPage",
-        "GetPageContext",
-      ];
-    default:
-      return null;
-  }
-}
-
-function resolveCategoryTemperature(category: string, baseTemperature: number) {
-  const base =
-    typeof baseTemperature === "number" && Number.isFinite(baseTemperature)
-      ? baseTemperature
-      : 0.2;
-  switch (category) {
-    case "automation":
-      return Math.min(base, 0.1);
-    case "research":
-      return Math.min(base, 0.2);
-    case "reasoning":
-      return Math.min(base, 0.3);
-    default:
-      return base;
-  }
 }
 
 function notifyRuntime(type: string, payload: unknown) {
@@ -969,42 +859,6 @@ export class ConversationAgent {
 
     const shouldExecuteTasks =
       superpowerEnabled && taskPlan && taskPlan.status === "executing";
-    const currentTask = shouldExecuteTasks ? getCurrentTask(taskPlan) : null;
-    const owner =
-      typeof currentTask?.owner === "string" ? currentTask.owner : "";
-    const category =
-      typeof currentTask?.category === "string" ? currentTask.category : "";
-    const categoryTemperature = shouldExecuteTasks
-      ? resolveCategoryTemperature(category, deps.callConfig.temperature)
-      : null;
-    if (shouldExecuteTasks && deps.toolControl) {
-      const allowlist = getRoleToolAllowlist(owner);
-      const categoryAllowlist = getCategoryToolAllowlist(category);
-      let filtered: string[] | null = null;
-      if (allowlist && categoryAllowlist) {
-        const intersection = allowlist.filter((name) =>
-          categoryAllowlist.includes(name),
-        );
-        filtered = intersection.length ? intersection : allowlist;
-      } else if (categoryAllowlist) {
-        filtered = categoryAllowlist;
-      } else if (allowlist) {
-        filtered = allowlist;
-      }
-
-      if (filtered) {
-        const available = new Set(
-          (deps.toolControl.listTools?.() || [])
-            .map((tool) => (typeof tool?.name === "string" ? tool.name : ""))
-            .filter(Boolean),
-        );
-        deps.toolControl.setActiveToolFilter(
-          filtered.filter((name) => available.has(name)),
-        );
-      } else {
-        deps.toolControl.setActiveToolFilter(null);
-      }
-    }
     if (shouldExecuteTasks) {
       const directive = buildTaskExecutionDirective(taskPlan);
       if (directive) {
@@ -1109,9 +963,7 @@ export class ConversationAgent {
         const requestTemperature =
           typeof restOptions.temperature === "number"
             ? restOptions.temperature
-            : typeof categoryTemperature === "number"
-              ? categoryTemperature
-              : temperature;
+            : temperature;
         const request: ProviderChatCompletionRequest = {
           model,
           messages: historyPayload,

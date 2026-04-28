@@ -6,10 +6,6 @@ import { createBotAssistantAgent } from "./agents/botAssistant"
 import { generateReply } from "./ai"
 import { loadConfig, type BotRuntimeConfig } from "./config"
 import {
-  loadRecoveredContext,
-  recoverContextIfNeeded,
-} from "./contextRecovery"
-import {
   appendMessage,
   appendTraceMessage,
   createAssistantMessage,
@@ -22,7 +18,7 @@ import {
   saveMetadata,
   type ConversationMetadata,
 } from "./conversations"
-import { prepareConversationContext } from "./context"
+import { prepareConversationContext } from "./contextCompaction"
 import {
   formatSupportedBotCommands,
   isPassthroughBotCommandName,
@@ -47,23 +43,11 @@ import {
 } from "./elevatedPermissions"
 import { buildIncomingMessage } from "./incoming"
 import {
-  didToolTraceRemember,
-  ensureMemoryDir,
-  isExplicitMemoryRequest,
-  rememberConversationExchange,
-} from "./memory"
-import { touchRelationshipRecord } from "./relationships"
-import {
   collectTokenUsageSummary,
   formatBotRuntimeStatus,
-  formatHousekeepingResult,
-  formatMemoryResetResult,
   formatTokenUsageSummary,
   getBotRuntimeStatus,
   requestProcessRestart,
-  resetAllMemory,
-  resetConversationMemory,
-  runHousekeeping,
 } from "./maintenance"
 import {
   authorizeMessage,
@@ -72,16 +56,12 @@ import {
   isAdminUser,
 } from "./permissions"
 import { configureGlobalNetwork } from "./network"
-import {
-  generateSoulDraftContent,
-  processConversationReflectionPass,
-} from "./conversationReflections"
+import { generateSoulDraftContent } from "./conversationReflections"
 import { sendRecordedTelegramMessage } from "./telegramDelivery"
 import {
   applySoulDraft,
   createSoulDraft,
   listSoulDrafts,
-  loadSoul,
   readSoulDraft,
 } from "./soul"
 import { recordIncomingTelegramMessage } from "./telegramHistory"
@@ -113,6 +93,18 @@ import {
   formatUpgradeStatus,
   syncUpgradeState,
 } from "./upgrade"
+import { createRuntimeMonitor, type RuntimeMonitor } from "./runtimeMonitor"
+
+const RECENT_HISTORY_LIMIT = 120
+
+function resolveTuiEnabled(value?: boolean) {
+  if (typeof value === "boolean") return value
+  const envValue = (process.env.MYZ_BOT_TUI || "").trim().toLowerCase()
+  if (!envValue) return true
+  if (["0", "false", "off", "no"].includes(envValue)) return false
+  if (["1", "true", "on", "yes"].includes(envValue)) return true
+  return true
+}
 
 function formatSkillList(skills: SkillInfo[]) {
   if (!skills.length) {
@@ -364,8 +356,6 @@ async function handleCommand(options: {
     const action = (command.args[0] || "status").toLowerCase()
     const scope = (command.args[1] || "current").toLowerCase()
     const normalizedScope = scope === "all" ? "all" : "current"
-    const resetLevel = (command.args[2] || "journal").toLowerCase()
-
     if (action === "status") {
       await options.sendMessage(
         options.message.chat.id,
@@ -385,58 +375,6 @@ async function handleCommand(options: {
             conversationId: options.conversationId,
           }),
         ),
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "reset-memory") {
-      if (resetLevel !== "journal" && resetLevel !== "full") {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/ops reset-memory [current|all] [journal|full]",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      let result
-      try {
-        result =
-          normalizedScope === "all"
-            ? resetAllMemory({
-                memoryDir: options.config.memoryDir,
-                includeLongTerm: resetLevel === "full",
-              })
-            : resetConversationMemory({
-                memoryDir: options.config.memoryDir,
-                conversationId: options.conversationId,
-                includeLongTerm: resetLevel === "full",
-              })
-      } catch (error) {
-        await options.sendMessage(
-          options.message.chat.id,
-          (error as Error).message,
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      await options.sendMessage(
-        options.message.chat.id,
-        formatMemoryResetResult(result),
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "housekeeping") {
-      const result = runHousekeeping({
-        conversationsDir: options.config.conversationsDir,
-        scope: normalizedScope,
-        conversationId: options.conversationId,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        formatHousekeepingResult(result),
         buildReplyOptions(options.message),
       )
       return true
@@ -524,7 +462,7 @@ async function handleCommand(options: {
 
     await options.sendMessage(
       options.message.chat.id,
-      "可用命令：/ops status | /ops usage [current|all] | /ops reset-memory [current|all] [journal|full] | /ops housekeeping [current|all] | /ops upgrade [status|check|apply] | /ops restart",
+      "可用命令：/ops status | /ops usage [current|all] | /ops upgrade [status|check|apply] | /ops restart",
       buildReplyOptions(options.message),
     )
     return true
@@ -807,6 +745,7 @@ async function handleConversationMessage(options: {
   message: TelegramMessage
   botUsername: string
   shouldReply: boolean
+  monitor?: RuntimeMonitor
 }) {
   const route = resolveConversationRoute(options.message)
   const userId = route.actorUserId
@@ -842,17 +781,6 @@ async function handleConversationMessage(options: {
   metadata.lastActorUserId = route.actorUserId
   metadata.lastActorDisplayName = route.actorDisplayName
   saveMetadata(conversationDir, metadata)
-  touchRelationshipRecord({
-    workspaceRoot: options.config.workspaceRuntimeRoot,
-    conversationId,
-    scope: route.scope,
-    chatId: options.message.chat.id,
-    actorUserId: route.actorUserId,
-    username: options.message.from?.username,
-    firstName: options.message.from?.first_name,
-    lastName: options.message.from?.last_name,
-    displayName: route.actorDisplayName,
-  })
 
   const rawCommand = extractCommandText(options.message)
   recordIncomingTelegramMessage({
@@ -914,7 +842,6 @@ async function handleConversationMessage(options: {
   const contextState = prepareConversationContext({
     conversationDir,
     conversationId,
-    memoryDir: options.config.memoryDir,
     messages: historyBefore,
     contextWindowTokens: options.config.ai.limits.contextWindow,
     maxOutputTokens: options.config.ai.limits.maxOutputTokens,
@@ -931,29 +858,17 @@ async function handleConversationMessage(options: {
     conversationDir,
   })
   const userMessage = createUserMessage(conversationId, incoming.content, incoming.metadata)
-  const recoveredContext = contextState.compressed
-    ? (
-        await recoverContextIfNeeded({
-          config: options.config,
-          conversationId,
-          conversationDir,
-          memoryDir: options.config.memoryDir,
-          latestUserInput: incoming.content,
-          runtimeHistoryLength: contextState.history.length,
-          contextWindowTokens: options.config.ai.limits.contextWindow,
-          maxOutputTokens: options.config.ai.limits.maxOutputTokens,
-          force: true,
-        })
-      ).recoveredContext
-    : loadRecoveredContext(conversationDir)
+  options.monitor?.noteIncomingMessage({
+    conversationId,
+    text: userMessage.content,
+    role: "user",
+  })
   const agent = createBotAssistantAgent({
     workspaceRoot: options.config.workspaceRoot,
   })
   const systemMessage = createSystemMessage(
     conversationId,
     agent.buildSystemPrompt({
-      conversationSummary: contextState.summary,
-      recoveredContext,
       replyMode: options.shouldReply ? "required" : "optional",
       scope: route.scope,
       sessionWorkspace,
@@ -973,7 +888,6 @@ async function handleConversationMessage(options: {
   )
   const contextPrompt = agent.buildContextPrompt({
     conversationSummary: contextState.summary,
-    recoveredContext,
     replyMode: options.shouldReply ? "required" : "optional",
     scope: route.scope,
     sessionWorkspace,
@@ -1012,23 +926,37 @@ async function handleConversationMessage(options: {
           conversationId,
           chatId: options.message.chat.id,
           latestUserInput: userMessage.content,
-          soul: loadSoul(options.config.workspaceRoot),
           sendOptions: buildReplyOptions(options.message),
+          onProgressMessageSent: ({ text }) => {
+            options.monitor?.noteOutgoingMessage({
+              conversationId,
+              text,
+              role: "progress",
+            })
+          },
         })
       : null
     telegramFeedback?.setPhase("llm")
+    options.monitor?.notePhase("llm", conversationId)
+    const preparedMessages = agent.prepareMessages({
+      systemMessage,
+      history: contextState.history,
+      contextMessage,
+      userMessage,
+    })
+    const request = options.monitor?.noteRequestStart({
+      conversationId,
+      source: "conversation",
+      messages: preparedMessages,
+    })
     const reply = await generateReply({
       config: options.config,
-      messages: agent.prepareMessages({
-        systemMessage,
-        history: contextState.history,
-        contextMessage,
-        userMessage,
-      }),
+      messages: preparedMessages,
       conversationId,
       onToolCallMessage: progressNotifier
         ? (message) => {
             telegramFeedback?.setPhase("tool")
+            options.monitor?.notePhase("tool", conversationId)
             progressNotifier.onToolCallMessage(message)
           }
         : undefined,
@@ -1036,10 +964,21 @@ async function handleConversationMessage(options: {
         ? (message) => {
             telegramFeedback?.noteToolResult(message)
             telegramFeedback?.setPhase("llm")
+            options.monitor?.notePhase("llm", conversationId)
             progressNotifier.onToolResultMessage(message)
           }
         : undefined,
     })
+    if (request) {
+      options.monitor?.noteRequestComplete({
+        conversationId,
+        source: "conversation",
+        startedAt: request.startedAt,
+        requestId: request.requestId,
+        usage: reply.usage as TokenUsage | undefined,
+        toolCallCount: Array.isArray(reply.toolCalls) ? reply.toolCalls.length : 0,
+      })
+    }
     if (progressNotifier) {
       await progressNotifier.flush()
     }
@@ -1069,26 +1008,6 @@ async function handleConversationMessage(options: {
       })
     }
 
-    const autoRemembered =
-      isExplicitMemoryRequest(userMessage.content) &&
-      !didToolTraceRemember(
-        Array.isArray(reply.toolTrace)
-          ? (reply.toolTrace as Array<{
-              role?: string
-              metadata?: Record<string, unknown>
-              tool_calls?: Array<{ function?: { name?: string } }>
-            }>)
-          : [],
-      )
-        ? rememberConversationExchange({
-            memoryDir: options.config.memoryDir,
-            conversationId,
-            userContent: userMessage.content,
-            assistantContent: reply.content || "",
-            tags: ["explicit-request"],
-          })
-        : null
-
     const assistantMessage = createAssistantMessage(
       conversationId,
       reply.content || "(无响应)",
@@ -1109,13 +1028,6 @@ async function handleConversationMessage(options: {
         ...(reply.promptCacheKey
           ? { providerPromptCacheKey: reply.promptCacheKey }
           : {}),
-        ...(autoRemembered
-          ? {
-              memorySaved: true,
-              memoryId: autoRemembered.id,
-              memoryDeduplicated: Boolean(autoRemembered.deduplicated),
-            }
-          : {}),
       },
     )
     if (Array.isArray(reply.toolCalls) && reply.toolCalls.length) {
@@ -1123,6 +1035,12 @@ async function handleConversationMessage(options: {
     }
     const replySuppressed = !options.shouldReply && isNoReplyContent(reply.content || "")
     if (!replySuppressed) {
+      options.monitor?.notePhase("send", conversationId)
+      options.monitor?.noteOutgoingMessage({
+        conversationId,
+        text: assistantMessage.content,
+        role: "assistant",
+      })
       appendMessage(conversationDir, assistantMessage)
       await sendRecordedTelegramMessage({
         telegram: options.telegram,
@@ -1135,52 +1053,12 @@ async function handleConversationMessage(options: {
       })
     }
     await telegramFeedback?.complete()
-
-    const allMessages = loadAllMessages(conversationDir)
-    try {
-      const reflection = await processConversationReflectionPass({
-        config: options.config,
-        conversationId,
-        conversationDir,
-        identity: {
-          actorUserId: route.actorUserId,
-          chatId: options.message.chat.id,
-          username: options.message.from?.username,
-          firstName: options.message.from?.first_name,
-          lastName: options.message.from?.last_name,
-          displayName: route.actorDisplayName,
-          scope: route.scope,
-        },
-        actor: "auto",
-      })
-      if (
-        reflection.autoDraft.triggered &&
-        reflection.autoDraft.applied === false &&
-        reflection.autoDraft.draftId &&
-        isAdminUser(options.config, options.message.from)
-      ) {
-        await sendRecordedTelegramMessage({
-          telegram: options.telegram,
-          conversationDir,
-          conversationId,
-          chatId: options.message.chat.id,
-          text: `已自动生成 SOUL 草案：${reflection.autoDraft.draftId}`,
-          sendOptions: buildReplyOptions(options.message),
-          kind: "command",
-        })
-      }
-    } catch (error) {
-      appendConversationErrorLog({
-        conversationDir,
-        conversationId,
-        phase: "growth_feedback_batch",
-        error,
-        context: {
-          visibleMessageCount: allMessages.length,
-        },
-      })
-    }
+    options.monitor?.notePhase("idle", conversationId)
   } catch (error) {
+    options.monitor?.noteError({
+      conversationId,
+      error,
+    })
     const normalized = appendConversationErrorLog({
       conversationDir,
       conversationId,
@@ -1205,6 +1083,12 @@ async function handleConversationMessage(options: {
           }),
           { error: normalized.message },
         )
+        options.monitor?.notePhase("send", conversationId)
+        options.monitor?.noteOutgoingMessage({
+          conversationId,
+          text: assistantMessage.content,
+          role: "error",
+        })
         appendMessage(conversationDir, assistantMessage)
         await sendRecordedTelegramMessage({
           telegram: options.telegram,
@@ -1218,20 +1102,19 @@ async function handleConversationMessage(options: {
       }
     } finally {
       await telegramFeedback?.complete({ failed: true })
+      options.monitor?.notePhase("idle", conversationId)
     }
   }
 }
 
-export async function serveBot(options: { workspaceRoot?: string } = {}) {
+export async function serveBot(options: { workspaceRoot?: string; enableTui?: boolean } = {}) {
   const config = loadConfig({
     workspaceRoot: options.workspaceRoot,
   })
   configureGlobalNetwork(config.network)
   mkdirSync(config.conversationsDir, { recursive: true })
   mkdirSync(config.attachmentsDir, { recursive: true })
-  ensureMemoryDir(config.memoryDir)
   mkdirSync(config.permissionsDir, { recursive: true })
-  mkdirSync(config.relationshipsDir, { recursive: true })
   mkdirSync(config.soulRuntimeDir, { recursive: true })
   mkdirSync(config.systemDir, { recursive: true })
   syncUpgradeState(config)
@@ -1259,12 +1142,21 @@ export async function serveBot(options: { workspaceRoot?: string } = {}) {
   )
   const botProfile = await telegram.getMe()
   const botUsername = botProfile.username || config.telegram.username
+  const monitor = createRuntimeMonitor({
+    provider: config.ai.provider,
+    model: config.ai.model,
+    streamingEnabled: config.ai.streamingEnabled !== false,
+    historyMode: `recent-only(${RECENT_HISTORY_LIMIT})`,
+    contextCompactionStatus: "summary-only",
+    enabled: resolveTuiEnabled(options.enableTui),
+  })
   let offset = 0
   const scheduler =
     config.scheduler.enabled
       ? startTaskScheduler({
           config,
           telegram,
+          monitor,
         })
       : null
 
@@ -1297,6 +1189,7 @@ export async function serveBot(options: { workspaceRoot?: string } = {}) {
             message,
             botUsername,
             shouldReply: handling.shouldReply,
+            monitor,
           })
         } catch (error) {
           const route = resolveConversationRoute(message)
@@ -1329,9 +1222,11 @@ export async function serveBot(options: { workspaceRoot?: string } = {}) {
       }
     } catch (error) {
       const normalized = normalizeError(error)
+      monitor.noteError({ error: normalized })
       console.error("Telegram polling failed:", normalized.message, normalized.stack || "")
     }
   }
 
   scheduler?.stop()
+  monitor.close()
 }

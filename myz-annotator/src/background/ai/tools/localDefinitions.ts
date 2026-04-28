@@ -302,17 +302,6 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
                 enum: ["low", "medium", "high"],
                 description: "任务优先级。",
               },
-              owner: {
-                type: "string",
-                enum: [
-                  "planner",
-                  "executor",
-                  "research",
-                  "automation",
-                  "review",
-                ],
-                description: "任务角色归属。",
-              },
               blockedBy: {
                 type: "array",
                 items: { type: "string" },
@@ -322,11 +311,6 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
                 type: "array",
                 items: { type: "string" },
                 description: "该任务阻塞的任务 ID 列表。",
-              },
-              category: {
-                type: "string",
-                enum: ["quick", "research", "automation", "reasoning"],
-                description: "任务类别。",
               },
               skills: {
                 type: "array",

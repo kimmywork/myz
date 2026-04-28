@@ -135,12 +135,6 @@ export default defineComponent({
                       </span>
                     </div>
                     <div class="mt-1 flex flex-wrap gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                      <span class="rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-700">
-                        {task.owner}
-                      </span>
-                      <span class="rounded-full border border-slate-200 px-2 py-0.5 dark:border-slate-700">
-                        {task.category}
-                      </span>
                       {Array.isArray(task.skills) &&
                         task.skills.map((skill: string) => (
                           <span

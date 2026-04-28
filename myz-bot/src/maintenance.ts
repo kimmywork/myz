@@ -4,28 +4,16 @@ import {
   readdirSync,
   readFileSync,
   statSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs"
 import { dirname, resolve } from "node:path"
 import type { Message } from "@myz/ai-core/types"
 import type { BotRuntimeConfig } from "./config"
-import {
-  getLegacyHistoryPath,
-  getLlmHistoryPath,
-  getLlmTracePath,
-} from "./conversations"
+import { getLlmHistoryPath } from "./conversations"
 import { listElevatedPermissionRequests } from "./elevatedPermissions"
-import {
-  ensureMemoryDir,
-  loadMemoryIndex,
-  removeMemoryEntries,
-  resetLongTermMemory,
-} from "./memory"
 import { listConversationTasks } from "./tasks"
 
 const PROCESS_STARTED_AT = Date.now()
-const RECOVERED_CONTEXT_SCHEMA_VERSION = "1.0.0"
 const RESTART_EXIT_CODE = 75
 
 let restartScheduled = false
@@ -40,7 +28,6 @@ export interface BotRuntimeStatus {
   uptimeSeconds: number
   schedulerEnabled: boolean
   conversations: number
-  memoryItems: number
   pendingPermissionRequests: number
   activeTasks: number
 }
@@ -73,24 +60,6 @@ export interface TokenUsageSummary extends TokenUsageTotals {
   byConversation: ConversationTokenUsageSummary[]
 }
 
-export interface MemoryResetResult {
-  scope: MaintenanceScope
-  removedItems: number
-  removedNotes: number
-  removedSummaries: number
-  clearedLongTermMemory: boolean
-}
-
-export interface HousekeepingResult {
-  scope: MaintenanceScope
-  conversations: number
-  archivedHistoryFiles: number
-  archivedTraceFiles: number
-  clearedHistoryFiles: number
-  clearedTraceFiles: number
-  resetRecoveredContexts: number
-}
-
 function listConversationDirs(conversationsDir: string) {
   if (!existsSync(conversationsDir)) return [] as Array<{ id: string; dir: string }>
   return readdirSync(conversationsDir)
@@ -103,13 +72,6 @@ function listConversationDirs(conversationsDir: string) {
       }
     })
     .filter((entry): entry is { id: string; dir: string } => Boolean(entry))
-}
-
-function resolveReadableLlmHistoryPath(conversationDir: string) {
-  const llmPath = getLlmHistoryPath(conversationDir)
-  if (existsSync(llmPath)) return llmPath
-  const legacyPath = getLegacyHistoryPath(conversationDir)
-  return existsSync(legacyPath) ? legacyPath : llmPath
 }
 
 function loadJsonlMessages(path: string) {
@@ -187,17 +149,7 @@ function extractUsageTotals(message: Message): TokenUsageTotals {
 }
 
 function readConversationUsageSummary(conversationDir: string, conversationId: string) {
-  const contextArchiveDir = resolve(conversationDir, "context", "archive")
-  const archiveMessages = existsSync(contextArchiveDir)
-    ? readdirSync(contextArchiveDir)
-        .filter((name) => name.endsWith(".jsonl") && /llm-history/i.test(name))
-        .sort()
-        .flatMap((name) => loadJsonlMessages(resolve(contextArchiveDir, name)))
-    : []
-  const messages = [
-    ...archiveMessages,
-    ...loadJsonlMessages(resolveReadableLlmHistoryPath(conversationDir)),
-  ]
+  const messages = loadJsonlMessages(getLlmHistoryPath(conversationDir))
 
   const totals: ConversationTokenUsageSummary = {
     conversationId,
@@ -241,43 +193,6 @@ function readConversationUsageSummary(conversationDir: string, conversationId: s
   return totals
 }
 
-function deleteFileIfExists(path: string) {
-  if (!existsSync(path)) return false
-  unlinkSync(path)
-  return true
-}
-
-function resetRecoveredContext(conversationDir: string) {
-  const contextDir = resolve(conversationDir, "context")
-  const recoveredContextPath = resolve(contextDir, "recovered-context.json")
-  mkdirSync(contextDir, { recursive: true })
-  writeFileSync(
-    recoveredContextPath,
-    JSON.stringify(
-      {
-        schemaVersion: RECOVERED_CONTEXT_SCHEMA_VERSION,
-      },
-      null,
-      2,
-    ),
-  )
-}
-
-function archiveAndClearFile(options: {
-  sourcePath: string
-  archivePath: string
-}) {
-  if (!existsSync(options.sourcePath)) return false
-  const raw = readFileSync(options.sourcePath, "utf-8")
-  if (!raw.trim()) {
-    writeFileSync(options.sourcePath, "")
-    return false
-  }
-  writeFileSync(options.archivePath, raw)
-  writeFileSync(options.sourcePath, "")
-  return true
-}
-
 export function getBotRuntimeStatus(config: BotRuntimeConfig): BotRuntimeStatus {
   const conversationEntries = listConversationDirs(config.conversationsDir)
   const activeTasks = conversationEntries.reduce((count, entry) => {
@@ -294,7 +209,6 @@ export function getBotRuntimeStatus(config: BotRuntimeConfig): BotRuntimeStatus 
     uptimeSeconds: Math.max(0, Math.floor((Date.now() - PROCESS_STARTED_AT) / 1000)),
     schedulerEnabled: config.scheduler.enabled !== false,
     conversations: conversationEntries.length,
-    memoryItems: loadMemoryIndex(config.memoryDir).length,
     pendingPermissionRequests: listElevatedPermissionRequests(
       config.workspaceRuntimeRoot,
       "pending",
@@ -310,7 +224,6 @@ export function formatBotRuntimeStatus(status: BotRuntimeStatus) {
     `- uptimeSeconds: ${status.uptimeSeconds}`,
     `- schedulerEnabled: ${status.schedulerEnabled ? "true" : "false"}`,
     `- conversations: ${status.conversations}`,
-    `- memoryItems: ${status.memoryItems}`,
     `- pendingPermissionRequests: ${status.pendingPermissionRequests}`,
     `- activeTasks: ${status.activeTasks}`,
   ].join("\n")
@@ -394,143 +307,6 @@ export function formatTokenUsageSummary(summary: TokenUsageSummary, maxConversat
 
   return lines.join("\n")
 }
-
-export function resetConversationMemory(options: {
-  memoryDir: string
-  conversationId: string
-  includeLongTerm?: boolean
-}) {
-  ensureMemoryDir(options.memoryDir)
-  const removed = removeMemoryEntries(
-    options.memoryDir,
-    (entry) => entry.tags.includes(`conversation:${options.conversationId}`),
-  )
-  const removedNotes = removed.filter((entry) => entry.kind === "memory").length
-  const removedSummaries = removed.filter((entry) => entry.kind === "summary").length
-  if (options.includeLongTerm) {
-    throw new Error("current scope 不允许清空全局长期记忆，请改用 /ops reset-memory all full")
-  }
-
-  return {
-    scope: "current",
-    removedItems: removedNotes,
-    removedNotes,
-    removedSummaries,
-    clearedLongTermMemory: false,
-  } satisfies MemoryResetResult
-}
-
-export function resetAllMemory(options: {
-  memoryDir: string
-  includeLongTerm?: boolean
-}) {
-  ensureMemoryDir(options.memoryDir)
-  const removed = removeMemoryEntries(options.memoryDir, () => true)
-  const removedNotes = removed.filter((entry) => entry.kind === "memory").length
-  const removedSummaries = removed.filter((entry) => entry.kind === "summary").length
-  const clearedLongTermMemory = Boolean(options.includeLongTerm)
-  if (clearedLongTermMemory) {
-    resetLongTermMemory(options.memoryDir)
-  }
-
-  return {
-    scope: "all",
-    removedItems: removedNotes,
-    removedNotes,
-    removedSummaries,
-    clearedLongTermMemory,
-  } satisfies MemoryResetResult
-}
-
-export function formatMemoryResetResult(result: MemoryResetResult) {
-  return [
-    `记忆已重置（${result.scope}）：`,
-    `- removedItems: ${result.removedItems}`,
-    `- removedNotes: ${result.removedNotes}`,
-    `- removedSummaries: ${result.removedSummaries}`,
-    `- clearedLongTermMemory: ${result.clearedLongTermMemory ? "true" : "false"}`,
-  ].join("\n")
-}
-
-export function runConversationHousekeeping(conversationDir: string) {
-  const contextArchiveDir = resolve(conversationDir, "context", "archive")
-  mkdirSync(contextArchiveDir, { recursive: true })
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
-
-  const historyPath = resolveReadableLlmHistoryPath(conversationDir)
-  const tracePath = getLlmTracePath(conversationDir)
-  const archivedHistory = archiveAndClearFile({
-    sourcePath: historyPath,
-    archivePath: resolve(contextArchiveDir, `ops-llm-history-${timestamp}.jsonl`),
-  })
-  const archivedTrace = archiveAndClearFile({
-    sourcePath: tracePath,
-    archivePath: resolve(contextArchiveDir, `ops-llm-trace-${timestamp}.jsonl`),
-  })
-  resetRecoveredContext(conversationDir)
-
-  return {
-    archivedHistoryFiles: archivedHistory ? 1 : 0,
-    archivedTraceFiles: archivedTrace ? 1 : 0,
-    clearedHistoryFiles: existsSync(historyPath) ? 1 : 0,
-    clearedTraceFiles: existsSync(tracePath) ? 1 : 0,
-    resetRecoveredContexts: 1,
-  }
-}
-
-export function runHousekeeping(options: {
-  conversationsDir: string
-  scope: MaintenanceScope
-  conversationId?: string
-}) {
-  const entries =
-    options.scope === "current"
-      ? options.conversationId
-        ? [
-            {
-              id: options.conversationId,
-              dir: resolve(options.conversationsDir, options.conversationId),
-            },
-          ]
-        : []
-      : listConversationDirs(options.conversationsDir)
-
-  const result: HousekeepingResult = {
-    scope: options.scope,
-    conversations: 0,
-    archivedHistoryFiles: 0,
-    archivedTraceFiles: 0,
-    clearedHistoryFiles: 0,
-    clearedTraceFiles: 0,
-    resetRecoveredContexts: 0,
-  }
-
-  entries.forEach((entry) => {
-    if (!existsSync(entry.dir)) return
-    result.conversations += 1
-    const current = runConversationHousekeeping(entry.dir)
-    result.archivedHistoryFiles += current.archivedHistoryFiles
-    result.archivedTraceFiles += current.archivedTraceFiles
-    result.clearedHistoryFiles += current.clearedHistoryFiles
-    result.clearedTraceFiles += current.clearedTraceFiles
-    result.resetRecoveredContexts += current.resetRecoveredContexts
-  })
-
-  return result
-}
-
-export function formatHousekeepingResult(result: HousekeepingResult) {
-  return [
-    `housekeeping 完成（${result.scope}）：`,
-    `- conversations: ${result.conversations}`,
-    `- archivedHistoryFiles: ${result.archivedHistoryFiles}`,
-    `- archivedTraceFiles: ${result.archivedTraceFiles}`,
-    `- clearedHistoryFiles: ${result.clearedHistoryFiles}`,
-    `- clearedTraceFiles: ${result.clearedTraceFiles}`,
-    `- resetRecoveredContexts: ${result.resetRecoveredContexts}`,
-  ].join("\n")
-}
-
 export function requestProcessRestart(options: {
   delayMs?: number
   exitCode?: number

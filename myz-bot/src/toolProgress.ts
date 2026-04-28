@@ -182,7 +182,7 @@ function getToolNameFromProviderMessage(message: ProviderMessage) {
 export async function draftToolProgressMessage(options: {
   config: BotRuntimeConfig
   conversationId: string
-  soul: string
+  soul?: string
   latestUserInput: string
   phase: "start" | "result"
   assistantDraft?: string
@@ -223,7 +223,7 @@ export async function draftToolProgressMessage(options: {
         "- 除非非常自然，否则不要出现“调用工具”“工具完成”“参数”“JSON”“系统”“模型”“函数”这些词。",
         "- start 阶段：像在告诉对方你正准备先看什么、查什么、确认什么。",
         "- result 阶段：像在告诉对方你刚刚看到了什么关键结果，必要时带一句下一步。",
-        "- 保持 SOUL 的语气，不要突然变成客服或系统提示。",
+        "- 保持自然一致的助理语气，不要突然变成客服或系统提示。",
         "- 不要编造未提供的结果。",
         "- 只输出最终短消息，不要解释。",
       ].join("\n"),
@@ -231,7 +231,7 @@ export async function draftToolProgressMessage(options: {
     createUserMessage(
       options.conversationId,
       [
-        `SOUL 摘要：${options.soul.slice(0, 800)}`,
+        options.soul?.trim() ? `SOUL 摘要：${options.soul.slice(0, 800)}` : "",
         `用户这轮请求：${options.latestUserInput.trim()}`,
         `阶段：${options.phase}`,
         `相关动作：${options.toolNames.join("、") || "无"}`,
@@ -274,9 +274,14 @@ export function createToolProgressNotifier(options: {
   conversationId: string
   chatId: number
   latestUserInput: string
-  soul: string
+  soul?: string
   sendOptions?: TelegramSendMessageOptions
   draftMessage?: typeof draftToolProgressMessage
+  onProgressMessageSent?: (options: {
+    phase: "start" | "result"
+    conversationId: string
+    text: string
+  }) => void
 }) {
   let queue = Promise.resolve()
   const startedToolIds = new Set<string>()
@@ -376,6 +381,11 @@ export function createToolProgressNotifier(options: {
           sendOptions: options.sendOptions,
           kind: "progress",
         })
+        options.onProgressMessageSent?.({
+          phase: "start",
+          conversationId: options.conversationId,
+          text,
+        })
       })
     },
 
@@ -416,6 +426,11 @@ export function createToolProgressNotifier(options: {
           text,
           sendOptions: options.sendOptions,
           kind: "progress",
+        })
+        options.onProgressMessageSent?.({
+          phase: "result",
+          conversationId: options.conversationId,
+          text,
         })
       })
     },
