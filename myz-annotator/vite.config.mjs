@@ -33,6 +33,7 @@ export default defineConfig({
     alias: {
       "@": resolve(rootDir, "src"),
       "@myz/ai-core": resolve(rootDir, "../packages/ai-core/src"),
+      "@myz/dashboard-core": resolve(rootDir, "../packages/dashboard-core/src"),
       "@myz/sync-core": resolve(rootDir, "../packages/sync-core/src"),
       "@myz/shared": resolve(rootDir, "../packages/shared/src"),
     },

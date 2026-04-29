@@ -1,13 +1,25 @@
-import { defineConfig } from "vite";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import vueJsx from "@vitejs/plugin-vue-jsx";
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
+const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [vue(), vueJsx(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": resolve(rootDir, "src"),
+      "@myz/dashboard-core": resolve(rootDir, "../packages/dashboard-core/src"),
+      "@myz/notes-workspace": resolve(rootDir, "../packages/notes-workspace/src"),
+      "@myz/shared": resolve(rootDir, "../packages/shared/src"),
+      "@myz/sync-core": resolve(rootDir, "../packages/sync-core/src"),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "myz-suite-tool",
+  "productName": "MyZ Desktop",
   "version": "0.1.0",
-  "identifier": "net.kimleo.myz-suite-tool",
+  "identifier": "net.kimleo.myz-suite-desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "myz-suite-tool",
+        "title": "MyZ Desktop",
         "width": 800,
         "height": 600
       }
