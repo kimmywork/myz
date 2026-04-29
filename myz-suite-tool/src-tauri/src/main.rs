@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    myz_suite_tool_lib::run()
+    myz_suite_desktop_lib::run()
 }

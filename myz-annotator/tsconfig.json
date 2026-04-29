@@ -7,6 +7,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@myz/ai-core/*": ["../packages/ai-core/src/*"],
+      "@myz/dashboard-core/*": ["../packages/dashboard-core/src/*"],
       "@myz/sync-core/*": ["../packages/sync-core/src/*"],
       "@myz/shared/*": ["../packages/shared/src/*"]
     },

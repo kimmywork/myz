@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "@myz/ai-core": "*",
+    "@myz/dashboard-core": "*",
     "@myz/shared": "*",
     "@myz/sync-core": "*",
     "@modelcontextprotocol/sdk": "^1.24.3",
