@@ -19,15 +19,13 @@ import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 function createConfig(root: string) {
   return createRuntimeConfig(root, {
-    telegram: {
-      adminUsers: ["admin"],
+    channels: {
+      telegram: {
+        adminUsers: ["admin"],
+      },
     },
     scheduler: {
       failureRetryBaseDelayMs: 1000,
-    },
-    soul: {
-      autoDraft: false,
-      autoApply: true,
     },
   })
 }

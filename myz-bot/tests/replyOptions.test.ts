@@ -1,12 +1,12 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { buildReplyOptions } from "../src/replyOptions"
-import type { TelegramMessage } from "../src/telegram"
+import type { ChatMessage } from "../src/chatChannel"
 
-function createMessage(overrides: Partial<TelegramMessage> = {}): TelegramMessage {
+function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
-    message_id: 1,
-    date: Date.now(),
+    messageId: 1,
+    unixTime: Date.now(),
     chat: {
       id: 1,
       type: "private",
@@ -40,7 +40,7 @@ test("buildReplyOptions preserves topic thread ids without forcing quote in priv
   assert.deepEqual(
     buildReplyOptions(
       createMessage({
-        message_thread_id: 99,
+        threadId: 99,
       }),
     ),
     { messageThreadId: 99 },

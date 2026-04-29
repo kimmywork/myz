@@ -18,6 +18,70 @@ dotenv.config({ path: resolve(process.cwd(), ".env") })
 
 export const BOT_RUNTIME_DIRNAME = ".myz-bot"
 
+const TelegramChannelConfigSchema = z.object({
+  enabled: z.boolean().optional().default(true),
+  username: z.string().optional().default(""),
+  token: z.string().optional().default(""),
+  timeoutSeconds: z.number().int().positive().optional().default(25),
+  allowedUsers: z.array(z.string().min(1)).optional().default([]),
+  allowedChats: z.array(z.number().int()).optional().default([]),
+  adminUsers: z.array(z.string().min(1)).optional().default([]),
+  saveIncomingMedia: z.boolean().optional().default(true),
+  groupResponseMode: z
+    .object({
+      onlyWhenMentioned: z.boolean().optional().default(true),
+      allowReplyToBot: z.boolean().optional().default(true),
+      allowAdminCommands: z.boolean().optional().default(true),
+    })
+    .optional()
+    .default({
+      onlyWhenMentioned: true,
+      allowReplyToBot: true,
+      allowAdminCommands: true,
+    }),
+  retry: z
+    .object({
+      retries: z.number().int().min(0).optional().default(2),
+      baseDelayMs: z.number().int().min(0).optional().default(800),
+    })
+    .optional()
+    .default({
+      retries: 2,
+      baseDelayMs: 800,
+    }),
+})
+
+const TuiChannelConfigSchema = z.object({
+  enabled: z.boolean().optional().default(true),
+  label: z.string().min(1).optional().default("local"),
+  operatorUsername: z.string().min(1).optional().default("local"),
+  operatorFirstName: z.string().min(1).optional().default("Local"),
+  operatorLastName: z.string().optional().default("Operator"),
+})
+
+const ChannelsConfigSchema = z
+  .object({
+    telegram: TelegramChannelConfigSchema.optional(),
+    tui: TuiChannelConfigSchema.optional().default({
+      enabled: true,
+      label: "local",
+      operatorUsername: "local",
+      operatorFirstName: "Local",
+      operatorLastName: "Operator",
+    }),
+  })
+  .catchall(z.unknown())
+  .optional()
+  .default({
+    tui: {
+      enabled: true,
+      label: "local",
+      operatorUsername: "local",
+      operatorFirstName: "Local",
+      operatorLastName: "Operator",
+    },
+  })
+
 const SkillSourceConfigSchema = z.object({
   id: z.string().min(1),
   dir: z.string().min(1),
@@ -25,37 +89,7 @@ const SkillSourceConfigSchema = z.object({
 })
 
 const BotConfigSchema = z.object({
-  telegram: z.object({
-    username: z.string().min(1),
-    token: z.string().min(1),
-    timeoutSeconds: z.number().int().positive().optional().default(25),
-    allowedUsers: z.array(z.string().min(1)).optional().default([]),
-    allowedChats: z.array(z.number().int()).optional().default([]),
-    adminUsers: z.array(z.string().min(1)).optional().default([]),
-    saveIncomingMedia: z.boolean().optional().default(true),
-    groupResponseMode: z
-      .object({
-        onlyWhenMentioned: z.boolean().optional().default(true),
-        allowReplyToBot: z.boolean().optional().default(true),
-        allowAdminCommands: z.boolean().optional().default(true),
-      })
-      .optional()
-      .default({
-        onlyWhenMentioned: true,
-        allowReplyToBot: true,
-        allowAdminCommands: true,
-      }),
-    retry: z
-      .object({
-        retries: z.number().int().min(0).optional().default(2),
-        baseDelayMs: z.number().int().min(0).optional().default(800),
-      })
-      .optional()
-      .default({
-        retries: 2,
-        baseDelayMs: 800,
-      }),
-  }),
+  channels: ChannelsConfigSchema,
   network: z
     .object({
       requestTimeoutMs: z.number().int().min(0).optional().default(180_000),
@@ -133,6 +167,24 @@ const BotConfigSchema = z.object({
         parallelToolCalls: "auto",
       }),
   }),
+  contextCompaction: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+      maxHistoryMessages: z.number().int().positive().optional().default(120),
+      maxHistoryChars: z.number().int().positive().optional().default(120_000),
+      summaryMaxMessages: z.number().int().positive().optional().default(20),
+      summaryMaxChars: z.number().int().positive().optional().default(6_000),
+      compressionCooldownMs: z.number().int().min(0).optional().default(300_000),
+    })
+    .optional()
+    .default({
+      enabled: true,
+      maxHistoryMessages: 120,
+      maxHistoryChars: 120_000,
+      summaryMaxMessages: 20,
+      summaryMaxChars: 6_000,
+      compressionCooldownMs: 300_000,
+    }),
   mcpServers: z
     .array(
       z.object({
@@ -204,27 +256,11 @@ const BotConfigSchema = z.object({
     }),
   soul: z
     .object({
-      autoDraft: z.boolean().optional().default(true),
-      autoApply: z.boolean().optional().default(true),
       reviewRequired: z.boolean().optional().default(true),
-      autoDraftMessageInterval: z.number().int().positive().optional().default(40),
-      autoDraftTimeIntervalMs: z.number().int().positive().optional().default(14_400_000),
-      growthFeedbackBatchMessageInterval: z.number().int().positive().optional().default(20),
-      growthFeedbackTimeIntervalMs: z.number().int().positive().optional().default(3_600_000),
-      relationshipReflectionMessageInterval: z.number().int().positive().optional().default(20),
-      relationshipReflectionTimeIntervalMs: z.number().int().positive().optional().default(3_600_000),
     })
     .optional()
     .default({
-      autoDraft: true,
-      autoApply: true,
       reviewRequired: true,
-      autoDraftMessageInterval: 40,
-      autoDraftTimeIntervalMs: 14_400_000,
-      growthFeedbackBatchMessageInterval: 20,
-      growthFeedbackTimeIntervalMs: 3_600_000,
-      relationshipReflectionMessageInterval: 20,
-      relationshipReflectionTimeIntervalMs: 3_600_000,
     }),
 })
 
@@ -235,7 +271,39 @@ export interface SkillSourceConfig {
   readonly?: boolean
 }
 
-export type BotRuntimeConfig = BotConfig & {
+export interface TelegramChannelRuntimeConfig {
+  enabled: true
+  username: string
+  token: string
+  timeoutSeconds: number
+  allowedUsers: string[]
+  allowedChats: number[]
+  adminUsers: string[]
+  saveIncomingMedia: boolean
+  groupResponseMode: {
+    onlyWhenMentioned: boolean
+    allowReplyToBot: boolean
+    allowAdminCommands: boolean
+  }
+  retry: {
+    retries: number
+    baseDelayMs: number
+  }
+}
+
+export interface TuiChannelRuntimeConfig {
+  enabled: boolean
+  label: string
+  operatorUsername: string
+  operatorFirstName: string
+  operatorLastName: string
+}
+
+export type BotRuntimeConfig = Omit<BotConfig, "channels"> & {
+  channels: BotConfig["channels"] & {
+    telegram: TelegramChannelRuntimeConfig | null
+    tui: TuiChannelRuntimeConfig
+  }
   runtimeRoot: string
   workspaceRoot: string
   workspaceId: string
@@ -244,7 +312,6 @@ export type BotRuntimeConfig = BotConfig & {
   attachmentsDir: string
   conversationsDir: string
   permissionsDir: string
-  relationshipsDir: string
   soulRuntimeDir: string
   systemDir: string
   memoryDir: string
@@ -289,6 +356,16 @@ function applyEnvFallback(config: unknown) {
     typeof config === "object" && config
       ? { ...(config as Record<string, unknown>) }
       : {}
+  const channels =
+    typeof next.channels === "object" && next.channels
+      ? { ...(next.channels as Record<string, unknown>) }
+      : {}
+  if (!("telegram" in channels) && typeof next.telegram === "object" && next.telegram) {
+    channels.telegram = next.telegram
+  }
+  if (!("tui" in channels) && typeof next.tui === "object" && next.tui) {
+    channels.tui = next.tui
+  }
   const envUsername = process.env.TELEGRAM_BOT_USERNAME || ""
   const envToken = process.env.TELEGRAM_BOT_TOKEN || ""
   const envModel = process.env.AI_MODEL || ""
@@ -298,8 +375,8 @@ function applyEnvFallback(config: unknown) {
     process.env.AI_ACCESS_TOKEN || process.env.OPENAI_API_KEY || ""
 
   const telegram =
-    typeof next.telegram === "object" && next.telegram
-      ? { ...(next.telegram as Record<string, unknown>) }
+    typeof channels.telegram === "object" && channels.telegram
+      ? { ...(channels.telegram as Record<string, unknown>) }
       : {}
   const telegramUsername = normalizeValue(telegram.username)
   if (!telegramUsername && envUsername) {
@@ -309,7 +386,7 @@ function applyEnvFallback(config: unknown) {
   if (!telegramToken && envToken) {
     telegram.token = envToken
   }
-  next.telegram = telegram
+  channels.telegram = telegram
 
   const ai =
     typeof next.ai === "object" && next.ai
@@ -332,6 +409,9 @@ function applyEnvFallback(config: unknown) {
     ai.accessToken = envAccessToken
   }
   next.ai = ai
+  next.channels = channels
+  delete next.telegram
+  delete next.tui
 
   return next
 }
@@ -385,6 +465,46 @@ function buildSkillSources(config: BotConfig, workspaceRoot: string) {
   return Array.from(unique.values())
 }
 
+function resolveTelegramChannelConfig(
+  channel?: BotConfig["channels"]["telegram"],
+): TelegramChannelRuntimeConfig | null {
+  if (!channel || channel.enabled === false) return null
+  const username = normalizeValue(channel.username)
+  const token = normalizeValue(channel.token)
+  if (!username && !token) {
+    return null
+  }
+  if (!username || !token) {
+    throw new Error(
+      "channels.telegram.username and channels.telegram.token must both be set when telegram is enabled",
+    )
+  }
+  return {
+    enabled: true,
+    username,
+    token,
+    timeoutSeconds: channel.timeoutSeconds,
+    allowedUsers: channel.allowedUsers,
+    allowedChats: channel.allowedChats,
+    adminUsers: channel.adminUsers,
+    saveIncomingMedia: channel.saveIncomingMedia,
+    groupResponseMode: channel.groupResponseMode,
+    retry: channel.retry,
+  }
+}
+
+function resolveTuiChannelConfig(
+  channel?: BotConfig["channels"]["tui"],
+): TuiChannelRuntimeConfig {
+  return {
+    enabled: channel?.enabled !== false,
+    label: normalizeValue(channel?.label) || "local",
+    operatorUsername: normalizeValue(channel?.operatorUsername) || "local",
+    operatorFirstName: normalizeValue(channel?.operatorFirstName) || "Local",
+    operatorLastName: normalizeValue(channel?.operatorLastName) || "Operator",
+  }
+}
+
 export function loadConfig(options: {
   workspaceRoot?: string
   runtimeRoot?: string
@@ -407,9 +527,16 @@ export function loadConfig(options: {
   const skillDenylist = normalizeSkillPolicies(config.skills?.denylist)
   const toolAllowlist = normalizeSkillPolicies(config.tools?.allowlist)
   const toolDenylist = normalizeSkillPolicies(config.tools?.denylist)
+  const telegramChannel = resolveTelegramChannelConfig(config.channels.telegram)
+  const tuiChannel = resolveTuiChannelConfig(config.channels.tui)
 
   return {
     ...config,
+    channels: {
+      ...config.channels,
+      telegram: telegramChannel,
+      tui: tuiChannel,
+    },
     runtimeRoot,
     workspaceRoot,
     workspaceId,
@@ -418,7 +545,6 @@ export function loadConfig(options: {
     attachmentsDir: resolve(workspaceRuntimeRoot, "attachments"),
     conversationsDir: resolve(workspaceRuntimeRoot, "conversations"),
     permissionsDir: resolve(workspaceRuntimeRoot, "permissions"),
-    relationshipsDir: resolve(workspaceRuntimeRoot, "relationships"),
     soulRuntimeDir: resolve(workspaceRuntimeRoot, "soul"),
     systemDir: resolve(workspaceRuntimeRoot, "system"),
     memoryDir: resolve(workspaceRoot, "memory"),

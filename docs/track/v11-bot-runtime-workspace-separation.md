@@ -1,5 +1,28 @@
 # myz-bot workspace 可见性收敛、HOME runtime 与记忆模型重构
 
+## Status
+
+状态时间：2026-04-29
+
+- 本文档保留为 runtime/workspace 拆分的历史基线。`runtime=~/.myz-bot`、固定 `bot.yml` 路径、`workspaceId` 分区、`-w/--workspace`、`/workspace` 与只读 `/attachments` 视图已经在当前实现中落地。
+- 之后关于 memory-less 主链路、TUI、多 channel、工具面瘦身与运行时 UX 的决策，已转移到 `v18-myz-bot-memoryless-and-tui-refactor.md` 维护；本文件不再作为主交付入口。
+- 下文中依赖 `migrate-layout`、`/ops reset-memory`、workspace 默认 `memory/` 白名单、旧布局兼容窗口等段落，已被后续实现与裁剪覆盖；应视为历史设计记录，而不是当前待实现目标。
+
+## Current Closure Notes
+
+### 已落地
+
+- runtime root 固定为 `~/.myz-bot`，配置固定读取 `~/.myz-bot/bot.yml`。
+- workspace 通过当前目录或 `-w` 解析，并稳定派生 `workspaceId` 与 `workspaceRuntimeRoot`。
+- 工具面只保留 `/workspace` 与当前会话只读 `/attachments` 两个文件访问根，不再暴露 `/bot`。
+- `init` 会写入 `SOUL.md`、`AGENTS.md`、`BOOTSTRAP.md`、`IDENTITY.md`、`USER.md` 与白名单 `.gitignore`，且不在 workspace 内创建 runtime 目录。
+
+### 已被后续方案覆盖
+
+- workspace 默认 `memory/` 目录、`MEMORY.md` / `YYYY-MM-DD.md` 初始化与对应 `.gitignore` 白名单，不是当前 `init` 的默认行为。
+- `migrate-layout`、`/ops reset-memory`、旧布局兼容回退窗口不再是当前实现目标；相关旧路径已在后续重构中删除或放弃。
+- memory 相关行为已不再是默认主聊天链路的一部分；当前主流程应以 `v18` 的 memory-less 约束为准。
+
 ## Vision
 - 让 `myz-bot` 的 agent 只感知当前协作 workspace，而所有运行态状态统一下沉到当前用户 `HOME` 下的 `~/.myz-bot`，从根上切断工具对 runtime 的直接访问。
 
@@ -15,7 +38,7 @@
 - 保留 `workspace` 作为 bot 唯一可见的协作目录，默认等于当前执行目录。
 - 把 runtime 统一收敛到当前用户 `HOME` 下的 `~/.myz-bot`。
 - 在 `~/.myz-bot` 内按 `workspaceId` 维护每个 workspace 的隔离运行态数据。
-- runtime 保存 `bot.yml`、`conversations/`、`permissions/`、`relationships/`、`soul/` 与运行控制目录。
+- runtime 保存 `bot.yml`、`conversations/`、`permissions/`、`soul/` 与运行控制目录。
 - workspace 保存协作与身份文档：`AGENTS.md`、`BOOTSTRAP.md`、`SOUL.md`、`IDENTITY.md`、`USER.md`、`memory/`。
 - 重写 `init` 为引导式初始化：先采集 bot 与 LLM 基础配置，再写入 runtime `bot.yml`，同时生成 workspace 文档。
 - 移除“按 conversation 隔离 workspace”的设计，`/workspace` 始终指向共享 workspace。
@@ -60,15 +83,14 @@
     <workspaceId>/
       conversations/
       permissions/
-      relationships/
       soul/
       system/
 ```
 
 - `workspaceId` 必须由 workspace 的真实绝对路径稳定推导，例如 `sha256(realpath(workspace)).slice(0, 16)`。
-- runtime 中所有会话、权限、关系、soul 审计与运行控制文件都必须位于对应的 `workspaces/<workspaceId>/` 下。
+- runtime 中所有会话、权限、soul 审计与运行控制文件都必须位于对应的 `workspaces/<workspaceId>/` 下。
 - `bot.yml` 是 runtime 全局配置文件，不再与 workspace 同目录。
-- `SOUL.md` 的“可见人格文档”在 workspace；runtime 的 `soul/` 只保存草稿、审计、growth 与 archive 等运行态文件。
+- `SOUL.md` 的“可见人格文档”在 workspace；runtime 的 `soul/` 只保存草稿、版本与审计等运行态文件。
 
 ### 2. 配置模型
 - `bot.yml` 必须固定解析自 `~/.myz-bot/bot.yml`。
@@ -80,7 +102,6 @@
   - `workspaceRuntimeRoot`
   - `conversationsDir`
   - `permissionsDir`
-  - `relationshipsDir`
   - `soulRuntimeDir`
   - `systemDir`
   - `memoryDir`
@@ -176,7 +197,6 @@ memory/*
   - `bot.yml`
   - `conversations/`
   - `permissions/`
-  - `relationships/`
   - `soul/`
 
 ## UX / Flow
@@ -193,7 +213,7 @@ memory/*
 1. 用户执行 `myz-bot serve` 或 `myz-bot serve -w /abs/path/to/workspace`。
 2. 运行时固定从 `~/.myz-bot/bot.yml` 读取配置。
 3. 运行时将 `-w` 或 `process.cwd()` 解析为 `workspaceRoot`，并据此计算 `workspaceId`。
-4. 运行时在 `~/.myz-bot/workspaces/<workspaceId>/` 下装载该 workspace 的 conversations、permissions、relationships、soul 与 system 状态。
+4. 运行时在 `~/.myz-bot/workspaces/<workspaceId>/` 下装载该 workspace 的 conversations、permissions、soul 与 system 状态。
 5. Assistant prompt 从 `workspace/AGENTS.md`、`workspace/SOUL.md`、`workspace/IDENTITY.md`、`workspace/USER.md` 装载长期上下文。
 6. 工具中的文件访问只允许 `/workspace`，attachment 只允许 `/attachments` 只读访问。
 
@@ -292,3 +312,6 @@ memory/*
   - 改为 `workspace=当前目录或 -w 指定目录`，`runtime=~/.myz-bot`。
   - 删除 `/bot` 虚拟目录，收敛为 `/workspace` 与只读 `/attachments`。
   - 删除 `bot.yml.workspaceRoot` 与 `serve -c` 语义。
+- 2026-04-29
+  - 补充当前状态与收口说明，明确本文档作为历史基线保留。
+  - 标注 runtime/workspace 拆分中已落地项，以及被 `v18` 与后续实现覆盖的旧 memory / migration 设计。

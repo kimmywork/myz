@@ -3,6 +3,7 @@ import { resolve, join, relative, dirname } from "node:path"
 import { exec } from "node:child_process"
 import type { Tool } from "@modelcontextprotocol/sdk/types.js"
 import type { ToolExecutionResult } from "@myz/ai-core/types"
+import type { ChatChannelClient } from "./chatChannel"
 import {
   formatAgentsNotice,
   readNearestAgentsForTarget,
@@ -45,7 +46,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "./taskPlans"
-import type { TelegramClient } from "./telegram"
+import type { ChatMessage } from "./chatChannel"
 
 const textBlock = (text: string): ToolExecutionResult => ({
   content: [{ type: "text", text }],
@@ -351,7 +352,7 @@ export function createLocalTools(options: {
   conversationsDir: string
   attachmentsDir?: string
   adminUsers?: string[]
-  telegram?: Pick<TelegramClient, "sendMessage">
+  telegram?: Pick<ChatChannelClient<ChatMessage>, "sendMessage">
 }) {
   const runtimeRoot = options.runtimeRoot || options.workspaceRoot
   const attachmentsDir = options.attachmentsDir || resolve(runtimeRoot, "attachments")

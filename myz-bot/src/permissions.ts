@@ -1,11 +1,12 @@
 import type { BotRuntimeConfig } from "./config"
-import type { TelegramMessage, TelegramUser } from "./telegram"
+import type { ChatMessage, ChatUser } from "./chatChannel"
+import { LOCAL_TUI_CHAT_ID, LOCAL_TUI_USER_ID } from "./tuiChannel"
 
 function normalizeIdentity(value: string) {
   return value.trim().replace(/^@/, "").toLowerCase()
 }
 
-function buildUserCandidates(user?: TelegramUser) {
+function buildUserCandidates(user?: ChatUser) {
   const candidates: string[] = []
   if (typeof user?.id === "number") {
     candidates.push(String(user.id))
@@ -16,7 +17,7 @@ function buildUserCandidates(user?: TelegramUser) {
   return candidates
 }
 
-function isUserListed(entries: string[], user?: TelegramUser) {
+function isUserListed(entries: string[], user?: ChatUser) {
   if (!entries.length) return true
   const normalizedEntries = new Set(entries.map(normalizeIdentity))
   return buildUserCandidates(user).some((candidate) =>
@@ -24,17 +25,22 @@ function isUserListed(entries: string[], user?: TelegramUser) {
   )
 }
 
-export function isAdminUser(config: BotRuntimeConfig, user?: TelegramUser) {
-  const adminUsers = config.telegram.adminUsers || []
+export function isAdminUser(config: BotRuntimeConfig, user?: ChatUser) {
+  if (user?.id === LOCAL_TUI_USER_ID) return true
+  const adminUsers = config.channels.telegram?.adminUsers || []
   if (!adminUsers.length) return false
   return isUserListed(adminUsers, user)
 }
 
 export function authorizeMessage(
   config: BotRuntimeConfig,
-  message: TelegramMessage,
+  message: ChatMessage,
 ) {
-  const allowedChats = config.telegram.allowedChats || []
+  if (message.chat.id === LOCAL_TUI_CHAT_ID) {
+    return { ok: true as const }
+  }
+
+  const allowedChats = config.channels.telegram?.allowedChats || []
   if (allowedChats.length && !allowedChats.includes(message.chat.id)) {
     return {
       ok: false,
@@ -43,7 +49,7 @@ export function authorizeMessage(
     }
   }
 
-  const allowedUsers = config.telegram.allowedUsers || []
+  const allowedUsers = config.channels.telegram?.allowedUsers || []
   if (!isUserListed(allowedUsers, message.from)) {
     return {
       ok: false,
@@ -55,8 +61,8 @@ export function authorizeMessage(
   return { ok: true as const }
 }
 
-function isReplyToBot(message: TelegramMessage, botUsername: string) {
-  const repliedUser = message.reply_to_message?.from
+function isReplyToBot(message: ChatMessage, botUsername: string) {
+  const repliedUser = message.replyToMessage?.from
   if (!repliedUser) return false
   const repliedUsername =
     typeof repliedUser.username === "string"
@@ -65,7 +71,7 @@ function isReplyToBot(message: TelegramMessage, botUsername: string) {
   return repliedUsername === normalizeIdentity(botUsername)
 }
 
-function mentionsBot(message: TelegramMessage, botUsername: string) {
+function mentionsBot(message: ChatMessage, botUsername: string) {
   const text = [message.text, message.caption]
     .filter((value): value is string => typeof value === "string")
     .join("\n")
@@ -74,7 +80,7 @@ function mentionsBot(message: TelegramMessage, botUsername: string) {
   return text.includes(`@${normalizeIdentity(botUsername)}`)
 }
 
-export function extractCommandText(message: TelegramMessage) {
+export function extractCommandText(message: ChatMessage) {
   const text =
     typeof message.text === "string"
       ? message.text.trim()
@@ -86,7 +92,7 @@ export function extractCommandText(message: TelegramMessage) {
 
 export function shouldRespondToMessage(
   config: BotRuntimeConfig,
-  message: TelegramMessage,
+  message: ChatMessage,
   botUsername: string,
 ) {
   return evaluateMessageHandling(config, message, botUsername).shouldReply
@@ -94,7 +100,7 @@ export function shouldRespondToMessage(
 
 export function evaluateMessageHandling(
   config: BotRuntimeConfig,
-  message: TelegramMessage,
+  message: ChatMessage,
   botUsername: string,
 ) {
   const chatType = message.chat.type
@@ -113,16 +119,21 @@ export function evaluateMessageHandling(
     }
   }
 
+  const groupResponseMode = config.channels.telegram?.groupResponseMode || {
+    onlyWhenMentioned: true,
+    allowReplyToBot: true,
+    allowAdminCommands: true,
+  }
   const commandText = extractCommandText(message)
   const isAdminCommand = Boolean(
     commandText &&
-      config.telegram.groupResponseMode.allowAdminCommands &&
+      groupResponseMode.allowAdminCommands &&
       isAdminUser(config, message.from),
   )
   const isMentioned = mentionsBot(message, botUsername)
   const isReplyingToBot = isReplyToBot(message, botUsername)
 
-  if (!config.telegram.groupResponseMode.onlyWhenMentioned) {
+  if (!groupResponseMode.onlyWhenMentioned) {
     return {
       shouldProcess: true,
       shouldReply: isAdminCommand || isMentioned || isReplyingToBot,
@@ -136,9 +147,7 @@ export function evaluateMessageHandling(
     }
   }
 
-  if (
-    isAdminCommand
-  ) {
+  if (isAdminCommand) {
     return {
       shouldProcess: true,
       shouldReply: true,
@@ -154,10 +163,7 @@ export function evaluateMessageHandling(
     }
   }
 
-  if (
-    config.telegram.groupResponseMode.allowReplyToBot &&
-    isReplyingToBot
-  ) {
+  if (groupResponseMode.allowReplyToBot && isReplyingToBot) {
     return {
       shouldProcess: true,
       shouldReply: true,

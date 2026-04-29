@@ -3,13 +3,14 @@
   "version": "0.1.8",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/cli.ts serve -w ../../../ml/bot",
+    "dev": "tsx src/cli.ts serve --tui -w ../../../ml/bot",
     "test": "node --import tsx --test tests/*.test.ts",
     "build": "vite build && node scripts/prepare-dist.mjs"
   },
   "dependencies": {
     "@myz/ai-core": "*",
     "@myz/shared": "*",
+    "blessed": "^0.1.81",
     "commander": "14.0.3",
     "dotenv": "^16.4.7",
     "undici": "^6.19.5",
@@ -17,6 +18,7 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@types/blessed": "^0.1.27",
     "@types/node": "^24.0.15",
     "tsx": "^4.20.2",
     "typescript": "^5.9.3",

@@ -4,17 +4,18 @@ import { existsSync, mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { buildIncomingMessage } from "../src/incoming"
-import type { TelegramClient, TelegramMessage } from "../src/telegram"
+import type { ChatFile, ChatMessage } from "../src/chatChannel"
+import type { TelegramClient } from "../src/telegram"
 import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 function createConfig(root: string) {
   return createRuntimeConfig(root)
 }
 
-function createMessage(overrides: Partial<TelegramMessage> = {}): TelegramMessage {
+function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
-    message_id: 1,
-    date: Math.floor(Date.now() / 1000),
+    messageId: 1,
+    unixTime: Math.floor(Date.now() / 1000),
     chat: {
       id: 100,
       type: "private",
@@ -22,7 +23,7 @@ function createMessage(overrides: Partial<TelegramMessage> = {}): TelegramMessag
     from: {
       id: 200,
       username: "alice",
-      first_name: "Alice",
+      firstName: "Alice",
     },
     ...overrides,
   }
@@ -33,9 +34,9 @@ test("buildIncomingMessage stores document attachments with a readable virtual p
   const conversationDir = join(root, "conversations", "100-200")
   const message = createMessage({
     document: {
-      file_id: "doc-1",
-      file_name: "稿子.md",
-      mime_type: "text/markdown",
+      fileId: "doc-1",
+      fileName: "稿子.md",
+      mimeType: "text/markdown",
     },
   })
 
@@ -46,9 +47,9 @@ test("buildIncomingMessage stores document attachments with a readable virtual p
     setMessageReaction: async () => true,
     getMe: async () => ({ id: 1 }),
     getFile: async () => ({
-      file_id: "doc-1",
-      file_path: "documents/source.md",
-    }),
+      fileId: "doc-1",
+      filePath: "documents/source.md",
+    } satisfies ChatFile),
     downloadFile: async () => new TextEncoder().encode("# Hello").buffer,
   }
 
@@ -84,9 +85,9 @@ test("buildIncomingMessage falls back to a stable stem when document name saniti
   const conversationDir = join(root, "conversations", "100-200")
   const message = createMessage({
     document: {
-      file_id: "doc-2",
-      file_name: "《》.md",
-      mime_type: "text/markdown",
+      fileId: "doc-2",
+      fileName: "《》.md",
+      mimeType: "text/markdown",
     },
   })
 
@@ -97,9 +98,9 @@ test("buildIncomingMessage falls back to a stable stem when document name saniti
     setMessageReaction: async () => true,
     getMe: async () => ({ id: 1 }),
     getFile: async () => ({
-      file_id: "doc-2",
-      file_path: "documents/source.md",
-    }),
+      fileId: "doc-2",
+      filePath: "documents/source.md",
+    } satisfies ChatFile),
     downloadFile: async () => new TextEncoder().encode("# Hello").buffer,
   }
 

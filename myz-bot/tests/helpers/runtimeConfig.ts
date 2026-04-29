@@ -4,11 +4,14 @@ import type { BotRuntimeConfig } from "../../src/config"
 type RuntimeConfigOverrides =
   Omit<
     Partial<BotRuntimeConfig>,
-    "telegram" | "network" | "ai" | "skills" | "tools" | "scheduler" | "upgrade" | "soul"
+    "channels" | "network" | "ai" | "contextCompaction" | "skills" | "tools" | "scheduler" | "upgrade" | "soul"
   > & {
-    telegram?: Partial<BotRuntimeConfig["telegram"]> & {
-      groupResponseMode?: Partial<BotRuntimeConfig["telegram"]["groupResponseMode"]>
-      retry?: Partial<BotRuntimeConfig["telegram"]["retry"]>
+    channels?: Partial<BotRuntimeConfig["channels"]> & {
+      telegram?: Partial<NonNullable<BotRuntimeConfig["channels"]["telegram"]>> & {
+        groupResponseMode?: Partial<NonNullable<BotRuntimeConfig["channels"]["telegram"]>["groupResponseMode"]>
+        retry?: Partial<NonNullable<BotRuntimeConfig["channels"]["telegram"]>["retry"]>
+      }
+      tui?: Partial<BotRuntimeConfig["channels"]["tui"]>
     }
     network?: Partial<BotRuntimeConfig["network"]>
     ai?: Partial<BotRuntimeConfig["ai"]> & {
@@ -17,6 +20,7 @@ type RuntimeConfigOverrides =
       limits?: Partial<BotRuntimeConfig["ai"]["limits"]>
       tooling?: Partial<BotRuntimeConfig["ai"]["tooling"]>
     }
+    contextCompaction?: Partial<BotRuntimeConfig["contextCompaction"]>
     skills?: Partial<BotRuntimeConfig["skills"]>
     tools?: Partial<BotRuntimeConfig["tools"]>
     scheduler?: Partial<BotRuntimeConfig["scheduler"]>
@@ -30,22 +34,32 @@ export function createRuntimeConfig(
 ): BotRuntimeConfig {
   const workspaceRuntimeRoot = join(root, ".runtime")
   const base: BotRuntimeConfig = {
-    telegram: {
-      username: "testbot",
-      token: "token",
-      timeoutSeconds: 25,
-      allowedUsers: [],
-      allowedChats: [],
-      adminUsers: [],
-      saveIncomingMedia: true,
-      groupResponseMode: {
-        onlyWhenMentioned: true,
-        allowReplyToBot: true,
-        allowAdminCommands: true,
+    channels: {
+      telegram: {
+        enabled: true,
+        username: "testbot",
+        token: "token",
+        timeoutSeconds: 25,
+        allowedUsers: [],
+        allowedChats: [],
+        adminUsers: [],
+        saveIncomingMedia: true,
+        groupResponseMode: {
+          onlyWhenMentioned: true,
+          allowReplyToBot: true,
+          allowAdminCommands: true,
+        },
+        retry: {
+          retries: 2,
+          baseDelayMs: 800,
+        },
       },
-      retry: {
-        retries: 2,
-        baseDelayMs: 800,
+      tui: {
+        enabled: true,
+        label: "local",
+        operatorUsername: "local",
+        operatorFirstName: "Local",
+        operatorLastName: "Operator",
       },
     },
     network: {
@@ -88,6 +102,14 @@ export function createRuntimeConfig(
       },
     },
     mcpServers: [],
+    contextCompaction: {
+      enabled: true,
+      maxHistoryMessages: 120,
+      maxHistoryChars: 120000,
+      summaryMaxMessages: 20,
+      summaryMaxChars: 6000,
+      compressionCooldownMs: 300000,
+    },
     debug: false,
     runtimeRoot: join(root, ".home"),
     workspaceRoot: root,
@@ -99,7 +121,6 @@ export function createRuntimeConfig(
     tools: { allowlist: [], denylist: [] },
     conversationsDir: join(workspaceRuntimeRoot, "conversations"),
     permissionsDir: join(workspaceRuntimeRoot, "permissions"),
-    relationshipsDir: join(workspaceRuntimeRoot, "relationships"),
     soulRuntimeDir: join(workspaceRuntimeRoot, "soul"),
     systemDir: join(workspaceRuntimeRoot, "system"),
     memoryDir: join(root, "memory"),
@@ -119,15 +140,7 @@ export function createRuntimeConfig(
       allowPrerelease: false,
     },
     soul: {
-      autoDraft: true,
-      autoApply: true,
       reviewRequired: true,
-      autoDraftMessageInterval: 12,
-      autoDraftTimeIntervalMs: 3600000,
-      growthFeedbackBatchMessageInterval: 12,
-      growthFeedbackTimeIntervalMs: 1800000,
-      relationshipReflectionMessageInterval: 12,
-      relationshipReflectionTimeIntervalMs: 1800000,
     },
     skillSources: [],
     skillAllowlist: [],
@@ -139,16 +152,27 @@ export function createRuntimeConfig(
   return {
     ...base,
     ...overrides,
-    telegram: {
-      ...base.telegram,
-      ...overrides.telegram,
-      groupResponseMode: {
-        ...base.telegram.groupResponseMode,
-        ...(overrides.telegram?.groupResponseMode || {}),
-      },
-      retry: {
-        ...base.telegram.retry,
-        ...(overrides.telegram?.retry || {}),
+    channels: {
+      ...base.channels,
+      ...(overrides.channels || {}),
+      telegram:
+        overrides.channels?.telegram === null
+          ? null
+          : {
+              ...(base.channels.telegram || {}),
+              ...(overrides.channels?.telegram || {}),
+              groupResponseMode: {
+                ...base.channels.telegram?.groupResponseMode,
+                ...(overrides.channels?.telegram?.groupResponseMode || {}),
+              },
+              retry: {
+                ...base.channels.telegram?.retry,
+                ...(overrides.channels?.telegram?.retry || {}),
+              },
+            },
+      tui: {
+        ...base.channels.tui,
+        ...(overrides.channels?.tui || {}),
       },
     },
     network: {
@@ -174,6 +198,10 @@ export function createRuntimeConfig(
         ...base.ai.tooling,
         ...(overrides.ai?.tooling || {}),
       },
+    },
+    contextCompaction: {
+      ...base.contextCompaction,
+      ...(overrides.contextCompaction || {}),
     },
     skills: {
       ...base.skills,

@@ -22,12 +22,15 @@
 - `bot.yml` 固定在 `~/.myz-bot/bot.yml`
 - workspace 默认为 `process.cwd()`，也可以由 `-w` 显式指定
 - `bot.yml.workspaceRoot` 已废弃，代码必须忽略它
+- terminal dashboard/TUI 相关模块统一放在 `src/tui/`；优先把 formatting、layout、input history、widget assembly 与 screen lifecycle 分开维护
 - agent 只能默认读取 workspace 和当前会话附件，不允许直读 runtime
 - 不再暴露 `/bot` 虚拟目录
 - AI provider 只允许：`openai_compatible`、`openai_responses`、`gemini`、`anthropic`、`mistral`
 - `openai_compatible` 必须通过 `compatProfile` 区分 Tier 1 / Tier 2 供应商，不允许再把 DeepSeek / Moonshot / GLM / Qwen 等做成独立 provider type
 - LLM 请求统一通过 `@myz/ai-core/runtime/providerSession`，不要在 `myz-bot` 里重新实现 provider transport
 - builtin skills 以单文件资源方式内联进 `myz-bot` 构建产物；当前只内置 `planning-mode`
+- `bot.yml` 中的聊天入口统一放在 `channels.*` 下；当前内建 `channels.telegram` 和 `channels.tui`
+- 当未配置 `channels.telegram` 时，worker 必须默认退回本地 `channels.tui` 作为唯一 chat channel
 
 ## Runtime Layout
 
@@ -39,12 +42,13 @@
 - `~/.myz-bot/workspaces/<workspaceId>/soul/`
 - `~/.myz-bot/workspaces/<workspaceId>/system/`
 
+`soul/` 当前只保存 SOUL 草稿、版本与审计文件；不再保存 growth / relationship / chronicle 一类派生状态。
+
 `system/` 当前包含：
 
 - `launch.json`
 - `upgrade-state.json`
 - `restart-request.json`
-- `layout-migration.json`
 - `handoffs/` 升级 handoff 确认文件
 
 `launch.json` 记录 launcher 模式、workspace、命令参数、当前版本、重启次数和最近错误。
@@ -87,14 +91,18 @@ workspace 默认只保留协作文档与 skills：
 
 - 默认主聊天链路是 memory-less
 - 会话上下文保留 summary-only `context compaction`：必要时压缩 `llm-history.jsonl` 并生成当前会话摘要，但不做恢复上下文、归档历史或自动记忆
+- `conversation history` 只保留字面历史，不再在后台派生 reflection、growth、relationship 或 chronicle 状态
 - 复杂任务通过 builtin `planning-mode` + `Task` 工具在主对话中规划和执行
 - 长期状态默认写入 `AGENTS.md`、`SOUL.md`、`IDENTITY.md`、`USER.md` 及事实文档
-- 在交互式 TTY 中运行 `serve` / `launch` 时，默认显示被动式 terminal dashboard，用于展示聊天尾部、phase、请求数、context 估算和 token/seconds
+- 在交互式 TTY 中运行 `serve` / `launch` 时，默认显示基于 curses-style pane layout 的 terminal dashboard，并提供本地 chat 输入框；该 TUI channel 与 Telegram 一样复用主聊天链路、工具调用和 scheduler 回推
+- 核心运行时依赖公共 chat channel 接口；Telegram 只是其中一个实现，不允许再把 `TelegramClient` 当作 bot 主流程的默认抽象
+- 主流程统一消费共享 `ChatMessage` / `ChatUser` / `ChatFile` 模型；Telegram raw payload 只允许留在 adapter 边界和少量历史兼容层
 - 可用 `--no-tui` 或环境变量 `MYZ_BOT_TUI=0` 关闭；可用 `--tui` 或 `MYZ_BOT_TUI=1` 强制开启
 
 ## Removed Paths
 
 - `context recovery` 已删除
+- `conversationReflections`、`chatChronicle`、`growth`、`relationships` 已删除
 - `migrate-layout`、`/ops reset-memory`、`/ops housekeeping` 已删除
 - 联系人/跨会话转告工具已从默认 agent 能力面删除
 
@@ -123,6 +131,8 @@ workspace 默认只保留协作文档与 skills：
 
 - `init` 必须优先保护已有 `~/.myz-bot/bot.yml`
 - 如果检测到已有配置，非交互模式下必须显式指定 `reuse` 或 `update`
+- 默认生成的 `bot.yml` 必须保持精简，只展开必要字段；兼容性/调试/高级 provider 选项只在用户明确需要时再写入
+- 新配置必须写成 `channels.telegram` / `channels.tui` 结构，不要再新增顶层 `telegram:` 段
 
 ## Editing Notes
 

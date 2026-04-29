@@ -9,7 +9,6 @@ import {
   createSoulDraft,
   ensureSoulFile,
   loadSoul,
-  stripVolatileSoulSections,
 } from "../src/soul"
 
 test("applySoulDraft versions previous soul and updates SOUL.md", () => {
@@ -75,28 +74,3 @@ test("compactSoulContent keeps structure while shrinking oversized soul", () => 
   assert.ok(compacted.length <= 1200)
 })
 
-test("stripVolatileSoulSections removes growth summary sections from prompt-visible soul", () => {
-  const soul = [
-    "# Bot",
-    "",
-    "## 名字与身份",
-    "我是 Kimi。",
-    "",
-    "## 角色成长状态",
-    "- 更温柔了。",
-    "",
-    "## 最近反馈摘要",
-    "- 用户最近很喜欢这样。",
-    "",
-    "## 成长边界",
-    "保持稳定。",
-  ].join("\n")
-
-  const stripped = stripVolatileSoulSections(soul)
-
-  assert.match(stripped, /^# Bot/m)
-  assert.match(stripped, /^## 名字与身份/m)
-  assert.match(stripped, /^## 成长边界/m)
-  assert.doesNotMatch(stripped, /角色成长状态/)
-  assert.doesNotMatch(stripped, /最近反馈摘要/)
-})

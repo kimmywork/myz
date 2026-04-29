@@ -1,6 +1,6 @@
 # myz-bot
 
-`myz-bot` 是一个通过 Telegram 与用户交互的命令行 bot。
+`myz-bot` 是一个可通过 Telegram 或本地 TUI 与用户交互的命令行 bot。
 
 支持的 LLM provider 仅保留：
 - `openai_compatible`
@@ -29,6 +29,9 @@ npx myz-bot -- init -w /abs/path/to/workspace
 # 启动
 npx myz-bot -- serve -w /abs/path/to/workspace
 
+# 强制开启 curses-style TUI dashboard
+npx myz-bot -- serve --tui -w /abs/path/to/workspace
+
 # 用内置 launcher 启动
 npx myz-bot -- launch -w /abs/path/to/workspace
 
@@ -43,9 +46,6 @@ npx myz-bot -- upgrade check -w /abs/path/to/workspace
 
 # 申请升级
 npx myz-bot -- upgrade apply -w /abs/path/to/workspace
-
-# 迁移旧布局
-npx myz-bot -- migrate-layout -w /abs/path/to/workspace
 
 # 运行测试
 npm test

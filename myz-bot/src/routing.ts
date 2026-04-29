@@ -1,8 +1,8 @@
-import type { TelegramMessage } from "./telegram"
+import type { ChatMessage } from "./chatChannel"
 
-function buildDisplayName(message: TelegramMessage) {
+function buildDisplayName(message: ChatMessage) {
   const username = message.from?.username ? `@${message.from.username}` : ""
-  const fullName = [message.from?.first_name, message.from?.last_name]
+  const fullName = [message.from?.firstName, message.from?.lastName]
     .filter(Boolean)
     .join(" ")
     .trim()
@@ -26,20 +26,20 @@ export interface ConversationRoute {
 }
 
 export function resolveConversationRoute(
-  message: TelegramMessage,
+  message: ChatMessage,
 ): ConversationRoute {
   const actorUserId = message.from?.id || message.chat.id
   const actorDisplayName = buildDisplayName(message)
   const chatType = message.chat.type
 
   if (chatType === "group" || chatType === "supergroup") {
-    if (typeof message.message_thread_id === "number") {
+    if (typeof message.threadId === "number") {
       return {
-        conversationId: `${message.chat.id}-thread-${message.message_thread_id}`,
+        conversationId: `${message.chat.id}-thread-${message.threadId}`,
         actorUserId,
         actorDisplayName,
         scope: "group",
-        threadId: message.message_thread_id,
+        threadId: message.threadId,
       }
     }
     return {

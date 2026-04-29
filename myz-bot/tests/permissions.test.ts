@@ -5,27 +5,26 @@ import {
   evaluateMessageHandling,
   shouldRespondToMessage,
 } from "../src/permissions"
+import type { ChatMessage } from "../src/chatChannel"
 import type { BotRuntimeConfig } from "../src/config"
-import type { TelegramMessage } from "../src/telegram"
 import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 function createConfig(): BotRuntimeConfig {
   return createRuntimeConfig("/tmp/workspace", {
-    telegram: {
-      allowedUsers: ["alice", "1001"],
-      allowedChats: [1, 2],
-      adminUsers: ["admin"],
-    } as BotRuntimeConfig["telegram"],
-    soul: {
-      autoDraft: false,
-    } as BotRuntimeConfig["soul"],
+    channels: {
+      telegram: {
+        allowedUsers: ["alice", "1001"],
+        allowedChats: [1, 2],
+        adminUsers: ["admin"],
+      },
+    },
   })
 }
 
-function createMessage(overrides: Partial<TelegramMessage> = {}): TelegramMessage {
+function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
-    message_id: 1,
-    date: Date.now(),
+    messageId: 1,
+    unixTime: Date.now(),
     text: "hello @testbot",
     chat: {
       id: 1,
@@ -83,7 +82,7 @@ test("shouldRespondToMessage allows admin command without mention", () => {
 
 test("shouldRespondToMessage accepts all group messages when mention gate is disabled", () => {
   const config = createConfig()
-  config.telegram.groupResponseMode.onlyWhenMentioned = false
+  config.channels.telegram!.groupResponseMode.onlyWhenMentioned = false
   const handling = evaluateMessageHandling(
     config,
     createMessage({
@@ -106,7 +105,7 @@ test("shouldRespondToMessage accepts all group messages when mention gate is dis
 
 test("evaluateMessageHandling still replies to mentions when mention gate is disabled", () => {
   const config = createConfig()
-  config.telegram.groupResponseMode.onlyWhenMentioned = false
+  config.channels.telegram!.groupResponseMode.onlyWhenMentioned = false
   const handling = evaluateMessageHandling(
     config,
     createMessage({
@@ -120,7 +119,7 @@ test("evaluateMessageHandling still replies to mentions when mention gate is dis
 
 test("evaluateMessageHandling still replies to admin commands when mention gate is disabled", () => {
   const config = createConfig()
-  config.telegram.groupResponseMode.onlyWhenMentioned = false
+  config.channels.telegram!.groupResponseMode.onlyWhenMentioned = false
   const handling = evaluateMessageHandling(
     config,
     createMessage({

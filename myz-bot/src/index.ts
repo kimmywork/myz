@@ -2,6 +2,13 @@ import { mkdirSync } from "node:fs"
 import { resolve } from "node:path"
 import type { Message, TokenUsage } from "@myz/ai-core/types"
 import { registerLocalTools } from "@myz/ai-core/tools/registry"
+import type {
+  ChatChannelClient,
+  ChatFile,
+  ChatMediaClient,
+  ChatMessage,
+  ChatUser,
+} from "./chatChannel"
 import { createBotAssistantAgent } from "./agents/botAssistant"
 import { generateReply } from "./ai"
 import { loadConfig, type BotRuntimeConfig } from "./config"
@@ -56,7 +63,7 @@ import {
   isAdminUser,
 } from "./permissions"
 import { configureGlobalNetwork } from "./network"
-import { generateSoulDraftContent } from "./conversationReflections"
+import { generateSoulDraftContent } from "./soulDraftGenerator"
 import { sendRecordedTelegramMessage } from "./telegramDelivery"
 import {
   applySoulDraft,
@@ -75,7 +82,7 @@ import {
 } from "./skills"
 import { resolveConversationRoute } from "./routing"
 import { startTaskScheduler } from "./scheduler"
-import { createTelegramClient, type TelegramMessage } from "./telegram"
+import { createTelegramClient } from "./telegram"
 import {
   ensureConversationTaskFiles,
   formatTasksForChat,
@@ -94,8 +101,10 @@ import {
   syncUpgradeState,
 } from "./upgrade"
 import { createRuntimeMonitor, type RuntimeMonitor } from "./runtimeMonitor"
-
-const RECENT_HISTORY_LIMIT = 120
+import {
+  createTuiAwareChannelClient,
+  startLocalTuiChannel,
+} from "./tuiChannel"
 
 function resolveTuiEnabled(value?: boolean) {
   if (typeof value === "boolean") return value
@@ -148,9 +157,10 @@ function formatPermissionRule(
 async function handleCommand(options: {
   config: BotRuntimeConfig
   conversationId: string
-  message: TelegramMessage
+  message: ChatMessage
   rawCommand: string
   botUsername: string
+  monitor?: RuntimeMonitor
   sendMessage: (
     chatId: number,
     text: string,
@@ -741,8 +751,8 @@ async function handleCommand(options: {
 
 async function handleConversationMessage(options: {
   config: BotRuntimeConfig
-  telegram: ReturnType<typeof createTelegramClient>
-  message: TelegramMessage
+  telegram: ChatChannelClient<ChatMessage> & Partial<ChatMediaClient<ChatFile>>
+  message: ChatMessage
   botUsername: string
   shouldReply: boolean
   monitor?: RuntimeMonitor
@@ -768,8 +778,8 @@ async function handleConversationMessage(options: {
     chatType: options.message.chat.type,
     threadId: route.threadId,
     username: options.message.from?.username,
-    firstName: options.message.from?.first_name,
-    lastName: options.message.from?.last_name,
+    firstName: options.message.from?.firstName,
+    lastName: options.message.from?.lastName,
     createdAt: now,
     updatedAt: now,
   }
@@ -797,16 +807,25 @@ async function handleConversationMessage(options: {
         message: options.message,
         rawCommand,
         botUsername: options.botUsername,
+        monitor: options.monitor,
         sendMessage: (chatId, text, sendOptions) =>
-          sendRecordedTelegramMessage({
-            telegram: options.telegram,
-            conversationDir,
-            conversationId,
-            chatId,
-            text,
-            sendOptions,
-            kind: "command",
-          }),
+          {
+            options.monitor?.notePhase("send", conversationId)
+            options.monitor?.noteOutgoingMessage({
+              conversationId,
+              text,
+              role: "assistant",
+            })
+            return sendRecordedTelegramMessage({
+              telegram: options.telegram,
+              conversationDir,
+              conversationId,
+              chatId,
+              text,
+              sendOptions,
+              kind: "command",
+            })
+          },
       })
       if (handled) return
     } catch (error) {
@@ -818,8 +837,18 @@ async function handleConversationMessage(options: {
         context: {
           rawCommand,
           chatId: options.message.chat.id,
-          messageId: options.message.message_id,
+          messageId: options.message.messageId,
         },
+      })
+      options.monitor?.notePhase("send", conversationId)
+      options.monitor?.noteOutgoingMessage({
+        conversationId,
+        text: formatErrorReply({
+          config: options.config,
+          user: options.message.from,
+          error,
+        }),
+        role: "error",
       })
       await sendRecordedTelegramMessage({
         telegram: options.telegram,
@@ -839,13 +868,24 @@ async function handleConversationMessage(options: {
   }
 
   const historyBefore = loadAllMessages(conversationDir)
-  const contextState = prepareConversationContext({
-    conversationDir,
-    conversationId,
-    messages: historyBefore,
-    contextWindowTokens: options.config.ai.limits.contextWindow,
-    maxOutputTokens: options.config.ai.limits.maxOutputTokens,
-  })
+  const contextState = options.config.contextCompaction.enabled
+    ? prepareConversationContext({
+        conversationDir,
+        conversationId,
+        messages: historyBefore,
+        maxHistoryMessages: options.config.contextCompaction.maxHistoryMessages,
+        maxHistoryChars: options.config.contextCompaction.maxHistoryChars,
+        summaryMaxMessages: options.config.contextCompaction.summaryMaxMessages,
+        summaryMaxChars: options.config.contextCompaction.summaryMaxChars,
+        compressionCooldownMs: options.config.contextCompaction.compressionCooldownMs,
+        contextWindowTokens: options.config.ai.limits.contextWindow,
+        maxOutputTokens: options.config.ai.limits.maxOutputTokens,
+      })
+    : {
+        history: historyBefore,
+        summary: "",
+        compressed: false,
+      }
   if (contextState.compressed) {
     metadata.lastCompressionAt = new Date().toISOString()
     saveMetadata(conversationDir, metadata)
@@ -876,8 +916,8 @@ async function handleConversationMessage(options: {
         userId,
         chatId: options.message.chat.id,
         username: options.message.from?.username,
-        firstName: options.message.from?.first_name,
-        lastName: options.message.from?.last_name,
+        firstName: options.message.from?.firstName,
+        lastName: options.message.from?.lastName,
       },
     }),
     {
@@ -895,8 +935,8 @@ async function handleConversationMessage(options: {
       userId,
       chatId: options.message.chat.id,
       username: options.message.from?.username,
-      firstName: options.message.from?.first_name,
-      lastName: options.message.from?.last_name,
+      firstName: options.message.from?.firstName,
+      lastName: options.message.from?.lastName,
     },
   })
   const contextMessage = contextPrompt
@@ -912,8 +952,8 @@ async function handleConversationMessage(options: {
     ? createTelegramFeedbackController({
         telegram: options.telegram,
         chatId: options.message.chat.id,
-        messageThreadId: options.message.message_thread_id,
-        reactionMessageId: options.message.message_id,
+        messageThreadId: options.message.threadId,
+        reactionMessageId: options.message.messageId,
       })
     : null
 
@@ -1066,7 +1106,7 @@ async function handleConversationMessage(options: {
       error,
       context: {
         chatId: options.message.chat.id,
-        messageId: options.message.message_id,
+        messageId: options.message.messageId,
         shouldReply: options.shouldReply,
       },
     })
@@ -1119,10 +1159,16 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
   mkdirSync(config.systemDir, { recursive: true })
   syncUpgradeState(config)
 
-  const telegram = createTelegramClient({
-    token: config.telegram.token,
-    timeoutSeconds: config.telegram.timeoutSeconds,
-    retry: config.telegram.retry,
+  const telegram = config.channels.telegram
+    ? createTelegramClient({
+        token: config.channels.telegram.token,
+        timeoutSeconds: config.channels.telegram.timeoutSeconds,
+        retry: config.channels.telegram.retry,
+      })
+    : null
+  const channelTelegram = createTuiAwareChannelClient({
+    base: telegram,
+    config,
   })
   registerLocalTools(
     createLocalTools({
@@ -1136,35 +1182,57 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
       memoryDir: config.memoryDir,
       conversationsDir: config.conversationsDir,
       attachmentsDir: config.attachmentsDir,
-      adminUsers: config.telegram.adminUsers,
-      telegram,
+      adminUsers: config.channels.telegram?.adminUsers,
+      telegram: channelTelegram,
     }),
   )
-  const botProfile = await telegram.getMe()
-  const botUsername = botProfile.username || config.telegram.username
+  const botProfile = telegram ? await telegram.getMe() : ({ username: "" } as ChatUser)
+  const botUsername = botProfile.username || config.channels.telegram?.username || "local"
   const monitor = createRuntimeMonitor({
     provider: config.ai.provider,
     model: config.ai.model,
     streamingEnabled: config.ai.streamingEnabled !== false,
-    historyMode: `recent-only(${RECENT_HISTORY_LIMIT})`,
-    contextCompactionStatus: "summary-only",
+    historyMode: config.contextCompaction.enabled
+      ? `summary-compaction(${config.contextCompaction.maxHistoryMessages})`
+      : "full-history",
+    contextCompactionStatus: config.contextCompaction.enabled ? "summary-only" : "disabled",
     enabled: resolveTuiEnabled(options.enableTui),
+    input: process.stdin,
   })
   let offset = 0
   const scheduler =
     config.scheduler.enabled
       ? startTaskScheduler({
           config,
-          telegram,
+          telegram: channelTelegram,
           monitor,
         })
       : null
+  const localTuiChannel = startLocalTuiChannel({
+    config,
+    enabled: config.channels.tui.enabled && resolveTuiEnabled(options.enableTui),
+    monitor,
+    onMessage: async (message) => {
+      await handleConversationMessage({
+        config,
+        telegram: channelTelegram,
+        message,
+        botUsername,
+        shouldReply: true,
+        monitor,
+      })
+    },
+  })
 
-  while (true) {
+  if (!telegram && !localTuiChannel.enabled) {
+    throw new Error("No active chat channel: configure channels.telegram or run with an interactive TUI")
+  }
+
+  while (telegram) {
     try {
       const updates = await telegram.getUpdates(offset)
       for (const update of updates) {
-        offset = update.update_id + 1
+        offset = update.updateId + 1
         const message = update.message
         if (!message) continue
         const handling = evaluateMessageHandling(config, message, botUsername)
@@ -1185,7 +1253,7 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
         try {
           await handleConversationMessage({
             config,
-            telegram,
+            telegram: channelTelegram,
             message,
             botUsername,
             shouldReply: handling.shouldReply,
@@ -1204,7 +1272,7 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
             error,
             context: {
               chatId: message.chat.id,
-              messageId: message.message_id,
+              messageId: message.messageId,
             },
           })
           if (handling.shouldReply) {
@@ -1227,6 +1295,9 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
     }
   }
 
+  await new Promise<void>(() => undefined)
+
   scheduler?.stop()
+  localTuiChannel.close()
   monitor.close()
 }

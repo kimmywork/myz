@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { getTelegramHistoryPath } from "./conversations"
-import type { TelegramMessage } from "./telegram"
+import type { ChatMessage } from "./chatChannel"
 
 export type TelegramHistoryKind =
   | "conversation"
@@ -90,13 +90,13 @@ function buildEntryId(direction: "inbound" | "outbound", telegramMessageId: numb
   return `${direction}:${telegramMessageId}`
 }
 
-function extractText(message: TelegramMessage) {
+function extractText(message: ChatMessage) {
   return normalizeText(message.text || message.caption || "")
 }
 
-function extractActorDisplayName(message: TelegramMessage) {
+function extractActorDisplayName(message: ChatMessage) {
   const username = message.from?.username
-  const fullName = [message.from?.first_name, message.from?.last_name]
+  const fullName = [message.from?.firstName, message.from?.lastName]
     .filter(Boolean)
     .join(" ")
     .trim()
@@ -111,27 +111,27 @@ function extractActorDisplayName(message: TelegramMessage) {
 export function recordIncomingTelegramMessage(options: {
   conversationDir: string
   conversationId: string
-  message: TelegramMessage
+  message: ChatMessage
   kind: TelegramHistoryKind
 }) {
   const text = extractText(options.message)
   if (!text) return false
   return appendTelegramHistoryEntry(options.conversationDir, {
     schemaVersion: SCHEMA_VERSION,
-    entryId: buildEntryId("inbound", options.message.message_id),
+    entryId: buildEntryId("inbound", options.message.messageId),
     conversationId: options.conversationId,
     chatId: options.message.chat.id,
-    telegramMessageId: options.message.message_id,
+    telegramMessageId: options.message.messageId,
     direction: "inbound",
     speaker: "user",
     kind: options.kind,
     text,
-    timestamp: new Date(options.message.date * 1000).toISOString(),
+    timestamp: new Date(options.message.unixTime * 1000).toISOString(),
     messageThreadId:
-      typeof options.message.message_thread_id === "number"
-        ? options.message.message_thread_id
+      typeof options.message.threadId === "number"
+        ? options.message.threadId
         : undefined,
-    replyToTelegramMessageId: options.message.reply_to_message?.message_id,
+    replyToTelegramMessageId: options.message.replyToMessage?.messageId,
     actorUserId: options.message.from?.id,
     actorDisplayName: extractActorDisplayName(options.message),
     username: options.message.from?.username,
@@ -139,13 +139,13 @@ export function recordIncomingTelegramMessage(options: {
 }
 
 export function extractTelegramSentMessages(result: unknown) {
-  if (!Array.isArray(result)) return [] as TelegramMessage[]
+  if (!Array.isArray(result)) return [] as ChatMessage[]
   return result.filter(
-    (item): item is TelegramMessage =>
+    (item): item is ChatMessage =>
       Boolean(item) &&
       typeof item === "object" &&
-      typeof (item as TelegramMessage).message_id === "number" &&
-      Boolean((item as TelegramMessage).chat),
+      typeof (item as ChatMessage).messageId === "number" &&
+      Boolean((item as ChatMessage).chat),
   )
 }
 
@@ -162,20 +162,20 @@ export function recordOutgoingTelegramMessages(options: {
     if (!text) return
     const ok = appendTelegramHistoryEntry(options.conversationDir, {
       schemaVersion: SCHEMA_VERSION,
-      entryId: buildEntryId("outbound", message.message_id),
+      entryId: buildEntryId("outbound", message.messageId),
       conversationId: options.conversationId,
       chatId: message.chat.id,
-      telegramMessageId: message.message_id,
+      telegramMessageId: message.messageId,
       direction: "outbound",
       speaker: "assistant",
       kind: options.kind,
       text,
-      timestamp: new Date(message.date * 1000).toISOString(),
+      timestamp: new Date(message.unixTime * 1000).toISOString(),
       messageThreadId:
-        typeof message.message_thread_id === "number"
-          ? message.message_thread_id
+        typeof message.threadId === "number"
+          ? message.threadId
           : undefined,
-      replyToTelegramMessageId: message.reply_to_message?.message_id,
+      replyToTelegramMessageId: message.replyToMessage?.messageId,
       actorUserId: message.from?.id,
       actorDisplayName: extractActorDisplayName(message),
       username: message.from?.username,

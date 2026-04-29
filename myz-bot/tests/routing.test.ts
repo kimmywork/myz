@@ -1,12 +1,12 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import type { TelegramMessage } from "../src/telegram"
+import type { ChatMessage } from "../src/chatChannel"
 import { resolveConversationRoute } from "../src/routing"
 
-function createMessage(overrides: Partial<TelegramMessage> = {}): TelegramMessage {
+function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
-    message_id: 1,
-    date: Date.now(),
+    messageId: 1,
+    unixTime: Date.now(),
     text: "hello",
     chat: {
       id: 100,
@@ -15,7 +15,7 @@ function createMessage(overrides: Partial<TelegramMessage> = {}): TelegramMessag
     from: {
       id: 200,
       username: "alice",
-      first_name: "Alice",
+      firstName: "Alice",
     },
     ...overrides,
   }
@@ -53,7 +53,7 @@ test("resolveConversationRoute isolates forum topics by thread id", () => {
         id: -100123,
         type: "supergroup",
       },
-      message_thread_id: 88,
+      threadId: 88,
     }),
   )
   assert.equal(route.scope, "group")

@@ -12,9 +12,10 @@ test("loadConfig parses minimal bot.yml", () => {
   writeFileSync(
     path,
     [
-      "telegram:",
-      "  username: testbot",
-      "  token: testtoken",
+      "channels:",
+      "  telegram:",
+      "    username: testbot",
+      "    token: testtoken",
       "ai:",
       "  provider: openai_compatible",
       "  model: gpt-test",
@@ -22,20 +23,25 @@ test("loadConfig parses minimal bot.yml", () => {
   )
 
   const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
-  assert.equal(config.telegram.username, "testbot")
+  assert.equal(config.channels.telegram?.username, "testbot")
   assert.equal(config.ai.model, "gpt-test")
   assert.equal(config.workspaceRoot, realpathSync(workspaceDir))
   assert.equal(config.runtimeRoot, runtimeDir)
   assert.equal(config.skillSources[0]?.id, "builtin")
   assert.equal(config.skillSources[1]?.id, "project")
-  assert.equal(config.telegram.timeoutSeconds, 25)
-  assert.equal(config.telegram.retry.retries, 2)
+  assert.equal(config.channels.telegram?.timeoutSeconds, 25)
+  assert.equal(config.channels.telegram?.retry.retries, 2)
+  assert.equal(config.channels.tui.enabled, true)
   assert.equal(config.network.requestTimeoutMs, 180000)
   assert.equal(config.ai.retry.retries, 2)
   assert.equal(config.ai.streamingEnabled, true)
   assert.equal(config.ai.compatProfile, "auto")
   assert.equal(config.ai.reasoningMode, "provider_default")
   assert.equal(config.ai.reasoningEffort, "provider_default")
+  assert.equal(config.contextCompaction.enabled, true)
+  assert.equal(config.contextCompaction.maxHistoryMessages, 120)
+  assert.equal(config.contextCompaction.maxHistoryChars, 120000)
+  assert.equal(config.contextCompaction.summaryMaxChars, 6000)
   assert.equal(config.scheduler.enabled, true)
   assert.equal(config.scheduler.pollIntervalMs, 15000)
   assert.equal(config.upgrade.enabled, true)
@@ -46,14 +52,7 @@ test("loadConfig parses minimal bot.yml", () => {
   assert.equal(config.upgrade.strategy, "notify")
   assert.equal(config.upgrade.applyMode, "manual")
   assert.equal(config.upgrade.allowPrerelease, false)
-  assert.equal(config.soul.autoDraft, true)
-  assert.equal(config.soul.autoApply, true)
-  assert.equal(config.soul.autoDraftMessageInterval, 40)
-  assert.equal(config.soul.autoDraftTimeIntervalMs, 14400000)
-  assert.equal(config.soul.growthFeedbackBatchMessageInterval, 20)
-  assert.equal(config.soul.growthFeedbackTimeIntervalMs, 3600000)
-  assert.equal(config.soul.relationshipReflectionMessageInterval, 20)
-  assert.equal(config.soul.relationshipReflectionTimeIntervalMs, 3600000)
+  assert.equal(config.soul.reviewRequired, true)
 })
 
 test("loadConfig parses permissions and skill policies", () => {
@@ -64,17 +63,23 @@ test("loadConfig parses permissions and skill policies", () => {
     path,
     [
       "telegram:",
-      "  username: testbot",
-      "  token: testtoken",
-      "  timeoutSeconds: 40",
-      "  allowedUsers:",
-      "    - alice",
-      "  allowedChats:",
-      "    - 42",
-      "  adminUsers:",
-      "    - admin",
-      "  retry:",
-      "    retries: 3",
+      "  username: ignored-legacy",
+      "channels:",
+      "  telegram:",
+      "    username: testbot",
+      "    token: testtoken",
+      "    timeoutSeconds: 40",
+      "    allowedUsers:",
+      "      - alice",
+      "    allowedChats:",
+      "      - 42",
+      "    adminUsers:",
+      "      - admin",
+      "    retry:",
+      "      retries: 3",
+      "  tui:",
+      "    label: console",
+      "    operatorUsername: operator",
       "network:",
       "  requestTimeoutMs: 90000",
       "  connectTimeoutMs: 5000",
@@ -91,6 +96,13 @@ test("loadConfig parses permissions and skill policies", () => {
       "  systemPromptInUserMessage: true",
       "  retry:",
       "    retries: 4",
+      "contextCompaction:",
+      "  enabled: false",
+      "  maxHistoryMessages: 48",
+      "  maxHistoryChars: 64000",
+      "  summaryMaxMessages: 8",
+      "  summaryMaxChars: 2400",
+      "  compressionCooldownMs: 90000",
       "skills:",
       "  allowlist:",
       "    - builtin/planning-mode",
@@ -114,22 +126,18 @@ test("loadConfig parses permissions and skill policies", () => {
       "  applyMode: launcher-only",
       "  allowPrerelease: true",
       "soul:",
-      "  autoDraft: true",
-      "  autoApply: false",
-      "  autoDraftTimeIntervalMs: 7200000",
-      "  growthFeedbackBatchMessageInterval: 6",
-      "  growthFeedbackTimeIntervalMs: 600000",
-      "  relationshipReflectionMessageInterval: 5",
-      "  relationshipReflectionTimeIntervalMs: 900000",
+      "  reviewRequired: false",
     ].join("\n"),
   )
 
   const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
-  assert.deepEqual(config.telegram.allowedUsers, ["alice"])
-  assert.deepEqual(config.telegram.allowedChats, [42])
-  assert.deepEqual(config.telegram.adminUsers, ["admin"])
-  assert.equal(config.telegram.timeoutSeconds, 40)
-  assert.equal(config.telegram.retry.retries, 3)
+  assert.deepEqual(config.channels.telegram?.allowedUsers, ["alice"])
+  assert.deepEqual(config.channels.telegram?.allowedChats, [42])
+  assert.deepEqual(config.channels.telegram?.adminUsers, ["admin"])
+  assert.equal(config.channels.telegram?.timeoutSeconds, 40)
+  assert.equal(config.channels.telegram?.retry.retries, 3)
+  assert.equal(config.channels.tui.label, "console")
+  assert.equal(config.channels.tui.operatorUsername, "operator")
   assert.equal(config.network.requestTimeoutMs, 90000)
   assert.equal(config.network.connectTimeoutMs, 5000)
   assert.equal(config.network.proxyUrl, "http://127.0.0.1:7890")
@@ -142,6 +150,12 @@ test("loadConfig parses permissions and skill policies", () => {
   assert.equal(config.ai.reasoningMode, "disabled")
   assert.equal(config.ai.reasoningEffort, "high")
   assert.equal(config.ai.reasoningBudget, 1024)
+  assert.equal(config.contextCompaction.enabled, false)
+  assert.equal(config.contextCompaction.maxHistoryMessages, 48)
+  assert.equal(config.contextCompaction.maxHistoryChars, 64000)
+  assert.equal(config.contextCompaction.summaryMaxMessages, 8)
+  assert.equal(config.contextCompaction.summaryMaxChars, 2400)
+  assert.equal(config.contextCompaction.compressionCooldownMs, 90000)
   assert.equal(config.ai.retry.retries, 4)
   assert.equal(config.scheduler.pollIntervalMs, 5000)
   assert.equal(config.scheduler.maxBatchSize, 5)
@@ -151,13 +165,7 @@ test("loadConfig parses permissions and skill policies", () => {
   assert.equal(config.upgrade.strategy, "prepare-and-restart")
   assert.equal(config.upgrade.applyMode, "launcher-only")
   assert.equal(config.upgrade.allowPrerelease, true)
-  assert.equal(config.soul.autoDraft, true)
-  assert.equal(config.soul.autoApply, false)
-  assert.equal(config.soul.autoDraftTimeIntervalMs, 7200000)
-  assert.equal(config.soul.growthFeedbackBatchMessageInterval, 6)
-  assert.equal(config.soul.growthFeedbackTimeIntervalMs, 600000)
-  assert.equal(config.soul.relationshipReflectionMessageInterval, 5)
-  assert.equal(config.soul.relationshipReflectionTimeIntervalMs, 900000)
+  assert.equal(config.soul.reviewRequired, false)
 })
 
 test("loadConfig ignores legacy workspaceRoot in bot.yml and uses the provided workspace", () => {
@@ -171,8 +179,11 @@ test("loadConfig ignores legacy workspaceRoot in bot.yml and uses the provided w
     path,
     [
       "telegram:",
-      "  username: testbot",
-      "  token: testtoken",
+      "  username: ignored-legacy",
+      "channels:",
+      "  telegram:",
+      "    username: testbot",
+      "    token: testtoken",
       "ai:",
       "  provider: openai_compatible",
       "  model: gpt-test",
@@ -197,8 +208,11 @@ test("loadConfig rejects removed legacy context section", () => {
     path,
     [
       "telegram:",
-      "  username: testbot",
-      "  token: testtoken",
+      "  username: ignored-legacy",
+      "channels:",
+      "  telegram:",
+      "    username: testbot",
+      "    token: testtoken",
       "ai:",
       "  provider: openai_compatible",
       "  model: gpt-test",
@@ -221,8 +235,11 @@ test("loadConfig rejects unsupported ai provider types", () => {
     path,
     [
       "telegram:",
-      "  username: testbot",
-      "  token: testtoken",
+      "  username: ignored-legacy",
+      "channels:",
+      "  telegram:",
+      "    username: testbot",
+      "    token: testtoken",
       "ai:",
       "  provider: ollama",
       "  model: gpt-test",
@@ -233,4 +250,23 @@ test("loadConfig rejects unsupported ai provider types", () => {
     () => loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir }),
     /invalid_value|provider/i,
   )
+})
+
+test("loadConfig defaults to TUI when telegram channel is not configured", () => {
+  const workspaceDir = mkdtempSync(join(tmpdir(), "myz-bot-workspace-"))
+  const runtimeDir = mkdtempSync(join(tmpdir(), "myz-bot-runtime-"))
+  const path = join(runtimeDir, "bot.yml")
+  writeFileSync(
+    path,
+    [
+      "ai:",
+      "  provider: openai_compatible",
+      "  model: gpt-test",
+    ].join("\n"),
+  )
+
+  const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
+  assert.equal(config.channels.telegram, null)
+  assert.equal(config.channels.tui.enabled, true)
+  assert.equal(config.channels.tui.operatorUsername, "local")
 })

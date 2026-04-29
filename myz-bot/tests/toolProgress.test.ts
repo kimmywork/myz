@@ -4,8 +4,8 @@ import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ProviderMessage } from "@myz/ai-core/providers/types"
+import type { ChatMessage, ChatSendMessageOptions } from "../src/chatChannel"
 import { ensureConversationDir } from "../src/conversations"
-import type { TelegramSendMessageOptions } from "../src/telegram"
 import {
   createToolProgressNotifier,
   draftToolProgressMessage,
@@ -90,18 +90,18 @@ test("createToolProgressNotifier sends natural progress messages and records the
       sendMessage: async (
         _chatId: number,
         text: string,
-        _options?: TelegramSendMessageOptions,
+        _options?: ChatSendMessageOptions,
       ) => {
         sent.push(text)
         messageId += 1
         return [
           {
-            message_id: messageId,
-            date: Math.floor(Date.now() / 1000),
+            messageId,
+            unixTime: Math.floor(Date.now() / 1000),
             text,
             chat: { id: 101, type: "private" },
             from: { id: 999, username: "testbot" },
-          },
+          } satisfies ChatMessage,
         ]
       },
     } as any,
@@ -213,18 +213,18 @@ test("createToolProgressNotifier batches a multi-tool round into one start and o
       sendMessage: async (
         _chatId: number,
         text: string,
-        _options?: TelegramSendMessageOptions,
+        _options?: ChatSendMessageOptions,
       ) => {
         sent.push(text)
         messageId += 1
         return [
           {
-            message_id: messageId,
-            date: Math.floor(Date.now() / 1000),
+            messageId,
+            unixTime: Math.floor(Date.now() / 1000),
             text,
             chat: { id: 101, type: "private" },
             from: { id: 999, username: "testbot" },
-          },
+          } satisfies ChatMessage,
         ]
       },
     } as any,

@@ -1,18 +1,18 @@
-import type { TelegramMessage, TelegramSendMessageOptions } from "./telegram"
+import type { ChatMessage, ChatSendMessageOptions } from "./chatChannel"
 
 export function buildReplyOptions(
-  message: TelegramMessage,
+  message: ChatMessage,
   options: { forceQuote?: boolean } = {},
-): TelegramSendMessageOptions {
-  const replyOptions: TelegramSendMessageOptions = {}
-  if (typeof message.message_thread_id === "number") {
-    replyOptions.messageThreadId = message.message_thread_id
+): ChatSendMessageOptions {
+  const replyOptions: ChatSendMessageOptions = {}
+  if (typeof message.threadId === "number") {
+    replyOptions.messageThreadId = message.threadId
   }
   const shouldQuote =
     options.forceQuote === true ||
-    (message.chat.type !== "private" && typeof message.message_id === "number")
+    (message.chat.type !== "private" && typeof message.messageId === "number")
   if (shouldQuote) {
-    replyOptions.replyToMessageId = message.message_id
+    replyOptions.replyToMessageId = message.messageId
   }
   return replyOptions
 }

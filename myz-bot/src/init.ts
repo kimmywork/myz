@@ -54,88 +54,59 @@ function buildBotConfigYml(options: {
   aiAccessToken: string
   aiModel: string
 }) {
-  return `telegram:
-  username: "${options.telegramUsername}"
-  token: "${options.telegramToken}"
-  timeoutSeconds: 25
-  allowedUsers: []
-  allowedChats: []
-  adminUsers: []
-  saveIncomingMedia: true
-  groupResponseMode:
-    onlyWhenMentioned: true
-    allowReplyToBot: true
-    allowAdminCommands: true
-  retry:
-    retries: 2
-    baseDelayMs: 800
-
-network:
-  requestTimeoutMs: 180000
-  connectTimeoutMs: 10000
-  keepAliveTimeoutMs: 4000
-  keepAliveTimeoutThresholdMs: 2000
-  proxyUrl: ""
+  const telegramBlock =
+    options.telegramUsername.trim() && options.telegramToken.trim()
+      ? `  telegram:
+    enabled: true
+    username: "${options.telegramUsername}"
+    token: "${options.telegramToken}"
+    adminUsers: []
+    allowedUsers: []
+    allowedChats: []
+    saveIncomingMedia: true
+    groupResponseMode:
+      onlyWhenMentioned: true
+      allowReplyToBot: true
+      allowAdminCommands: true
+`
+      : ""
+  return `channels:
+${telegramBlock}  tui:
+    enabled: true
+    label: "local"
+    operatorUsername: "local"
+    operatorFirstName: "Local"
+    operatorLastName: "Operator"
 
 ai:
   provider: ${options.aiProvider}
   baseUrl: "${options.aiBaseUrl}"
   accessToken: "${options.aiAccessToken}"
-  headers: {}
+  model: "${options.aiModel}"
   compatProfile: auto
   reasoningMode: provider_default
   reasoningEffort: provider_default
-  model: "${options.aiModel}"
   streamingEnabled: true
-  systemPromptInUserMessage: false
-  retry:
-    retries: 2
-    baseDelayMs: 1000
-  capabilities:
-    toolCalling: true
-    reasoning: false
-    vision: false
-    imageOutput: false
   limits:
     contextWindow: 8192
     maxOutputTokens: 1024
-    maxOutputTokenParam: max_tokens
-  tooling:
-    toolChoice: auto
-    strict: auto
-    parallelToolCalls: auto
 
-mcpServers: []
-skills:
-  sources: []
-  allowlist: []
-  denylist: []
-tools:
-  allowlist: []
-  denylist: []
+contextCompaction:
+  enabled: true
+  maxHistoryChars: 120000
+  summaryMaxChars: 6000
+  compressionCooldownMs: 300000
+
 scheduler:
   enabled: true
   pollIntervalMs: 15000
-  maxBatchSize: 20
-  failureRetryBaseDelayMs: 60000
+
 upgrade:
   enabled: true
-  packageName: "myz-bot"
-  channel: "latest"
-  checkIntervalMs: 21600000
   strategy: "notify"
-  applyMode: "manual"
-  allowPrerelease: false
+
 soul:
-  autoDraft: true
-  autoApply: true
   reviewRequired: true
-  autoDraftMessageInterval: 40
-  autoDraftTimeIntervalMs: 14400000
-  growthFeedbackBatchMessageInterval: 20
-  growthFeedbackTimeIntervalMs: 3600000
-  relationshipReflectionMessageInterval: 20
-  relationshipReflectionTimeIntervalMs: 3600000
 `
 }
 
@@ -172,15 +143,15 @@ const PROMPTS: Array<{
 }> = [
   {
     key: "telegramUsername",
-    label: "Telegram bot username",
+    label: "Telegram bot username (optional)",
     defaultValue: "",
-    required: true,
+    required: false,
   },
   {
     key: "telegramToken",
-    label: "Telegram bot token",
+    label: "Telegram bot token (optional)",
     defaultValue: "",
-    required: true,
+    required: false,
   },
   {
     key: "aiProvider",
@@ -213,9 +184,17 @@ function readExistingInitAnswers(configPath: string): Partial<InitAnswers> {
   const parsed = yaml.parse(readFileSync(configPath, "utf-8")) as Record<string, any> | null
   return {
     telegramUsername:
-      typeof parsed?.telegram?.username === "string" ? parsed.telegram.username : "",
+      typeof parsed?.channels?.telegram?.username === "string"
+        ? parsed.channels.telegram.username
+        : typeof parsed?.telegram?.username === "string"
+          ? parsed.telegram.username
+          : "",
     telegramToken:
-      typeof parsed?.telegram?.token === "string" ? parsed.telegram.token : "",
+      typeof parsed?.channels?.telegram?.token === "string"
+        ? parsed.channels.telegram.token
+        : typeof parsed?.telegram?.token === "string"
+          ? parsed.telegram.token
+          : "",
     aiProvider:
       typeof parsed?.ai?.provider === "string" ? parsed.ai.provider : "",
     aiBaseUrl:

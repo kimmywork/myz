@@ -6,12 +6,11 @@ import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 function createConfig(): BotRuntimeConfig {
   return createRuntimeConfig("/tmp/workspace", {
-    telegram: {
-      adminUsers: ["admin"],
-    } as BotRuntimeConfig["telegram"],
-    soul: {
-      autoDraft: false,
-    } as BotRuntimeConfig["soul"],
+    channels: {
+      telegram: {
+        adminUsers: ["admin"],
+      },
+    },
   })
 }
 

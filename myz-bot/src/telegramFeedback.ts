@@ -1,20 +1,21 @@
 import type { ProviderMessage } from "@myz/ai-core/providers/types"
 import type {
-  TelegramChatAction,
-  TelegramClient,
-  TelegramReactionEmoji,
-} from "./telegram"
+  ChatAction,
+  ChatChannelClient,
+  ChatMessage,
+  ChatReactionEmoji,
+} from "./chatChannel"
 
 export type TelegramFeedbackPhase = "llm" | "tool" | "other"
 
-const PHASE_ACTIONS: Record<TelegramFeedbackPhase, TelegramChatAction> = {
+const PHASE_ACTIONS: Record<TelegramFeedbackPhase, ChatAction> = {
   llm: "typing",
   tool: "typing",
   other: "typing",
 }
 
-const SUCCESS_REACTION: TelegramReactionEmoji = "👌"
-const FAILURE_REACTION: TelegramReactionEmoji = "👎"
+const SUCCESS_REACTION: ChatReactionEmoji = "👌"
+const FAILURE_REACTION: ChatReactionEmoji = "👎"
 
 function isToolResultError(message: ProviderMessage) {
   const metadata =
@@ -27,7 +28,7 @@ function isToolResultError(message: ProviderMessage) {
 }
 
 export function createTelegramFeedbackController(options: {
-  telegram: TelegramClient
+  telegram: ChatChannelClient<ChatMessage>
   chatId: number
   messageThreadId?: number
   reactionMessageId?: number

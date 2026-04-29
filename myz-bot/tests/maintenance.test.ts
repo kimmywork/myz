@@ -19,9 +19,11 @@ import { createScheduledTask } from "../src/tasks"
 
 function createConfig(root: string): BotRuntimeConfig {
   return createRuntimeConfig(root, {
-    telegram: {
-      adminUsers: ["admin"],
-    } as BotRuntimeConfig["telegram"],
+    channels: {
+      telegram: {
+        adminUsers: ["admin"],
+      },
+    },
   })
 }
 

@@ -1,9 +1,9 @@
 import type { ProviderMessage } from "@myz/ai-core/providers/types"
 import { generateReply } from "./ai"
+import type { ChatChannelClient, ChatMessage, ChatSendMessageOptions } from "./chatChannel"
 import type { BotRuntimeConfig } from "./config"
 import { createSystemMessage, createUserMessage } from "./conversations"
 import { sendRecordedTelegramMessage } from "./telegramDelivery"
-import type { TelegramClient, TelegramSendMessageOptions } from "./telegram"
 
 const TOOL_RESULT_MAX_CHARS = 280
 const TOOL_PROGRESS_MAX_CHARS = 180
@@ -269,13 +269,13 @@ export async function draftToolProgressMessage(options: {
 
 export function createToolProgressNotifier(options: {
   config: BotRuntimeConfig
-  telegram: TelegramClient
+  telegram: ChatChannelClient<ChatMessage>
   conversationDir: string
   conversationId: string
   chatId: number
   latestUserInput: string
   soul?: string
-  sendOptions?: TelegramSendMessageOptions
+  sendOptions?: ChatSendMessageOptions
   draftMessage?: typeof draftToolProgressMessage
   onProgressMessageSent?: (options: {
     phase: "start" | "result"

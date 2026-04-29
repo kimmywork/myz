@@ -1,14 +1,15 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { extname, resolve } from "node:path"
 import type { Message } from "@myz/ai-core/types"
-import type { BotRuntimeConfig } from "./config"
 import type {
-  TelegramClient,
-  TelegramDocument,
-  TelegramMessage,
-  TelegramPhotoSize,
-  TelegramVoice,
-} from "./telegram"
+  ChatDocument,
+  ChatFile,
+  ChatMediaClient,
+  ChatMessage,
+  ChatPhoto,
+  ChatVoice,
+} from "./chatChannel"
+import type { BotRuntimeConfig } from "./config"
 import { resolveConversationRoute } from "./routing"
 
 const INLINE_IMAGE_MAX_BYTES = 4 * 1024 * 1024
@@ -50,14 +51,14 @@ function buildAttachmentFileName(options: {
   return `${Date.now()}-${stem}${finalExt}`
 }
 
-function buildForwardLabel(message: TelegramMessage) {
-  if (message.forward_from?.username) {
-    return `@${message.forward_from.username}`
+function buildForwardLabel(message: ChatMessage) {
+  if (message.forwardFrom?.username) {
+    return `@${message.forwardFrom.username}`
   }
-  const origin = message.forward_origin
+  const origin = message.forwardOrigin
   if (!origin || typeof origin !== "object") return ""
-  if (origin.type === "user" && origin.sender_user_name) {
-    return origin.sender_user_name
+  if (origin.type === "user" && origin.senderUsername) {
+    return origin.senderUsername
   }
   if (origin.type === "chat" && origin.chat?.title) {
     return origin.chat.title
@@ -68,7 +69,7 @@ function buildForwardLabel(message: TelegramMessage) {
   return ""
 }
 
-function summarizeReferencedMessage(message?: TelegramMessage) {
+function summarizeReferencedMessage(message?: ChatMessage) {
   if (!message) return ""
   const speaker =
     message.from?.username
@@ -106,7 +107,7 @@ function getExtensionFromPath(filePath: string, fallback: string) {
 async function saveAttachment(options: {
   attachmentsRoot: string
   conversationId: string
-  telegram: TelegramClient
+  telegram: ChatMediaClient<ChatFile>
   fileId: string
   baseName: string
   fallbackExt: string
@@ -115,14 +116,14 @@ async function saveAttachment(options: {
   attachmentType: "photo" | "document" | "voice"
 }) {
   const file = await options.telegram.getFile(options.fileId)
-  if (!file.file_path) {
+  if (!file.filePath) {
     throw new Error(`Telegram file path missing for ${options.fileId}`)
   }
-  const buffer = Buffer.from(await options.telegram.downloadFile(file.file_path))
+  const buffer = Buffer.from(await options.telegram.downloadFile(file.filePath))
   const fileName = buildAttachmentFileName({
     baseName: options.baseName,
-    filePath: file.file_path,
-    fallbackExt: getExtensionFromPath(file.file_path, options.fallbackExt),
+    filePath: file.filePath,
+    fallbackExt: getExtensionFromPath(file.filePath, options.fallbackExt),
     fallbackStem: options.fallbackStem,
   })
   const dir = ensureAttachmentDir(options.attachmentsRoot, options.conversationId)
@@ -153,87 +154,87 @@ async function saveAttachment(options: {
   }
 }
 
-function getBestPhoto(photo: TelegramPhotoSize[] = []) {
-  return [...photo].sort((left, right) => (right.file_size || 0) - (left.file_size || 0))[0]
+function getBestPhoto(photo: ChatPhoto[] = []) {
+  return [...photo].sort((left, right) => (right.fileSize || 0) - (left.fileSize || 0))[0]
 }
 
 async function savePhoto(
-  telegram: TelegramClient,
-  message: TelegramMessage,
+  telegram: ChatMediaClient<ChatFile>,
+  message: ChatMessage,
   attachmentsRoot: string,
 ) {
   const photo = getBestPhoto(message.photo)
-  if (!photo?.file_id) return null
+  if (!photo?.fileId) return null
   return saveAttachment({
     attachmentsRoot,
     conversationId: resolveConversationRoute(message).conversationId,
     telegram,
-    fileId: photo.file_id,
-    baseName: `photo-${message.message_id}`,
+    fileId: photo.fileId,
+    baseName: `photo-${message.messageId}`,
     fallbackExt: ".jpg",
-    fallbackStem: `photo-${message.message_id}`,
+    fallbackStem: `photo-${message.messageId}`,
     mimeType: "image/jpeg",
     attachmentType: "photo",
   })
 }
 
 async function saveDocument(
-  telegram: TelegramClient,
-  document: TelegramDocument,
-  message: TelegramMessage,
+  telegram: ChatMediaClient<ChatFile>,
+  document: ChatDocument,
+  message: ChatMessage,
   attachmentsRoot: string,
 ) {
   return saveAttachment({
     attachmentsRoot,
     conversationId: resolveConversationRoute(message).conversationId,
     telegram,
-    fileId: document.file_id,
-    baseName: document.file_name || `document-${message.message_id}`,
+    fileId: document.fileId,
+    baseName: document.fileName || `document-${message.messageId}`,
     fallbackExt: ".bin",
-    fallbackStem: `document-${message.message_id}`,
-    mimeType: document.mime_type,
+    fallbackStem: `document-${message.messageId}`,
+    mimeType: document.mimeType,
     attachmentType: "document",
   })
 }
 
 async function saveVoice(
-  telegram: TelegramClient,
-  voice: TelegramVoice,
-  message: TelegramMessage,
+  telegram: ChatMediaClient<ChatFile>,
+  voice: ChatVoice,
+  message: ChatMessage,
   attachmentsRoot: string,
 ) {
   return saveAttachment({
     attachmentsRoot,
     conversationId: resolveConversationRoute(message).conversationId,
     telegram,
-    fileId: voice.file_id,
-    baseName: `voice-${message.message_id}`,
+    fileId: voice.fileId,
+    baseName: `voice-${message.messageId}`,
     fallbackExt: ".ogg",
-    fallbackStem: `voice-${message.message_id}`,
-    mimeType: voice.mime_type || "audio/ogg",
+    fallbackStem: `voice-${message.messageId}`,
+    mimeType: voice.mimeType || "audio/ogg",
     attachmentType: "voice",
   })
 }
 
 export async function buildIncomingMessage(options: {
   config: BotRuntimeConfig
-  telegram: TelegramClient
-  message: TelegramMessage
+  telegram?: Partial<ChatMediaClient<ChatFile>> | null
+  message: ChatMessage
   conversationDir: string
 }): Promise<{ content: string; metadata: Message["metadata"] }> {
   const { config, telegram, message, conversationDir } = options
   const route = resolveConversationRoute(message)
   const contentSections: string[] = []
   const metadata: Message["metadata"] = {
-    telegramMessageId: message.message_id,
+    telegramMessageId: message.messageId,
     chatId: message.chat.id,
     chatType: message.chat.type,
     actorUserId: route.actorUserId,
     actorDisplayName: route.actorDisplayName,
   }
 
-  if (typeof message.message_thread_id === "number") {
-    metadata.messageThreadId = message.message_thread_id
+  if (typeof message.threadId === "number") {
+    metadata.messageThreadId = message.threadId
   }
 
   if (route.scope === "group") {
@@ -245,7 +246,7 @@ export async function buildIncomingMessage(options: {
     contentSections.push(`转发来源：${forwardedFrom}`)
   }
 
-  const replySummary = summarizeReferencedMessage(message.reply_to_message)
+  const replySummary = summarizeReferencedMessage(message.replyToMessage)
   if (replySummary) {
     contentSections.push(replySummary)
   }
@@ -262,7 +263,7 @@ export async function buildIncomingMessage(options: {
   const inlineImages: NonNullable<Message["metadata"]>["attachments"] = []
   const storedAttachments: Array<Record<string, unknown>> = []
 
-  if (config.telegram.saveIncomingMedia) {
+  if (config.channels.telegram?.saveIncomingMedia && options.telegram?.getFile && options.telegram?.downloadFile) {
     if (Array.isArray(message.photo) && message.photo.length) {
       const saved = await savePhoto(telegram, message, config.attachmentsDir)
       if (saved) {
@@ -280,7 +281,7 @@ export async function buildIncomingMessage(options: {
       }
     }
 
-    if (message.document?.file_id) {
+    if (message.document?.fileId) {
       const saved = await saveDocument(
         telegram,
         message.document,
@@ -294,14 +295,14 @@ export async function buildIncomingMessage(options: {
         path: saved.path,
         virtualPath: saved.virtualPath,
         size: saved.size,
-        mimeType: message.document.mime_type,
+        mimeType: message.document.mimeType,
       })
       if (saved.inlineImage) {
         inlineImages.push(saved.inlineImage)
       }
     }
 
-    if (message.voice?.file_id) {
+    if (message.voice?.fileId) {
       const saved = await saveVoice(telegram, message.voice, message, config.attachmentsDir)
       attachmentSummaries.push(`语音已保存：${saved.virtualPath}`)
       storedAttachments.push({
@@ -310,7 +311,7 @@ export async function buildIncomingMessage(options: {
         path: saved.path,
         virtualPath: saved.virtualPath,
         size: saved.size,
-        mimeType: message.voice.mime_type,
+        mimeType: message.voice.mimeType,
       })
     }
   }
@@ -329,8 +330,8 @@ export async function buildIncomingMessage(options: {
   if (storedAttachments.length) {
     metadata.telegramAttachments = storedAttachments
   }
-  if (message.forward_from?.id) {
-    metadata.forwardedFromUserId = message.forward_from.id
+  if (message.forwardFrom?.id) {
+    metadata.forwardedFromUserId = message.forwardFrom.id
   }
 
   return {

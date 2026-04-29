@@ -1,4 +1,21 @@
 import { withRetry } from "./retry"
+import type {
+  ChatAction,
+  ChatChannelClient,
+  ChatDocument,
+  ChatFile,
+  ChatForwardOrigin,
+  ChatMediaClient,
+  ChatMessage,
+  ChatPhoto,
+  ChatReactionEmoji,
+  ChatSendMessageOptions,
+  ChatUpdate,
+  ChatUser,
+  ChatVoice,
+  PollingChatInputClient,
+} from "./chatChannel"
+import { CHAT_REACTION_EMOJIS } from "./chatChannel"
 
 export interface TelegramUser {
   id: number
@@ -83,123 +100,95 @@ export interface TelegramClientOptions {
   }
 }
 
-export interface TelegramSendMessageOptions {
-  replyToMessageId?: number
-  messageThreadId?: number
+export type TelegramSendMessageOptions = ChatSendMessageOptions
+export type TelegramChatAction = ChatAction
+export const TELEGRAM_REACTION_EMOJIS = CHAT_REACTION_EMOJIS
+export type TelegramReactionEmoji = ChatReactionEmoji
+
+export interface TelegramClient
+  extends ChatChannelClient<ChatMessage>,
+    PollingChatInputClient<ChatUpdate, ChatUser>,
+    ChatMediaClient<ChatFile> {}
+
+function toChatUser(user: TelegramUser): ChatUser {
+  return {
+    id: user.id,
+    username: user.username,
+    firstName: user.first_name,
+    lastName: user.last_name,
+  }
 }
 
-export type TelegramChatAction =
-  | "typing"
-  | "upload_photo"
-  | "record_video"
-  | "upload_video"
-  | "record_voice"
-  | "upload_voice"
-  | "upload_document"
-  | "choose_sticker"
-  | "find_location"
-  | "record_video_note"
-  | "upload_video_note"
+function toChatForwardOrigin(origin?: TelegramForwardOrigin): ChatForwardOrigin | undefined {
+  if (!origin) return undefined
+  return {
+    type: origin.type,
+    senderUsername: origin.sender_user_name,
+    chat: origin.chat,
+  }
+}
 
-export const TELEGRAM_REACTION_EMOJIS = [
-  "👍",
-  "👎",
-  "❤",
-  "🔥",
-  "🥰",
-  "👏",
-  "😁",
-  "🤔",
-  "🤯",
-  "😱",
-  "🤬",
-  "😢",
-  "🎉",
-  "🤩",
-  "🤮",
-  "💩",
-  "🙏",
-  "👌",
-  "🕊",
-  "🤡",
-  "🥱",
-  "🥴",
-  "😍",
-  "🐳",
-  "❤‍🔥",
-  "🌚",
-  "🌭",
-  "💯",
-  "🤣",
-  "⚡",
-  "🍌",
-  "🏆",
-  "💔",
-  "🤨",
-  "😐",
-  "🍓",
-  "🍾",
-  "💋",
-  "🖕",
-  "😈",
-  "😴",
-  "😭",
-  "🤓",
-  "👻",
-  "👨‍💻",
-  "👀",
-  "🎃",
-  "🙈",
-  "😇",
-  "😨",
-  "🤝",
-  "✍",
-  "🤗",
-  "🫡",
-  "🎅",
-  "🎄",
-  "☃",
-  "💅",
-  "🤪",
-  "🗿",
-  "🆒",
-  "💘",
-  "🙉",
-  "🦄",
-  "😘",
-  "💊",
-  "🙊",
-  "😎",
-  "👾",
-  "🤷‍♂",
-  "🤷",
-  "🤷‍♀",
-  "😡",
-] as const
+function toChatPhoto(photo: TelegramPhotoSize): ChatPhoto {
+  return {
+    fileId: photo.file_id,
+    fileUniqueId: photo.file_unique_id,
+    width: photo.width,
+    height: photo.height,
+    fileSize: photo.file_size,
+  }
+}
 
-export type TelegramReactionEmoji = (typeof TELEGRAM_REACTION_EMOJIS)[number]
+function toChatDocument(document: TelegramDocument): ChatDocument {
+  return {
+    fileId: document.file_id,
+    fileUniqueId: document.file_unique_id,
+    fileName: document.file_name,
+    mimeType: document.mime_type,
+    fileSize: document.file_size,
+  }
+}
 
-export interface TelegramClient {
-  getUpdates: (offset: number) => Promise<TelegramUpdate[]>
-  sendMessage: (
-    chatId: number,
-    text: string,
-    options?: TelegramSendMessageOptions,
-  ) => Promise<TelegramMessage[]>
-  sendChatAction: (
-    chatId: number,
-    action: TelegramChatAction,
-    options?: { messageThreadId?: number },
-  ) => Promise<boolean>
-  setMessageReaction: (
-    chatId: number,
-    messageId: number,
-    reaction: TelegramReactionEmoji | null,
-    options?: { isBig?: boolean },
-  ) => Promise<boolean>
-  getMe: () => Promise<TelegramUser>
-  getFile: (fileId: string) => Promise<TelegramFile>
-  downloadFile: (filePath: string) => Promise<ArrayBuffer>
+function toChatVoice(voice: TelegramVoice): ChatVoice {
+  return {
+    fileId: voice.file_id,
+    fileUniqueId: voice.file_unique_id,
+    duration: voice.duration,
+    mimeType: voice.mime_type,
+    fileSize: voice.file_size,
+  }
+}
+
+export function toChatMessage(message: TelegramMessage): ChatMessage {
+  return {
+    messageId: message.message_id,
+    unixTime: message.date,
+    text: message.text,
+    caption: message.caption,
+    from: message.from ? toChatUser(message.from) : undefined,
+    chat: message.chat,
+    photo: message.photo?.map(toChatPhoto),
+    document: message.document ? toChatDocument(message.document) : undefined,
+    voice: message.voice ? toChatVoice(message.voice) : undefined,
+    replyToMessage: message.reply_to_message ? toChatMessage(message.reply_to_message) : undefined,
+    forwardFrom: message.forward_from ? toChatUser(message.forward_from) : undefined,
+    forwardOrigin: toChatForwardOrigin(message.forward_origin),
+    threadId: message.message_thread_id,
+  }
+}
+
+function toChatUpdate(update: TelegramUpdate): ChatUpdate {
+  return {
+    updateId: update.update_id,
+    message: update.message ? toChatMessage(update.message) : undefined,
+  }
+}
+
+function toChatFile(file: TelegramFile): ChatFile {
+  return {
+    fileId: file.file_id,
+    filePath: file.file_path,
+    fileSize: file.file_size,
+  }
 }
 
 function shouldRetryTelegramError(error: unknown) {
@@ -256,7 +245,7 @@ export function createTelegramClient(
         }
         const data = (await resp.json()) as { ok: boolean; result?: TelegramUpdate[] }
         if (!data.ok) throw new Error("Telegram getUpdates not ok")
-        return data.result || []
+        return (data.result || []).map(toChatUpdate)
       },
       {
         ...retryOptions,
@@ -274,7 +263,7 @@ export function createTelegramClient(
       async () => {
         const url = buildUrl(options.token, "sendMessage")
         const chunks = splitMessage(text)
-        const results: TelegramMessage[] = []
+        const results: ChatMessage[] = []
         for (const chunk of chunks) {
           const payload: Record<string, unknown> = {
             chat_id: chatId,
@@ -304,7 +293,7 @@ export function createTelegramClient(
           if (!data.ok || !data.result) {
             throw new Error("Telegram sendMessage not ok")
           }
-          results.push(data.result)
+          results.push(toChatMessage(data.result))
         }
         return results
       },
@@ -404,7 +393,7 @@ export function createTelegramClient(
         if (!data.ok || !data.result) {
           throw new Error("Telegram getMe not ok")
         }
-        return data.result
+        return toChatUser(data.result)
       },
       {
         ...retryOptions,
@@ -430,7 +419,7 @@ export function createTelegramClient(
         if (!data.ok || !data.result) {
           throw new Error("Telegram getFile not ok")
         }
-        return data.result
+        return toChatFile(data.result)
       },
       {
         ...retryOptions,

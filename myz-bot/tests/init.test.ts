@@ -34,8 +34,16 @@ test("initWorkspace creates AGENTS.md and BOOTSTRAP.md templates", async () => {
   assert.match(bootstrap, /# BOOTSTRAP\.md/)
   assert.match(bootstrap, /## First Conversation/)
   assert.match(bootstrap, /Telegram \/ Runtime Setup/)
+  assert.match(config, /channels:/)
+  assert.match(config, /tui:/)
+  assert.match(config, /contextCompaction:/)
+  assert.match(config, /streamingEnabled: true/)
   assert.match(config, /upgrade:/)
-  assert.match(config, /channel: "latest"/)
+  assert.doesNotMatch(config, /channel: "latest"/)
+  assert.doesNotMatch(config, /systemPromptInUserMessage:/)
+  assert.doesNotMatch(config, /^skills:/m)
+  assert.doesNotMatch(config, /^tools:/m)
+  assert.doesNotMatch(config, /^mcpServers:/m)
   assert.equal(existsSync(join(root, "soul")), false)
 })
 
@@ -63,9 +71,10 @@ test("initWorkspace reuses existing bot.yml when existingConfigAction is reuse",
   const runtimeRoot = mkdtempSync(join(tmpdir(), "myz-bot-runtime-"))
   const configPath = join(runtimeRoot, "bot.yml")
   const originalConfig = [
-    "telegram:",
-    "  username: oldbot",
-    "  token: old-token",
+    "channels:",
+    "  telegram:",
+    "    username: oldbot",
+    "    token: old-token",
     "ai:",
     "  provider: openai_compatible",
     '  baseUrl: "https://example.invalid/v1"',
@@ -91,9 +100,10 @@ test("initWorkspace updates existing bot.yml only when existingConfigAction is u
   writeFileSync(
     configPath,
     [
-      "telegram:",
-      "  username: oldbot",
-      "  token: old-token",
+      "channels:",
+      "  telegram:",
+      "    username: oldbot",
+      "    token: old-token",
       "ai:",
       "  provider: openai_compatible",
       '  baseUrl: "https://example.invalid/v1"',
@@ -127,9 +137,10 @@ test("initWorkspace rejects noninteractive overwrite when existing config action
   writeFileSync(
     configPath,
     [
-      "telegram:",
-      "  username: oldbot",
-      "  token: old-token",
+      "channels:",
+      "  telegram:",
+      "    username: oldbot",
+      "    token: old-token",
       "ai:",
       "  provider: openai_compatible",
       "  model: old-model",

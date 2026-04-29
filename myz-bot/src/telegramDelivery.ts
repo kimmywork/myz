@@ -1,16 +1,15 @@
-import type { TelegramClient, TelegramSendMessageOptions } from "./telegram"
+import type { ChatChannelClient, ChatMessage, ChatSendMessageOptions } from "./chatChannel"
 import {
   recordOutgoingTelegramMessages,
   type TelegramHistoryKind,
 } from "./telegramHistory"
-
 export async function sendRecordedTelegramMessage(options: {
-  telegram: TelegramClient
+  telegram: ChatChannelClient<ChatMessage>
   conversationDir: string
   conversationId: string
   chatId: number
   text: string
-  sendOptions?: TelegramSendMessageOptions
+  sendOptions?: ChatSendMessageOptions
   kind: TelegramHistoryKind
 }) {
   const result = await options.telegram.sendMessage(

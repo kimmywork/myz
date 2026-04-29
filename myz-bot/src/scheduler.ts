@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs"
 import { resolve } from "node:path"
 import type { Message, TokenUsage } from "@myz/ai-core/types"
+import type { ChatChannelClient, ChatMessage, ChatUser } from "./chatChannel"
 import { createBotAssistantAgent } from "./agents/botAssistant"
 import { generateReply } from "./ai"
 import type { BotRuntimeConfig } from "./config"
@@ -23,7 +24,6 @@ import {
   renderDirectTaskReply,
   type ScheduledTask,
 } from "./tasks"
-import type { TelegramClient, TelegramUser } from "./telegram"
 import { sendRecordedTelegramMessage } from "./telegramDelivery"
 import { createTelegramFeedbackController } from "./telegramFeedback"
 import { createToolProgressNotifier } from "./toolProgress"
@@ -42,7 +42,7 @@ function buildSyntheticSchedulerUser(metadata: {
   username?: string
   firstName?: string
   lastName?: string
-}): TelegramUser | undefined {
+}): ChatUser | undefined {
   if (
     typeof metadata.userId !== "number" &&
     !metadata.username &&
@@ -54,8 +54,8 @@ function buildSyntheticSchedulerUser(metadata: {
   return {
     id: metadata.userId || 0,
     username: metadata.username,
-    first_name: metadata.firstName,
-    last_name: metadata.lastName,
+    firstName: metadata.firstName,
+    lastName: metadata.lastName,
   }
 }
 
@@ -84,7 +84,7 @@ function buildTaskTriggerMessage(task: ScheduledTask) {
 
 async function processScheduledLlmTask(options: {
   config: BotRuntimeConfig
-  telegram: TelegramClient
+  telegram: ChatChannelClient<ChatMessage>
   conversationId: string
   conversationDir: string
   task: ScheduledTask
@@ -97,13 +97,24 @@ async function processScheduledLlmTask(options: {
 
   const sessionWorkspace = options.config.workspaceRoot
   const historyBefore = loadAllMessages(options.conversationDir)
-  const contextState = prepareConversationContext({
-    conversationDir: options.conversationDir,
-    conversationId: options.conversationId,
-    messages: historyBefore,
-    contextWindowTokens: options.config.ai.limits.contextWindow,
-    maxOutputTokens: options.config.ai.limits.maxOutputTokens,
-  })
+  const contextState = options.config.contextCompaction.enabled
+    ? prepareConversationContext({
+        conversationDir: options.conversationDir,
+        conversationId: options.conversationId,
+        messages: historyBefore,
+        maxHistoryMessages: options.config.contextCompaction.maxHistoryMessages,
+        maxHistoryChars: options.config.contextCompaction.maxHistoryChars,
+        summaryMaxMessages: options.config.contextCompaction.summaryMaxMessages,
+        summaryMaxChars: options.config.contextCompaction.summaryMaxChars,
+        compressionCooldownMs: options.config.contextCompaction.compressionCooldownMs,
+        contextWindowTokens: options.config.ai.limits.contextWindow,
+        maxOutputTokens: options.config.ai.limits.maxOutputTokens,
+      })
+    : {
+        history: historyBefore,
+        summary: "",
+        compressed: false,
+      }
 
   const userMessage = createUserMessage(
     options.conversationId,
@@ -315,7 +326,7 @@ async function processScheduledLlmTask(options: {
 
 async function processScheduledDirectTask(options: {
   config: BotRuntimeConfig
-  telegram: TelegramClient
+  telegram: ChatChannelClient<ChatMessage>
   conversationId: string
   conversationDir: string
   task: ScheduledTask
@@ -375,7 +386,7 @@ async function processScheduledDirectTask(options: {
 
 export async function processDueScheduledTasks(options: {
   config: BotRuntimeConfig
-  telegram: TelegramClient
+  telegram: ChatChannelClient<ChatMessage>
   monitor?: RuntimeMonitor
 }) {
   const dueTasks = listDueScheduledTasks({
@@ -450,6 +461,16 @@ export async function processDueScheduledTasks(options: {
           firstName: metadata.firstName,
           lastName: metadata.lastName,
         })
+        options.monitor?.notePhase("send", due.conversationId)
+        options.monitor?.noteOutgoingMessage({
+          conversationId: due.conversationId,
+          text: formatErrorReply({
+            config: options.config,
+            user: errorUser,
+            error,
+          }),
+          role: "error",
+        })
         await sendRecordedTelegramMessage({
           telegram: options.telegram,
           conversationDir,
@@ -472,7 +493,7 @@ export async function processDueScheduledTasks(options: {
 
 export function startTaskScheduler(options: {
   config: BotRuntimeConfig
-  telegram: TelegramClient
+  telegram: ChatChannelClient<ChatMessage>
   monitor?: RuntimeMonitor
 }) {
   let stopped = false

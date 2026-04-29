@@ -22,20 +22,24 @@ export async function checkConfig(options: { workspaceRoot?: string } = {}) {
   configureGlobalNetwork(config.network)
   const results: Array<{ name: string; ok: boolean; detail?: string }> = []
 
-  try {
-    const telegram = createTelegramClient({
-      token: config.telegram.token,
-      timeoutSeconds: config.telegram.timeoutSeconds,
-      retry: config.telegram.retry,
-    })
-    const me = await telegram.getMe()
-    results.push({ name: "telegram", ok: true, detail: me.username || "ok" })
-  } catch (error) {
-    results.push({
-      name: "telegram",
-      ok: false,
-      detail: (error as Error).message,
-    })
+  if (config.channels.telegram) {
+    try {
+      const telegram = createTelegramClient({
+        token: config.channels.telegram.token,
+        timeoutSeconds: config.channels.telegram.timeoutSeconds,
+        retry: config.channels.telegram.retry,
+      })
+      const me = await telegram.getMe()
+      results.push({ name: "telegram", ok: true, detail: me.username || "ok" })
+    } catch (error) {
+      results.push({
+        name: "telegram",
+        ok: false,
+        detail: (error as Error).message,
+      })
+    }
+  } else {
+    results.push({ name: "telegram", ok: true, detail: "disabled" })
   }
 
   try {

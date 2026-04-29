@@ -7,7 +7,6 @@ import {
   writeFileSync,
 } from "node:fs"
 import { resolve } from "node:path"
-import { ensureSoulGrowthRuntime } from "./growth"
 
 export const DEFAULT_SOUL = `# Bot 人设模板（可编辑）
 
@@ -31,40 +30,11 @@ export const DEFAULT_SOUL = `# Bot 人设模板（可编辑）
 `
 
 const SOUL_MAX_CHARS = 6000
-const VOLATILE_SOUL_SECTION_HEADINGS = new Set([
-  "## 角色成长状态",
-  "## 最近反馈摘要",
-])
 
 let soulMutationQueue: Promise<unknown> = Promise.resolve()
 
 function normalizeSoulMarkdown(value: string) {
   return value.replace(/\r\n/g, "\n").trim()
-}
-
-export function stripVolatileSoulSections(content: string) {
-  const normalized = normalizeSoulMarkdown(content)
-  if (!normalized) return normalized
-
-  const lines = normalized.split("\n")
-  const kept: string[] = []
-  let skipping = false
-
-  lines.forEach((line) => {
-    const trimmed = line.trim()
-    if (/^##\s+/.test(trimmed)) {
-      skipping = VOLATILE_SOUL_SECTION_HEADINGS.has(trimmed)
-      if (skipping) return
-    }
-    if (!skipping) {
-      kept.push(line)
-    }
-  })
-
-  return kept
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
 }
 
 export function compactSoulContent(
@@ -131,7 +101,6 @@ export function ensureSoulFile(workspaceRoot: string, runtimeRoot?: string) {
   }
   if (runtimeRoot) {
     ensureSoulRuntime(runtimeRoot)
-    ensureSoulGrowthRuntime(runtimeRoot)
   }
   return path
 }
@@ -146,7 +115,7 @@ export async function runExclusiveSoulMutation<T>(
 }
 
 export function loadSoul(workspaceRoot: string) {
-  return compactSoulContent(stripVolatileSoulSections(readRawSoul(workspaceRoot)))
+  return compactSoulContent(readRawSoul(workspaceRoot))
 }
 
 export interface SoulDraftRecord {
@@ -197,11 +166,7 @@ export function createSoulDraft(options: {
   const paths = ensureSoulRuntime(options.runtimeRoot)
   const id = `draft-${Date.now()}`
   const path = resolve(paths.draftsDir, `${id}.md`)
-  const normalizedContent =
-    options.metadata.trigger === "auto"
-      ? stripVolatileSoulSections(options.content)
-      : options.content
-  writeFileSync(path, `${compactSoulContent(normalizedContent)}\n`)
+  writeFileSync(path, `${compactSoulContent(options.content)}\n`)
   appendSoulAudit(options.runtimeRoot, {
     type: "draft_created",
     draftId: id,

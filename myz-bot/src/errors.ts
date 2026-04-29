@@ -1,8 +1,8 @@
 import { appendFileSync, existsSync, mkdirSync } from "node:fs"
 import { resolve } from "node:path"
+import type { ChatUser } from "./chatChannel"
 import { isAdminUser } from "./permissions"
 import type { BotRuntimeConfig } from "./config"
-import type { TelegramUser } from "./telegram"
 
 export interface LoggedError {
   name: string
@@ -80,7 +80,7 @@ export function appendConversationErrorLog(options: {
 
 export function formatErrorReply(options: {
   config: BotRuntimeConfig
-  user?: TelegramUser
+  user?: ChatUser
   error: unknown
 }) {
   const normalized = normalizeError(options.error)
