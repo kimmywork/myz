@@ -1,7 +1,8 @@
+import { PageSidebar } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
 import HighlightsPane from "../components/HighlightsPane.jsx";
-import PageSidebar from "../components/PageSidebar.jsx";
 import { useUIStore } from "../stores/ui.js";
+import { formatDateTime } from "@/dashboard/utils/records.js";
 
 export default defineComponent({
   name: "HighlightsPage",
@@ -17,7 +18,15 @@ export default defineComponent({
         <div class={layoutClasses()}>
           {uiStore.pageSidebarOpen ? (
             <div class="lg:w-72 lg:flex-shrink-0">
-              <PageSidebar />
+              <PageSidebar
+                groups={uiStore.pageGroups}
+                activePageUrl={uiStore.pageFilter}
+                fixedHeight={Boolean(uiStore.pageSidebarOpen)}
+                formatDateTime={formatDateTime}
+                onToggle={uiStore.togglePageSidebar}
+                onClear={uiStore.clearPageFilter}
+                onSelect={uiStore.setPageFilter}
+              />
             </div>
           ) : null}
           <div class="min-w-0 flex-1">

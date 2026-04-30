@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./markdownRenderer": "./src/markdownRenderer.ts",
     "./typeUtils": "./src/typeUtils.ts",
     "./schemaRegistry": "./src/schemaRegistry.ts",
     "./versioning": "./src/versioning.ts",

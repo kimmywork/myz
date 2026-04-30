@@ -1,112 +1,82 @@
-import { defineComponent } from "vue";
-import { useUIStore } from "../../stores/ui.js";
-import ToolInlineNotice from "./ToolInlineNotice.jsx";
-import type { ImageAttachment } from "@/background/ai/types.js";
-import { renderMarkdown } from "@/shared/markdownRenderer.js";
+import {
+  ToolInlineNotice,
+  UserMessageBubble as SharedUserMessageBubble,
+} from "@myz/dashboard-chat-ui"
+import { defineComponent } from "vue"
+import type { ImageAttachment } from "@/background/ai/types.js"
+import { useUIStore } from "../../stores/ui.js"
 
 interface UserMessage {
-  id: string;
-  content: string;
-  timestamp: string;
+  id: string
+  content: string
+  timestamp: string
   metadata?: {
-    attachments?: ImageAttachment[];
-    selectionContextText?: string;
-    skillNames?: string[] | string;
-  };
-}
-
-interface UserMessageBubbleProps {
-  message?: UserMessage;
+    attachments?: ImageAttachment[]
+    selectionContextText?: string
+    skillNames?: string[] | string
+  }
 }
 
 export default defineComponent({
   name: "UserMessageBubble",
   props: {
     message: {
-      type: Object,
+      type: Object as () => UserMessage,
       required: true,
-      default: () => ({}),
     },
   },
-  setup(props: UserMessageBubbleProps) {
-    const uiStore = useUIStore();
-    const resolveSkillNames = () => {
-      const raw = props.message?.metadata?.skillNames;
+  setup(props) {
+    const uiStore = useUIStore()
+
+    function resolveSkillNames() {
+      const raw = props.message?.metadata?.skillNames
       if (Array.isArray(raw)) {
-        return raw.map((name) => String(name).trim()).filter(Boolean);
+        return raw.map((name) => String(name).trim()).filter(Boolean)
       }
       if (typeof raw === "string" && raw.trim()) {
-        return [raw.trim()];
+        return [raw.trim()]
       }
-      return [];
-    };
-
-    const renderAttachments = (items: ImageAttachment[]) => (
-      <div class="mt-3 flex flex-wrap gap-2">
-        {items.map((item, index) => (
-          <button
-            type="button"
-            class="block h-28 w-28 overflow-hidden rounded-xl border border-white/20 bg-white/10"
-            title={item.name || "图片预览"}
-            onClick={() =>
-              uiStore.openImagePreview({
-                dataUrl: item.dataUrl,
-                title: item.name || "图片预览",
-              })
-            }
-          >
-            <img
-              src={item.dataUrl}
-              class="h-full w-full object-cover"
-              alt={item.name || `image-${index + 1}`}
-            />
-          </button>
-        ))}
-      </div>
-    );
+      return []
+    }
 
     return () => {
-      const skillNames = resolveSkillNames();
+      const skillNames = resolveSkillNames()
+      const selectionContextText = props.message?.metadata?.selectionContextText?.trim()
+
       return (
-        <div class="ml-auto w-full max-w-[85%] rounded-2xl border border-indigo-500 bg-indigo-500 px-4 py-3 text-sm text-white shadow-md dark:border-indigo-600">
-          <div class="mb-2 flex items-center justify-between text-xs font-semibold text-white/80">
-            <span>用户</span>
-            <span>
-              {new Date(props.message?.timestamp || "").toLocaleString()}
-            </span>
-          </div>
-          {skillNames.length > 0 && (
-            <div class="mb-3">
-              <ToolInlineNotice
-                text={`使用技能：${skillNames.join("、")}`}
-                timestamp=""
-                showButton={false}
-                size="sm"
-              />
-            </div>
-          )}
-          {typeof props.message?.metadata?.selectionContextText === "string" &&
-            props.message.metadata.selectionContextText.trim() && (
-              <div class="mb-3 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/90">
-                <div class="mb-1 text-[11px] font-semibold text-white/80">
-                  选中内容（上下文）
+        <SharedUserMessageBubble
+          message={props.message}
+          onPreviewAttachment={(attachment) =>
+            uiStore.openImagePreview({
+              dataUrl: attachment.dataUrl,
+              title: attachment.name || "图片预览",
+            })
+          }
+          renderBeforeContent={() => (
+            <>
+              {skillNames.length > 0 ? (
+                <div class="mb-3">
+                  <ToolInlineNotice
+                    text={`使用技能：${skillNames.join("、")}`}
+                    showButton={false}
+                    size="sm"
+                  />
                 </div>
-                <div class="max-h-40 overflow-auto whitespace-pre-wrap">
-                  {props.message.metadata.selectionContextText}
+              ) : null}
+              {selectionContextText ? (
+                <div class="mb-3 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/90">
+                  <div class="mb-1 text-[11px] font-semibold text-white/80">
+                    选中内容（上下文）
+                  </div>
+                  <div class="max-h-40 overflow-auto whitespace-pre-wrap">
+                    {selectionContextText}
+                  </div>
                 </div>
-              </div>
-            )}
-          {props.message?.content && (
-            <div
-              class="prose prose-sm max-w-none text-white"
-              v-html={renderMarkdown(props.message?.content)}
-            />
+              ) : null}
+            </>
           )}
-          {Array.isArray(props.message?.metadata?.attachments) &&
-            props.message.metadata.attachments.length > 0 &&
-            renderAttachments(props.message.metadata.attachments)}
-        </div>
-      );
-    };
+        />
+      )
+    }
   },
-});
+})

@@ -1,7 +1,7 @@
+import { TagInput } from "@myz/dashboard-ui";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
-import TagInput from "./TagInput.jsx";
 import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 export default defineComponent({

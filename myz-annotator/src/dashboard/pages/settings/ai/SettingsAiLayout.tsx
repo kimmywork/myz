@@ -1,6 +1,6 @@
+import { ToggleSwitch } from "@myz/dashboard-ai-settings";
 import { computed, defineComponent, provide, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
-import ToggleSwitch from "../../../components/ToggleSwitch.jsx";
 import { aiSettingsKey, createAiSettingsContext } from "./aiSettingsContext.js";
 
 export default defineComponent({

@@ -1,95 +1,61 @@
-import { storeToRefs } from "pinia";
-import { computed, defineComponent } from "vue";
-import ConversationEmptyState from "./messages/ConversationEmptyState.jsx";
-import UserMessageBubble from "./messages/UserMessageBubble.jsx";
-import { Message } from "@/background/ai/types.js";
-import { useChatStore } from "@/dashboard/stores/chat.js";
-import { useChatUIStore } from "@/dashboard/stores/chatUi.js";
-import AssistantMessageBubble from "@/sidepanel/components/messages/AssistantMessageBubble.jsx";
-import { resolveToolNames } from "@/sidepanel/components/messages/messageUtils.jsx";
-import StreamingMessage from "@/sidepanel/components/messages/StreamingMessage.jsx";
-import SystemEventMessageBubble from "@/sidepanel/components/messages/SystemEventMessageBubble.jsx";
-import SystemMessageBubble from "@/sidepanel/components/messages/SystemMessageBubble.jsx";
-import ToolInlineNotice from "@/sidepanel/components/messages/ToolInlineNotice.jsx";
-import ToolMessageCard from "@/sidepanel/components/messages/ToolMessageCard.jsx";
-
-function isToolInvocationNotice(msg: Message): boolean {
-  if (!msg || msg.role !== "assistant" || !msg.metadata?.hasToolCalls) {
-    return false;
-  }
-  const metadataReasoning =
-    typeof msg.metadata?.reasoning === "string" ? msg.metadata.reasoning : "";
-  const metadataReasoningContent =
-    typeof msg.metadata?.reasoning_content === "string"
-      ? msg.metadata.reasoning_content
-      : "";
-  const reasoningText = (
-    msg.reasoning_content ||
-    metadataReasoning ||
-    metadataReasoningContent ||
-    ""
-  ).trim();
-  if (reasoningText) {
-    return false;
-  }
-
-  const text = (msg.content || "").trim();
-  if (!text) {
-    return true;
-  }
-  const pattern = /\[Tool\s+\d+:[^\]]+\]/g;
-  const matches = text.match(pattern);
-  if (!matches) return false;
-  const remaining = text.replace(pattern, "").trim();
-  if (remaining.length > 0) {
-    return false;
-  }
-
-  if (msg.metadata?.toolInvocationOnly) {
-    return true;
-  }
-  return true;
-}
+import {
+  AssistantMessageBubble,
+  ChatConversationListBase,
+  StreamingMessage,
+  ToolInlineNotice,
+  ToolMessageCard,
+  isToolInvocationNotice,
+  resolveToolNames,
+} from "@myz/dashboard-chat-ui"
+import { storeToRefs } from "pinia"
+import { computed, defineComponent } from "vue"
+import { Message } from "@/background/ai/types.js"
+import { useChatStore } from "@/dashboard/stores/chat.js"
+import { useChatUIStore } from "@/dashboard/stores/chatUi.js"
+import ConversationEmptyState from "./messages/ConversationEmptyState.jsx"
+import UserMessageBubble from "./messages/UserMessageBubble.jsx"
+import SystemEventMessageBubble from "@/sidepanel/components/messages/SystemEventMessageBubble.jsx"
+import SystemMessageBubble from "@/sidepanel/components/messages/SystemMessageBubble.jsx"
 
 export default defineComponent({
   name: "DashboardConversationList",
   setup() {
-    const chatStore = useChatStore();
-    const uiStore = useChatUIStore();
-    const { messageListRef } = storeToRefs(uiStore);
+    const chatStore = useChatStore()
+    const uiStore = useChatUIStore()
+    const { messageListRef } = storeToRefs(uiStore)
 
     const messageEntries = computed(() =>
       chatStore.visibleMessages
         .filter(Boolean)
         .filter((msg) => msg.metadata?.type !== "streaming_preview"),
-    );
+    )
 
     const hasDetails = (metadata: Message["metadata"]) =>
       Array.isArray(metadata?.toolCallDetails) &&
-      metadata.toolCallDetails.length > 0;
+      metadata.toolCallDetails.length > 0
 
     const handleMessageClick = (event: MouseEvent) => {
-      const anchor = (event.target as HTMLElement).closest("a");
+      const anchor = (event.target as HTMLElement).closest("a")
       if (!anchor) {
-        return;
+        return
       }
-      const href = anchor.getAttribute("href") || "";
+      const href = anchor.getAttribute("href") || ""
       if (!href.startsWith("myz-chunk://")) {
-        return;
+        return
       }
-      event.preventDefault();
-    };
+      event.preventDefault()
+    }
 
     const renderMessage = (msg: Message) => {
       if (msg.metadata?.type === "page_context") {
-        return <SystemMessageBubble key={msg.id} message={msg} />;
+        return <SystemMessageBubble key={msg.id} message={msg} />
       }
       if (msg.metadata?.type === "system_event") {
-        return <SystemEventMessageBubble key={msg.id} message={msg} />;
+        return <SystemEventMessageBubble key={msg.id} message={msg} />
       }
 
       if (msg.role === "user") {
-        return <UserMessageBubble key={msg.id} message={msg} />;
+        return <UserMessageBubble key={msg.id} message={msg} />
       }
 
       if (isToolInvocationNotice(msg)) {
@@ -106,7 +72,7 @@ export default defineComponent({
             showButton={hasDetails(msg.metadata)}
             size="lg"
           />
-        );
+        )
       }
 
       if (msg.role === "tool") {
@@ -116,11 +82,11 @@ export default defineComponent({
             message={msg}
             onView={(message) => {
               if (message) {
-                uiStore.openToolResponse(message)
+                uiStore.openToolResponse(message as Message)
               }
             }}
           />
-        );
+        )
       }
 
       if (msg.role === "assistant") {
@@ -131,38 +97,41 @@ export default defineComponent({
             onSave={() => uiStore.openSaveModal(msg)}
             onToolDetails={(message) => {
               if (message) {
-                uiStore.openToolInvocationDetails(message)
+                uiStore.openToolInvocationDetails(message as Message)
               }
             }}
             isSaving={uiStore.isSavingHighlight}
           />
-        );
+        )
       }
 
-      return null;
-    };
+      return null
+    }
 
     return () => (
-      <div
-        class="flex min-h-0 flex-1 flex-col space-y-3 overflow-y-auto px-3 py-4 pr-4"
-        ref={messageListRef}
-        onClick={handleMessageClick}
-      >
-        {messageEntries.value.length === 0 && <ConversationEmptyState />}
-
-        {messageEntries.value.map((msg) => renderMessage(msg))}
-
-        {chatStore.hasActiveStream && (
-          <StreamingMessage stream={chatStore.activeStream} />
-        )}
-
-        {chatStore.isLoading && (
-          <div class="flex items-center justify-center gap-2 text-sm text-slate-500">
-            <span class="animate-spin">⏳</span>
-            AI 正在思考...
-          </div>
-        )}
-      </div>
-    );
+      <ChatConversationListBase
+        messages={messageEntries.value}
+        setMessageListRef={(element) => {
+          messageListRef.value = element
+        }}
+        onContainerClick={handleMessageClick}
+        renderEmptyState={() => <ConversationEmptyState />}
+        renderMessage={(message) => renderMessage(message as Message)}
+        renderStreaming={() =>
+          chatStore.hasActiveStream ? (
+            <StreamingMessage
+              stream={{
+                id: chatStore.activeStream.id,
+                content: chatStore.activeStream.content,
+                timestamp: chatStore.activeStream.timestamp,
+                reasoning: chatStore.activeStream.reasoning,
+              }}
+            />
+          ) : null
+        }
+        isLoading={chatStore.isLoading}
+        loadingText="AI 正在思考..."
+      />
+    )
   },
-});
+})

@@ -9,7 +9,10 @@ import type {
   SyncRunResult,
   SyncStatus,
 } from "@myz/dashboard-core/host";
-import { DASHBOARD_HOST_CAPABILITY_PRESETS } from "@myz/dashboard-core/host";
+import {
+  DASHBOARD_HOST_CAPABILITY_PRESETS,
+  DASHBOARD_HOST_FEATURE_PRESETS,
+} from "@myz/dashboard-core/host";
 import type { MyZRecord } from "@myz/shared/types";
 import type { Settings } from "@/background/settings";
 import { sendMessage } from "@/shared/messaging";
@@ -201,6 +204,7 @@ export function createExtensionDashboardHost(): DashboardHost<Settings> {
   return {
     kind: "extension",
     capabilities: DASHBOARD_HOST_CAPABILITY_PRESETS.extension,
+    features: DASHBOARD_HOST_FEATURE_PRESETS.extension,
     records: {
       listRecords,
       getRecord,

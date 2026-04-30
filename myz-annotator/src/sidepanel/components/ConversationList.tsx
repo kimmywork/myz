@@ -1,58 +1,22 @@
+import {
+  AssistantMessageBubble,
+  ChatConversationListBase,
+  StreamingMessage,
+  ToolInlineNotice,
+  ToolMessageCard,
+  isToolInvocationNotice,
+  resolveToolNames,
+} from "@myz/dashboard-chat-ui";
 import { storeToRefs } from "pinia";
 import { computed, defineComponent } from "vue";
 import { useChatStore } from "../stores/chat.js";
 import { usePageStore } from "../stores/page.js";
 import { useUIStore } from "../stores/ui.js";
-import AssistantMessageBubble from "./messages/AssistantMessageBubble.jsx";
 import ConversationEmptyState from "./messages/ConversationEmptyState.jsx";
-import { resolveToolNames } from "./messages/messageUtils.jsx";
-import StreamingMessage from "./messages/StreamingMessage.jsx";
 import SystemEventMessageBubble from "./messages/SystemEventMessageBubble.jsx";
 import SystemMessageBubble from "./messages/SystemMessageBubble.jsx";
-import ToolInlineNotice from "./messages/ToolInlineNotice.jsx";
-import ToolMessageCard from "./messages/ToolMessageCard.jsx";
 import UserMessageBubble from "./messages/UserMessageBubble.jsx";
 import { Message } from "@/background/ai/types.js";
-
-function isToolInvocationNotice(msg: Message): boolean {
-  if (!msg || msg.role !== "assistant" || !msg.metadata?.hasToolCalls) {
-    return false;
-  }
-  const metadataReasoning =
-    typeof msg.metadata?.reasoning === "string" ? msg.metadata.reasoning : "";
-  const metadataReasoningContent =
-    typeof msg.metadata?.reasoning_content === "string"
-      ? msg.metadata.reasoning_content
-      : "";
-  const reasoningText = (
-    msg.reasoning_content ||
-    metadataReasoning ||
-    metadataReasoningContent ||
-    ""
-  ).trim();
-  if (reasoningText) {
-    return false;
-  }
-
-  const text = (msg.content || "").trim();
-  if (!text) {
-    return true;
-  }
-  const pattern = /\[Tool\s+\d+:[^\]]+\]/g;
-  const matches = text.match(pattern);
-  if (!matches) return false;
-  const remaining = text.replace(pattern, "").trim();
-  if (remaining.length > 0) {
-    return false;
-  }
-
-  // Some messages are explicitly marked tool-invocation-only; keep the old behavior,
-  // but only when there is no other user-visible output.
-  if (msg.metadata?.toolInvocationOnly) {
-    return true;
-  }
-  return true;
-}
 
 export default defineComponent({
   name: "ConversationList",
@@ -123,7 +87,7 @@ export default defineComponent({
             message={msg}
             onView={(msg) => {
               if (msg) {
-                uiStore.openToolResponse(msg);
+                uiStore.openToolResponse(msg as Message);
               }
             }}
           />
@@ -138,7 +102,7 @@ export default defineComponent({
             onSave={() => uiStore.openSaveModal(msg)}
             onToolDetails={(msg) => {
               if (msg) {
-                uiStore.openToolInvocationDetails(msg);
+                uiStore.openToolInvocationDetails(msg as Message);
               }
             }}
             isSaving={uiStore.isSavingHighlight}
@@ -150,26 +114,29 @@ export default defineComponent({
     };
 
     return () => (
-      <div
-        class="flex flex-1 flex-col space-y-3 overflow-y-auto px-3 py-4 pr-4"
-        ref={messageListRef}
-        onClick={handleMessageClick}
-      >
-        {messageEntries.value.length === 0 && <ConversationEmptyState />}
-
-        {messageEntries.value.map((msg) => renderMessage(msg))}
-
-        {chatStore.hasActiveStream && (
-          <StreamingMessage stream={chatStore.activeStream} />
-        )}
-
-        {chatStore.isLoading && (
-          <div class="flex items-center justify-center gap-2 text-sm text-slate-500">
-            <span class="animate-spin">⏳</span>
-            AI 正在思考...
-          </div>
-        )}
-      </div>
+      <ChatConversationListBase
+        messages={messageEntries.value}
+        setMessageListRef={(element) => {
+          messageListRef.value = element;
+        }}
+        onContainerClick={handleMessageClick}
+        renderEmptyState={() => <ConversationEmptyState />}
+        renderMessage={(message) => renderMessage(message as Message)}
+        renderStreaming={() =>
+          chatStore.hasActiveStream ? (
+            <StreamingMessage
+              stream={{
+                id: chatStore.activeStream.id,
+                content: chatStore.activeStream.content,
+                timestamp: chatStore.activeStream.timestamp,
+                reasoning: chatStore.activeStream.reasoning,
+              }}
+            />
+          ) : null
+        }
+        isLoading={chatStore.isLoading}
+        loadingText="AI 正在思考..."
+      />
     );
   },
 });

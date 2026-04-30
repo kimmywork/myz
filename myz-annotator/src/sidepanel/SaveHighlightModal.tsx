@@ -1,7 +1,7 @@
+import { TagInput } from "@myz/dashboard-ui";
 import { storeToRefs } from "pinia";
 import { defineComponent, ref } from "vue";
 import { useUIStore } from "./stores/ui.js";
-import TagInput from "@/dashboard/components/TagInput.jsx";
 
 export default defineComponent({
   name: "SaveHighlightModal",

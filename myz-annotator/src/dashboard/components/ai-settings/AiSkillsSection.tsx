@@ -1,5 +1,6 @@
+import { AiSkillsSection as SharedAiSkillsSection } from "@myz/dashboard-ai-settings";
 import { unzipSync, strFromU8 } from "fflate";
-import { computed, defineComponent, onMounted, ref } from "vue";
+import { defineComponent, onMounted, ref } from "vue";
 import type { PropType } from "vue";
 import type {
   SkillFileRecord,
@@ -79,45 +80,6 @@ export default defineComponent({
     const fileDirty = ref(false);
     const zipInputRef = ref<HTMLInputElement | null>(null);
     const folderInputRef = ref<HTMLInputElement | null>(null);
-
-    const options = computed(() => {
-      const items: Array<{
-        label: string;
-        providerId: string;
-        modelId: string;
-      }> = [];
-      props.providers
-        .filter((p) => p.enabled && p.lastTest?.ok)
-        .forEach((provider) => {
-          provider.models
-            .filter((m) => m.enabled && m.model)
-            .forEach((model) => {
-              items.push({
-                label: `${provider.name} (${model.model})`,
-                providerId: provider.id,
-                modelId: model.id,
-              });
-            });
-        });
-      return items;
-    });
-
-    const isAuto = computed(() => props.value.mode === "auto");
-    const missingAutoTarget = computed(
-      () => isAuto.value && !props.value.autoSelectorTarget,
-    );
-
-    const currentKey = computed(() => {
-      const target = props.value.autoSelectorTarget;
-      return target ? `${target.providerId}:${target.modelId}` : "";
-    });
-
-    const update = (patch: Partial<AISkillsSettings>) => {
-      props.onChange({
-        ...props.value,
-        ...patch,
-      });
-    };
 
     const refreshSkills = async () => {
       loading.value = true;
@@ -333,64 +295,14 @@ export default defineComponent({
     });
 
     return () => (
-      <div class="space-y-4">
-        <div class="text-xs text-slate-500 dark:text-slate-400">
-          Skills 通过 IndexedDB 存储；可用 @skill-name
-          显式引用，或由选择器模型自动匹配。
-          {isAuto.value
-            ? "（自动模式：每次发送前会用选择器模型从已启用技能中挑选）"
-            : null}
-        </div>
-        {missingAutoTarget.value && (
-          <div class="rounded-xl border border-amber-300/70 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200">
-            已开启“自动”，但尚未选择选择器模型：为安全起见，本次将不会自动启用技能。
-          </div>
-        )}
-
-        <label class="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-          <input
-            type="checkbox"
-            class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
-            checked={isAuto.value}
-            onChange={(e) =>
-              update({
-                mode: (e.target as HTMLInputElement).checked
-                  ? "auto"
-                  : "manual",
-              })
-            }
-          />
-          <span class="font-medium">自动</span>
-          <span class="text-xs text-slate-500 dark:text-slate-400">
-            （用一个模型为每次输入选择需要启用的技能）
-          </span>
-        </label>
-
-        {isAuto.value && (
-          <label class="field">
-            <span>选择器模型</span>
-            <select
-              value={currentKey.value}
-              onChange={(e) => {
-                const value = (e.target as HTMLSelectElement).value;
-                const [providerId, modelId] = value.split(":");
-                if (!providerId || !modelId) {
-                  update({ autoSelectorTarget: null });
-                  return;
-                }
-                update({ autoSelectorTarget: { providerId, modelId } });
-              }}
-            >
-              <option value="">未选择</option>
-              {options.value.map((opt) => (
-                <option value={`${opt.providerId}:${opt.modelId}`}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
+      <SharedAiSkillsSection
+        providers={props.providers}
+        value={props.value}
+        onChange={props.onChange}
+        requireTestedProviders
+        description="Skills 通过 IndexedDB 存储；可用 @skill-name 显式引用，或由选择器模型自动匹配。"
+        renderAfterSelector={() => (
+          <>
         <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
           <div class="mb-2 flex items-center justify-between gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
             <span>已安装 Skills</span>
@@ -562,7 +474,9 @@ export default defineComponent({
             </div>
           </div>
         )}
-      </div>
+          </>
+        )}
+      />
     );
   },
 });

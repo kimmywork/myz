@@ -17,7 +17,7 @@ export function useInfiniteScroll(options: InfiniteScrollOptions = {}) {
     watchTarget = null,
   } = options;
 
-  const sentinelRef = ref(null);
+  const sentinelRef = ref<Element | null>(null);
   let observer: IntersectionObserver | null = null;
   let mutationObserver: MutationObserver | null = null;
 

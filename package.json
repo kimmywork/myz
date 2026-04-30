@@ -4,7 +4,7 @@
   "workspaces": [
     "myz-annotator",
     "myz-danmaku",
-    "myz-suite-tool",
+    "myz-desktop",
     "vectoria",
     "website",
     "packages/*",

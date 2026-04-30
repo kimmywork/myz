@@ -22,6 +22,15 @@ export interface DashboardHostCapabilities {
   touchOptimized: boolean
 }
 
+export interface DashboardHostFeatures {
+  socialImport: boolean
+  providerConnectionTesting: boolean
+  mcpConnectionTesting: boolean
+  skillManagement: boolean
+  vectorMaintenance: boolean
+  localChatRuntime: boolean
+}
+
 export const DASHBOARD_HOST_CAPABILITY_PRESETS: Record<
   DashboardHostKind,
   DashboardHostCapabilities
@@ -49,6 +58,36 @@ export const DASHBOARD_HOST_CAPABILITY_PRESETS: Record<
     backgroundMessaging: true,
     windowControls: false,
     touchOptimized: true,
+  },
+}
+
+export const DASHBOARD_HOST_FEATURE_PRESETS: Record<
+  DashboardHostKind,
+  DashboardHostFeatures
+> = {
+  extension: {
+    socialImport: true,
+    providerConnectionTesting: true,
+    mcpConnectionTesting: true,
+    skillManagement: true,
+    vectorMaintenance: true,
+    localChatRuntime: false,
+  },
+  desktop: {
+    socialImport: false,
+    providerConnectionTesting: true,
+    mcpConnectionTesting: true,
+    skillManagement: false,
+    vectorMaintenance: false,
+    localChatRuntime: true,
+  },
+  "mobile-extension": {
+    socialImport: false,
+    providerConnectionTesting: false,
+    mcpConnectionTesting: false,
+    skillManagement: false,
+    vectorMaintenance: false,
+    localChatRuntime: false,
   },
 }
 
@@ -143,6 +182,7 @@ export interface SyncRepository {
 export interface DashboardHost<TSettings = unknown> {
   kind: DashboardHostKind
   capabilities: DashboardHostCapabilities
+  features: DashboardHostFeatures
   records: RecordRepository
   settings: SettingsRepository<TSettings>
   theme: ThemeRepository

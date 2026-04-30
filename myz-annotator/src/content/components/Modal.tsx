@@ -1,10 +1,10 @@
+import { TagInput } from "@myz/dashboard-ui";
 import { defineComponent, ref, computed, watch, type Ref } from "vue";
 import {
   useModalStore,
   ModalOpenOptions,
 } from "@/content/stores/modal-store.js";
 import { usePreferenceStore } from "@/content/stores/preference-store.js";
-import TagInput from "@/dashboard/components/TagInput.jsx";
 import { IconPencil, highlightStyleIconMap, makeIcon } from "@/shared/icons.js";
 import {
   RECORD_KINDS,

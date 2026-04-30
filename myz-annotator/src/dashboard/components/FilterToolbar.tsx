@@ -1,7 +1,7 @@
+import { TagInput } from "@myz/dashboard-ui";
 import { defineComponent, ref, Ref } from "vue";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
-import TagInput from "./TagInput.jsx";
 import { IconCalendar } from "@/shared/icons.js";
 
 export default defineComponent({
