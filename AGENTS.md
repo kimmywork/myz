@@ -19,7 +19,7 @@ This repo is a multi‑module suite (extensions + website + libraries). Keep cha
 - `packages/dashboard-chat-ui/` — shared dashboard and sidepanel chat shells, message primitives, list/composer bases, and chat modals. Keep runtime, stores, page-context rendering, and host-only citation behaviors outside this package.
 - `packages/dashboard-ui/` — shared non-chat dashboard UI building blocks such as app shells, sidebars, and reusable inputs. Prefer wiring app stores into these components from page/container layers instead of re-copying the visuals per host.
 - `packages/sync-core/` — environment-agnostic E2EE sync core: crypto, protocol schemas, manifest/chunk handling, remote repository helpers, adapter interfaces. Both `myz-annotator` and `myz-desktop` consume this package; do not duplicate manifest/version/chunk logic in app code.
-- `vectoria/` — client‑side vector search library + demo UI.
+- `packages/vectoria/` — hybrid vector search engine with HNSW index, n-gram matching, and tag-based retrieval. Uses OpenAI SDK for embeddings; do not add local model dependencies (onnxruntime, transformers.js).
 
 ## Common Commands
 myz-annotator:
