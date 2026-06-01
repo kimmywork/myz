@@ -297,13 +297,13 @@ async function runSemanticLookup(
       finalText.length > 800 ? `${finalText.slice(0, 800)}…` : finalText;
     const response = await sendMessage<
       { text?: string; topK?: number },
-      VectoriaSearchMessageResult
+      { ok: boolean; data: VectoriaSearchMessageResult }
     >("myz:vectoriaSearch", {
       text: trimmed,
       topK: 3,
     });
-    const results: VectoriaSearchResult[] = Array.isArray(response?.results)
-      ? response.results
+    const results: VectoriaSearchResult[] = Array.isArray(response?.data?.results)
+      ? response.data.results
       : [];
     const currentCanonical = canonicalUrl(window.location.href);
     filtered = results.filter((item) => {
