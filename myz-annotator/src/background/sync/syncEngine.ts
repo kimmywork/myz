@@ -1,15 +1,10 @@
 import { readSettings } from "../storage";
 import {
   buildChunkForRecord,
-  decryptChunkEnvelope,
-  decryptRecordPayload,
 } from "./chunks";
 import {
-  bytesToUtf8,
   packNoncePayload,
-  splitNoncePayload,
   sha256,
-  utf8ToBytes,
 } from "./crypto";
 import { runGc } from "./gc";
 import {
@@ -20,18 +15,22 @@ import {
 } from "./keyring";
 import { acquireLock, releaseLock } from "./lock";
 import {
-  decryptManifest,
   encryptManifest,
   signManifest,
-  verifyManifest,
 } from "./manifest";
 import {
   applyRecordPayload,
   buildRecordHash,
   collectLocalRecords,
-  deserializeRecordPayload,
   deleteLocalRecord,
 } from "./records";
+import {
+  fetchRemoteRecords,
+  formatManifestVersion,
+  loadRemoteManifest,
+  readRemoteVersion,
+  writeRemoteVersion,
+} from "@myz/sync-core/remote";
 import { parseRotationNotice } from "./rotation";
 import { S3Client } from "./s3Client";
 import {
@@ -50,7 +49,6 @@ import type {
   ManifestData,
   ManifestRecordEntry,
   SyncRecord,
-  SyncRecordPayload,
 } from "./types";
 import { bytesToBase64, bytesToHex } from "./utils";
 import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
@@ -398,103 +396,6 @@ export async function syncNow(): Promise<SyncResult> {
   }
 }
 
-async function loadRemoteManifest(
-  client: S3Client,
-  keyId: string,
-  keyset: { masterKey: Uint8Array; publicKey: Uint8Array },
-  versionHint?: number | null,
-): Promise<{ manifest: ManifestData } | null> {
-  if (typeof versionHint === "number" && versionHint > 0) {
-    const key = `${keyId}/manifests/${formatManifestVersion(versionHint)}.bin`;
-    const manifestPayload = await client.getObject(key);
-    if (manifestPayload) {
-      const signaturePayload = await client.getObject(
-        key.replace(/\.bin$/, ".sig"),
-      );
-      if (!signaturePayload) {
-        throw new Error("Missing manifest signature");
-      }
-      const { manifest, plainBytes } = await decryptManifest(
-        manifestPayload.body,
-        versionHint,
-        keyset.masterKey,
-      );
-      const valid = await verifyManifest(
-        plainBytes,
-        signaturePayload.body,
-        keyset.publicKey,
-      );
-      if (!valid) {
-        throw new Error("Invalid manifest signature");
-      }
-      if (manifest.protocolVersion !== SYNC_PROTOCOL_VERSION) {
-        throw new Error("Unsupported sync manifest protocol version");
-      }
-      return { manifest };
-    }
-  }
-  const manifestListObjects = await client.listObjects(`${keyId}/manifests/`);
-  if (!manifestListObjects.length) return null;
-  const versions = manifestListObjects
-    .map((obj) => ({ key: obj.key, version: parseManifestVersion(obj.key) }))
-    .filter((entry) => Number.isFinite(entry.version))
-    .sort((a, b) => (b.version || 0) - (a.version || 0));
-  const latest = versions[0];
-  if (!latest || latest.version === null) return null;
-  const manifestPayload = await client.getObject(latest.key);
-  if (!manifestPayload) return null;
-  const signaturePayload = await client.getObject(
-    latest.key.replace(/\.bin$/, ".sig"),
-  );
-  if (!signaturePayload) {
-    throw new Error("Missing manifest signature");
-  }
-  const { manifest, plainBytes } = await decryptManifest(
-    manifestPayload.body,
-    latest.version,
-    keyset.masterKey,
-  );
-  const valid = await verifyManifest(
-    plainBytes,
-    signaturePayload.body,
-    keyset.publicKey,
-  );
-  if (!valid) {
-    throw new Error("Invalid manifest signature");
-  }
-  if (manifest.protocolVersion !== SYNC_PROTOCOL_VERSION) {
-    throw new Error("Unsupported sync manifest protocol version");
-  }
-  return { manifest };
-}
-
-async function fetchRemoteRecords(
-  client: S3Client,
-  masterKey: Uint8Array,
-  keyId: string,
-  records: Map<string, ManifestRecordEntry>,
-): Promise<SyncRecordPayload[]> {
-  const payloads: SyncRecordPayload[] = [];
-  for (const [recordId, entry] of records.entries()) {
-    const chunkPayload = await client.getObject(
-      `${keyId}/chunks/${entry.chunkId}.bin`,
-    );
-    if (!chunkPayload) continue;
-    const { nonce, ciphertext } = splitNoncePayload(chunkPayload.body, 12);
-    const envelope = await decryptChunkEnvelope(
-      masterKey,
-      entry.chunkId,
-      nonce,
-      ciphertext,
-    );
-    if (envelope.recordId !== recordId) continue;
-    const recordBytes = await decryptRecordPayload(masterKey, envelope);
-    const payload = deserializeRecordPayload(recordBytes);
-    payloads.push(payload);
-  }
-  return payloads;
-}
-
 async function updateRecordState(records: SyncRecord[]): Promise<void> {
   const recordIds = new Set(records.map((record) => record.recordId));
   const existing = await listRecordStates();
@@ -535,16 +436,6 @@ function hasLocalChanges(
   return false;
 }
 
-function formatManifestVersion(version: number) {
-  return `v${String(version).padStart(10, "0")}`;
-}
-
-function parseManifestVersion(key: string): number | null {
-  const match = key.match(/v(\d+)\.bin$/);
-  if (!match) return null;
-  return Number(match[1]);
-}
-
 function hasLocalPendingChanges(
   records: SyncRecord[],
   recordStateMap: Map<
@@ -568,29 +459,6 @@ function hasLocalPendingChanges(
     }
   }
   return false;
-}
-
-async function readRemoteVersion(
-  client: S3Client,
-  keyId: string,
-): Promise<number | null> {
-  const payload = await client.getObject(`${keyId}/meta/version.bin`);
-  if (!payload) return null;
-  const text = bytesToUtf8(payload.body).trim();
-  const parsed = Number.parseInt(text, 10);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-async function writeRemoteVersion(
-  client: S3Client,
-  keyId: string,
-  version: number,
-  updatedAt: string,
-): Promise<void> {
-  const body = utf8ToBytes(String(version));
-  await client.putObject(`${keyId}/meta/version.bin`, body, {
-    metadata: { "updated-at": updatedAt },
-  });
 }
 
 async function notifyRemoteChanges(count: number) {

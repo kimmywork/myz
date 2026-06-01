@@ -182,7 +182,32 @@ async function getSyncStatus(): Promise<SyncStatus> {
     lastSyncAt: status.lastSyncAt,
     pendingRecords: undefined,
     lastError: null,
+    keyId: status.keyId,
+    keyUpdatedAt: status.keyUpdatedAt,
+    lastManifestVersion: status.lastManifestVersion,
   };
+}
+
+async function testSyncConnection(
+  config?: Partial<SyncConfig>,
+): Promise<{ ok: boolean; message?: string }> {
+  return sendMessage<
+    { s3?: Partial<SyncConfig["s3"]> } | undefined,
+    { ok: boolean; message?: string }
+  >("myz:syncTestConnection", config?.s3 ? { s3: config.s3 } : undefined);
+}
+
+async function setSyncSecret(
+  secret: string,
+): Promise<{ keyId: string; keyUpdatedAt: string }> {
+  return sendMessage<
+    { secret: string },
+    { keyId: string; keyUpdatedAt: string }
+  >("myz:syncSetKey", { secret });
+}
+
+async function clearSyncSecret(): Promise<void> {
+  await sendMessage("myz:syncClearKey");
 }
 
 async function runSync(_reason?: SyncRunReason): Promise<SyncRunResult> {
@@ -227,6 +252,9 @@ export function createExtensionDashboardHost(): DashboardHost<Settings> {
       getConfig: getSyncConfig,
       updateConfig: updateSyncConfig,
       getStatus: getSyncStatus,
+      testConnection: testSyncConnection,
+      setSecret: setSyncSecret,
+      clearSecret: clearSyncSecret,
       runSync,
     },
   };

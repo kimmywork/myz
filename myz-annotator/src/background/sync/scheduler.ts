@@ -2,8 +2,8 @@ import { readSettings } from "../storage";
 import { syncNow } from "./syncEngine";
 
 const ALARM_NAME = "myz-sync";
-const MIN_DELAY_MINUTES = 3;
-const MAX_DELAY_MINUTES = 5;
+const MIN_DELAY_MINUTES = 30;
+const MAX_DELAY_MINUTES = 30;
 
 export function initializeSyncScheduler() {
   chrome.alarms.onAlarm.addListener(async (alarm) => {
