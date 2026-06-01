@@ -408,10 +408,10 @@ export async function searchSimilar(
     const engine = await getEngine()
     if (!engine) return []
     const results = await engine.search(text, { topK })
-    return results.map((r: { doc: { id: string; text: string; metadata?: Record<string, any> }; combinedScore: number }) => ({
+    return results.map((r) => ({
       id: r.doc.id,
       text: r.doc.text,
-      score: r.combinedScore,
+      score: r.finalScore,
       metadata: r.doc.metadata as VectoriaMetadata,
     }))
   } catch (error) {
