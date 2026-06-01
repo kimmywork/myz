@@ -413,10 +413,18 @@ export async function searchSimilar(
     const engine = await getEngine()
     if (!engine) return []
     const results = await engine.search(text, { topK })
+
+    if (results.length === 0) return []
+
+    // Normalize scores to 0-1 range for intuitive threshold comparison
+    const maxScore = Math.max(...results.map((r) => r.finalScore))
+    const minScore = Math.min(...results.map((r) => r.finalScore))
+    const range = maxScore - minScore
+
     return results.map((r) => ({
       id: r.doc.id,
       text: r.doc.text,
-      score: r.finalScore,
+      score: range > 0 ? (r.finalScore - minScore) / range : 0.5,
       metadata: r.doc.metadata as VectoriaMetadata,
     }))
   } catch (error) {
