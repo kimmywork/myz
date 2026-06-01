@@ -57,6 +57,8 @@ export interface HybridSearchConfig {
   denseWeight?: number
   sparseWeight?: number
   topK?: number
+  denseThreshold?: number  // Cosine similarity threshold for HNSW (0-1)
+  sparseThreshold?: number  // BM25 normalized score threshold (0-1)
   useQuantization?: boolean
   reranker?: RerankerConfig
   rrf?: RRFConfig

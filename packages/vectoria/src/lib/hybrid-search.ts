@@ -36,6 +36,8 @@ export class HybridSearchEngine {
       denseWeight: config.denseWeight ?? 0.6,
       sparseWeight: config.sparseWeight ?? 0.4,
       topK: config.topK ?? 10,
+      denseThreshold: config.denseThreshold ?? 0.5,
+      sparseThreshold: config.sparseThreshold ?? 0.3,
       useQuantization: config.useQuantization ?? true,
       reranker: config.reranker ?? {},
       rrf: config.rrf ?? {},
@@ -158,19 +160,20 @@ export class HybridSearchEngine {
    */
   async search(
     query: string,
-    options: { topK?: number } = {},
+    options: { topK?: number; denseThreshold?: number; sparseThreshold?: number } = {},
   ): Promise<HybridSearchResult[]> {
     const topK = options.topK ?? this.config.topK
+    const denseThreshold = options.denseThreshold ?? 0.5  // Cosine similarity threshold
+    const sparseThreshold = options.sparseThreshold ?? 0.3  // BM25 normalized score threshold
 
-    console.log("[Vectoria] search called, query:", query, "topK:", topK)
-    console.log("[Vectoria] hnsw size:", this.hnswIndex.size(), "bm25:", this.bm25Index.getStats())
-
-    // Step 1: Dense retrieval (HNSW)
+    // Step 1: Dense retrieval (HNSW) with threshold filtering
     const queryEmbedding = await this.embedder.embed(query)
-    const denseResults = this.hnswIndex.search(queryEmbedding, topK * 2)
+    const denseResultsRaw = this.hnswIndex.search(queryEmbedding, topK * 2)
+    const denseResults = denseResultsRaw.filter((r) => r.score >= denseThreshold)
 
-    // Step 2: Sparse retrieval (BM25)
-    const sparseResults = this.bm25Index.search(query, topK * 2)
+    // Step 2: Sparse retrieval (BM25) with threshold filtering
+    const sparseResultsRaw = this.bm25Index.search(query, topK * 2)
+    const sparseResults = sparseResultsRaw.filter((r) => r.score >= sparseThreshold)
 
     console.log("[Vectoria] dense:", denseResults.length, "sparse:", sparseResults.length)
 

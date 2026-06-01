@@ -407,12 +407,12 @@ export async function removeRecordFromIndex(recordId: string) {
 
 export async function searchSimilar(
   text: string,
-  { topK = 3 } = {},
+  { topK = 3, denseThreshold = 0.5, sparseThreshold = 0.3 } = {},
 ): Promise<VectoriaSearchResult[]> {
   try {
     const engine = await getEngine()
     if (!engine) return []
-    const results = await engine.search(text, { topK })
+    const results = await engine.search(text, { topK, denseThreshold, sparseThreshold })
 
     if (results.length === 0) return []
 
