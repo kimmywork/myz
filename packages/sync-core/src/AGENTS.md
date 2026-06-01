@@ -1,7 +1,8 @@
 # @myz/sync-core (E2EE Core)
 
 This package contains the reusable, environment-agnostic sync core:
-crypto, protocol schemas, manifest/chunk handling, and S3 REST client logic.
+crypto, protocol schemas, manifest/chunk handling, remote repository helpers,
+adapter interfaces, and object-store client logic.
 
 ## Non-negotiables
 
@@ -16,6 +17,8 @@ crypto, protocol schemas, manifest/chunk handling, and S3 REST client logic.
 - s3Client.ts: REST calls (GET/PUT/HEAD/LIST/DELETE) with signing.
 - manifest.ts: manifest build/parse, signature verify.
 - chunks.ts: chunk pack/unpack, chunkId derivation, encrypt/decrypt.
+- remote.ts: shared remote repository helpers for version/manifest/chunk reads.
+- adapters.ts: host boundaries for object stores, datasets, and sync state.
 - schemas/: zod schemas for sync payloads by protocol version.
 - registry.ts: protocol version registry for payload/manifest/chunk schemas.
 - lock.ts: lease acquisition/renewal/release.
@@ -29,6 +32,9 @@ The following remain in `myz-annotator/src/background/sync/`:
 - records.ts / deletions.ts (local state wiring)
 - syncEngine.ts (orchestration + notifications)
 - keyring.ts (key persistence on top of storage)
+
+Desktop-specific state stores or future knowledge-base datasets must plug in via
+`adapters.ts`; do not copy manifest/version/chunk repository logic back into app code.
 
 ## Data Handling
 

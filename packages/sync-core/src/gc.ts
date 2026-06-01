@@ -1,11 +1,11 @@
 import { decryptManifest } from "./manifest"
-import type { S3Client } from "./s3Client"
+import type { SyncObjectStore } from "./adapters"
 
 const MANIFEST_PREFIX = "manifests/"
 const CHUNKS_PREFIX = "chunks/"
 
 export async function runGc(options: {
-  client: S3Client
+  client: SyncObjectStore
   keyId: string
   masterKey: Uint8Array
   keepCount: number

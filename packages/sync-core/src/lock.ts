@@ -8,7 +8,7 @@ import {
   splitNoncePayload,
   utf8ToBytes,
 } from "./crypto"
-import type { S3Client } from "./s3Client"
+import type { SyncObjectStore } from "./adapters"
 import type { LockPayload } from "./types"
 import { decodeBinaryPayload, encodeBinaryPayload } from "./utils"
 
@@ -20,7 +20,7 @@ export interface LockResult {
 }
 
 export async function acquireLock(options: {
-  client: S3Client
+  client: SyncObjectStore
   lockPath: string
   masterKey: Uint8Array
   privateKey: Uint8Array
@@ -56,7 +56,7 @@ export async function acquireLock(options: {
 }
 
 export async function releaseLock(options: {
-  client: S3Client
+  client: SyncObjectStore
   lockPath: string
 }): Promise<void> {
   await options.client.deleteObject(options.lockPath)
