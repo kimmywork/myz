@@ -122,6 +122,7 @@ export class HNSWIndex {
     const node = this.nodes.get(id)
     if (!node) return
 
+    // Remove this node from all its neighbors' connection lists
     for (let l = 0; l <= node.level; l++) {
       for (const neighborId of node.neighbors[l]) {
         const neighbor = this.nodes.get(neighborId)
@@ -135,12 +136,14 @@ export class HNSWIndex {
 
     this.nodes.delete(id)
 
+    // Update entry point if needed
     if (this.entryPointId === id) {
       if (this.nodes.size === 0) {
         this.entryPointId = null
         this.maxLevel = 0
       } else {
-        let maxLevel = 0
+        // Find new entry point (node with highest level)
+        let maxLevel = -1
         let newEntryPoint: string | null = null
         for (const [nodeId, node] of this.nodes) {
           if (node.level > maxLevel) {
