@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vectoria - Hybrid Search Engine Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+      color: white;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      opacity: 0.9;
+      font-size: 1.1rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .card h2 {
+      margin-bottom: 1rem;
+      color: #333;
+      font-size: 1.25rem;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: #555;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+    }
+
+    .btn-danger {
+      background: #dc3545;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .result-item {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      border-left: 4px solid #667eea;
+    }
+
+    .result-item .score {
+      font-size: 0.875rem;
+      color: #667eea;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .result-item .text {
+      color: #333;
+      line-height: 1.5;
+    }
+
+    .result-item .metadata {
+      margin-top: 0.5rem;
+      font-size: 0.875rem;
+      color: #666;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .stat-item {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .stat-item .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #667eea;
+    }
+
+    .stat-item .label {
+      font-size: 0.875rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+
+    .log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.875rem;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .log .info { color: #4fc1ff; }
+    .log .success { color: #6a9955; }
+    .log .error { color: #f44747; }
+    .log .warn { color: #cca700; }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .status {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .status.ready {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status.loading {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔍 Vectoria</h1>
+      <p class="subtitle">Hybrid Search Engine Demo</p>
+    </header>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>⚙️ Configuration</h2>
+          <div class="form-group">
+            <label for="provider">Embedding Provider</label>
+            <select id="provider">
+              <option value="openai">OpenAI</option>
+              <option value="ollama">Ollama (Local)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="endpoint">API Endpoint</label>
+            <input type="text" id="endpoint" placeholder="https://api.openai.com/v1">
+          </div>
+          <div class="form-group">
+            <label for="apiKey">API Key</label>
+            <input type="text" id="apiKey" placeholder="sk-...">
+          </div>
+          <div class="form-group">
+            <label for="model">Model</label>
+            <input type="text" id="model" placeholder="text-embedding-3-small">
+          </div>
+          <div class="form-group">
+            <label for="threshold">Search Threshold</label>
+            <input type="text" id="threshold" value="0.5" placeholder="0.5">
+          </div>
+          <button id="initBtn" onclick="initEngine()">Initialize Engine</button>
+          <span id="status" class="status loading">Not initialized</span>
+        </div>
+
+        <div class="card">
+          <h2>📝 Add Documents</h2>
+          <div class="form-group">
+            <label for="docText">Document Text</label>
+            <textarea id="docText" placeholder="Enter document text..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="docTags">Tags (comma-separated)</label>
+            <input type="text" id="docTags" placeholder="tag1, tag2, tag3">
+          </div>
+          <button onclick="addDocument()">Add Document</button>
+          <button class="btn-secondary" onclick="addSampleDocs()">Add Sample Documents</button>
+        </div>
+
+        <div class="card">
+          <h2>🔍 Search</h2>
+          <div class="form-group">
+            <label for="query">Search Query</label>
+            <input type="text" id="query" placeholder="Enter search query...">
+          </div>
+          <div class="form-group">
+            <label for="topK">Top K</label>
+            <input type="text" id="topK" value="5" placeholder="5">
+          </div>
+          <button onclick="search()">Search</button>
+          <button class="btn-danger" onclick="clearIndex()">Clear Index</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>📊 Statistics</h2>
+          <div class="stats">
+            <div class="stat-item">
+              <div class="value" id="docCount">0</div>
+              <div class="label">Documents</div>
+            </div>
+            <div class="stat-item">
+              <div class="value" id="hnswNodes">0</div>
+              <div class="label">HNSW Nodes</div>
+            </div>
+            <div class="stat-item">
+              <div class="value" id="bm25Terms">0</div>
+              <div class="label">BM25 Terms</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>📋 Search Results</h2>
+          <div id="results">
+            <p style="color: #666; text-align: center; padding: 2rem;">
+              No results yet. Add documents and search.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>📜 Log</h2>
+          <div id="log" class="log">
+            <div class="info">Ready to initialize engine...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/demo/main.ts"></script>
+</body>
+</html>
