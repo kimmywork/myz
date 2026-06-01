@@ -297,13 +297,13 @@ async function runSemanticLookup(
       finalText.length > 800 ? `${finalText.slice(0, 800)}…` : finalText;
     const response = await sendMessage<
       { text?: string; topK?: number },
-      { ok: boolean; data: VectoriaSearchMessageResult }
+      VectoriaSearchMessageResult
     >("myz:vectoriaSearch", {
       text: trimmed,
       topK: 3,
     });
-    const results: VectoriaSearchResult[] = Array.isArray(response?.data?.results)
-      ? response.data.results
+    const results: VectoriaSearchResult[] = Array.isArray(response?.results)
+      ? response.results
       : [];
     const currentCanonical = canonicalUrl(window.location.href);
     filtered = results.filter((item) => {
@@ -316,11 +316,6 @@ async function runSemanticLookup(
       return typeof item?.score === "number";
     });
     hits = filtered
-      .filter(
-        (item) =>
-          typeof item?.score === "number" &&
-          item.score >= interestMatchThreshold,
-      )
       .sort((a, b) => (b.score || 0) - (a.score || 0));
     if (hits.length) {
       updateInterestAggregates(hits, element);

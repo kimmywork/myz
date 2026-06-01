@@ -432,7 +432,7 @@ export async function searchSimilar(
 
     if (results.length === 0) return []
 
-    // Return raw finalScore (already filtered by threshold)
+    // Return finalScore directly (threshold filtering already done in engine)
     return results.map((r) => ({
       id: r.doc.id,
       text: r.doc.text,
