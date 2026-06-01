@@ -24,8 +24,8 @@ import { readSettings } from "./background/storage.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
 import {
   applyVectorSearchSettings,
-  getVectoria,
-} from "./background/vectoria-index.js";
+  getEngine,
+} from "./background/vectoria-index.js"
 import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
@@ -80,13 +80,13 @@ async function queueSidePanelAction(payload: unknown) {
 
 (async function initializeVectoriaSettings() {
   try {
-    const settings = await readSettings();
-    applyVectorSearchSettings(settings);
-    await getVectoria();
+    const settings = await readSettings()
+    applyVectorSearchSettings(settings)
+    await getEngine()
   } catch (error) {
-    console.warn("Failed to initialize vector settings", error);
+    console.warn("Failed to initialize vector settings", error)
   }
-})();
+})()
 
 async function ensureContextMenus() {
   try {

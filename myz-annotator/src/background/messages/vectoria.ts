@@ -1,16 +1,16 @@
-import { OpenAIEmbedder } from "vectoria/thin";
-import { normalizeBaseUrl } from "../ai/runtime/openaiCompatible.js";
-import type { AIProviderSetting } from "../settings";
-import { readSettings, getAllHighlights } from "../storage";
+import { OpenAIEmbedder } from "@myz/vectoria"
+import { normalizeBaseUrl } from "../ai/runtime/openaiCompatible.js"
+import type { AIProviderSetting } from "../settings"
+import { readSettings, getAllHighlights } from "../storage"
 import {
   resetVectorIndex,
   indexRecords,
   searchSimilar,
   applyVectorSearchSettings,
-} from "../vectoria-index";
-import type { VectoriaSearchResult } from "../vectoria-index";
-import { registerMessageHandler } from "./handler";
-import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
+} from "../vectoria-index"
+import type { VectoriaSearchResult } from "../vectoria-index"
+import { registerMessageHandler } from "./handler"
+import { isRecord, type UnknownRecord } from "@/shared/typeUtils"
 
 const PENDING_RELATED_HIGHLIGHTS_KEY = "myz::pendingRelatedHighlights";
 

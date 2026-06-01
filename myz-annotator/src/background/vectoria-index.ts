@@ -1,22 +1,22 @@
-import { Vectoria, OpenAIEmbedder } from "vectoria/thin";
-import { normalizeBaseUrl } from "./ai/runtime/openaiCompatible.js";
+import { HybridSearchEngine, OpenAIEmbedder, VectorStore } from "@myz/vectoria"
+import { normalizeBaseUrl } from "./ai/runtime/openaiCompatible.js"
 import type {
   AIProviderSetting,
   Settings,
   VectorSettings,
-} from "./settings.js";
-import { MyZRecord } from "@/shared/types.ts";
-import { isRecord, isStringArray } from "@/shared/typeUtils";
+} from "./settings.js"
+import { MyZRecord } from "@/shared/types.ts"
+import { isRecord, isStringArray } from "@/shared/typeUtils"
 
-const DOC_MAP_KEY = "myz::vectoriaDocMap";
-const DB_NAME = "myz-vectoria";
-const STORE_NAME = "myz-vectoria-store";
-const DEFAULT_MAX_CHARS = 500;
-const MAX_ADD_DOCS_PER_BATCH = 64;
-const MAX_ADD_CHARS_PER_BATCH = 20_000;
+const DOC_MAP_KEY = "myz::vectoriaDocMap"
+const DB_NAME = "myz-vectoria"
+const STORE_NAME = "myz-vectoria-store"
+const DEFAULT_MAX_CHARS = 500
+const MAX_ADD_DOCS_PER_BATCH = 64
+const MAX_ADD_CHARS_PER_BATCH = 20_000
 
-let vectoriaInstance: Vectoria | null = null;
-let vectoriaInitPromise: Promise<Vectoria> | null = null;
+let engineInstance: HybridSearchEngine | null = null
+let engineInitPromise: Promise<HybridSearchEngine> | null = null
 
 interface VectorSearchRuntimeState {
   enabled: boolean;
@@ -112,49 +112,43 @@ export function applyVectorSearchSettings(
     : "";
 
   if (signature !== vectorSearchState.signature) {
-    vectoriaInstance = null;
-    vectoriaInitPromise = null;
+    engineInstance = null
+    engineInitPromise = null
   }
-  vectorSearchState.signature = signature;
+  vectorSearchState.signature = signature
 }
 
-async function ensureVectoria(): Promise<Vectoria | undefined> {
-  const config = resolveEmbedderConfig();
-  if (!config) return undefined;
-  if (vectoriaInstance) return vectoriaInstance;
-  if (vectoriaInitPromise) return vectoriaInitPromise;
+async function ensureEngine(): Promise<HybridSearchEngine | undefined> {
+  const config = resolveEmbedderConfig()
+  if (!config) return undefined
+  if (engineInstance) return engineInstance
+  if (engineInitPromise) return engineInitPromise
 
-  vectoriaInitPromise = (async () => {
+  engineInitPromise = (async () => {
     const embedder = new OpenAIEmbedder({
       apiKey: config.apiKey,
       endpoint: normalizeBaseUrl(config.baseUrl),
       modelName: config.model,
-    });
-    const instance = new Vectoria({
-      dbName: DB_NAME,
-      storeName: STORE_NAME,
-      useLocalModel: false,
-      customEmbedder: embedder,
-    });
-    if (typeof instance.init === "function") {
-      await instance.init();
-    }
-    vectoriaInstance = instance;
-    return vectoriaInstance;
+    })
+    const db = new VectorStore(DB_NAME, STORE_NAME)
+    const engine = new HybridSearchEngine(db, embedder)
+    await engine.init()
+    engineInstance = engine
+    return engineInstance
   })().catch((error) => {
-    vectoriaInstance = null;
-    throw error;
-  });
+    engineInstance = null
+    throw error
+  })
 
   try {
-    return await vectoriaInitPromise;
+    return await engineInitPromise
   } finally {
-    vectoriaInitPromise = null;
+    engineInitPromise = null
   }
 }
 
-export async function getVectoria(): Promise<Vectoria | undefined> {
-  return ensureVectoria();
+export async function getEngine(): Promise<HybridSearchEngine | undefined> {
+  return ensureEngine()
 }
 
 type DocMap = Record<string, string[]>;
@@ -298,110 +292,111 @@ function batchDocumentsForAdd(docs: VectoriaDocument[]): VectoriaDocument[][] {
 }
 
 async function deleteDocsByIds(docIds: string[] = []) {
-  if (!docIds.length) return;
-  const vectoria = await getVectoria();
-  if (!vectoria) return;
-  for (const _id of docIds) {
+  if (!docIds.length) return
+  const engine = await getEngine()
+  if (!engine) return
+  for (const id of docIds) {
     try {
-      // fixme: delete document
-      // await vectoria.deleteDocument(_id);
+      await engine.removeDocument(id)
     } catch (error) {
-      console.warn("Vectoria delete failed", error);
+      console.warn("Vectoria delete failed", error)
     }
   }
 }
 
 export async function indexRecord(record: MyZRecord) {
   try {
-    const docs = buildDocumentsFromRecord(record);
-    if (!docs.length) {
-      return;
-    }
-    const map = await readDocMap();
-    const prevIds = map[record.id] || [];
+    const docs = buildDocumentsFromRecord(record)
+    if (!docs.length) return
+    const map = await readDocMap()
+    const prevIds = map[record.id] || []
     if (prevIds.length) {
-      await deleteDocsByIds(prevIds);
+      await deleteDocsByIds(prevIds)
     }
-    const vectoria = await getVectoria();
-    if (!vectoria) return;
-    const inserted = await vectoria.addDocuments(docs);
-    map[record.id] = inserted.map((doc) => doc.id);
-    await writeDocMap(map);
+    const engine = await getEngine()
+    if (!engine) return
+    const inserted = await engine.addDocuments(
+      docs.map((d) => ({ text: d.text, metadata: d.metadata, tags: d.metadata.tags })),
+    )
+    map[record.id] = inserted.map((doc: { id: string }) => doc.id)
+    await writeDocMap(map)
   } catch (error) {
-    console.warn("Vectoria indexRecord failed", error);
+    console.warn("Vectoria indexRecord failed", error)
   }
 }
 
 export async function indexRecords(records: MyZRecord[] = []) {
-  const vectoria = await getVectoria();
-  if (!vectoria) return;
+  const engine = await getEngine()
+  if (!engine) return
 
-  const byId = new Map<string, MyZRecord>();
+  const byId = new Map<string, MyZRecord>()
   records.forEach((record) => {
-    if (record?.id) byId.set(record.id, record);
-  });
-  const uniqueRecords = Array.from(byId.values());
-  if (!uniqueRecords.length) return;
+    if (record?.id) byId.set(record.id, record)
+  })
+  const uniqueRecords = Array.from(byId.values())
+  if (!uniqueRecords.length) return
 
   try {
-    const map = await readDocMap();
+    const map = await readDocMap()
 
     for (const record of uniqueRecords) {
-      const prevIds = map[record.id] || [];
+      const prevIds = map[record.id] || []
       if (prevIds.length) {
-        await deleteDocsByIds(prevIds);
+        await deleteDocsByIds(prevIds)
       }
     }
 
-    const docs: VectoriaDocument[] = [];
+    const docs: VectoriaDocument[] = []
     for (const record of uniqueRecords) {
-      docs.push(...buildDocumentsFromRecord(record));
+      docs.push(...buildDocumentsFromRecord(record))
     }
 
-    const nextIdsByRecord: Record<string, string[]> = {};
+    const nextIdsByRecord: Record<string, string[]> = {}
     for (const batch of batchDocumentsForAdd(docs)) {
-      if (!batch.length) continue;
-      const inserted = await vectoria.addDocuments(batch);
-      inserted.forEach((doc) => {
+      if (!batch.length) continue
+      const inserted = await engine.addDocuments(
+        batch.map((d) => ({ text: d.text, metadata: d.metadata, tags: d.metadata.tags })),
+      )
+      inserted.forEach((doc: { id: string; metadata?: Record<string, any> }) => {
         const recordId =
           doc?.metadata && typeof doc.metadata.recordId === "string"
             ? doc.metadata.recordId
-            : "";
-        if (!recordId) return;
-        nextIdsByRecord[recordId] = nextIdsByRecord[recordId] || [];
-        nextIdsByRecord[recordId].push(doc.id);
-      });
+            : ""
+        if (!recordId) return
+        nextIdsByRecord[recordId] = nextIdsByRecord[recordId] || []
+        nextIdsByRecord[recordId].push(doc.id)
+      })
     }
 
     uniqueRecords.forEach((record) => {
-      const nextIds = nextIdsByRecord[record.id] || [];
+      const nextIds = nextIdsByRecord[record.id] || []
       if (nextIds.length) {
-        map[record.id] = nextIds;
+        map[record.id] = nextIds
       } else {
-        delete map[record.id];
+        delete map[record.id]
       }
-    });
+    })
 
-    await writeDocMap(map);
+    await writeDocMap(map)
   } catch (error) {
-    console.warn("Vectoria indexRecords failed", error);
+    console.warn("Vectoria indexRecords failed", error)
   }
 }
 
 export async function removeRecordFromIndex(recordId: string) {
-  if (!recordId) return;
+  if (!recordId) return
   try {
-    const vectoria = await getVectoria();
-    if (!vectoria) return;
-    const map = await readDocMap();
-    const docIds = map[recordId] || [];
+    const engine = await getEngine()
+    if (!engine) return
+    const map = await readDocMap()
+    const docIds = map[recordId] || []
     if (docIds.length) {
-      await deleteDocsByIds(docIds);
+      await deleteDocsByIds(docIds)
     }
-    delete map[recordId];
-    await writeDocMap(map);
+    delete map[recordId]
+    await writeDocMap(map)
   } catch (error) {
-    console.warn("Vectoria removeRecord failed", error);
+    console.warn("Vectoria removeRecord failed", error)
   }
 }
 
@@ -410,23 +405,26 @@ export async function searchSimilar(
   { topK = 3 } = {},
 ): Promise<VectoriaSearchResult[]> {
   try {
-    const vectoria = await getVectoria();
-    if (!vectoria) return [];
-    const results = await vectoria.search(text, topK);
-    return results as unknown as VectoriaSearchResult[];
+    const engine = await getEngine()
+    if (!engine) return []
+    const results = await engine.search(text, { topK })
+    return results.map((r: { doc: { id: string; text: string; metadata?: Record<string, any> }; combinedScore: number }) => ({
+      id: r.doc.id,
+      text: r.doc.text,
+      score: r.combinedScore,
+      metadata: r.doc.metadata as VectoriaMetadata,
+    }))
   } catch (error) {
-    console.warn("Vectoria search failed", error);
-    return [];
+    console.warn("Vectoria search failed", error)
+    return []
   }
 }
 
 export async function resetVectorIndex() {
-  const vectoria = await getVectoria();
-  if (!vectoria) {
-    throw new Error("向量检索未启用或未测试");
+  const engine = await getEngine()
+  if (!engine) {
+    throw new Error("向量检索未启用或未测试")
   }
-  if (typeof vectoria.resetIndex === "function") {
-    await vectoria.resetIndex();
-  }
-  await clearDocMap();
+  await engine.clear()
+  await clearDocMap()
 }
