@@ -423,11 +423,13 @@ export async function searchSimilar(
     if (!engine) return []
 
     // Use matchThreshold from settings as the gate for both dense and sparse retrieval
+    // For dense (HNSW), use a higher threshold to ensure quality
+    // For sparse (BM25), use a lower threshold since scores are typically lower
     const threshold = vectorSearchState.matchThreshold
     const results = await engine.search(text, {
       topK,
-      denseThreshold: threshold,
-      sparseThreshold: threshold * 0.6,  // BM25 scores are typically lower
+      denseThreshold: Math.max(threshold, 0.6),  // At least 0.6 for HNSW
+      sparseThreshold: threshold * 0.5,  // BM25 scores are typically lower
     })
 
     if (results.length === 0) return []
