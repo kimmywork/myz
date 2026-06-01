@@ -166,14 +166,26 @@ export class HybridSearchEngine {
     const denseThreshold = options.denseThreshold ?? 0.5  // Cosine similarity threshold
     const sparseThreshold = options.sparseThreshold ?? 0.3  // BM25 normalized score threshold
 
+    console.log("[Vectoria] search thresholds:", { denseThreshold, sparseThreshold })
+
     // Step 1: Dense retrieval (HNSW) with threshold filtering
     const queryEmbedding = await this.embedder.embed(query)
     const denseResultsRaw = this.hnswIndex.search(queryEmbedding, topK * 2)
+    console.log("[Vectoria] HNSW raw results:", denseResultsRaw.length)
+    denseResultsRaw.slice(0, 3).forEach((r, i) => {
+      console.log(`[Vectoria] HNSW result ${i}:`, {
+        id: r.id,
+        score: r.score.toFixed(4),
+      })
+    })
     const denseResults = denseResultsRaw.filter((r) => r.score >= denseThreshold)
+    console.log("[Vectoria] HNSW filtered results:", denseResults.length)
 
     // Step 2: Sparse retrieval (BM25) with threshold filtering
     const sparseResultsRaw = this.bm25Index.search(query, topK * 2)
+    console.log("[Vectoria] BM25 raw results:", sparseResultsRaw.length, sparseResultsRaw.slice(0, 3))
     const sparseResults = sparseResultsRaw.filter((r) => r.score >= sparseThreshold)
+    console.log("[Vectoria] BM25 filtered results:", sparseResults.length)
 
     console.log("[Vectoria] dense:", denseResults.length, "sparse:", sparseResults.length)
 
@@ -182,6 +194,7 @@ export class HybridSearchEngine {
       denseResults.map((r) => ({ ...r, rank: 0 })),
       sparseResults.map((r) => ({ ...r, rank: 0 })),
     ])
+    console.log("[Vectoria] RRF results:", rrfResults.length, rrfResults.slice(0, 3))
     // Step 4: Build hybrid results
     const hybridResults: HybridSearchResult[] = []
     for (const rrfResult of rrfResults.slice(0, topK * 2)) {
@@ -203,6 +216,18 @@ export class HybridSearchEngine {
 
     // Step 5: Rerank
     const reranked = this.reranker.rerank(hybridResults, query)
+    console.log("[Vectoria] Reranked results:", reranked.length)
+    reranked.slice(0, 3).forEach((r, i) => {
+      console.log(`[Vectoria] Result ${i}:`, {
+        id: r.doc.id,
+        text: r.doc.text.slice(0, 100),
+        finalScore: r.finalScore.toFixed(4),
+        denseScore: r.denseScore.toFixed(4),
+        sparseScore: r.sparseScore.toFixed(4),
+        rrfScore: r.rrfScore.toFixed(4),
+        title: r.doc.metadata?.title || "no title",
+      })
+    })
 
     // Step 6: Return topK results
     return reranked.slice(0, topK)
