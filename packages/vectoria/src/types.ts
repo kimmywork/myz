@@ -57,7 +57,6 @@ export interface HybridSearchConfig {
   denseWeight?: number
   sparseWeight?: number
   topK?: number
-  minScore?: number
   useQuantization?: boolean
   reranker?: RerankerConfig
   rrf?: RRFConfig

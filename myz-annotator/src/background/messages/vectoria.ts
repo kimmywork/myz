@@ -131,6 +131,7 @@ export function initializeVectoriaMessageHandlers() {
   registerMessageHandler(
     "myz:vectoriaSearch",
     async (payload: { text?: string; topK?: number }) => {
+      console.log("[Vectoria] myz:vectoriaSearch handler called, payload:", payload)
       const query =
         typeof payload?.text === "string"
           ? payload.text.trim().slice(0, 2000)

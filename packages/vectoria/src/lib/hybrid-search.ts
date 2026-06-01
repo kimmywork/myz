@@ -36,7 +36,6 @@ export class HybridSearchEngine {
       denseWeight: config.denseWeight ?? 0.6,
       sparseWeight: config.sparseWeight ?? 0.4,
       topK: config.topK ?? 10,
-      minScore: config.minScore ?? 0.1,
       useQuantization: config.useQuantization ?? true,
       reranker: config.reranker ?? {},
       rrf: config.rrf ?? {},
@@ -159,10 +158,12 @@ export class HybridSearchEngine {
    */
   async search(
     query: string,
-    options: { topK?: number; minScore?: number } = {},
+    options: { topK?: number } = {},
   ): Promise<HybridSearchResult[]> {
     const topK = options.topK ?? this.config.topK
-    const minScore = options.minScore ?? this.config.minScore
+
+    console.log("[Vectoria] search called, query:", query, "topK:", topK)
+    console.log("[Vectoria] hnsw size:", this.hnswIndex.size(), "bm25:", this.bm25Index.getStats())
 
     // Step 1: Dense retrieval (HNSW)
     const queryEmbedding = await this.embedder.embed(query)
@@ -171,12 +172,13 @@ export class HybridSearchEngine {
     // Step 2: Sparse retrieval (BM25)
     const sparseResults = this.bm25Index.search(query, topK * 2)
 
+    console.log("[Vectoria] dense:", denseResults.length, "sparse:", sparseResults.length)
+
     // Step 3: RRF fusion
     const rrfResults = this.rrfFuser.fuseAndSort([
       denseResults.map((r) => ({ ...r, rank: 0 })),
       sparseResults.map((r) => ({ ...r, rank: 0 })),
     ])
-
     // Step 4: Build hybrid results
     const hybridResults: HybridSearchResult[] = []
     for (const rrfResult of rrfResults.slice(0, topK * 2)) {
@@ -199,8 +201,8 @@ export class HybridSearchEngine {
     // Step 5: Rerank
     const reranked = this.reranker.rerank(hybridResults, query)
 
-    // Step 6: Filter by minScore and return topK
-    return reranked.filter((r) => r.finalScore >= minScore).slice(0, topK)
+    // Step 6: Return topK results
+    return reranked.slice(0, topK)
   }
 
   /**
@@ -210,6 +212,7 @@ export class HybridSearchEngine {
     const json = this.hnswIndex.toJSON()
     const { nodes, ...meta } = json
     await this.db.saveIndexMeta(meta)
+    await this.db.saveNodes(nodes)
   }
 
   /**

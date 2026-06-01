@@ -484,12 +484,17 @@ initializeVectoriaMessageHandlers();
 initializeSyncScheduler();
 
 chrome.runtime.onMessage.addListener(
-  (message: { type: string; payload: unknown }, sender, sendResponse) => {
+  (message: { type: string; payload: unknown; [key: string]: unknown }, sender, sendResponse) => {
     if (!message || !message.type) {
       return false;
     }
+    // Support both {type, payload} and {type, ...rest} formats
+    const payload = message.payload !== undefined ? message.payload : (() => {
+      const { type, payload: _, ...rest } = message
+      return Object.keys(rest).length > 0 ? rest : undefined
+    })()
     try {
-      handleMessage(message.type, message.payload, sender)
+      handleMessage(message.type, payload, sender)
         .then((result) => sendResponse({ ok: true, data: result }))
         .catch((error) => {
           console.error("Handler error", message.type, error);
