@@ -17,7 +17,6 @@
     "@myz/dashboard-chat-ui": "*",
     "@myz/dashboard-core": "*",
     "@myz/dashboard-ui": "*",
-    "@myz/notes-workspace": "*",
     "@myz/shared": "*",
     "@myz/sync-core": "*",
     "@tailwindcss/vite": "^4.1.17",
