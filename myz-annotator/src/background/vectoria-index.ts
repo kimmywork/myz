@@ -22,6 +22,7 @@ interface VectorSearchRuntimeState {
   enabled: boolean;
   target: VectorSettings["target"];
   lastTest: VectorSettings["lastTest"];
+  matchThreshold: number;
   providers: AIProviderSetting[];
   signature: string;
 }
@@ -52,9 +53,16 @@ const vectorSearchState: VectorSearchRuntimeState = {
   enabled: false,
   target: null,
   lastTest: null,
+  matchThreshold: 0.47,
   providers: [],
   signature: "",
 };
+
+function normalizeMatchThreshold(value: unknown): number {
+  const DEFAULT = 0.47
+  const n = typeof value === "number" && Number.isFinite(value) ? value : DEFAULT
+  return Math.min(1, Math.max(0.4, n))
+}
 
 function resolveEmbedderConfig(): {
   baseUrl: string;
@@ -95,6 +103,7 @@ export function applyVectorSearchSettings(
   vectorSearchState.enabled = Boolean(settings?.vectorSearch?.enabled);
   vectorSearchState.target = settings?.vectorSearch?.target || null;
   vectorSearchState.lastTest = settings?.vectorSearch?.lastTest || null;
+  vectorSearchState.matchThreshold = normalizeMatchThreshold(settings?.vectorSearch?.matchThreshold);
   vectorSearchState.providers = Array.isArray(settings?.aiProviders)
     ? settings.aiProviders
     : [];
@@ -407,24 +416,27 @@ export async function removeRecordFromIndex(recordId: string) {
 
 export async function searchSimilar(
   text: string,
-  { topK = 3, denseThreshold = 0.5, sparseThreshold = 0.3 } = {},
+  { topK = 3 } = {},
 ): Promise<VectoriaSearchResult[]> {
   try {
     const engine = await getEngine()
     if (!engine) return []
-    const results = await engine.search(text, { topK, denseThreshold, sparseThreshold })
+
+    // Use matchThreshold from settings as the gate for both dense and sparse retrieval
+    const threshold = vectorSearchState.matchThreshold
+    const results = await engine.search(text, {
+      topK,
+      denseThreshold: threshold,
+      sparseThreshold: threshold * 0.6,  // BM25 scores are typically lower
+    })
 
     if (results.length === 0) return []
 
-    // Normalize scores to 0-1 range for intuitive threshold comparison
-    const maxScore = Math.max(...results.map((r) => r.finalScore))
-    const minScore = Math.min(...results.map((r) => r.finalScore))
-    const range = maxScore - minScore
-
+    // Return raw finalScore (already filtered by threshold)
     return results.map((r) => ({
       id: r.doc.id,
       text: r.doc.text,
-      score: range > 0 ? (r.finalScore - minScore) / range : 0.5,
+      score: r.finalScore,
       metadata: r.doc.metadata as VectoriaMetadata,
     }))
   } catch (error) {
