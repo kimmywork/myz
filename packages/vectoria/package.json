@@ -4,8 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./types": "./src/types.ts",
-    "./engines": "./src/engines/index.ts"
+    "./types": "./src/types.ts"
   },
   "dependencies": {
     "idb": "^8.0.0",

@@ -1,314 +1,356 @@
-interface Node {
-  id: string;
-  vector: Float32Array;
-  level: number;
-  neighbors: string[][]; // neighbors[level] = [id1, id2, ...]
-}
+import type { HNSWConfig } from "../types"
+import { cosineSimilarity } from "./vector"
 
-export interface HNSWConfig {
-  M?: number;
-  efConstruction?: number;
-  efSearch?: number;
-  levelMultiplier?: number;
+interface Node {
+  id: string
+  vector: number[]
+  level: number
+  neighbors: string[][]
 }
 
 export class HNSWIndex {
-  private nodes: Map<string, Node> = new Map();
-  private entryPointId: string | null = null;
-  private M: number;
-  private efConstruction: number;
-  private efSearch: number;
-  private levelMultiplier: number;
-  private maxLevel: number = 0;
+  private nodes: Map<string, Node> = new Map()
+  private entryPointId: string | null = null
+  private M: number
+  private Mmax: number
+  private efConstruction: number
+  private efSearch: number
+  private levelMultiplier: number
+  private maxLevel: number = 0
 
   constructor(config: HNSWConfig = {}) {
-    this.M = config.M || 16;
-    this.efConstruction = config.efConstruction || 200;
-    this.efSearch = config.efSearch || 200; // Increased default efSearch for better recall
-    this.levelMultiplier = config.levelMultiplier || (1 / Math.log(this.M));
+    this.M = config.M || 16
+    this.Mmax = this.M * 2
+    this.efConstruction = config.efConstruction || 200
+    this.efSearch = config.efSearch || 200
+    this.levelMultiplier = config.levelMultiplier || 1 / Math.log(this.M)
   }
 
   public addPoint(id: string, vector: number[]): Set<string> {
-    const floatVector = new Float32Array(vector);
-    const touchedNodes = new Set<string>();
-    
+    const touchedNodes = new Set<string>()
+
     if (this.nodes.has(id)) {
-      throw new Error(`Node with id ${id} already exists`);
+      throw new Error(`Node with id ${id} already exists`)
     }
 
-    const level = this.getRandomLevel();
+    const level = this.getRandomLevel()
     const newNode: Node = {
       id,
-      vector: floatVector,
+      vector,
       level,
-      neighbors: Array(level + 1).fill([]).map(() => [])
-    };
-
-    this.nodes.set(id, newNode);
-    touchedNodes.add(id);
-
-    if (this.entryPointId === null) {
-      this.entryPointId = id;
-      this.maxLevel = level;
-      return touchedNodes;
+      neighbors: Array.from({ length: level + 1 }, () => []),
     }
 
-    let currObj = this.nodes.get(this.entryPointId)!;
-    let currDist = this.dist(floatVector, currObj.vector);
+    this.nodes.set(id, newNode)
+    touchedNodes.add(id)
+
+    if (this.entryPointId === null) {
+      this.entryPointId = id
+      this.maxLevel = level
+      return touchedNodes
+    }
+
+    let currObj = this.nodes.get(this.entryPointId)!
+    let currDist = this.dist(vector, currObj.vector)
 
     // Search from top level down to level + 1
     for (let l = this.maxLevel; l > level; l--) {
-      let changed = true;
+      let changed = true
       while (changed) {
-        changed = false;
-        const neighbors = currObj.neighbors[l];
-        
-        let bestNeighbor: Node | null = null;
-        let bestDist = currDist;
+        changed = false
+        const neighbors = currObj.neighbors[l]
 
         for (const neighborId of neighbors) {
-          const neighbor = this.nodes.get(neighborId)!;
-          const d = this.dist(floatVector, neighbor.vector);
-          if (d > bestDist) {
-            bestDist = d;
-            bestNeighbor = neighbor;
+          const neighbor = this.nodes.get(neighborId)!
+          const d = this.dist(vector, neighbor.vector)
+          if (d > currDist) {
+            currDist = d
+            currObj = neighbor
+            changed = true
           }
-        }
-
-        if (bestNeighbor) {
-          currDist = bestDist;
-          currObj = bestNeighbor;
-          changed = true;
         }
       }
     }
 
     // From level down to 0, connect
     for (let l = Math.min(level, this.maxLevel); l >= 0; l--) {
-      // Search for nearest neighbors in this layer
-      const W = this.searchLayer(floatVector, currObj, this.efConstruction, l);
-      
-      // Connect newNode to neighbors
-      const neighbors = this.selectNeighbors(W, this.M);
-      newNode.neighbors[l] = neighbors.map(n => n.id);
-      // newNode is already in touchedNodes
+      const W = this.searchLayer(vector, currObj, this.efConstruction, l)
 
-      // Connect neighbors to newNode
+      // Select neighbors using heuristic
+      const neighbors = this.selectNeighborsHeuristic(W, this.M, vector)
+
+      newNode.neighbors[l] = neighbors.map((n) => n.id)
+
       for (const neighborInfo of neighbors) {
-        const neighbor = this.nodes.get(neighborInfo.id)!;
-        neighbor.neighbors[l].push(id);
-        touchedNodes.add(neighbor.id);
-        
+        const neighbor = this.nodes.get(neighborInfo.id)!
+        touchedNodes.add(neighbor.id)
+
+        // Add new node to neighbor's connections
+        if (!neighbor.neighbors[l].includes(id)) {
+          neighbor.neighbors[l].push(id)
+        }
+
         // Shrink connections if needed
-        if (neighbor.neighbors[l].length > this.M) {
-           // Re-evaluate neighbors for this node
-           const neighborCandidates = neighbor.neighbors[l].map(nid => {
-             const n = this.nodes.get(nid)!;
-             return { id: nid, score: this.dist(neighbor.vector, n.vector) };
-           });
-           // Keep best M
-           neighbor.neighbors[l] = this.selectNeighbors(neighborCandidates, this.M).map(n => n.id);
-           // neighbor is already in touchedNodes
+        if (neighbor.neighbors[l].length > this.Mmax) {
+          const candidates = neighbor.neighbors[l].map((nid) => {
+            const n = this.nodes.get(nid)!
+            return { id: nid, score: this.dist(neighbor.vector, n.vector) }
+          })
+          const pruned = this.selectNeighborsHeuristic(
+            candidates,
+            this.M,
+            neighbor.vector,
+          )
+          neighbor.neighbors[l] = pruned.map((n) => n.id)
         }
       }
-      
-      // Update entry point for next iteration (closest found so far)
+
       if (W.length > 0) {
-          currObj = this.nodes.get(W[0].id)!;
+        currObj = this.nodes.get(W[0].id)!
       }
     }
 
     if (level > this.maxLevel) {
-      this.maxLevel = level;
-      this.entryPointId = id;
+      this.maxLevel = level
+      this.entryPointId = id
     }
 
-    return touchedNodes;
+    return touchedNodes
   }
 
-  public getNode(id: string): Node | undefined {
-    return this.nodes.get(id);
-  }
-
-  /**
-   * Remove a point from the index.
-   * Note: This is a simple removal that doesn't rebuild connections.
-   * For production use, consider periodic index rebuilding.
-   */
   public removePoint(id: string): void {
-    const node = this.nodes.get(id);
-    if (!node) return;
+    const node = this.nodes.get(id)
+    if (!node) return
 
-    // Remove this node from all its neighbors' connection lists
     for (let l = 0; l <= node.level; l++) {
       for (const neighborId of node.neighbors[l]) {
-        const neighbor = this.nodes.get(neighborId);
+        const neighbor = this.nodes.get(neighborId)
         if (neighbor && neighbor.neighbors[l]) {
-          neighbor.neighbors[l] = neighbor.neighbors[l].filter(nid => nid !== id);
+          neighbor.neighbors[l] = neighbor.neighbors[l].filter(
+            (nid) => nid !== id,
+          )
         }
       }
     }
 
-    this.nodes.delete(id);
+    this.nodes.delete(id)
 
-    // Update entry point if needed
     if (this.entryPointId === id) {
       if (this.nodes.size === 0) {
-        this.entryPointId = null;
-        this.maxLevel = 0;
+        this.entryPointId = null
+        this.maxLevel = 0
       } else {
-        // Find new entry point (node with highest level)
-        let maxLevel = 0;
-        let newEntryPoint: string | null = null;
+        let maxLevel = 0
+        let newEntryPoint: string | null = null
         for (const [nodeId, node] of this.nodes) {
           if (node.level > maxLevel) {
-            maxLevel = node.level;
-            newEntryPoint = nodeId;
+            maxLevel = node.level
+            newEntryPoint = nodeId
           }
         }
-        this.entryPointId = newEntryPoint;
-        this.maxLevel = maxLevel;
+        this.entryPointId = newEntryPoint
+        this.maxLevel = maxLevel
       }
     }
   }
 
-  /**
-   * Get the number of nodes in the index.
-   */
   public size(): number {
-    return this.nodes.size;
+    return this.nodes.size
   }
 
-  public search(query: number[], k: number): { id: string; score: number }[] {
-    if (this.entryPointId === null) return [];
+  public search(
+    query: number[],
+    k: number,
+  ): { id: string; score: number }[] {
+    if (this.entryPointId === null) return []
 
-    const queryVector = new Float32Array(query);
-    let currObj = this.nodes.get(this.entryPointId)!;
-    let currDist = this.dist(queryVector, currObj.vector);
+    let currObj = this.nodes.get(this.entryPointId)!
+    let currDist = this.dist(query, currObj.vector)
 
-    // 1. Zoom in from top to layer 1
+    // Zoom in from top to layer 1
     for (let l = this.maxLevel; l > 0; l--) {
-      let changed = true;
+      let changed = true
       while (changed) {
-        changed = false;
-        const neighbors = currObj.neighbors[l];
-        
-        let bestNeighbor: Node | null = null;
-        let bestDist = currDist;
-
-        for (const neighborId of neighbors) {
-          const neighbor = this.nodes.get(neighborId)!;
-          const d = this.dist(queryVector, neighbor.vector);
-          if (d > bestDist) {
-            bestDist = d;
-            bestNeighbor = neighbor;
+        changed = false
+        for (const neighborId of currObj.neighbors[l]) {
+          const neighbor = this.nodes.get(neighborId)!
+          const d = this.dist(query, neighbor.vector)
+          if (d > currDist) {
+            currDist = d
+            currObj = neighbor
+            changed = true
           }
-        }
-
-        if (bestNeighbor) {
-          currDist = bestDist;
-          currObj = bestNeighbor;
-          changed = true;
         }
       }
     }
 
-    // 2. Search layer 0 with efSearch
-    const W = this.searchLayer(queryVector, currObj, this.efSearch, 0);
-    
-    // 3. Return top K
-    return W.slice(0, k);
+    // Search layer 0 with efSearch
+    const W = this.searchLayer(query, currObj, this.efSearch, 0)
+
+    return W.slice(0, k)
   }
 
-  private searchLayer(query: Float32Array, entry: Node, ef: number, level: number): { id: string; score: number }[] {
-    const v = new Set<string>();
-    v.add(entry.id);
+  private searchLayer(
+    query: number[],
+    entry: Node,
+    ef: number,
+    level: number,
+  ): { id: string; score: number }[] {
+    const visited = new Set<string>()
+    visited.add(entry.id)
 
-    // Candidates: min-heap by score (we want to explore best candidates)
-    // But JS doesn't have a heap. We'll use an array and sort.
-    // Since ef is small (e.g. 50-200), sorting is acceptable.
-    
-    let C: { id: string; score: number }[] = [{ id: entry.id, score: this.dist(query, entry.vector) }];
-    let W: { id: string; score: number }[] = [{ id: entry.id, score: this.dist(query, entry.vector) }];
+    const candidates: { id: string; score: number }[] = [
+      { id: entry.id, score: this.dist(query, entry.vector) },
+    ]
+    const results: { id: string; score: number }[] = [
+      { id: entry.id, score: this.dist(query, entry.vector) },
+    ]
 
-    while (C.length > 0) {
-      // Get candidate with BEST score (closest)
-      C.sort((a, b) => b.score - a.score); // Descending
-      const c = C.shift()!; // Best candidate
-      
-      // Get worst result in W (lowest score)
-      W.sort((a, b) => b.score - a.score); // Descending
-      const f = W[W.length - 1];
+    while (candidates.length > 0) {
+      // Get best candidate (highest score = closest)
+      let bestIdx = 0
+      for (let i = 1; i < candidates.length; i++) {
+        if (candidates[i].score > candidates[bestIdx].score) {
+          bestIdx = i
+        }
+      }
+      const c = candidates.splice(bestIdx, 1)[0]
 
-      if (c.score < f.score && W.length >= ef) {
-        // If candidate is worse than the worst in W, and W is full, stop exploring this branch
-        // Optimization: in HNSW paper, it breaks.
-        // For Cosine: score is similarity. Lower score = worse.
-        break;
+      // Get worst result
+      let worstIdx = 0
+      for (let i = 1; i < results.length; i++) {
+        if (results[i].score < results[worstIdx].score) {
+          worstIdx = i
+        }
+      }
+      const f = results[worstIdx]
+
+      // If candidate is worse than worst result and results is full, stop
+      if (c.score < f.score && results.length >= ef) {
+        break
       }
 
-      const cNode = this.nodes.get(c.id)!;
-      const neighbors = cNode.neighbors[level];
+      const cNode = this.nodes.get(c.id)!
+      const neighbors = cNode.neighbors[level]
 
       for (const neighborId of neighbors) {
-        if (!v.has(neighborId)) {
-          v.add(neighborId);
-          const neighbor = this.nodes.get(neighborId)!;
-          const score = this.dist(query, neighbor.vector);
-          
-          // If score is better than worst in W, or W is not full
-          if (W.length < ef || score > f.score) {
-            const e = { id: neighborId, score };
-            C.push(e);
-            W.push(e);
-            
-            // Keep W size <= ef
-            W.sort((a, b) => b.score - a.score);
-            if (W.length > ef) {
-              W.pop(); // Remove worst
+        if (!visited.has(neighborId)) {
+          visited.add(neighborId)
+          const neighbor = this.nodes.get(neighborId)!
+          const score = this.dist(query, neighbor.vector)
+
+          if (results.length < ef || score > f.score) {
+            const e = { id: neighborId, score }
+            candidates.push(e)
+
+            // Insert into results maintaining order
+            const insertIdx = this.binarySearchInsert(results, score)
+            results.splice(insertIdx, 0, e)
+
+            if (results.length > ef) {
+              results.pop()
             }
           }
         }
       }
     }
 
-    return W;
+    return results
   }
 
-  private selectNeighbors(candidates: { id: string; score: number }[], M: number): { id: string; score: number }[] {
-    // Simple heuristic: select M closest
-    // HNSW paper suggests heuristic for diversity, but simple selection works for basic implementation
-    return candidates.sort((a, b) => b.score - a.score).slice(0, M);
-  }
-
-  private dist(a: Float32Array, b: Float32Array): number {
-    // Cosine Similarity
-    // Assuming vectors are NOT normalized, we need full calc.
-    // But transformers.js usually normalizes.
-    // Let's assume normalized for speed if possible, but safe to calc full.
-    // Re-using the vector.ts logic but optimized for Float32Array
-    let dot = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < a.length; i++) {
-      dot += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+  /**
+   * Select neighbors using heuristic from the HNSW paper.
+   * Considers both distance and diversity.
+   */
+  private selectNeighborsHeuristic(
+    candidates: { id: string; score: number }[],
+    M: number,
+    queryVector: number[],
+  ): { id: string; score: number }[] {
+    if (candidates.length <= M) {
+      return [...candidates]
     }
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-6);
+
+    // Sort by score descending
+    candidates.sort((a, b) => b.score - a.score)
+
+    const selected: { id: string; score: number }[] = []
+    const remaining = [...candidates]
+
+    // Always select the closest
+    selected.push(remaining.shift()!)
+
+    while (selected.length < M && remaining.length > 0) {
+      let bestIdx = 0
+      let bestDistToSelected = -Infinity
+
+      for (let i = 0; i < remaining.length; i++) {
+        // Compute minimum distance to any selected node
+        let minDistToSelected = Infinity
+        for (const s of selected) {
+          const d = this.dist(
+            this.nodes.get(remaining[i].id)!.vector,
+            this.nodes.get(s.id)!.vector,
+          )
+          if (d < minDistToSelected) {
+            minDistToSelected = d
+          }
+        }
+
+        // Heuristic: prefer nodes that are close to query but far from selected
+        // This promotes diversity
+        const distToQuery = remaining[i].score
+        const diversity = minDistToSelected
+        const heuristic = distToQuery + 0.5 * diversity
+
+        if (heuristic > bestDistToSelected) {
+          bestDistToSelected = heuristic
+          bestIdx = i
+        }
+      }
+
+      selected.push(remaining.splice(bestIdx, 1)[0])
+    }
+
+    return selected
+  }
+
+  /**
+   * Binary search to find insertion index for maintaining sorted order (descending).
+   */
+  private binarySearchInsert(
+    arr: { id: string; score: number }[],
+    score: number,
+  ): number {
+    let low = 0
+    let high = arr.length
+    while (low < high) {
+      const mid = (low + high) >>> 1
+      if (arr[mid].score > score) {
+        low = mid + 1
+      } else {
+        high = mid
+      }
+    }
+    return low
+  }
+
+  private dist(a: number[], b: number[]): number {
+    return cosineSimilarity(a, b)
   }
 
   private getRandomLevel(): number {
-    let level = 0;
+    let level = 0
     while (Math.random() < this.levelMultiplier && level < 16) {
-      level++;
+      level++
     }
-    return level;
+    return level
   }
 
   public toJSON() {
     return {
       M: this.M,
+      Mmax: this.Mmax,
       efConstruction: this.efConstruction,
       efSearch: this.efSearch,
       levelMultiplier: this.levelMultiplier,
@@ -316,11 +358,11 @@ export class HNSWIndex {
       entryPointId: this.entryPointId,
       nodes: Array.from(this.nodes.entries()).map(([id, node]) => ({
         id,
-        vector: Array.from(node.vector), // Float32Array to Array
+        vector: node.vector,
         level: node.level,
-        neighbors: node.neighbors
-      }))
-    };
+        neighbors: node.neighbors,
+      })),
+    }
   }
 
   public static fromJSON(json: any): HNSWIndex {
@@ -328,19 +370,19 @@ export class HNSWIndex {
       M: json.M,
       efConstruction: json.efConstruction,
       efSearch: json.efSearch,
-      levelMultiplier: json.levelMultiplier
-    });
-    index.maxLevel = json.maxLevel;
-    index.entryPointId = json.entryPointId;
-    
+      levelMultiplier: json.levelMultiplier,
+    })
+    index.maxLevel = json.maxLevel
+    index.entryPointId = json.entryPointId
+
     for (const nodeData of json.nodes) {
       index.nodes.set(nodeData.id, {
         id: nodeData.id,
-        vector: new Float32Array(nodeData.vector),
+        vector: nodeData.vector,
         level: nodeData.level,
-        neighbors: nodeData.neighbors
-      });
+        neighbors: nodeData.neighbors,
+      })
     }
-    return index;
+    return index
   }
 }

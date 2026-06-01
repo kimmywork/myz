@@ -20,13 +20,7 @@ export interface OpenAIEmbedderConfig {
   apiKey: string
   endpoint?: string
   modelName?: string
-}
-
-export interface IndexerConfig {
-  dbName?: string
-  storeName?: string
-  embedder: EmbeddingModel
-  hnswConfig?: HNSWConfig
+  dimensions?: number
 }
 
 export interface HNSWConfig {
@@ -36,29 +30,58 @@ export interface HNSWConfig {
   levelMultiplier?: number
 }
 
-export interface NGramEntry {
-  ngram: string
-  docIds: Set<string>
+export interface BM25Config {
+  k1?: number
+  b?: number
 }
 
-export interface TagEntry {
-  tag: string
-  docIds: Set<string>
+export interface RRFConfig {
+  k?: number
 }
 
-export interface HybridSearchOptions {
-  vectorWeight?: number
-  ngramWeight?: number
-  tagWeight?: number
+export interface RerankerConfig {
+  titleBoost?: number
+  positionDecay?: number
+  lengthPenalty?: {
+    minLen?: number
+    maxLen?: number
+    penalty?: number
+  }
+  recencyBoost?: {
+    enabled?: boolean
+    halfLifeDays?: number
+  }
+}
+
+export interface HybridSearchConfig {
+  denseWeight?: number
+  sparseWeight?: number
   topK?: number
   minScore?: number
-  useBruteForce?: boolean
+  useQuantization?: boolean
+  reranker?: RerankerConfig
+  rrf?: RRFConfig
+  bm25?: BM25Config
+  hnsw?: HNSWConfig
+}
+
+export interface RankedResult {
+  id: string
+  score: number
+  rank: number
 }
 
 export interface HybridSearchResult {
   doc: VectorDocument
-  vectorScore: number
-  ngramScore: number
-  tagScore: number
-  combinedScore: number
+  denseScore: number
+  sparseScore: number
+  rrfScore: number
+  rerankerScore: number
+  finalScore: number
+}
+
+export interface IndexStats {
+  vectorNodes: number
+  bm25Terms: number
+  bm25Docs: number
 }

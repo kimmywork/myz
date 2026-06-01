@@ -1,31 +1,48 @@
 import type {
   VectorDocument,
   EmbeddingModel,
-  HybridSearchOptions,
+  HybridSearchConfig,
   HybridSearchResult,
+  IndexStats,
 } from "../types"
 import { VectorStore } from "./db"
 import { HNSWIndex } from "./hnsw"
-import { cosineSimilarity } from "./vector"
-import { NGramIndex } from "./ngram-index"
-import { TagIndex } from "./tag-index"
+import { BM25Index } from "./bm25"
+import { RRFFuser } from "./rrf"
+import { Reranker } from "./reranker"
 
 /**
- * Hybrid search engine that combines vector search, n-gram matching, and tag matching.
+ * Hybrid search engine combining dense (HNSW) and sparse (BM25) retrieval
+ * with RRF fusion and multi-factor reranking.
  */
 export class HybridSearchEngine {
   private db: VectorStore
   private embedder: EmbeddingModel
   private hnswIndex: HNSWIndex
-  private ngramIndex: NGramIndex
-  private tagIndex: TagIndex
+  private bm25Index: BM25Index
+  private rrfFuser: RRFFuser
+  private reranker: Reranker
+  private config: Required<HybridSearchConfig>
 
-  constructor(db: VectorStore, embedder: EmbeddingModel) {
+  constructor(db: VectorStore, embedder: EmbeddingModel, config: HybridSearchConfig = {}) {
     this.db = db
     this.embedder = embedder
-    this.hnswIndex = new HNSWIndex()
-    this.ngramIndex = new NGramIndex()
-    this.tagIndex = new TagIndex()
+    this.hnswIndex = new HNSWIndex(config.hnsw)
+    this.bm25Index = new BM25Index(config.bm25)
+    this.rrfFuser = new RRFFuser(config.rrf)
+    this.reranker = new Reranker(config.reranker)
+
+    this.config = {
+      denseWeight: config.denseWeight ?? 0.6,
+      sparseWeight: config.sparseWeight ?? 0.4,
+      topK: config.topK ?? 10,
+      minScore: config.minScore ?? 0.1,
+      useQuantization: config.useQuantization ?? true,
+      reranker: config.reranker ?? {},
+      rrf: config.rrf ?? {},
+      bm25: config.bm25 ?? {},
+      hnsw: config.hnsw ?? {},
+    }
   }
 
   /**
@@ -39,13 +56,10 @@ export class HybridSearchEngine {
       this.hnswIndex = HNSWIndex.fromJSON({ ...meta, nodes })
     }
 
-    // Rebuild n-gram and tag indexes from documents
+    // Rebuild BM25 index from documents
     const docs = await this.db.getAll()
     for (const doc of docs) {
-      this.ngramIndex.addDocument(doc.id, doc.text)
-      if (doc.tags) {
-        this.tagIndex.addDocument(doc.id, doc.tags)
-      }
+      this.bm25Index.addDocument(doc.id, doc.text, doc.metadata)
     }
   }
 
@@ -72,13 +86,8 @@ export class HybridSearchEngine {
     // Add to HNSW index
     this.hnswIndex.addPoint(doc.id, embedding)
 
-    // Add to n-gram index
-    this.ngramIndex.addDocument(doc.id, text)
-
-    // Add to tag index
-    if (tags.length > 0) {
-      this.tagIndex.addDocument(doc.id, tags)
-    }
+    // Add to BM25 index
+    this.bm25Index.addDocument(doc.id, text, metadata)
 
     // Save to database
     await this.db.add(doc)
@@ -91,7 +100,11 @@ export class HybridSearchEngine {
    * Add multiple documents in batch.
    */
   async addDocuments(
-    items: Array<{ text: string; metadata?: Record<string, any>; tags?: string[] }>,
+    items: Array<{
+      text: string
+      metadata?: Record<string, any>
+      tags?: string[]
+    }>,
   ): Promise<VectorDocument[]> {
     const { v4: uuidv4 } = await import("uuid")
     const texts = items.map((i) => i.text)
@@ -109,10 +122,7 @@ export class HybridSearchEngine {
     // Add to all indexes
     for (const doc of docs) {
       this.hnswIndex.addPoint(doc.id, doc.embedding!)
-      this.ngramIndex.addDocument(doc.id, doc.text)
-      if (doc.tags && doc.tags.length > 0) {
-        this.tagIndex.addDocument(doc.id, doc.tags)
-      }
+      this.bm25Index.addDocument(doc.id, doc.text, doc.metadata)
     }
 
     // Save to database
@@ -127,100 +137,58 @@ export class HybridSearchEngine {
    */
   async removeDocument(docId: string): Promise<void> {
     this.hnswIndex.removePoint(docId)
-    this.ngramIndex.removeDocument(docId)
-    this.tagIndex.removeDocument(docId)
+    this.bm25Index.removeDocument(docId)
     await this.db.delete(docId)
     await this.saveIndex()
   }
 
   /**
-   * Search using hybrid approach.
+   * Search using hybrid approach with RRF fusion and reranking.
    */
   async search(
     query: string,
-    options: HybridSearchOptions = {},
+    options: { topK?: number; minScore?: number } = {},
   ): Promise<HybridSearchResult[]> {
-    const {
-      vectorWeight = 0.7,
-      ngramWeight = 0.2,
-      tagWeight = 0.1,
-      topK = 10,
-      minScore = 0.3,
-      useBruteForce = false,
-    } = options
+    const topK = options.topK ?? this.config.topK
+    const minScore = options.minScore ?? this.config.minScore
 
-    // Extract tags from query
-    const queryTags = this.tagIndex.extractTagsFromQuery(query)
+    // Step 1: Dense retrieval (HNSW)
+    const queryEmbedding = await this.embedder.embed(query)
+    const denseResults = this.hnswIndex.search(queryEmbedding, topK * 2)
 
-    // Run searches in parallel
-    const [vectorScores, ngramScores, tagScores] = await Promise.all([
-      this.vectorSearch(query, topK * 2, useBruteForce),
-      Promise.resolve(this.ngramIndex.search(query)),
-      Promise.resolve(this.tagIndex.search(queryTags)),
+    // Step 2: Sparse retrieval (BM25)
+    const sparseResults = this.bm25Index.search(query, topK * 2)
+
+    // Step 3: RRF fusion
+    const rrfResults = this.rrfFuser.fuseAndSort([
+      denseResults.map((r) => ({ ...r, rank: 0 })),
+      sparseResults.map((r) => ({ ...r, rank: 0 })),
     ])
 
-    // Collect all unique document IDs
-    const allDocIds = new Set<string>()
-    for (const [id] of vectorScores) allDocIds.add(id)
-    for (const [id] of ngramScores) allDocIds.add(id)
-    for (const [id] of tagScores) allDocIds.add(id)
+    // Step 4: Build hybrid results
+    const hybridResults: HybridSearchResult[] = []
+    for (const rrfResult of rrfResults.slice(0, topK * 2)) {
+      const doc = await this.db.get(rrfResult.id)
+      if (!doc) continue
 
-    // Calculate combined scores
-    const results: HybridSearchResult[] = []
-    for (const docId of allDocIds) {
-      const vs = vectorScores.get(docId) || 0
-      const ns = ngramScores.get(docId) || 0
-      const ts = tagScores.get(docId) || 0
+      const denseScore = denseResults.find((r) => r.id === rrfResult.id)?.score ?? 0
+      const sparseScore = sparseResults.find((r) => r.id === rrfResult.id)?.score ?? 0
 
-      const combinedScore =
-        vs * vectorWeight + ns * ngramWeight + ts * tagWeight
-
-      if (combinedScore >= minScore) {
-        const doc = await this.db.get(docId)
-        if (doc) {
-          results.push({
-            doc,
-            vectorScore: vs,
-            ngramScore: ns,
-            tagScore: ts,
-            combinedScore,
-          })
-        }
-      }
+      hybridResults.push({
+        doc,
+        denseScore,
+        sparseScore,
+        rrfScore: rrfResult.score,
+        rerankerScore: 0,
+        finalScore: 0,
+      })
     }
 
-    // Sort by combined score and return topK
-    results.sort((a, b) => b.combinedScore - a.combinedScore)
-    return results.slice(0, topK)
-  }
+    // Step 5: Rerank
+    const reranked = this.reranker.rerank(hybridResults, query)
 
-  /**
-   * Perform vector search.
-   */
-  private async vectorSearch(
-    query: string,
-    topK: number,
-    useBruteForce: boolean,
-  ): Promise<Map<string, number>> {
-    const queryEmbedding = await this.embedder.embed(query)
-    const scores = new Map<string, number>()
-
-    if (useBruteForce) {
-      const allDocs = await this.db.getAll()
-      for (const doc of allDocs) {
-        if (doc.embedding && doc.embedding.length > 0) {
-          const score = cosineSimilarity(queryEmbedding, doc.embedding)
-          scores.set(doc.id, score)
-        }
-      }
-    } else {
-      const results = this.hnswIndex.search(queryEmbedding, topK)
-      for (const r of results) {
-        scores.set(r.id, r.score)
-      }
-    }
-
-    return scores
+    // Step 6: Filter by minScore and return topK
+    return reranked.filter((r) => r.finalScore >= minScore).slice(0, topK)
   }
 
   /**
@@ -235,15 +203,12 @@ export class HybridSearchEngine {
   /**
    * Get index statistics.
    */
-  getStats(): {
-    vectorNodes: number
-    ngramStats: { ngramCount: number; docCount: number }
-    tagStats: { tagCount: number; docCount: number }
-  } {
+  getStats(): IndexStats {
+    const bm25Stats = this.bm25Index.getStats()
     return {
       vectorNodes: this.hnswIndex.size(),
-      ngramStats: this.ngramIndex.getStats(),
-      tagStats: this.tagIndex.getStats(),
+      bm25Terms: bm25Stats.termCount,
+      bm25Docs: bm25Stats.docCount,
     }
   }
 
@@ -251,9 +216,8 @@ export class HybridSearchEngine {
    * Clear all indexes.
    */
   async clear(): Promise<void> {
-    this.hnswIndex = new HNSWIndex()
-    this.ngramIndex.clear()
-    this.tagIndex.clear()
+    this.hnswIndex = new HNSWIndex(this.config.hnsw)
+    this.bm25Index.clear()
     await this.db.clear()
   }
 }
