@@ -59,6 +59,39 @@ struct SyncRunResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesktopSyncObjectInfo {
+    key: String,
+    #[serde(rename = "lastModified")]
+    last_modified: Option<String>,
+    etag: Option<String>,
+    size: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesktopSyncGetObjectResult {
+    body: Vec<u8>,
+    etag: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesktopSyncPutOptions {
+    #[serde(rename = "contentType")]
+    content_type: Option<String>,
+    metadata: Option<std::collections::HashMap<String, String>>,
+    #[serde(rename = "ifMatch")]
+    if_match: Option<String>,
+    #[serde(rename = "ifNoneMatch")]
+    if_none_match: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesktopSyncPutObjectInput {
+    path: String,
+    body: Vec<u8>,
+    options: Option<DesktopSyncPutOptions>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct RecordExportResult {
     markdown: String,
     json: String,
@@ -896,12 +929,49 @@ fn send_s3_request(
     request.send().map_err(|error| error.to_string())
 }
 
-fn validate_s3_connectivity(config: &SyncConfig) -> Result<(), String> {
-    validate_sync_config(config)?;
-    let client = Client::builder()
+fn desktop_sync_client() -> Result<Client, String> {
+    Client::builder()
         .timeout(Duration::from_secs(20))
         .build()
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| error.to_string())
+}
+
+fn parse_list_objects(xml: &str) -> Vec<DesktopSyncObjectInfo> {
+    let mut objects = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find("<Contents>") {
+        let after_start = &rest[start + "<Contents>".len()..];
+        let Some(end) = after_start.find("</Contents>") else {
+            break;
+        };
+        let block = &after_start[..end];
+        let key = extract_xml_tag(block, "Key");
+        if let Some(key) = key {
+            let size = extract_xml_tag(block, "Size").and_then(|value| value.parse::<usize>().ok());
+            objects.push(DesktopSyncObjectInfo {
+                key,
+                last_modified: extract_xml_tag(block, "LastModified"),
+                etag: extract_xml_tag(block, "ETag"),
+                size,
+            });
+        }
+        rest = &after_start[end + "</Contents>".len()..];
+    }
+    objects
+}
+
+fn extract_xml_tag(block: &str, tag: &str) -> Option<String> {
+    let start_tag = format!("<{tag}>");
+    let end_tag = format!("</{tag}>");
+    let start = block.find(&start_tag)?;
+    let content = &block[start + start_tag.len()..];
+    let end = content.find(&end_tag)?;
+    Some(content[..end].to_string())
+}
+
+fn validate_s3_connectivity(config: &SyncConfig) -> Result<(), String> {
+    validate_sync_config(config)?;
+    let client = desktop_sync_client()?;
 
     let endpoint = config.s3.endpoint.trim_end_matches('/');
     let probe_prefix = build_s3_key(config.s3.prefix.as_deref(), "desktop-probe");
@@ -952,6 +1022,129 @@ fn validate_s3_connectivity(config: &SyncConfig) -> Result<(), String> {
     )?;
     if !delete_response.status().is_success() && delete_response.status().as_u16() != 404 {
         return Err(format!("S3 删除探测文件失败：{}", delete_response.status()));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn desktop_sync_list_objects(app: AppHandle, prefix: String) -> Result<Vec<DesktopSyncObjectInfo>, String> {
+    let config = desktop_get_sync_config(app)?;
+    validate_sync_config(&config)?;
+    let client = desktop_sync_client()?;
+    let list_prefix = build_s3_key(config.s3.prefix.as_deref(), &prefix);
+    let list_url = format!(
+        "{}/{}?list-type=2&prefix={}",
+        config.s3.endpoint.trim_end_matches('/'),
+        config.s3.bucket.trim(),
+        encode_uri_component(&list_prefix)
+    );
+    let response = send_s3_request(
+        &client,
+        reqwest::Method::GET,
+        &list_url,
+        None,
+        &config.s3,
+        Vec::new(),
+    )?;
+    if response.status().as_u16() == 404 {
+        return Ok(vec![]);
+    }
+    if !response.status().is_success() {
+        return Err(format!("S3 list failed: {}", response.status()));
+    }
+    let text = response.text().map_err(|error| error.to_string())?;
+    Ok(parse_list_objects(&text))
+}
+
+#[tauri::command]
+fn desktop_sync_get_object(app: AppHandle, path: String) -> Result<Option<DesktopSyncGetObjectResult>, String> {
+    let config = desktop_get_sync_config(app)?;
+    validate_sync_config(&config)?;
+    let client = desktop_sync_client()?;
+    let response = send_s3_request(
+        &client,
+        reqwest::Method::GET,
+        &build_s3_object_url(&config.s3, &path),
+        None,
+        &config.s3,
+        Vec::new(),
+    )?;
+    if response.status().as_u16() == 404 {
+        return Ok(None);
+    }
+    if !response.status().is_success() {
+        return Err(format!("S3 get failed: {}", response.status()));
+    }
+    let etag = response
+        .headers()
+        .get("etag")
+        .and_then(|value| value.to_str().ok())
+        .map(ToString::to_string);
+    let body = response.bytes().map_err(|error| error.to_string())?.to_vec();
+    Ok(Some(DesktopSyncGetObjectResult { body, etag }))
+}
+
+#[tauri::command]
+fn desktop_sync_put_object(
+    app: AppHandle,
+    input: DesktopSyncPutObjectInput,
+) -> Result<(), String> {
+    let config = desktop_get_sync_config(app)?;
+    validate_sync_config(&config)?;
+    let client = desktop_sync_client()?;
+    let mut extra_headers = Vec::new();
+    let options = input.options.unwrap_or(DesktopSyncPutOptions {
+        content_type: None,
+        metadata: None,
+        if_match: None,
+        if_none_match: None,
+    });
+    extra_headers.push((
+        "content-type".to_string(),
+        options
+            .content_type
+            .unwrap_or_else(|| "application/octet-stream".to_string()),
+    ));
+    if let Some(metadata) = options.metadata {
+        for (key, value) in metadata {
+            extra_headers.push((format!("x-amz-meta-{key}"), value));
+        }
+    }
+    if let Some(value) = options.if_match {
+        extra_headers.push(("if-match".to_string(), value));
+    }
+    if let Some(value) = options.if_none_match {
+        extra_headers.push(("if-none-match".to_string(), value));
+    }
+    let response = send_s3_request(
+        &client,
+        reqwest::Method::PUT,
+        &build_s3_object_url(&config.s3, &input.path),
+        Some(input.body),
+        &config.s3,
+        extra_headers,
+    )?;
+    if !response.status().is_success() {
+        return Err(format!("S3 put failed: {}", response.status()));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn desktop_sync_delete_object(app: AppHandle, path: String) -> Result<(), String> {
+    let config = desktop_get_sync_config(app)?;
+    validate_sync_config(&config)?;
+    let client = desktop_sync_client()?;
+    let response = send_s3_request(
+        &client,
+        reqwest::Method::DELETE,
+        &build_s3_object_url(&config.s3, &path),
+        None,
+        &config.s3,
+        Vec::new(),
+    )?;
+    if !response.status().is_success() && response.status().as_u16() != 404 {
+        return Err(format!("S3 delete failed: {}", response.status()));
     }
     Ok(())
 }
@@ -1187,6 +1380,17 @@ fn desktop_update_sync_config(app: AppHandle, patch: Value) -> Result<SyncConfig
 fn desktop_get_sync_status(app: AppHandle) -> Result<SyncStatus, String> {
     let path = sync_status_path(&app)?;
     normalize_sync_status(&app, read_json_file(&path, &default_sync_status())?)
+}
+
+#[tauri::command]
+fn desktop_sync_test_connection(app: AppHandle, patch: Option<Value>) -> Result<(), String> {
+    let mut current = serde_json::to_value(desktop_get_sync_config(app.clone())?)
+        .map_err(|error| error.to_string())?;
+    if let Some(patch) = patch {
+        merge_json_value(&mut current, &patch);
+    }
+    let next: SyncConfig = serde_json::from_value(current).map_err(|error| error.to_string())?;
+    validate_s3_connectivity(&next)
 }
 
 #[tauri::command]
@@ -1447,7 +1651,12 @@ pub fn run() {
             desktop_get_sync_config,
             desktop_update_sync_config,
             desktop_get_sync_status,
+            desktop_sync_test_connection,
             desktop_run_sync,
+            desktop_sync_list_objects,
+            desktop_sync_get_object,
+            desktop_sync_put_object,
+            desktop_sync_delete_object,
             desktop_chat_list_conversations,
             desktop_chat_get_conversation,
             desktop_chat_save_conversation,

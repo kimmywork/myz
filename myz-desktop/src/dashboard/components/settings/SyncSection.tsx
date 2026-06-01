@@ -17,6 +17,7 @@ export default defineComponent({
     const secretAccessKey = ref("")
     const sessionToken = ref("")
     const prefix = ref("")
+    const syncSecret = ref("")
     const status = ref("")
     const tone = ref<StatusTone>("info")
     const isBusy = ref(false)
@@ -24,6 +25,9 @@ export default defineComponent({
     const pendingRecords = ref(0)
     const lastError = ref<string | null>(null)
     const syncState = ref("idle")
+    const keyId = ref<string | null>(null)
+    const keyUpdatedAt = ref<string | null>(null)
+    const lastManifestVersion = ref(0)
 
     watchEffect(() => {
       const sync = settingsStore.settings.sync
@@ -67,6 +71,9 @@ export default defineComponent({
         pendingRecords.value = next.pendingRecords || 0
         lastError.value = next.lastError || null
         syncState.value = next.state
+        keyId.value = next.keyId || null
+        keyUpdatedAt.value = next.keyUpdatedAt || null
+        lastManifestVersion.value = next.lastManifestVersion || 0
       } catch (error) {
         setStatus(`读取同步状态失败：${(error as Error).message}`, "error")
       }
@@ -113,6 +120,79 @@ export default defineComponent({
       }
     }
 
+    async function handleTestConnection() {
+      if (
+        isBusy.value ||
+        !desktopDashboardHost.sync ||
+        !desktopDashboardHost.sync.testConnection
+      ) {
+        return
+      }
+      isBusy.value = true
+      setStatus("测试连接中…")
+      try {
+        const result = await desktopDashboardHost.sync.testConnection({
+          enabled: enabled.value,
+          s3: buildSyncPayload().s3,
+        })
+        setStatus(
+          result.ok ? "连接成功" : result.message || "连接失败",
+          result.ok ? "success" : "error",
+        )
+      } catch (error) {
+        setStatus(`连接失败：${(error as Error).message}`, "error")
+      } finally {
+        isBusy.value = false
+      }
+    }
+
+    async function handleSetSecret() {
+      if (
+        isBusy.value ||
+        !desktopDashboardHost.sync ||
+        !desktopDashboardHost.sync.setSecret
+      ) {
+        return
+      }
+      if (!syncSecret.value.trim()) {
+        setStatus("请输入同步密钥", "error")
+        return
+      }
+      isBusy.value = true
+      setStatus("设置密钥中…")
+      try {
+        await desktopDashboardHost.sync.setSecret(syncSecret.value.trim())
+        syncSecret.value = ""
+        await refreshSyncStatus()
+        setStatus("密钥已更新", "success")
+      } catch (error) {
+        setStatus(`设置密钥失败：${(error as Error).message}`, "error")
+      } finally {
+        isBusy.value = false
+      }
+    }
+
+    async function handleClearSecret() {
+      if (
+        isBusy.value ||
+        !desktopDashboardHost.sync ||
+        !desktopDashboardHost.sync.clearSecret
+      ) {
+        return
+      }
+      isBusy.value = true
+      setStatus("清除密钥中…")
+      try {
+        await desktopDashboardHost.sync.clearSecret()
+        await refreshSyncStatus()
+        setStatus("密钥已清除", "success")
+      } catch (error) {
+        setStatus(`清除密钥失败：${(error as Error).message}`, "error")
+      } finally {
+        isBusy.value = false
+      }
+    }
+
     onMounted(() => {
       void refreshSyncStatus()
     })
@@ -124,7 +204,7 @@ export default defineComponent({
         </div>
         <div class="settings__fields">
           <p class="settings__hint">
-            通过桌面 host 保存同步配置，并执行一次真实的 S3 读写连通性校验。
+            使用与 annotator 相同的加密同步仓库。请先保存 S3 配置，再设置同步密钥。
           </p>
 
           <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 p-3 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-300">
@@ -219,15 +299,32 @@ export default defineComponent({
             <div>最近执行：{lastSyncAt.value || "未执行"}</div>
             <div>待同步记录：{pendingRecords.value}</div>
             <div>最近错误：{lastError.value || "无"}</div>
+            <div>当前 KeyId：{keyId.value || "未设置"}</div>
+            <div>密钥更新时间：{keyUpdatedAt.value || "-"}</div>
+            <div>Manifest 版本：{lastManifestVersion.value || 0}</div>
+          </div>
+
+          <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-950/40">
+            <label class="field">
+              <span>同步密钥</span>
+              <input
+                type="password"
+                placeholder="仅保留在本地设备"
+                value={syncSecret.value}
+                onInput={(event: InputEvent) => {
+                  syncSecret.value = (event.target as HTMLInputElement).value
+                }}
+              />
+            </label>
           </div>
 
           <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-200">
-            当前桌面端会校验配置是否完整，并对目标 S3 执行真实的 list / put / delete 探测。若校验成功，状态会如实保留为“可连接”，但桌面端暂未执行双向记录传输。
+            当前桌面端会通过共享的 @myz/sync-core 读取远端 manifest / chunks，并把 highlights 与 conversations 拉取到本地。当前阶段仍以 pull-first 为主，不上传 desktop 本地新增记录。
           </div>
 
           <div class="settings__actions">
             <button
-              class="btn btn-primary"
+              class="btn"
               type="button"
               disabled={isBusy.value}
               onClick={handleSaveSettings}
@@ -237,10 +334,34 @@ export default defineComponent({
             <button
               class="btn"
               type="button"
-              disabled={isBusy.value || !enabled.value}
+              disabled={isBusy.value}
+              onClick={handleTestConnection}
+            >
+              测试连接
+            </button>
+            <button
+              class="btn"
+              type="button"
+              disabled={isBusy.value}
+              onClick={handleSetSecret}
+            >
+              设置密钥
+            </button>
+            <button
+              class="btn"
+              type="button"
+              disabled={isBusy.value || !keyId.value}
+              onClick={handleClearSecret}
+            >
+              清除密钥
+            </button>
+            <button
+              class="btn btn-primary"
+              type="button"
+              disabled={isBusy.value || !enabled.value || !keyId.value}
               onClick={handleSyncNow}
             >
-              验证连接
+              立即同步
             </button>
             <p
               class={[
