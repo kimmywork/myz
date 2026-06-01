@@ -11,6 +11,6 @@
     },
     "chat.agent.maxRequests": 9999,
     "rust-analyzer.linkedProjects": [
-        "myz-suite-tool/src-tauri/Cargo.toml"
+        "myz-desktop/src-tauri/Cargo.toml"
     ]
 }
