@@ -8,11 +8,9 @@
   },
   "dependencies": {
     "idb": "^8.0.0",
-    "openai": "^6.34.0",
-    "uuid": "^9.0.1"
+    "openai": "^6.34.0"
   },
   "devDependencies": {
-    "@types/uuid": "^9.0.8",
     "typescript": "^5.9.3",
     "vitest": "^4.0.15"
   }

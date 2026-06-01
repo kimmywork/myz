@@ -64,6 +64,19 @@ export class HybridSearchEngine {
   }
 
   /**
+   * Generate a unique ID (compatible with service workers).
+   */
+  private generateId(): string {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID()
+    }
+    // Fallback for older environments
+    return "xxxx-xxxx-xxxx-xxxx".replace(/x/g, () =>
+      Math.floor(Math.random() * 16).toString(16),
+    )
+  }
+
+  /**
    * Add a document to all indexes.
    */
   async addDocument(
@@ -71,11 +84,10 @@ export class HybridSearchEngine {
     metadata: Record<string, any> = {},
     tags: string[] = [],
   ): Promise<VectorDocument> {
-    const { v4: uuidv4 } = await import("uuid")
     const embedding = await this.embedder.embed(text)
 
     const doc: VectorDocument = {
-      id: uuidv4(),
+      id: this.generateId(),
       text,
       metadata,
       tags,
@@ -107,12 +119,11 @@ export class HybridSearchEngine {
       tags?: string[]
     }>,
   ): Promise<VectorDocument[]> {
-    const { v4: uuidv4 } = await import("uuid")
     const texts = items.map((i) => i.text)
     const embeddings = await this.embedder.embedBatch(texts)
 
     const docs: VectorDocument[] = items.map((item, i) => ({
-      id: item.id || uuidv4(),
+      id: item.id || this.generateId(),
       text: item.text,
       metadata: item.metadata || {},
       tags: item.tags || [],
