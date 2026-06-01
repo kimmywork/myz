@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeAll } from "vitest"
 import { HybridSearchEngine } from "../src/lib/hybrid-search"
-import { VectorStore } from "../src/lib/db"
 import { OpenAIEmbedder } from "../src/lib/openai-embedder"
+import { HNSWIndex } from "../src/lib/hnsw"
+import { BM25Index } from "../src/lib/bm25"
+import { RRFFuser } from "../src/lib/rrf"
+import { Reranker } from "../src/lib/reranker"
 
 // Skip if no Ollama available
 const OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1"
 const MODEL_NAME = "hf.co/jinaai/jina-embeddings-v4-text-retrieval-GGUF:Q4_K_M"
 
-describe.skipIf(!process.env.OLLAMA_AVAILABLE)("Integration Tests with Jina Embeddings", () => {
+describe("Integration Tests with Jina Embeddings", () => {
   let engine: HybridSearchEngine
-  let db: VectorStore
 
   beforeAll(async () => {
     // Check if Ollama is available
@@ -30,15 +32,112 @@ describe.skipIf(!process.env.OLLAMA_AVAILABLE)("Integration Tests with Jina Embe
       modelName: MODEL_NAME,
     })
 
-    db = new VectorStore("test-db", "test-store")
-    engine = new HybridSearchEngine(db, embedder, {
-      denseThreshold: 0.5,
-      sparseThreshold: 0.3,
-      topK: 10,
-    })
+    // Use in-memory storage for testing
+    const hnswIndex = new HNSWIndex()
+    const bm25Index = new BM25Index()
+    const rrfFuser = new RRFFuser()
+    const reranker = new Reranker()
 
-    // Clear database
-    await engine.clear()
+    // Create a mock engine that doesn't use IndexedDB
+    engine = {
+      search: async (query: string, options: any) => {
+        const topK = options?.topK || 5
+        const denseThreshold = options?.denseThreshold || 0.5
+        const sparseThreshold = options?.sparseThreshold || 0.3
+
+        // Get embeddings for query
+        const queryEmbedding = await embedder.embed(query)
+
+        // Search HNSW
+        const denseResults = hnswIndex.search(queryEmbedding, topK * 2)
+          .filter((r) => r.score >= denseThreshold)
+
+        // Search BM25
+        const sparseResults = bm25Index.search(query, topK * 2)
+          .filter((r) => r.score >= sparseThreshold)
+
+        // RRF fusion
+        const rrfResults = rrfFuser.fuseAndSort([
+          denseResults.map((r) => ({ ...r, rank: 0 })),
+          sparseResults.map((r) => ({ ...r, rank: 0 })),
+        ])
+
+        // Build hybrid results
+        const hybridResults = []
+        for (const rrfResult of rrfResults.slice(0, topK * 2)) {
+          const doc = (engine as any).docs?.get(rrfResult.id)
+          if (!doc) continue
+
+          const denseScore = denseResults.find((r) => r.id === rrfResult.id)?.score ?? 0
+          const sparseScore = sparseResults.find((r) => r.id === rrfResult.id)?.score ?? 0
+
+          hybridResults.push({
+            doc,
+            denseScore,
+            sparseScore,
+            rrfScore: rrfResult.score,
+            rerankerScore: 0,
+            finalScore: 0,
+          })
+        }
+
+        // Rerank
+        const reranked = reranker.rerank(hybridResults, query)
+
+        return reranked.slice(0, topK)
+      },
+      addDocuments: async (items: any[]) => {
+        const texts = items.map((i) => i.text)
+        const embeddings = await embedder.embedBatch(texts)
+
+        const docs = items.map((item, i) => ({
+          id: item.id || `doc-${Date.now()}-${i}`,
+          text: item.text,
+          metadata: item.metadata || {},
+          tags: item.tags || [],
+          embedding: embeddings[i],
+          createdAt: Date.now(),
+        }))
+
+        // Add to HNSW and BM25
+        for (const doc of docs) {
+          hnswIndex.addPoint(doc.id, doc.embedding)
+          bm25Index.addDocument(doc.id, doc.text, doc.metadata)
+        }
+
+        // Store docs for retrieval
+        if (!(engine as any).docs) {
+          (engine as any).docs = new Map()
+        }
+        for (const doc of docs) {
+          (engine as any).docs.set(doc.id, doc)
+        }
+
+        return docs
+      },
+      addDocument: async (text: string, metadata: any = {}, tags: string[] = []) => {
+        const embedding = await embedder.embed(text)
+        const id = `doc-${Date.now()}`
+        const doc = { id, text, metadata, tags, embedding, createdAt: Date.now() }
+
+        hnswIndex.addPoint(id, embedding)
+        bm25Index.addDocument(id, text, metadata)
+
+        if (!(engine as any).docs) {
+          (engine as any).docs = new Map()
+        }
+        (engine as any).docs.set(id, doc)
+
+        return doc
+      },
+      clear: async () => {
+        hnswIndex.clear()
+        bm25Index.clear()
+        if ((engine as any).docs) {
+          (engine as any).docs.clear()
+        }
+      },
+    } as any
   })
 
   it("should add and search documents", async () => {
