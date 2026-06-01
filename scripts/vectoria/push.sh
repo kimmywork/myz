@@ -1,3 +1,3 @@
 #!/bin/bash
 
-git subtree push --prefix=vectoria vectoria master
+git subtree push --prefix=packages/vectoria vectoria master
