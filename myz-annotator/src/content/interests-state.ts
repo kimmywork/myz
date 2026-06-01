@@ -52,7 +52,9 @@ function resolveVectorSearchEnabled(
 async function loadVectorSearchEnabled(): Promise<boolean> {
   try {
     const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
-    const settings = stored?.[SETTINGS_STORAGE_KEY];
+    const bundle = stored?.[SETTINGS_STORAGE_KEY];
+    // Support both bundle format {schemaVersion, data} and direct format
+    const settings = bundle?.data || bundle;
     interestMatchThreshold = normalizeMatchThreshold(
       settings?.vectorSearch?.matchThreshold,
     );
@@ -73,7 +75,9 @@ function installSettingsSync(): void {
       if (areaName !== "local") return;
       const change = changes?.[SETTINGS_STORAGE_KEY];
       if (!change) return;
-      const settings = change.newValue;
+      const bundle = change.newValue;
+      // Support both bundle format {schemaVersion, data} and direct format
+      const settings = bundle?.data || bundle;
       const nextThreshold = normalizeMatchThreshold(
         settings?.vectorSearch?.matchThreshold,
       );
