@@ -101,7 +101,7 @@ function buildInputFromMessages(messages: ProviderMessage[]): {
       .map((message) => message.tool_call_id as string),
   )
 
-  messages.forEach((message, index) => {
+  messages.forEach((message) => {
     if (!message) return
     if (message.role === "system" || message.role === "developer") {
       const text = coerceContentToText(message.content)

@@ -161,6 +161,19 @@ export interface SyncStatus {
   lastSyncAt?: string | null
   pendingRecords?: number
   lastError?: string | null
+  keyId?: string | null
+  keyUpdatedAt?: string | null
+  lastManifestVersion?: number
+}
+
+export interface SyncConnectionTestResult {
+  ok: boolean
+  message?: string
+}
+
+export interface SyncSetSecretResult {
+  keyId: string
+  keyUpdatedAt: string
 }
 
 export interface SyncRunResult {
@@ -176,6 +189,9 @@ export interface SyncRepository {
   getConfig(): Promise<SyncConfig>
   updateConfig(patch: Partial<SyncConfig>): Promise<SyncConfig>
   getStatus(): Promise<SyncStatus>
+  testConnection?(config?: Partial<SyncConfig>): Promise<SyncConnectionTestResult>
+  setSecret?(secret: string): Promise<SyncSetSecretResult>
+  clearSecret?(): Promise<void>
   runSync(reason?: SyncRunReason): Promise<SyncRunResult>
 }
 
