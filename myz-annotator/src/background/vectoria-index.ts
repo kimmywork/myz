@@ -355,7 +355,12 @@ export async function indexRecords(records: MyZRecord[] = []) {
     for (const batch of batchDocumentsForAdd(docs)) {
       if (!batch.length) continue
       const inserted = await engine.addDocuments(
-        batch.map((d) => ({ text: d.text, metadata: d.metadata, tags: d.metadata.tags })),
+        batch.map((d) => ({
+          id: d.metadata?.recordId ? `${d.metadata.recordId}:${d.metadata.chunkIndex || 0}` : undefined,
+          text: d.text,
+          metadata: d.metadata,
+          tags: d.metadata.tags,
+        })),
       )
       inserted.forEach((doc: { id: string; metadata?: Record<string, any> }) => {
         const recordId =

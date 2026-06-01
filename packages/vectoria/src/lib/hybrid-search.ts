@@ -101,6 +101,7 @@ export class HybridSearchEngine {
    */
   async addDocuments(
     items: Array<{
+      id?: string
       text: string
       metadata?: Record<string, any>
       tags?: string[]
@@ -111,7 +112,7 @@ export class HybridSearchEngine {
     const embeddings = await this.embedder.embedBatch(texts)
 
     const docs: VectorDocument[] = items.map((item, i) => ({
-      id: uuidv4(),
+      id: item.id || uuidv4(),
       text: item.text,
       metadata: item.metadata || {},
       tags: item.tags || [],
