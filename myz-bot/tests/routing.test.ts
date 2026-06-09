@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import type { ChatMessage } from "../src/chatChannel"
-import { resolveConversationRoute } from "../src/routing"
+import { resolveSessionRoute } from "../src/routing"
 
 function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
@@ -21,15 +21,15 @@ function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   }
 }
 
-test("resolveConversationRoute keeps private chats per user", () => {
-  const route = resolveConversationRoute(createMessage())
+test("resolveSessionRoute keeps private chats per user", () => {
+  const route = resolveSessionRoute(createMessage())
   assert.equal(route.scope, "private")
-  assert.equal(route.conversationId, "100-200")
+  assert.equal(route.sessionId, "100-200")
   assert.equal(route.actorDisplayName, "Alice (@alice)")
 })
 
-test("resolveConversationRoute shares group conversations by chat", () => {
-  const route = resolveConversationRoute(
+test("resolveSessionRoute shares group conversations by chat", () => {
+  const route = resolveSessionRoute(
     createMessage({
       chat: {
         id: -100123,
@@ -42,12 +42,12 @@ test("resolveConversationRoute shares group conversations by chat", () => {
     }),
   )
   assert.equal(route.scope, "group")
-  assert.equal(route.conversationId, "-100123-group")
+  assert.equal(route.sessionId, "-100123-group")
   assert.equal(route.actorUserId, 201)
 })
 
-test("resolveConversationRoute isolates forum topics by thread id", () => {
-  const route = resolveConversationRoute(
+test("resolveSessionRoute isolates forum topics by thread id", () => {
+  const route = resolveSessionRoute(
     createMessage({
       chat: {
         id: -100123,
@@ -58,5 +58,5 @@ test("resolveConversationRoute isolates forum topics by thread id", () => {
   )
   assert.equal(route.scope, "group")
   assert.equal(route.threadId, 88)
-  assert.equal(route.conversationId, "-100123-thread-88")
+  assert.equal(route.sessionId, "-100123-thread-88")
 })

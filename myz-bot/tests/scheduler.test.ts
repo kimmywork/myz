@@ -4,13 +4,13 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
-  ensureConversationDir,
-  saveMetadata,
-} from "../src/conversations"
+  ensureSessionDir,
+  saveSessionMetadata,
+} from "../src/sessions"
 import {
   processDueScheduledTasks,
 } from "../src/scheduler"
-import { createScheduledTask, listConversationTasks } from "../src/tasks"
+import { createScheduledTask, listSessionTasks } from "../src/tasks"
 import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 function createConfig(root: string) {
@@ -24,10 +24,11 @@ function createConfig(root: string) {
 test("processDueScheduledTasks sends direct reminders and marks task triggered", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-scheduler-"))
   const config = createConfig(root)
-  const conversationDir = ensureConversationDir(config.conversationsDir, "c1")
-  saveMetadata(conversationDir, {
+  const sessionDir = ensureSessionDir(config.sessionsDir, "c1")
+  saveSessionMetadata(sessionDir, {
     schemaVersion: "1.0.0",
-    conversationId: "c1",
+    sessionId: "c1",
+    workspaceId: config.workspaceId,
     chatId: 42,
     userId: 7,
     username: "admin",
@@ -35,18 +36,20 @@ test("processDueScheduledTasks sends direct reminders and marks task triggered",
     lastName: "B",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    messageCount: 0,
+    status: "active",
   })
 
   const task = createScheduledTask({
-    conversationDir,
-    conversationId: "c1",
+    sessionDir,
+    sessionId: "c1",
     title: "提醒查看日报",
     dueAt: new Date(Date.now() + 60_000).toISOString(),
     triggerMode: "direct",
     directReply: "这是你的日报提醒",
   })
 
-  const tasksFile = join(conversationDir, "tasks.json")
+  const tasksFile = join(sessionDir, "tasks.json")
   const parsed = JSON.parse(readFileSync(tasksFile, "utf-8")) as {
     tasks: Array<{ id: string; dueAt: string }>
   }
@@ -80,9 +83,9 @@ test("processDueScheduledTasks sends direct reminders and marks task triggered",
   assert.equal(sent[0]?.chatId, 42)
   assert.match(String(sent[0]?.text || ""), /日报提醒/)
 
-  const tasks = listConversationTasks({
-    conversationDir,
-    conversationId: "c1",
+  const tasks = listSessionTasks({
+    sessionDir,
+    sessionId: "c1",
   })
   assert.equal(tasks[0]?.status, "triggered")
 })

@@ -160,7 +160,7 @@ export function createSoulDraft(options: {
   metadata: {
     actor: string
     trigger: "manual" | "auto"
-    conversationId?: string
+    sessionId?: string
   }
 }): SoulDraftRecord {
   const paths = ensureSoulRuntime(options.runtimeRoot)
@@ -172,7 +172,7 @@ export function createSoulDraft(options: {
     draftId: id,
     actor: options.metadata.actor,
     trigger: options.metadata.trigger,
-    conversationId: options.metadata.conversationId,
+    sessionId: options.metadata.sessionId,
   })
   return {
     id,

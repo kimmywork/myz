@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import type { Message } from "@myz/ai-core/types"
-import { rewriteLlmHistory } from "./conversations"
+import { rewriteSessionHistory } from "./sessions"
 
 const ESTIMATED_CHARS_PER_TOKEN = 4
 const CONTEXT_RESERVED_TOKENS = 2048
@@ -35,8 +35,8 @@ function summarizeMessage(message: Message, index: number) {
   return `${index + 1}. ${prefix} ${snippet}`.trim()
 }
 
-function getContextPaths(conversationDir: string) {
-  const dir = resolve(conversationDir, "context")
+function getContextPaths(sessionDir: string) {
+  const dir = resolve(sessionDir, "context")
   return {
     dir,
     summaryFile: resolve(dir, "summary.json"),
@@ -221,9 +221,9 @@ function loadStoredSummary(summaryFile: string) {
   }
 }
 
-export function prepareConversationContext(options: {
-  conversationDir: string
-  conversationId: string
+export function prepareSessionContext(options: {
+  sessionDir: string
+  sessionId: string
   messages: Message[]
   maxHistoryMessages?: number
   summaryMaxMessages?: number
@@ -234,8 +234,8 @@ export function prepareConversationContext(options: {
   maxOutputTokens?: number
 }) {
   const {
-    conversationDir,
-    conversationId,
+    sessionDir,
+    sessionId,
     messages,
     maxHistoryMessages = DEFAULT_MAX_HISTORY_MESSAGES,
     summaryMaxMessages = DEFAULT_SUMMARY_MAX_MESSAGES,
@@ -258,7 +258,7 @@ export function prepareConversationContext(options: {
   )
   const compressionKeepMessages = deriveCompressionKeepMessages(effectiveMaxHistoryMessages)
   const compressionKeepChars = deriveCompressionKeepChars(effectiveMaxHistoryChars)
-  const paths = getContextPaths(conversationDir)
+  const paths = getContextPaths(sessionDir)
   const previousSummaryState = loadStoredSummary(paths.summaryFile)
   const previousSummary = previousSummaryState.summary
   const recentHistoryState = takeRecentMessagesWithinBudget(
@@ -323,13 +323,13 @@ export function prepareConversationContext(options: {
   )
 
   mkdirSync(paths.dir, { recursive: true })
-  rewriteLlmHistory(conversationDir, compressedRecentHistory)
+  rewriteSessionHistory(sessionDir, compressedRecentHistory)
   writeFileSync(
     paths.summaryFile,
     JSON.stringify(
       {
         updatedAt: new Date(now).toISOString(),
-        conversationId,
+        sessionId,
         summarizedMessageCount: summarizedMessages.length,
         keptMessageCount: compressedRecentHistory.length,
         summary,

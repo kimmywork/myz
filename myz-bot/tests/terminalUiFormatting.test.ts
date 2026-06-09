@@ -20,7 +20,7 @@ test("renderChatEntry keeps ascii separators and escaped content", () => {
     entry: {
       role: "user",
       at: "2026-04-29T10:25:27.000Z",
-      conversationId: "c{1}",
+      sessionId: "c{1}",
       text: "第一行\n第二行 {tag}",
     },
   }).content

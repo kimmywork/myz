@@ -2,7 +2,7 @@ import type { ProviderMessage } from "@myz/ai-core/providers/types"
 import { generateReply } from "./ai"
 import type { ChatChannelClient, ChatMessage, ChatSendMessageOptions } from "./chatChannel"
 import type { BotRuntimeConfig } from "./config"
-import { createSystemMessage, createUserMessage } from "./conversations"
+import { createSystemMessage, createUserMessage } from "./sessions"
 
 const TOOL_RESULT_MAX_CHARS = 280
 const TOOL_PROGRESS_MAX_CHARS = 180
@@ -180,7 +180,7 @@ function getToolNameFromProviderMessage(message: ProviderMessage) {
 
 export async function draftToolProgressMessage(options: {
   config: BotRuntimeConfig
-  conversationId: string
+  sessionId: string
   soul?: string
   latestUserInput: string
   phase: "start" | "result"
@@ -212,7 +212,7 @@ export async function draftToolProgressMessage(options: {
 
   const prompt = [
     createSystemMessage(
-      options.conversationId,
+      options.sessionId,
       [
         "你是在同一轮对话里替 assistant 写一条很短的过程反馈。",
         "目标：像正常人聊天，不像系统日志。",
@@ -228,7 +228,7 @@ export async function draftToolProgressMessage(options: {
       ].join("\n"),
     ),
     createUserMessage(
-      options.conversationId,
+      options.sessionId,
       [
         options.soul?.trim() ? `SOUL 摘要：${options.soul.slice(0, 800)}` : "",
         `用户这轮请求：${options.latestUserInput.trim()}`,
@@ -246,7 +246,7 @@ export async function draftToolProgressMessage(options: {
     const reply = await generateReply({
       config,
       messages: prompt,
-      conversationId: options.conversationId,
+      sessionId: options.sessionId,
       temperature: 0.6,
     })
     const drafted = normalizeProgressText(reply.content || "")
@@ -269,8 +269,8 @@ export async function draftToolProgressMessage(options: {
 export function createToolProgressNotifier(options: {
   config: BotRuntimeConfig
   channel: ChatChannelClient<ChatMessage>
-  conversationDir: string
-  conversationId: string
+  sessionDir: string
+  sessionId: string
   chatId: number
   latestUserInput: string
   soul?: string
@@ -278,7 +278,7 @@ export function createToolProgressNotifier(options: {
   draftMessage?: typeof draftToolProgressMessage
   onProgressMessageSent?: (options: {
     phase: "start" | "result"
-    conversationId: string
+    sessionId: string
     text: string
   }) => void
 }) {
@@ -362,7 +362,7 @@ export function createToolProgressNotifier(options: {
           .join(" | ")
         const text = await draftMessage({
           config: options.config,
-          conversationId: options.conversationId,
+          sessionId: options.sessionId,
           soul: options.soul,
           latestUserInput: options.latestUserInput,
           phase: "start",
@@ -378,7 +378,7 @@ export function createToolProgressNotifier(options: {
         )
         options.onProgressMessageSent?.({
           phase: "start",
-          conversationId: options.conversationId,
+          sessionId: options.sessionId,
           text,
         })
       })
@@ -405,7 +405,7 @@ export function createToolProgressNotifier(options: {
       enqueue(async () => {
         const text = await draftMessage({
           config: options.config,
-          conversationId: options.conversationId,
+          sessionId: options.sessionId,
           soul: options.soul,
           latestUserInput: options.latestUserInput,
           phase: "result",
@@ -420,7 +420,7 @@ export function createToolProgressNotifier(options: {
         )
         options.onProgressMessageSent?.({
           phase: "result",
-          conversationId: options.conversationId,
+          sessionId: options.sessionId,
           text,
         })
       })

@@ -10,12 +10,12 @@ import {
   createAssistantMessage,
   createSystemMessage,
   createUserMessage,
-  ensureConversationDir,
+  ensureSessionDir,
   loadAllMessages,
-  loadMetadata,
-} from "./conversations"
-import { prepareConversationContext } from "./contextCompaction"
-import { appendConversationErrorLog, formatErrorReply } from "./errors"
+  loadSessionMetadata,
+} from "./sessions"
+import { prepareSessionContext } from "./contextCompaction"
+import { appendSessionErrorLog, formatErrorReply } from "./errors"
 import {
   beginScheduledTaskRun,
   failScheduledTaskRun,
@@ -27,7 +27,7 @@ import {
 import { createToolProgressNotifier } from "./toolProgress"
 import {
   appendToolAuditTrace,
-  appendToolMessagesToHistory,
+  appendToolMessagesToSessionHistory,
 } from "./toolHistory"
 import type { RuntimeMonitor } from "./runtimeMonitor"
 
@@ -83,22 +83,22 @@ function buildTaskTriggerMessage(task: ScheduledTask) {
 async function processScheduledLlmTask(options: {
   config: BotRuntimeConfig
   channel: ChatChannelClient<ChatMessage>
-  conversationId: string
-  conversationDir: string
+  sessionId: string
+  sessionDir: string
   task: ScheduledTask
   monitor?: RuntimeMonitor
 }) {
-  const metadata = loadMetadata(options.conversationDir)
+  const metadata = loadSessionMetadata(options.sessionDir)
   if (!metadata) {
-    throw new Error(`会话元数据不存在: ${options.conversationId}`)
+    throw new Error(`会话元数据不存在: ${options.sessionId}`)
   }
 
   const sessionWorkspace = options.config.workspaceRoot
-  const historyBefore = loadAllMessages(options.conversationDir)
+  const historyBefore = loadAllMessages(options.sessionDir)
   const contextState = options.config.contextCompaction.enabled
-    ? prepareConversationContext({
-        conversationDir: options.conversationDir,
-        conversationId: options.conversationId,
+    ? prepareSessionContext({
+        sessionDir: options.sessionDir,
+        sessionId: options.sessionId,
         messages: historyBefore,
         maxHistoryMessages: options.config.contextCompaction.maxHistoryMessages,
         maxHistoryChars: options.config.contextCompaction.maxHistoryChars,
@@ -115,7 +115,7 @@ async function processScheduledLlmTask(options: {
       }
 
   const userMessage = createUserMessage(
-    options.conversationId,
+    options.sessionId,
     buildTaskTriggerMessage(options.task),
     {
       type: "scheduled_task_trigger",
@@ -125,9 +125,9 @@ async function processScheduledLlmTask(options: {
       triggerMode: options.task.triggerMode,
     },
   )
-  appendMessage(options.conversationDir, userMessage)
+  appendMessage(options.sessionDir, userMessage)
   options.monitor?.noteIncomingMessage({
-    conversationId: options.conversationId,
+    sessionId: options.sessionId,
     text: userMessage.content,
     role: "scheduler",
   })
@@ -136,7 +136,7 @@ async function processScheduledLlmTask(options: {
     workspaceRoot: options.config.workspaceRoot,
   })
   const systemMessage = createSystemMessage(
-    options.conversationId,
+    options.sessionId,
     agent.buildSystemPrompt({
       replyMode: "required",
       scope: metadata.scope,
@@ -170,7 +170,7 @@ async function processScheduledLlmTask(options: {
     },
   })
   const contextMessage = contextPrompt
-    ? createUserMessage(options.conversationId, contextPrompt, {
+    ? createUserMessage(options.sessionId, contextPrompt, {
         type: "context_injection",
         source: "scheduler",
         hiddenFromHistory: true,
@@ -180,8 +180,8 @@ async function processScheduledLlmTask(options: {
   const progressNotifier = createToolProgressNotifier({
     config: options.config,
     channel: options.channel,
-    conversationDir: options.conversationDir,
-    conversationId: options.conversationId,
+    sessionDir: options.sessionDir,
+    sessionId: options.sessionId,
     chatId: metadata.chatId,
     latestUserInput: userMessage.content,
     sendOptions: {
@@ -189,14 +189,14 @@ async function processScheduledLlmTask(options: {
     },
     onProgressMessageSent: ({ text }) => {
       options.monitor?.noteOutgoingMessage({
-        conversationId: options.conversationId,
+        sessionId: options.sessionId,
         text,
         role: "progress",
       })
     },
   })
   try {
-    options.monitor?.notePhase("llm", options.conversationId)
+    options.monitor?.notePhase("llm", options.sessionId)
     const preparedMessages = agent.prepareMessages({
       systemMessage,
       history: contextState.history,
@@ -204,26 +204,26 @@ async function processScheduledLlmTask(options: {
       userMessage,
     })
     const request = options.monitor?.noteRequestStart({
-      conversationId: options.conversationId,
+      sessionId: options.sessionId,
       source: "scheduler",
       messages: preparedMessages,
     })
     const reply = await generateReply({
       config: options.config,
       messages: preparedMessages,
-      conversationId: options.conversationId,
+      sessionId: options.sessionId,
       onToolCallMessage: (message) => {
-        options.monitor?.notePhase("tool", options.conversationId)
+        options.monitor?.notePhase("tool", options.sessionId)
         progressNotifier.onToolCallMessage(message)
       },
       onToolResultMessage: (message) => {
-        options.monitor?.notePhase("llm", options.conversationId)
+        options.monitor?.notePhase("llm", options.sessionId)
         progressNotifier.onToolResultMessage(message)
       },
     })
     if (request) {
       options.monitor?.noteRequestComplete({
-        conversationId: options.conversationId,
+        sessionId: options.sessionId,
         source: "scheduler",
         startedAt: request.startedAt,
         requestId: request.requestId,
@@ -234,9 +234,9 @@ async function processScheduledLlmTask(options: {
     await progressNotifier.flush()
 
     if (Array.isArray(reply.toolTrace) && reply.toolTrace.length) {
-      appendToolMessagesToHistory({
-        conversationId: options.conversationId,
-        conversationDir: options.conversationDir,
+      appendToolMessagesToSessionHistory({
+        sessionId: options.sessionId,
+        sessionDir: options.sessionDir,
         trace: reply.toolTrace as Array<{
           role: string
           content: unknown
@@ -246,8 +246,8 @@ async function processScheduledLlmTask(options: {
         }>,
       })
       appendToolAuditTrace({
-        conversationId: options.conversationId,
-        conversationDir: options.conversationDir,
+        sessionId: options.sessionId,
+        sessionDir: options.sessionDir,
         trace: reply.toolTrace as Array<{
           role: string
           content: unknown
@@ -259,7 +259,7 @@ async function processScheduledLlmTask(options: {
     }
 
     const assistantMessage = createAssistantMessage(
-      options.conversationId,
+      options.sessionId,
       reply.content || "(无响应)",
       {
         type: "scheduled_task_reply",
@@ -283,13 +283,13 @@ async function processScheduledLlmTask(options: {
     if (Array.isArray(reply.toolCalls) && reply.toolCalls.length) {
       assistantMessage.tool_calls = reply.toolCalls as Message["tool_calls"]
     }
-    options.monitor?.notePhase("send", options.conversationId)
+    options.monitor?.notePhase("send", options.sessionId)
     options.monitor?.noteOutgoingMessage({
-      conversationId: options.conversationId,
+      sessionId: options.sessionId,
       text: assistantMessage.content,
       role: "assistant",
     })
-    appendMessage(options.conversationDir, assistantMessage)
+    appendMessage(options.sessionDir, assistantMessage)
     await options.channel.sendMessage(
       metadata.chatId,
       assistantMessage.content,
@@ -297,10 +297,10 @@ async function processScheduledLlmTask(options: {
         messageThreadId: metadata.threadId,
       },
     )
-    options.monitor?.notePhase("idle", options.conversationId)
+    options.monitor?.notePhase("idle", options.sessionId)
   } catch (error) {
     options.monitor?.noteError({
-      conversationId: options.conversationId,
+      sessionId: options.sessionId,
       error,
     })
     throw error
@@ -310,17 +310,17 @@ async function processScheduledLlmTask(options: {
 async function processScheduledDirectTask(options: {
   config: BotRuntimeConfig
   channel: ChatChannelClient<ChatMessage>
-  conversationId: string
-  conversationDir: string
+  sessionId: string
+  sessionDir: string
   task: ScheduledTask
   monitor?: RuntimeMonitor
 }) {
-  const metadata = loadMetadata(options.conversationDir)
+  const metadata = loadSessionMetadata(options.sessionDir)
   if (!metadata) {
-    throw new Error(`会话元数据不存在: ${options.conversationId}`)
+    throw new Error(`会话元数据不存在: ${options.sessionId}`)
   }
   const userMessage = createUserMessage(
-    options.conversationId,
+    options.sessionId,
     buildTaskTriggerMessage(options.task),
     {
       type: "scheduled_task_trigger",
@@ -330,15 +330,15 @@ async function processScheduledDirectTask(options: {
       triggerMode: options.task.triggerMode,
     },
   )
-  appendMessage(options.conversationDir, userMessage)
+  appendMessage(options.sessionDir, userMessage)
   options.monitor?.noteIncomingMessage({
-    conversationId: options.conversationId,
+    sessionId: options.sessionId,
     text: userMessage.content,
     role: "scheduler",
   })
 
   const assistantMessage = createAssistantMessage(
-    options.conversationId,
+    options.sessionId,
     renderDirectTaskReply(options.task),
     {
       type: "scheduled_task_reply",
@@ -346,13 +346,13 @@ async function processScheduledDirectTask(options: {
       direct: true,
     },
   )
-  options.monitor?.notePhase("send", options.conversationId)
+  options.monitor?.notePhase("send", options.sessionId)
   options.monitor?.noteOutgoingMessage({
-    conversationId: options.conversationId,
+    sessionId: options.sessionId,
     text: assistantMessage.content,
     role: "assistant",
   })
-  appendMessage(options.conversationDir, assistantMessage)
+  appendMessage(options.sessionDir, assistantMessage)
   await options.channel.sendMessage(
     metadata.chatId,
     assistantMessage.content,
@@ -360,7 +360,7 @@ async function processScheduledDirectTask(options: {
       messageThreadId: metadata.threadId,
     },
   )
-  options.monitor?.notePhase("idle", options.conversationId)
+  options.monitor?.notePhase("idle", options.sessionId)
 }
 
 export async function processDueScheduledTasks(options: {
@@ -369,18 +369,18 @@ export async function processDueScheduledTasks(options: {
   monitor?: RuntimeMonitor
 }) {
   const dueTasks = listDueScheduledTasks({
-    conversationsDir: options.config.conversationsDir,
+    sessionsDir: options.config.sessionsDir,
     limit: options.config.scheduler.maxBatchSize,
   })
 
   for (const due of dueTasks) {
-    const conversationDir = ensureConversationDir(
-      options.config.conversationsDir,
-      due.conversationId,
+    const sessionDir = ensureSessionDir(
+      options.config.sessionsDir,
+      due.sessionId,
     )
     const runningTask = beginScheduledTaskRun({
-      conversationDir,
-      conversationId: due.conversationId,
+      sessionDir,
+      sessionId: due.sessionId,
       taskId: due.task.id,
     })
     if (!runningTask) continue
@@ -390,8 +390,8 @@ export async function processDueScheduledTasks(options: {
         await processScheduledDirectTask({
           config: options.config,
           channel: options.channel,
-          conversationId: due.conversationId,
-          conversationDir,
+          sessionId: due.sessionId,
+          sessionDir,
           task: runningTask,
           monitor: options.monitor,
         })
@@ -399,23 +399,23 @@ export async function processDueScheduledTasks(options: {
         await processScheduledLlmTask({
           config: options.config,
           channel: options.channel,
-          conversationId: due.conversationId,
-          conversationDir,
+          sessionId: due.sessionId,
+          sessionDir,
           task: runningTask,
           monitor: options.monitor,
         })
       }
 
       finishScheduledTaskRun({
-        conversationDir,
-        conversationId: due.conversationId,
+        sessionDir,
+        sessionId: due.sessionId,
         taskId: runningTask.id,
         status: "triggered",
       })
     } catch (error) {
-      const normalized = appendConversationErrorLog({
-        conversationDir,
-        conversationId: due.conversationId,
+      const normalized = appendSessionErrorLog({
+        sessionDir,
+        sessionId: due.sessionId,
         phase: "scheduled_task",
         error,
         context: {
@@ -425,14 +425,14 @@ export async function processDueScheduledTasks(options: {
         },
       })
       failScheduledTaskRun({
-        conversationDir,
-        conversationId: due.conversationId,
+        sessionDir,
+        sessionId: due.sessionId,
         taskId: runningTask.id,
         error: normalized.message,
         baseDelayMs: options.config.scheduler.failureRetryBaseDelayMs,
       })
 
-      const metadata = loadMetadata(conversationDir)
+      const metadata = loadSessionMetadata(sessionDir)
       if (metadata) {
         const errorUser = buildSyntheticSchedulerUser({
           userId: metadata.userId,
@@ -440,14 +440,14 @@ export async function processDueScheduledTasks(options: {
           firstName: metadata.firstName,
           lastName: metadata.lastName,
         })
-        options.monitor?.notePhase("send", due.conversationId)
+        options.monitor?.notePhase("send", due.sessionId)
         const errorText = formatErrorReply({
           config: options.config,
           user: errorUser,
           error,
         })
         options.monitor?.noteOutgoingMessage({
-          conversationId: due.conversationId,
+          sessionId: due.sessionId,
           text: errorText,
           role: "error",
         })

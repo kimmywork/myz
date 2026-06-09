@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createAssistantMessage, createUserMessage } from "../src/conversations"
+import { createAssistantMessage, createUserMessage } from "../src/sessions"
 import { generateReply } from "../src/ai"
 import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
@@ -98,7 +98,7 @@ test("generateReply keeps responses usage from top-level payload and normalizes 
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c1",
+      sessionId: "c1",
       messages: [createUserMessage("c1", "test")],
     })
 
@@ -174,7 +174,7 @@ test("generateReply sends a stable prompt cache key for responses requests", asy
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-cache",
+      sessionId: "c-cache",
       messages: [createUserMessage("c-cache", "test cache key")],
     })
 
@@ -237,7 +237,7 @@ test("generateReply uses previous_response_id for incremental responses turns", 
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-prev",
+      sessionId: "c-prev",
       messages: [
         createUserMessage("c-prev", "first question"),
         previousAssistant,
@@ -315,7 +315,7 @@ test("generateReply can continue from a resumable response even when current tur
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-ctx",
+      sessionId: "c-ctx",
       messages: [
         createUserMessage("c-ctx", "first question"),
         previousAssistant,
@@ -393,7 +393,7 @@ test("generateReply does not continue from a non-resumable response id", async (
   try {
     await generateReply({
       config,
-      conversationId: "c-stop",
+      sessionId: "c-stop",
       messages: [
         createUserMessage("c-stop", "older"),
         previousAssistant,
@@ -474,7 +474,7 @@ test("generateReply does not send OpenAI-only continuation fields to non-OpenAI 
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-3p",
+      sessionId: "c-3p",
       messages: [
         createUserMessage("c-3p", "first question"),
         previousAssistant,
@@ -551,7 +551,7 @@ test("generateReply logs final llm request json when debug is enabled", async ()
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-debug",
+      sessionId: "c-debug",
       messages: [createUserMessage("c-debug", "debug this")],
     })
 
@@ -563,7 +563,7 @@ test("generateReply logs final llm request json when debug is enabled", async ()
     const payload = JSON.parse(
       readFileSync(join(logDir, files[0] || ""), "utf-8"),
     ) as {
-      conversationId: string
+      sessionId: string
       provider: string
       requestSummary?: {
         previousResponseId?: string
@@ -581,7 +581,7 @@ test("generateReply logs final llm request json when debug is enabled", async ()
         stream?: boolean
       }
     }
-    assert.equal(payload.conversationId, "c-debug")
+    assert.equal(payload.sessionId, "c-debug")
     assert.equal(payload.provider, "openai_responses")
     assert.equal(payload.requestBody?.model, "gpt-test")
     assert.equal(payload.requestBody?.stream, true)
@@ -650,7 +650,7 @@ test("generateReply ignores debug log write failures", async () => {
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-debug-fail",
+      sessionId: "c-debug-fail",
       messages: [createUserMessage("c-debug-fail", "debug fail")],
     })
 
@@ -697,7 +697,7 @@ test("generateReply streams openai-compatible requests through sdk-backed ai-cor
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-openai-compatible",
+      sessionId: "c-openai-compatible",
       messages: [createUserMessage("c-openai-compatible", "hello")],
     })
 
@@ -750,7 +750,7 @@ test("generateReply applies deepseek reasoning profile controls to openai-compat
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-deepseek-profile",
+      sessionId: "c-deepseek-profile",
       messages: [createUserMessage("c-deepseek-profile", "hello")],
     })
 
@@ -804,7 +804,7 @@ test("generateReply passes gemini thinking config into sdk generateContentStream
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-gemini",
+      sessionId: "c-gemini",
       messages: [createUserMessage("c-gemini", "hello gemini")],
     })
 
@@ -864,7 +864,7 @@ test("generateReply normalizes gemini streaming usage metadata", async () => {
   try {
     const reply = await generateReply({
       config,
-      conversationId: "c-gemini-usage",
+      sessionId: "c-gemini-usage",
       messages: [createUserMessage("c-gemini-usage", "hello gemini")],
     })
 

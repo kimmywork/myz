@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ProviderMessage } from "@myz/ai-core/providers/types"
 import type { ChatMessage, ChatSendMessageOptions } from "../src/chatChannel"
-import { ensureConversationDir } from "../src/conversations"
+import { ensureSessionDir } from "../src/sessions"
 import {
   createToolProgressNotifier,
   draftToolProgressMessage,
@@ -20,7 +20,7 @@ test("draftToolProgressMessage prefers assistant-authored draft content", async 
   const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
   const text = await draftToolProgressMessage({
     config: createTestConfig(root),
-    conversationId: "c1",
+    sessionId: "c1",
     soul: "# Bot\n自然、简洁。",
     latestUserInput: "帮我看一下 README",
     phase: "start",
@@ -36,7 +36,7 @@ test("draftToolProgressMessage collapses duplicated assistant-authored progress 
   const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
   const text = await draftToolProgressMessage({
     config: createTestConfig(root),
-    conversationId: "c1",
+    sessionId: "c1",
     soul: "# Bot\n自然、简洁。",
     latestUserInput: "帮我看一下 README",
     phase: "start",
@@ -66,7 +66,7 @@ test("draftToolProgressMessage falls back to natural phrasing when helper drafti
         },
       },
     },
-    conversationId: "c1",
+    sessionId: "c1",
     soul: "# Bot\n自然、简洁。",
     latestUserInput: "帮我看一下 README",
     phase: "result",
@@ -80,7 +80,7 @@ test("draftToolProgressMessage falls back to natural phrasing when helper drafti
 
 test("createToolProgressNotifier sends natural progress messages", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
-  const conversationDir = ensureConversationDir(join(root, "conversations"), "c1")
+  const sessionDir = ensureSessionDir(join(root, "conversations"), "c1")
   const sent: string[] = []
   let messageId = 200
 
@@ -105,8 +105,8 @@ test("createToolProgressNotifier sends natural progress messages", async () => {
         ]
       },
     } as any,
-    conversationDir,
-    conversationId: "c1",
+    sessionDir,
+    sessionId: "c1",
     chatId: 101,
     latestUserInput: "帮我看一下 README",
     soul: "# Bot\n自然、简洁。",
@@ -150,7 +150,7 @@ test("createToolProgressNotifier sends natural progress messages", async () => {
 
 test("createToolProgressNotifier skips internal SelectTools activity", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
-  const conversationDir = ensureConversationDir(join(root, "conversations"), "c1")
+  const sessionDir = ensureSessionDir(join(root, "conversations"), "c1")
   let sent = 0
 
   const notifier = createToolProgressNotifier({
@@ -161,8 +161,8 @@ test("createToolProgressNotifier skips internal SelectTools activity", async () 
         return []
       },
     } as any,
-    conversationDir,
-    conversationId: "c1",
+    sessionDir,
+    sessionId: "c1",
     chatId: 101,
     latestUserInput: "帮我查一下",
     soul: "# Bot\n自然、简洁。",
@@ -196,7 +196,7 @@ test("createToolProgressNotifier skips internal SelectTools activity", async () 
 
 test("createToolProgressNotifier batches a multi-tool round into one start and one result message", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
-  const conversationDir = ensureConversationDir(join(root, "conversations"), "c1")
+  const sessionDir = ensureSessionDir(join(root, "conversations"), "c1")
   const sent: string[] = []
   let messageId = 300
 
@@ -221,8 +221,8 @@ test("createToolProgressNotifier batches a multi-tool round into one start and o
         ]
       },
     } as any,
-    conversationDir,
-    conversationId: "c1",
+    sessionDir,
+    sessionId: "c1",
     chatId: 101,
     latestUserInput: "帮我看看这两个文件",
     soul: "# Bot\n自然、简洁。",

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { BotRuntimeConfig } from "../src/config"
 import { createRuntimeConfig } from "./helpers/runtimeConfig"
-import { ensureConversationDir } from "../src/conversations"
+import { ensureSessionDir } from "../src/sessions"
 import {
   __resetRestartStateForTest,
   __setRestartExitHandlerForTest,
@@ -37,13 +37,13 @@ function writeJsonl(path: string, entries: unknown[]) {
 test("collectTokenUsageSummary aggregates live llm usage", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-maintenance-"))
   const config = createConfig(root)
-  const c1Dir = ensureConversationDir(config.conversationsDir, "c1")
-  const c2Dir = ensureConversationDir(config.conversationsDir, "c2")
+  const c1Dir = ensureSessionDir(config.sessionsDir, "c1")
+  const c2Dir = ensureSessionDir(config.sessionsDir, "c2")
 
-  writeJsonl(join(c1Dir, "llm-history.jsonl"), [
+  writeJsonl(join(c1Dir, "session-history.jsonl"), [
     {
       id: "m1",
-      conversationId: "c1",
+      sessionId: "c1",
       role: "assistant",
       content: "reply 1",
       timestamp: new Date().toISOString(),
@@ -58,10 +58,10 @@ test("collectTokenUsageSummary aggregates live llm usage", () => {
       },
     },
   ])
-  writeJsonl(join(c2Dir, "llm-history.jsonl"), [
+  writeJsonl(join(c2Dir, "session-history.jsonl"), [
     {
       id: "m3",
-      conversationId: "c2",
+      sessionId: "c2",
       role: "assistant",
       content: "reply 3",
       timestamp: new Date().toISOString(),
@@ -79,7 +79,7 @@ test("collectTokenUsageSummary aggregates live llm usage", () => {
   const current = collectTokenUsageSummary({
     config,
     scope: "current",
-    conversationId: "c1",
+    sessionId: "c1",
   })
   assert.equal(current.totalTokens, 10)
   assert.equal(current.promptTokens, 6)
@@ -99,19 +99,19 @@ test("collectTokenUsageSummary aggregates live llm usage", () => {
   assert.equal(all.cachedPromptTokens, 0)
   assert.equal(all.resumedReplies, 1)
   assert.equal(all.cacheHitReplies, 0)
-  assert.equal(all.byConversation[0]?.conversationId, "c1")
-  assert.equal(all.byConversation[1]?.conversationId, "c2")
+  assert.equal(all.byConversation[0]?.sessionId, "c1")
+  assert.equal(all.byConversation[1]?.sessionId, "c2")
 })
 
 test("collectTokenUsageSummary understands responses-style input/output token fields", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-maintenance-"))
   const config = createConfig(root)
-  const c1Dir = ensureConversationDir(config.conversationsDir, "c1")
+  const c1Dir = ensureSessionDir(config.sessionsDir, "c1")
 
-  writeJsonl(join(c1Dir, "llm-history.jsonl"), [
+  writeJsonl(join(c1Dir, "session-history.jsonl"), [
     {
       id: "m1",
-      conversationId: "c1",
+      sessionId: "c1",
       role: "assistant",
       content: "reply 1",
       timestamp: new Date().toISOString(),
@@ -136,7 +136,7 @@ test("collectTokenUsageSummary understands responses-style input/output token fi
   const summary = collectTokenUsageSummary({
     config,
     scope: "current",
-    conversationId: "c1",
+    sessionId: "c1",
   })
 
   assert.equal(summary.totalTokens, 90)
@@ -164,12 +164,12 @@ test("getBotRuntimeStatus reports conversations, permissions, and active tasks",
     rawTarget: join(root, "secret.txt"),
     toolName: "Read",
     reason: "test",
-    conversationId: "c1",
+    sessionId: "c1",
   })
-  const conversationDir = ensureConversationDir(config.conversationsDir, "c1")
+  const sessionDir = ensureSessionDir(config.sessionsDir, "c1")
   createScheduledTask({
-    conversationDir,
-    conversationId: "c1",
+    sessionDir,
+    sessionId: "c1",
     title: "Pending",
     dueAt: new Date(Date.now() + 60_000).toISOString(),
   })

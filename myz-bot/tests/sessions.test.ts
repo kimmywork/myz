@@ -3,11 +3,11 @@ import assert from "node:assert/strict"
 import { existsSync, mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { ensureConversationDir } from "../src/conversations"
+import { ensureSessionDir } from "../src/sessions"
 
-test("ensureConversationDir creates the conversation runtime directory only", () => {
+test("ensureSessionDir creates the conversation runtime directory only", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-conv-"))
-  const dir = ensureConversationDir(root, "conv-1")
+  const dir = ensureSessionDir(root, "conv-1")
   assert.equal(existsSync(dir), true)
   assert.equal(dir, join(root, "conv-1"))
 })

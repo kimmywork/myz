@@ -9,9 +9,9 @@ import {
 import { dirname, resolve } from "node:path"
 import type { Message } from "@myz/ai-core/types"
 import type { BotRuntimeConfig } from "./config"
-import { getLlmHistoryPath } from "./conversations"
+import { getSessionHistoryPath } from "./sessions"
 import { listElevatedPermissionRequests } from "./elevatedPermissions"
-import { listConversationTasks } from "./tasks"
+import { listSessionTasks } from "./tasks"
 
 const PROCESS_STARTED_AT = Date.now()
 const RESTART_EXIT_CODE = 75
@@ -41,7 +41,7 @@ export interface TokenUsageTotals {
 }
 
 export interface ConversationTokenUsageSummary extends TokenUsageTotals {
-  conversationId: string
+  sessionId: string
   assistantMessages: number
   meteredMessages: number
   toolCallCount: number
@@ -60,11 +60,11 @@ export interface TokenUsageSummary extends TokenUsageTotals {
   byConversation: ConversationTokenUsageSummary[]
 }
 
-function listConversationDirs(conversationsDir: string) {
-  if (!existsSync(conversationsDir)) return [] as Array<{ id: string; dir: string }>
-  return readdirSync(conversationsDir)
+function listSessionDirs(sessionsDir: string) {
+  if (!existsSync(sessionsDir)) return [] as Array<{ id: string; dir: string }>
+  return readdirSync(sessionsDir)
     .map((name) => {
-      const dir = resolve(conversationsDir, name)
+      const dir = resolve(sessionsDir, name)
       try {
         return statSync(dir).isDirectory() ? { id: name, dir } : null
       } catch {
@@ -148,11 +148,11 @@ function extractUsageTotals(message: Message): TokenUsageTotals {
   }
 }
 
-function readConversationUsageSummary(conversationDir: string, conversationId: string) {
-  const messages = loadJsonlMessages(getLlmHistoryPath(conversationDir))
+function readSessionUsageSummary(sessionDir: string, sessionId: string) {
+  const messages = loadJsonlMessages(getSessionHistoryPath(sessionDir))
 
   const totals: ConversationTokenUsageSummary = {
-    conversationId,
+    sessionId,
     totalTokens: 0,
     promptTokens: 0,
     completionTokens: 0,
@@ -194,11 +194,11 @@ function readConversationUsageSummary(conversationDir: string, conversationId: s
 }
 
 export function getBotRuntimeStatus(config: BotRuntimeConfig): BotRuntimeStatus {
-  const conversationEntries = listConversationDirs(config.conversationsDir)
+  const conversationEntries = listSessionDirs(config.sessionsDir)
   const activeTasks = conversationEntries.reduce((count, entry) => {
-    const tasks = listConversationTasks({
-      conversationDir: entry.dir,
-      conversationId: entry.id,
+    const tasks = listSessionTasks({
+      sessionDir: entry.dir,
+      sessionId: entry.id,
       includeDeleted: false,
     })
     return count + tasks.filter((task) => task.status === "pending" || task.status === "running").length
@@ -232,23 +232,23 @@ export function formatBotRuntimeStatus(status: BotRuntimeStatus) {
 export function collectTokenUsageSummary(options: {
   config: BotRuntimeConfig
   scope: MaintenanceScope
-  conversationId?: string
+  sessionId?: string
 }) {
   const entries =
     options.scope === "current"
-      ? options.conversationId
+      ? options.sessionId
         ? [
             {
-              id: options.conversationId,
-              dir: resolve(options.config.conversationsDir, options.conversationId),
+              id: options.sessionId,
+              dir: resolve(options.config.sessionsDir, options.sessionId),
             },
           ]
         : []
-      : listConversationDirs(options.config.conversationsDir)
+      : listSessionDirs(options.config.sessionsDir)
 
   const byConversation = entries
     .filter((entry) => existsSync(entry.dir))
-    .map((entry) => readConversationUsageSummary(entry.dir, entry.id))
+    .map((entry) => readSessionUsageSummary(entry.dir, entry.id))
     .filter((entry) => entry.assistantMessages > 0 || entry.totalTokens > 0)
     .sort((left, right) => right.totalTokens - left.totalTokens)
 
@@ -300,7 +300,7 @@ export function formatTokenUsageSummary(summary: TokenUsageSummary, maxConversat
     lines.push("", "按会话统计：")
     summary.byConversation.slice(0, Math.max(1, maxConversations)).forEach((entry) => {
       lines.push(
-        `- ${entry.conversationId} | total=${entry.totalTokens} | prompt=${entry.promptTokens} | cached=${entry.cachedPromptTokens} | replies=${entry.assistantMessages} | resumed=${entry.resumedReplies} | cacheHits=${entry.cacheHitReplies} | tools=${entry.toolCallCount}`,
+        `- ${entry.sessionId} | total=${entry.totalTokens} | prompt=${entry.promptTokens} | cached=${entry.cachedPromptTokens} | replies=${entry.assistantMessages} | resumed=${entry.resumedReplies} | cacheHits=${entry.cacheHitReplies} | tools=${entry.toolCallCount}`,
       )
     })
   }

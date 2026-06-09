@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { createUserMessage } from "../src/conversations"
+import { createUserMessage } from "../src/sessions"
 import {
   createRuntimeMonitor,
   formatRuntimeMonitorScreen,
@@ -35,23 +35,23 @@ test("runtime monitor tracks request metrics and chat tail", async () => {
   })
 
   monitor.noteIncomingMessage({
-    conversationId: "c1",
+    sessionId: "c1",
     text: "帮我整理这个任务",
   })
   const request = monitor.noteRequestStart({
-    conversationId: "c1",
+    sessionId: "c1",
     source: "conversation",
     messages: [createUserMessage("c1", "帮我整理这个任务")],
   })
   current = new Date("2026-04-29T10:00:02.000Z")
   monitor.notePhase("tool", "c1")
   monitor.noteOutgoingMessage({
-    conversationId: "c1",
+    sessionId: "c1",
     text: "我先看一下当前任务结构。",
     role: "progress",
   })
   monitor.noteRequestComplete({
-    conversationId: "c1",
+    sessionId: "c1",
     source: "conversation",
     startedAt: request.startedAt - 2000,
     requestId: request.requestId,
@@ -69,7 +69,7 @@ test("runtime monitor tracks request metrics and chat tail", async () => {
     toolCallCount: 2,
   })
   monitor.noteOutgoingMessage({
-    conversationId: "c1",
+    sessionId: "c1",
     text: "任务我已经先拆开了。",
   })
   monitor.notePhase("idle", "c1")
@@ -133,7 +133,7 @@ test("runtime monitor preserves explicit newlines in chat tail", async () => {
   })
 
   monitor.noteOutgoingMessage({
-    conversationId: "c1",
+    sessionId: "c1",
     text: "第一行\n\n第二行",
   })
 
@@ -165,7 +165,7 @@ test("runtime monitor does not aggressively truncate normal chat content", async
 
   const longText = Array.from({ length: 40 }, (_, index) => `条目-${index + 1}`).join(" | ")
   monitor.noteOutgoingMessage({
-    conversationId: "c1",
+    sessionId: "c1",
     text: longText,
   })
 

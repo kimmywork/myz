@@ -3,16 +3,16 @@ import assert from "node:assert/strict"
 import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { ensureConversationDir, getLlmHistoryPath, getLlmTracePath } from "../src/conversations"
-import { appendToolAuditTrace, appendToolMessagesToHistory } from "../src/toolHistory"
+import { ensureSessionDir, getSessionHistoryPath, getSessionTracePath } from "../src/sessions"
+import { appendToolAuditTrace, appendToolMessagesToSessionHistory } from "../src/toolHistory"
 
 test("tool history appends assistant tool calls and tool results to llm history", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tool-history-"))
-  const conversationDir = ensureConversationDir(join(root, "conversations"), "100-1")
+  const sessionDir = ensureSessionDir(join(root, "sessions"), "100-1")
 
-  appendToolMessagesToHistory({
-    conversationId: "100-1",
-    conversationDir,
+  appendToolMessagesToSessionHistory({
+    sessionId: "100-1",
+    sessionDir,
     trace: [
       {
         role: "assistant",
@@ -40,7 +40,7 @@ test("tool history appends assistant tool calls and tool results to llm history"
     ],
   })
 
-  const history = readFileSync(getLlmHistoryPath(conversationDir), "utf-8")
+  const history = readFileSync(getSessionHistoryPath(sessionDir), "utf-8")
   assert.match(history, /"role":"assistant"/)
   assert.match(history, /"tool_calls":\[/)
   assert.match(history, /"role":"tool"/)
@@ -49,11 +49,11 @@ test("tool history appends assistant tool calls and tool results to llm history"
 
 test("tool audit trace stays in llm-trace and is marked as tool_audit", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tool-history-"))
-  const conversationDir = ensureConversationDir(join(root, "conversations"), "100-1")
+  const sessionDir = ensureSessionDir(join(root, "sessions"), "100-1")
 
   appendToolAuditTrace({
-    conversationId: "100-1",
-    conversationDir,
+    sessionId: "100-1",
+    sessionDir,
     trace: [
       {
         role: "assistant",
@@ -80,7 +80,7 @@ test("tool audit trace stays in llm-trace and is marked as tool_audit", () => {
     ],
   })
 
-  const trace = readFileSync(getLlmTracePath(conversationDir), "utf-8")
+  const trace = readFileSync(getSessionTracePath(sessionDir), "utf-8")
   assert.match(trace, /tool_audit/)
   assert.match(trace, /"role":"tool"/)
 })

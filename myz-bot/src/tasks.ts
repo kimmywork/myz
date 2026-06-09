@@ -20,7 +20,7 @@ export type ScheduledTaskTriggerMode = "llm" | "direct"
 
 export interface ScheduledTask {
   id: string
-  conversationId: string
+  sessionId: string
   title: string
   instructions: string
   dueAt: string
@@ -41,30 +41,30 @@ export interface ScheduledTask {
 
 interface ScheduledTaskFile {
   schemaVersion: string
-  conversationId: string
+  sessionId: string
   updatedAt: string
   tasks: ScheduledTask[]
 }
 
 export interface ScheduledTaskRef {
-  conversationId: string
-  conversationDir: string
+  sessionId: string
+  sessionDir: string
   task: ScheduledTask
 }
 
 const TASK_SCHEMA_VERSION = "1.0.0"
 
-function getTaskPaths(conversationDir: string) {
+function getTaskPaths(sessionDir: string) {
   return {
-    tasksFile: resolve(conversationDir, "tasks.json"),
-    todoFile: resolve(conversationDir, "TODO.md"),
+    tasksFile: resolve(sessionDir, "tasks.json"),
+    todoFile: resolve(sessionDir, "TODO.md"),
   }
 }
 
-function createEmptyTaskFile(conversationId: string): ScheduledTaskFile {
+function createEmptyTaskFile(sessionId: string): ScheduledTaskFile {
   return {
     schemaVersion: TASK_SCHEMA_VERSION,
-    conversationId,
+    sessionId,
     updatedAt: new Date().toISOString(),
     tasks: [],
   }
@@ -111,28 +111,28 @@ function assertFutureDate(date: Date) {
 }
 
 function readTaskFile(
-  conversationDir: string,
-  conversationId: string,
+  sessionDir: string,
+  sessionId: string,
 ): ScheduledTaskFile {
-  const paths = getTaskPaths(conversationDir)
+  const paths = getTaskPaths(sessionDir)
   if (!existsSync(paths.tasksFile)) {
-    return createEmptyTaskFile(conversationId)
+    return createEmptyTaskFile(sessionId)
   }
   try {
     const parsed = JSON.parse(readFileSync(paths.tasksFile, "utf-8")) as {
       schemaVersion?: string
-      conversationId?: string
+      sessionId?: string
       updatedAt?: string
       tasks?: ScheduledTask[]
     }
     return {
       schemaVersion: parsed.schemaVersion || TASK_SCHEMA_VERSION,
-      conversationId: parsed.conversationId || conversationId,
+      sessionId: parsed.sessionId || sessionId,
       updatedAt: parsed.updatedAt || new Date().toISOString(),
       tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
     }
   } catch {
-    return createEmptyTaskFile(conversationId)
+    return createEmptyTaskFile(sessionId)
   }
 }
 
@@ -151,7 +151,7 @@ function buildTaskLine(task: ScheduledTask) {
   return details ? `${base}\n${details}` : base
 }
 
-function renderTodoMarkdown(conversationId: string, tasks: ScheduledTask[]) {
+function renderTodoMarkdown(sessionId: string, tasks: ScheduledTask[]) {
   const groups: Array<{
     title: string
     statuses: ScheduledTaskStatus[]
@@ -192,7 +192,7 @@ function renderTodoMarkdown(conversationId: string, tasks: ScheduledTask[]) {
   })
 
   return [
-    `# TODO (${conversationId})`,
+    `# TODO (${sessionId})`,
     "",
     "> This file is generated from tasks.json. Query tasks here if needed, but mutate them through task tools or by asking the bot.",
     "",
@@ -204,32 +204,32 @@ function renderTodoMarkdown(conversationId: string, tasks: ScheduledTask[]) {
 }
 
 function writeTaskFile(
-  conversationDir: string,
-  conversationId: string,
+  sessionDir: string,
+  sessionId: string,
   tasks: ScheduledTask[],
 ) {
-  const paths = getTaskPaths(conversationDir)
-  mkdirSync(conversationDir, { recursive: true })
+  const paths = getTaskPaths(sessionDir)
+  mkdirSync(sessionDir, { recursive: true })
   const payload: ScheduledTaskFile = {
     schemaVersion: TASK_SCHEMA_VERSION,
-    conversationId,
+    sessionId,
     updatedAt: new Date().toISOString(),
     tasks,
   }
   writeFileSync(paths.tasksFile, JSON.stringify(payload, null, 2))
-  writeFileSync(paths.todoFile, renderTodoMarkdown(conversationId, tasks))
+  writeFileSync(paths.todoFile, renderTodoMarkdown(sessionId, tasks))
   return payload
 }
 
 function saveTasks(
-  conversationDir: string,
-  conversationId: string,
+  sessionDir: string,
+  sessionId: string,
   updater: (tasks: ScheduledTask[]) => ScheduledTask[],
 ) {
-  const current = readTaskFile(conversationDir, conversationId)
+  const current = readTaskFile(sessionDir, sessionId)
   return writeTaskFile(
-    conversationDir,
-    conversationId,
+    sessionDir,
+    sessionId,
     updater([...current.tasks]),
   )
 }
@@ -281,28 +281,28 @@ function findSimilarActiveTask(
   })
 }
 
-export function ensureConversationTaskFiles(
-  conversationDir: string,
-  conversationId: string,
+export function ensureSessionTaskFiles(
+  sessionDir: string,
+  sessionId: string,
 ) {
-  const current = readTaskFile(conversationDir, conversationId)
-  writeTaskFile(conversationDir, conversationId, current.tasks)
+  const current = readTaskFile(sessionDir, sessionId)
+  writeTaskFile(sessionDir, sessionId, current.tasks)
 }
 
-export function listConversationTasks(options: {
-  conversationDir: string
-  conversationId: string
+export function listSessionTasks(options: {
+  sessionDir: string
+  sessionId: string
   includeDeleted?: boolean
 }): ScheduledTask[] {
-  const current = readTaskFile(options.conversationDir, options.conversationId)
+  const current = readTaskFile(options.sessionDir, options.sessionId)
   return current.tasks.filter((task) =>
     options.includeDeleted ? true : task.status !== "deleted",
   )
 }
 
 export function createScheduledTask(options: {
-  conversationDir: string
-  conversationId: string
+  sessionDir: string
+  sessionId: string
   title: string
   dueAt: string
   instructions?: string
@@ -321,9 +321,9 @@ export function createScheduledTask(options: {
   const instructions = (options.instructions || "").trim()
   const directReply = (options.directReply || "").trim() || undefined
   const existing = findSimilarActiveTask(
-    listConversationTasks({
-      conversationDir: options.conversationDir,
-      conversationId: options.conversationId,
+    listSessionTasks({
+      sessionDir: options.sessionDir,
+      sessionId: options.sessionId,
     }),
     {
       title,
@@ -333,8 +333,8 @@ export function createScheduledTask(options: {
   )
   if (existing) {
     return updateScheduledTask({
-      conversationDir: options.conversationDir,
-      conversationId: options.conversationId,
+      sessionDir: options.sessionDir,
+      sessionId: options.sessionId,
       taskId: existing.id,
       action: "edit",
       title,
@@ -347,7 +347,7 @@ export function createScheduledTask(options: {
 
   const task: ScheduledTask = {
     id: buildTaskId(),
-    conversationId: options.conversationId,
+    sessionId: options.sessionId,
     title,
     instructions,
     dueAt: dueAt.toISOString(),
@@ -359,7 +359,7 @@ export function createScheduledTask(options: {
     triggerAttempts: 0,
   }
 
-  saveTasks(options.conversationDir, options.conversationId, (tasks) => [
+  saveTasks(options.sessionDir, options.sessionId, (tasks) => [
     ...tasks,
     task,
   ])
@@ -368,8 +368,8 @@ export function createScheduledTask(options: {
 }
 
 export function updateScheduledTask(options: {
-  conversationDir: string
-  conversationId: string
+  sessionDir: string
+  sessionId: string
   taskId: string
   action:
     | "postpone"
@@ -392,7 +392,7 @@ export function updateScheduledTask(options: {
   }
 
   let updatedTask: ScheduledTask | undefined
-  saveTasks(options.conversationDir, options.conversationId, (tasks) => {
+  saveTasks(options.sessionDir, options.sessionId, (tasks) => {
     if (options.action === "merge") {
       const mergeTaskIds = Array.from(
         new Set(
@@ -517,14 +517,14 @@ export function updateScheduledTask(options: {
 }
 
 export function beginScheduledTaskRun(options: {
-  conversationDir: string
-  conversationId: string
+  sessionDir: string
+  sessionId: string
   taskId: string
   now?: Date
 }): ScheduledTask | null {
   const now = options.now || new Date()
   let updatedTask: ScheduledTask | undefined
-  saveTasks(options.conversationDir, options.conversationId, (tasks) =>
+  saveTasks(options.sessionDir, options.sessionId, (tasks) =>
     tasks.map((task) => {
       if (task.id !== options.taskId) return task
       const retryAfter = task.retryAfter ? new Date(task.retryAfter).getTime() : 0
@@ -549,13 +549,13 @@ export function beginScheduledTaskRun(options: {
 }
 
 export function finishScheduledTaskRun(options: {
-  conversationDir: string
-  conversationId: string
+  sessionDir: string
+  sessionId: string
   taskId: string
   status: "triggered" | "completed"
 }): ScheduledTask {
   let updatedTask: ScheduledTask | undefined
-  saveTasks(options.conversationDir, options.conversationId, (tasks) =>
+  saveTasks(options.sessionDir, options.sessionId, (tasks) =>
     tasks.map((task) => {
       if (task.id !== options.taskId) return task
       const now = new Date().toISOString()
@@ -578,15 +578,15 @@ export function finishScheduledTaskRun(options: {
 }
 
 export function failScheduledTaskRun(options: {
-  conversationDir: string
-  conversationId: string
+  sessionDir: string
+  sessionId: string
   taskId: string
   error: string
   baseDelayMs?: number
   maxDelayMs?: number
 }): ScheduledTask {
   let updatedTask: ScheduledTask | undefined
-  saveTasks(options.conversationDir, options.conversationId, (tasks) =>
+  saveTasks(options.sessionDir, options.sessionId, (tasks) =>
     tasks.map((task) => {
       if (task.id !== options.taskId) return task
       const attempts = Math.max(1, task.triggerAttempts || 1)
@@ -653,7 +653,7 @@ export function renderDirectTaskReply(task: ScheduledTask) {
 }
 
 export function listDueScheduledTasks(options: {
-  conversationsDir: string
+  sessionsDir: string
   now?: Date
   limit?: number
 }): ScheduledTaskRef[] {
@@ -662,23 +662,23 @@ export function listDueScheduledTasks(options: {
   let entries: string[] = []
 
   try {
-    entries = readdirSync(options.conversationsDir)
+    entries = readdirSync(options.sessionsDir)
   } catch {
     return results
   }
 
   entries.forEach((entry) => {
-    const conversationDir = resolve(options.conversationsDir, entry)
+    const sessionDir = resolve(options.sessionsDir, entry)
     let stat
     try {
-      stat = statSync(conversationDir)
+      stat = statSync(sessionDir)
     } catch {
       return
     }
     if (!stat.isDirectory()) return
-    const tasks = listConversationTasks({
-      conversationDir,
-      conversationId: entry,
+    const tasks = listSessionTasks({
+      sessionDir,
+      sessionId: entry,
       includeDeleted: false,
     })
     tasks.forEach((task) => {
@@ -688,8 +688,8 @@ export function listDueScheduledTasks(options: {
       if (Number.isNaN(dueAt) || dueAt > now.getTime()) return
       if (retryAfter && retryAfter > now.getTime()) return
       results.push({
-        conversationId: entry,
-        conversationDir,
+        sessionId: entry,
+        sessionDir,
         task,
       })
     })

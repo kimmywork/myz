@@ -4,7 +4,7 @@ import {
   appendTraceMessage,
   createAssistantMessage,
   createToolMessage,
-} from "./conversations"
+} from "./sessions"
 
 type ToolTraceEntry = {
   role: string
@@ -15,14 +15,14 @@ type ToolTraceEntry = {
 }
 
 export function appendToolAuditTrace(options: {
-  conversationId: string
-  conversationDir: string
+  sessionId: string
+  sessionDir: string
   trace: ToolTraceEntry[]
 }) {
   options.trace.forEach((entry) => {
     if (entry.role === "assistant" && Array.isArray(entry.tool_calls)) {
       const assistantMessage = createAssistantMessage(
-        options.conversationId,
+        options.sessionId,
         typeof entry.content === "string" ? entry.content : "",
         {
           type: "tool_audit",
@@ -32,13 +32,13 @@ export function appendToolAuditTrace(options: {
         },
       )
       assistantMessage.tool_calls = entry.tool_calls as Message["tool_calls"]
-      appendTraceMessage(options.conversationDir, assistantMessage)
+      appendTraceMessage(options.sessionDir, assistantMessage)
       return
     }
 
     if (entry.role === "tool" && typeof entry.tool_call_id === "string") {
       const toolMessage = createToolMessage(
-        options.conversationId,
+        options.sessionId,
         typeof entry.content === "string" ? entry.content : "",
         entry.tool_call_id,
         {
@@ -47,36 +47,36 @@ export function appendToolAuditTrace(options: {
           ...(entry.metadata || {}),
         },
       )
-      appendTraceMessage(options.conversationDir, toolMessage)
+      appendTraceMessage(options.sessionDir, toolMessage)
     }
   })
 }
 
-export function appendToolMessagesToHistory(options: {
-  conversationId: string
-  conversationDir: string
+export function appendToolMessagesToSessionHistory(options: {
+  sessionId: string
+  sessionDir: string
   trace: ToolTraceEntry[]
 }) {
   options.trace.forEach((entry) => {
     if (entry.role === "assistant" && Array.isArray(entry.tool_calls)) {
       const assistantMessage = createAssistantMessage(
-        options.conversationId,
+        options.sessionId,
         typeof entry.content === "string" ? entry.content : "",
         entry.metadata || {},
       )
       assistantMessage.tool_calls = entry.tool_calls as Message["tool_calls"]
-      appendMessage(options.conversationDir, assistantMessage)
+      appendMessage(options.sessionDir, assistantMessage)
       return
     }
 
     if (entry.role === "tool" && typeof entry.tool_call_id === "string") {
       const toolMessage = createToolMessage(
-        options.conversationId,
+        options.sessionId,
         typeof entry.content === "string" ? entry.content : "",
         entry.tool_call_id,
         entry.metadata || {},
       )
-      appendMessage(options.conversationDir, toolMessage)
+      appendMessage(options.sessionDir, toolMessage)
     }
   })
 }

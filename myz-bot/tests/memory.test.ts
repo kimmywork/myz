@@ -22,7 +22,7 @@ test("rememberConversationExchange persists and deduplicates explicit memory", (
 
   const first = rememberConversationExchange({
     memoryDir,
-    conversationId: "c1",
+    sessionId: "c1",
     userContent: "你先记下来我的系统状态",
     assistantContent: "当前环境是 macOS arm64，Node/Python/Rust/Java/Docker 可用。",
   })
@@ -31,7 +31,7 @@ test("rememberConversationExchange persists and deduplicates explicit memory", (
 
   const second = rememberConversationExchange({
     memoryDir,
-    conversationId: "c1",
+    sessionId: "c1",
     userContent: "你先记下来我的系统状态",
     assistantContent: "当前环境是 macOS arm64，Node/Python/Rust/Java/Docker 可用。",
   })

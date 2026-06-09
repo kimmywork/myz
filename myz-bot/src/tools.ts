@@ -13,9 +13,9 @@ import {
   appendMessage,
   createAssistantMessage,
   createUserMessage,
-  ensureConversationDir,
+  ensureSessionDir,
   loadMetadata,
-} from "./conversations"
+} from "./sessions"
 import {
   assertInsideWorkspace,
   resolveCommandVirtualPaths,
@@ -30,7 +30,7 @@ import { parseSkillsPath, listSkills, readSkillFile, type SkillSource } from "./
 import {
   createScheduledTask,
   formatTasksForTool,
-  listConversationTasks,
+  listSessionTasks,
   updateScheduledTask,
 } from "./tasks"
 import {
@@ -102,16 +102,16 @@ function resolveToolWorkspaceRoot(options: {
 
 function resolveConversationAttachmentsDir(options: {
   attachmentsDir: string
-  conversationId?: string
+  sessionId?: string
 }) {
-  const conversationId =
-    typeof options.conversationId === "string"
-      ? options.conversationId.trim()
+  const sessionId =
+    typeof options.sessionId === "string"
+      ? options.sessionId.trim()
       : ""
-  if (!conversationId) {
+  if (!sessionId) {
     throw new Error("当前没有会话上下文，无法访问附件")
   }
-  return resolve(options.attachmentsDir, conversationId)
+  return resolve(options.attachmentsDir, sessionId)
 }
 
 function resolveVirtualPath(options: {
@@ -119,9 +119,9 @@ function resolveVirtualPath(options: {
   workspaceRoot: string
   skillSources: SkillSource[]
   memoryDir: string
-  conversationsDir: string
+  sessionsDir: string
   attachmentsDir: string
-  conversationId?: string
+  sessionId?: string
   allowExternalPaths?: boolean
 }) {
   const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
@@ -142,7 +142,7 @@ function resolveVirtualPath(options: {
     const next = normalized.replace(/^\/attachments\/?/, "")
     const attachmentRoot = resolveConversationAttachmentsDir({
       attachmentsDir: options.attachmentsDir,
-      conversationId: options.conversationId,
+      sessionId: options.sessionId,
     })
     const target = resolve(attachmentRoot, next)
     return {
@@ -350,7 +350,7 @@ export function createLocalTools(options: {
   toolDenylist?: string[]
   memoryDir: string
   knowledgeDir?: string
-  conversationsDir: string
+  sessionsDir: string
   attachmentsDir?: string
   adminUsers?: string[]
   channel?: Pick<ChatChannelClient<ChatMessage>, "sendMessage">
@@ -358,8 +358,8 @@ export function createLocalTools(options: {
   const runtimeRoot = options.runtimeRoot || options.workspaceRoot
   const attachmentsDir = options.attachmentsDir || resolve(runtimeRoot, "attachments")
   function resolveWriteEntries(args: Record<string, unknown>) {
-    const conversationId =
-      typeof args.__conversationId === "string" ? args.__conversationId : undefined
+    const sessionId =
+      typeof args.__sessionId === "string" ? args.__sessionId : undefined
     const files = Array.isArray(args.files)
       ? args.files.filter(isRecord)
       : []
@@ -404,9 +404,9 @@ export function createLocalTools(options: {
         workspaceRoot: options.workspaceRoot,
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
-        conversationsDir: options.conversationsDir,
+        sessionsDir: options.sessionsDir,
         attachmentsDir,
-        conversationId,
+        sessionId,
         allowExternalPaths: true,
       })
       if (!resolved || resolved.kind !== "path") {
@@ -429,7 +429,7 @@ export function createLocalTools(options: {
           rawTarget: request.rawPath,
           toolName: "Write",
           reason: "需要写入当前工作区之外的路径",
-          conversationId,
+          sessionId,
         })
       }
       if (resolvedPaths.has(resolved.path)) {
@@ -453,13 +453,13 @@ export function createLocalTools(options: {
     matcher: string
     pattern: string
     toolName: string
-    conversationId?: string
+    sessionId?: string
     reason: string
   }) {
     if (!options.channel || !(options.adminUsers || []).length) return
     const targets = findAdminPrivateChatTargets({
       workspaceRoot: runtimeRoot,
-      conversationsDir: options.conversationsDir,
+      sessionsDir: options.sessionsDir,
       adminUsers: options.adminUsers || [],
     })
     await Promise.all(
@@ -487,7 +487,7 @@ export function createLocalTools(options: {
     rawTarget: string
     toolName: string
     reason: string
-    conversationId?: string
+    sessionId?: string
   }) {
     const request = createElevatedPermissionRequest({
       workspaceRoot: runtimeRoot,
@@ -496,7 +496,7 @@ export function createLocalTools(options: {
       rawTarget: payload.rawTarget,
       toolName: payload.toolName,
       reason: payload.reason,
-      conversationId: payload.conversationId,
+      sessionId: payload.sessionId,
     })
     await notifyAdminsForPermissionRequest(request)
     return errorBlock(
@@ -727,16 +727,16 @@ export function createLocalTools(options: {
   const allHandlers: Record<string, (args: Record<string, unknown>) => Promise<ToolExecutionResult> | ToolExecutionResult> = {
     List: async (args) => {
       const rawPath = typeof args.path === "string" ? args.path : "/"
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId : undefined
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId : undefined
       const resolved = resolveVirtualPath({
         rawPath,
         workspaceRoot: options.workspaceRoot,
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
-        conversationsDir: options.conversationsDir,
+        sessionsDir: options.sessionsDir,
         attachmentsDir,
-        conversationId,
+        sessionId,
         allowExternalPaths: true,
       })
       if (!resolved) return errorBlock("路径无效")
@@ -796,7 +796,7 @@ export function createLocalTools(options: {
           rawTarget: rawPath,
           toolName: "List",
           reason: "需要列出当前工作区之外的目录",
-          conversationId,
+          sessionId,
         })
       }
       if (!existsSync(resolved.path)) return errorBlock("路径不存在")
@@ -811,17 +811,17 @@ export function createLocalTools(options: {
     },
     Read: async (args) => {
       const rawPath = typeof args.path === "string" ? args.path : ""
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId : undefined
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId : undefined
       if (!rawPath) return errorBlock("path 必填")
       const resolved = resolveVirtualPath({
         rawPath,
         workspaceRoot: options.workspaceRoot,
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
-        conversationsDir: options.conversationsDir,
+        sessionsDir: options.sessionsDir,
         attachmentsDir,
-        conversationId,
+        sessionId,
         allowExternalPaths: true,
       })
       if (!resolved) return errorBlock("路径无效")
@@ -870,7 +870,7 @@ export function createLocalTools(options: {
           rawTarget: rawPath,
           toolName: "Read",
           reason: "需要读取当前工作区之外的文件",
-          conversationId,
+          sessionId,
         })
       }
       if (!existsSync(resolved.path)) return errorBlock("路径不存在")
@@ -912,8 +912,8 @@ export function createLocalTools(options: {
       const oldText = typeof args.oldText === "string" ? args.oldText : ""
       const newText = typeof args.newText === "string" ? args.newText : ""
       const replaceAll = Boolean(args.replaceAll)
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId : undefined
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId : undefined
       if (!rawPath) return errorBlock("path 必填")
       if (isAttachmentsVirtualPath(rawPath)) {
         return errorBlock("附件目录是只读的，不允许修改")
@@ -923,9 +923,9 @@ export function createLocalTools(options: {
         workspaceRoot: options.workspaceRoot,
         skillSources: options.skillSources,
         memoryDir: options.memoryDir,
-        conversationsDir: options.conversationsDir,
+        sessionsDir: options.sessionsDir,
         attachmentsDir,
-        conversationId,
+        sessionId,
         allowExternalPaths: true,
       })
       if (!resolved || resolved.kind !== "path") {
@@ -951,7 +951,7 @@ export function createLocalTools(options: {
           rawTarget: rawPath,
           toolName: "Edit",
           reason: "需要修改当前工作区之外的文件",
-          conversationId,
+          sessionId,
         })
       }
       if (!existsSync(resolved.path)) return errorBlock("路径不存在")
@@ -965,8 +965,8 @@ export function createLocalTools(options: {
     },
     Glob: async (args) => {
       const pattern = typeof args.pattern === "string" ? args.pattern : ""
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId : undefined
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId : undefined
       if (!pattern) return errorBlock("pattern 必填")
       const maxEntries = typeof args.maxEntries === "number" ? Math.max(1, Math.min(5000, args.maxEntries)) : 2000
       const regex = globToRegex(pattern.replace(/\\/g, "/"))
@@ -982,8 +982,8 @@ export function createLocalTools(options: {
     Run: async (args) => {
       const command = typeof args.command === "string" ? args.command : ""
       const timeoutMs = typeof args.timeoutMs === "number" ? args.timeoutMs : 60000
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId : undefined
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId : undefined
       if (!command) return errorBlock("command 必填")
       const effectiveWorkspaceRoot = resolveToolWorkspaceRoot({
         workspaceRoot: options.workspaceRoot,
@@ -1016,7 +1016,7 @@ export function createLocalTools(options: {
             rawTarget: deniedPaths[0] || command,
             toolName: "Run",
             reason: `需要在当前工作区之外执行命令相关路径访问：${command}`,
-            conversationId,
+            sessionId,
           })
         } else {
           return errorBlock(`命令被拒绝: ${guardReason}`)
@@ -1041,15 +1041,15 @@ export function createLocalTools(options: {
       })
     },
     Task: async (args) => {
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
-      if (!conversationId) {
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId.trim() : ""
+      if (!sessionId) {
         return errorBlock("当前没有会话上下文，无法管理任务计划")
       }
 
-      const conversationDir = ensureConversationDir(
-        options.conversationsDir,
-        conversationId,
+      const sessionDir = ensureSessionDir(
+        options.sessionsDir,
+        sessionId,
       )
       const payload = isRecord(args.payload) ? args.payload : args
       const rawAction =
@@ -1059,7 +1059,7 @@ export function createLocalTools(options: {
             ? args.action
             : ""
       const isEmptyPayload =
-        Object.keys(payload).filter((key) => key !== "__conversationId").length === 0
+        Object.keys(payload).filter((key) => key !== "__sessionId").length === 0
       const action = parseTaskAction(rawAction) || (isEmptyPayload ? "list" : "")
 
       if (!action) {
@@ -1068,7 +1068,7 @@ export function createLocalTools(options: {
 
       if (action === "init") {
         const plan = initTaskPlan({
-          conversationDir,
+          sessionDir,
           goal:
             typeof payload.goal === "string"
               ? payload.goal.trim()
@@ -1106,12 +1106,12 @@ export function createLocalTools(options: {
           const hasPatchKeys = Object.keys(patch).length > 0
           const plan = hasPatchKeys
             ? updateTaskItem({
-                conversationDir,
+                sessionDir,
                 taskId,
                 patch,
               })
             : updateTaskStatus({
-                conversationDir,
+                sessionDir,
                 taskId,
                 status: nextStatus,
               })
@@ -1122,7 +1122,7 @@ export function createLocalTools(options: {
         }
 
         const plan = updateTaskPlanStatus({
-          conversationDir,
+          sessionDir,
           status: parseTaskPlanStatus(payload.status),
           currentTaskId:
             typeof payload.currentTaskId === "string"
@@ -1148,7 +1148,7 @@ export function createLocalTools(options: {
       }
 
       if (action === "get") {
-        const plan = getTaskPlan(conversationDir)
+        const plan = getTaskPlan(sessionDir)
         const hint = isEmptyPayload
           ? '提示: 调用 Task 时请提供 action 字段，例如 {"action":"get"}。'
           : ""
@@ -1172,10 +1172,10 @@ export function createLocalTools(options: {
           .filter((value): value is TaskStatus => Boolean(value))
         const tasks = onlyUnblocked
           ? listUnblockedTasks({
-              conversationDir,
+              sessionDir,
               status: statusList.length ? statusList : undefined,
             })
-          : getTaskPlan(conversationDir)?.tasks || []
+          : getTaskPlan(sessionDir)?.tasks || []
         const hint = isEmptyPayload
           ? '提示: 调用 Task 时请提供 action 字段，例如 {"action":"list"}。'
           : ""
@@ -1190,7 +1190,7 @@ export function createLocalTools(options: {
       }
 
       const plan = completeAllTasks({
-        conversationDir,
+        sessionDir,
         summary: typeof payload.summary === "string" ? payload.summary.trim() : "",
         outcome: typeof payload.outcome === "string" ? payload.outcome.trim() : "",
       })
@@ -1200,36 +1200,36 @@ export function createLocalTools(options: {
       return textBlock(withStructuredData("任务计划已完成。", plan))
     },
     ListScheduledTasks: async (args) => {
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
-      if (!conversationId) {
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId.trim() : ""
+      if (!sessionId) {
         return errorBlock("当前没有会话上下文，无法读取定时任务")
       }
-      const conversationDir = ensureConversationDir(
-        options.conversationsDir,
-        conversationId,
+      const sessionDir = ensureSessionDir(
+        options.sessionsDir,
+        sessionId,
       )
-      const tasks = listConversationTasks({
-        conversationDir,
-        conversationId,
+      const tasks = listSessionTasks({
+        sessionDir,
+        sessionId,
         includeDeleted: Boolean(args.includeDeleted),
       })
       return textBlock(formatTasksForTool(tasks))
     },
     CreateScheduledTask: async (args) => {
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
-      if (!conversationId) {
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId.trim() : ""
+      if (!sessionId) {
         return errorBlock("当前没有会话上下文，无法创建定时任务")
       }
       try {
-        const conversationDir = ensureConversationDir(
-          options.conversationsDir,
-          conversationId,
+        const sessionDir = ensureSessionDir(
+          options.sessionsDir,
+          sessionId,
         )
         const task = createScheduledTask({
-          conversationDir,
-          conversationId,
+          sessionDir,
+          sessionId,
           title: typeof args.title === "string" ? args.title : "",
           dueAt: typeof args.dueAt === "string" ? args.dueAt : "",
           instructions: typeof args.instructions === "string" ? args.instructions : "",
@@ -1252,15 +1252,15 @@ export function createLocalTools(options: {
       }
     },
     UpdateScheduledTask: async (args) => {
-      const conversationId =
-        typeof args.__conversationId === "string" ? args.__conversationId.trim() : ""
-      if (!conversationId) {
+      const sessionId =
+        typeof args.__sessionId === "string" ? args.__sessionId.trim() : ""
+      if (!sessionId) {
         return errorBlock("当前没有会话上下文，无法更新定时任务")
       }
       try {
-        const conversationDir = ensureConversationDir(
-          options.conversationsDir,
-          conversationId,
+        const sessionDir = ensureSessionDir(
+          options.sessionsDir,
+          sessionId,
         )
         const action =
           typeof args.action === "string" ? args.action.trim().toLowerCase() : ""
@@ -1276,8 +1276,8 @@ export function createLocalTools(options: {
           return errorBlock("action 无效")
         }
         const task = updateScheduledTask({
-          conversationDir,
-          conversationId,
+          sessionDir,
+          sessionId,
           taskId: typeof args.taskId === "string" ? args.taskId : "",
           action,
           dueAt: typeof args.dueAt === "string" ? args.dueAt : undefined,

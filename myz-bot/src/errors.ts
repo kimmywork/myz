@@ -52,7 +52,7 @@ export function normalizeError(error: unknown): LoggedError {
   }
 }
 
-export function appendConversationErrorLog(options: {
+export function appendSessionErrorLog(options: {
   conversationDir: string
   conversationId: string
   phase: string

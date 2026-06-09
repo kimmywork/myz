@@ -9,7 +9,6 @@ import {
   listEntries,
   searchEntries,
 } from "./knowledgeStore"
-import { ingestRecords, getIngestStatus } from "./knowledgeIngest"
 
 function textBlock(text: string): ToolExecutionResult {
   return { content: [{ type: "text", text }] }
@@ -27,9 +26,8 @@ function formatJson(value: unknown, maxChars = 6000): string {
 
 export function createKnowledgeTools(options: {
   knowledgeDir: string
-  appDataDir?: string
 }): { definitions: Tool[]; handlers: Record<string, (args: Record<string, unknown>) => Promise<ToolExecutionResult>> } {
-  const { knowledgeDir, appDataDir } = options
+  const { knowledgeDir } = options
 
   const definitions: Tool[] = [
     {
@@ -55,23 +53,6 @@ export function createKnowledgeTools(options: {
           confidence: { type: "number", description: "置信度 0-1" },
           expiresAt: { type: "string", description: "过期时间 ISO8601" },
           limit: { type: "integer" },
-        },
-      },
-    },
-    {
-      name: "KnowledgeSync",
-      description: "从 MyZRecord 数据源同步高亮和笔记到知识库。",
-      inputSchema: {
-        type: "object",
-        required: ["action"],
-        properties: {
-          action: {
-            type: "string",
-            enum: ["status", "sync"],
-          },
-          since: { type: "string", description: "仅处理此时间之后的记录 ISO8601" },
-          limit: { type: "integer" },
-          dryRun: { type: "boolean" },
         },
       },
     },
@@ -150,39 +131,6 @@ export function createKnowledgeTools(options: {
         }
       } catch (error) {
         return errorBlock(`知识库操作失败: ${(error as Error).message}`)
-      }
-    },
-
-    KnowledgeSync: async (args) => {
-      try {
-        const action = typeof args.action === "string" ? args.action : ""
-
-        switch (action) {
-          case "status": {
-            const status = getIngestStatus(knowledgeDir, appDataDir)
-            return textBlock(formatJson(status))
-          }
-
-          case "sync": {
-            const limit = typeof args.limit === "number" ? args.limit : undefined
-            const dryRun = Boolean(args.dryRun)
-            const result = ingestRecords({
-              knowledgeDir,
-              appDataDir,
-              limit,
-              dryRun,
-            })
-            const prefix = dryRun ? "[DRY RUN] " : ""
-            return textBlock(
-              `${prefix}同步完成:\n处理: ${result.processed}\n创建: ${result.created}\n跳过: ${result.skipped}\n错误: ${result.errors.length}${result.errors.length ? "\n" + result.errors.join("\n") : ""}`,
-            )
-          }
-
-          default:
-            return errorBlock(`未知 action: ${action}`)
-        }
-      } catch (error) {
-        return errorBlock(`知识同步失败: ${(error as Error).message}`)
       }
     },
   }

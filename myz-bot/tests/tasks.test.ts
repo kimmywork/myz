@@ -5,48 +5,48 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   createScheduledTask,
-  ensureConversationTaskFiles,
-  listConversationTasks,
+  ensureSessionTaskFiles,
+  listSessionTasks,
   updateScheduledTask,
 } from "../src/tasks"
 
 test("scheduled tasks are persisted and mirrored to TODO.md", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tasks-"))
-  const conversationDir = join(root, "conversations", "c1")
-  ensureConversationTaskFiles(conversationDir, "c1")
+  const sessionDir = join(root, "conversations", "c1")
+  ensureSessionTaskFiles(sessionDir, "c1")
 
   const task = createScheduledTask({
-    conversationDir,
-    conversationId: "c1",
+    sessionDir,
+    sessionId: "c1",
     title: "提醒交付文档",
     dueAt: new Date(Date.now() + 60_000).toISOString(),
     instructions: "检查 docs/track",
     triggerMode: "llm",
   })
 
-  const tasks = listConversationTasks({
-    conversationDir,
-    conversationId: "c1",
+  const tasks = listSessionTasks({
+    sessionDir,
+    sessionId: "c1",
   })
 
-  assert.equal(existsSync(join(conversationDir, "tasks.json")), true)
-  assert.equal(existsSync(join(conversationDir, "TODO.md")), true)
+  assert.equal(existsSync(join(sessionDir, "tasks.json")), true)
+  assert.equal(existsSync(join(sessionDir, "TODO.md")), true)
   assert.equal(tasks.length, 1)
   assert.equal(tasks[0]?.id, task.id)
 
-  const todoContent = readFileSync(join(conversationDir, "TODO.md"), "utf-8")
+  const todoContent = readFileSync(join(sessionDir, "TODO.md"), "utf-8")
   assert.match(todoContent, /提醒交付文档/)
   assert.match(todoContent, /Active/)
 })
 
 test("scheduled tasks support postpone and archive lifecycle", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tasks-"))
-  const conversationDir = join(root, "conversations", "c2")
-  ensureConversationTaskFiles(conversationDir, "c2")
+  const sessionDir = join(root, "conversations", "c2")
+  ensureSessionTaskFiles(sessionDir, "c2")
 
   const task = createScheduledTask({
-    conversationDir,
-    conversationId: "c2",
+    sessionDir,
+    sessionId: "c2",
     title: "提醒检查日志",
     dueAt: new Date(Date.now() + 60_000).toISOString(),
     triggerMode: "direct",
@@ -54,8 +54,8 @@ test("scheduled tasks support postpone and archive lifecycle", () => {
   })
 
   const postponed = updateScheduledTask({
-    conversationDir,
-    conversationId: "c2",
+    sessionDir,
+    sessionId: "c2",
     taskId: task.id,
     action: "postpone",
     dueAt: new Date(Date.now() + 120_000).toISOString(),
@@ -63,25 +63,25 @@ test("scheduled tasks support postpone and archive lifecycle", () => {
   assert.equal(postponed.status, "pending")
 
   const archived = updateScheduledTask({
-    conversationDir,
-    conversationId: "c2",
+    sessionDir,
+    sessionId: "c2",
     taskId: task.id,
     action: "archive",
   })
   assert.equal(archived.status, "archived")
 
-  const todoContent = readFileSync(join(conversationDir, "TODO.md"), "utf-8")
+  const todoContent = readFileSync(join(sessionDir, "TODO.md"), "utf-8")
   assert.match(todoContent, /Archived/)
 })
 
 test("scheduled tasks support edit updates", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tasks-"))
-  const conversationDir = join(root, "conversations", "c3")
-  ensureConversationTaskFiles(conversationDir, "c3")
+  const sessionDir = join(root, "conversations", "c3")
+  ensureSessionTaskFiles(sessionDir, "c3")
 
   const task = createScheduledTask({
-    conversationDir,
-    conversationId: "c3",
+    sessionDir,
+    sessionId: "c3",
     title: "旧标题",
     dueAt: new Date(Date.now() + 60_000).toISOString(),
     instructions: "旧说明",
@@ -89,8 +89,8 @@ test("scheduled tasks support edit updates", () => {
   })
 
   const updated = updateScheduledTask({
-    conversationDir,
-    conversationId: "c3",
+    sessionDir,
+    sessionId: "c3",
     taskId: task.id,
     action: "edit",
     dueAt: new Date(Date.now() + 120_000).toISOString(),
@@ -105,12 +105,12 @@ test("scheduled tasks support edit updates", () => {
 
 test("creating a similar active task merges into the existing task instead of duplicating it", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tasks-"))
-  const conversationDir = join(root, "conversations", "c4")
-  ensureConversationTaskFiles(conversationDir, "c4")
+  const sessionDir = join(root, "conversations", "c4")
+  ensureSessionTaskFiles(sessionDir, "c4")
 
   const first = createScheduledTask({
-    conversationDir,
-    conversationId: "c4",
+    sessionDir,
+    sessionId: "c4",
     title: "每日新闻早报",
     dueAt: new Date(Date.now() + 60_000).toISOString(),
     instructions: "每天早上整理新闻",
@@ -118,17 +118,17 @@ test("creating a similar active task merges into the existing task instead of du
   })
 
   const second = createScheduledTask({
-    conversationDir,
-    conversationId: "c4",
+    sessionDir,
+    sessionId: "c4",
     title: "每日新闻早报",
     dueAt: new Date(Date.now() + 120_000).toISOString(),
     instructions: "每天早上整理新闻",
     triggerMode: "llm",
   })
 
-  const tasks = listConversationTasks({
-    conversationDir,
-    conversationId: "c4",
+  const tasks = listSessionTasks({
+    sessionDir,
+    sessionId: "c4",
   })
 
   assert.equal(tasks.length, 1)
@@ -139,12 +139,12 @@ test("creating a similar active task merges into the existing task instead of du
 
 test("scheduled tasks support explicit merge", () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tasks-"))
-  const conversationDir = join(root, "conversations", "c5")
-  ensureConversationTaskFiles(conversationDir, "c5")
+  const sessionDir = join(root, "conversations", "c5")
+  ensureSessionTaskFiles(sessionDir, "c5")
 
   const keep = createScheduledTask({
-    conversationDir,
-    conversationId: "c5",
+    sessionDir,
+    sessionId: "c5",
     title: "每日股票日报",
     dueAt: new Date(Date.now() + 60_000).toISOString(),
     instructions: "跟踪 TME 和 MSFT",
@@ -152,8 +152,8 @@ test("scheduled tasks support explicit merge", () => {
   })
 
   const duplicate = createScheduledTask({
-    conversationDir,
-    conversationId: "c5",
+    sessionDir,
+    sessionId: "c5",
     title: "每日下午股票日报",
     dueAt: new Date(Date.now() + 120_000).toISOString(),
     instructions: "跟踪 TME 和 MSFT，并标注异动",
@@ -161,16 +161,16 @@ test("scheduled tasks support explicit merge", () => {
   })
 
   const merged = updateScheduledTask({
-    conversationDir,
-    conversationId: "c5",
+    sessionDir,
+    sessionId: "c5",
     taskId: keep.id,
     action: "merge",
     mergeTaskIds: [duplicate.id],
   })
 
-  const tasks = listConversationTasks({
-    conversationDir,
-    conversationId: "c5",
+  const tasks = listSessionTasks({
+    sessionDir,
+    sessionId: "c5",
     includeDeleted: true,
   })
 

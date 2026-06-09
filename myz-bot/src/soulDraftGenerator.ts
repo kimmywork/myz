@@ -1,12 +1,12 @@
 import type { Message } from "@myz/ai-core/types"
 import { generateReply } from "./ai"
 import type { BotRuntimeConfig } from "./config"
-import { createSystemMessage, createUserMessage } from "./conversations"
+import { createSystemMessage, createUserMessage } from "./sessions"
 import { loadSoul } from "./soul"
 
 export async function generateSoulDraftContent(options: {
   config: BotRuntimeConfig
-  conversationId: string
+  sessionId: string
   recentMessages: Message[]
   actor: string
 }) {
@@ -29,14 +29,14 @@ export async function generateSoulDraftContent(options: {
 
   const reply = await generateReply({
     config: draftConfig,
-    conversationId: options.conversationId,
+    sessionId: options.sessionId,
     messages: [
       createSystemMessage(
-        options.conversationId,
+        options.sessionId,
         "你是 SOUL 设定编辑器。你必须输出完整的 Markdown 版 SOUL.md，不要输出解释。",
       ),
       createUserMessage(
-        options.conversationId,
+        options.sessionId,
         [
           `当前操作者：${options.actor}`,
           "请基于当前 SOUL 和最近对话，生成一份新的 SOUL.md 草案。",

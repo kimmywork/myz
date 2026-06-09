@@ -23,7 +23,7 @@ test("applySoulDraft versions previous soul and updates SOUL.md", () => {
     metadata: {
       actor: "admin",
       trigger: "manual",
-      conversationId: "c1",
+      sessionId: "c1",
     },
   })
   const applied = applySoulDraft({

@@ -30,7 +30,7 @@ function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 
 test("buildIncomingMessage extracts plain text content", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-incoming-"))
-  const conversationDir = join(root, "conversations", "100-200")
+  const sessionDir = join(root, "conversations", "100-200")
   const message = createMessage({
     text: "hello world",
   })
@@ -38,7 +38,7 @@ test("buildIncomingMessage extracts plain text content", async () => {
   const incoming = await buildIncomingMessage({
     config: createConfig(root),
     message,
-    conversationDir,
+    sessionDir,
   })
 
   assert.equal(incoming.content, "hello world")
@@ -48,13 +48,13 @@ test("buildIncomingMessage extracts plain text content", async () => {
 
 test("buildIncomingMessage falls back when message has no text", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-incoming-"))
-  const conversationDir = join(root, "conversations", "100-200")
+  const sessionDir = join(root, "conversations", "100-200")
   const message = createMessage({})
 
   const incoming = await buildIncomingMessage({
     config: createConfig(root),
     message,
-    conversationDir,
+    sessionDir,
   })
 
   assert.match(incoming.content, /收到一条无文本消息/)
@@ -62,7 +62,7 @@ test("buildIncomingMessage falls back when message has no text", async () => {
 
 test("buildIncomingMessage includes caption content", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-incoming-"))
-  const conversationDir = join(root, "conversations", "100-200")
+  const sessionDir = join(root, "conversations", "100-200")
   const message = createMessage({
     caption: "photo caption",
   })
@@ -70,7 +70,7 @@ test("buildIncomingMessage includes caption content", async () => {
   const incoming = await buildIncomingMessage({
     config: createConfig(root),
     message,
-    conversationDir,
+    sessionDir,
   })
 
   assert.equal(incoming.content, "photo caption")

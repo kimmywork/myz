@@ -1,7 +1,7 @@
 import type { Message } from "@myz/ai-core/types"
 import type { ChatMessage } from "./chatChannel"
 import type { BotRuntimeConfig } from "./config"
-import { resolveConversationRoute } from "./routing"
+import { resolveSessionRoute } from "./routing"
 
 function buildForwardLabel(message: ChatMessage) {
   if (message.forwardFrom?.username) {
@@ -48,10 +48,10 @@ function summarizeReferencedMessage(message?: ChatMessage) {
 export async function buildIncomingMessage(options: {
   config: BotRuntimeConfig
   message: ChatMessage
-  conversationDir: string
+  sessionDir: string
 }): Promise<{ content: string; metadata: Message["metadata"] }> {
   const { message } = options
-  const route = resolveConversationRoute(message)
+  const route = resolveSessionRoute(message)
   const contentSections: string[] = []
   const metadata: Message["metadata"] = {
     chatId: message.chat.id,

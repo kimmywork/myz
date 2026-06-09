@@ -22,18 +22,18 @@ export type {
   TaskStatus,
 } from "@myz/ai-core/tasks/taskManager"
 
-function getTaskPlanPath(conversationDir: string) {
-  return resolve(conversationDir, "task-plan.json")
+function getTaskPlanPath(sessionDir: string) {
+  return resolve(sessionDir, "task-plan.json")
 }
 
-function saveTaskPlan(conversationDir: string, plan: TaskPlan) {
+function saveTaskPlan(sessionDir: string, plan: TaskPlan) {
   plan.updatedAt = new Date().toISOString()
-  writeFileSync(getTaskPlanPath(conversationDir), JSON.stringify(plan, null, 2))
+  writeFileSync(getTaskPlanPath(sessionDir), JSON.stringify(plan, null, 2))
   return plan
 }
 
-export function getTaskPlan(conversationDir: string): TaskPlan | null {
-  const path = getTaskPlanPath(conversationDir)
+export function getTaskPlan(sessionDir: string): TaskPlan | null {
+  const path = getTaskPlanPath(sessionDir)
   if (!existsSync(path)) return null
   try {
     return normalizeTaskPlanPayload(JSON.parse(readFileSync(path, "utf-8")))
@@ -43,7 +43,7 @@ export function getTaskPlan(conversationDir: string): TaskPlan | null {
 }
 
 export function initTaskPlan(options: {
-  conversationDir: string
+  sessionDir: string
   goal?: string
   originalUserRequest?: string
   tasks: Array<unknown>
@@ -61,11 +61,11 @@ export function initTaskPlan(options: {
     tasks: options.tasks || [],
     currentTaskId: null,
   })
-  return saveTaskPlan(options.conversationDir, plan)
+  return saveTaskPlan(options.sessionDir, plan)
 }
 
 export function updateTaskPlanStatus(options: {
-  conversationDir: string
+  sessionDir: string
   status?: TaskPlanStatus
   currentTaskId?: string | null
   goal?: string
@@ -73,52 +73,52 @@ export function updateTaskPlanStatus(options: {
   summary?: string
   outcome?: string
 }) {
-  const plan = getTaskPlan(options.conversationDir)
+  const plan = getTaskPlan(options.sessionDir)
   if (!plan) return null
   patchTaskPlan(plan, options)
-  return saveTaskPlan(options.conversationDir, plan)
+  return saveTaskPlan(options.sessionDir, plan)
 }
 
 export function updateTaskStatus(options: {
-  conversationDir: string
+  sessionDir: string
   taskId: string
   status?: TaskStatus
 }) {
-  const plan = getTaskPlan(options.conversationDir)
+  const plan = getTaskPlan(options.sessionDir)
   if (!plan) return null
   const task = setTaskStatus(plan, options)
   if (!task) return null
-  return saveTaskPlan(options.conversationDir, plan)
+  return saveTaskPlan(options.sessionDir, plan)
 }
 
 export function updateTaskItem(options: {
-  conversationDir: string
+  sessionDir: string
   taskId: string
   patch: Partial<TaskItem> & { appendNote?: string }
 }) {
-  const plan = getTaskPlan(options.conversationDir)
+  const plan = getTaskPlan(options.sessionDir)
   if (!plan) return null
   const task = patchTaskItem(plan, options)
   if (!task) return null
-  return saveTaskPlan(options.conversationDir, plan)
+  return saveTaskPlan(options.sessionDir, plan)
 }
 
 export function completeAllTasks(options: {
-  conversationDir: string
+  sessionDir: string
   summary?: string
   outcome?: string
 }) {
-  const plan = getTaskPlan(options.conversationDir)
+  const plan = getTaskPlan(options.sessionDir)
   if (!plan) return null
   completeTaskPlan(plan, options)
-  return saveTaskPlan(options.conversationDir, plan)
+  return saveTaskPlan(options.sessionDir, plan)
 }
 
 export function listUnblockedTasks(options: {
-  conversationDir: string
+  sessionDir: string
   status?: TaskStatus[]
 }) {
-  const plan = getTaskPlan(options.conversationDir)
+  const plan = getTaskPlan(options.sessionDir)
   if (!plan) return []
   return listUnblockedTasksFromPlan(plan, options.status)
 }

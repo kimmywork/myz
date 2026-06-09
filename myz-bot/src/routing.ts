@@ -17,17 +17,17 @@ function buildDisplayName(message: ChatMessage) {
   return "未知成员"
 }
 
-export interface ConversationRoute {
-  conversationId: string
+export interface SessionRoute {
+  sessionId: string
   actorUserId: number
   actorDisplayName: string
   scope: "private" | "group"
   threadId?: number
 }
 
-export function resolveConversationRoute(
+export function resolveSessionRoute(
   message: ChatMessage,
-): ConversationRoute {
+): SessionRoute {
   const actorUserId = message.from?.id || message.chat.id
   const actorDisplayName = buildDisplayName(message)
   const chatType = message.chat.type
@@ -35,7 +35,7 @@ export function resolveConversationRoute(
   if (chatType === "group" || chatType === "supergroup") {
     if (typeof message.threadId === "number") {
       return {
-        conversationId: `${message.chat.id}-thread-${message.threadId}`,
+        sessionId: `${message.chat.id}-thread-${message.threadId}`,
         actorUserId,
         actorDisplayName,
         scope: "group",
@@ -43,7 +43,7 @@ export function resolveConversationRoute(
       }
     }
     return {
-      conversationId: `${message.chat.id}-group`,
+      sessionId: `${message.chat.id}-group`,
       actorUserId,
       actorDisplayName,
       scope: "group",
@@ -51,7 +51,7 @@ export function resolveConversationRoute(
   }
 
   return {
-    conversationId: `${message.chat.id}-${actorUserId}`,
+    sessionId: `${message.chat.id}-${actorUserId}`,
     actorUserId,
     actorDisplayName,
     scope: "private",

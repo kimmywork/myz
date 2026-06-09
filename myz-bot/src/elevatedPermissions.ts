@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
-import { loadMetadata } from "./conversations"
+import { loadSessionMetadata } from "./sessions"
 
 export type ElevatedPermissionAccess = "read" | "write" | "run"
 export type ElevatedPermissionRequestStatus = "pending" | "approved" | "rejected"
@@ -411,7 +411,7 @@ export function findAdminPrivateChatTargets(options: {
   const targets: Array<{ conversationId: string; chatId: number; username?: string }> = []
   if (!existsSync(options.conversationsDir)) return targets
   readdirSync(options.conversationsDir).forEach((name) => {
-    const metadata = loadMetadata(resolve(options.conversationsDir, name))
+    const metadata = loadSessionMetadata(resolve(options.conversationsDir, name))
     if (!metadata) return
     const username = metadata.username?.trim().replace(/^@/, "").toLowerCase()
     const isPrivate = metadata.scope === "private" || metadata.chatType === "private"

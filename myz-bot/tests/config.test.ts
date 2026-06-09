@@ -164,7 +164,7 @@ test("loadConfig ignores legacy workspaceRoot in bot.yml and uses the provided w
   assert.equal(config.skillsDir, join(config.workspaceRoot, "skills"))
   assert.equal(config.attachmentsDir, join(config.runtimeRoot, "workspaces", config.workspaceId, "attachments"))
   assert.equal(config.runtimeRoot, runtimeDir)
-  assert.equal(config.conversationsDir, join(config.runtimeRoot, "workspaces", config.workspaceId, "conversations"))
+  assert.equal(config.sessionsDir, join(config.runtimeRoot, "workspaces", config.workspaceId, "sessions"))
   assert.equal(config.memoryDir, join(config.workspaceRoot, "memory"))
 })
 

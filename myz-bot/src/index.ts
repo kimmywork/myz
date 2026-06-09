@@ -11,18 +11,21 @@ import { generateReply } from "./ai"
 import { loadConfig, type BotRuntimeConfig } from "./config"
 import {
   appendMessage,
-  appendTraceMessage,
   createAssistantMessage,
   createSystemMessage,
-  createToolMessage,
   createUserMessage,
-  ensureConversationDir,
+  ensureSessionDir,
   loadAllMessages,
-  loadMetadata,
-  saveMetadata,
-  type ConversationMetadata,
-} from "./conversations"
-import { prepareConversationContext } from "./contextCompaction"
+  loadSessionMetadata,
+  saveSessionMetadata,
+  createSession,
+  forkSession,
+  archiveSession,
+  getActiveSession,
+  type SessionMetadata,
+} from "./sessions"
+import { appendHistoryEntry } from "./history"
+import { prepareSessionContext } from "./contextCompaction"
 import {
   formatSupportedBotCommands,
   isPassthroughBotCommandName,
@@ -30,7 +33,7 @@ import {
   parseBotCommand,
 } from "./commands"
 import {
-  appendConversationErrorLog,
+  appendSessionErrorLog,
   formatErrorReply,
 } from "./errors"
 import {
@@ -71,17 +74,17 @@ import {
   readSkillFile,
   type SkillInfo,
 } from "./skills"
-import { resolveConversationRoute } from "./routing"
+import { resolveSessionRoute } from "./routing"
 import { startTaskScheduler } from "./scheduler"
 import {
-  ensureConversationTaskFiles,
+  ensureSessionTaskFiles,
   formatTasksForChat,
-  listConversationTasks,
+  listSessionTasks,
   updateScheduledTask,
 } from "./tasks"
 import {
   appendToolAuditTrace,
-  appendToolMessagesToHistory,
+  appendToolMessagesToSessionHistory,
 } from "./toolHistory"
 import { createLocalTools } from "./tools"
 import {
@@ -146,7 +149,7 @@ function formatPermissionRule(
 
 async function handleCommand(options: {
   config: BotRuntimeConfig
-  conversationId: string
+  sessionId: string
   message: ChatMessage
   rawCommand: string
   botUsername: string
@@ -203,17 +206,17 @@ async function handleCommand(options: {
   }
 
   if (command.name === "todo") {
-    const conversationDir = ensureConversationDir(
-      options.config.conversationsDir,
-      options.conversationId,
+    const sessionDir = ensureSessionDir(
+      options.config.sessionsDir,
+      options.sessionId,
     )
-    ensureConversationTaskFiles(conversationDir, options.conversationId)
+    ensureSessionTaskFiles(sessionDir, options.sessionId)
     const action = (command.args[0] || "list").toLowerCase()
 
     if (action === "list" || action === "show") {
-      const tasks = listConversationTasks({
-        conversationDir,
-        conversationId: options.conversationId,
+      const tasks = listSessionTasks({
+        sessionDir,
+        sessionId: options.sessionId,
       })
       await options.sendMessage(
         options.message.chat.id,
@@ -239,8 +242,8 @@ async function handleCommand(options: {
         return true
       }
       const task = updateScheduledTask({
-        conversationDir,
-        conversationId: options.conversationId,
+        sessionDir,
+        sessionId: options.sessionId,
         taskId,
         action,
       })
@@ -264,8 +267,8 @@ async function handleCommand(options: {
         return true
       }
       const task = updateScheduledTask({
-        conversationDir,
-        conversationId: options.conversationId,
+        sessionDir,
+        sessionId: options.sessionId,
         taskId,
         action: "merge",
         mergeTaskIds,
@@ -290,8 +293,8 @@ async function handleCommand(options: {
         return true
       }
       const task = updateScheduledTask({
-        conversationDir,
-        conversationId: options.conversationId,
+        sessionDir,
+        sessionId: options.sessionId,
         taskId,
         action: "postpone",
         dueAt,
@@ -317,8 +320,8 @@ async function handleCommand(options: {
         return true
       }
       const task = updateScheduledTask({
-        conversationDir,
-        conversationId: options.conversationId,
+        sessionDir,
+        sessionId: options.sessionId,
         taskId,
         action: "edit",
         dueAt:
@@ -372,7 +375,7 @@ async function handleCommand(options: {
           collectTokenUsageSummary({
             config: options.config,
             scope: normalizedScope,
-            conversationId: options.conversationId,
+            sessionId: options.sessionId,
           }),
         ),
         buildReplyOptions(options.message),
@@ -666,12 +669,12 @@ async function handleCommand(options: {
 
   if (action === "draft") {
     const existingMessages = loadAllMessages(
-      ensureConversationDir(options.config.conversationsDir, options.conversationId),
+      ensureSessionDir(options.config.sessionsDir, options.sessionId),
     )
     const actor = options.message.from?.username || String(options.message.from?.id || "admin")
     const content = await generateSoulDraftContent({
       config: options.config,
-      conversationId: options.conversationId,
+      sessionId: options.sessionId,
       recentMessages: existingMessages,
       actor,
     })
@@ -681,7 +684,7 @@ async function handleCommand(options: {
       metadata: {
         actor,
         trigger: "manual",
-        conversationId: options.conversationId,
+        sessionId: options.sessionId,
       },
     })
     await options.sendMessage(
@@ -739,63 +742,59 @@ async function handleCommand(options: {
   return true
 }
 
-async function handleConversationMessage(options: {
+async function handleSessionMessage(options: {
   config: BotRuntimeConfig
   channel: ChatChannelClient<ChatMessage>
   message: ChatMessage
   botUsername: string
   shouldReply: boolean
   monitor?: RuntimeMonitor
+  sessionId?: string
 }) {
-  const route = resolveConversationRoute(options.message)
+  const route = resolveSessionRoute(options.message)
   const userId = route.actorUserId
-  const conversationId = route.conversationId
-  const conversationDir = ensureConversationDir(
-    options.config.conversationsDir,
-    conversationId,
-  )
-  ensureConversationTaskFiles(conversationDir, conversationId)
+
+  let sessionId = options.sessionId
+  if (!sessionId) {
+    const active = getActiveSession(options.config.sessionsDir, options.config.workspaceId)
+    sessionId = active?.sessionId || createSession(options.config.sessionsDir, options.config.workspaceId).sessionId
+  }
+
+  const sessionDir = ensureSessionDir(options.config.sessionsDir, sessionId)
+  ensureSessionTaskFiles(sessionDir, sessionId)
   const sessionWorkspace = options.config.workspaceRoot
 
   const now = new Date().toISOString()
-  const existing = loadMetadata(conversationDir)
-  const metadata: ConversationMetadata = existing || {
+  const existing = loadSessionMetadata(sessionDir)
+  const metadata: SessionMetadata = existing || {
     schemaVersion: "1.0.0",
-    conversationId,
-    chatId: options.message.chat.id,
-    userId,
-    scope: route.scope,
-    chatType: options.message.chat.type,
-    threadId: route.threadId,
-    username: options.message.from?.username,
-    firstName: options.message.from?.firstName,
-    lastName: options.message.from?.lastName,
+    sessionId,
+    workspaceId: options.config.workspaceId,
+    title: `Session ${sessionId}`,
     createdAt: now,
     updatedAt: now,
+    lastMessageAt: now,
+    messageCount: 0,
+    status: "active",
   }
   metadata.updatedAt = now
   metadata.lastMessageAt = now
-  metadata.chatType = options.message.chat.type
-  metadata.scope = route.scope
-  metadata.threadId = route.threadId
-  metadata.lastActorUserId = route.actorUserId
-  metadata.lastActorDisplayName = route.actorDisplayName
-  saveMetadata(conversationDir, metadata)
+  saveSessionMetadata(sessionDir, metadata)
 
   const rawCommand = extractCommandText(options.message)
   if (rawCommand) {
     try {
       const handled = await handleCommand({
         config: options.config,
-        conversationId,
+        sessionId,
         message: options.message,
         rawCommand,
         botUsername: options.botUsername,
         monitor: options.monitor,
         sendMessage: (chatId, text, sendOptions) => {
-          options.monitor?.notePhase("send", conversationId)
+          options.monitor?.notePhase("send", sessionId)
           options.monitor?.noteOutgoingMessage({
-            conversationId,
+            sessionId,
             text,
             role: "assistant",
           })
@@ -804,9 +803,9 @@ async function handleConversationMessage(options: {
       })
       if (handled) return
     } catch (error) {
-      appendConversationErrorLog({
-        conversationDir,
-        conversationId,
+      appendSessionErrorLog({
+        sessionDir,
+        sessionId,
         phase: "command",
         error,
         context: {
@@ -815,14 +814,14 @@ async function handleConversationMessage(options: {
           messageId: options.message.messageId,
         },
       })
-      options.monitor?.notePhase("send", conversationId)
+      options.monitor?.notePhase("send", sessionId)
       const errorText = formatErrorReply({
         config: options.config,
         user: options.message.from,
         error,
       })
       options.monitor?.noteOutgoingMessage({
-        conversationId,
+        sessionId,
         text: errorText,
         role: "error",
       })
@@ -835,11 +834,11 @@ async function handleConversationMessage(options: {
     }
   }
 
-  const historyBefore = loadAllMessages(conversationDir)
+  const historyBefore = loadAllMessages(sessionDir)
   const contextState = options.config.contextCompaction.enabled
-    ? prepareConversationContext({
-        conversationDir,
-        conversationId,
+    ? prepareSessionContext({
+        sessionDir,
+        sessionId,
         messages: historyBefore,
         maxHistoryMessages: options.config.contextCompaction.maxHistoryMessages,
         maxHistoryChars: options.config.contextCompaction.maxHistoryChars,
@@ -856,17 +855,17 @@ async function handleConversationMessage(options: {
       }
   if (contextState.compressed) {
     metadata.lastCompressionAt = new Date().toISOString()
-    saveMetadata(conversationDir, metadata)
+    saveSessionMetadata(sessionDir, metadata)
   }
 
   const incoming = await buildIncomingMessage({
     config: options.config,
     message: options.message,
-    conversationDir,
+    sessionDir,
   })
-  const userMessage = createUserMessage(conversationId, incoming.content, incoming.metadata)
+  const userMessage = createUserMessage(sessionId, incoming.content, incoming.metadata)
   options.monitor?.noteIncomingMessage({
-    conversationId,
+    sessionId,
     text: userMessage.content,
     role: "user",
   })
@@ -874,7 +873,7 @@ async function handleConversationMessage(options: {
     workspaceRoot: options.config.workspaceRoot,
   })
   const systemMessage = createSystemMessage(
-    conversationId,
+    sessionId,
     agent.buildSystemPrompt({
       replyMode: options.shouldReply ? "required" : "optional",
       scope: route.scope,
@@ -907,35 +906,35 @@ async function handleConversationMessage(options: {
     },
   })
   const contextMessage = contextPrompt
-    ? createUserMessage(conversationId, contextPrompt, {
+    ? createUserMessage(sessionId, contextPrompt, {
         type: "context_injection",
         source: "bot",
         hiddenFromHistory: true,
       })
     : null
 
-  appendMessage(conversationDir, userMessage)
+  appendMessage(sessionDir, userMessage)
 
   try {
     const progressNotifier = options.shouldReply
       ? createToolProgressNotifier({
           config: options.config,
           channel: options.channel,
-          conversationDir,
-          conversationId,
+          sessionDir,
+          sessionId,
           chatId: options.message.chat.id,
           latestUserInput: userMessage.content,
           sendOptions: buildReplyOptions(options.message),
           onProgressMessageSent: ({ text }) => {
             options.monitor?.noteOutgoingMessage({
-              conversationId,
+              sessionId,
               text,
               role: "progress",
             })
           },
         })
       : null
-    options.monitor?.notePhase("llm", conversationId)
+    options.monitor?.notePhase("llm", sessionId)
     const preparedMessages = agent.prepareMessages({
       systemMessage,
       history: contextState.history,
@@ -943,30 +942,30 @@ async function handleConversationMessage(options: {
       userMessage,
     })
     const request = options.monitor?.noteRequestStart({
-      conversationId,
+      sessionId,
       source: "conversation",
       messages: preparedMessages,
     })
     const reply = await generateReply({
       config: options.config,
       messages: preparedMessages,
-      conversationId,
+      sessionId,
       onToolCallMessage: progressNotifier
         ? (message) => {
-            options.monitor?.notePhase("tool", conversationId)
+            options.monitor?.notePhase("tool", sessionId)
             progressNotifier.onToolCallMessage(message)
           }
         : undefined,
       onToolResultMessage: progressNotifier
         ? (message) => {
-            options.monitor?.notePhase("llm", conversationId)
+            options.monitor?.notePhase("llm", sessionId)
             progressNotifier.onToolResultMessage(message)
           }
         : undefined,
     })
     if (request) {
       options.monitor?.noteRequestComplete({
-        conversationId,
+        sessionId,
         source: "conversation",
         startedAt: request.startedAt,
         requestId: request.requestId,
@@ -979,9 +978,9 @@ async function handleConversationMessage(options: {
     }
 
     if (Array.isArray(reply.toolTrace) && reply.toolTrace.length) {
-      appendToolMessagesToHistory({
-        conversationId,
-        conversationDir,
+      appendToolMessagesToSessionHistory({
+        sessionId,
+        sessionDir,
         trace: reply.toolTrace as Array<{
           role: string
           content: unknown
@@ -991,8 +990,8 @@ async function handleConversationMessage(options: {
         }>,
       })
       appendToolAuditTrace({
-        conversationId,
-        conversationDir,
+        sessionId,
+        sessionDir,
         trace: reply.toolTrace as Array<{
           role: string
           content: unknown
@@ -1004,7 +1003,7 @@ async function handleConversationMessage(options: {
     }
 
     const assistantMessage = createAssistantMessage(
-      conversationId,
+      sessionId,
       reply.content || "(无响应)",
       {
         toolCallCount: Array.isArray(reply.toolCalls)
@@ -1030,28 +1029,28 @@ async function handleConversationMessage(options: {
     }
     const replySuppressed = !options.shouldReply && isNoReplyContent(reply.content || "")
     if (!replySuppressed) {
-      options.monitor?.notePhase("send", conversationId)
+      options.monitor?.notePhase("send", sessionId)
       options.monitor?.noteOutgoingMessage({
-        conversationId,
+        sessionId,
         text: assistantMessage.content,
         role: "assistant",
       })
-      appendMessage(conversationDir, assistantMessage)
+      appendMessage(sessionDir, assistantMessage)
       await options.channel.sendMessage(
         options.message.chat.id,
         assistantMessage.content,
         buildReplyOptions(options.message),
       )
     }
-    options.monitor?.notePhase("idle", conversationId)
+    options.monitor?.notePhase("idle", sessionId)
   } catch (error) {
     options.monitor?.noteError({
-      conversationId,
+      sessionId,
       error,
     })
-    const normalized = appendConversationErrorLog({
-      conversationDir,
-      conversationId,
+    const normalized = appendSessionErrorLog({
+      sessionDir,
+      sessionId,
       phase: "conversation",
       error,
       context: {
@@ -1065,7 +1064,7 @@ async function handleConversationMessage(options: {
     try {
       if (canSendErrorReply) {
         const assistantMessage = createAssistantMessage(
-          conversationId,
+          sessionId,
           formatErrorReply({
             config: options.config,
             user: options.message.from,
@@ -1073,13 +1072,13 @@ async function handleConversationMessage(options: {
           }),
           { error: normalized.message },
         )
-        options.monitor?.notePhase("send", conversationId)
+        options.monitor?.notePhase("send", sessionId)
         options.monitor?.noteOutgoingMessage({
-          conversationId,
+          sessionId,
           text: assistantMessage.content,
           role: "error",
         })
-        appendMessage(conversationDir, assistantMessage)
+        appendMessage(sessionDir, assistantMessage)
         await options.channel.sendMessage(
           options.message.chat.id,
           assistantMessage.content,
@@ -1087,7 +1086,7 @@ async function handleConversationMessage(options: {
         )
       }
     } finally {
-      options.monitor?.notePhase("idle", conversationId)
+      options.monitor?.notePhase("idle", sessionId)
     }
   }
 }
@@ -1097,7 +1096,7 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
     workspaceRoot: options.workspaceRoot,
   })
   configureGlobalNetwork(config.network)
-  mkdirSync(config.conversationsDir, { recursive: true })
+  mkdirSync(config.sessionsDir, { recursive: true })
   mkdirSync(config.attachmentsDir, { recursive: true })
   mkdirSync(config.permissionsDir, { recursive: true })
   mkdirSync(config.soulRuntimeDir, { recursive: true })
@@ -1119,7 +1118,7 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
       toolDenylist: config.toolDenylist,
       memoryDir: config.memoryDir,
       knowledgeDir: config.knowledgeDir,
-      conversationsDir: config.conversationsDir,
+      sessionsDir: config.sessionsDir,
       attachmentsDir: config.attachmentsDir,
       channel,
     }),
@@ -1149,7 +1148,7 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
     enabled: config.channels.tui.enabled && resolveTuiEnabled(options.enableTui),
     monitor,
     onMessage: async (message) => {
-      await handleConversationMessage({
+      await handleSessionMessage({
         config,
         channel,
         message,

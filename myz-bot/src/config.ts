@@ -291,7 +291,8 @@ export type BotRuntimeConfig = Omit<BotConfig, "channels"> & {
   workspaceRuntimeRoot: string
   skillsDir: string
   attachmentsDir: string
-  conversationsDir: string
+  sessionsDir: string
+  historyDir: string
   permissionsDir: string
   soulRuntimeDir: string
   systemDir: string
@@ -475,7 +476,8 @@ export function loadConfig(options: {
     workspaceRuntimeRoot,
     skillsDir: resolve(workspaceRoot, "skills"),
     attachmentsDir: resolve(workspaceRuntimeRoot, "attachments"),
-    conversationsDir: resolve(workspaceRuntimeRoot, "conversations"),
+    sessionsDir: resolve(workspaceRuntimeRoot, "sessions"),
+    historyDir: resolve(workspaceRuntimeRoot, "history"),
     permissionsDir: resolve(workspaceRuntimeRoot, "permissions"),
     soulRuntimeDir: resolve(workspaceRuntimeRoot, "soul"),
     systemDir: resolve(workspaceRuntimeRoot, "system"),
