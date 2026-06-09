@@ -14,6 +14,13 @@ const BLOCKED_COMMANDS = new Set([
   "chmod",
 ])
 
+export interface AccessPolicy {
+  allowedPaths?: string[]
+  blockedPaths?: string[]
+  allowedCommands?: string[]
+  blockedCommands?: string[]
+}
+
 export function tokenizeCommand(command: string) {
   const tokens: string[] = []
   const re = /"([^"]*)"|'([^']*)'|`([^`]*)`|(\S+)/g
@@ -47,52 +54,112 @@ export function isInsideWorkspace(path: string, workspaceRoot: string) {
 export function assertInsideWorkspace(path: string, workspaceRoot: string) {
   const resolved = resolve(path)
   if (!isInsideWorkspace(resolved, workspaceRoot)) {
-    throw new Error(`Path not allowed: ${path}`)
+    throw new Error(`Path outside workspace: ${path}. Use allowedPaths to grant access.`)
   }
   return resolved
 }
 
-export function resolveCommandVirtualPaths(
-  command: string,
-  aliases: Record<string, string>,
-) {
-  const entries = Object.entries(aliases).sort((left, right) => right[0].length - left[0].length)
-  let next = command
-  for (const [alias, target] of entries) {
-    const pattern = new RegExp(
-      `(^|[\\s"'=:(\\[{;&|])${escapeRegExp(alias)}(?=$|[\\]\\[\\/\\s"'(){};|&])`,
-      "g",
+function matchesPattern(path: string, pattern: string): boolean {
+  if (pattern.includes("*") || pattern.includes("?")) {
+    const regex = new RegExp(
+      "^" + pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$"
     )
-    next = next.replace(pattern, (_match, prefix: string) => `${prefix}${target}`)
+    return regex.test(path)
   }
-  return next
+  return path.startsWith(pattern) || path === pattern
 }
 
-export function validateCommand(command: string, workspaceRoot: string) {
+export function isPathAllowed(path: string, policy: AccessPolicy, workspaceRoot: string): boolean {
+  const resolved = resolve(path)
+
+  if (policy.blockedPaths) {
+    for (const pattern of policy.blockedPaths) {
+      if (matchesPattern(resolved, pattern)) {
+        return false
+      }
+    }
+  }
+
+  if (isInsideWorkspace(resolved, workspaceRoot)) {
+    return true
+  }
+
+  if (policy.allowedPaths) {
+    for (const pattern of policy.allowedPaths) {
+      if (matchesPattern(resolved, pattern)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+export function isCommandAllowed(command: string, policy: AccessPolicy): boolean {
+  const tokens = tokenizeCommand(command)
+  if (!tokens.length) return false
+
+  const entry = tokens[0]
+
+  if (policy.blockedCommands) {
+    for (const pattern of policy.blockedCommands) {
+      if (matchesPattern(entry, pattern)) {
+        return false
+      }
+    }
+  }
+
+  if (BLOCKED_COMMANDS.has(entry)) {
+    return false
+  }
+
+  if (policy.allowedCommands) {
+    let allowed = false
+    for (const pattern of policy.allowedCommands) {
+      if (matchesPattern(entry, pattern)) {
+        allowed = true
+        break
+      }
+    }
+    if (!allowed) return false
+  }
+
+  return true
+}
+
+export function validateCommand(
+  command: string,
+  workspaceRoot: string,
+  policy?: AccessPolicy,
+) {
   const tokens = tokenizeCommand(command)
   if (!tokens.length) {
     return { ok: false, reason: "Empty command", deniedPaths: [] as string[] }
   }
-  const entry = tokens[0]
-  if (BLOCKED_COMMANDS.has(entry)) {
-    return { ok: false, reason: `Command blocked: ${entry}`, deniedPaths: [] as string[] }
+
+  if (policy && !isCommandAllowed(command, policy)) {
+    return { ok: false, reason: `Command not allowed: ${tokens[0]}`, deniedPaths: [] as string[] }
   }
 
   const deniedPaths: string[] = []
   for (const token of tokens) {
     if (!isPathLike(token)) continue
-    const candidate = isAbsolute(token)
-      ? token
-      : resolve(workspaceRoot, token)
-    if (!isInsideWorkspace(candidate, workspaceRoot)) {
-      deniedPaths.push(candidate)
+    const candidate = isAbsolute(token) ? token : resolve(workspaceRoot, token)
+    if (policy) {
+      if (!isPathAllowed(candidate, policy, workspaceRoot)) {
+        deniedPaths.push(candidate)
+      }
+    } else {
+      if (!isInsideWorkspace(candidate, workspaceRoot)) {
+        deniedPaths.push(candidate)
+      }
     }
   }
 
   if (deniedPaths.length) {
     return {
       ok: false,
-      reason: `Path outside workspace: ${deniedPaths[0]}`,
+      reason: `Path not allowed: ${deniedPaths[0]}`,
       deniedPaths,
     }
   }

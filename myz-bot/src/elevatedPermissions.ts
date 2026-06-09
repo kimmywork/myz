@@ -27,7 +27,7 @@ export interface ElevatedPermissionRequest {
   rawTarget: string
   toolName: string
   reason: string
-  conversationId?: string
+  sessionId?: string
   requestedBy?: string
   createdAt: string
   updatedAt: string
@@ -224,7 +224,7 @@ export function createElevatedPermissionRequest(options: {
   rawTarget: string
   toolName: string
   reason: string
-  conversationId?: string
+  sessionId?: string
   requestedBy?: string
 }) {
   const state = loadPermissionState(options.workspaceRoot)
@@ -256,7 +256,7 @@ export function createElevatedPermissionRequest(options: {
     rawTarget: options.rawTarget,
     toolName: options.toolName,
     reason: options.reason,
-    conversationId: options.conversationId,
+    sessionId: options.sessionId,
     requestedBy: options.requestedBy,
     createdAt: now,
     updatedAt: now,
@@ -399,7 +399,7 @@ export function isPathAllowedByGrant(options: {
 
 export function findAdminPrivateChatTargets(options: {
   workspaceRoot: string
-  conversationsDir: string
+  sessionsDir: string
   adminUsers: string[]
 }) {
   const normalizedAdmins = new Set(
@@ -407,18 +407,18 @@ export function findAdminPrivateChatTargets(options: {
       .map((entry) => entry.trim().replace(/^@/, "").toLowerCase())
       .filter(Boolean),
   )
-  if (!normalizedAdmins.size) return [] as Array<{ conversationId: string; chatId: number; username?: string }>
-  const targets: Array<{ conversationId: string; chatId: number; username?: string }> = []
-  if (!existsSync(options.conversationsDir)) return targets
-  readdirSync(options.conversationsDir).forEach((name) => {
-    const metadata = loadSessionMetadata(resolve(options.conversationsDir, name))
+  if (!normalizedAdmins.size) return [] as Array<{ sessionId: string; chatId: number; username?: string }>
+  const targets: Array<{ sessionId: string; chatId: number; username?: string }> = []
+  if (!existsSync(options.sessionsDir)) return targets
+  readdirSync(options.sessionsDir).forEach((name) => {
+    const metadata = loadSessionMetadata(resolve(options.sessionsDir, name))
     if (!metadata) return
     const username = metadata.username?.trim().replace(/^@/, "").toLowerCase()
     const isPrivate = metadata.scope === "private" || metadata.chatType === "private"
     if (!isPrivate || !username || !normalizedAdmins.has(username)) return
     targets.push({
-      conversationId: metadata.conversationId,
-      chatId: metadata.chatId,
+      sessionId: metadata.sessionId,
+      chatId: metadata.chatId ?? 0,
       username: metadata.username,
     })
   })

@@ -199,7 +199,7 @@ function shouldRetryLlmError(error: unknown) {
 
 function buildResponsesExtraBody(
   config: BotRuntimeConfig,
-  conversationId?: string,
+  sessionId?: string,
 ) {
   if (config.ai.provider !== "openai_responses") {
     return undefined
@@ -210,8 +210,8 @@ function buildResponsesExtraBody(
   }
 
   const scope =
-    typeof conversationId === "string" && conversationId.trim()
-      ? conversationId.trim()
+    typeof sessionId === "string" && sessionId.trim()
+      ? sessionId.trim()
       : "session"
 
   return {
@@ -309,7 +309,7 @@ export async function generateReply(options: {
   config: BotRuntimeConfig
   messages: Message[]
   temperature?: number
-  conversationId?: string
+  sessionId?: string
   onToolCallMessage?: (message: ProviderMessage) => void | Promise<void>
   onToolResultMessage?: (message: ProviderMessage) => void | Promise<void>
 }) {
@@ -321,9 +321,9 @@ export async function generateReply(options: {
   const useTools = Boolean(model.capabilities.toolCalling)
   if (useTools) {
     await session.connectMcp()
-    if (options.conversationId) {
+    if (options.sessionId) {
       session.mcp.setConversationContext({
-        conversationId: options.conversationId,
+        conversationId: options.sessionId,
       })
     }
   }
@@ -348,7 +348,7 @@ export async function generateReply(options: {
       !hasEphemeralResponsesContext(options.messages)
     const responsesExtraBody = buildResponsesExtraBody(
       options.config,
-      options.conversationId,
+      options.sessionId,
     )
     const toolTrace: ProviderMessage[] = []
     const toolCallbackTasks: Promise<void>[] = []
@@ -397,7 +397,7 @@ export async function generateReply(options: {
             onRequest: async (record) => {
               await writeLlmRequestDebugLog({
                 config: options.config,
-                conversationId: options.conversationId,
+                conversationId: options.sessionId,
                 record,
               })
             },

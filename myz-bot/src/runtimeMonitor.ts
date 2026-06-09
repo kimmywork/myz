@@ -16,13 +16,13 @@ export type RuntimeChatRole =
 
 export interface RuntimeChatEntry {
   at: string
-  conversationId: string
+  sessionId: string
   role: RuntimeChatRole
   text: string
 }
 
 export interface RuntimeRequestMetrics {
-  conversationId: string
+  sessionId: string
   source: "conversation" | "scheduler"
   requestCount: number
   durationMs: number
@@ -65,31 +65,31 @@ export interface RuntimeMonitorSnapshot {
 }
 
 export interface RuntimeMonitor {
-  notePhase: (phase: RuntimeMonitorPhase, conversationId?: string) => void
+  notePhase: (phase: RuntimeMonitorPhase, sessionId?: string) => void
   noteIncomingMessage: (options: {
-    conversationId: string
+    sessionId: string
     text: string
     role?: RuntimeChatRole
   }) => void
   noteOutgoingMessage: (options: {
-    conversationId: string
+    sessionId: string
     text: string
     role?: RuntimeChatRole
   }) => void
   noteRequestStart: (options: {
-    conversationId: string
+    sessionId: string
     source: "conversation" | "scheduler"
     messages: Message[]
   }) => { startedAt: number; requestId: string }
   noteRequestComplete: (options: {
-    conversationId: string
+    sessionId: string
     source: "conversation" | "scheduler"
     startedAt: number
     requestId?: string
     usage?: TokenUsage
     toolCallCount?: number
   }) => void
-  noteError: (options: { conversationId?: string; error: unknown }) => void
+  noteError: (options: { sessionId?: string; error: unknown }) => void
   setInputState: (options: {
     enabled?: boolean
     label?: string
@@ -280,7 +280,7 @@ export function formatRuntimeMonitorScreen(
   const availableTail = Math.max(3, height - reserved)
   const tail = snapshot.chatTail.slice(-availableTail)
   tail.forEach((entry) => {
-    const prefix = `[${entry.at}] ${entry.role}:${entry.conversationId}`
+    const prefix = `[${entry.at}] ${entry.role}:${entry.sessionId}`
     lines.push(`${prefix} ${entry.text}`.trim())
   })
 
@@ -387,9 +387,9 @@ export function createRuntimeMonitor(options: {
     }
   }
 
-  const setConversation = (conversationId?: string) => {
-    if (!conversationId) return
-    snapshot.activeConversationId = conversationId
+  const setConversation = (sessionId?: string) => {
+    if (!sessionId) return
+    snapshot.activeConversationId = sessionId
   }
 
   const close = () => {
@@ -407,35 +407,35 @@ export function createRuntimeMonitor(options: {
   }
 
   return {
-    notePhase(phase, conversationId) {
+    notePhase(phase, sessionId) {
       snapshot.phase = phase
-      setConversation(conversationId)
+      setConversation(sessionId)
       queueRender()
     },
 
-    noteIncomingMessage({ conversationId, text, role = "user" }) {
-      setConversation(conversationId)
+    noteIncomingMessage({ sessionId, text, role = "user" }) {
+      setConversation(sessionId)
       pushChat({
         at: now().toISOString().slice(11, 19),
-        conversationId,
+        sessionId,
         role,
         text: normalizeChatText(text),
       })
       queueRender()
     },
 
-    noteOutgoingMessage({ conversationId, text, role = "assistant" }) {
-      setConversation(conversationId)
+    noteOutgoingMessage({ sessionId, text, role = "assistant" }) {
+      setConversation(sessionId)
       pushChat({
         at: now().toISOString().slice(11, 19),
-        conversationId,
+        sessionId,
         role,
         text: normalizeChatText(text),
       })
       queueRender()
     },
 
-    noteRequestStart({ conversationId, source, messages }) {
+    noteRequestStart({ sessionId, source, messages }) {
       const context = estimateContext(messages)
       const requestId = `${snapshot.requestCount + 1}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       snapshot.requestCount += 1
@@ -443,7 +443,7 @@ export function createRuntimeMonitor(options: {
       snapshot.contextChars = context.contextChars
       snapshot.contextTokensEstimate = context.contextTokensEstimate
       snapshot.phase = "llm"
-      setConversation(conversationId)
+      setConversation(sessionId)
       activeRequests.set(requestId, {
         requestCount: snapshot.requestCount,
         contextMessages: context.contextMessages,
@@ -452,7 +452,7 @@ export function createRuntimeMonitor(options: {
       })
       snapshot.pendingRequests = activeRequests.size
       snapshot.lastRequest = {
-        conversationId,
+        sessionId,
         source,
         requestCount: snapshot.requestCount,
         durationMs: 0,
@@ -473,7 +473,7 @@ export function createRuntimeMonitor(options: {
     },
 
     noteRequestComplete({
-      conversationId,
+      sessionId,
       source,
       startedAt,
       requestId,
@@ -500,7 +500,7 @@ export function createRuntimeMonitor(options: {
       snapshot.totalTokens += totals.totalTokens
       snapshot.totalDurationMs += durationMs
       snapshot.lastRequest = {
-        conversationId,
+        sessionId,
         source,
         requestCount: requestContext.requestCount,
         durationMs,
@@ -516,13 +516,13 @@ export function createRuntimeMonitor(options: {
         tokensPerSecond,
         finishedAt: now().toISOString(),
       }
-      setConversation(conversationId)
+      setConversation(sessionId)
       queueRender()
     },
 
-    noteError({ conversationId, error }) {
+    noteError({ sessionId, error }) {
       snapshot.phase = "error"
-      setConversation(conversationId)
+      setConversation(sessionId)
       snapshot.lastError =
         error instanceof Error ? normalizeText(error.message, 180) : normalizeText(String(error), 180)
       queueRender()

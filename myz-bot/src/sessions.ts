@@ -12,6 +12,9 @@ export interface SessionMetadata {
   username?: string
   firstName?: string
   lastName?: string
+  scope?: "private" | "group"
+  chatType?: string
+  threadId?: number
   parentSessionId?: string
   forkedFromMessageId?: string
   title?: string
@@ -19,6 +22,7 @@ export interface SessionMetadata {
   updatedAt: string
   lastMessageAt?: string
   lastCompactionAt?: string
+  lastCompressionAt?: string
   messageCount: number
   status: "active" | "archived"
 }

@@ -232,7 +232,7 @@ export function startLocalTuiChannel(options: {
       })
       .catch((error) => {
         options.monitor?.noteError({
-          conversationId: `${LOCAL_TUI_CHAT_ID}-${LOCAL_TUI_USER_ID}`,
+          sessionId: `${LOCAL_TUI_CHAT_ID}-${LOCAL_TUI_USER_ID}`,
           error,
         })
       })

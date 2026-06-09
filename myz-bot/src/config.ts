@@ -228,6 +228,20 @@ const BotConfigSchema = z.object({
     .default({
       reviewRequired: true,
     }),
+  access: z
+    .object({
+      allowedPaths: z.array(z.string()).optional().default([]),
+      blockedPaths: z.array(z.string()).optional().default([]),
+      allowedCommands: z.array(z.string()).optional().default([]),
+      blockedCommands: z.array(z.string()).optional().default([]),
+    })
+    .optional()
+    .default({
+      allowedPaths: [],
+      blockedPaths: [],
+      allowedCommands: [],
+      blockedCommands: [],
+    }),
   browser: z
     .object({
       enabled: z.boolean().optional().default(true),

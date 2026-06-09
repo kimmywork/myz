@@ -201,7 +201,7 @@ export function renderChatEntry(options: { entry: ChatEntry; chatWidth: number }
   const wrappedLines = wrapText(options.entry.text, Math.max(20, options.chatWidth - 6))
   return {
     content: [
-      `${badge(tone.label, tone.fg, tone.bg)}  {gray-fg}${escapeContent(formatTimestamp(options.entry.at))}{/gray-fg}  {bold}${escapeContent(options.entry.conversationId)}{/bold}`,
+      `${badge(tone.label, tone.fg, tone.bg)}  {gray-fg}${escapeContent(formatTimestamp(options.entry.at))}{/gray-fg}  {bold}${escapeContent(options.entry.sessionId)}{/bold}`,
       `{${tone.accent}-fg}${"-".repeat(Math.max(8, Math.min(18, tone.label.length + 6)))}{/${tone.accent}-fg}`,
       ...wrappedLines.map((line) => escapeContent(line)),
     ].join("\n"),

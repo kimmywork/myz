@@ -53,13 +53,13 @@ export function normalizeError(error: unknown): LoggedError {
 }
 
 export function appendSessionErrorLog(options: {
-  conversationDir: string
-  conversationId: string
+  sessionDir: string
+  sessionId: string
   phase: string
   error: unknown
   context?: Record<string, unknown>
 }) {
-  const logDir = resolve(options.conversationDir, "logs")
+  const logDir = resolve(options.sessionDir, "logs")
   if (!existsSync(logDir)) {
     mkdirSync(logDir, { recursive: true })
   }
@@ -69,7 +69,7 @@ export function appendSessionErrorLog(options: {
     logFile,
     JSON.stringify({
       timestamp: new Date().toISOString(),
-      conversationId: options.conversationId,
+      sessionId: options.sessionId,
       phase: options.phase,
       error: normalized,
       context: serializeUnknown(options.context || {}),

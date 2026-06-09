@@ -143,7 +143,7 @@ async function processScheduledLlmTask(options: {
       sessionWorkspace,
       user: {
         userId: metadata.userId,
-        chatId: metadata.chatId,
+        chatId: metadata.chatId ?? 0,
         username: metadata.username,
         firstName: metadata.firstName,
         lastName: metadata.lastName,
@@ -163,7 +163,7 @@ async function processScheduledLlmTask(options: {
     sessionWorkspace,
     user: {
       userId: metadata.userId,
-      chatId: metadata.chatId,
+      chatId: metadata.chatId ?? 0,
       username: metadata.username,
       firstName: metadata.firstName,
       lastName: metadata.lastName,
@@ -182,7 +182,7 @@ async function processScheduledLlmTask(options: {
     channel: options.channel,
     sessionDir: options.sessionDir,
     sessionId: options.sessionId,
-    chatId: metadata.chatId,
+    chatId: metadata.chatId ?? 0,
     latestUserInput: userMessage.content,
     sendOptions: {
       messageThreadId: metadata.threadId,
@@ -291,7 +291,7 @@ async function processScheduledLlmTask(options: {
     })
     appendMessage(options.sessionDir, assistantMessage)
     await options.channel.sendMessage(
-      metadata.chatId,
+      metadata.chatId ?? 0,
       assistantMessage.content,
       {
         messageThreadId: metadata.threadId,
@@ -354,7 +354,7 @@ async function processScheduledDirectTask(options: {
   })
   appendMessage(options.sessionDir, assistantMessage)
   await options.channel.sendMessage(
-    metadata.chatId,
+    metadata.chatId ?? 0,
     assistantMessage.content,
     {
       messageThreadId: metadata.threadId,
@@ -452,7 +452,7 @@ export async function processDueScheduledTasks(options: {
           role: "error",
         })
         await options.channel.sendMessage(
-          metadata.chatId,
+          metadata.chatId ?? 0,
           errorText,
           {
             messageThreadId: metadata.threadId,
