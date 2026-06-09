@@ -222,26 +222,6 @@ const BotConfigSchema = z.object({
       maxBatchSize: 20,
       failureRetryBaseDelayMs: 60_000,
     }),
-  upgrade: z
-    .object({
-      enabled: z.boolean().optional().default(true),
-      packageName: z.string().min(1).optional().default("myz-bot"),
-      channel: z.string().min(1).optional().default("latest"),
-      checkIntervalMs: z.number().int().positive().optional().default(21_600_000),
-      strategy: z.enum(["notify", "prepare-and-restart"]).optional().default("notify"),
-      applyMode: z.enum(["manual", "launcher-only"]).optional().default("manual"),
-      allowPrerelease: z.boolean().optional().default(false),
-    })
-    .optional()
-    .default({
-      enabled: true,
-      packageName: "myz-bot",
-      channel: "latest",
-      checkIntervalMs: 21_600_000,
-      strategy: "notify",
-      applyMode: "manual",
-      allowPrerelease: false,
-    }),
   soul: z
     .object({
       reviewRequired: z.boolean().optional().default(true),
@@ -462,19 +442,10 @@ function buildSkillSources(config: BotConfig, workspaceRoot: string, runtimeRoot
     readonly: false,
   }
 
-  // Legacy project skills: $workspace/skills
-  const projectSkillSource = {
-    id: "project",
-    kind: "filesystem" as const,
-    dir: resolve(workspaceRoot, "skills"),
-    readonly: false,
-  }
-
   const defaults: SkillSource[] = [
     getBuiltinSkillSource(),
     globalSkillSource,
     workspaceSkillSource,
-    projectSkillSource,
   ]
   const merged = [...defaults, ...configuredSources]
   const unique = new Map<string, SkillSource>()

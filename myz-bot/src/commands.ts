@@ -34,10 +34,6 @@ export function parseBotCommand(raw: string, botUsername: string): BotCommand | 
 
 export const SUPPORTED_BOT_COMMAND_NAMES = [
   "skills",
-  "todo",
-  "soul",
-  "permit",
-  "ops",
   "session",
   "clear",
   "resume",

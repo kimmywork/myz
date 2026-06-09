@@ -20,12 +20,10 @@ import {
   saveSessionMetadata,
   createSession,
   forkSession,
-  archiveSession,
   getActiveSession,
   listSessions,
   type SessionMetadata,
 } from "./sessions"
-import { appendHistoryEntry } from "./history"
 import { prepareSessionContext } from "./contextCompaction"
 import {
   formatSupportedBotCommands,
@@ -37,63 +35,19 @@ import {
   appendSessionErrorLog,
   formatErrorReply,
 } from "./errors"
-import {
-  approveElevatedPermissionRequest,
-  createElevatedPermissionGrant,
-  listElevatedPermissionGrants,
-  listElevatedPermissionRequests,
-  rejectElevatedPermissionRequest,
-  revokeElevatedPermissionGrant,
-  type ElevatedPermissionAccess,
-  type ElevatedPermissionGrant,
-  type ElevatedPermissionRequest,
-} from "./elevatedPermissions"
 import { buildIncomingMessage } from "./incoming"
 import {
-  collectTokenUsageSummary,
-  formatBotRuntimeStatus,
-  formatTokenUsageSummary,
-  getBotRuntimeStatus,
-  requestProcessRestart,
-} from "./maintenance"
-import {
   extractCommandText,
-  isAdminUser,
 } from "./permissions"
 import { configureGlobalNetwork } from "./network"
-import { generateSoulDraftContent } from "./soulDraftGenerator"
-import {
-  applySoulDraft,
-  createSoulDraft,
-  listSoulDrafts,
-  readSoulDraft,
-} from "./soul"
 import { buildReplyOptions } from "./replyOptions"
 import { createToolProgressNotifier } from "./toolProgress"
 import {
   listSkills,
-  readSkillFile,
   type SkillInfo,
 } from "./skills"
 import { resolveSessionRoute } from "./routing"
-import { startTaskScheduler } from "./scheduler"
-import {
-  ensureSessionTaskFiles,
-  formatTasksForChat,
-  listSessionTasks,
-  updateScheduledTask,
-} from "./tasks"
-import {
-  appendToolAuditTrace,
-  appendToolMessagesToSessionHistory,
-} from "./toolHistory"
 import { createLocalTools } from "./tools"
-import {
-  applyUpgrade,
-  checkForUpgrade,
-  formatUpgradeStatus,
-  syncUpgradeState,
-} from "./upgrade"
 import { createRuntimeMonitor, type RuntimeMonitor } from "./runtimeMonitor"
 import {
   createTuiAwareChannelClient,
@@ -138,16 +92,6 @@ function loadVisibleSkills(config: BotRuntimeConfig, sourceId?: string) {
   })
 }
 
-function isElevatedPermissionAccess(value: string): value is ElevatedPermissionAccess {
-  return value === "read" || value === "write" || value === "run"
-}
-
-function formatPermissionRule(
-  entry: Pick<ElevatedPermissionGrant, "matcher" | "pattern"> | Pick<ElevatedPermissionRequest, "matcher" | "pattern">,
-) {
-  return `${entry.matcher}:${entry.pattern}`
-}
-
 async function handleCommand(options: {
   config: BotRuntimeConfig
   sessionId: string
@@ -174,472 +118,11 @@ async function handleCommand(options: {
   }
 
   if (command.name === "skills") {
-    const argPath = buildSkillPathArgument(command.args)
-    let replyText = ""
-    if (!argPath) {
-      replyText = formatSkillList(loadVisibleSkills(options.config))
-    } else {
-      const [sourceId, skillName, ...fileParts] = argPath.split("/").filter(Boolean)
-      const sourceOnly = command.args.length === 1 && !skillName
-      if (sourceOnly) {
-        replyText = formatSkillList(loadVisibleSkills(options.config, sourceId))
-      } else if (sourceId && skillName) {
-        replyText = readSkillFile(
-          options.config.skillSources,
-          skillName,
-          fileParts.length ? fileParts.join("/") : "SKILL.md",
-          sourceId,
-          {
-            allowlist: options.config.skillAllowlist,
-            denylist: options.config.skillDenylist,
-          },
-        )
-      } else {
-        replyText = "用法：/skills 或 /skills/<source>/<name>"
-      }
-    }
+    const sourceId = command.args[0]
+    const replyText = formatSkillList(loadVisibleSkills(options.config, sourceId))
     await options.sendMessage(
       options.message.chat.id,
       replyText,
-      buildReplyOptions(options.message),
-    )
-    return true
-  }
-
-  if (command.name === "todo") {
-    const sessionDir = ensureSessionDir(
-      options.config.sessionsDir,
-      options.sessionId,
-    )
-    ensureSessionTaskFiles(sessionDir, options.sessionId)
-    const action = (command.args[0] || "list").toLowerCase()
-
-    if (action === "list" || action === "show") {
-      const tasks = listSessionTasks({
-        sessionDir,
-        sessionId: options.sessionId,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        `${formatTasksForChat(tasks)}\n\n需要继续操作时可直接使用 /todo 命令。`,
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (
-      action === "complete" ||
-      action === "archive" ||
-      action === "delete" ||
-      action === "reopen"
-    ) {
-      const taskId = command.args[1]
-      if (!taskId) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/todo <complete|archive|delete|reopen> <taskId>",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      const task = updateScheduledTask({
-        sessionDir,
-        sessionId: options.sessionId,
-        taskId,
-        action,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        `任务已更新：${task.id} -> ${task.status}`,
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "merge") {
-      const taskId = command.args[1]
-      const mergeTaskIds = command.args.slice(2).filter(Boolean)
-      if (!taskId || !mergeTaskIds.length) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/todo merge <keepTaskId> <taskId...>",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      const task = updateScheduledTask({
-        sessionDir,
-        sessionId: options.sessionId,
-        taskId,
-        action: "merge",
-        mergeTaskIds,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        `任务已合并：保留 ${task.id}，合并 ${mergeTaskIds.length} 个重复项`,
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "postpone") {
-      const taskId = command.args[1]
-      const dueAt = command.args[2]
-      if (!taskId || !dueAt) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/todo postpone <taskId> <dueAt-ISO8601>",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      const task = updateScheduledTask({
-        sessionDir,
-        sessionId: options.sessionId,
-        taskId,
-        action: "postpone",
-        dueAt,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        `任务已延期：${task.id} -> ${task.dueAt}`,
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "edit") {
-      const taskId = command.args[1]
-      const dueAtArg = command.args[2]
-      const title = command.args.slice(3).join(" ").trim()
-      if (!taskId) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/todo edit <taskId> [dueAt-ISO8601|-] [title]",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      const task = updateScheduledTask({
-        sessionDir,
-        sessionId: options.sessionId,
-        taskId,
-        action: "edit",
-        dueAt:
-          typeof dueAtArg === "string" && dueAtArg.trim() && dueAtArg !== "-"
-            ? dueAtArg
-            : undefined,
-        title: title || undefined,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        `任务已编辑：${task.id} -> ${task.dueAt} ${task.title}`,
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    await options.sendMessage(
-      options.message.chat.id,
-      "可用命令：/todo list | /todo edit <taskId> [dueAt-ISO8601|-] [title] | /todo merge <keepTaskId> <taskId...> | /todo postpone <taskId> <dueAt-ISO8601> | /todo complete <taskId> | /todo archive <taskId> | /todo delete <taskId> | /todo reopen <taskId>",
-      buildReplyOptions(options.message),
-    )
-    return true
-  }
-
-  if (command.name === "ops") {
-    if (!isAdminUser(options.config, options.message.from)) {
-      await options.sendMessage(
-        options.message.chat.id,
-        "只有管理员可以执行运维命令。",
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    const action = (command.args[0] || "status").toLowerCase()
-    const scope = (command.args[1] || "current").toLowerCase()
-    const normalizedScope = scope === "all" ? "all" : "current"
-    if (action === "status") {
-      await options.sendMessage(
-        options.message.chat.id,
-        formatBotRuntimeStatus(getBotRuntimeStatus(options.config)),
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "usage") {
-      await options.sendMessage(
-        options.message.chat.id,
-        formatTokenUsageSummary(
-          collectTokenUsageSummary({
-            config: options.config,
-            scope: normalizedScope,
-            sessionId: options.sessionId,
-          }),
-        ),
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "upgrade") {
-      const subaction = (command.args[1] || "status").toLowerCase()
-
-      if (subaction === "status") {
-        const state = syncUpgradeState(options.config)
-        await options.sendMessage(
-          options.message.chat.id,
-          formatUpgradeStatus(state),
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-
-      if (subaction === "check") {
-        try {
-          const result = await checkForUpgrade({
-            config: options.config,
-          })
-          await options.sendMessage(
-            options.message.chat.id,
-            formatUpgradeStatus(result.state),
-            buildReplyOptions(options.message),
-          )
-        } catch (error) {
-          const state = syncUpgradeState(options.config)
-          await options.sendMessage(
-            options.message.chat.id,
-            `${formatUpgradeStatus(state)}\n\n升级检查失败：${(error as Error).message}`,
-            buildReplyOptions(options.message),
-          )
-        }
-        return true
-      }
-
-      if (subaction === "apply") {
-        try {
-          const result = await applyUpgrade({
-            config: options.config,
-            requestedBy:
-              options.message.from?.username || options.message.from?.id?.toString() || "unknown",
-            scheduleExit: true,
-          })
-          await options.sendMessage(
-            options.message.chat.id,
-            `${result.message}\n\n${formatUpgradeStatus(result.state)}`,
-            buildReplyOptions(options.message),
-          )
-        } catch (error) {
-          const state = syncUpgradeState(options.config)
-          await options.sendMessage(
-            options.message.chat.id,
-            `${formatUpgradeStatus(state)}\n\n升级申请失败：${(error as Error).message}`,
-            buildReplyOptions(options.message),
-          )
-        }
-        return true
-      }
-
-      await options.sendMessage(
-        options.message.chat.id,
-        "用法：/ops upgrade [status|check|apply]",
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "restart") {
-      await options.sendMessage(
-        options.message.chat.id,
-        "已请求重启当前进程；若当前由 launch 托管，将自动拉起新进程。",
-        buildReplyOptions(options.message),
-      )
-      requestProcessRestart({
-        requestFilePath: resolve(options.config.systemDir, "restart-request.json"),
-        reason: "ops_restart",
-        requestedBy: options.message.from?.username || options.message.from?.id?.toString() || "unknown",
-      })
-      return true
-    }
-
-    await options.sendMessage(
-      options.message.chat.id,
-      "可用命令：/ops status | /ops usage [current|all] | /ops upgrade [status|check|apply] | /ops restart",
-      buildReplyOptions(options.message),
-    )
-    return true
-  }
-
-  if (command.name === "permit") {
-    if (!isAdminUser(options.config, options.message.from)) {
-      await options.sendMessage(
-        options.message.chat.id,
-        "只有管理员可以处理权限请求。",
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    const action = (command.args[0] || "list").toLowerCase()
-    if (action === "list") {
-      const requests = listElevatedPermissionRequests(
-        options.config.workspaceRuntimeRoot,
-        "pending",
-      )
-      if (!requests.length) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "当前没有待处理的权限请求。",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      await options.sendMessage(
-        options.message.chat.id,
-        [
-          "待处理权限请求：",
-          ...requests.slice(0, 12).map((request) =>
-            `- ${request.id} | ${request.toolName} | ${request.access} | ${formatPermissionRule(request)}`,
-          ),
-        ].join("\n"),
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "grants") {
-      const grants = listElevatedPermissionGrants(options.config.workspaceRuntimeRoot)
-      if (!grants.length) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "当前没有已授权规则。",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      await options.sendMessage(
-        options.message.chat.id,
-        [
-          "已授权规则：",
-          ...grants.slice(0, 20).map((grant) =>
-            `- ${grant.id} | ${grant.access} | ${formatPermissionRule(grant)} | by ${grant.approvedBy}`,
-          ),
-        ].join("\n"),
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "grant") {
-      const access = (command.args[1] || "").toLowerCase()
-      const target = command.args.slice(2).join(" ").trim()
-      if (!isElevatedPermissionAccess(access) || !target) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/permit grant <read|write|run> <path-or-glob>",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      const actor = options.message.from?.username || String(options.message.from?.id || "admin")
-      const grant = createElevatedPermissionGrant({
-        workspaceRoot: options.config.workspaceRuntimeRoot,
-        access,
-        target,
-        actor,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        [
-          `已添加授权规则：${grant.id}`,
-          `access: ${grant.access}`,
-          `rule: ${formatPermissionRule(grant)}`,
-        ].join("\n"),
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "approve") {
-      const requestId = command.args[1]
-      if (!requestId) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/permit approve <requestId>",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      const actor = options.message.from?.username || String(options.message.from?.id || "admin")
-      const { request, grant } = approveElevatedPermissionRequest({
-        workspaceRoot: options.config.workspaceRuntimeRoot,
-        requestId,
-        actor,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        [
-          `已批准权限请求：${request.id}`,
-          `grant: ${grant.id}`,
-          `access: ${grant.access}`,
-          `rule: ${formatPermissionRule(grant)}`,
-        ].join("\n"),
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "reject") {
-      const requestId = command.args[1]
-      if (!requestId) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/permit reject <requestId>",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      const actor = options.message.from?.username || String(options.message.from?.id || "admin")
-      const request = rejectElevatedPermissionRequest({
-        workspaceRoot: options.config.workspaceRuntimeRoot,
-        requestId,
-        actor,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        `已拒绝权限请求：${request.id}`,
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    if (action === "revoke") {
-      const grantId = command.args[1]
-      if (!grantId) {
-        await options.sendMessage(
-          options.message.chat.id,
-          "用法：/permit revoke <grantId>",
-          buildReplyOptions(options.message),
-        )
-        return true
-      }
-      const grant = revokeElevatedPermissionGrant({
-        workspaceRoot: options.config.workspaceRuntimeRoot,
-        grantId,
-      })
-      await options.sendMessage(
-        options.message.chat.id,
-        `已撤销授权规则：${grant.id} | ${grant.access} | ${formatPermissionRule(grant)}`,
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-
-    await options.sendMessage(
-      options.message.chat.id,
-      "可用命令：/permit list | /permit grants | /permit grant <read|write|run> <path-or-glob> | /permit approve <requestId> | /permit reject <requestId> | /permit revoke <grantId>",
       buildReplyOptions(options.message),
     )
     return true
@@ -809,99 +292,9 @@ async function handleCommand(options: {
     return true
   }
 
-  if (!isAdminUser(options.config, options.message.from)) {
-    await options.sendMessage(
-      options.message.chat.id,
-      "只有管理员可以执行 SOUL 管理命令。",
-      buildReplyOptions(options.message),
-    )
-    return true
-  }
-
-  const action = (command.args[0] || "").toLowerCase()
-  if (!action || action === "list") {
-    const drafts = listSoulDrafts(options.config.workspaceRuntimeRoot)
-    const text = drafts.length
-      ? ["当前 SOUL 草案：", ...drafts.map((draft) => `- ${draft.id}`)].join("\n")
-      : "当前没有 SOUL 草案。"
-    await options.sendMessage(
-      options.message.chat.id,
-      text,
-      buildReplyOptions(options.message),
-    )
-    return true
-  }
-
-  if (action === "draft") {
-    const existingMessages = loadAllMessages(
-      ensureSessionDir(options.config.sessionsDir, options.sessionId),
-    )
-    const actor = options.message.from?.username || String(options.message.from?.id || "admin")
-    const content = await generateSoulDraftContent({
-      config: options.config,
-      sessionId: options.sessionId,
-      recentMessages: existingMessages,
-      actor,
-    })
-    const draft = createSoulDraft({
-      runtimeRoot: options.config.workspaceRuntimeRoot,
-      content,
-      metadata: {
-        actor,
-        trigger: "manual",
-        sessionId: options.sessionId,
-      },
-    })
-    await options.sendMessage(
-      options.message.chat.id,
-      `SOUL 草案已生成：${draft.id}`,
-      buildReplyOptions(options.message),
-    )
-    return true
-  }
-
-  if (action === "apply") {
-    const draftId = command.args[1]
-    if (!draftId) {
-      await options.sendMessage(
-        options.message.chat.id,
-        "用法：/soul apply <draftId>",
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-    if (options.config.soul.reviewRequired !== false && !isAdminUser(options.config, options.message.from)) {
-      await options.sendMessage(
-        options.message.chat.id,
-        "当前配置要求管理员确认后才能应用 SOUL 草案。",
-        buildReplyOptions(options.message),
-      )
-      return true
-    }
-    applySoulDraft({
-      workspaceRoot: options.config.workspaceRoot,
-      runtimeRoot: options.config.workspaceRuntimeRoot,
-      draftId,
-      metadata: {
-        actor: options.message.from?.username || String(options.message.from?.id || "admin"),
-      },
-    })
-    const preview = readSoulDraft(options.config.workspaceRuntimeRoot, draftId)
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .slice(0, 4)
-      .join("\n")
-    await options.sendMessage(
-      options.message.chat.id,
-      `SOUL 已应用：${draftId}\n${preview}`,
-      buildReplyOptions(options.message),
-    )
-    return true
-  }
-
   await options.sendMessage(
     options.message.chat.id,
-    "可用命令：/soul list | /soul draft | /soul apply <draftId>",
+    `未知命令：/${command.name}。可用命令：${formatSupportedBotCommands()}`,
     buildReplyOptions(options.message),
   )
   return true
@@ -926,7 +319,6 @@ async function handleSessionMessage(options: {
   }
 
   const sessionDir = ensureSessionDir(options.config.sessionsDir, sessionId)
-  ensureSessionTaskFiles(sessionDir, sessionId)
   const sessionWorkspace = options.config.workspaceRoot
 
   const now = new Date().toISOString()
@@ -1142,31 +534,6 @@ async function handleSessionMessage(options: {
       await progressNotifier.flush()
     }
 
-    if (Array.isArray(reply.toolTrace) && reply.toolTrace.length) {
-      appendToolMessagesToSessionHistory({
-        sessionId,
-        sessionDir,
-        trace: reply.toolTrace as Array<{
-          role: string
-          content: unknown
-          tool_calls?: unknown
-          tool_call_id?: unknown
-          metadata?: Record<string, unknown>
-        }>,
-      })
-      appendToolAuditTrace({
-        sessionId,
-        sessionDir,
-        trace: reply.toolTrace as Array<{
-          role: string
-          content: unknown
-          tool_calls?: unknown
-          tool_call_id?: unknown
-          metadata?: Record<string, unknown>
-        }>,
-      })
-    }
-
     const assistantMessage = createAssistantMessage(
       sessionId,
       reply.content || "(无响应)",
@@ -1224,8 +591,7 @@ async function handleSessionMessage(options: {
         shouldReply: options.shouldReply,
       },
     })
-    const canSendErrorReply =
-      options.shouldReply || isAdminUser(options.config, options.message.from)
+    const canSendErrorReply = options.shouldReply
     try {
       if (canSendErrorReply) {
         const assistantMessage = createAssistantMessage(
@@ -1267,7 +633,6 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
   mkdirSync(config.soulRuntimeDir, { recursive: true })
   mkdirSync(config.systemDir, { recursive: true })
   mkdirSync(config.knowledgeDir, { recursive: true })
-  syncUpgradeState(config)
 
   const channel = createTuiAwareChannelClient({
     config,
@@ -1300,14 +665,6 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
     enabled: resolveTuiEnabled(options.enableTui),
     input: process.stdin,
   })
-  const scheduler =
-    config.scheduler.enabled
-      ? startTaskScheduler({
-          config,
-          channel,
-          monitor,
-        })
-      : null
   const localTuiChannel = startLocalTuiChannel({
     config,
     enabled: config.channels.tui.enabled && resolveTuiEnabled(options.enableTui),
@@ -1330,7 +687,6 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
 
   await new Promise<void>(() => undefined)
 
-  scheduler?.stop()
   localTuiChannel.close()
   monitor.close()
 }

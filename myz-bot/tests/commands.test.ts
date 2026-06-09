@@ -22,8 +22,13 @@ test("parseBotCommand preserves /skills/<source>/<name> shorthand", () => {
 })
 
 test("isSupportedBotCommandName only accepts known slash commands", () => {
-  assert.equal(isSupportedBotCommandName("todo"), true)
-  assert.equal(isSupportedBotCommandName("ops"), true)
+  assert.equal(isSupportedBotCommandName("skills"), true)
+  assert.equal(isSupportedBotCommandName("session"), true)
+  assert.equal(isSupportedBotCommandName("clear"), true)
+  assert.equal(isSupportedBotCommandName("resume"), true)
+  assert.equal(isSupportedBotCommandName("fork"), true)
+  assert.equal(isSupportedBotCommandName("todo"), false)
+  assert.equal(isSupportedBotCommandName("ops"), false)
   assert.equal(isSupportedBotCommandName("tasks"), false)
 })
 
@@ -33,5 +38,5 @@ test("isPassthroughBotCommandName keeps reserved commands out of unknown-command
 })
 
 test("formatSupportedBotCommands returns the public command list", () => {
-  assert.equal(formatSupportedBotCommands(), "/skills、/todo、/soul、/permit、/ops、/session、/clear、/resume、/fork")
+  assert.equal(formatSupportedBotCommands(), "/skills、/session、/clear、/resume、/fork")
 })
