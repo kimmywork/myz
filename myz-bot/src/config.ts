@@ -18,6 +18,28 @@ dotenv.config({ path: resolve(process.cwd(), ".env") })
 
 export const BOT_RUNTIME_DIRNAME = ".myz-bot"
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function deepMerge(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...target }
+  for (const key of Object.keys(source)) {
+    if (isPlainObject(result[key]) && isPlainObject(source[key])) {
+      result[key] = deepMerge(
+        result[key] as Record<string, unknown>,
+        source[key] as Record<string, unknown>,
+      )
+    } else if (source[key] !== undefined) {
+      result[key] = source[key]
+    }
+  }
+  return result
+}
+
 const TuiChannelConfigSchema = z.object({
   enabled: z.boolean().optional().default(true),
   label: z.string().min(1).optional().default("local"),
@@ -416,21 +438,42 @@ function normalizeSkillPolicies(entries: string[] = []) {
   )
 }
 
-function buildSkillSources(config: BotConfig, workspaceRoot: string) {
+function buildSkillSources(config: BotConfig, workspaceRoot: string, runtimeRoot: string) {
   const configuredSources = (config.skills?.sources || []).map((source) => ({
     id: source.id,
     kind: "filesystem" as const,
     dir: resolve(workspaceRoot, source.dir),
     readonly: Boolean(source.readonly),
   }))
+
+  // Global skills: ~/.myz-bot/skills
+  const globalSkillSource = {
+    id: "global",
+    kind: "filesystem" as const,
+    dir: resolve(runtimeRoot, "skills"),
+    readonly: true,
+  }
+
+  // Workspace-scoped skills: $workspace/.agents/skills
+  const workspaceSkillSource = {
+    id: "workspace",
+    kind: "filesystem" as const,
+    dir: resolve(workspaceRoot, ".agents", "skills"),
+    readonly: false,
+  }
+
+  // Legacy project skills: $workspace/skills
   const projectSkillSource = {
     id: "project",
     kind: "filesystem" as const,
     dir: resolve(workspaceRoot, "skills"),
     readonly: false,
   }
+
   const defaults: SkillSource[] = [
     getBuiltinSkillSource(),
+    globalSkillSource,
+    workspaceSkillSource,
     projectSkillSource,
   ]
   const merged = [...defaults, ...configuredSources]
@@ -460,18 +503,34 @@ export function loadConfig(options: {
 } = {}): BotRuntimeConfig {
   const runtimeRoot = resolve(options.runtimeRoot || resolveRuntimeRoot())
   const configPath = resolveConfigPath(runtimeRoot)
-  if (!existsSync(configPath)) {
-    throw new Error(`bot.yml not found at ${configPath}`)
+
+  // Load global config
+  let globalConfig: Record<string, unknown> = {}
+  if (existsSync(configPath)) {
+    const raw = readFileSync(configPath, "utf-8")
+    globalConfig = yaml.parse(raw) || {}
   }
-  const raw = readFileSync(configPath, "utf-8")
-  const parsed = yaml.parse(raw) || {}
-  assertNoLegacyContextConfig(parsed)
-  const withEnv = applyEnvFallback(parsed)
-  const config = BotConfigSchema.parse(withEnv)
+
+  // Load workspace-scoped config
   const workspaceRoot = normalizeWorkspaceRoot(options.workspaceRoot)
+  const workspaceConfigPath = resolve(workspaceRoot, ".agents", "bot.yml")
+  let workspaceConfig: Record<string, unknown> = {}
+  if (existsSync(workspaceConfigPath)) {
+    const raw = readFileSync(workspaceConfigPath, "utf-8")
+    workspaceConfig = yaml.parse(raw) || {}
+  }
+
+  // Merge configs (workspace overrides global)
+  const merged = deepMerge(globalConfig, workspaceConfig)
+
+  assertNoLegacyContextConfig(merged)
+  const withEnv = applyEnvFallback(merged)
+  const config = BotConfigSchema.parse(withEnv)
   const workspaceId = buildWorkspaceId(workspaceRoot)
   const workspaceRuntimeRoot = resolve(runtimeRoot, "workspaces", workspaceId)
-  const skillSources = buildSkillSources(config, workspaceRoot)
+
+  // Build skill sources with global and workspace-scoped skills
+  const skillSources = buildSkillSources(config, workspaceRoot, runtimeRoot)
   const skillAllowlist = normalizeSkillPolicies(config.skills?.allowlist)
   const skillDenylist = normalizeSkillPolicies(config.skills?.denylist)
   const toolAllowlist = normalizeSkillPolicies(config.tools?.allowlist)

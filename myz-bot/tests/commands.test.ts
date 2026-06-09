@@ -33,5 +33,5 @@ test("isPassthroughBotCommandName keeps reserved commands out of unknown-command
 })
 
 test("formatSupportedBotCommands returns the public command list", () => {
-  assert.equal(formatSupportedBotCommands(), "/skills、/todo、/soul、/permit、/ops")
+  assert.equal(formatSupportedBotCommands(), "/skills、/todo、/soul、/permit、/ops、/session、/clear、/resume、/fork")
 })

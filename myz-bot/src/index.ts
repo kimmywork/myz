@@ -22,6 +22,7 @@ import {
   forkSession,
   archiveSession,
   getActiveSession,
+  listSessions,
   type SessionMetadata,
 } from "./sessions"
 import { appendHistoryEntry } from "./history"
@@ -639,6 +640,170 @@ async function handleCommand(options: {
     await options.sendMessage(
       options.message.chat.id,
       "可用命令：/permit list | /permit grants | /permit grant <read|write|run> <path-or-glob> | /permit approve <requestId> | /permit reject <requestId> | /permit revoke <grantId>",
+      buildReplyOptions(options.message),
+    )
+    return true
+  }
+
+  if (command.name === "session") {
+    const action = (command.args[0] || "list").toLowerCase()
+
+    if (action === "list") {
+      const sessions = listSessions(options.config.sessionsDir, { limit: 10 })
+      if (!sessions.length) {
+        await options.sendMessage(
+          options.message.chat.id,
+          "当前没有会话。",
+          buildReplyOptions(options.message),
+        )
+        return true
+      }
+      const text = [
+        "最近会话：",
+        ...sessions.map((s) => {
+          const status = s.status === "active" ? "🟢" : "⚪"
+          const title = s.title || s.sessionId
+          return `${status} ${title} (${s.sessionId})`
+        }),
+      ].join("\n")
+      await options.sendMessage(
+        options.message.chat.id,
+        text,
+        buildReplyOptions(options.message),
+      )
+      return true
+    }
+
+    if (action === "info") {
+      const sessionId = command.args[1] || options.sessionId
+      const sessionDir = ensureSessionDir(options.config.sessionsDir, sessionId)
+      const metadata = loadSessionMetadata(sessionDir)
+      if (!metadata) {
+        await options.sendMessage(
+          options.message.chat.id,
+          `会话不存在：${sessionId}`,
+          buildReplyOptions(options.message),
+        )
+        return true
+      }
+      const text = [
+        `会话 ID: ${metadata.sessionId}`,
+        `标题: ${metadata.title || "无"}`,
+        `状态: ${metadata.status}`,
+        `创建时间: ${metadata.createdAt}`,
+        `更新时间: ${metadata.updatedAt}`,
+        `消息数: ${metadata.messageCount}`,
+        metadata.parentSessionId ? `父会话: ${metadata.parentSessionId}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+      await options.sendMessage(
+        options.message.chat.id,
+        text,
+        buildReplyOptions(options.message),
+      )
+      return true
+    }
+
+    await options.sendMessage(
+      options.message.chat.id,
+      "可用命令：/session list | /session info [sessionId]",
+      buildReplyOptions(options.message),
+    )
+    return true
+  }
+
+  if (command.name === "clear") {
+    const newSession = createSession(options.config.sessionsDir, options.config.workspaceId, {
+      title: command.args.join(" ").trim() || undefined,
+    })
+    await options.sendMessage(
+      options.message.chat.id,
+      `新会话已创建：${newSession.sessionId}`,
+      buildReplyOptions(options.message),
+    )
+    return true
+  }
+
+  if (command.name === "resume") {
+    const sessionId = command.args[0]
+    if (!sessionId) {
+      const sessions = listSessions(options.config.sessionsDir, { status: "active", limit: 5 })
+      if (!sessions.length) {
+        await options.sendMessage(
+          options.message.chat.id,
+          "没有可恢复的会话。",
+          buildReplyOptions(options.message),
+        )
+        return true
+      }
+      const text = [
+        "可用会话：",
+        ...sessions.map((s) => `- ${s.sessionId}: ${s.title || "无标题"}`),
+        "",
+        "用法：/resume <sessionId>",
+      ].join("\n")
+      await options.sendMessage(
+        options.message.chat.id,
+        text,
+        buildReplyOptions(options.message),
+      )
+      return true
+    }
+
+    const sessionDir = ensureSessionDir(options.config.sessionsDir, sessionId)
+    const metadata = loadSessionMetadata(sessionDir)
+    if (!metadata) {
+      await options.sendMessage(
+        options.message.chat.id,
+        `会话不存在：${sessionId}`,
+        buildReplyOptions(options.message),
+      )
+      return true
+    }
+
+    await options.sendMessage(
+      options.message.chat.id,
+      `已切换到会话：${sessionId}`,
+      buildReplyOptions(options.message),
+    )
+    return true
+  }
+
+  if (command.name === "fork") {
+    const sourceSessionId = command.args[0] || options.sessionId
+    const sourceDir = ensureSessionDir(options.config.sessionsDir, sourceSessionId)
+    const sourceMessages = loadAllMessages(sourceDir)
+
+    if (!sourceMessages.length) {
+      await options.sendMessage(
+        options.message.chat.id,
+        `会话 ${sourceSessionId} 没有消息，无法分叉。`,
+        buildReplyOptions(options.message),
+      )
+      return true
+    }
+
+    const lastMessage = sourceMessages[sourceMessages.length - 1]
+    const newSession = forkSession(
+      options.config.sessionsDir,
+      sourceSessionId,
+      lastMessage.id,
+      options.config.workspaceId,
+    )
+
+    if (!newSession) {
+      await options.sendMessage(
+        options.message.chat.id,
+        `分叉失败：无法从 ${sourceSessionId} 创建新会话。`,
+        buildReplyOptions(options.message),
+      )
+      return true
+    }
+
+    await options.sendMessage(
+      options.message.chat.id,
+      `已从 ${sourceSessionId} 分叉出新会话：${newSession.sessionId}`,
       buildReplyOptions(options.message),
     )
     return true

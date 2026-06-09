@@ -32,7 +32,17 @@ export function parseBotCommand(raw: string, botUsername: string): BotCommand | 
   }
 }
 
-export const SUPPORTED_BOT_COMMAND_NAMES = ["skills", "todo", "soul", "permit", "ops"] as const
+export const SUPPORTED_BOT_COMMAND_NAMES = [
+  "skills",
+  "todo",
+  "soul",
+  "permit",
+  "ops",
+  "session",
+  "clear",
+  "resume",
+  "fork",
+] as const
 export const PASSTHROUGH_BOT_COMMAND_NAMES = ["start"] as const
 
 export function isSupportedBotCommandName(name: string) {
