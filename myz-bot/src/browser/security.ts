@@ -61,8 +61,7 @@ export function validateSelector(selector: string): SecurityCheckResult {
   return { ok: true }
 }
 
-export function sanitizeTextContent(text: string, maxChars = 10000): string {
+export function sanitizeTextContent(text: string): string {
   if (typeof text !== "string") return ""
-  if (text.length <= maxChars) return text
-  return `${text.slice(0, maxChars)}\n...truncated`
+  return text
 }

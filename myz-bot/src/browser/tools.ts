@@ -110,7 +110,6 @@ export function createBrowserTools(options: {
             description: "返回格式，默认 text",
           },
           selector: { type: "string", description: "仅获取某个元素的内容（可选）" },
-          maxChars: { type: "integer", description: "最大返回字符数，默认 10000" },
         },
       },
     },
@@ -254,7 +253,6 @@ export function createBrowserTools(options: {
         const session = await browserManager.getSession()
         const format = typeof args.format === "string" ? args.format : "text"
         const selector = typeof args.selector === "string" ? args.selector.trim() : ""
-        const maxChars = typeof args.maxChars === "number" ? args.maxChars : 10000
 
         let content = ""
         if (selector) {
@@ -273,7 +271,7 @@ export function createBrowserTools(options: {
             content = await session.page.innerText("body")
           }
         }
-        return textBlock(sanitizeTextContent(content, maxChars))
+        return textBlock(sanitizeTextContent(content))
       } catch (error) {
         return errorBlock(`获取内容失败: ${(error as Error).message}`)
       }

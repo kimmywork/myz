@@ -33,14 +33,12 @@ function errorBlock(text: string): ToolExecutionResult {
   return { content: [{ type: "text", text }], isError: true }
 }
 
-function formatJson(value: unknown, maxChars = 6000) {
-  const text = JSON.stringify(value, null, 2)
-  if (text.length <= maxChars) return text
-  return `${text.slice(0, maxChars)}\n...truncated`
+function formatJson(value: unknown) {
+  return JSON.stringify(value, null, 2)
 }
 
-function withStructuredData(text: string, data: unknown, maxChars = 6000) {
-  return [text, formatJson(data, maxChars)].filter(Boolean).join("\n\n")
+function withStructuredData(text: string, data: unknown) {
+  return [text, formatJson(data)].filter(Boolean).join("\n\n")
 }
 
 function withAgentsContext(options: {

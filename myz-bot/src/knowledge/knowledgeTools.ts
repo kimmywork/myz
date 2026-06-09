@@ -18,10 +18,8 @@ function errorBlock(text: string): ToolExecutionResult {
   return { content: [{ type: "text", text }], isError: true }
 }
 
-function formatJson(value: unknown, maxChars = 6000): string {
-  const text = JSON.stringify(value, null, 2)
-  if (text.length <= maxChars) return text
-  return `${text.slice(0, maxChars)}\n...truncated`
+function formatJson(value: unknown): string {
+  return JSON.stringify(value, null, 2)
 }
 
 export function createKnowledgeTools(options: {
