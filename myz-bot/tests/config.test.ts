@@ -12,10 +12,6 @@ test("loadConfig parses minimal bot.yml", () => {
   writeFileSync(
     path,
     [
-      "channels:",
-      "  telegram:",
-      "    username: testbot",
-      "    token: testtoken",
       "ai:",
       "  provider: openai_compatible",
       "  model: gpt-test",
@@ -23,14 +19,11 @@ test("loadConfig parses minimal bot.yml", () => {
   )
 
   const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
-  assert.equal(config.channels.telegram?.username, "testbot")
   assert.equal(config.ai.model, "gpt-test")
   assert.equal(config.workspaceRoot, realpathSync(workspaceDir))
   assert.equal(config.runtimeRoot, runtimeDir)
   assert.equal(config.skillSources[0]?.id, "builtin")
   assert.equal(config.skillSources[1]?.id, "project")
-  assert.equal(config.channels.telegram?.timeoutSeconds, 25)
-  assert.equal(config.channels.telegram?.retry.retries, 2)
   assert.equal(config.channels.tui.enabled, true)
   assert.equal(config.network.requestTimeoutMs, 180000)
   assert.equal(config.ai.retry.retries, 2)
@@ -62,21 +55,7 @@ test("loadConfig parses permissions and skill policies", () => {
   writeFileSync(
     path,
     [
-      "telegram:",
-      "  username: ignored-legacy",
       "channels:",
-      "  telegram:",
-      "    username: testbot",
-      "    token: testtoken",
-      "    timeoutSeconds: 40",
-      "    allowedUsers:",
-      "      - alice",
-      "    allowedChats:",
-      "      - 42",
-      "    adminUsers:",
-      "      - admin",
-      "    retry:",
-      "      retries: 3",
       "  tui:",
       "    label: console",
       "    operatorUsername: operator",
@@ -131,11 +110,6 @@ test("loadConfig parses permissions and skill policies", () => {
   )
 
   const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
-  assert.deepEqual(config.channels.telegram?.allowedUsers, ["alice"])
-  assert.deepEqual(config.channels.telegram?.allowedChats, [42])
-  assert.deepEqual(config.channels.telegram?.adminUsers, ["admin"])
-  assert.equal(config.channels.telegram?.timeoutSeconds, 40)
-  assert.equal(config.channels.telegram?.retry.retries, 3)
   assert.equal(config.channels.tui.label, "console")
   assert.equal(config.channels.tui.operatorUsername, "operator")
   assert.equal(config.network.requestTimeoutMs, 90000)
@@ -178,12 +152,6 @@ test("loadConfig ignores legacy workspaceRoot in bot.yml and uses the provided w
   writeFileSync(
     path,
     [
-      "telegram:",
-      "  username: ignored-legacy",
-      "channels:",
-      "  telegram:",
-      "    username: testbot",
-      "    token: testtoken",
       "ai:",
       "  provider: openai_compatible",
       "  model: gpt-test",
@@ -207,12 +175,6 @@ test("loadConfig rejects removed legacy context section", () => {
   writeFileSync(
     path,
     [
-      "telegram:",
-      "  username: ignored-legacy",
-      "channels:",
-      "  telegram:",
-      "    username: testbot",
-      "    token: testtoken",
       "ai:",
       "  provider: openai_compatible",
       "  model: gpt-test",
@@ -234,12 +196,6 @@ test("loadConfig rejects unsupported ai provider types", () => {
   writeFileSync(
     path,
     [
-      "telegram:",
-      "  username: ignored-legacy",
-      "channels:",
-      "  telegram:",
-      "    username: testbot",
-      "    token: testtoken",
       "ai:",
       "  provider: ollama",
       "  model: gpt-test",
@@ -250,23 +206,4 @@ test("loadConfig rejects unsupported ai provider types", () => {
     () => loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir }),
     /invalid_value|provider/i,
   )
-})
-
-test("loadConfig defaults to TUI when telegram channel is not configured", () => {
-  const workspaceDir = mkdtempSync(join(tmpdir(), "myz-bot-workspace-"))
-  const runtimeDir = mkdtempSync(join(tmpdir(), "myz-bot-runtime-"))
-  const path = join(runtimeDir, "bot.yml")
-  writeFileSync(
-    path,
-    [
-      "ai:",
-      "  provider: openai_compatible",
-      "  model: gpt-test",
-    ].join("\n"),
-  )
-
-  const config = loadConfig({ workspaceRoot: workspaceDir, runtimeRoot: runtimeDir })
-  assert.equal(config.channels.telegram, null)
-  assert.equal(config.channels.tui.enabled, true)
-  assert.equal(config.channels.tui.operatorUsername, "local")
 })

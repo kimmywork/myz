@@ -1,5 +1,4 @@
 import { loadConfig } from "./config"
-import { createTelegramClient } from "./telegram"
 import { generateReply } from "./ai"
 import { createBotAssistantAgent } from "./agents/botAssistant"
 import { configureGlobalNetwork } from "./network"
@@ -21,26 +20,6 @@ export async function checkConfig(options: { workspaceRoot?: string } = {}) {
   })
   configureGlobalNetwork(config.network)
   const results: Array<{ name: string; ok: boolean; detail?: string }> = []
-
-  if (config.channels.telegram) {
-    try {
-      const telegram = createTelegramClient({
-        token: config.channels.telegram.token,
-        timeoutSeconds: config.channels.telegram.timeoutSeconds,
-        retry: config.channels.telegram.retry,
-      })
-      const me = await telegram.getMe()
-      results.push({ name: "telegram", ok: true, detail: me.username || "ok" })
-    } catch (error) {
-      results.push({
-        name: "telegram",
-        ok: false,
-        detail: (error as Error).message,
-      })
-    }
-  } else {
-    results.push({ name: "telegram", ok: true, detail: "disabled" })
-  }
 
   try {
     const agent = createBotAssistantAgent({

@@ -4,13 +4,9 @@ import type { BotRuntimeConfig } from "../../src/config"
 type RuntimeConfigOverrides =
   Omit<
     Partial<BotRuntimeConfig>,
-    "channels" | "network" | "ai" | "contextCompaction" | "skills" | "tools" | "scheduler" | "upgrade" | "soul"
+    "channels" | "network" | "ai" | "contextCompaction" | "skills" | "tools" | "scheduler" | "upgrade" | "soul" | "browser" | "knowledge"
   > & {
     channels?: Partial<BotRuntimeConfig["channels"]> & {
-      telegram?: Partial<NonNullable<BotRuntimeConfig["channels"]["telegram"]>> & {
-        groupResponseMode?: Partial<NonNullable<BotRuntimeConfig["channels"]["telegram"]>["groupResponseMode"]>
-        retry?: Partial<NonNullable<BotRuntimeConfig["channels"]["telegram"]>["retry"]>
-      }
       tui?: Partial<BotRuntimeConfig["channels"]["tui"]>
     }
     network?: Partial<BotRuntimeConfig["network"]>
@@ -26,6 +22,8 @@ type RuntimeConfigOverrides =
     scheduler?: Partial<BotRuntimeConfig["scheduler"]>
     upgrade?: Partial<BotRuntimeConfig["upgrade"]>
     soul?: Partial<BotRuntimeConfig["soul"]>
+    browser?: Partial<BotRuntimeConfig["browser"]>
+    knowledge?: Partial<BotRuntimeConfig["knowledge"]>
   }
 
 export function createRuntimeConfig(
@@ -35,25 +33,6 @@ export function createRuntimeConfig(
   const workspaceRuntimeRoot = join(root, ".runtime")
   const base: BotRuntimeConfig = {
     channels: {
-      telegram: {
-        enabled: true,
-        username: "testbot",
-        token: "token",
-        timeoutSeconds: 25,
-        allowedUsers: [],
-        allowedChats: [],
-        adminUsers: [],
-        saveIncomingMedia: true,
-        groupResponseMode: {
-          onlyWhenMentioned: true,
-          allowReplyToBot: true,
-          allowAdminCommands: true,
-        },
-        retry: {
-          retries: 2,
-          baseDelayMs: 800,
-        },
-      },
       tui: {
         enabled: true,
         label: "local",
@@ -124,6 +103,23 @@ export function createRuntimeConfig(
     soulRuntimeDir: join(workspaceRuntimeRoot, "soul"),
     systemDir: join(workspaceRuntimeRoot, "system"),
     memoryDir: join(root, "memory"),
+    knowledgeDir: join(root, "knowledge"),
+    browser: {
+      enabled: true,
+      headless: true,
+      timeoutMs: 30000,
+      viewportWidth: 1280,
+      viewportHeight: 720,
+    },
+    knowledge: {
+      enabled: true,
+      appDataDir: "",
+      maxContextItems: 8,
+      autoIngest: true,
+      ingestIntervalMs: 300000,
+      evictionDays: 90,
+      opsExpiryDays: 30,
+    },
     scheduler: {
       enabled: true,
       pollIntervalMs: 15000,
@@ -155,21 +151,6 @@ export function createRuntimeConfig(
     channels: {
       ...base.channels,
       ...(overrides.channels || {}),
-      telegram:
-        overrides.channels?.telegram === null
-          ? null
-          : {
-              ...(base.channels.telegram || {}),
-              ...(overrides.channels?.telegram || {}),
-              groupResponseMode: {
-                ...base.channels.telegram?.groupResponseMode,
-                ...(overrides.channels?.telegram?.groupResponseMode || {}),
-              },
-              retry: {
-                ...base.channels.telegram?.retry,
-                ...(overrides.channels?.telegram?.retry || {}),
-              },
-            },
       tui: {
         ...base.channels.tui,
         ...(overrides.channels?.tui || {}),
@@ -222,6 +203,14 @@ export function createRuntimeConfig(
     soul: {
       ...base.soul,
       ...overrides.soul,
+    },
+    browser: {
+      ...base.browser,
+      ...(overrides.browser || {}),
+    },
+    knowledge: {
+      ...base.knowledge,
+      ...(overrides.knowledge || {}),
     },
   }
 }

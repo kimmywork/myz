@@ -3,42 +3,33 @@ import assert from "node:assert/strict"
 import {
   authorizeMessage,
   evaluateMessageHandling,
-  shouldRespondToMessage,
 } from "../src/permissions"
 import type { ChatMessage } from "../src/chatChannel"
 import type { BotRuntimeConfig } from "../src/config"
 import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 function createConfig(): BotRuntimeConfig {
-  return createRuntimeConfig("/tmp/workspace", {
-    channels: {
-      telegram: {
-        allowedUsers: ["alice", "1001"],
-        allowedChats: [1, 2],
-        adminUsers: ["admin"],
-      },
-    },
-  })
+  return createRuntimeConfig("/tmp/workspace")
 }
 
 function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     messageId: 1,
     unixTime: Date.now(),
-    text: "hello @testbot",
+    text: "hello",
     chat: {
       id: 1,
-      type: "group",
+      type: "private",
     },
     from: {
-      id: 1001,
+      id: 200,
       username: "alice",
     },
     ...overrides,
   }
 }
 
-test("authorizeMessage rejects unlisted users", () => {
+test("authorizeMessage accepts all messages", () => {
   const config = createConfig()
   const result = authorizeMessage(
     config,
@@ -49,85 +40,15 @@ test("authorizeMessage rejects unlisted users", () => {
       },
     }),
   )
-  assert.equal(result.ok, false)
+  assert.equal(result.ok, true)
 })
 
-test("shouldRespondToMessage requires mention in groups", () => {
+test("evaluateMessageHandling always processes and replies", () => {
   const config = createConfig()
-  const result = shouldRespondToMessage(
-    config,
-    createMessage({
-      text: "hello everyone",
-    }),
-    "testbot",
-  )
-  assert.equal(result, false)
-})
-
-test("shouldRespondToMessage allows admin command without mention", () => {
-  const config = createConfig()
-  const result = shouldRespondToMessage(
-    config,
-    createMessage({
-      text: "/soul draft",
-      from: {
-        id: 7,
-        username: "admin",
-      },
-    }),
-    "testbot",
-  )
-  assert.equal(result, true)
-})
-
-test("shouldRespondToMessage accepts all group messages when mention gate is disabled", () => {
-  const config = createConfig()
-  config.channels.telegram!.groupResponseMode.onlyWhenMentioned = false
   const handling = evaluateMessageHandling(
     config,
     createMessage({
       text: "hello everyone",
-    }),
-    "testbot",
-  )
-  assert.equal(handling.shouldProcess, true)
-  assert.equal(handling.shouldReply, false)
-
-  const result = shouldRespondToMessage(
-    config,
-    createMessage({
-      text: "hello everyone",
-    }),
-    "testbot",
-  )
-  assert.equal(result, false)
-})
-
-test("evaluateMessageHandling still replies to mentions when mention gate is disabled", () => {
-  const config = createConfig()
-  config.channels.telegram!.groupResponseMode.onlyWhenMentioned = false
-  const handling = evaluateMessageHandling(
-    config,
-    createMessage({
-      text: "hello @testbot",
-    }),
-    "testbot",
-  )
-  assert.equal(handling.shouldProcess, true)
-  assert.equal(handling.shouldReply, true)
-})
-
-test("evaluateMessageHandling still replies to admin commands when mention gate is disabled", () => {
-  const config = createConfig()
-  config.channels.telegram!.groupResponseMode.onlyWhenMentioned = false
-  const handling = evaluateMessageHandling(
-    config,
-    createMessage({
-      text: "/soul draft",
-      from: {
-        id: 7,
-        username: "admin",
-      },
     }),
     "testbot",
   )

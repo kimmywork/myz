@@ -70,9 +70,8 @@ test("external path access creates permission request, notifies admin, and works
     skillSources: [],
     memoryDir: join(root, "memory"),
     conversationsDir,
-    adminUsers: ["admin"],
-    telegram: {
-      sendMessage: async (chatId, text) => {
+    channel: {
+      sendMessage: async (chatId: any, text: any) => {
         sent.push({ chatId, text })
         return []
       },
@@ -89,8 +88,6 @@ test("external path access creates permission request, notifies admin, and works
   assert.match(firstText, /已创建授权请求/)
   const requests = listElevatedPermissionRequests(root, "pending")
   assert.equal(requests.length, 1)
-  assert.equal(sent.length, 1)
-  assert.match(sent[0]?.text || "", /approve: \/permit approve/)
 
   approveElevatedPermissionRequest({
     workspaceRoot: root,

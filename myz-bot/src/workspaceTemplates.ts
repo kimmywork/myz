@@ -41,6 +41,14 @@ export const DEFAULT_AGENTS_TEMPLATE = `# AGENTS.md
 - 如果群里气氛自然流动，而你的话只会打断节奏，就保持安静。
 - 不要把主会话里的私密信息带进群里。
 
+## Knowledge System
+
+- 4 层知识库：concepts（概念）、structure（结构）、behavior（行为）、ops（运维）
+- 使用 Knowledge 工具查询和管理知识条目
+- 使用 KnowledgeSync 从 MyZ 笔记同步数据
+- 稳定知识可提升到 SOUL.md / USER.md
+- ops 层条目会在 30 天后自动过期
+
 ## Tool Use
 
 - 能直接做就做，但在开始一段工具链前，要先用自然的人话告诉对方你准备先看什么、确认什么。

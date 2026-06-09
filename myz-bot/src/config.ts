@@ -18,39 +18,6 @@ dotenv.config({ path: resolve(process.cwd(), ".env") })
 
 export const BOT_RUNTIME_DIRNAME = ".myz-bot"
 
-const TelegramChannelConfigSchema = z.object({
-  enabled: z.boolean().optional().default(true),
-  username: z.string().optional().default(""),
-  token: z.string().optional().default(""),
-  timeoutSeconds: z.number().int().positive().optional().default(25),
-  allowedUsers: z.array(z.string().min(1)).optional().default([]),
-  allowedChats: z.array(z.number().int()).optional().default([]),
-  adminUsers: z.array(z.string().min(1)).optional().default([]),
-  saveIncomingMedia: z.boolean().optional().default(true),
-  groupResponseMode: z
-    .object({
-      onlyWhenMentioned: z.boolean().optional().default(true),
-      allowReplyToBot: z.boolean().optional().default(true),
-      allowAdminCommands: z.boolean().optional().default(true),
-    })
-    .optional()
-    .default({
-      onlyWhenMentioned: true,
-      allowReplyToBot: true,
-      allowAdminCommands: true,
-    }),
-  retry: z
-    .object({
-      retries: z.number().int().min(0).optional().default(2),
-      baseDelayMs: z.number().int().min(0).optional().default(800),
-    })
-    .optional()
-    .default({
-      retries: 2,
-      baseDelayMs: 800,
-    }),
-})
-
 const TuiChannelConfigSchema = z.object({
   enabled: z.boolean().optional().default(true),
   label: z.string().min(1).optional().default("local"),
@@ -61,7 +28,6 @@ const TuiChannelConfigSchema = z.object({
 
 const ChannelsConfigSchema = z
   .object({
-    telegram: TelegramChannelConfigSchema.optional(),
     tui: TuiChannelConfigSchema.optional().default({
       enabled: true,
       label: "local",
@@ -262,6 +228,42 @@ const BotConfigSchema = z.object({
     .default({
       reviewRequired: true,
     }),
+  browser: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+      headless: z.boolean().optional().default(true),
+      timeoutMs: z.number().int().positive().optional().default(30_000),
+      viewportWidth: z.number().int().positive().optional().default(1280),
+      viewportHeight: z.number().int().positive().optional().default(720),
+    })
+    .optional()
+    .default({
+      enabled: true,
+      headless: true,
+      timeoutMs: 30_000,
+      viewportWidth: 1280,
+      viewportHeight: 720,
+    }),
+  knowledge: z
+    .object({
+      enabled: z.boolean().optional().default(true),
+      appDataDir: z.string().optional().default(""),
+      maxContextItems: z.number().int().positive().optional().default(8),
+      autoIngest: z.boolean().optional().default(true),
+      ingestIntervalMs: z.number().int().positive().optional().default(300_000),
+      evictionDays: z.number().int().positive().optional().default(90),
+      opsExpiryDays: z.number().int().positive().optional().default(30),
+    })
+    .optional()
+    .default({
+      enabled: true,
+      appDataDir: "",
+      maxContextItems: 8,
+      autoIngest: true,
+      ingestIntervalMs: 300_000,
+      evictionDays: 90,
+      opsExpiryDays: 30,
+    }),
 })
 
 export type BotConfig = z.infer<typeof BotConfigSchema>
@@ -269,26 +271,6 @@ export interface SkillSourceConfig {
   id: string
   dir: string
   readonly?: boolean
-}
-
-export interface TelegramChannelRuntimeConfig {
-  enabled: true
-  username: string
-  token: string
-  timeoutSeconds: number
-  allowedUsers: string[]
-  allowedChats: number[]
-  adminUsers: string[]
-  saveIncomingMedia: boolean
-  groupResponseMode: {
-    onlyWhenMentioned: boolean
-    allowReplyToBot: boolean
-    allowAdminCommands: boolean
-  }
-  retry: {
-    retries: number
-    baseDelayMs: number
-  }
 }
 
 export interface TuiChannelRuntimeConfig {
@@ -301,7 +283,6 @@ export interface TuiChannelRuntimeConfig {
 
 export type BotRuntimeConfig = Omit<BotConfig, "channels"> & {
   channels: BotConfig["channels"] & {
-    telegram: TelegramChannelRuntimeConfig | null
     tui: TuiChannelRuntimeConfig
   }
   runtimeRoot: string
@@ -315,6 +296,7 @@ export type BotRuntimeConfig = Omit<BotConfig, "channels"> & {
   soulRuntimeDir: string
   systemDir: string
   memoryDir: string
+  knowledgeDir: string
   skillSources: SkillSource[]
   skillAllowlist: string[]
   skillDenylist: string[]
@@ -360,33 +342,14 @@ function applyEnvFallback(config: unknown) {
     typeof next.channels === "object" && next.channels
       ? { ...(next.channels as Record<string, unknown>) }
       : {}
-  if (!("telegram" in channels) && typeof next.telegram === "object" && next.telegram) {
-    channels.telegram = next.telegram
-  }
   if (!("tui" in channels) && typeof next.tui === "object" && next.tui) {
     channels.tui = next.tui
   }
-  const envUsername = process.env.TELEGRAM_BOT_USERNAME || ""
-  const envToken = process.env.TELEGRAM_BOT_TOKEN || ""
   const envModel = process.env.AI_MODEL || ""
   const envProvider = process.env.AI_PROVIDER || ""
   const envBaseUrl = process.env.AI_BASE_URL || ""
   const envAccessToken =
     process.env.AI_ACCESS_TOKEN || process.env.OPENAI_API_KEY || ""
-
-  const telegram =
-    typeof channels.telegram === "object" && channels.telegram
-      ? { ...(channels.telegram as Record<string, unknown>) }
-      : {}
-  const telegramUsername = normalizeValue(telegram.username)
-  if (!telegramUsername && envUsername) {
-    telegram.username = envUsername
-  }
-  const telegramToken = normalizeValue(telegram.token)
-  if (!telegramToken && envToken) {
-    telegram.token = envToken
-  }
-  channels.telegram = telegram
 
   const ai =
     typeof next.ai === "object" && next.ai
@@ -410,7 +373,6 @@ function applyEnvFallback(config: unknown) {
   }
   next.ai = ai
   next.channels = channels
-  delete next.telegram
   delete next.tui
 
   return next
@@ -465,34 +427,6 @@ function buildSkillSources(config: BotConfig, workspaceRoot: string) {
   return Array.from(unique.values())
 }
 
-function resolveTelegramChannelConfig(
-  channel?: BotConfig["channels"]["telegram"],
-): TelegramChannelRuntimeConfig | null {
-  if (!channel || channel.enabled === false) return null
-  const username = normalizeValue(channel.username)
-  const token = normalizeValue(channel.token)
-  if (!username && !token) {
-    return null
-  }
-  if (!username || !token) {
-    throw new Error(
-      "channels.telegram.username and channels.telegram.token must both be set when telegram is enabled",
-    )
-  }
-  return {
-    enabled: true,
-    username,
-    token,
-    timeoutSeconds: channel.timeoutSeconds,
-    allowedUsers: channel.allowedUsers,
-    allowedChats: channel.allowedChats,
-    adminUsers: channel.adminUsers,
-    saveIncomingMedia: channel.saveIncomingMedia,
-    groupResponseMode: channel.groupResponseMode,
-    retry: channel.retry,
-  }
-}
-
 function resolveTuiChannelConfig(
   channel?: BotConfig["channels"]["tui"],
 ): TuiChannelRuntimeConfig {
@@ -527,14 +461,12 @@ export function loadConfig(options: {
   const skillDenylist = normalizeSkillPolicies(config.skills?.denylist)
   const toolAllowlist = normalizeSkillPolicies(config.tools?.allowlist)
   const toolDenylist = normalizeSkillPolicies(config.tools?.denylist)
-  const telegramChannel = resolveTelegramChannelConfig(config.channels.telegram)
   const tuiChannel = resolveTuiChannelConfig(config.channels.tui)
 
   return {
     ...config,
     channels: {
       ...config.channels,
-      telegram: telegramChannel,
       tui: tuiChannel,
     },
     runtimeRoot,
@@ -548,6 +480,7 @@ export function loadConfig(options: {
     soulRuntimeDir: resolve(workspaceRuntimeRoot, "soul"),
     systemDir: resolve(workspaceRuntimeRoot, "system"),
     memoryDir: resolve(workspaceRoot, "memory"),
+    knowledgeDir: resolve(workspaceRoot, "knowledge"),
     skillSources,
     skillAllowlist,
     skillDenylist,

@@ -53,7 +53,7 @@ export function createLocalTuiUser(config: BotRuntimeConfig): ChatUser {
 function createLocalBotUser(config: BotRuntimeConfig): ChatUser {
   return {
     id: LOCAL_TUI_BOT_USER_ID,
-    username: config.channels.telegram?.username || "myzbot",
+    username: "myzbot",
     firstName: "MyZ",
     lastName: "Bot",
   }

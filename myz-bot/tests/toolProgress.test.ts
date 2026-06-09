@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { mkdtempSync, readFileSync } from "node:fs"
+import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { ProviderMessage } from "@myz/ai-core/providers/types"
@@ -78,7 +78,7 @@ test("draftToolProgressMessage falls back to natural phrasing when helper drafti
   assert.doesNotMatch(text, /工具完成|调用工具|参数/)
 })
 
-test("createToolProgressNotifier sends natural progress messages and records them as telegram progress history", async () => {
+test("createToolProgressNotifier sends natural progress messages", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-progress-"))
   const conversationDir = ensureConversationDir(join(root, "conversations"), "c1")
   const sent: string[] = []
@@ -86,7 +86,7 @@ test("createToolProgressNotifier sends natural progress messages and records the
 
   const notifier = createToolProgressNotifier({
     config: createTestConfig(root),
-    telegram: {
+    channel: {
       sendMessage: async (
         _chatId: number,
         text: string,
@@ -146,13 +146,6 @@ test("createToolProgressNotifier sends natural progress messages and records the
   assert.equal(sent.length, 2)
   assert.equal(sent[0], "我先看一下这份 README。")
   assert.equal(sent[1], "我已经看到里面的关键内容了，接着给你收一下。")
-
-  const telegramHistory = readFileSync(
-    join(conversationDir, "telegram-history.jsonl"),
-    "utf-8",
-  )
-  assert.match(telegramHistory, /"kind":"progress"/)
-  assert.match(telegramHistory, /我先看一下这份 README/)
 })
 
 test("createToolProgressNotifier skips internal SelectTools activity", async () => {
@@ -162,7 +155,7 @@ test("createToolProgressNotifier skips internal SelectTools activity", async () 
 
   const notifier = createToolProgressNotifier({
     config: createTestConfig(root),
-    telegram: {
+    channel: {
       sendMessage: async () => {
         sent += 1
         return []
@@ -209,7 +202,7 @@ test("createToolProgressNotifier batches a multi-tool round into one start and o
 
   const notifier = createToolProgressNotifier({
     config: createTestConfig(root),
-    telegram: {
+    channel: {
       sendMessage: async (
         _chatId: number,
         text: string,

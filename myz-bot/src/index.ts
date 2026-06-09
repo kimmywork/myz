@@ -4,10 +4,7 @@ import type { Message, TokenUsage } from "@myz/ai-core/types"
 import { registerLocalTools } from "@myz/ai-core/tools/registry"
 import type {
   ChatChannelClient,
-  ChatFile,
-  ChatMediaClient,
   ChatMessage,
-  ChatUser,
 } from "./chatChannel"
 import { createBotAssistantAgent } from "./agents/botAssistant"
 import { generateReply } from "./ai"
@@ -35,7 +32,6 @@ import {
 import {
   appendConversationErrorLog,
   formatErrorReply,
-  normalizeError,
 } from "./errors"
 import {
   approveElevatedPermissionRequest,
@@ -57,24 +53,19 @@ import {
   requestProcessRestart,
 } from "./maintenance"
 import {
-  authorizeMessage,
-  evaluateMessageHandling,
   extractCommandText,
   isAdminUser,
 } from "./permissions"
 import { configureGlobalNetwork } from "./network"
 import { generateSoulDraftContent } from "./soulDraftGenerator"
-import { sendRecordedTelegramMessage } from "./telegramDelivery"
 import {
   applySoulDraft,
   createSoulDraft,
   listSoulDrafts,
   readSoulDraft,
 } from "./soul"
-import { recordIncomingTelegramMessage } from "./telegramHistory"
 import { buildReplyOptions } from "./replyOptions"
 import { createToolProgressNotifier } from "./toolProgress"
-import { createTelegramFeedbackController } from "./telegramFeedback"
 import {
   listSkills,
   readSkillFile,
@@ -82,7 +73,6 @@ import {
 } from "./skills"
 import { resolveConversationRoute } from "./routing"
 import { startTaskScheduler } from "./scheduler"
-import { createTelegramClient } from "./telegram"
 import {
   ensureConversationTaskFiles,
   formatTasksForChat,
@@ -751,7 +741,7 @@ async function handleCommand(options: {
 
 async function handleConversationMessage(options: {
   config: BotRuntimeConfig
-  telegram: ChatChannelClient<ChatMessage> & Partial<ChatMediaClient<ChatFile>>
+  channel: ChatChannelClient<ChatMessage>
   message: ChatMessage
   botUsername: string
   shouldReply: boolean
@@ -793,12 +783,6 @@ async function handleConversationMessage(options: {
   saveMetadata(conversationDir, metadata)
 
   const rawCommand = extractCommandText(options.message)
-  recordIncomingTelegramMessage({
-    conversationDir,
-    conversationId,
-    message: options.message,
-    kind: rawCommand ? "command" : "conversation",
-  })
   if (rawCommand) {
     try {
       const handled = await handleCommand({
@@ -808,24 +792,15 @@ async function handleConversationMessage(options: {
         rawCommand,
         botUsername: options.botUsername,
         monitor: options.monitor,
-        sendMessage: (chatId, text, sendOptions) =>
-          {
-            options.monitor?.notePhase("send", conversationId)
-            options.monitor?.noteOutgoingMessage({
-              conversationId,
-              text,
-              role: "assistant",
-            })
-            return sendRecordedTelegramMessage({
-              telegram: options.telegram,
-              conversationDir,
-              conversationId,
-              chatId,
-              text,
-              sendOptions,
-              kind: "command",
-            })
-          },
+        sendMessage: (chatId, text, sendOptions) => {
+          options.monitor?.notePhase("send", conversationId)
+          options.monitor?.noteOutgoingMessage({
+            conversationId,
+            text,
+            role: "assistant",
+          })
+          return options.channel.sendMessage(chatId, text, sendOptions)
+        },
       })
       if (handled) return
     } catch (error) {
@@ -841,28 +816,21 @@ async function handleConversationMessage(options: {
         },
       })
       options.monitor?.notePhase("send", conversationId)
+      const errorText = formatErrorReply({
+        config: options.config,
+        user: options.message.from,
+        error,
+      })
       options.monitor?.noteOutgoingMessage({
         conversationId,
-        text: formatErrorReply({
-          config: options.config,
-          user: options.message.from,
-          error,
-        }),
+        text: errorText,
         role: "error",
       })
-      await sendRecordedTelegramMessage({
-        telegram: options.telegram,
-        conversationDir,
-        conversationId,
-        chatId: options.message.chat.id,
-        text: formatErrorReply({
-          config: options.config,
-          user: options.message.from,
-          error,
-        }),
-        sendOptions: buildReplyOptions(options.message),
-        kind: "error",
-      })
+      await options.channel.sendMessage(
+        options.message.chat.id,
+        errorText,
+        buildReplyOptions(options.message),
+      )
       return
     }
   }
@@ -893,7 +861,6 @@ async function handleConversationMessage(options: {
 
   const incoming = await buildIncomingMessage({
     config: options.config,
-    telegram: options.telegram,
     message: options.message,
     conversationDir,
   })
@@ -948,20 +915,12 @@ async function handleConversationMessage(options: {
     : null
 
   appendMessage(conversationDir, userMessage)
-  const telegramFeedback = options.shouldReply
-    ? createTelegramFeedbackController({
-        telegram: options.telegram,
-        chatId: options.message.chat.id,
-        messageThreadId: options.message.threadId,
-        reactionMessageId: options.message.messageId,
-      })
-    : null
 
   try {
     const progressNotifier = options.shouldReply
       ? createToolProgressNotifier({
           config: options.config,
-          telegram: options.telegram,
+          channel: options.channel,
           conversationDir,
           conversationId,
           chatId: options.message.chat.id,
@@ -976,7 +935,6 @@ async function handleConversationMessage(options: {
           },
         })
       : null
-    telegramFeedback?.setPhase("llm")
     options.monitor?.notePhase("llm", conversationId)
     const preparedMessages = agent.prepareMessages({
       systemMessage,
@@ -995,15 +953,12 @@ async function handleConversationMessage(options: {
       conversationId,
       onToolCallMessage: progressNotifier
         ? (message) => {
-            telegramFeedback?.setPhase("tool")
             options.monitor?.notePhase("tool", conversationId)
             progressNotifier.onToolCallMessage(message)
           }
         : undefined,
       onToolResultMessage: progressNotifier
         ? (message) => {
-            telegramFeedback?.noteToolResult(message)
-            telegramFeedback?.setPhase("llm")
             options.monitor?.notePhase("llm", conversationId)
             progressNotifier.onToolResultMessage(message)
           }
@@ -1082,17 +1037,12 @@ async function handleConversationMessage(options: {
         role: "assistant",
       })
       appendMessage(conversationDir, assistantMessage)
-      await sendRecordedTelegramMessage({
-        telegram: options.telegram,
-        conversationDir,
-        conversationId,
-        chatId: options.message.chat.id,
-        text: assistantMessage.content,
-        sendOptions: buildReplyOptions(options.message),
-        kind: "conversation",
-      })
+      await options.channel.sendMessage(
+        options.message.chat.id,
+        assistantMessage.content,
+        buildReplyOptions(options.message),
+      )
     }
-    await telegramFeedback?.complete()
     options.monitor?.notePhase("idle", conversationId)
   } catch (error) {
     options.monitor?.noteError({
@@ -1130,18 +1080,13 @@ async function handleConversationMessage(options: {
           role: "error",
         })
         appendMessage(conversationDir, assistantMessage)
-        await sendRecordedTelegramMessage({
-          telegram: options.telegram,
-          conversationDir,
-          conversationId,
-          chatId: options.message.chat.id,
-          text: assistantMessage.content,
-          sendOptions: buildReplyOptions(options.message),
-          kind: "error",
-        })
+        await options.channel.sendMessage(
+          options.message.chat.id,
+          assistantMessage.content,
+          buildReplyOptions(options.message),
+        )
       }
     } finally {
-      await telegramFeedback?.complete({ failed: true })
       options.monitor?.notePhase("idle", conversationId)
     }
   }
@@ -1157,17 +1102,10 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
   mkdirSync(config.permissionsDir, { recursive: true })
   mkdirSync(config.soulRuntimeDir, { recursive: true })
   mkdirSync(config.systemDir, { recursive: true })
+  mkdirSync(config.knowledgeDir, { recursive: true })
   syncUpgradeState(config)
 
-  const telegram = config.channels.telegram
-    ? createTelegramClient({
-        token: config.channels.telegram.token,
-        timeoutSeconds: config.channels.telegram.timeoutSeconds,
-        retry: config.channels.telegram.retry,
-      })
-    : null
-  const channelTelegram = createTuiAwareChannelClient({
-    base: telegram,
+  const channel = createTuiAwareChannelClient({
     config,
   })
   registerLocalTools(
@@ -1180,14 +1118,13 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
       toolAllowlist: config.toolAllowlist,
       toolDenylist: config.toolDenylist,
       memoryDir: config.memoryDir,
+      knowledgeDir: config.knowledgeDir,
       conversationsDir: config.conversationsDir,
       attachmentsDir: config.attachmentsDir,
-      adminUsers: config.channels.telegram?.adminUsers,
-      telegram: channelTelegram,
+      channel,
     }),
   )
-  const botProfile = telegram ? await telegram.getMe() : ({ username: "" } as ChatUser)
-  const botUsername = botProfile.username || config.channels.telegram?.username || "local"
+  const botUsername = "local"
   const monitor = createRuntimeMonitor({
     provider: config.ai.provider,
     model: config.ai.model,
@@ -1199,12 +1136,11 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
     enabled: resolveTuiEnabled(options.enableTui),
     input: process.stdin,
   })
-  let offset = 0
   const scheduler =
     config.scheduler.enabled
       ? startTaskScheduler({
           config,
-          telegram: channelTelegram,
+          channel,
           monitor,
         })
       : null
@@ -1215,7 +1151,7 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
     onMessage: async (message) => {
       await handleConversationMessage({
         config,
-        telegram: channelTelegram,
+        channel,
         message,
         botUsername,
         shouldReply: true,
@@ -1224,75 +1160,8 @@ export async function serveBot(options: { workspaceRoot?: string; enableTui?: bo
     },
   })
 
-  if (!telegram && !localTuiChannel.enabled) {
-    throw new Error("No active chat channel: configure channels.telegram or run with an interactive TUI")
-  }
-
-  while (telegram) {
-    try {
-      const updates = await telegram.getUpdates(offset)
-      for (const update of updates) {
-        offset = update.updateId + 1
-        const message = update.message
-        if (!message) continue
-        const handling = evaluateMessageHandling(config, message, botUsername)
-        if (!handling.shouldProcess) continue
-
-        const auth = authorizeMessage(config, message)
-        if (!auth.ok) {
-          if (handling.shouldReply) {
-            await telegram.sendMessage(
-              message.chat.id,
-              auth.replyText,
-              buildReplyOptions(message),
-            )
-          }
-          continue
-        }
-
-        try {
-          await handleConversationMessage({
-            config,
-            telegram: channelTelegram,
-            message,
-            botUsername,
-            shouldReply: handling.shouldReply,
-            monitor,
-          })
-        } catch (error) {
-          const route = resolveConversationRoute(message)
-          const conversationDir = ensureConversationDir(
-            config.conversationsDir,
-            route.conversationId,
-          )
-          appendConversationErrorLog({
-            conversationDir,
-            conversationId: route.conversationId,
-            phase: "serve_loop",
-            error,
-            context: {
-              chatId: message.chat.id,
-              messageId: message.messageId,
-            },
-          })
-          if (handling.shouldReply) {
-            await telegram.sendMessage(
-              message.chat.id,
-              formatErrorReply({
-                config,
-                user: message.from,
-                error,
-              }),
-              buildReplyOptions(message),
-            )
-          }
-        }
-      }
-    } catch (error) {
-      const normalized = normalizeError(error)
-      monitor.noteError({ error: normalized })
-      console.error("Telegram polling failed:", normalized.message, normalized.stack || "")
-    }
+  if (!localTuiChannel.enabled) {
+    throw new Error("No active chat channel: run with an interactive TUI")
   }
 
   await new Promise<void>(() => undefined)

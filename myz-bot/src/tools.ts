@@ -349,10 +349,11 @@ export function createLocalTools(options: {
   toolAllowlist?: string[]
   toolDenylist?: string[]
   memoryDir: string
+  knowledgeDir?: string
   conversationsDir: string
   attachmentsDir?: string
   adminUsers?: string[]
-  telegram?: Pick<ChatChannelClient<ChatMessage>, "sendMessage">
+  channel?: Pick<ChatChannelClient<ChatMessage>, "sendMessage">
 }) {
   const runtimeRoot = options.runtimeRoot || options.workspaceRoot
   const attachmentsDir = options.attachmentsDir || resolve(runtimeRoot, "attachments")
@@ -455,7 +456,7 @@ export function createLocalTools(options: {
     conversationId?: string
     reason: string
   }) {
-    if (!options.telegram || !(options.adminUsers || []).length) return
+    if (!options.channel || !(options.adminUsers || []).length) return
     const targets = findAdminPrivateChatTargets({
       workspaceRoot: runtimeRoot,
       conversationsDir: options.conversationsDir,
@@ -463,7 +464,7 @@ export function createLocalTools(options: {
     })
     await Promise.all(
       targets.map(async (target) => {
-        await options.telegram?.sendMessage(
+        await options.channel?.sendMessage(
           target.chatId,
           [
             "收到新的权限请求。",

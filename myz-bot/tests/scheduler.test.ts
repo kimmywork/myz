@@ -11,19 +11,10 @@ import {
   processDueScheduledTasks,
 } from "../src/scheduler"
 import { createScheduledTask, listConversationTasks } from "../src/tasks"
-import {
-  recordIncomingTelegramMessage,
-  recordOutgoingTelegramMessages,
-} from "../src/telegramHistory"
 import { createRuntimeConfig } from "./helpers/runtimeConfig"
 
 function createConfig(root: string) {
   return createRuntimeConfig(root, {
-    channels: {
-      telegram: {
-        adminUsers: ["admin"],
-      },
-    },
     scheduler: {
       failureRetryBaseDelayMs: 1000,
     },
@@ -67,20 +58,22 @@ test("processDueScheduledTasks sends direct reminders and marks task triggered",
   writeFileSync(tasksFile, JSON.stringify(parsed, null, 2))
 
   const sent: Array<{ chatId: number; text: string; options?: Record<string, unknown> }> = []
-  const telegram = {
+  const channel = {
     sendMessage: async (
       chatId: number,
       text: string,
-      options?: Record<string, unknown>,
+      options?: { replyToMessageId?: number; messageThreadId?: number },
     ) => {
       sent.push({ chatId, text, options })
-      return { ok: true }
+      return [] as never[]
     },
-  } as any
+    sendChatAction: async () => true,
+    setMessageReaction: async () => true,
+  }
 
   await processDueScheduledTasks({
     config,
-    telegram,
+    channel,
   })
 
   assert.equal(sent.length, 1)

@@ -3,7 +3,6 @@ import { generateReply } from "./ai"
 import type { ChatChannelClient, ChatMessage, ChatSendMessageOptions } from "./chatChannel"
 import type { BotRuntimeConfig } from "./config"
 import { createSystemMessage, createUserMessage } from "./conversations"
-import { sendRecordedTelegramMessage } from "./telegramDelivery"
 
 const TOOL_RESULT_MAX_CHARS = 280
 const TOOL_PROGRESS_MAX_CHARS = 180
@@ -269,7 +268,7 @@ export async function draftToolProgressMessage(options: {
 
 export function createToolProgressNotifier(options: {
   config: BotRuntimeConfig
-  telegram: ChatChannelClient<ChatMessage>
+  channel: ChatChannelClient<ChatMessage>
   conversationDir: string
   conversationId: string
   chatId: number
@@ -372,15 +371,11 @@ export function createToolProgressNotifier(options: {
           toolArgsSummary,
         })
         if (!shouldSendProgressText(text)) return
-        await sendRecordedTelegramMessage({
-          telegram: options.telegram,
-          conversationDir: options.conversationDir,
-          conversationId: options.conversationId,
-          chatId: options.chatId,
+        await options.channel.sendMessage(
+          options.chatId,
           text,
-          sendOptions: options.sendOptions,
-          kind: "progress",
-        })
+          options.sendOptions,
+        )
         options.onProgressMessageSent?.({
           phase: "start",
           conversationId: options.conversationId,
@@ -418,15 +413,11 @@ export function createToolProgressNotifier(options: {
           resultSummary: combineResultSummaries(completedBatch.resultSummaries),
         })
         if (!shouldSendProgressText(text)) return
-        await sendRecordedTelegramMessage({
-          telegram: options.telegram,
-          conversationDir: options.conversationDir,
-          conversationId: options.conversationId,
-          chatId: options.chatId,
+        await options.channel.sendMessage(
+          options.chatId,
           text,
-          sendOptions: options.sendOptions,
-          kind: "progress",
-        })
+          options.sendOptions,
+        )
         options.onProgressMessageSent?.({
           phase: "result",
           conversationId: options.conversationId,

@@ -11,23 +11,16 @@ import {
   startLocalTuiChannel,
 } from "../src/tuiChannel"
 
-test("channel-aware telegram client synthesizes local TUI replies", async () => {
+test("channel-aware client synthesizes local TUI replies", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tui-channel-"))
-  const config = createRuntimeConfig(root, {
-    channels: {
-      telegram: {
-        username: "myzbot",
-        adminUsers: ["operator"],
-      },
-    },
-  })
+  const config = createRuntimeConfig(root)
   const delegated: Array<{ chatId: number; text: string }> = []
   const client = createTuiAwareChannelClient({
     config,
     base: {
       getUpdates: async () => [],
       getMe: async () => ({ id: 1, username: "myzbot" }),
-      getFile: async () => ({ file_id: "f1" }),
+      getFile: async () => ({ fileId: "f1" }),
       downloadFile: async () => new ArrayBuffer(0),
       sendChatAction: async () => true,
       setMessageReaction: async () => true,
@@ -50,13 +43,7 @@ test("channel-aware telegram client synthesizes local TUI replies", async () => 
 
 test("local TUI channel turns keypresses into synthetic chat messages", async () => {
   const root = mkdtempSync(join(tmpdir(), "myz-bot-tui-channel-"))
-  const config = createRuntimeConfig(root, {
-    channels: {
-      telegram: {
-        adminUsers: ["operator"],
-      },
-    },
-  })
+  const config = createRuntimeConfig(root)
   const events = new EventEmitter() as EventEmitter & {
     isTTY: boolean
     rawModes: boolean[]

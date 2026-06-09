@@ -24,8 +24,6 @@ import {
   renderDirectTaskReply,
   type ScheduledTask,
 } from "./tasks"
-import { sendRecordedTelegramMessage } from "./telegramDelivery"
-import { createTelegramFeedbackController } from "./telegramFeedback"
 import { createToolProgressNotifier } from "./toolProgress"
 import {
   appendToolAuditTrace,
@@ -84,7 +82,7 @@ function buildTaskTriggerMessage(task: ScheduledTask) {
 
 async function processScheduledLlmTask(options: {
   config: BotRuntimeConfig
-  telegram: ChatChannelClient<ChatMessage>
+  channel: ChatChannelClient<ChatMessage>
   conversationId: string
   conversationDir: string
   task: ScheduledTask
@@ -181,7 +179,7 @@ async function processScheduledLlmTask(options: {
 
   const progressNotifier = createToolProgressNotifier({
     config: options.config,
-    telegram: options.telegram,
+    channel: options.channel,
     conversationDir: options.conversationDir,
     conversationId: options.conversationId,
     chatId: metadata.chatId,
@@ -197,13 +195,7 @@ async function processScheduledLlmTask(options: {
       })
     },
   })
-  const telegramFeedback = createTelegramFeedbackController({
-    telegram: options.telegram,
-    chatId: metadata.chatId,
-    messageThreadId: metadata.threadId,
-  })
   try {
-    telegramFeedback.setPhase("llm")
     options.monitor?.notePhase("llm", options.conversationId)
     const preparedMessages = agent.prepareMessages({
       systemMessage,
@@ -221,13 +213,10 @@ async function processScheduledLlmTask(options: {
       messages: preparedMessages,
       conversationId: options.conversationId,
       onToolCallMessage: (message) => {
-        telegramFeedback.setPhase("tool")
         options.monitor?.notePhase("tool", options.conversationId)
         progressNotifier.onToolCallMessage(message)
       },
       onToolResultMessage: (message) => {
-        telegramFeedback.noteToolResult(message)
-        telegramFeedback.setPhase("llm")
         options.monitor?.notePhase("llm", options.conversationId)
         progressNotifier.onToolResultMessage(message)
       },
@@ -301,21 +290,15 @@ async function processScheduledLlmTask(options: {
       role: "assistant",
     })
     appendMessage(options.conversationDir, assistantMessage)
-    await sendRecordedTelegramMessage({
-      telegram: options.telegram,
-      conversationDir: options.conversationDir,
-      conversationId: options.conversationId,
-      chatId: metadata.chatId,
-      text: assistantMessage.content,
-      sendOptions: {
+    await options.channel.sendMessage(
+      metadata.chatId,
+      assistantMessage.content,
+      {
         messageThreadId: metadata.threadId,
       },
-      kind: "scheduler",
-    })
-    await telegramFeedback.complete()
+    )
     options.monitor?.notePhase("idle", options.conversationId)
   } catch (error) {
-    await telegramFeedback.complete({ failed: true })
     options.monitor?.noteError({
       conversationId: options.conversationId,
       error,
@@ -326,7 +309,7 @@ async function processScheduledLlmTask(options: {
 
 async function processScheduledDirectTask(options: {
   config: BotRuntimeConfig
-  telegram: ChatChannelClient<ChatMessage>
+  channel: ChatChannelClient<ChatMessage>
   conversationId: string
   conversationDir: string
   task: ScheduledTask
@@ -370,23 +353,19 @@ async function processScheduledDirectTask(options: {
     role: "assistant",
   })
   appendMessage(options.conversationDir, assistantMessage)
-  await sendRecordedTelegramMessage({
-    telegram: options.telegram,
-    conversationDir: options.conversationDir,
-    conversationId: options.conversationId,
-    chatId: metadata.chatId,
-    text: assistantMessage.content,
-    sendOptions: {
+  await options.channel.sendMessage(
+    metadata.chatId,
+    assistantMessage.content,
+    {
       messageThreadId: metadata.threadId,
     },
-    kind: "scheduler",
-  })
+  )
   options.monitor?.notePhase("idle", options.conversationId)
 }
 
 export async function processDueScheduledTasks(options: {
   config: BotRuntimeConfig
-  telegram: ChatChannelClient<ChatMessage>
+  channel: ChatChannelClient<ChatMessage>
   monitor?: RuntimeMonitor
 }) {
   const dueTasks = listDueScheduledTasks({
@@ -410,7 +389,7 @@ export async function processDueScheduledTasks(options: {
       if (runningTask.triggerMode === "direct") {
         await processScheduledDirectTask({
           config: options.config,
-          telegram: options.telegram,
+          channel: options.channel,
           conversationId: due.conversationId,
           conversationDir,
           task: runningTask,
@@ -419,7 +398,7 @@ export async function processDueScheduledTasks(options: {
       } else {
         await processScheduledLlmTask({
           config: options.config,
-          telegram: options.telegram,
+          channel: options.channel,
           conversationId: due.conversationId,
           conversationDir,
           task: runningTask,
@@ -462,30 +441,23 @@ export async function processDueScheduledTasks(options: {
           lastName: metadata.lastName,
         })
         options.monitor?.notePhase("send", due.conversationId)
+        const errorText = formatErrorReply({
+          config: options.config,
+          user: errorUser,
+          error,
+        })
         options.monitor?.noteOutgoingMessage({
           conversationId: due.conversationId,
-          text: formatErrorReply({
-            config: options.config,
-            user: errorUser,
-            error,
-          }),
+          text: errorText,
           role: "error",
         })
-        await sendRecordedTelegramMessage({
-          telegram: options.telegram,
-          conversationDir,
-          conversationId: due.conversationId,
-          chatId: metadata.chatId,
-          text: formatErrorReply({
-            config: options.config,
-            user: errorUser,
-            error,
-          }),
-          sendOptions: {
+        await options.channel.sendMessage(
+          metadata.chatId,
+          errorText,
+          {
             messageThreadId: metadata.threadId,
           },
-          kind: "error",
-        })
+        )
       }
     }
   }
@@ -493,7 +465,7 @@ export async function processDueScheduledTasks(options: {
 
 export function startTaskScheduler(options: {
   config: BotRuntimeConfig
-  telegram: ChatChannelClient<ChatMessage>
+  channel: ChatChannelClient<ChatMessage>
   monitor?: RuntimeMonitor
 }) {
   let stopped = false
