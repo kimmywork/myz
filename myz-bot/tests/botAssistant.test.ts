@@ -25,7 +25,7 @@ test("bot assistant prompt includes knowledge system info", () => {
     user: {},
   })
 
-  assert.match(prompt, /知识架构/)
+  assert.match(prompt, /palest-ink/)
   assert.match(prompt, /Conceptual/)
   assert.match(prompt, /Structural/)
   assert.match(prompt, /Behavioral/)
