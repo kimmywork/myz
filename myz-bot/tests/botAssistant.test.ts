@@ -25,11 +25,12 @@ test("bot assistant prompt includes knowledge system info", () => {
     user: {},
   })
 
-  assert.match(prompt, /知识库/)
-  assert.match(prompt, /concepts/)
-  assert.match(prompt, /structure/)
-  assert.match(prompt, /behavior/)
-  assert.match(prompt, /ops/)
+  assert.match(prompt, /知识架构/)
+  assert.match(prompt, /Conceptual/)
+  assert.match(prompt, /Structural/)
+  assert.match(prompt, /Behavioral/)
+  assert.match(prompt, /Operational/)
+  assert.match(prompt, /INK\.md/)
 })
 
 test("bot assistant prompt includes session commands", () => {

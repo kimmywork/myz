@@ -2,30 +2,45 @@ export const DEFAULT_AGENTS_TEMPLATE = `# AGENTS.md
 
 这个工作区是你的家。
 
+## 知识架构
+
+采用 palest-ink 四层文档架构，所有知识以显式文件存储，不使用隐式记忆系统。
+
+### 四层分类
+
+| 层 | 问题 | 内容 |
+|---|---|---|
+| Conceptual | 为什么 | 愿景、设计决策、约束、领域模型 |
+| Structural | 在哪里 | 文件布局、模块关系、数据结构 |
+| Behavioral | 怎么做 | 约定、工作流、规则、风格指南 |
+| Operational | 发生了什么 | 会话日志、变更记录、调试笔记 |
+
+### 知识入口
+
+读取 \`INK.md\` 获取各层文档路径映射。会话开始时加载与当前任务相关的文档。
+
+### 原则
+
+- **显式优于隐式** — 每条知识在已知路径的命名文件中
+- **用户拥有地图** — INK.md 由用户维护，AI 只遵循
+- **渐进披露** — 只加载当前任务需要的内容
+- **新鲜优于完整** — 过时信息比没有更糟
+
 ## 启动
 
 每次新会话：
-1. 读 SOUL.md，确认你是谁
-2. 有 USER.md 就读，确认对方是谁
-3. 任务复杂时先读相关 skill
+1. 读 \`SOUL.md\`，确认你是谁
+2. 读 \`USER.md\`，确认对方是谁
+3. 读 \`INK.md\`，加载相关层的文档
 
 ## 持久化
 
-重要事实必须写下来，不要假装记得。
+重要事实必须写下来。
 
-- 身份 → SOUL.md
-- 用户偏好 → USER.md
-- 工作约定 → AGENTS.md
-- 领域知识 → knowledge/ 四层知识库
-
-## 知识库
-
-- concepts：概念和心智模型
-- structure：架构和组织关系
-- behavior：偏好和习惯
-- ops：当前任务和待办（30天过期）
-
-用 Knowledge 工具管理。
+- 身份 → \`SOUL.md\`
+- 用户偏好 → \`USER.md\`
+- 工作约定 → \`AGENTS.md\`
+- 各层知识 → 对应的文档路径（见 \`INK.md\`）
 
 ## 工具使用
 
@@ -56,12 +71,21 @@ export const DEFAULT_BOOTSTRAP_TEMPLATE = `# BOOTSTRAP.md
 3. 对方怎么称呼
 4. 对方的边界和偏好
 
+## 初始化 INK.md
+
+确认身份后，创建 \`INK.md\` 作为知识地图：
+- Conceptual：愿景和设计决策
+- Structural：项目结构
+- Behavioral：约定和规则
+- Operational：日志和记录
+
 ## 完成后
 
 把确认的内容写进文件：
 
 - SOUL.md：你的身份和风格
 - USER.md：对方的称呼和偏好
+- INK.md：知识地图
 
 然后删除这个文件。
 `
