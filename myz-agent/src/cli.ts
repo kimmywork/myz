@@ -124,6 +124,9 @@ program
       const App = () => {
         const [entries, setEntries] = React.useState<ChatEntry[]>(sessionHistory)
         const [status, setStatus] = React.useState<"idle" | "thinking" | "tool" | "sending">("idle")
+        const [tokenUsed, setTokenUsed] = React.useState(runtime.tokenUsed)
+        const [tokenTotal, setTokenTotal] = React.useState(runtime.tokenTotal)
+        const [currentModel, setCurrentModel] = React.useState(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
 
         const addEntry = React.useCallback((entry: ChatEntry) => {
           setEntries((prev) => [...prev, entry])
@@ -173,6 +176,9 @@ program
             const result = await processUserInput(runtime, text, {
               onStreamDelta: updateStream,
             })
+            setTokenUsed(runtime.tokenUsed)
+            setTokenTotal(runtime.tokenTotal)
+            setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
             // Final update — use complete result
             if (result) {
               updateEntry(streamIdx, result)
@@ -195,14 +201,10 @@ program
         return React.createElement(AgentShell, {
           agentId: runtime.currentAgentId,
           sessionId: runtime.sessionId,
-          model: `${config.defaults.provider}/${config.defaults.model}`,
+          model: currentModel,
           workspace: config.workspaceRoot,
-          tokenUsed: 0,
-          tokenTotal: (() => {
-            const p = config.providers[config.defaults.provider]
-            const m = p?.models.find((m) => m.id === config.defaults.model)
-            return m?.contextWindow || 0
-          })(),
+          tokenUsed,
+          tokenTotal,
           version: "0.2.0",
           entries,
           onMessage: handleMessage,

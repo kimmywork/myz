@@ -348,15 +348,17 @@ myz-agent (重命名自 myz-bot, CLI 入口)
 - 工作区 | 模型 | context token 用量 | 当前 agent | 版本号
 
 **验收标准**：
-- [ ] Assistant 输出正确渲染 Markdown（bold, code, list, heading）
-- [ ] Tool Use 折叠/展开正常
-- [ ] Reasoning 折叠/展开正常
-- [ ] 输入框方向键导航正常
-- [ ] IME 输入光标位置正确
-- [ ] 底部状态栏信息实时更新
-- [ ] Session 历史持久化到 JSONL
+- [x] Assistant 输出正确渲染 Markdown（bold, code, list, heading）
+- [ ] Tool Use 折叠/展开正常（Gap: runtime event 尚未正式映射为可聚焦 TUI entry）
+- [ ] Reasoning 折叠/展开正常（Gap: reasoning stream 尚未独立落入 TUI history entry）
+- [x] 输入框方向键导航正常（left/right + 多行 up/down）
+- [x] IME 输入光标位置正确（见 `docs/knowledges/agent-tui-ink-input-cursor-lessons.md`）
+- [x] 底部状态栏信息实时更新（model/context token/agent/version）
+- [x] Session 历史持久化到 JSONL
 
-### Phase 5: MCP + 生产化
+### Deferred: MCP (v23)
+
+MCP 在本 PRD 的 Non-Goals 中已明确延期到 v23。原 Phase 5 条目不作为 v22 验收项，保留为 v23 输入：
 
 - [ ] MCP 配置从 `.agents/myz/mcp.yml` 加载
 - [ ] MCP server 连接和工具注册
@@ -417,9 +419,22 @@ myz-agent (重命名自 myz-bot, CLI 入口)
   4. Build agent 继续处理
 - 预期：搜索结果正确返回，主 agent 继续工作
 
+## Gap Review (2026-06-22)
+
+| Gap | 发现 | 处理 |
+|---|---|---|
+| G-001 | Phase 5 MCP 与 Non-Goals 冲突 | 明确 MCP deferred to v23，不纳入 v22 验收 |
+| G-002 | `myz-agent/README.md` 仍是 `myz-bot`/Telegram/ai-core 旧文档 | 已重写为 `myz-agent` 多包架构、配置、命令、开发命令 |
+| G-003 | `/tools`、`/compact` 返回“待实现” | 已接入 runtime `listTools()` / `compactSession()` 并增加 tests |
+| G-004 | `/model` 命令只更新文案，不切换 runtime client | 已更新 `runtime.config.defaults` 并重建 LLM client |
+| G-005 | 状态栏 token/model 不随 runtime 更新 | 已增加 runtime token state，并在 TUI 中刷新 model/token |
+| G-006 | Ink 多行输入 cursor/IME buffer 漂移 | 已改为手动 wrapping model，支持软换行和 `\n`/`\r\n`，并记录 lesson learned |
+| G-007 | Tool/Reasoning 折叠展开缺少正式 event-entry/focus 模型 | 保留为下一轮 TUI interaction gap，不伪装完成 |
+
 ## 变更日志
 
 | 日期 | 变更 | 影响范围 |
 |---|---|---|
 | 2026-06-17 | 初始版本 | 全局 |
-| 2026-06-18 | Phase 1-5 完成，所有组件集成 | 全局 |
+| 2026-06-18 | Phase 1-3 完成，Phase 4/5 待验收 | 全局 |
+| 2026-06-22 | v22 gap review：补 `/tools` `/compact` `/model` runtime 切换、TUI 输入和状态栏，MCP 明确延期 v23 | myz-agent, agent-core, agent-tui, docs |

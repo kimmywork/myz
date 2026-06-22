@@ -22,6 +22,8 @@ export interface AgentRuntime {
   currentAgentId: string
   sessionId: string
   messages: Message[]
+  tokenUsed: number
+  tokenTotal: number
   onEvent: (event: AgentEvent) => void
 }
 
@@ -38,6 +40,22 @@ function resolveModel(config: AgentConfig) {
   const model = provider.models.find((m) => m.id === mid)
   if (!model) return null
   return { provider, model }
+}
+
+function createClientForCurrentModel(config: AgentConfig): LLMClient {
+  const resolved = resolveModel(config)
+  if (!resolved) throw new Error("未配置 provider/model")
+  return createLLMClient({
+    type: resolved.provider.type as any,
+    baseUrl: resolved.provider.baseUrl,
+    apiKey: resolved.provider.apiKey,
+    profile: resolved.provider.compatProfile as any,
+    stream: true,
+  })
+}
+
+function estimateMessageTokens(messages: Message[]) {
+  return messages.reduce((sum, message) => sum + Math.ceil(message.content.length / 4) + 4, 0)
 }
 
 function buildSystemPrompt(agentId: string, config: AgentConfig): string {
@@ -124,16 +142,7 @@ export function createRuntime(options: {
   onEvent?: (event: AgentEvent) => void
 }): AgentRuntime {
   const config = loadConfigNew({ workspaceRoot: options.workspaceRoot })
-  const resolved = resolveModel(config)
-  if (!resolved) throw new Error("未配置 provider/model")
-
-  const client = createLLMClient({
-    type: resolved.provider.type as any,
-    baseUrl: resolved.provider.baseUrl,
-    apiKey: resolved.provider.apiKey,
-    profile: resolved.provider.compatProfile as any,
-    stream: true,
-  })
+  const client = createClientForCurrentModel(config)
 
   const state = createExtensionState()
   const api = createExtensionAPI(state)
@@ -143,6 +152,7 @@ export function createRuntime(options: {
     if (handler) api.registerTool(def, handler as any)
   }
 
+  const resolved = resolveModel(config)
   const runtime: AgentRuntime = {
     config,
     client,
@@ -150,6 +160,8 @@ export function createRuntime(options: {
     currentAgentId: "build",
     sessionId: createSessionId(),
     messages: [],
+    tokenUsed: 0,
+    tokenTotal: resolved?.model.contextWindow || 0,
     onEvent: options.onEvent || (() => {}),
   }
 
@@ -185,13 +197,44 @@ export async function processUserInput(
         currentAgentId: runtime.currentAgentId,
         sessionId: runtime.sessionId,
         switchAgent: (id) => { runtime.currentAgentId = id },
-        switchModel: () => {},
+        switchModel: (providerId, modelId) => {
+          runtime.config.defaults = { provider: providerId, model: modelId }
+          runtime.client = createClientForCurrentModel(runtime.config)
+          runtime.tokenTotal = resolveModel(runtime.config)?.model.contextWindow || 0
+        },
         getAvailableModels: () => Object.entries(runtime.config.providers).flatMap(([pid, p]) =>
           p.models.map((m) => ({ providerId: pid, modelId: m.id, contextWindow: m.contextWindow, capabilities: m.capabilities }))
         ),
         listSessions: () => [{ id: runtime.sessionId, active: true }],
-        getSessionTokens: () => ({ used: 0, total: 0 }),
-        clearSession: () => { runtime.messages = []; runtime.sessionId = createSessionId() },
+        listTools: () => Array.from(runtime.state.tools.values()).map(({ definition }) => ({
+          name: definition.name,
+          description: definition.description,
+        })),
+        getSessionTokens: () => ({ used: runtime.tokenUsed || estimateMessageTokens(runtime.messages), total: runtime.tokenTotal }),
+        compactSession: async () => {
+          const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config)
+          const resolved = resolveModel(runtime.config)
+          const compacted = await compactContext({
+            messages: [{ role: "system", content: systemPrompt }, ...runtime.messages],
+            config: runtime.config.context,
+            contextWindow: resolved?.model.contextWindow || 8192,
+            maxOutputTokens: resolved?.model.maxOutputTokens || 4096,
+            client: runtime.client,
+            model: resolved?.model.id,
+            systemPromptTokens: Math.ceil(systemPrompt.length / 4),
+            toolsTokens: 1000,
+          })
+          if (compacted.compressed) {
+            runtime.messages = compacted.history.filter((message) => message.role !== "system")
+            runtime.onEvent({ type: "compaction", summary: compacted.summary })
+          }
+          return {
+            compressed: compacted.compressed,
+            summary: compacted.summary,
+            messageCount: runtime.messages.length,
+          }
+        },
+        clearSession: () => { runtime.messages = []; runtime.sessionId = createSessionId(); runtime.tokenUsed = 0 },
       }
       return (await handler.handler(cmd.args, ctx)) || ""
     }
@@ -250,6 +293,10 @@ export async function processUserInput(
       }
     },
   })
+
+  if (result.usage?.totalTokens) runtime.tokenUsed = result.usage.totalTokens
+  else runtime.tokenUsed = estimateMessageTokens(runtime.messages)
+  runtime.tokenTotal = resolved?.model.contextWindow || runtime.tokenTotal
 
   if (result.content) runtime.messages.push({ role: "assistant", content: result.content })
   return result.content

@@ -92,6 +92,21 @@ export function __getCursorPositionForTest(lines: WrappedLine[], cursorOffset: n
   return { row: lines.length - 1, col: lastLine.width }
 }
 
+export function __getOffsetForColumnForTest(line: WrappedLine, targetCol: number) {
+  if (!line.text) return line.start
+
+  let width = 0
+  let offset = line.start
+  for (const char of line.text) {
+    const charWidth = Math.max(1, stringWidth(char))
+    if (width + charWidth > targetCol) break
+    width += charWidth
+    offset += char.length
+  }
+
+  return Math.min(offset, line.end)
+}
+
 export function InputBar({
   onSubmit,
   placeholder = "Type your message or /help",
@@ -139,7 +154,15 @@ export function InputBar({
     }
     if (key.leftArrow) { setCursorOffset((p) => Math.max(0, p - 1)); return }
     if (key.rightArrow) { setCursorOffset((p) => Math.min(value.length, p + 1)); return }
-    if (key.upArrow || key.downArrow) return
+    if (key.upArrow || key.downArrow) {
+      const direction = key.upArrow ? -1 : 1
+      const nextRow = cursorPosition.row + direction
+      const nextLine = wrappedLines[nextRow]
+      if (nextLine) {
+        setCursorOffset(__getOffsetForColumnForTest(nextLine, cursorPosition.col))
+      }
+      return
+    }
     if (key.backspace || key.delete) {
       if (cursorOffset > 0) {
         setValue((prev) => prev.slice(0, cursorOffset - 1) + prev.slice(cursorOffset))

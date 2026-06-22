@@ -139,7 +139,12 @@ export function createCommands(): SlashCommand[] {
       name: "tools",
       description: "列出可用工具",
       handler: (_args, ctx) => {
-        return "工具列表功能待实现。"
+        const tools = ctx.listTools()
+        if (!tools.length) return "当前没有可用工具。"
+        return [
+          "可用工具：",
+          ...tools.map((tool) => `  - ${tool.name}: ${tool.description}`),
+        ].join("\n")
       },
     },
     {
@@ -159,8 +164,16 @@ export function createCommands(): SlashCommand[] {
     {
       name: "compact",
       description: "手动触发上下文压缩",
-      handler: (_args, ctx) => {
-        return "上下文压缩功能待实现。"
+      handler: async (_args, ctx) => {
+        const result = await ctx.compactSession()
+        if (!result.compressed) {
+          return `上下文未压缩：当前 ${result.messageCount} 条消息未超过压缩阈值。`
+        }
+        return [
+          "上下文已压缩。",
+          `当前保留消息数: ${result.messageCount}`,
+          result.summary ? `摘要：\n${result.summary}` : "",
+        ].filter(Boolean).join("\n")
       },
     },
   ]
