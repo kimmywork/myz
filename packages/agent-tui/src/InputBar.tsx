@@ -1,35 +1,132 @@
-import React, { useState } from "react"
-import { Box, Text, useInput, useWindowSize, useCursor } from "ink"
+import React, { useState, useRef } from "react"
+import { Box, Text, useBoxMetrics, useCursor, useInput, useWindowSize, type DOMElement } from "ink"
 import stringWidth from "string-width"
+
+interface WrappedLine {
+  text: string
+  start: number
+  end: number
+  width: number
+}
+
+function getAbsolutePosition(element: DOMElement | null) {
+  let x = 0
+  let y = 0
+  let node: DOMElement | undefined = element ?? undefined
+
+  while (node) {
+    x += node.yogaNode?.getComputedLeft() ?? 0
+    y += node.yogaNode?.getComputedTop() ?? 0
+    node = node.parentNode
+  }
+
+  return { x, y }
+}
+
+export function __wrapInputForTest(value: string, width: number): WrappedLine[] {
+  if (value.length === 0) return [{ text: "", start: 0, end: 0, width: 0 }]
+
+  const lines: WrappedLine[] = []
+  let lineText = ""
+  let lineStart = 0
+  let lineWidth = 0
+  let index = 0
+
+  const pushLine = (end: number) => {
+    lines.push({ text: lineText, start: lineStart, end, width: lineWidth })
+    lineText = ""
+    lineStart = end
+    lineWidth = 0
+  }
+
+  while (index < value.length) {
+    const char = value[index]
+
+    if (char === "\r" || char === "\n") {
+      const newlineLength = char === "\r" && value[index + 1] === "\n" ? 2 : 1
+      pushLine(index)
+      index += newlineLength
+      lineStart = index
+      continue
+    }
+
+    const codePoint = value.codePointAt(index)
+    const inputChar = codePoint === undefined ? char : String.fromCodePoint(codePoint)
+    const charWidth = Math.max(1, stringWidth(inputChar))
+
+    if (lineWidth > 0 && lineWidth + charWidth > width) {
+      pushLine(index)
+    }
+
+    lineText += inputChar
+    lineWidth += charWidth
+    index += inputChar.length
+  }
+
+  lines.push({ text: lineText, start: lineStart, end: index, width: lineWidth })
+
+  if (lineWidth >= width) {
+    lines.push({ text: "", start: index, end: index, width: 0 })
+  }
+
+  return lines
+}
+
+export function __getCursorPositionForTest(lines: WrappedLine[], cursorOffset: number) {
+  for (let row = 0; row < lines.length; row++) {
+    const line = lines[row]
+    const nextLine = lines[row + 1]
+    const isLastLine = row === lines.length - 1
+    const isInsideLine = cursorOffset >= line.start && (cursorOffset < line.end || isLastLine)
+    const isOnHardBreak = nextLine && cursorOffset >= line.end && cursorOffset < nextLine.start
+
+    if (isInsideLine || isOnHardBreak) {
+      return {
+        row,
+        col: stringWidth(line.text.slice(0, Math.max(0, cursorOffset - line.start))),
+      }
+    }
+  }
+
+  const lastLine = lines[lines.length - 1]
+  return { row: lines.length - 1, col: lastLine.width }
+}
 
 export function InputBar({
   onSubmit,
   placeholder = "Type your message or /help",
+  maxRows = 4,
 }: {
   onSubmit: (text: string) => void
   placeholder?: string
+  maxRows?: number
 }) {
   const [value, setValue] = useState("")
   const [cursorOffset, setCursorOffset] = useState(0)
+  const inputRef = useRef<DOMElement | null>(null)
+  const inputMetrics = useBoxMetrics(inputRef)
   const { columns } = useWindowSize()
   const { setCursorPosition } = useCursor()
 
   const prompt = "> "
   const promptWidth = stringWidth(prompt)
-  const availableWidth = columns - promptWidth
+  const inputPosition = getAbsolutePosition(inputRef.current)
+  const textWidth = Math.max(1, columns - promptWidth)
+  const wrappedLines = __wrapInputForTest(value, textWidth)
+  const cursorPosition = __getCursorPositionForTest(wrappedLines, cursorOffset)
+  const viewportStart = Math.max(0, cursorPosition.row - maxRows + 1)
+  const visibleLines = wrappedLines.slice(viewportStart, viewportStart + maxRows)
+  const cursorVisibleRow = cursorPosition.row - viewportStart
 
-  // Compute cursor position accounting for wide chars + line wrapping
-  const textBeforeCursor = value.slice(0, cursorOffset)
-  const cursorX = stringWidth(prompt + textBeforeCursor)
-
-  let cursorRow = 0
-  let cursorCol = cursorX
-  if (availableWidth > 0) {
-    cursorRow = Math.floor(cursorX / availableWidth)
-    cursorCol = cursorX % availableWidth
-  }
-
-  setCursorPosition({ x: cursorCol, y: cursorRow })
+  // `useCursor` coordinates are relative to the whole Ink frame, not this
+  // component. Use the same manual wrapping model for rendering and cursor
+  // placement, so the terminal cursor / IME buffer can't drift from InputBar.
+  setCursorPosition(inputMetrics.hasMeasured
+    ? {
+      x: inputPosition.x + promptWidth + cursorPosition.col,
+      y: inputPosition.y + cursorVisibleRow,
+    }
+    : undefined)
 
   useInput((input, key) => {
     if (key.return) {
@@ -57,16 +154,20 @@ export function InputBar({
     }
   })
 
-  const beforeCursor = value.slice(0, cursorOffset)
-  const atCursor = value[cursorOffset] || ""
-  const afterCursor = value.slice(cursorOffset + 1)
-
   return (
-    <Box>
-      <Text color="cyan" bold>{prompt}</Text>
-      <Text wrap="wrap">{beforeCursor}</Text>
-      <Text inverse wrap="wrap">{atCursor || " "}</Text>
-      <Text wrap="wrap">{afterCursor}</Text>
+    <Box ref={inputRef} width={columns} flexDirection="column" flexShrink={0}>
+      {visibleLines.map((line, index) => {
+        const isFirstVisibleLine = viewportStart + index === 0
+        const cursorOnLine = cursorVisibleRow === index
+        const showPlaceholder = value.length === 0 && cursorOnLine
+
+        return (
+          <Box key={`${line.start}-${index}`} width={columns}>
+            {isFirstVisibleLine ? <Text color="cyan" bold>{prompt}</Text> : <Text>{" ".repeat(promptWidth)}</Text>}
+            <Text>{showPlaceholder ? <Text dimColor>{placeholder}</Text> : (line.text || " ")}</Text>
+          </Box>
+        )
+      })}
     </Box>
   )
 }
