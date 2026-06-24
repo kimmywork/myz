@@ -4,6 +4,31 @@ import React from "react"
 import { renderToString } from "ink"
 import { AgentShell, type ChatEntry } from "@myz/agent-tui"
 
+test("AgentShell keeps the first user message visible while assistant is pending", () => {
+  const entries: ChatEntry[] = [
+    { id: "u1", role: "user", text: "第一条消息必须可见" },
+    { id: "a1", role: "assistant", text: "" },
+  ]
+
+  const frame = renderToString(
+    React.createElement(AgentShell, {
+      agentId: "build",
+      sessionId: "test-123",
+      model: "default/model",
+      workspace: "/tmp/workspace",
+      tokenUsed: 0,
+      tokenTotal: 1000,
+      version: "0.2.0",
+      entries,
+      onMessage: () => {},
+    }),
+  )
+
+  assert.match(frame, /\[YOU\]/)
+  assert.match(frame, /第一条消息必须可见/)
+  assert.match(frame, /\[AI\]/)
+})
+
 test("AgentShell renders v22 transcript entries above input and status", () => {
   const entries: ChatEntry[] = [
     { role: "user", text: "你好" },

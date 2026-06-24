@@ -92,6 +92,7 @@ program
 
       const appendEntryRef = React.createRef<(entry: ChatEntry, options?: { persist?: boolean }) => void>()
       const patchEntryRef = React.createRef<(id: string, patch: Partial<ChatEntry>) => void>()
+      const setAssistantTextRef = React.createRef<(text: string) => void>()
       const toolEntryIds = new Map<string, string>()
       const toolCallArgs = new Map<string, Record<string, unknown>>()
 
@@ -110,6 +111,10 @@ program
       const runtime = createRuntime({
         workspaceRoot,
         onEvent: (event: AgentEvent) => {
+          if (event.type === "text" && event.text) {
+            setAssistantTextRef.current?.(event.text)
+          }
+
           if (event.type === "tool_call" && event.toolCall) {
             const entryId = `tool-${event.toolCall.id}`
             toolEntryIds.set(event.toolCall.id, entryId)
@@ -219,6 +224,10 @@ program
           let reasoningText = ""
 
           addEntry({ id: assistantEntryId, role: "assistant", text: "" }, { persist: false })
+          ;(setAssistantTextRef as any).current = (content: string) => {
+            streamText = content
+            patchEntry(assistantEntryId, { text: content })
+          }
 
           const updateStream = (delta: { content?: string; reasoning?: string }) => {
             if (delta.reasoning) {
@@ -267,7 +276,15 @@ program
                 assistantPersisted = true
               }
             } else {
-              setEntries((prev) => prev.filter((entry) => entry.id !== assistantEntryId))
+              patchEntry(assistantEntryId, {
+                role: "system",
+                text: "No assistant content returned. The model may have produced reasoning/tool activity only.",
+              })
+              appendSessionEntry(sessionsDir, runtime.sessionId, {
+                id: assistantEntryId,
+                role: "system",
+                text: "No assistant content returned. The model may have produced reasoning/tool activity only.",
+              })
             }
           } catch (e) {
             const message = `Error: ${(e as Error).message}`
@@ -275,6 +292,7 @@ program
             appendSessionEntry(sessionsDir, runtime.sessionId, { id: assistantEntryId, role: "error", text: message })
           }
 
+          ;(setAssistantTextRef as any).current = undefined
           setStatus("idle")
         }
 

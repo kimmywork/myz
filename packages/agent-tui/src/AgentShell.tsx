@@ -1,5 +1,5 @@
 import React from "react"
-import { Box, Static, useApp, useInput, useWindowSize } from "ink"
+import { Box, useApp, useInput, useWindowSize } from "ink"
 import { ChatHistory, type ChatEntry } from "./ChatHistory"
 import { InputBar } from "./InputBar"
 import { StatusBar } from "./StatusBar"
@@ -35,22 +35,10 @@ export function AgentShell({
     if (key.ctrl && input === "c") exit()
   })
 
-  const staticEntries = entries.slice(0, -1)
-  const streamingEntry = entries.length > 0 ? entries[entries.length - 1] : null
-
   return (
     <Box flexDirection="column" width="100%" height={frameHeight}>
-      {/* Static content — completed chat history, rendered above the live frame. */}
-      <Static items={staticEntries}>
-        {(entry: ChatEntry, index) => (
-          <ChatHistory key={entry.id || `${entry.role}-${index}`} entries={[entry]} />
-        )}
-      </Static>
-
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        {streamingEntry && streamingEntry.text && (
-          <ChatHistory entries={[streamingEntry]} />
-        )}
+        <ChatHistory entries={entries} />
       </Box>
 
       {/* Keep the prompt above the status bar; the status bar remains the bottom line. */}
