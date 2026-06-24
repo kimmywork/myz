@@ -17,6 +17,7 @@ export interface ChatEntry {
   id?: string
   role: ChatEntryRole
   text: string
+  status?: "pending" | "complete"
   detail?: string
   toolName?: string
   subagentId?: string

@@ -148,11 +148,14 @@ program
 
       const persistAssistantSegment = () => {
         if (!transcriptState.assistantId || !transcriptState.assistantText.trim() || transcriptState.assistantPersisted) return
-        appendSessionEntry(sessionsDir, runtime.sessionId, {
+        const completedEntry: ChatEntry = {
           id: transcriptState.assistantId,
           role: "assistant",
           text: transcriptState.assistantText,
-        })
+          status: "complete",
+        }
+        patchEntryRef.current?.(transcriptState.assistantId, { status: "complete" })
+        appendSessionEntry(sessionsDir, runtime.sessionId, completedEntry)
         transcriptState.assistantPersisted = true
       }
 
@@ -181,12 +184,13 @@ program
       const closeReasoningSegment = () => {
         if (!transcriptState.reasoningId) return
         const summary = summarizeReasoning(transcriptState.reasoningText)
-        patchEntryRef.current?.(transcriptState.reasoningId, { text: summary, detail: transcriptState.reasoningText })
+        patchEntryRef.current?.(transcriptState.reasoningId, { text: summary, detail: transcriptState.reasoningText, status: "complete" })
         if (!transcriptState.reasoningPersisted) {
           appendSessionEntry(sessionsDir, runtime.sessionId, {
             id: transcriptState.reasoningId,
             role: "reasoning",
             text: summary,
+            status: "complete",
             detail: transcriptState.reasoningText,
             expanded: false,
           })
@@ -201,6 +205,7 @@ program
           transcriptState.assistantId = appendEntryRef.current?.({
             role: "assistant",
             text: "",
+            status: "pending",
           }, { persist: false }) || createEntryId("assistant")
           transcriptState.assistantText = ""
           transcriptState.assistantPersisted = false
@@ -227,6 +232,7 @@ program
               role: "tool_use",
               toolName: event.toolCall.name,
               text: `▸ ${event.toolCall.name}`,
+              status: "pending",
               detail: `Arguments:\n${formatJson(event.toolCall.args)}`,
               expanded: false,
             }, { persist: false })
@@ -242,11 +248,12 @@ program
               id: entryId,
               role: "tool_use",
               toolName: event.toolResult.name,
+              status: "complete",
               expanded: false,
               ...patch,
             }
             if (toolEntryIds.has(event.toolResult.id)) {
-              patchEntryRef.current?.(entryId, patch)
+              patchEntryRef.current?.(entryId, { ...patch, status: "complete" })
             } else {
               appendEntryRef.current?.(completedEntry, { persist: false })
             }
@@ -264,6 +271,7 @@ program
               id: createEntryId("error"),
               role: "error",
               text: event.error.message,
+              status: "complete",
             })
           }
 
@@ -272,6 +280,7 @@ program
               id: createEntryId("system"),
               role: "system",
               text: "Context compacted",
+              status: "complete",
               detail: event.summary,
               expanded: false,
             })
@@ -323,6 +332,7 @@ program
               transcriptState.reasoningId = addEntry({
                 role: "reasoning",
                 text: "Thinking…",
+                status: "pending",
                 detail: chunk,
                 expanded: false,
               }, { persist: false })
@@ -400,13 +410,14 @@ program
               addEntry({
                 role: "system",
                 text: "No assistant content returned. The model may have produced reasoning/tool activity only.",
+                status: "complete",
               })
             }
           } catch (e) {
             closeReasoningSegment()
             closeAssistantSegment()
             const message = `Error: ${(e as Error).message}`
-            addEntry({ role: "error", text: message })
+            addEntry({ role: "error", text: message, status: "complete" })
           }
 
           setStatus("idle")
