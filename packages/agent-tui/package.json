@@ -6,7 +6,7 @@
     ".": "./src/index.tsx"
   },
   "scripts": {
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts tests/*.test.tsx"
   },
   "dependencies": {
     "ink": "^7.0.0",

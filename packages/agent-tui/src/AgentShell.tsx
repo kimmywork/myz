@@ -42,8 +42,8 @@ export function AgentShell({
     <Box flexDirection="column" width="100%" height={frameHeight}>
       {/* Static content — completed chat history, rendered above the live frame. */}
       <Static items={staticEntries}>
-        {(entry: ChatEntry) => (
-          <ChatHistory key={`${entry.role}-${entry.text.slice(0, 20)}`} entries={[entry]} />
+        {(entry: ChatEntry, index) => (
+          <ChatHistory key={entry.id || `${entry.role}-${index}`} entries={[entry]} />
         )}
       </Static>
 

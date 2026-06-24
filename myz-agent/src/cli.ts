@@ -90,22 +90,77 @@ program
       const { AgentShell } = await import("@myz/agent-tui")
       const React = await import("react")
 
-      const updateEntryRef = React.createRef<(idx: number, text: string) => void>()
+      const appendEntryRef = React.createRef<(entry: ChatEntry, options?: { persist?: boolean }) => void>()
+      const patchEntryRef = React.createRef<(id: string, patch: Partial<ChatEntry>) => void>()
+      const toolEntryIds = new Map<string, string>()
+      const toolCallArgs = new Map<string, Record<string, unknown>>()
+
+      const createEntryId = (role: string) => `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const formatJson = (value: unknown) => JSON.stringify(value, null, 2)
+      const formatToolResult = (event: NonNullable<AgentEvent["toolResult"]>) => {
+        const resultText = event.result.content.map((item) => item.text).join("\n")
+        const args = toolCallArgs.get(event.id)
+        return [
+          args ? `Arguments:\n${formatJson(args)}` : "Arguments: {}",
+          "",
+          `Result:\n${resultText || "(empty)"}`,
+        ].join("\n")
+      }
 
       const runtime = createRuntime({
         workspaceRoot,
         onEvent: (event: AgentEvent) => {
-          if (!updateEntryRef.current) return
-          // Only tool_call and tool_result are appended as separate entries
-          // text/reasoning streaming is handled by processUserInput's onStreamDelta
           if (event.type === "tool_call" && event.toolCall) {
-            // Don't create new entry — just log internally
+            const entryId = `tool-${event.toolCall.id}`
+            toolEntryIds.set(event.toolCall.id, entryId)
+            toolCallArgs.set(event.toolCall.id, event.toolCall.args)
+            appendEntryRef.current?.({
+              id: entryId,
+              role: "tool_use",
+              toolName: event.toolCall.name,
+              text: `▸ ${event.toolCall.name}`,
+              detail: `Arguments:\n${formatJson(event.toolCall.args)}`,
+              expanded: false,
+            }, { persist: false })
           }
+
           if (event.type === "tool_result" && event.toolResult) {
-            // Don't create new entry — the streaming entry already shows progress
+            const entryId = toolEntryIds.get(event.toolResult.id) || `tool-${event.toolResult.id}`
+            const patch = {
+              text: event.toolResult.result.isError ? `✗ ${event.toolResult.name}` : `✓ ${event.toolResult.name}`,
+              detail: formatToolResult(event.toolResult),
+            }
+            const completedEntry: ChatEntry = {
+              id: entryId,
+              role: "tool_use",
+              toolName: event.toolResult.name,
+              expanded: false,
+              ...patch,
+            }
+            if (toolEntryIds.has(event.toolResult.id)) {
+              patchEntryRef.current?.(entryId, patch)
+            } else {
+              appendEntryRef.current?.(completedEntry, { persist: false })
+            }
+            appendSessionEntry(sessionsDir, runtime.sessionId, completedEntry)
           }
+
           if (event.type === "error" && event.error) {
-            // Handled by catch in handleMessage
+            appendEntryRef.current?.({
+              id: createEntryId("error"),
+              role: "error",
+              text: event.error.message,
+            })
+          }
+
+          if (event.type === "compaction" && event.summary) {
+            appendEntryRef.current?.({
+              id: createEntryId("system"),
+              role: "system",
+              text: "Context compacted",
+              detail: event.summary,
+              expanded: false,
+            })
           }
         },
       })
@@ -128,48 +183,62 @@ program
         const [tokenTotal, setTokenTotal] = React.useState(runtime.tokenTotal)
         const [currentModel, setCurrentModel] = React.useState(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
 
-        const addEntry = React.useCallback((entry: ChatEntry) => {
-          setEntries((prev) => [...prev, entry])
-          appendSessionEntry(sessionsDir, runtime.sessionId, entry)
+        const addEntry = React.useCallback((entry: ChatEntry, options: { persist?: boolean } = {}) => {
+          const nextEntry = { ...entry, id: entry.id || createEntryId(entry.role) }
+          setEntries((prev) => [...prev, nextEntry])
+          if (options.persist !== false) appendSessionEntry(sessionsDir, runtime.sessionId, nextEntry)
+          return nextEntry.id
         }, [])
 
-        const updateEntry = React.useCallback((idx: number, text: string) => {
-          setEntries((prev) => {
-            const next = [...prev]
-            if (next[idx]) next[idx] = { ...next[idx], text }
-            return next
-          })
+        const patchEntry = React.useCallback((id: string, patch: Partial<ChatEntry>) => {
+          setEntries((prev) => prev.map((entry) => entry.id === id ? { ...entry, ...patch } : entry))
         }, [])
 
         React.useEffect(() => {
-          (updateEntryRef as any).current = updateEntry
-        }, [updateEntry])
+          ;(appendEntryRef as any).current = addEntry
+          ;(patchEntryRef as any).current = patchEntry
+        }, [addEntry, patchEntry])
 
         const handleMessage = async (text: string) => {
-          if (text === "/clear") { setEntries([]); return }
+          if (text === "/clear") {
+            await processUserInput(runtime, text)
+            setEntries([])
+            setTokenUsed(runtime.tokenUsed)
+            setTokenTotal(runtime.tokenTotal)
+            setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
+            return
+          }
+
           addEntry({ role: "user", text })
           setStatus("thinking")
 
-          // Create a single streaming entry
-          const streamIdx = entries.length + 1
-          addEntry({ role: "assistant", text: "" })
-
+          const assistantEntryId = createEntryId("assistant")
+          let assistantPersisted = false
+          let reasoningEntryId = ""
           let streamText = ""
           let reasoningText = ""
-          let lastToolName = ""
+
+          addEntry({ id: assistantEntryId, role: "assistant", text: "" }, { persist: false })
 
           const updateStream = (delta: { content?: string; reasoning?: string }) => {
-            if (delta.content) {
-              streamText += delta.content
-            }
             if (delta.reasoning) {
               reasoningText += delta.reasoning
+              if (!reasoningEntryId) {
+                reasoningEntryId = addEntry({
+                  role: "reasoning",
+                  text: "Thinking…",
+                  detail: reasoningText,
+                  expanded: false,
+                }, { persist: false })
+              } else {
+                patchEntry(reasoningEntryId, { detail: reasoningText })
+              }
             }
-            // Build display: reasoning as dim prefix, content as main text
-            const display = reasoningText && !streamText
-              ? reasoningText.slice(-200)
-              : streamText
-            updateEntry(streamIdx, display)
+
+            if (delta.content) {
+              streamText += delta.content
+              patchEntry(assistantEntryId, { text: streamText })
+            }
           }
 
           try {
@@ -179,20 +248,31 @@ program
             setTokenUsed(runtime.tokenUsed)
             setTokenTotal(runtime.tokenTotal)
             setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
-            // Final update — use complete result
-            if (result) {
-              updateEntry(streamIdx, result)
-              appendSessionEntry(sessionsDir, runtime.sessionId, { role: "assistant", text: result })
-            } else {
-              // No content (e.g., only tool calls happened)
-              setEntries((prev) => {
-                const next = [...prev]
-                if (next[streamIdx]) next.splice(streamIdx, 1)
-                return next
+
+            if (reasoningText && reasoningEntryId) {
+              patchEntry(reasoningEntryId, { text: "Thinking complete", detail: reasoningText })
+              appendSessionEntry(sessionsDir, runtime.sessionId, {
+                id: reasoningEntryId,
+                role: "reasoning",
+                text: "Thinking complete",
+                detail: reasoningText,
+                expanded: false,
               })
             }
+
+            if (result) {
+              patchEntry(assistantEntryId, { text: result })
+              if (!assistantPersisted) {
+                appendSessionEntry(sessionsDir, runtime.sessionId, { id: assistantEntryId, role: "assistant", text: result })
+                assistantPersisted = true
+              }
+            } else {
+              setEntries((prev) => prev.filter((entry) => entry.id !== assistantEntryId))
+            }
           } catch (e) {
-            updateEntry(streamIdx, `Error: ${(e as Error).message}`)
+            const message = `Error: ${(e as Error).message}`
+            patchEntry(assistantEntryId, { role: "error", text: message })
+            appendSessionEntry(sessionsDir, runtime.sessionId, { id: assistantEntryId, role: "error", text: message })
           }
 
           setStatus("idle")

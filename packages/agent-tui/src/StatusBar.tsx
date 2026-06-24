@@ -1,5 +1,6 @@
 import React from "react"
-import { Box, Text } from "ink"
+import { Box, Text, useWindowSize } from "ink"
+import stringWidth from "string-width"
 
 export interface StatusBarProps {
   workspace: string
@@ -10,35 +11,61 @@ export interface StatusBarProps {
   version: string
 }
 
-export function StatusBar({
-  workspace,
-  model,
-  tokenUsed,
-  tokenTotal,
-  agent,
-  version,
-}: StatusBarProps) {
-  const pct = tokenTotal > 0 ? Math.round((tokenUsed / tokenTotal) * 100) : 0
-  const tokenBar = `${tokenUsed}/${tokenTotal} (${pct}%)`
+function fitStart(value: string, maxWidth: number) {
+  if (maxWidth <= 0) return ""
+  if (stringWidth(value) <= maxWidth) return value
+  if (maxWidth <= 1) return "…"
 
-  // Shorten workspace path
-  const shortWorkspace = workspace.length > 30
-    ? "..." + workspace.slice(-27)
-    : workspace
+  let result = ""
+  for (const char of [...value].reverse()) {
+    if (stringWidth(`…${char}${result}`) > maxWidth) break
+    result = `${char}${result}`
+  }
+  return `…${result}`
+}
+
+function fitEnd(value: string, maxWidth: number) {
+  if (maxWidth <= 0) return ""
+  if (stringWidth(value) <= maxWidth) return value
+  if (maxWidth <= 1) return "…"
+
+  let result = ""
+  for (const char of value) {
+    if (stringWidth(`${result}${char}…`) > maxWidth) break
+    result += char
+  }
+  return `${result}…`
+}
+
+export function __formatStatusLineForTest(props: StatusBarProps, columns: number) {
+  const pct = props.tokenTotal > 0 ? Math.round((props.tokenUsed / props.tokenTotal) * 100) : 0
+  const tokenBar = `${props.tokenUsed}/${props.tokenTotal} (${pct}%)`
+  const right = `${fitStart(props.model, Math.max(8, Math.floor(columns * 0.28)))}  ${tokenBar}  ${props.agent}  ${props.version}`
+  const available = Math.max(0, columns - 4)
+
+  if (stringWidth(right) >= available) {
+    return fitEnd(right, available)
+  }
+
+  const workspaceWidth = Math.max(0, available - stringWidth(right) - 2)
+  const left = fitStart(props.workspace, workspaceWidth)
+  return `${left}${left ? "  " : ""}${right}`
+}
+
+export function StatusBar(props: StatusBarProps) {
+  const { columns } = useWindowSize()
+  const statusLine = __formatStatusLineForTest(props, columns)
 
   return (
     <Box
-      justifyContent="space-between"
+      width="100%"
+      height={3}
       borderStyle="single"
-      borderTop={true}
       paddingLeft={1}
       paddingRight={1}
+      overflow="hidden"
     >
-      <Text dimColor>{shortWorkspace}</Text>
-      <Text>{model}</Text>
-      <Text dimColor>{tokenBar}</Text>
-      <Text color="cyan">{agent}</Text>
-      <Text dimColor>{version}</Text>
+      <Text wrap="truncate-end">{statusLine}</Text>
     </Box>
   )
 }
