@@ -90,14 +90,21 @@ program
       const { AgentShell } = await import("@myz/agent-tui")
       const React = await import("react")
 
-      const appendEntryRef = React.createRef<(entry: ChatEntry, options?: { persist?: boolean }) => void>()
+      const appendEntryRef = React.createRef<(entry: ChatEntry, options?: { persist?: boolean }) => string>()
       const patchEntryRef = React.createRef<(id: string, patch: Partial<ChatEntry>) => void>()
-      const setAssistantTextRef = React.createRef<(text: string) => void>()
+      const appendAssistantDeltaRef = React.createRef<(text: string) => void>()
+      const appendReasoningDeltaRef = React.createRef<(text: string) => void>()
+      const finishTurnRef = React.createRef<(result: string) => void>()
       const toolEntryIds = new Map<string, string>()
       const toolCallArgs = new Map<string, Record<string, unknown>>()
 
       const createEntryId = (role: string) => `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       const formatJson = (value: unknown) => JSON.stringify(value, null, 2)
+      const summarizeReasoning = (text: string) => {
+        const compact = text.replace(/\s+/g, " ").trim()
+        if (!compact) return "Thinking complete"
+        return compact.length > 140 ? `Thinking: ${compact.slice(0, 140)}…` : `Thinking: ${compact}`
+      }
       const formatToolResult = (event: NonNullable<AgentEvent["toolResult"]>) => {
         const resultText = event.result.content.map((item) => item.text).join("\n")
         const args = toolCallArgs.get(event.id)
@@ -108,14 +115,86 @@ program
         ].join("\n")
       }
 
+      const transcriptState = {
+        assistantId: "",
+        assistantText: "",
+        assistantPersisted: false,
+        reasoningId: "",
+        reasoningText: "",
+        reasoningPersisted: false,
+        assistantContentSeen: false,
+        modelActivitySeen: false,
+      }
+
+      const resetTranscriptTurn = () => {
+        transcriptState.assistantId = ""
+        transcriptState.assistantText = ""
+        transcriptState.assistantPersisted = false
+        transcriptState.reasoningId = ""
+        transcriptState.reasoningText = ""
+        transcriptState.reasoningPersisted = false
+        transcriptState.assistantContentSeen = false
+        transcriptState.modelActivitySeen = false
+      }
+
+      const persistAssistantSegment = () => {
+        if (!transcriptState.assistantId || !transcriptState.assistantText.trim() || transcriptState.assistantPersisted) return
+        appendSessionEntry(sessionsDir, runtime.sessionId, {
+          id: transcriptState.assistantId,
+          role: "assistant",
+          text: transcriptState.assistantText,
+        })
+        transcriptState.assistantPersisted = true
+      }
+
+      const closeAssistantSegment = () => {
+        persistAssistantSegment()
+        transcriptState.assistantId = ""
+        transcriptState.assistantText = ""
+        transcriptState.assistantPersisted = false
+      }
+
+      const closeReasoningSegment = () => {
+        if (!transcriptState.reasoningId) return
+        const summary = summarizeReasoning(transcriptState.reasoningText)
+        patchEntryRef.current?.(transcriptState.reasoningId, { text: summary, detail: transcriptState.reasoningText })
+        if (!transcriptState.reasoningPersisted) {
+          appendSessionEntry(sessionsDir, runtime.sessionId, {
+            id: transcriptState.reasoningId,
+            role: "reasoning",
+            text: summary,
+            detail: transcriptState.reasoningText,
+            expanded: false,
+          })
+        }
+        transcriptState.reasoningId = ""
+        transcriptState.reasoningText = ""
+        transcriptState.reasoningPersisted = false
+      }
+
+      const ensureAssistantSegment = () => {
+        if (!transcriptState.assistantId) {
+          transcriptState.assistantId = appendEntryRef.current?.({
+            role: "assistant",
+            text: "",
+          }, { persist: false }) || createEntryId("assistant")
+          transcriptState.assistantText = ""
+          transcriptState.assistantPersisted = false
+        }
+      }
+
       const runtime = createRuntime({
         workspaceRoot,
         onEvent: (event: AgentEvent) => {
           if (event.type === "text" && event.text) {
-            setAssistantTextRef.current?.(event.text)
+            appendAssistantDeltaRef.current?.(event.text)
+            closeAssistantSegment()
           }
 
           if (event.type === "tool_call" && event.toolCall) {
+            closeReasoningSegment()
+            closeAssistantSegment()
+            transcriptState.modelActivitySeen = true
             const entryId = `tool-${event.toolCall.id}`
             toolEntryIds.set(event.toolCall.id, entryId)
             toolCallArgs.set(event.toolCall.id, event.toolCall.args)
@@ -150,7 +229,13 @@ program
             appendSessionEntry(sessionsDir, runtime.sessionId, completedEntry)
           }
 
+          if (event.type === "done") {
+            finishTurnRef.current?.("")
+          }
+
           if (event.type === "error" && event.error) {
+            closeReasoningSegment()
+            closeAssistantSegment()
             appendEntryRef.current?.({
               id: createEntryId("error"),
               role: "error",
@@ -202,6 +287,40 @@ program
         React.useEffect(() => {
           ;(appendEntryRef as any).current = addEntry
           ;(patchEntryRef as any).current = patchEntry
+          ;(appendReasoningDeltaRef as any).current = (chunk: string) => {
+            closeAssistantSegment()
+            transcriptState.modelActivitySeen = true
+            if (!transcriptState.reasoningId) {
+              transcriptState.reasoningId = addEntry({
+                role: "reasoning",
+                text: "Thinking…",
+                detail: chunk,
+                expanded: false,
+              }, { persist: false })
+              transcriptState.reasoningText = chunk
+              transcriptState.reasoningPersisted = false
+            } else {
+              transcriptState.reasoningText += chunk
+              patchEntry(transcriptState.reasoningId, { detail: transcriptState.reasoningText })
+            }
+          }
+          ;(appendAssistantDeltaRef as any).current = (chunk: string) => {
+            closeReasoningSegment()
+            ensureAssistantSegment()
+            transcriptState.modelActivitySeen = true
+            transcriptState.assistantContentSeen = true
+            transcriptState.assistantText = chunk.startsWith(transcriptState.assistantText)
+              ? chunk
+              : transcriptState.assistantText + chunk
+            patchEntry(transcriptState.assistantId, { text: transcriptState.assistantText })
+          }
+          ;(finishTurnRef as any).current = (result: string) => {
+            closeReasoningSegment()
+            if (result && !transcriptState.assistantContentSeen) {
+              appendAssistantDeltaRef.current?.(result)
+            }
+            closeAssistantSegment()
+          }
         }, [addEntry, patchEntry])
 
         const handleMessage = async (text: string) => {
@@ -214,85 +333,37 @@ program
             return
           }
 
+          resetTranscriptTurn()
           addEntry({ role: "user", text })
           setStatus("thinking")
 
-          const assistantEntryId = createEntryId("assistant")
-          let assistantPersisted = false
-          let reasoningEntryId = ""
-          let streamText = ""
-          let reasoningText = ""
-
-          addEntry({ id: assistantEntryId, role: "assistant", text: "" }, { persist: false })
-          ;(setAssistantTextRef as any).current = (content: string) => {
-            streamText = content
-            patchEntry(assistantEntryId, { text: content })
-          }
-
           const updateStream = (delta: { content?: string; reasoning?: string }) => {
-            if (delta.reasoning) {
-              reasoningText += delta.reasoning
-              if (!reasoningEntryId) {
-                reasoningEntryId = addEntry({
-                  role: "reasoning",
-                  text: "Thinking…",
-                  detail: reasoningText,
-                  expanded: false,
-                }, { persist: false })
-              } else {
-                patchEntry(reasoningEntryId, { detail: reasoningText })
-              }
-            }
-
-            if (delta.content) {
-              streamText += delta.content
-              patchEntry(assistantEntryId, { text: streamText })
-            }
+            if (delta.reasoning) appendReasoningDeltaRef.current?.(delta.reasoning)
+            if (delta.content) appendAssistantDeltaRef.current?.(delta.content)
           }
 
           try {
             const result = await processUserInput(runtime, text, {
               onStreamDelta: updateStream,
             })
+            finishTurnRef.current?.(result)
             setTokenUsed(runtime.tokenUsed)
             setTokenTotal(runtime.tokenTotal)
             setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
 
-            if (reasoningText && reasoningEntryId) {
-              patchEntry(reasoningEntryId, { text: "Thinking complete", detail: reasoningText })
-              appendSessionEntry(sessionsDir, runtime.sessionId, {
-                id: reasoningEntryId,
-                role: "reasoning",
-                text: "Thinking complete",
-                detail: reasoningText,
-                expanded: false,
-              })
-            }
-
-            if (result) {
-              patchEntry(assistantEntryId, { text: result })
-              if (!assistantPersisted) {
-                appendSessionEntry(sessionsDir, runtime.sessionId, { id: assistantEntryId, role: "assistant", text: result })
-                assistantPersisted = true
-              }
-            } else {
-              patchEntry(assistantEntryId, {
-                role: "system",
-                text: "No assistant content returned. The model may have produced reasoning/tool activity only.",
-              })
-              appendSessionEntry(sessionsDir, runtime.sessionId, {
-                id: assistantEntryId,
+            if (!transcriptState.assistantContentSeen && !transcriptState.modelActivitySeen) {
+              addEntry({
                 role: "system",
                 text: "No assistant content returned. The model may have produced reasoning/tool activity only.",
               })
             }
           } catch (e) {
+            closeReasoningSegment()
+            closeAssistantSegment()
             const message = `Error: ${(e as Error).message}`
-            patchEntry(assistantEntryId, { role: "error", text: message })
-            appendSessionEntry(sessionsDir, runtime.sessionId, { id: assistantEntryId, role: "error", text: message })
+            addEntry({ role: "error", text: message })
           }
 
-          ;(setAssistantTextRef as any).current = undefined
           setStatus("idle")
         }
 
