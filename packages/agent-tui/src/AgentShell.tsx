@@ -1,9 +1,10 @@
-import React from "react"
-import { Box, useApp, useInput, useWindowSize } from "ink"
+import React, { useEffect, useState } from "react"
+import { Box, useApp, useInput, useStdout, useWindowSize } from "ink"
 import stringWidth from "string-width"
 import { ChatHistory, type ChatEntry } from "./ChatHistory"
 import { InputBar } from "./InputBar"
 import { StatusBar } from "./StatusBar"
+import { isMouseWheelDown, isMouseWheelUp } from "./terminalInput"
 
 export interface AgentShellProps {
   agentId: string
@@ -49,13 +50,27 @@ function tailTextToRows(text: string, maxRows: number, columns: number) {
   return selected.length ? `…\n${selected.join("\n")}` : "…"
 }
 
-export function __selectVisibleEntriesForTest(entries: ChatEntry[], maxRows: number, columns: number) {
+export function __getTranscriptRowsForTest(entries: ChatEntry[], columns: number) {
+  return entries.reduce((total, entry) => total + __estimateEntryRowsForTest(entry, columns), 0)
+}
+
+export { isMouseWheelUp as __isMouseWheelUpForTest, isMouseWheelDown as __isMouseWheelDownForTest }
+
+export function __selectVisibleEntriesForTest(entries: ChatEntry[], maxRows: number, columns: number, scrollOffset = 0) {
   if (maxRows <= 0) return []
 
   const selected: ChatEntry[] = []
-  let usedRows = 0
+  const clampedOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, __getTranscriptRowsForTest(entries, columns) - maxRows)))
+  let skippedRows = 0
+  let endIndex = entries.length - 1
 
-  for (let i = entries.length - 1; i >= 0; i--) {
+  while (endIndex >= 0 && skippedRows + __estimateEntryRowsForTest(entries[endIndex], columns) <= clampedOffset) {
+    skippedRows += __estimateEntryRowsForTest(entries[endIndex], columns)
+    endIndex--
+  }
+
+  let usedRows = 0
+  for (let i = endIndex; i >= 0; i--) {
     const entry = entries[i]
     const rows = __estimateEntryRowsForTest(entry, columns)
     if (rows <= maxRows - usedRows) {
@@ -90,13 +105,34 @@ export function AgentShell({
   onMessage,
 }: AgentShellProps) {
   const { exit } = useApp()
+  const { stdout, write } = useStdout()
   const { rows, columns } = useWindowSize()
+  const [scrollOffset, setScrollOffset] = useState(0)
   const frameHeight = Math.max(1, rows - 1)
   const historyRows = Math.max(1, frameHeight - 4 - 3)
-  const visibleEntries = __selectVisibleEntriesForTest(entries, historyRows, columns)
+  const maxScrollOffset = Math.max(0, __getTranscriptRowsForTest(entries, columns) - historyRows)
+  const visibleEntries = __selectVisibleEntriesForTest(entries, historyRows, columns, scrollOffset)
+  const pageScrollRows = Math.max(1, Math.ceil(historyRows / 2))
+  const wheelScrollRows = Math.max(1, Math.ceil(historyRows / 5))
+
+  useEffect(() => {
+    setScrollOffset((current) => Math.min(current, maxScrollOffset))
+  }, [maxScrollOffset])
+
+  useEffect(() => {
+    if (!stdout.isTTY) return
+    write("\x1B[?1000h\x1B[?1006h")
+    return () => { write("\x1B[?1000l\x1B[?1006l") }
+  }, [stdout, write])
 
   useInput((input, key) => {
     if (key.ctrl && input === "c") exit()
+    if (key.pageUp) setScrollOffset((current) => Math.min(maxScrollOffset, current + pageScrollRows))
+    if (key.pageDown) setScrollOffset((current) => Math.max(0, current - pageScrollRows))
+    if (isMouseWheelUp(input)) setScrollOffset((current) => Math.min(maxScrollOffset, current + wheelScrollRows))
+    if (isMouseWheelDown(input)) setScrollOffset((current) => Math.max(0, current - wheelScrollRows))
+    if (key.home) setScrollOffset(maxScrollOffset)
+    if (key.end) setScrollOffset(0)
   })
 
   return (

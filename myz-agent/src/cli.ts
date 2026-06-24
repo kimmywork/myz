@@ -96,15 +96,23 @@ program
       const setAssistantCompleteRef = React.createRef<(text: string) => void>()
       const appendReasoningDeltaRef = React.createRef<(text: string) => void>()
       const finishTurnRef = React.createRef<(result: string) => void>()
+      const removeEntryRef = React.createRef<(id: string) => void>()
       const toolEntryIds = new Map<string, string>()
       const toolCallArgs = new Map<string, Record<string, unknown>>()
 
       const createEntryId = (role: string) => `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       const formatJson = (value: unknown) => JSON.stringify(value, null, 2)
+      const normalizeTranscriptText = (text: string) => text.replace(/\s+/g, " ").trim()
       const summarizeReasoning = (text: string) => {
-        const compact = text.replace(/\s+/g, " ").trim()
+        const compact = normalizeTranscriptText(text)
         if (!compact) return "Thinking complete"
         return compact.length > 140 ? `Thinking: ${compact.slice(0, 140)}…` : `Thinking: ${compact}`
+      }
+      const isDuplicateReasoningContent = (reasoning: string, content: string) => {
+        const r = normalizeTranscriptText(reasoning)
+        const c = normalizeTranscriptText(content)
+        if (!r || !c) return false
+        return r === c || (r.length >= 40 && c.includes(r)) || (c.length >= 40 && r.includes(c))
       }
       const formatToolResult = (event: NonNullable<AgentEvent["toolResult"]>) => {
         const resultText = event.result.content.map((item) => item.text).join("\n")
@@ -149,10 +157,25 @@ program
       }
 
       const closeAssistantSegment = () => {
+        if (transcriptState.assistantId && !transcriptState.assistantText.trim()) {
+          removeEntryRef.current?.(transcriptState.assistantId)
+          transcriptState.assistantId = ""
+          transcriptState.assistantText = ""
+          transcriptState.assistantPersisted = false
+          return
+        }
+
         persistAssistantSegment()
         transcriptState.assistantId = ""
         transcriptState.assistantText = ""
         transcriptState.assistantPersisted = false
+      }
+
+      const dropReasoningSegment = () => {
+        if (transcriptState.reasoningId) removeEntryRef.current?.(transcriptState.reasoningId)
+        transcriptState.reasoningId = ""
+        transcriptState.reasoningText = ""
+        transcriptState.reasoningPersisted = false
       }
 
       const closeReasoningSegment = () => {
@@ -285,9 +308,14 @@ program
           setEntries((prev) => prev.map((entry) => entry.id === id ? { ...entry, ...patch } : entry))
         }, [])
 
+        const removeEntry = React.useCallback((id: string) => {
+          setEntries((prev) => prev.filter((entry) => entry.id !== id))
+        }, [])
+
         React.useEffect(() => {
           ;(appendEntryRef as any).current = addEntry
           ;(patchEntryRef as any).current = patchEntry
+          ;(removeEntryRef as any).current = removeEntry
           ;(appendReasoningDeltaRef as any).current = (chunk: string) => {
             closeAssistantSegment()
             transcriptState.modelActivitySeen = true
@@ -306,7 +334,8 @@ program
             }
           }
           ;(appendAssistantDeltaRef as any).current = (chunk: string) => {
-            closeReasoningSegment()
+            if (isDuplicateReasoningContent(transcriptState.reasoningText, chunk)) dropReasoningSegment()
+            else closeReasoningSegment()
             ensureAssistantSegment()
             transcriptState.modelActivitySeen = true
             transcriptState.assistantContentSeen = true
@@ -316,7 +345,8 @@ program
             patchEntry(transcriptState.assistantId, { text: transcriptState.assistantText })
           }
           ;(setAssistantCompleteRef as any).current = (content: string) => {
-            closeReasoningSegment()
+            if (isDuplicateReasoningContent(transcriptState.reasoningText, content)) dropReasoningSegment()
+            else closeReasoningSegment()
             ensureAssistantSegment()
             transcriptState.modelActivitySeen = true
             transcriptState.assistantContentSeen = true
@@ -324,13 +354,19 @@ program
             patchEntry(transcriptState.assistantId, { text: content })
           }
           ;(finishTurnRef as any).current = (result: string) => {
+            if (result && !transcriptState.assistantContentSeen && isDuplicateReasoningContent(transcriptState.reasoningText, result)) {
+              closeReasoningSegment()
+              closeAssistantSegment()
+              return
+            }
+
             closeReasoningSegment()
             if (result && (!transcriptState.assistantContentSeen || transcriptState.assistantId)) {
               setAssistantCompleteRef.current?.(result)
             }
             closeAssistantSegment()
           }
-        }, [addEntry, patchEntry])
+        }, [addEntry, patchEntry, removeEntry])
 
         const handleMessage = async (text: string) => {
           if (text === "/clear") {

@@ -73,11 +73,8 @@ async function consumeStream(stream: any, onDelta?: (delta: { content?: string; 
     id: tc.id, name: tc.name, arguments: tc.args,
   }))
 
-  // Some models return reasoning but no content — use reasoning as fallback
-  const finalContent = content.trim() || reasoning.trim()
-
   return {
-    content: finalContent,
+    content: content.trim(),
     toolCalls: calls.length ? calls : undefined,
     finishReason: "stop",
   }
