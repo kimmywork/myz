@@ -112,8 +112,8 @@ export function AgentShell({
   const historyRows = Math.max(1, frameHeight - 4 - 3)
   const maxScrollOffset = Math.max(0, __getTranscriptRowsForTest(entries, columns) - historyRows)
   const visibleEntries = __selectVisibleEntriesForTest(entries, historyRows, columns, scrollOffset)
-  const pageScrollRows = Math.max(1, Math.ceil(historyRows / 2))
-  const wheelScrollRows = Math.max(1, Math.ceil(historyRows / 5))
+  const pageScrollRows = Math.max(1, Math.ceil(historyRows / 4))
+  const wheelScrollRows = Math.max(1, Math.ceil(historyRows / 8))
 
   useEffect(() => {
     setScrollOffset((current) => Math.min(current, maxScrollOffset))
@@ -121,8 +121,8 @@ export function AgentShell({
 
   useEffect(() => {
     if (!stdout.isTTY) return
-    write("\x1B[?1000h\x1B[?1006h")
-    return () => { write("\x1B[?1000l\x1B[?1006l") }
+    write("\x1B[?1000h\x1B[?1002h\x1B[?1003h\x1B[?1006h\x1B[?1007h")
+    return () => { write("\x1B[?1007l\x1B[?1006l\x1B[?1003l\x1B[?1002l\x1B[?1000l") }
   }, [stdout, write])
 
   useInput((input, key) => {
@@ -137,7 +137,7 @@ export function AgentShell({
 
   return (
     <Box flexDirection="column" width="100%" height={frameHeight}>
-      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+      <Box flexDirection="column" flexGrow={1} justifyContent="flex-end" overflow="hidden">
         <ChatHistory entries={visibleEntries} />
       </Box>
 

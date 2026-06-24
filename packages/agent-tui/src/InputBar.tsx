@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react"
 import { Box, Text, useBoxMetrics, useCursor, useInput, useWindowSize, type DOMElement } from "ink"
 import stringWidth from "string-width"
-import { isSgrMouseInput } from "./terminalInput"
+import { isMouseInput } from "./terminalInput"
 
 interface WrappedLine {
   text: string
@@ -145,7 +145,7 @@ export function InputBar({
     : undefined)
 
   useInput((input, key) => {
-    if (isSgrMouseInput(input)) return
+    if (isMouseInput(input)) return
 
     if (key.return) {
       if (value.trim()) {
