@@ -93,6 +93,7 @@ program
       const appendEntryRef = React.createRef<(entry: ChatEntry, options?: { persist?: boolean }) => string>()
       const patchEntryRef = React.createRef<(id: string, patch: Partial<ChatEntry>) => void>()
       const appendAssistantDeltaRef = React.createRef<(text: string) => void>()
+      const setAssistantCompleteRef = React.createRef<(text: string) => void>()
       const appendReasoningDeltaRef = React.createRef<(text: string) => void>()
       const finishTurnRef = React.createRef<(result: string) => void>()
       const toolEntryIds = new Map<string, string>()
@@ -187,7 +188,7 @@ program
         workspaceRoot,
         onEvent: (event: AgentEvent) => {
           if (event.type === "text" && event.text) {
-            appendAssistantDeltaRef.current?.(event.text)
+            setAssistantCompleteRef.current?.(event.text)
             closeAssistantSegment()
           }
 
@@ -314,10 +315,18 @@ program
               : transcriptState.assistantText + chunk
             patchEntry(transcriptState.assistantId, { text: transcriptState.assistantText })
           }
+          ;(setAssistantCompleteRef as any).current = (content: string) => {
+            closeReasoningSegment()
+            ensureAssistantSegment()
+            transcriptState.modelActivitySeen = true
+            transcriptState.assistantContentSeen = true
+            transcriptState.assistantText = content
+            patchEntry(transcriptState.assistantId, { text: content })
+          }
           ;(finishTurnRef as any).current = (result: string) => {
             closeReasoningSegment()
-            if (result && !transcriptState.assistantContentSeen) {
-              appendAssistantDeltaRef.current?.(result)
+            if (result && (!transcriptState.assistantContentSeen || transcriptState.assistantId)) {
+              setAssistantCompleteRef.current?.(result)
             }
             closeAssistantSegment()
           }
