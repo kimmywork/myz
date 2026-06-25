@@ -7,10 +7,11 @@ export interface PermissionRule {
 
 export interface AgentDefinition {
   id: string
+  name?: string
   description: string
   mode: "primary" | "subagent"
-  model?: string
-  provider?: string
+  model?: string  // provider:model_id
+  tools?: string[]  // 工具名列表，支持 glob pattern（如 Edit(**/*.js), Run(rm **)）
   permissions: PermissionRule[]
   prompt: string
   hidden?: boolean

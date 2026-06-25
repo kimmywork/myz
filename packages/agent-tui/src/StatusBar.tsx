@@ -9,6 +9,7 @@ export interface StatusBarProps {
   tokenTotal: number
   agent: string
   version: string
+  todoProgress?: string  // 格式: "3/5" 或 "3/5 | Task: xxx"
 }
 
 function fitStart(value: string, maxWidth: number) {
@@ -40,7 +41,8 @@ function fitEnd(value: string, maxWidth: number) {
 export function __formatStatusLineForTest(props: StatusBarProps, columns: number) {
   const pct = props.tokenTotal > 0 ? Math.round((props.tokenUsed / props.tokenTotal) * 100) : 0
   const tokenBar = `${props.tokenUsed}/${props.tokenTotal} (${pct}%)`
-  const right = `${fitStart(props.model, Math.max(8, Math.floor(columns * 0.28)))}  ${tokenBar}  ${props.agent}  ${props.version}`
+  const todoStr = props.todoProgress ? `  ${props.todoProgress}` : ""
+  const right = `${fitStart(props.model, Math.max(8, Math.floor(columns * 0.28)))}  ${tokenBar}  ${props.agent}  ${props.version}${todoStr}`
   const available = Math.max(0, columns - 4)
 
   if (stringWidth(right) >= available) {

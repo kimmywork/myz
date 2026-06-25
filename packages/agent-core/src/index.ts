@@ -47,6 +47,23 @@ export type { SubagentSpawnOptions, SubagentResult } from "./subagent"
 export { createLocalTools } from "./tools"
 export type { LocalTool } from "./tools"
 
+export {
+  loadTodoState,
+  saveTodoState,
+  addTodo,
+  updateTodoStatus,
+  setTodoVerification,
+  getActiveTask,
+  setActiveTask,
+  getTodoProgress,
+  getTopLevelTodos,
+  getSubtasks,
+  canStartTodo,
+  getActiveTodosSummary,
+  createEmptyTodoState,
+} from "./todo"
+export type { TodoItem, TodoState } from "./todo"
+
 export function resolveModel(config: AgentConfig) {
   const pid = config.defaults.provider
   const mid = config.defaults.model

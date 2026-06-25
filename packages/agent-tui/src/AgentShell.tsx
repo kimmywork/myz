@@ -12,6 +12,7 @@ export interface AgentShellProps {
   tokenUsed: number
   tokenTotal: number
   version: string
+  todoProgress?: string
   entries: ChatEntry[]
   onMessage: (text: string) => void
 }
@@ -31,6 +32,7 @@ export function AgentShell({
   tokenUsed,
   tokenTotal,
   version,
+  todoProgress,
   entries,
   onMessage,
 }: AgentShellProps) {
@@ -63,6 +65,7 @@ export function AgentShell({
         tokenTotal={tokenTotal}
         agent={agentId}
         version={version}
+        todoProgress={todoProgress}
       />
     </Box>
   )

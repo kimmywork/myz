@@ -32,6 +32,11 @@ function parsePermissions(raw: unknown): PermissionRule[] {
     .filter((r) => r.pattern)
 }
 
+function parseTools(raw: unknown): string[] | undefined {
+  if (typeof raw !== "string") return undefined
+  return raw.split(",").map((t) => t.trim()).filter(Boolean)
+}
+
 export function loadAgentDefinitions(agentsDir: string): AgentDefinition[] {
   if (!existsSync(agentsDir)) return []
   const files = readdirSync(agentsDir).filter((f) => f.endsWith(".md"))
@@ -42,10 +47,11 @@ export function loadAgentDefinitions(agentsDir: string): AgentDefinition[] {
     const id = file.replace(/\.md$/, "")
     agents.push({
       id,
+      name: typeof meta.name === "string" ? meta.name : undefined,
       description: String(meta.description || ""),
       mode: (["primary", "subagent"].includes(String(meta.mode)) ? meta.mode : "primary") as "primary" | "subagent",
       model: typeof meta.model === "string" ? meta.model : undefined,
-      provider: typeof meta.provider === "string" ? meta.provider : undefined,
+      tools: parseTools(meta.tools),
       permissions: parsePermissions(meta.permissions),
       prompt: body,
       hidden: meta.hidden === true,
@@ -82,6 +88,7 @@ export function loadBuiltinAgentDefinitions(): AgentDefinition[] {
       description: "快速代码搜索",
       mode: "subagent",
       hidden: true,
+      tools: ["List", "Read", "Glob", "Grep"],
       permissions: [
         { pattern: "read", action: "allow" },
         { pattern: "edit", action: "deny" },

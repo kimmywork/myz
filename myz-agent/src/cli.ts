@@ -2,6 +2,7 @@ import { Command } from "commander"
 import { loadConfigNew } from "./config"
 import { createRuntime, processUserInput } from "./index"
 import type { AgentEvent } from "@myz/agent-core"
+import { getActiveTodosSummary } from "@myz/agent-core"
 import type { ChatEntry } from "@myz/agent-tui"
 import { mkdirSync, appendFileSync, existsSync, readFileSync } from "node:fs"
 import { resolve, join } from "node:path"
@@ -305,6 +306,7 @@ program
         const [tokenUsed, setTokenUsed] = React.useState(runtime.tokenUsed)
         const [tokenTotal, setTokenTotal] = React.useState(runtime.tokenTotal)
         const [currentModel, setCurrentModel] = React.useState(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
+        const [todoProgress, setTodoProgress] = React.useState(() => getActiveTodosSummary(runtime.todoState))
 
         const addEntry = React.useCallback((entry: ChatEntry, options: { persist?: boolean } = {}) => {
           const nextEntry = { ...entry, id: entry.id || createEntryId(entry.role) }
@@ -405,6 +407,7 @@ program
             setTokenUsed(runtime.tokenUsed)
             setTokenTotal(runtime.tokenTotal)
             setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
+            setTodoProgress(getActiveTodosSummary(runtime.todoState))
 
             if (!transcriptState.assistantContentSeen && !transcriptState.modelActivitySeen) {
               addEntry({
@@ -431,6 +434,7 @@ program
           tokenUsed,
           tokenTotal,
           version: "0.2.0",
+          todoProgress,
           entries,
           onMessage: handleMessage,
         })

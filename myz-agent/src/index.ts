@@ -11,7 +11,9 @@ import type { Message } from "@myz/agent-providers"
 import { createLLMClient, toProviderMessages } from "@myz/agent-providers"
 import type { LLMClient } from "@myz/agent-providers"
 import { runAgentLoop, createExtensionState, createExtensionAPI } from "@myz/agent-core"
+import { loadTodoState, saveTodoState, addTodo, updateTodoStatus, setTodoVerification, getActiveTask, setActiveTask, getActiveTodosSummary, getTopLevelTodos } from "@myz/agent-core"
 import type { AgentDefinition, AgentEvent, ToolDefinition } from "@myz/agent-core"
+import type { TodoState } from "@myz/agent-core"
 
 // --- Runtime ---
 
@@ -24,6 +26,7 @@ export interface AgentRuntime {
   messages: Message[]
   tokenUsed: number
   tokenTotal: number
+  todoState: TodoState
   onEvent: (event: AgentEvent) => void
 }
 
@@ -58,13 +61,15 @@ function estimateMessageTokens(messages: Message[]) {
   return messages.reduce((sum, message) => sum + Math.ceil(message.content.length / 4) + 4, 0)
 }
 
-function buildSystemPrompt(agentId: string, config: AgentConfig): string {
+function buildSystemPrompt(agentId: string, config: AgentConfig, todoState: TodoState): string {
   const agent = resolveAgent(agentId, config)
   const rules = loadRules(config)
   const rulesPrompt = buildRulesPrompt(rules)
   const sections = [agent?.prompt || "你是 myz agent。", "", "## 工作区", config.workspaceRoot]
   if (rulesPrompt) sections.push("", "## 规则", rulesPrompt)
-  sections.push("", "## 工具", "你可以使用 List, Read, Write, Edit, Glob, Run, Task 工具。")
+  sections.push("", "## 工具", "你可以使用 List, Read, Write, Edit, Glob, Run, Task, TodoRead, TodoAdd, TodoUpdate, TodoVerify 工具。")
+  const todoSummary = getActiveTodosSummary(todoState)
+  if (todoSummary) sections.push("", "## 当前任务", todoSummary)
   sections.push("", "## 会话", "- /clear 新建 | /model 切换模型 | /agents 切换 agent")
   return sections.join("\n")
 }
@@ -84,9 +89,14 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   { name: "Glob", description: "按模式匹配文件", inputSchema: { type: "object", required: ["pattern"], properties: { pattern: { type: "string" } } } },
   { name: "Run", description: "执行命令", inputSchema: { type: "object", required: ["command"], properties: { command: { type: "string" } } } },
   { name: "Task", description: "调用子 agent", inputSchema: { type: "object", required: ["agentId", "task"], properties: { agentId: { type: "string" }, task: { type: "string" } } } },
+  { name: "TodoRead", description: "读取当前任务列表", inputSchema: { type: "object", properties: {} } },
+  { name: "TodoAdd", description: "添加新任务", inputSchema: { type: "object", required: ["text"], properties: { text: { type: "string" }, parentId: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } } } } },
+  { name: "TodoUpdate", description: "更新任务状态", inputSchema: { type: "object", required: ["id", "status"], properties: { id: { type: "string" }, status: { type: "string", enum: ["pending", "in_progress", "done", "blocked"] } } } },
+  { name: "TodoVerify", description: "记录任务验证结果", inputSchema: { type: "object", required: ["id", "type", "result", "evidence"], properties: { id: { type: "string" }, type: { type: "string", enum: ["typecheck", "test", "build", "manual"] }, result: { type: "string", enum: ["pass", "fail", "skip"] }, evidence: { type: "string" } } } },
 ]
 
 function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
+  const todoPath = resolve(workspaceRoot, ".myz", "todo.json")
   return {
     List: async (args: Record<string, unknown>) => {
       const p = resolve(workspaceRoot, String(args.path || "."))
@@ -132,6 +142,49 @@ function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
         return { content: [{ type: "text" as const, text: `命令失败: ${e.message}\n${e.stdout || ""}\n${e.stderr || ""}` }], isError: true }
       }
     },
+    TodoRead: async () => {
+      const todos = getTopLevelTodos(runtime.todoState)
+      if (todos.length === 0) return { content: [{ type: "text" as const, text: "当前没有任务" }] }
+      const lines = todos.map((t) => {
+        const status = t.status === "done" ? "✓" : t.status === "in_progress" ? "▸" : t.status === "blocked" ? "✗" : "○"
+        const subtasks = runtime.todoState.todos.filter((s) => s.parentId === t.id)
+        const subtaskStr = subtasks.length > 0 ? ` (${subtasks.filter((s) => s.status === "done").length}/${subtasks.length})` : ""
+        const verification = t.verification ? ` [${t.verification.result}]` : ""
+        return `${status} ${t.id}: ${t.text}${subtaskStr}${verification}`
+      })
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] }
+    },
+    TodoAdd: async (args: Record<string, unknown>) => {
+      const text = String(args.text || "")
+      if (!text) return { content: [{ type: "text" as const, text: "text 必填" }], isError: true }
+      const parentId = args.parentId ? String(args.parentId) : undefined
+      const dependsOn = Array.isArray(args.dependsOn) ? args.dependsOn.map(String) : undefined
+      const todo = addTodo(runtime.todoState, text, parentId, dependsOn)
+      saveTodoState(todoPath, runtime.todoState)
+      return { content: [{ type: "text" as const, text: `已添加任务: ${todo.id}` }] }
+    },
+    TodoUpdate: async (args: Record<string, unknown>) => {
+      const id = String(args.id || "")
+      const status = String(args.status || "") as "pending" | "in_progress" | "done" | "blocked"
+      if (!id || !status) return { content: [{ type: "text" as const, text: "id 和 status 必填" }], isError: true }
+      const todo = updateTodoStatus(runtime.todoState, id, status)
+      if (!todo) return { content: [{ type: "text" as const, text: `未找到任务: ${id}` }], isError: true }
+      if (status === "in_progress") setActiveTask(runtime.todoState, id)
+      else if (status === "done" && getActiveTask(runtime.todoState)?.id === id) setActiveTask(runtime.todoState, undefined)
+      saveTodoState(todoPath, runtime.todoState)
+      return { content: [{ type: "text" as const, text: `已更新任务: ${id} -> ${status}` }] }
+    },
+    TodoVerify: async (args: Record<string, unknown>) => {
+      const id = String(args.id || "")
+      const type = String(args.type || "") as "typecheck" | "test" | "build" | "manual"
+      const result = String(args.result || "") as "pass" | "fail" | "skip"
+      const evidence = String(args.evidence || "")
+      if (!id || !type || !result || !evidence) return { content: [{ type: "text" as const, text: "id, type, result, evidence 必填" }], isError: true }
+      const todo = setTodoVerification(runtime.todoState, id, { type, result, evidence })
+      if (!todo) return { content: [{ type: "text" as const, text: `未找到任务: ${id}` }], isError: true }
+      saveTodoState(todoPath, runtime.todoState)
+      return { content: [{ type: "text" as const, text: `已记录验证结果: ${id} -> ${result}` }] }
+    },
   }
 }
 
@@ -153,6 +206,7 @@ export function createRuntime(options: {
   }
 
   const resolved = resolveModel(config)
+  const todoPath = resolve(config.workspaceRoot, ".myz", "todo.json")
   const runtime: AgentRuntime = {
     config,
     client,
@@ -162,6 +216,7 @@ export function createRuntime(options: {
     messages: [],
     tokenUsed: 0,
     tokenTotal: resolved?.model.contextWindow || 0,
+    todoState: loadTodoState(todoPath),
     onEvent: options.onEvent || (() => {}),
   }
 
@@ -212,7 +267,7 @@ export async function processUserInput(
         })),
         getSessionTokens: () => ({ used: runtime.tokenUsed || estimateMessageTokens(runtime.messages), total: runtime.tokenTotal }),
         compactSession: async () => {
-          const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config)
+          const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config, runtime.todoState)
           const resolved = resolveModel(runtime.config)
           const compacted = await compactContext({
             messages: [{ role: "system", content: systemPrompt }, ...runtime.messages],
@@ -244,7 +299,7 @@ export async function processUserInput(
   runtime.messages.push({ role: "user", content: input })
 
   // Build context
-  const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config)
+  const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config, runtime.todoState)
   const resolved = resolveModel(runtime.config)
   const contextWindow = resolved?.model.contextWindow || 8192
   const maxOutputTokens = resolved?.model.maxOutputTokens || 4096
