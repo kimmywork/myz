@@ -1,5 +1,5 @@
 import React from "react"
-import { Box, Static, useApp, useInput, useWindowSize } from "ink"
+import { Box, Static, useApp, useInput } from "ink"
 import { ChatHistory, type ChatEntry } from "./ChatHistory"
 import { InputBar } from "./InputBar"
 import { StatusBar } from "./StatusBar"
@@ -35,8 +35,6 @@ export function AgentShell({
   onMessage,
 }: AgentShellProps) {
   const { exit } = useApp()
-  const { rows } = useWindowSize()
-  const frameHeight = Math.max(1, rows - 1)
   const { completeEntries, pendingEntries } = __splitEntriesForTest(entries)
 
   useInput((input, key) => {
@@ -44,16 +42,18 @@ export function AgentShell({
   })
 
   return (
-    <Box flexDirection="column" width="100%" height={frameHeight}>
+    <Box flexDirection="column" width="100%">
       <Static items={completeEntries}>
         {(entry: ChatEntry, index) => (
           <ChatHistory key={entry.id || `${entry.role}-${index}`} entries={[entry]} />
         )}
       </Static>
 
-      <Box flexDirection="column" flexGrow={1} justifyContent="flex-end" overflow="hidden">
-        <ChatHistory entries={pendingEntries} />
-      </Box>
+      {pendingEntries.length > 0 && (
+        <Box flexDirection="column">
+          <ChatHistory entries={pendingEntries} />
+        </Box>
+      )}
 
       <InputBar onSubmit={onMessage} />
       <StatusBar
