@@ -182,9 +182,9 @@ myz-agent [-w <workspace>]
   1. 加载 ~/.myz/myz.yml (全局配置)
   2. 加载 <workspace>/.agents/myz.yml (工作区配置, 覆盖全局)
   3. 扫描 <workspace>/.agents/agents/*.md (加载 agent 定义)
-  4. 加载 <workspace>/.agents/myz/mcp.yml (MCP server 配置)
-  5. 加载 <workspace>/.agents/skills/ (加载 skills)
-  6. 注册内置 tools (List, Read, Write, Edit, Glob, Run, Browser*)
+  4. 跳过 MCP server 加载（v22 Non-Goal；`.agents/myz/mcp.yml` 预留到 v23）
+  5. 加载 <workspace>/.agents/skills/ (加载 skills；v22 为配置/提示层能力)
+  6. 注册内置 tools (List, Read, Write, Edit, Glob, Run, Task)
   7. 启动 agent loop + TUI
 ```
 
@@ -335,22 +335,27 @@ myz-agent (重命名自 myz-bot, CLI 入口)
 - Assistant 消息 `[AI]` — **Markdown 渲染**（bold/code/list 等）
 - Tool Use 提示 `▸ ToolName` — 折叠状态，可展开查看请求参数和结果
 - Reasoning 摘要 `[思考...]` — 折叠状态，可展开查看完整推理
-- Subagent 状态 — 显示正在运行的 subagent，可切换查看其输出
-- 用 `<Static>` 组件渲染，不重绘，IME 友好
+- Subagent 状态 — Future: v23 subagent event surfacing 后显示 start/progress/result
+- 用 `<Static>` 组件渲染 complete entries；pending entries 留在 live 区域；历史滚动交给 terminal scrollback
 
 **层 2: 输入框** (光标跟随, 自动扩展)
-- `TextInput` 或 readline — 方向键在文本内导航
-- Slash command 自动完成（`/` 触发候选列表）
-- `@` 文件引用自动完成
-- 光标完全跟随输入状态
+- 自研 `InputBar` — 方向键在文本内导航，支持多行 soft wrap 和 pasted hard newline
+- Slash command 自动完成 — Future: 当前 slash commands 可执行但没有候选 UI
+- `@` 文件引用自动完成 — Future
+- 光标/IME buffer 必须跟随输入状态
 
 **层 3: 底部状态栏**
 - 工作区 | 模型 | context token 用量 | 当前 agent | 版本号
 
 **验收标准**：
 - [x] Assistant 输出正确渲染 Markdown（bold, code, list, heading）
-- [ ] Tool Use 折叠/展开正常（Gap: runtime event 尚未正式映射为可聚焦 TUI entry）
-- [ ] Reasoning 折叠/展开正常（Gap: reasoning stream 尚未独立落入 TUI history entry）
+- [x] Tool Use 已按 runtime event 映射为独立 TUI entry，并按事件顺序显示调用与结果
+- [ ] Tool Use 可聚焦折叠/展开交互正常（Future: 需要 keyboard focus/action model；当前支持 `expanded` 渲染态但无运行时交互）
+- [x] Reasoning stream 已独立落入 TUI history entry，完成后显示摘要并保留 detail
+- [ ] Reasoning 可聚焦折叠/展开交互正常（Future: 同 Tool Use，需要统一 transcript action model）
+- [x] Transcript 按 user/reasoning/assistant/tool event chronology 渲染，不再按功能分组
+- [x] Transcript complete entries 使用 terminal 原生 scrollback，pending entries 留在 live 区域
+- [x] 新消息 append 后停留在 prompt 上方，不被空 live frame 推到屏幕外
 - [x] 输入框方向键导航正常（left/right + 多行 up/down）
 - [x] IME 输入光标位置正确（见 `docs/knowledges/agent-tui-ink-input-cursor-lessons.md`）
 - [x] 底部状态栏信息实时更新（model/context token/agent/version）
@@ -419,6 +424,23 @@ MCP 在本 PRD 的 Non-Goals 中已明确延期到 v23。原 Phase 5 条目不�
   4. Build agent 继续处理
 - 预期：搜索结果正确返回，主 agent 继续工作
 
+## Implementation Status (2026-06-22)
+
+| Area | v22 状态 | 已落地证据 | 剩余事项 |
+|---|---|---|---|
+| 多包架构 | Done | `packages/agent-core`, `packages/agent-providers`, `packages/agent-tui`, `myz-agent` | 无 v22 阻塞 |
+| Provider/runtime | Done | multi-provider config、runtime `/model` 切换、token status、streaming client | provider 质量与模型 profile 继续按实际模型补齐 |
+| Reactive agent loop | Done | `runAgentLoop()` 支持 LLM → tool call → tool result → LLM 迭代、maxSteps、stream event | 高级 workflow 状态机进入 v23，不计入 v22 Done |
+| Slash commands | Done | `/help` `/clear` `/agents` `/model` `/fork` `/resume` `/tools` `/context` `/compact` 已有 runtime handler/tests | `/fork` `/resume` 仍是最小会话能力，完整 checkpoint/resume 进入 v23 |
+| Permissions engine | Partial | glob、compound key、per-agent override 已实现 | `ask` 目前仅作为匹配结果存在，缺少 TUI interactive approval；工具名大小写/canonical mapping 需统一 |
+| Subagent | Partial | builtin `explore/general/plan`、Task 工具、`spawnSubagent()` 已实现 | subagent 目前没有复用主 runtime 工具执行链，tool call 返回受限占位；事件回传/权限/预算隔离进入 v23 |
+| Context compaction | Done | summary/token-budget/none 策略、手动 `/compact`、JSONL history 不被原地改写 | 摘要质量评测与 checkpoint 结合进入 v23 |
+| TUI transcript | Done | chronological entries、terminal native scrollback、pending/live split、Markdown/status tests | Tool/Reasoning 的 keyboard focus + toggle 进入 v23 |
+| InputBar / StatusBar | Done | 多行输入、硬换行、IME cursor、状态栏 one-line truncation、lesson learned | 无 v22 阻塞 |
+| MCP | Deferred | Non-Goal 已明确 | v23 重新立项 |
+
+**v22 结论**：v22 已完成“可用的多包 agent runtime + 稳定 Ink TUI + reactive tool loop”。下一阶段不再继续修 TUI 基础布局，工作重心转向 **Agentic workflow**。
+
 ## Gap Review (2026-06-22)
 
 | Gap | 发现 | 处理 |
@@ -429,7 +451,54 @@ MCP 在本 PRD 的 Non-Goals 中已明确延期到 v23。原 Phase 5 条目不�
 | G-004 | `/model` 命令只更新文案，不切换 runtime client | 已更新 `runtime.config.defaults` 并重建 LLM client |
 | G-005 | 状态栏 token/model 不随 runtime 更新 | 已增加 runtime token state，并在 TUI 中刷新 model/token |
 | G-006 | Ink 多行输入 cursor/IME buffer 漂移 | 已改为手动 wrapping model，支持软换行和 `\n`/`\r\n`，并记录 lesson learned |
-| G-007 | Tool/Reasoning 折叠展开缺少正式 event-entry/focus 模型 | 保留为下一轮 TUI interaction gap，不伪装完成 |
+| G-007 | Tool/Reasoning 折叠展开缺少正式 event-entry/focus 模型 | runtime entry 映射与 detail 渲染已完成；keyboard focus/action model 延期到 v23 |
+| G-008 | 自定义 transcript viewport scroll 与 terminal scrollback/触控板行为冲突 | 已删除自定义 scroll、mouse tracking、PageUp/PageDown 历史控制，改用 terminal 原生 scrollback |
+| G-009 | `Static` scrollback 与 full-height live frame 组合导致新历史被推到屏幕外 | 已移除 `height=rows-1` 和空 `flexGrow` pending 区，live 区域只保留 pending/InputBar/StatusBar |
+| G-010 | Agentic workflow 只有 reactive loop，没有 Plan/Act/Verify 状态机 | 标注为 v23 Future Plan，不纳入 v22 Done |
+| G-011 | Subagent 有 Task 入口但未复用完整工具执行链 | 标注为 v23 Future Plan：隔离 runtime、权限、预算、事件回传 |
+| G-012 | Permissions `ask` 规则缺少 TUI interactive approval | 标注为 v23 Future Plan：审批 UI 与 tool execution policy |
+
+## Future Plan: v23 Agentic Workflow（Draft）
+
+> 本节是 v22 之后的实施方向，不作为 v22 验收项。v23 开始前必须拆成独立 PRD/track，并补齐 DoD、验收矩阵和反作弊检查。
+
+### Goals
+
+- 从“reactive tool loop”升级为可追踪的 **Plan → Act → Verify → Report** workflow。
+- 让 agent 在多步骤开发任务中维护明确任务状态、验证状态和失败恢复路径。
+- 让 subagent 成为可隔离执行的 workflow participant，而不是只返回文本摘要。
+- 让 permissions `ask` 成为可交互审批能力，避免高风险工具调用直接执行。
+
+### Candidate Work Items
+
+| ID | 方向 | 当前状态 | v23 验收口径（草案） |
+|---|---|---|---|
+| WF-001 | Workflow state machine | Not started | 每个用户任务必须生成 `plan/act/verify/report` 状态；状态变更可进入 transcript/session log |
+| WF-002 | Task/todo model | Not started | Agent 可维护结构化 todo：`pending/in_progress/done/blocked`；完成报告必须引用 todo 验证结果 |
+| WF-003 | Verification gate | Partial（人工命令验证） | 当 agent 修改代码时，必须记录执行过的 typecheck/test/build 或明确说明未执行原因 |
+| WF-004 | Interactive permission approval | Not started | `ask` 命中时 TUI 显示 tool、args、risk，用户选择 approve/deny 后才执行 |
+| WF-005 | Canonical tool policy | Partial | 权限匹配统一使用 canonical tool name（如 `Run`/`bash` 映射），大小写不导致绕过/误拒绝 |
+| WF-006 | Subagent isolated runtime | Partial | Task subagent 可在隔离 messages/budget/permissions 中执行允许的工具，并向 parent 回传 structured result + events |
+| WF-007 | Subagent transcript surfacing | Not started | Parent transcript 可显示 subagent start/progress/result，且不污染主 agent 的 user-visible answer |
+| WF-008 | Checkpoint/resume/fork | Partial | 每个 workflow step 可 checkpoint；`/resume` 恢复 active workflow；`/fork` 从 checkpoint 分支继续 |
+| WF-009 | Context + workflow memory | Partial | Compaction 必须保留 active plan、open todos、recent tool evidence，不丢失未完成任务 |
+| WF-010 | Regression/evaluation suite | Not started | 增加多步 coding task fixtures，验证 tool order、permission ask、verification gate、resume 行为 |
+| WF-011 | MCP tool ingestion | Deferred | MCP tools 进入统一 tool registry，并复用 permissions/workflow/event model |
+
+### Non-Goals for the first v23 slice
+
+- 不做成本统计；token status 继续维持当前能力。
+- 不做 LSP 集成。
+- 不做 deterministic hooks 脚本系统；先把 workflow state 和 approval path 做稳。
+- 不重写已稳定的 InputBar/StatusBar 基础布局。
+
+### Suggested v23 Phasing
+
+1. **v23.1 Workflow model**：定义 workflow/todo/checkpoint schema，接入 session log，TUI 只做只读显示。
+2. **v23.2 Permission approval**：实现 `ask` interactive approval，统一 canonical tool policy。
+3. **v23.3 Verification gate**：把测试/构建结果纳入 workflow report，失败时进入 blocked/retry。
+4. **v23.4 Subagent runtime**：让 Task 使用隔离 runtime 执行工具，回传 structured result/events。
+5. **v23.5 MCP**：在 workflow/permission/event model 稳定后接入 MCP tools。
 
 ## 变更日志
 
@@ -438,3 +507,4 @@ MCP 在本 PRD 的 Non-Goals 中已明确延期到 v23。原 Phase 5 条目不�
 | 2026-06-17 | 初始版本 | 全局 |
 | 2026-06-18 | Phase 1-3 完成，Phase 4/5 待验收 | 全局 |
 | 2026-06-22 | v22 gap review：补 `/tools` `/compact` `/model` runtime 切换、TUI 输入和状态栏，MCP 明确延期 v23 | myz-agent, agent-core, agent-tui, docs |
+| 2026-06-22 | v22 实现状态复核：TUI 改为 terminal 原生 scrollback，记录 Agentic workflow v23 future plan | agent-tui, agent-core, myz-agent, docs |
