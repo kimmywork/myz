@@ -31,10 +31,16 @@ function createToolResultMessage(
   toolCallId: string,
   result: ToolResult,
 ): Message {
+  const content = result.content.map((c) => {
+    if (c.type === "text") return c.text
+    if (c.type === "image") return `[Image: ${c.mimeType}]`
+    return ""
+  }).join("\n")
+
   return {
     role: "tool" as const,
     tool_call_id: toolCallId,
-    content: result.content.map((c) => c.text).join("\n"),
+    content,
     metadata: { isError: result.isError },
   }
 }

@@ -16,6 +16,7 @@ import { loadPermissions, savePermissions, addPermissionRule, queryPermission, m
 import type { AgentDefinition, AgentEvent, ToolDefinition } from "@myz/agent-core"
 import type { TodoState } from "@myz/agent-core"
 import type { PermissionLevel, PermissionMode, PermissionResult } from "@myz/agent-core"
+import { BrowserManager, createBrowserTools } from "@myz/agent-web"
 
 // --- Runtime ---
 
@@ -309,6 +310,14 @@ export function createRuntime(options: {
   const handlers = createToolHandlers(config.workspaceRoot, {} as AgentRuntime)
   for (const def of TOOL_DEFINITIONS) {
     const handler = handlers[def.name as keyof typeof handlers]
+    if (handler) api.registerTool(def, handler as any)
+  }
+
+  // 初始化 BrowserManager 并注册 browser 工具
+  const browserManager = new BrowserManager({ headless: true })
+  const browserTools = createBrowserTools({ browserManager })
+  for (const def of browserTools.definitions) {
+    const handler = browserTools.handlers[def.name]
     if (handler) api.registerTool(def, handler as any)
   }
 

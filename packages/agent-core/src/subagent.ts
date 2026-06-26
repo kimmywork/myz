@@ -189,9 +189,15 @@ export async function spawnSubagent(
         allEvents.push(toolResultEvent)
         onEvent?.(toolResultEvent)
 
+        const content = result.content.map((c) => {
+          if (c.type === "text") return c.text
+          if (c.type === "image") return `[Image: ${c.mimeType}]`
+          return ""
+        }).join("\n")
+
         messages.push({
           role: "tool",
-          content: result.content.map((c) => c.text).join("\n"),
+          content,
           tool_call_id: tc.id,
         })
       }

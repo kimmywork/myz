@@ -116,7 +116,11 @@ program
         return r === c || (r.length >= 40 && c.includes(r)) || (c.length >= 40 && r.includes(c))
       }
       const formatToolResult = (event: NonNullable<AgentEvent["toolResult"]>) => {
-        const resultText = event.result.content.map((item) => item.text).join("\n")
+        const resultText = event.result.content.map((item) => {
+          if (item.type === "text") return item.text
+          if (item.type === "image") return `[Image: ${item.mimeType}]`
+          return ""
+        }).join("\n")
         const args = toolCallArgs.get(event.id)
         return [
           args ? `Arguments:\n${formatJson(args)}` : "Arguments: {}",

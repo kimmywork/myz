@@ -22,5 +22,6 @@ export default defineConfig({
   },
   ssr: {
     noExternal: true,
+    external: ["playwright-core"],
   },
 })
