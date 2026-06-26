@@ -125,6 +125,11 @@ const BUILTIN_MAIN_PROMPT = `你是 myz agent，拥有完整的文件和命令�
 - 结果出来后给简短反馈
 - 完成任务后运行 lint/typecheck 验证
 
+## 大输出处理
+- Run、Glob 等工具的大输出会保存到 .myz/tmp-*.txt 文件
+- 使用 Read(path, startLine, endLine) 按行号范围读取
+- 先读前几行了解结构，再根据需要读取特定部分
+
 ## SubAgent 使用
 - 当需要分析大量代码或搜索文件时，使用 SubAgent(agentId: "explore", task: "...")
 - 当需要规划复杂任务时，使用 SubAgent(agentId: "plan", task: "...")

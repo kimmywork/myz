@@ -142,7 +142,7 @@ function resolveAgent(agentId: string, config: AgentConfig): AgentDefinition {
 
 const TOOL_DEFINITIONS: ToolDefinition[] = [
   { name: "List", description: "列出目录下的文件", inputSchema: { type: "object", properties: { path: { type: "string" } } } },
-  { name: "Read", description: "读取文件内容", inputSchema: { type: "object", required: ["path"], properties: { path: { type: "string" } } } },
+  { name: "Read", description: "读取文件内容（支持行号范围）", inputSchema: { type: "object", required: ["path"], properties: { path: { type: "string" }, startLine: { type: "integer", description: "起始行号（从 1 开始）" }, endLine: { type: "integer", description: "结束行号" } } } },
   { name: "Write", description: "写入文件内容", inputSchema: { type: "object", required: ["path", "content"], properties: { path: { type: "string" }, content: { type: "string" } } } },
   { name: "Edit", description: "替换文件内容", inputSchema: { type: "object", required: ["path", "oldText", "newText"], properties: { path: { type: "string" }, oldText: { type: "string" }, newText: { type: "string" } } } },
   { name: "Glob", description: "按模式匹配文件", inputSchema: { type: "object", required: ["pattern"], properties: { pattern: { type: "string" } } } },
@@ -168,14 +168,29 @@ function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
     },
     Read: async (args: Record<string, unknown>) => {
       const p = resolve(workspaceRoot, String(args.path || ""))
+      const startLine = args.startLine ? Number(args.startLine) : undefined
+      const endLine = args.endLine ? Number(args.endLine) : undefined
       try {
         const stat = statSync(p)
         if (stat.isSymbolicLink()) {
-          // 跟随符号链接
           const realPath = require("node:fs").realpathSync(p)
-          return { content: [{ type: "text" as const, text: readFileSync(realPath, "utf-8") }] }
+          const content = readFileSync(realPath, "utf-8")
+          if (startLine || endLine) {
+            const lines = content.split("\n")
+            const start = Math.max(0, (startLine || 1) - 1)
+            const end = endLine ? Math.min(lines.length, endLine) : lines.length
+            return { content: [{ type: "text" as const, text: lines.slice(start, end).join("\n") }] }
+          }
+          return { content: [{ type: "text" as const, text: content }] }
         }
-        return { content: [{ type: "text" as const, text: readFileSync(p, "utf-8") }] }
+        const content = readFileSync(p, "utf-8")
+        if (startLine || endLine) {
+          const lines = content.split("\n")
+          const start = Math.max(0, (startLine || 1) - 1)
+          const end = endLine ? Math.min(lines.length, endLine) : lines.length
+          return { content: [{ type: "text" as const, text: lines.slice(start, end).join("\n") }] }
+        }
+        return { content: [{ type: "text" as const, text: content }] }
       } catch (e: any) {
         return { content: [{ type: "text" as const, text: `读取失败: ${e.message}` }], isError: true }
       }
@@ -200,7 +215,19 @@ function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
       const pattern = String(args.pattern || "")
       if (!pattern) return { content: [{ type: "text" as const, text: "pattern 必填" }], isError: true }
       try {
-        const r = execSync(`find ${workspaceRoot} -type f -name "${pattern}" 2>/dev/null | head -100`, { encoding: "utf-8" })
+        const r = execSync(`find ${workspaceRoot} -type f -name "${pattern}" 2>/dev/null`, { encoding: "utf-8" })
+        const lines = r.split("\n").filter(Boolean)
+        const lineCount = lines.length
+        const sizeKb = Math.ceil(Buffer.byteLength(r, "utf-8") / 1024)
+        
+        // 如果输出超过 5KB，保存到临时文件
+        if (sizeKb > 5) {
+          const tmpFile = resolve(workspaceRoot, ".myz", `tmp-glob-${Date.now()}.txt`)
+          mkdirSync(dirname(tmpFile), { recursive: true })
+          writeFileSync(tmpFile, lines.join("\n"))
+          return { content: [{ type: "text" as const, text: `Found ${lineCount} files (${sizeKb}KB). Output saved to: ${tmpFile}\nUse Read(path, startLine, endLine) to read specific lines.` }] }
+        }
+        
         return { content: [{ type: "text" as const, text: r || "无匹配文件" }] }
       } catch { return { content: [{ type: "text" as const, text: "无匹配文件" }] } }
     },
@@ -208,9 +235,35 @@ function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
       const cmd = String(args.command || "")
       if (!cmd) return { content: [{ type: "text" as const, text: "command 必填" }], isError: true }
       try {
-        return { content: [{ type: "text" as const, text: execSync(cmd, { cwd: workspaceRoot, encoding: "utf-8", timeout: 30000, maxBuffer: 1024 * 1024 }) || "(无输出)" }] }
+        const output = execSync(cmd, { cwd: workspaceRoot, encoding: "utf-8", timeout: 30000, maxBuffer: 10 * 1024 * 1024 }) || ""
+        const lines = output.split("\n")
+        const lineCount = lines.length
+        const sizeKb = Math.ceil(Buffer.byteLength(output, "utf-8") / 1024)
+        
+        // 如果输出超过 5KB，保存到临时文件
+        if (sizeKb > 5) {
+          const tmpFile = resolve(workspaceRoot, ".myz", `tmp-run-${Date.now()}.txt`)
+          mkdirSync(dirname(tmpFile), { recursive: true })
+          writeFileSync(tmpFile, output)
+          return { content: [{ type: "text" as const, text: `Output: ${lineCount} lines, ${sizeKb}KB. Saved to: ${tmpFile}\nUse Read(path, startLine, endLine) to read specific lines.` }] }
+        }
+        
+        return { content: [{ type: "text" as const, text: output || "(无输出)" }] }
       } catch (e: any) {
-        return { content: [{ type: "text" as const, text: `命令失败: ${e.message}\n${e.stdout || ""}\n${e.stderr || ""}` }], isError: true }
+        const stdout = e.stdout || ""
+        const stderr = e.stderr || ""
+        const output = `命令失败: ${e.message}\n${stdout}\n${stderr}`
+        const sizeKb = Math.ceil(Buffer.byteLength(output, "utf-8") / 1024)
+        
+        // 如果输出超过 5KB，保存到临时文件
+        if (sizeKb > 5) {
+          const tmpFile = resolve(workspaceRoot, ".myz", `tmp-run-error-${Date.now()}.txt`)
+          mkdirSync(dirname(tmpFile), { recursive: true })
+          writeFileSync(tmpFile, output)
+          return { content: [{ type: "text" as const, text: `Error output: ${sizeKb}KB. Saved to: ${tmpFile}\nUse Read(path, startLine, endLine) to read specific lines.` }], isError: true }
+        }
+        
+        return { content: [{ type: "text" as const, text: output }], isError: true }
       }
     },
     TodoRead: async () => {
