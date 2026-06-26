@@ -436,3 +436,40 @@ interface ModalState {
 1. **Modal UI 实现**：需要在 TUI 中实现 permission approval modal（Y/N/allow for session/allow for workspace）
 2. **Regression suite**：需要增加多步 coding task fixtures
 3. **Documentation**：更新 AGENTS.md 和相关文档
+
+## Progress Update (2026-06-22) - Part 2
+
+### Phase 2: Permission Sandbox — DONE (Updated)
+
+- [x] Modal UI 实现（Y/N/allow for session/allow for workspace）
+- [x] Modal glob 输入实现（用户输入 glob pattern，验证匹配后持久化）
+- [x] permissions.json 持久化
+
+**Commit**: `43bc4f6 feat(agent-tui): add permission approval modal`
+
+### Phase 3: Verification Gate — DONE (Updated)
+
+- [x] 验证结果进入 transcript（通过 verification entry 类型）
+
+**Commit**: `880f373 feat(agent): add verification entry to transcript`
+
+### Phase 4: SubAgent Runtime — DONE (Updated)
+
+- [x] SubAgent transcript surfacing 实现（parent 可见 subagent start/progress/result）
+- [x] SubAgent UI 设计（输入框上方显示 subagent 状态；`/agents` 切换查看历史）
+
+**Commit**: `33f9d5d feat(agent): add subagent status display`
+
+### Additional Features
+
+- [x] Token 统计修复（使用 LLM SDK 返回的真实 usage）
+
+**Commit**: `7363b34 fix(agent): use real token usage from LLM SDK`
+
+- [x] `/` command 提示（输入 `/` 时显示可用命令列表，支持 Tab/Enter 补全）
+
+**Commit**: `9603e8d feat(agent-tui): add slash command autocomplete`
+
+### All Phases Complete
+
+Phase 1-5 全部完成。v23 Agentic Loop + Agent Sandbox 功能已全部实现。

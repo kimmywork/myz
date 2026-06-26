@@ -12,15 +12,15 @@
 
 | 模块 | 职责 |
 |---|---|
-| `loop.ts` | Agent loop (LLM → tool call → result → LLM) |
+| `loop.ts` | Agent loop (LLM → tool call → result → LLM)，累加 token usage |
 | `extensions.ts` | Extension API (register tool/hook/agent/prompt/command) |
 | `permissions.ts` | 分级权限沙箱 (session/workspace/global，Tool(pattern) 格式，readonly/acceptEdits/auto/bypass 模式) |
-| `types.ts` | 所有类型定义 (AgentConfig, AgentDefinition, ToolDefinition, TodoItem, PermissionLevel, etc.) |
+| `types.ts` | 所有类型定义 (AgentConfig, AgentDefinition, ToolDefinition, TodoItem, PermissionLevel, AgentEvent, etc.) |
 | `agents.ts` | Agent 定义加载 (从 .agents/agents/*.md + 内置 4 个)，支持 tools/model 字段 |
 | `rules.ts` | 三层规则合并 (global/project/skill) |
-| `commands.ts` | 9 个 slash commands |
+| `commands.ts` | 9 个 slash commands，支持 SubAgent 切换 |
 | `contextCompaction.ts` | 3 种压缩策略 (summary/token-budget/none) |
-| `subagent.ts` | 子 agent spawning (explore/general/plan)，支持 isolated runtime 和 structured result |
+| `subagent.ts` | 子 agent spawning (explore/general/plan)，支持 isolated runtime、structured result、transcript surfacing |
 | `tools.ts` | 工具定义 + allowlist/denylist 过滤 |
 | `todo.ts` | Todo 管理 (pending/in_progress/done/blocked，支持 subtask 和 dependency) |
 
