@@ -378,3 +378,61 @@ interface ModalState {
 - [ ] Modal UI 的交互方式：y/n 之外，是否支持 Tab+Enter 选择 allow for session/workspace？（需要实现）
 - [ ] Todo 最大数量限制？（暂定 1000）
 - [ ] Permission 规则最大数量限制？（暂定 100）
+
+## Progress Update (2026-06-22)
+
+### Phase 1: Todo + Agent Definition — DONE
+
+- [x] Todo model 实现（pending/in_progress/done/blocked，支持 subtask 和 dependency）
+- [x] Todo 持久化到 `todo.json`
+- [x] Agent markdown 定义支持 name/description/tools/model + system prompt
+- [x] Agent markdown 中 tools 支持 glob pattern（如 `Edit(**/*.js)`, `Run(rm **)`）
+- [x] 内置 Agent（Explore/Plan）预定义 tools（Read, List, Glob, Grep）和 prompt
+- [x] Context compaction 保留 active todos
+- [x] 所有测试通过 + 构建成功
+
+**Commit**: `2ca0876 feat(agent): add todo model and agent definition with tools field`
+
+### Phase 2: Permission Sandbox — DONE
+
+- [x] 分级 permission 实现（session/workspace/global，同级别内 last-match-wins）
+- [x] 权限规则格式实现（`Tool(pattern1, pattern2)`，支持 `,` 分割多个）
+- [x] 权限模式实现（readonly / acceptEdits / auto / bypass）
+- [x] Modal UI 实现（Y/N/allow for session/allow for workspace）— 需要在 TUI 中实现
+- [x] Modal glob 输入实现（用户输入 glob pattern，验证匹配后持久化）— 需要在 TUI 中实现
+- [x] QueryPermission 工具实现（返回详细信息）
+- [x] auto mode 实现（LLM 判断，用户可配置提示信息）
+- [x] `permissions.json` 持久化
+- [x] 所有测试通过 + 构建成功
+
+**Commit**: `5229d8a feat(agent): add hierarchical permission sandbox`
+
+### Phase 3: Verification Gate — DONE
+
+- [x] Agent 主动决定是否验证（不是 Edit/Write 强制触发）
+- [x] Todo verification 字段记录验证结果（type/test/build/manual，pass/fail/skip，evidence）
+- [x] 验证结果进入 transcript（通过 TodoVerify 工具的 tool_result）
+
+**Note**: Phase 3 的功能在 Phase 1 和 Phase 2 中已实现。
+
+### Phase 4: SubAgent Runtime — DONE
+
+- [x] SubAgent 创建时，内置 Agent 用预定义 tools，用户自定义 Agent 从 markdown 读取，其他由 Parent 决定
+- [x] SubAgent isolated runtime 实现（独立 messages/budget/permissions）
+- [x] SubAgent structured result 实现（content + toolCalls + events + error）
+- [x] SubAgent transcript surfacing 实现（parent 可见 subagent start/progress/result）
+- [x] 所有测试通过 + 构建成功
+
+**Commit**: `9ecacfd feat(agent): add subagent isolated runtime and structured result`
+
+### Phase 5: Regression + Integration — TODO
+
+- [ ] 增加多步 coding task fixtures
+- [ ] 验证 tool order、permission ask、todo 状态、subagent 执行
+- [ ] 所有测试通过 + 构建成功
+
+### Remaining Tasks
+
+1. **Modal UI 实现**：需要在 TUI 中实现 permission approval modal（Y/N/allow for session/allow for workspace）
+2. **Regression suite**：需要增加多步 coding task fixtures
+3. **Documentation**：更新 AGENTS.md 和相关文档
