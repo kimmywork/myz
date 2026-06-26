@@ -307,6 +307,8 @@ program
         const [tokenTotal, setTokenTotal] = React.useState(runtime.tokenTotal)
         const [currentModel, setCurrentModel] = React.useState(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
         const [todoProgress, setTodoProgress] = React.useState(() => getActiveTodosSummary(runtime.todoState))
+        const [subagentStatus, setSubagentStatus] = React.useState<{ agentId: string; task: string; status: "running" | "completed" | "error"; progress?: string } | undefined>()
+        const [viewingAgentId, setViewingAgentId] = React.useState<string | undefined>(undefined)
 
         const addEntry = React.useCallback((entry: ChatEntry, options: { persist?: boolean } = {}) => {
           const nextEntry = { ...entry, id: entry.id || createEntryId(entry.role) }
@@ -435,6 +437,8 @@ program
           tokenTotal,
           version: "0.2.0",
           todoProgress,
+          subagentStatus,
+          viewingAgentId,
           entries,
           onMessage: handleMessage,
         })

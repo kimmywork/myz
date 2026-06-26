@@ -50,17 +50,45 @@ export function createCommands(): SlashCommand[] {
     },
     {
       name: "agents",
-      description: "列出/切换 agent",
+      description: "列出/切换 agent，查看 SubAgent 历史",
       handler: (args, ctx) => {
         const agents = getAllAgents(ctx.config)
+        const activeSubAgents = ctx.listActiveSubAgents()
+
         if (args.length === 0) {
           const lines = agents.map((a) => {
             const marker = a.id === ctx.currentAgentId ? "●" : "○"
             const mode = a.mode === "subagent" ? " [sub]" : ""
             return `  ${marker} ${a.id}${mode} — ${a.description}`
           })
-          return ["可用 agents：", ...lines, "", "用法：/agents <agent-id> 切换"].join("\n")
+
+          const subAgentLines = activeSubAgents.map((sa) => {
+            const statusIcon = sa.status === "running" ? "▸" : sa.status === "completed" ? "✓" : "✗"
+            return `  ${statusIcon} ${sa.agentId} — ${sa.task}`
+          })
+
+          const result = ["可用 agents：", ...lines]
+          if (subAgentLines.length > 0) {
+            result.push("", "活跃 SubAgent：", ...subAgentLines)
+          }
+          result.push("", "用法：/agents <agent-id> 切换 | /agents view <agent-id> 查看历史 | /agents main 返回主 Agent")
+          return result.join("\n")
         }
+
+        if (args[0] === "view") {
+          const targetId = args[1]
+          if (!targetId) return "用法：/agents view <agent-id>"
+          const target = activeSubAgents.find((sa) => sa.agentId === targetId)
+          if (!target) return `没有活跃的 SubAgent: ${targetId}`
+          ctx.viewSubAgent(targetId)
+          return `正在查看 SubAgent: ${targetId}`
+        }
+
+        if (args[0] === "main") {
+          ctx.viewMainAgent()
+          return "已返回主 Agent 视图"
+        }
+
         const targetId = args[0]
         const target = agents.find((a) => a.id === targetId)
         if (!target) return `未知 agent: ${targetId}`

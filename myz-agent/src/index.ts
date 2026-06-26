@@ -31,6 +31,10 @@ export interface AgentRuntime {
   todoState: TodoState
   permissionLevels: PermissionLevel
   permissionMode: PermissionMode
+  // SubAgent 状态
+  activeSubAgents: Map<string, { agentId: string; task: string; status: "running" | "completed" | "error"; progress?: string }>
+  viewingAgentId: string | null
+  viewingAgentEntries: Map<string, Array<{ id?: string; role: string; text: string; status?: string }>>
   onEvent: (event: AgentEvent) => void
 }
 
@@ -261,20 +265,40 @@ export function createRuntime(options: {
     todoState: loadTodoState(todoPath),
     permissionLevels: loadPermissions(permissionsPath),
     permissionMode: "auto",
+    activeSubAgents: new Map(),
+    viewingAgentId: null,
+    viewingAgentEntries: new Map(),
     onEvent: options.onEvent || (() => {}),
   }
 
   // Re-register Task handler with runtime reference
   api.registerTool(TOOL_DEFINITIONS[6], async (args) => {
+    const agentId = String(args.agentId || "explore")
+    const task = String(args.task || "")
+    
+    // 更新 SubAgent 状态
+    runtime.activeSubAgents.set(agentId, {
+      agentId,
+      task,
+      status: "running",
+    })
+
     const subResult = await spawnSubagent({
-      agentId: String(args.agentId || "explore"),
-      task: String(args.task || ""),
+      agentId,
+      task,
       config: runtime.config,
       client: runtime.client,
       model: runtime.config.defaults.model,
       parentSessionId: runtime.sessionId,
       tools: runtime.state.tools,
       onEvent: (event) => {
+        // 更新 SubAgent 进度
+        const current = runtime.activeSubAgents.get(agentId)
+        if (current) {
+          current.progress = event.text
+          runtime.activeSubAgents.set(agentId, current)
+        }
+        
         // 将 SubAgent 事件转发到主 runtime 的 onEvent
         runtime.onEvent({
           type: event.type === "complete" ? "text" : "tool_call",
@@ -283,6 +307,15 @@ export function createRuntime(options: {
         })
       },
     })
+
+    // 更新 SubAgent 最终状态
+    const finalStatus = subResult.error ? "error" : "completed"
+    runtime.activeSubAgents.set(agentId, {
+      agentId,
+      task,
+      status: finalStatus,
+    })
+
     return { content: [{ type: "text", text: subResult.content || subResult.error || "子 agent 无输出" }] }
   })
 
@@ -343,6 +376,21 @@ export async function processUserInput(
           }
         },
         clearSession: () => { runtime.messages = []; runtime.sessionId = createSessionId(); runtime.tokenUsage = createEmptyTokenUsage() },
+        // SubAgent 相关
+        listActiveSubAgents: () => {
+          return Array.from(runtime.activeSubAgents.values()).map((sa) => ({
+            agentId: sa.agentId,
+            task: sa.task,
+            status: sa.status,
+          }))
+        },
+        viewSubAgent: (agentId: string) => {
+          runtime.viewingAgentId = agentId
+        },
+        viewMainAgent: () => {
+          runtime.viewingAgentId = null
+        },
+        viewingAgentId: runtime.viewingAgentId,
       }
       return (await handler.handler(cmd.args, ctx)) || ""
     }

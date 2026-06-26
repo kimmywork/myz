@@ -123,6 +123,11 @@ export interface CommandContext {
   getSessionTokens: () => { used: number; total: number }
   compactSession: () => Promise<{ compressed: boolean; summary: string; messageCount: number }> | { compressed: boolean; summary: string; messageCount: number }
   clearSession: () => void
+  // SubAgent 相关
+  listActiveSubAgents: () => Array<{ agentId: string; task: string; status: string }>
+  viewSubAgent: (agentId: string) => void
+  viewMainAgent: () => void
+  viewingAgentId: string | null
 }
 
 // --- Config types ---

@@ -1,5 +1,5 @@
 export { AgentShell } from "./AgentShell"
-export type { AgentShellProps } from "./AgentShell"
+export type { AgentShellProps, SubAgentStatus } from "./AgentShell"
 export { ChatHistory } from "./ChatHistory"
 export type { ChatEntry } from "./ChatHistory"
 export { InputBar } from "./InputBar"
