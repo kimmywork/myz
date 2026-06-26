@@ -78,6 +78,7 @@ export function __getCursorPositionForTest(lines: WrappedLine[], cursorOffset: n
     const line = lines[row]
     const nextLine = lines[row + 1]
     const isLastLine = row === lines.length - 1
+
     const isInsideLine = cursorOffset >= line.start && (cursorOffset < line.end || isLastLine)
     const isOnHardBreak = nextLine && cursorOffset >= line.end && cursorOffset < nextLine.start
 
@@ -108,17 +109,49 @@ export function __getOffsetForColumnForTest(line: WrappedLine, targetCol: number
   return Math.min(offset, line.end)
 }
 
+// --- Slash command definitions ---
+
+export interface SlashCommandDef {
+  name: string
+  description: string
+}
+
+export const DEFAULT_SLASH_COMMANDS: SlashCommandDef[] = [
+  { name: "help", description: "显示所有可用命令" },
+  { name: "clear", description: "新建会话" },
+  { name: "agents", description: "列出/切换 agent，查看 SubAgent 历史" },
+  { name: "model", description: "查看/切换模型" },
+  { name: "fork", description: "分叉当前会话" },
+  { name: "resume", description: "恢复旧会话" },
+  { name: "tools", description: "列出可用工具" },
+  { name: "context", description: "显示上下文信息" },
+  { name: "compact", description: "手动触发上下文压缩" },
+]
+
+function getMatchingCommands(value: string, commands: SlashCommandDef[]): SlashCommandDef[] {
+  if (!value.startsWith("/")) return []
+  const query = value.slice(1).toLowerCase()
+  if (!query) return commands
+  return commands.filter((cmd) => cmd.name.startsWith(query))
+}
+
+// --- InputBar ---
+
 export function InputBar({
   onSubmit,
   placeholder = "Type your message or /help",
   maxRows = 4,
+  slashCommands = DEFAULT_SLASH_COMMANDS,
 }: {
   onSubmit: (text: string) => void
   placeholder?: string
   maxRows?: number
+  slashCommands?: SlashCommandDef[]
 }) {
   const [value, setValue] = useState("")
   const [cursorOffset, setCursorOffset] = useState(0)
+  const [showCommands, setShowCommands] = useState(false)
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
   const inputRef = useRef<DOMElement | null>(null)
   const inputMetrics = useBoxMetrics(inputRef)
   const { columns } = useWindowSize()
@@ -134,6 +167,9 @@ export function InputBar({
   const visibleLines = wrappedLines.slice(viewportStart, viewportStart + maxRows)
   const cursorVisibleRow = cursorPosition.row - viewportStart
 
+  // 匹配的命令列表
+  const matchingCommands = getMatchingCommands(value, slashCommands)
+
   // `useCursor` coordinates are relative to the whole Ink frame, not this
   // component. Use the same manual wrapping model for rendering and cursor
   // placement, so the terminal cursor / IME buffer can't drift from InputBar.
@@ -147,14 +183,56 @@ export function InputBar({
   useInput((input, key) => {
     if (isMouseInput(input)) return
 
+    // Tab 键补全命令
+    if (key.tab && showCommands && matchingCommands.length > 0) {
+      const selected = matchingCommands[selectedCommandIndex]
+      if (selected) {
+        setValue(`/${selected.name} `)
+        setCursorOffset(selected.name.length + 2)
+        setShowCommands(false)
+        setSelectedCommandIndex(0)
+      }
+      return
+    }
+
+    // 上下箭头选择命令
+    if ((key.upArrow || key.downArrow) && showCommands && matchingCommands.length > 0) {
+      const direction = key.upArrow ? -1 : 1
+      const newIndex = (selectedCommandIndex + direction + matchingCommands.length) % matchingCommands.length
+      setSelectedCommandIndex(newIndex)
+      return
+    }
+
+    // Enter 键
     if (key.return) {
+      if (showCommands && matchingCommands.length > 0) {
+        // 选择当前高亮的命令
+        const selected = matchingCommands[selectedCommandIndex]
+        if (selected) {
+          setValue(`/${selected.name} `)
+          setCursorOffset(selected.name.length + 2)
+          setShowCommands(false)
+          setSelectedCommandIndex(0)
+        }
+        return
+      }
+
       if (value.trim()) {
         onSubmit(value.trim())
         setValue("")
         setCursorOffset(0)
+        setShowCommands(false)
       }
       return
     }
+
+    // Escape 键关闭命令提示
+    if (key.escape && showCommands) {
+      setShowCommands(false)
+      setSelectedCommandIndex(0)
+      return
+    }
+
     if (key.leftArrow) { setCursorOffset((p) => Math.max(0, p - 1)); return }
     if (key.rightArrow) { setCursorOffset((p) => Math.min(value.length, p + 1)); return }
     if (key.upArrow || key.downArrow) {
@@ -177,11 +255,39 @@ export function InputBar({
     if (input && !key.ctrl && !key.meta) {
       setValue((prev) => prev.slice(0, cursorOffset) + input + prev.slice(cursorOffset))
       setCursorOffset((p) => p + input.length)
+
+      // 检查是否需要显示命令提示
+      const newValue = value.slice(0, cursorOffset) + input + value.slice(cursorOffset)
+      if (newValue.startsWith("/")) {
+        setShowCommands(true)
+        setSelectedCommandIndex(0)
+      } else {
+        setShowCommands(false)
+      }
     }
   })
 
   return (
     <Box ref={inputRef} width={columns} flexDirection="column" flexShrink={0}>
+      {/* 命令提示列表 */}
+      {showCommands && matchingCommands.length > 0 && (
+        <Box flexDirection="column" borderStyle="single" paddingLeft={1} paddingRight={1}>
+          {matchingCommands.slice(0, 5).map((cmd, index) => (
+            <Box key={cmd.name}>
+              <Text color={index === selectedCommandIndex ? "cyan" : undefined} bold={index === selectedCommandIndex}>
+                {index === selectedCommandIndex ? "▸ " : "  "}/{cmd.name}
+              </Text>
+              <Text dimColor> — {cmd.description}</Text>
+            </Box>
+          ))}
+          {matchingCommands.length > 5 && (
+            <Text dimColor>  ... and {matchingCommands.length - 5} more</Text>
+          )}
+          <Text dimColor>  Tab/Enter to select, Escape to cancel</Text>
+        </Box>
+      )}
+
+      {/* 输入框 */}
       {visibleLines.map((line, index) => {
         const isFirstVisibleLine = viewportStart + index === 0
         const cursorOnLine = cursorVisibleRow === index
