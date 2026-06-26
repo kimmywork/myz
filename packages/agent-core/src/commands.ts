@@ -29,8 +29,10 @@ export function createCommands(): SlashCommand[] {
           "可用命令：",
           "  /help       显示此帮助",
           "  /clear      新建会话",
-          "  /agents     列出/切换 agent",
+          "  /agents     列出/切换 agent，查看 SubAgent 历史",
           "  /model      查看/切换模型",
+          "  /mode       切换模式（plan/main）",
+          "  /permission 查看/切换权限模式",
           "  /fork       分叉当前会话",
           "  /resume     恢复旧会话",
           "  /tools      列出可用工具",
@@ -173,6 +175,38 @@ export function createCommands(): SlashCommand[] {
         if (!modes.includes(target)) return `未知权限模式: ${target}`
         ctx.setPermissionMode(target as "readonly" | "acceptEdits" | "auto" | "bypass")
         return `已切换到权限模式: ${target}`
+      },
+    },
+    {
+      name: "mode",
+      description: "切换模式（plan/main）",
+      handler: (args, ctx) => {
+        if (args.length === 0) {
+          const current = ctx.currentAgentId
+          const isPlan = current === "plan"
+          return [
+            `当前模式: ${isPlan ? "plan" : "main"}`,
+            "",
+            "可用模式：",
+            `  ${isPlan ? "●" : "○"} plan — 只读分析和规划`,
+            `  ${!isPlan ? "●" : "○"} main — 完整权限`,
+            "",
+            "用法：/mode <plan|main> 切换",
+          ].join("\n")
+        }
+
+        const target = args[0]
+        if (target === "plan") {
+          ctx.switchAgent("plan")
+          ctx.setPermissionMode("readonly")
+          return "已切换到规划模式（只读）"
+        } else if (target === "main") {
+          ctx.switchAgent("main")
+          ctx.setPermissionMode("auto")
+          return "已切换到主模式"
+        }
+
+        return `未知模式: ${target}`
       },
     },
     {

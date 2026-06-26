@@ -152,6 +152,8 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   { name: "TodoUpdate", description: "更新任务状态", inputSchema: { type: "object", required: ["id", "status"], properties: { id: { type: "string" }, status: { type: "string", enum: ["pending", "in_progress", "done", "blocked"] } } } },
   { name: "TodoVerify", description: "记录任务验证结果", inputSchema: { type: "object", required: ["id", "type", "result", "evidence"], properties: { id: { type: "string" }, type: { type: "string", enum: ["typecheck", "test", "build", "manual"] }, result: { type: "string", enum: ["pass", "fail", "skip"] }, evidence: { type: "string" } } } },
   { name: "QueryPermission", description: "查询操作权限", inputSchema: { type: "object", required: ["tool"], properties: { tool: { type: "string" }, command: { type: "string" }, path: { type: "string" } } } },
+  { name: "EnterPlanMode", description: "进入规划模式（只读）", inputSchema: { type: "object", properties: {} } },
+  { name: "ExitPlanMode", description: "退出规划模式", inputSchema: { type: "object", properties: {} } },
 ]
 
 function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
@@ -279,6 +281,16 @@ function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
         result.reason ? `Reason: ${result.reason}` : null,
       ].filter(Boolean)
       return { content: [{ type: "text" as const, text: lines.join("\n") }] }
+    },
+    EnterPlanMode: async () => {
+      runtime.permissionMode = "readonly"
+      runtime.currentAgentId = "plan"
+      return { content: [{ type: "text" as const, text: "已进入规划模式（只读）" }] }
+    },
+    ExitPlanMode: async () => {
+      runtime.permissionMode = "auto"
+      runtime.currentAgentId = "main"
+      return { content: [{ type: "text" as const, text: "已退出规划模式" }] }
     },
   }
 }

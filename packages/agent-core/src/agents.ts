@@ -128,7 +128,12 @@ const BUILTIN_MAIN_PROMPT = `你是 myz agent，拥有完整的文件和命令�
 ## SubAgent 使用
 - 当需要分析大量代码或搜索文件时，使用 SubAgent(agentId: "explore", task: "...")
 - 当需要规划复杂任务时，使用 SubAgent(agentId: "plan", task: "...")
-- 当需要执行多步骤任务时，使用 SubAgent(prompt: "...", task: "...")`
+- 当需要执行多步骤任务时，使用 SubAgent(prompt: "...", task: "...")
+
+## 模式切换
+- 当需要进入规划模式（只读）时，使用 EnterPlanMode 工具
+- 当需要退出规划模式时，使用 ExitPlanMode 工具
+- 也可以使用 /mode plan 或 /mode main 命令切换`
 
 const BUILTIN_PLAN_PROMPT = `你是 myz agent 的规划模式，专注于分析和方案设计。
 

@@ -121,6 +121,7 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandDef[] = [
   { name: "clear", description: "新建会话" },
   { name: "agents", description: "列出/切换 agent，查看 SubAgent 历史" },
   { name: "model", description: "查看/切换模型" },
+  { name: "mode", description: "切换模式（plan/main）" },
   { name: "permission", description: "查看/切换权限模式" },
   { name: "fork", description: "分叉当前会话" },
   { name: "resume", description: "恢复旧会话" },
