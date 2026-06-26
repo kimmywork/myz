@@ -12,8 +12,10 @@ import { createLLMClient, toProviderMessages } from "@myz/agent-providers"
 import type { LLMClient } from "@myz/agent-providers"
 import { runAgentLoop, createExtensionState, createExtensionAPI } from "@myz/agent-core"
 import { loadTodoState, saveTodoState, addTodo, updateTodoStatus, setTodoVerification, getActiveTask, setActiveTask, getActiveTodosSummary, getTopLevelTodos } from "@myz/agent-core"
+import { loadPermissions, savePermissions, addPermissionRule, queryPermission, matchHierarchicalPermission } from "@myz/agent-core"
 import type { AgentDefinition, AgentEvent, ToolDefinition } from "@myz/agent-core"
 import type { TodoState } from "@myz/agent-core"
+import type { PermissionLevel, PermissionMode, PermissionResult } from "@myz/agent-core"
 
 // --- Runtime ---
 
@@ -27,6 +29,8 @@ export interface AgentRuntime {
   tokenUsed: number
   tokenTotal: number
   todoState: TodoState
+  permissionLevels: PermissionLevel
+  permissionMode: PermissionMode
   onEvent: (event: AgentEvent) => void
 }
 
@@ -61,13 +65,14 @@ function estimateMessageTokens(messages: Message[]) {
   return messages.reduce((sum, message) => sum + Math.ceil(message.content.length / 4) + 4, 0)
 }
 
-function buildSystemPrompt(agentId: string, config: AgentConfig, todoState: TodoState): string {
+function buildSystemPrompt(agentId: string, config: AgentConfig, todoState: TodoState, permissionMode: PermissionMode): string {
   const agent = resolveAgent(agentId, config)
   const rules = loadRules(config)
   const rulesPrompt = buildRulesPrompt(rules)
   const sections = [agent?.prompt || "你是 myz agent。", "", "## 工作区", config.workspaceRoot]
   if (rulesPrompt) sections.push("", "## 规则", rulesPrompt)
-  sections.push("", "## 工具", "你可以使用 List, Read, Write, Edit, Glob, Run, Task, TodoRead, TodoAdd, TodoUpdate, TodoVerify 工具。")
+  sections.push("", "## 工具", "你可以使用 List, Read, Write, Edit, Glob, Run, Task, TodoRead, TodoAdd, TodoUpdate, TodoVerify, QueryPermission 工具。")
+  sections.push("", "## 权限模式", `当前权限模式: ${permissionMode}`)
   const todoSummary = getActiveTodosSummary(todoState)
   if (todoSummary) sections.push("", "## 当前任务", todoSummary)
   sections.push("", "## 会话", "- /clear 新建 | /model 切换模型 | /agents 切换 agent")
@@ -93,6 +98,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   { name: "TodoAdd", description: "添加新任务", inputSchema: { type: "object", required: ["text"], properties: { text: { type: "string" }, parentId: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } } } } },
   { name: "TodoUpdate", description: "更新任务状态", inputSchema: { type: "object", required: ["id", "status"], properties: { id: { type: "string" }, status: { type: "string", enum: ["pending", "in_progress", "done", "blocked"] } } } },
   { name: "TodoVerify", description: "记录任务验证结果", inputSchema: { type: "object", required: ["id", "type", "result", "evidence"], properties: { id: { type: "string" }, type: { type: "string", enum: ["typecheck", "test", "build", "manual"] }, result: { type: "string", enum: ["pass", "fail", "skip"] }, evidence: { type: "string" } } } },
+  { name: "QueryPermission", description: "查询操作权限", inputSchema: { type: "object", required: ["tool"], properties: { tool: { type: "string" }, command: { type: "string" }, path: { type: "string" } } } },
 ]
 
 function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
@@ -185,6 +191,25 @@ function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
       saveTodoState(todoPath, runtime.todoState)
       return { content: [{ type: "text" as const, text: `已记录验证结果: ${id} -> ${result}` }] }
     },
+    QueryPermission: async (args: Record<string, unknown>) => {
+      const tool = String(args.tool || "")
+      if (!tool) return { content: [{ type: "text" as const, text: "tool 必填" }], isError: true }
+      const command = args.command ? String(args.command) : undefined
+      const path = args.path ? String(args.path) : undefined
+      const context = {
+        agent: runtime.currentAgentId,
+        tool,
+        args: { command, path },
+      }
+      const result = queryPermission(runtime.permissionLevels, context, runtime.permissionMode)
+      const lines = [
+        `Result: ${result.result}`,
+        result.rule ? `Rule: ${result.rule}` : null,
+        result.level ? `Level: ${result.level}` : null,
+        result.reason ? `Reason: ${result.reason}` : null,
+      ].filter(Boolean)
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] }
+    },
   }
 }
 
@@ -207,6 +232,7 @@ export function createRuntime(options: {
 
   const resolved = resolveModel(config)
   const todoPath = resolve(config.workspaceRoot, ".myz", "todo.json")
+  const permissionsPath = resolve(config.workspaceRoot, ".myz", "permissions.json")
   const runtime: AgentRuntime = {
     config,
     client,
@@ -217,6 +243,8 @@ export function createRuntime(options: {
     tokenUsed: 0,
     tokenTotal: resolved?.model.contextWindow || 0,
     todoState: loadTodoState(todoPath),
+    permissionLevels: loadPermissions(permissionsPath),
+    permissionMode: "auto",
     onEvent: options.onEvent || (() => {}),
   }
 
@@ -267,7 +295,7 @@ export async function processUserInput(
         })),
         getSessionTokens: () => ({ used: runtime.tokenUsed || estimateMessageTokens(runtime.messages), total: runtime.tokenTotal }),
         compactSession: async () => {
-          const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config, runtime.todoState)
+          const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config, runtime.todoState, runtime.permissionMode)
           const resolved = resolveModel(runtime.config)
           const compacted = await compactContext({
             messages: [{ role: "system", content: systemPrompt }, ...runtime.messages],
@@ -299,7 +327,7 @@ export async function processUserInput(
   runtime.messages.push({ role: "user", content: input })
 
   // Build context
-  const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config, runtime.todoState)
+  const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config, runtime.todoState, runtime.permissionMode)
   const resolved = resolveModel(runtime.config)
   const contextWindow = resolved?.model.contextWindow || 8192
   const maxOutputTokens = resolved?.model.maxOutputTokens || 4096

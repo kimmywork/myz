@@ -23,8 +23,8 @@ export type {
   AgentConfig,
 } from "./types"
 
-export { matchPermission, createPermissionEngine } from "./permissions"
-export type { PermissionContext } from "./permissions"
+export { matchPermission, createPermissionEngine, matchHierarchicalPermission, loadPermissions, savePermissions, addPermissionRule, queryPermission, parseToolPattern } from "./permissions"
+export type { PermissionContext, PermissionLevel, PermissionResult, PermissionMode, ToolPattern } from "./permissions"
 
 export {
   createExtensionState,
