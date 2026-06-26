@@ -64,13 +64,13 @@ export function loadAgentDefinitions(agentsDir: string): AgentDefinition[] {
 export function loadBuiltinAgentDefinitions(): AgentDefinition[] {
   return [
     {
-      id: "build",
-      description: "全权限开发 agent",
+      id: "main",
+      description: "主 Agent，拥有完整权限",
       mode: "primary",
       permissions: [
         { pattern: "*", action: "allow" },
       ],
-      prompt: BUILTIN_BUILD_PROMPT,
+      prompt: BUILTIN_MAIN_PROMPT,
     },
     {
       id: "plan",
@@ -109,7 +109,7 @@ export function loadBuiltinAgentDefinitions(): AgentDefinition[] {
   ]
 }
 
-const BUILTIN_BUILD_PROMPT = `你是 myz agent 的开发模式，拥有完整的文件和命令操作权限。
+const BUILTIN_MAIN_PROMPT = `你是 myz agent，拥有完整的文件和命令操作权限。
 
 ## 规则
 - 先读 AGENTS.md 了解项目约定
@@ -123,7 +123,12 @@ const BUILTIN_BUILD_PROMPT = `你是 myz agent 的开发模式，拥有完整的
 - 需求不清楚时先问，不要猜
 - 工具调用前用一句话说明要做什么
 - 结果出来后给简短反馈
-- 完成任务后运行 lint/typecheck 验证`
+- 完成任务后运行 lint/typecheck 验证
+
+## SubAgent 使用
+- 当需要分析大量代码或搜索文件时，使用 SubAgent(agentId: "explore", task: "...")
+- 当需要规划复杂任务时，使用 SubAgent(agentId: "plan", task: "...")
+- 当需要执行多步骤任务时，使用 SubAgent(prompt: "...", task: "...")`
 
 const BUILTIN_PLAN_PROMPT = `你是 myz agent 的规划模式，专注于分析和方案设计。
 

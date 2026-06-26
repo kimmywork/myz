@@ -204,6 +204,14 @@ export function InputBar({
       return
     }
 
+    // Page Up/Down 翻页
+    if ((key.pageUp || key.pageDown) && showCommands && matchingCommands.length > 0) {
+      const direction = key.pageUp ? -5 : 5
+      const newIndex = Math.max(0, Math.min(matchingCommands.length - 1, selectedCommandIndex + direction))
+      setSelectedCommandIndex(newIndex)
+      return
+    }
+
     // Enter 键
     if (key.return) {
       if (showCommands && matchingCommands.length > 0) {
@@ -287,18 +295,36 @@ export function InputBar({
       {/* 命令提示列表 - 输入框下方 */}
       {showCommands && matchingCommands.length > 0 && (
         <Box flexDirection="column" borderStyle="single" paddingLeft={1} paddingRight={1}>
-          {matchingCommands.slice(0, 5).map((cmd, index) => (
-            <Box key={cmd.name}>
-              <Text color={index === selectedCommandIndex ? "cyan" : undefined} bold={index === selectedCommandIndex}>
-                {index === selectedCommandIndex ? "▸ " : "  "}/{cmd.name}
-              </Text>
-              <Text dimColor> — {cmd.description}</Text>
-            </Box>
-          ))}
-          {matchingCommands.length > 5 && (
-            <Text dimColor>  ... and {matchingCommands.length - 5} more</Text>
-          )}
-          <Text dimColor>  Tab/Enter to select, Escape to cancel</Text>
+          {/* 计算显示范围 */}
+          {(() => {
+            const maxDisplay = 5
+            const startIdx = Math.max(0, Math.min(selectedCommandIndex - Math.floor(maxDisplay / 2), matchingCommands.length - maxDisplay))
+            const endIdx = Math.min(matchingCommands.length, startIdx + maxDisplay)
+            const visibleCommands = matchingCommands.slice(startIdx, endIdx)
+            
+            return (
+              <>
+                {startIdx > 0 && (
+                  <Text dimColor>  ↑ {startIdx} more above</Text>
+                )}
+                {visibleCommands.map((cmd, index) => {
+                  const actualIndex = startIdx + index
+                  return (
+                    <Box key={cmd.name}>
+                      <Text color={actualIndex === selectedCommandIndex ? "cyan" : undefined} bold={actualIndex === selectedCommandIndex}>
+                        {actualIndex === selectedCommandIndex ? "▸ " : "  "}/{cmd.name}
+                      </Text>
+                      <Text dimColor> — {cmd.description}</Text>
+                    </Box>
+                  )
+                })}
+                {endIdx < matchingCommands.length && (
+                  <Text dimColor>  ↓ {matchingCommands.length - endIdx} more below</Text>
+                )}
+              </>
+            )
+          })()}
+          <Text dimColor>  Tab/Enter to select, Escape to cancel, ↑↓ to navigate</Text>
         </Box>
       )}
     </Box>

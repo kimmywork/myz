@@ -107,7 +107,10 @@ export function createOpenAICompatibleClient(options: {
       if ((patched as any).thinking) body.thinking = (patched as any).thinking
       if ((patched as any).enable_thinking !== undefined) body.enable_thinking = (patched as any).enable_thinking
 
-      const stream = await openai.chat.completions.create(body)
+      const stream = await openai.chat.completions.create({
+        ...body,
+        stream_options: { include_usage: true },
+      })
       return consumeStream(stream, request.onStreamDelta)
     },
   }

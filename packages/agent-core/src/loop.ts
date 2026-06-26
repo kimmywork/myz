@@ -7,13 +7,16 @@ import type {
 } from "./types"
 import type { ExtensionState } from "./extensions"
 import { emitHooks } from "./extensions"
-import { matchPermission } from "./permissions"
+import { matchPermission, matchHierarchicalPermission } from "./permissions"
+import type { PermissionLevel, PermissionMode } from "./permissions"
 
 export interface AgentLoopOptions {
   agent: AgentDefinition
   messages: Message[]
   state: ExtensionState
   globalPermissions: Array<{ pattern: string; action: "allow" | "ask" | "deny" }>
+  permissionLevels?: PermissionLevel
+  permissionMode?: PermissionMode
   workspaceRoot: string
   sessionId: string
   onEvent?: (event: AgentEvent) => void | Promise<void>
@@ -63,6 +66,8 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentResu
     messages: initialMessages,
     state,
     globalPermissions,
+    permissionLevels,
+    permissionMode = "auto",
     workspaceRoot,
     sessionId,
     onEvent,
@@ -115,16 +120,32 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentResu
           args: toolCall.arguments,
         })
 
-        const permission = matchPermission(
-          globalPermissions,
-          { agent: agent.id, tool: toolCall.name, args: toolCall.arguments },
-          agent.permissions,
-        )
+        // 使用分级权限检查
+        let permission: "allow" | "ask" | "deny" = "allow"
+        if (permissionLevels) {
+          const result = matchHierarchicalPermission(
+            permissionLevels,
+            { agent: agent.id, tool: toolCall.name, args: toolCall.arguments },
+            permissionMode,
+          )
+          permission = result.result === "auto" ? "ask" : result.result
+        } else {
+          permission = matchPermission(
+            globalPermissions,
+            { agent: agent.id, tool: toolCall.name, args: toolCall.arguments },
+            agent.permissions,
+          )
+        }
 
         let result: ToolResult
         if (permission === "deny") {
           result = {
             content: [{ type: "text", text: `Permission denied: ${toolCall.name}` }],
+            isError: true,
+          }
+        } else if (permission === "ask") {
+          result = {
+            content: [{ type: "text", text: `Permission required: ${toolCall.name}` }],
             isError: true,
           }
         } else {

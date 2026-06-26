@@ -95,7 +95,6 @@ function buildSystemPrompt(agentId: string, config: AgentConfig, todoState: Todo
   sections.push("", "## 权限模式", `当前权限模式: ${permissionMode}`)
   const todoSummary = getActiveTodosSummary(todoState)
   if (todoSummary) sections.push("", "## 当前任务", todoSummary)
-  sections.push("", "## 会话", "- /clear 新建 | /model 切换模型 | /agents 切换 agent")
   return sections.join("\n")
 }
 
@@ -132,8 +131,17 @@ function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
     },
     Read: async (args: Record<string, unknown>) => {
       const p = resolve(workspaceRoot, String(args.path || ""))
-      if (!existsSync(p)) return { content: [{ type: "text" as const, text: "路径不存在" }], isError: true }
-      return { content: [{ type: "text" as const, text: readFileSync(p, "utf-8") }] }
+      try {
+        const stat = statSync(p)
+        if (stat.isSymbolicLink()) {
+          // 跟随符号链接
+          const realPath = require("node:fs").realpathSync(p)
+          return { content: [{ type: "text" as const, text: readFileSync(realPath, "utf-8") }] }
+        }
+        return { content: [{ type: "text" as const, text: readFileSync(p, "utf-8") }] }
+      } catch (e: any) {
+        return { content: [{ type: "text" as const, text: `读取失败: ${e.message}` }], isError: true }
+      }
     },
     Write: async (args: Record<string, unknown>) => {
       const p = resolve(workspaceRoot, String(args.path || ""))
@@ -265,7 +273,7 @@ export function createRuntime(options: {
     config,
     client,
     state,
-    currentAgentId: "build",
+    currentAgentId: "main",
     sessionId: createSessionId(),
     messages: [],
     tokenUsage: createEmptyTokenUsage(),
@@ -503,6 +511,8 @@ export async function processUserInput(
     messages: compacted.history,
     state: runtime.state,
     globalPermissions: runtime.config.permissions,
+    permissionLevels: runtime.permissionLevels,
+    permissionMode: runtime.permissionMode,
     workspaceRoot: runtime.config.workspaceRoot,
     sessionId: runtime.sessionId,
     onEvent: runtime.onEvent,
