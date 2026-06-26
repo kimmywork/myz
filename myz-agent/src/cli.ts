@@ -286,6 +286,20 @@ program
               expanded: false,
             })
           }
+
+          if (event.type === "verification" && event.verification) {
+            appendEntryRef.current?.({
+              id: createEntryId("verification"),
+              role: "verification",
+              text: `${event.verification.type}: ${event.verification.result}`,
+              status: "complete",
+              verification: {
+                type: event.verification.type as "typecheck" | "test" | "build" | "manual",
+                result: event.verification.result as "pass" | "fail" | "skip",
+                evidence: event.verification.evidence,
+              },
+            })
+          }
         },
       })
 

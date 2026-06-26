@@ -64,12 +64,13 @@ export interface PromptSegment {
 }
 
 export interface AgentEvent {
-  type: "text" | "tool_call" | "tool_result" | "error" | "done" | "compaction"
+  type: "text" | "tool_call" | "tool_result" | "error" | "done" | "compaction" | "verification"
   text?: string
   toolCall?: { id: string; name: string; args: Record<string, unknown> }
   toolResult?: { id: string; name: string; result: ToolResult }
   error?: Error
   summary?: string
+  verification?: { type: string; result: string; evidence: string; todoId: string }
 }
 
 export interface AgentResult {

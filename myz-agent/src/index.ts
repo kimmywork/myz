@@ -209,6 +209,14 @@ function createToolHandlers(workspaceRoot: string, runtime: AgentRuntime) {
       const todo = setTodoVerification(runtime.todoState, id, { type, result, evidence })
       if (!todo) return { content: [{ type: "text" as const, text: `未找到任务: ${id}` }], isError: true }
       saveTodoState(todoPath, runtime.todoState)
+      
+      // 发出 verification 事件
+      runtime.onEvent({
+        type: "verification",
+        text: `${type}: ${result}`,
+        verification: { type, result, evidence, todoId: id },
+      })
+      
       return { content: [{ type: "text" as const, text: `已记录验证结果: ${id} -> ${result}` }] }
     },
     QueryPermission: async (args: Record<string, unknown>) => {

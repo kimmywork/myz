@@ -12,6 +12,7 @@ export type ChatEntryRole =
   | "tool_result"
   | "reasoning"
   | "subagent"
+  | "verification"
 
 export interface ChatEntry {
   id?: string
@@ -22,6 +23,11 @@ export interface ChatEntry {
   toolName?: string
   subagentId?: string
   expanded?: boolean
+  verification?: {
+    type: "typecheck" | "test" | "build" | "manual"
+    result: "pass" | "fail" | "skip"
+    evidence: string
+  }
 }
 
 function roleLabel(entry: ChatEntry) {
@@ -35,6 +41,7 @@ function roleLabel(entry: ChatEntry) {
     case "subagent": return { text: "SUB", color: "magenta" as const }
     case "progress": return { text: "…", color: "gray" as const }
     case "system": return { text: "SYS", color: "gray" as const }
+    case "verification": return { text: "VERIFY", color: "blue" as const }
   }
 }
 
@@ -49,12 +56,18 @@ function EntryHeader({ entry }: { entry: ChatEntry }) {
       <Text color={label.color} bold>[{label.text}]</Text>
       {hasDetail && <Text dimColor> {marker}</Text>}
       {title && <Text color={label.color}> {title}</Text>}
+      {entry.verification && (
+        <Text color={entry.verification.result === "pass" ? "green" : entry.verification.result === "fail" ? "red" : "yellow"}>
+          {" "}{entry.verification.result === "pass" ? "✓" : entry.verification.result === "fail" ? "✗" : "○"}
+          {" "}{entry.verification.type}
+        </Text>
+      )}
     </Box>
   )
 }
 
 function EntryBody({ entry }: { entry: ChatEntry }) {
-  if (!entry.text && !entry.detail) return null
+  if (!entry.text && !entry.detail && !entry.verification) return null
 
   const text = entry.expanded && entry.detail ? entry.detail : entry.text
   const muted = entry.role === "reasoning" || entry.role === "system" || entry.role === "progress"
@@ -63,6 +76,18 @@ function EntryBody({ entry }: { entry: ChatEntry }) {
     return (
       <Box paddingLeft={2} flexDirection="column">
         <MarkdownText text={text} />
+      </Box>
+    )
+  }
+
+  if (entry.role === "verification" && entry.verification) {
+    const resultColor = entry.verification.result === "pass" ? "green" : entry.verification.result === "fail" ? "red" : "yellow"
+    return (
+      <Box paddingLeft={2} flexDirection="column">
+        <Text color={resultColor}>
+          {entry.verification.type}: {entry.verification.result}
+        </Text>
+        <Text dimColor>{entry.verification.evidence}</Text>
       </Box>
     )
   }
