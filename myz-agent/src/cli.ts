@@ -443,6 +443,9 @@ program
               setSubagentStatus(undefined)
             }
 
+            // 更新 viewingAgentId
+            setViewingAgentId(runtime.viewingAgentId || undefined)
+
             if (!transcriptState.assistantContentSeen && !transcriptState.modelActivitySeen) {
               addEntry({
                 role: "system",
