@@ -122,10 +122,15 @@ program
           return ""
         }).join("\n")
         const args = toolCallArgs.get(event.id)
+        // 限制结果大小，避免 session 历史过大
+        const maxResultLength = 10000
+        const truncatedResult = resultText.length > maxResultLength
+          ? resultText.slice(0, maxResultLength) + "\n... (truncated)"
+          : resultText
         return [
           args ? `Arguments:\n${formatJson(args)}` : "Arguments: {}",
           "",
-          `Result:\n${resultText || "(empty)"}`,
+          `Result:\n${truncatedResult || "(empty)"}`,
         ].join("\n")
       }
 
