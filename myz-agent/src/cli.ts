@@ -2,7 +2,7 @@ import { Command } from "commander"
 import { loadConfigNew } from "./config"
 import { createRuntime, processUserInput } from "./index"
 import type { AgentEvent } from "@myz/agent-core"
-import { getActiveTodosSummary } from "@myz/agent-core"
+import { getActiveTodosSummary, addPermissionRule, savePermissions } from "@myz/agent-core"
 import type { ChatEntry } from "@myz/agent-tui"
 import { mkdirSync, appendFileSync, existsSync, readFileSync } from "node:fs"
 import { resolve, join } from "node:path"
@@ -309,6 +309,13 @@ program
         const [todoProgress, setTodoProgress] = React.useState(() => getActiveTodosSummary(runtime.todoState))
         const [subagentStatus, setSubagentStatus] = React.useState<{ agentId: string; task: string; status: "running" | "completed" | "error"; progress?: string } | undefined>()
         const [viewingAgentId, setViewingAgentId] = React.useState<string | undefined>(undefined)
+        const [permissionModal, setPermissionModal] = React.useState<{
+          visible: boolean
+          tool: string
+          args: Record<string, unknown>
+          riskLevel: "low" | "medium" | "high"
+          defaultPattern: string
+        } | undefined>()
 
         const addEntry = React.useCallback((entry: ChatEntry, options: { persist?: boolean } = {}) => {
           const nextEntry = { ...entry, id: entry.id || createEntryId(entry.role) }
@@ -439,6 +446,28 @@ program
           todoProgress,
           subagentStatus,
           viewingAgentId,
+          permissionModal,
+          onPermissionChoice: (choice, pattern) => {
+            // 处理权限选择
+            if (choice === "y") {
+              // 允许本次操作
+              setPermissionModal(undefined)
+            } else if (choice === "n") {
+              // 拒绝本次操作
+              setPermissionModal(undefined)
+            } else if (choice === "session" || choice === "workspace") {
+              // 添加权限规则
+              if (pattern) {
+                const level = choice === "session" ? "session" : "workspace"
+                addPermissionRule(runtime.permissionLevels, level, {
+                  pattern: `${permissionModal?.tool}(${pattern})`,
+                  action: "allow",
+                })
+                savePermissions(resolve(config.workspaceRoot, ".myz", "permissions.json"), runtime.permissionLevels)
+              }
+              setPermissionModal(undefined)
+            }
+          },
           entries,
           onMessage: handleMessage,
         })

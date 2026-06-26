@@ -3,12 +3,21 @@ import { Box, Static, Text, useApp, useInput } from "ink"
 import { ChatHistory, type ChatEntry } from "./ChatHistory"
 import { InputBar } from "./InputBar"
 import { StatusBar } from "./StatusBar"
+import { PermissionModal } from "./PermissionModal"
 
 export interface SubAgentStatus {
   agentId: string
   task: string
   status: "running" | "completed" | "error"
   progress?: string
+}
+
+export interface PermissionModalState {
+  visible: boolean
+  tool: string
+  args: Record<string, unknown>
+  riskLevel: "low" | "medium" | "high"
+  defaultPattern: string
 }
 
 export interface AgentShellProps {
@@ -22,6 +31,8 @@ export interface AgentShellProps {
   todoProgress?: string
   subagentStatus?: SubAgentStatus
   viewingAgentId?: string  // 当前查看的 Agent ID，undefined 表示主 Agent
+  permissionModal?: PermissionModalState
+  onPermissionChoice?: (choice: "y" | "n" | "session" | "workspace", pattern?: string) => void
   entries: ChatEntry[]
   onMessage: (text: string) => void
 }
@@ -57,6 +68,8 @@ export function AgentShell({
   todoProgress,
   subagentStatus,
   viewingAgentId,
+  permissionModal,
+  onPermissionChoice,
   entries,
   onMessage,
 }: AgentShellProps) {
@@ -70,6 +83,17 @@ export function AgentShell({
 
   return (
     <Box flexDirection="column" width="100%">
+      {/* 权限审批 Modal */}
+      {permissionModal?.visible && onPermissionChoice && (
+        <PermissionModal
+          tool={permissionModal.tool}
+          args={permissionModal.args}
+          riskLevel={permissionModal.riskLevel}
+          defaultPattern={permissionModal.defaultPattern}
+          onChoice={onPermissionChoice}
+        />
+      )}
+
       {/* SubAgent 状态栏 - 仅在主 Agent 视图且有活跃 SubAgent 时显示 */}
       {subagentStatus && !isViewingSubAgent && (
         <SubAgentStatusBar status={subagentStatus} />
