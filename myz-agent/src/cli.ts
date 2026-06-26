@@ -410,12 +410,14 @@ program
             setTokenUsed(runtime.tokenUsage.totalTokens)
             setTokenTotal(runtime.tokenTotal)
             setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
+            setSubagentStatus(undefined)
             return
           }
 
           resetTranscriptTurn()
           addEntry({ role: "user", text })
           setStatus("thinking")
+          setSubagentStatus(undefined)
 
           const updateStream = (delta: { content?: string; reasoning?: string }) => {
             if (delta.reasoning) appendReasoningDeltaRef.current?.(delta.reasoning)
@@ -431,6 +433,15 @@ program
             setTokenTotal(runtime.tokenTotal)
             setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
             setTodoProgress(getActiveTodosSummary(runtime.todoState))
+
+            // 更新 subagent 状态
+            const activeSubAgents = Array.from(runtime.activeSubAgents.values())
+            if (activeSubAgents.length > 0) {
+              const latest = activeSubAgents[activeSubAgents.length - 1]
+              setSubagentStatus(latest)
+            } else {
+              setSubagentStatus(undefined)
+            }
 
             if (!transcriptState.assistantContentSeen && !transcriptState.modelActivitySeen) {
               addEntry({
