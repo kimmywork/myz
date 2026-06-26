@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from "node:fs"
-import { resolve, dirname } from "node:path"
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, appendFileSync } from "node:fs"
+import { resolve, dirname, join } from "node:path"
 import { execSync } from "node:child_process"
 import { loadConfigNew, type AgentConfig } from "./config"
 import { loadRules, buildRulesPrompt } from "@myz/agent-core"
@@ -83,6 +83,40 @@ function addTokenUsage(target: TokenUsage, source: { promptTokens?: number; comp
   target.completionTokens += source.completionTokens || 0
   target.totalTokens += source.totalTokens || 0
   target.cachedTokens += source.cachedTokens || 0
+}
+
+// --- Session management ---
+
+function getSessionsDir(config: AgentConfig): string {
+  const dir = resolve(config.runtimeRoot, "workspaces", config.workspaceId, "sessions")
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+function loadSessionHistory(sessionsDir: string, sessionId: string): any[] {
+  const file = join(sessionsDir, `${sessionId}.jsonl`)
+  if (!existsSync(file)) return []
+  try {
+    return readFileSync(file, "utf-8")
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+  } catch { return [] }
+}
+
+function appendSessionEntry(sessionsDir: string, sessionId: string, entry: any): void {
+  appendFileSync(join(sessionsDir, `${sessionId}.jsonl`), JSON.stringify(entry) + "\n")
+}
+
+function listAllSessions(sessionsDir: string): Array<{ id: string; title?: string; active: boolean }> {
+  if (!existsSync(sessionsDir)) return []
+  const files = readdirSync(sessionsDir).filter((f) => f.endsWith(".jsonl"))
+  return files.map((f) => {
+    const id = f.replace(".jsonl", "")
+    const history = loadSessionHistory(sessionsDir, id)
+    const title = history.find((e) => e.role === "user")?.text?.slice(0, 50) || "无标题"
+    return { id, title, active: true }
+  })
 }
 
 function buildSystemPrompt(agentId: string, config: AgentConfig, todoState: TodoState, permissionMode: PermissionMode): string {
@@ -426,7 +460,20 @@ export async function processUserInput(
         getAvailableModels: () => Object.entries(runtime.config.providers).flatMap(([pid, p]) =>
           p.models.map((m) => ({ providerId: pid, modelId: m.id, contextWindow: m.contextWindow, capabilities: m.capabilities }))
         ),
-        listSessions: () => [{ id: runtime.sessionId, active: true }],
+        listSessions: () => {
+          const sessionsDir = getSessionsDir(runtime.config)
+          return listAllSessions(sessionsDir)
+        },
+        resumeSession: (sessionId: string) => {
+          const sessionsDir = getSessionsDir(runtime.config)
+          const history = loadSessionHistory(sessionsDir, sessionId)
+          runtime.sessionId = sessionId
+          runtime.messages = history.filter((e) => e.role === "user" || e.role === "assistant").map((e) => ({
+            role: e.role,
+            content: e.text,
+          }))
+          runtime.tokenUsage = createEmptyTokenUsage()
+        },
         listTools: () => Array.from(runtime.state.tools.values()).map(({ definition }) => ({
           name: definition.name,
           description: definition.description,

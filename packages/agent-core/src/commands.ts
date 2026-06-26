@@ -185,14 +185,23 @@ export function createCommands(): SlashCommand[] {
     {
       name: "resume",
       description: "恢复旧会话",
-      handler: (_args, ctx) => {
+      handler: (args, ctx) => {
         const sessions = ctx.listSessions()
         if (!sessions.length) return "没有可恢复的会话。"
-        const lines = sessions.map((s) => {
-          const marker = s.active ? "●" : "○"
-          return `  ${marker} ${s.id} — ${s.title || "无标题"}`
-        })
-        return ["可用会话：", ...lines, "", "用法：/resume <session-id>"].join("\n")
+
+        if (args.length === 0) {
+          const lines = sessions.map((s) => {
+            const marker = s.active ? "●" : "○"
+            return `  ${marker} ${s.id} — ${s.title || "无标题"}`
+          })
+          return ["可用会话：", ...lines, "", "用法：/resume <session-id>"].join("\n")
+        }
+
+        const targetId = args[0]
+        const target = sessions.find((s) => s.id === targetId)
+        if (!target) return `未知会话: ${targetId}`
+        ctx.resumeSession(targetId)
+        return `已恢复会话: ${targetId}`
       },
     },
     {

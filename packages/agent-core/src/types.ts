@@ -120,6 +120,7 @@ export interface CommandContext {
   switchModel: (providerId: string, modelId: string) => void
   getAvailableModels: () => Array<{ providerId: string; modelId: string; contextWindow: number; capabilities: Record<string, boolean> }>
   listSessions: () => Array<{ id: string; title?: string; active: boolean }>
+  resumeSession: (sessionId: string) => void
   listTools: () => Array<{ name: string; description: string }>
   getSessionTokens: () => { used: number; total: number }
   compactSession: () => Promise<{ compressed: boolean; summary: string; messageCount: number }> | { compressed: boolean; summary: string; messageCount: number }
