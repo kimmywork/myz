@@ -257,6 +257,15 @@ export function createRuntime(options: {
       client: runtime.client,
       model: runtime.config.defaults.model,
       parentSessionId: runtime.sessionId,
+      tools: runtime.state.tools,
+      onEvent: (event) => {
+        // 将 SubAgent 事件转发到主 runtime 的 onEvent
+        runtime.onEvent({
+          type: event.type === "complete" ? "text" : "tool_call",
+          text: event.text,
+          toolCall: event.toolCall,
+        })
+      },
     })
     return { content: [{ type: "text", text: subResult.content || subResult.error || "子 agent 无输出" }] }
   })

@@ -43,7 +43,7 @@ export { createCommands, matchCommand, parseBotCommand, isSupportedBotCommandNam
 export { compactContext } from "./contextCompaction"
 export type { CompactionResult } from "./contextCompaction"
 export { spawnSubagent, buildTaskToolDescription } from "./subagent"
-export type { SubagentSpawnOptions, SubagentResult } from "./subagent"
+export type { SubagentSpawnOptions, SubagentResult, SubagentEvent } from "./subagent"
 export { createLocalTools } from "./tools"
 export type { LocalTool } from "./tools"
 
