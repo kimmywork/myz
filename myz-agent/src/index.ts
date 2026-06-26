@@ -91,7 +91,7 @@ function buildSystemPrompt(agentId: string, config: AgentConfig, todoState: Todo
   const rulesPrompt = buildRulesPrompt(rules)
   const sections = [agent?.prompt || "你是 myz agent。", "", "## 工作区", config.workspaceRoot]
   if (rulesPrompt) sections.push("", "## 规则", rulesPrompt)
-  sections.push("", "## 工具", "你可以使用 List, Read, Write, Edit, Glob, Run, Task, TodoRead, TodoAdd, TodoUpdate, TodoVerify, QueryPermission 工具。")
+  sections.push("", "## 工具", "你可以使用 List, Read, Write, Edit, Glob, Run, SubAgent, TodoRead, TodoAdd, TodoUpdate, TodoVerify, QueryPermission 工具。")
   sections.push("", "## 权限模式", `当前权限模式: ${permissionMode}`)
   const todoSummary = getActiveTodosSummary(todoState)
   if (todoSummary) sections.push("", "## 当前任务", todoSummary)
@@ -113,7 +113,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   { name: "Edit", description: "替换文件内容", inputSchema: { type: "object", required: ["path", "oldText", "newText"], properties: { path: { type: "string" }, oldText: { type: "string" }, newText: { type: "string" } } } },
   { name: "Glob", description: "按模式匹配文件", inputSchema: { type: "object", required: ["pattern"], properties: { pattern: { type: "string" } } } },
   { name: "Run", description: "执行命令", inputSchema: { type: "object", required: ["command"], properties: { command: { type: "string" } } } },
-  { name: "Task", description: "调用子 agent", inputSchema: { type: "object", required: ["agentId", "task"], properties: { agentId: { type: "string" }, task: { type: "string" } } } },
+  { name: "SubAgent", description: "调用或创建子 agent", inputSchema: { type: "object", required: ["task"], properties: { agentId: { type: "string" }, task: { type: "string" }, prompt: { type: "string" }, model: { type: "string" }, tools: { type: "array", items: { type: "string" } } } } },
   { name: "TodoRead", description: "读取当前任务列表", inputSchema: { type: "object", properties: {} } },
   { name: "TodoAdd", description: "添加新任务", inputSchema: { type: "object", required: ["text"], properties: { text: { type: "string" }, parentId: { type: "string" }, dependsOn: { type: "array", items: { type: "string" } } } } },
   { name: "TodoUpdate", description: "更新任务状态", inputSchema: { type: "object", required: ["id", "status"], properties: { id: { type: "string" }, status: { type: "string", enum: ["pending", "in_progress", "done", "blocked"] } } } },
@@ -279,32 +279,96 @@ export function createRuntime(options: {
     onEvent: options.onEvent || (() => {}),
   }
 
-  // Re-register Task handler with runtime reference
+  // Re-register SubAgent handler with runtime reference
   api.registerTool(TOOL_DEFINITIONS[6], async (args) => {
-    const agentId = String(args.agentId || "explore")
+    const agentId = String(args.agentId || "")
     const task = String(args.task || "")
-    
+    const prompt = String(args.prompt || "")
+    const model = String(args.model || "")
+    const tools = Array.isArray(args.tools) ? args.tools.map(String) : []
+
+    // 模式 1：调用预定义 Agent
+    if (agentId) {
+      // 更新 SubAgent 状态
+      runtime.activeSubAgents.set(agentId, {
+        agentId,
+        task,
+        status: "running",
+      })
+
+      const subResult = await spawnSubagent({
+        agentId,
+        task,
+        config: runtime.config,
+        client: runtime.client,
+        model: runtime.config.defaults.model,
+        parentSessionId: runtime.sessionId,
+        tools: runtime.state.tools,
+        onEvent: (event) => {
+          // 更新 SubAgent 进度
+          const current = runtime.activeSubAgents.get(agentId)
+          if (current) {
+            current.progress = event.text
+            runtime.activeSubAgents.set(agentId, current)
+          }
+          
+          // 将 SubAgent 事件转发到主 runtime 的 onEvent
+          runtime.onEvent({
+            type: event.type === "complete" ? "text" : "tool_call",
+            text: event.text,
+            toolCall: event.toolCall,
+          })
+        },
+      })
+
+      // 更新 SubAgent 最终状态
+      const finalStatus = subResult.error ? "error" : "completed"
+      runtime.activeSubAgents.set(agentId, {
+        agentId,
+        task,
+        status: finalStatus,
+      })
+
+      return { content: [{ type: "text", text: subResult.content || subResult.error || "子 agent 无输出" }] }
+    }
+
+    // 模式 2：创建临时 SubAgent
+    if (!prompt) return { content: [{ type: "text", text: "必须提供 agentId 或 prompt" }], isError: true }
+    if (!task) return { content: [{ type: "text", text: "必须提供 task" }], isError: true }
+
+    const tempAgentId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const tempAgent = {
+      id: tempAgentId,
+      description: "临时 SubAgent",
+      mode: "subagent" as const,
+      model: model || undefined,
+      tools: tools.length > 0 ? tools : undefined,
+      permissions: [{ pattern: "*", action: "allow" as const }],
+      prompt,
+    }
+
     // 更新 SubAgent 状态
-    runtime.activeSubAgents.set(agentId, {
-      agentId,
+    runtime.activeSubAgents.set(tempAgentId, {
+      agentId: tempAgentId,
       task,
       status: "running",
     })
 
     const subResult = await spawnSubagent({
-      agentId,
+      agentId: tempAgentId,
       task,
       config: runtime.config,
       client: runtime.client,
-      model: runtime.config.defaults.model,
+      model: model || runtime.config.defaults.model,
       parentSessionId: runtime.sessionId,
       tools: runtime.state.tools,
+      agent: tempAgent,
       onEvent: (event) => {
         // 更新 SubAgent 进度
-        const current = runtime.activeSubAgents.get(agentId)
+        const current = runtime.activeSubAgents.get(tempAgentId)
         if (current) {
           current.progress = event.text
-          runtime.activeSubAgents.set(agentId, current)
+          runtime.activeSubAgents.set(tempAgentId, current)
         }
         
         // 将 SubAgent 事件转发到主 runtime 的 onEvent
@@ -318,8 +382,8 @@ export function createRuntime(options: {
 
     // 更新 SubAgent 最终状态
     const finalStatus = subResult.error ? "error" : "completed"
-    runtime.activeSubAgents.set(agentId, {
-      agentId,
+    runtime.activeSubAgents.set(tempAgentId, {
+      agentId: tempAgentId,
       task,
       status: finalStatus,
     })
@@ -384,6 +448,9 @@ export async function processUserInput(
           }
         },
         clearSession: () => { runtime.messages = []; runtime.sessionId = createSessionId(); runtime.tokenUsage = createEmptyTokenUsage() },
+        // 权限模式
+        getPermissionMode: () => runtime.permissionMode,
+        setPermissionMode: (mode) => { runtime.permissionMode = mode },
         // SubAgent 相关
         listActiveSubAgents: () => {
           return Array.from(runtime.activeSubAgents.values()).map((sa) => ({

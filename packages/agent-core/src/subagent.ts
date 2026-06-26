@@ -12,6 +12,7 @@ export interface SubagentSpawnOptions {
   model: string
   parentSessionId: string
   tools?: Map<string, { definition: ToolDefinition; handler: ToolHandler }>  // Parent 决定的工具
+  agent?: AgentDefinition  // 临时 Agent（如果提供，不从配置加载）
   onEvent?: (event: SubagentEvent) => void
 }
 
@@ -79,9 +80,10 @@ function resolveTools(
 export async function spawnSubagent(
   options: SubagentSpawnOptions,
 ): Promise<SubagentResult> {
-  const { agentId, task, config, client, model, parentSessionId, tools: parentTools, onEvent } = options
+  const { agentId, task, config, client, model, parentSessionId, tools: parentTools, agent: tempAgent, onEvent } = options
 
-  const agent = resolveAgent(agentId, config)
+  // 使用临时 Agent 或从配置加载
+  const agent = tempAgent || resolveAgent(agentId, config)
   if (!agent) {
     return { agentId, content: "", steps: 0, toolCalls: [], events: [], error: `Unknown agent: ${agentId}` }
   }
@@ -101,7 +103,7 @@ export async function spawnSubagent(
     { role: "user", content: task },
   ]
 
-  const maxSteps = agent.maxSteps || 20
+  const maxSteps = agent.maxSteps === 0 ? Infinity : (agent.maxSteps || 20)
   let steps = 0
   const allToolCalls: Array<{ name: string; args: Record<string, unknown>; result?: ToolResult }> = []
   const allEvents: SubagentEvent[] = []
@@ -110,7 +112,8 @@ export async function spawnSubagent(
     steps++
 
     // 发送 progress 事件
-    onEvent?.({ type: "progress", agentId, text: `Step ${steps}/${maxSteps}` })
+    const progressText = maxSteps === Infinity ? `Step ${steps}` : `Step ${steps}/${maxSteps}`
+    onEvent?.({ type: "progress", agentId, text: progressText })
 
     const response = await client.complete({
       model: agent.model || model,

@@ -29,6 +29,7 @@ export interface AgentShellProps {
   tokenTotal: number
   version: string
   todoProgress?: string
+  permissionMode?: string
   subagentStatus?: SubAgentStatus
   viewingAgentId?: string  // 当前查看的 Agent ID，undefined 表示主 Agent
   permissionModal?: PermissionModalState
@@ -66,6 +67,7 @@ export function AgentShell({
   tokenTotal,
   version,
   todoProgress,
+  permissionMode,
   subagentStatus,
   viewingAgentId,
   permissionModal,
@@ -130,6 +132,7 @@ export function AgentShell({
         agent={isViewingSubAgent ? viewingAgentId : agentId}
         version={version}
         todoProgress={todoProgress}
+        permissionMode={permissionMode}
       />
     </Box>
   )

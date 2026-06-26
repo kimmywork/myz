@@ -121,6 +121,7 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommandDef[] = [
   { name: "clear", description: "新建会话" },
   { name: "agents", description: "列出/切换 agent，查看 SubAgent 历史" },
   { name: "model", description: "查看/切换模型" },
+  { name: "permission", description: "查看/切换权限模式" },
   { name: "fork", description: "分叉当前会话" },
   { name: "resume", description: "恢复旧会话" },
   { name: "tools", description: "列出可用工具" },
@@ -269,7 +270,21 @@ export function InputBar({
 
   return (
     <Box ref={inputRef} width={columns} flexDirection="column" flexShrink={0}>
-      {/* 命令提示列表 */}
+      {/* 输入框 */}
+      {visibleLines.map((line, index) => {
+        const isFirstVisibleLine = viewportStart + index === 0
+        const cursorOnLine = cursorVisibleRow === index
+        const showPlaceholder = value.length === 0 && cursorOnLine
+
+        return (
+          <Box key={`${line.start}-${index}`} width={columns}>
+            {isFirstVisibleLine ? <Text color="cyan" bold>{prompt}</Text> : <Text>{" ".repeat(promptWidth)}</Text>}
+            <Text>{showPlaceholder ? <Text dimColor>{placeholder}</Text> : (line.text || " ")}</Text>
+          </Box>
+        )
+      })}
+
+      {/* 命令提示列表 - 输入框下方 */}
       {showCommands && matchingCommands.length > 0 && (
         <Box flexDirection="column" borderStyle="single" paddingLeft={1} paddingRight={1}>
           {matchingCommands.slice(0, 5).map((cmd, index) => (
@@ -286,20 +301,6 @@ export function InputBar({
           <Text dimColor>  Tab/Enter to select, Escape to cancel</Text>
         </Box>
       )}
-
-      {/* 输入框 */}
-      {visibleLines.map((line, index) => {
-        const isFirstVisibleLine = viewportStart + index === 0
-        const cursorOnLine = cursorVisibleRow === index
-        const showPlaceholder = value.length === 0 && cursorOnLine
-
-        return (
-          <Box key={`${line.start}-${index}`} width={columns}>
-            {isFirstVisibleLine ? <Text color="cyan" bold>{prompt}</Text> : <Text>{" ".repeat(promptWidth)}</Text>}
-            <Text>{showPlaceholder ? <Text dimColor>{placeholder}</Text> : (line.text || " ")}</Text>
-          </Box>
-        )
-      })}
     </Box>
   )
 }

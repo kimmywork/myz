@@ -469,6 +469,7 @@ program
           tokenTotal,
           version: "0.2.0",
           todoProgress,
+          permissionMode: runtime.permissionMode,
           subagentStatus,
           viewingAgentId,
           permissionModal,

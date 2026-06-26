@@ -124,6 +124,9 @@ export interface CommandContext {
   getSessionTokens: () => { used: number; total: number }
   compactSession: () => Promise<{ compressed: boolean; summary: string; messageCount: number }> | { compressed: boolean; summary: string; messageCount: number }
   clearSession: () => void
+  // 权限模式
+  getPermissionMode: () => "readonly" | "acceptEdits" | "auto" | "bypass"
+  setPermissionMode: (mode: "readonly" | "acceptEdits" | "auto" | "bypass") => void
   // SubAgent 相关
   listActiveSubAgents: () => Array<{ agentId: string; task: string; status: string }>
   viewSubAgent: (agentId: string) => void

@@ -89,6 +89,7 @@ export function loadBuiltinAgentDefinitions(): AgentDefinition[] {
       mode: "subagent",
       hidden: true,
       tools: ["List", "Read", "Glob", "Grep"],
+      maxSteps: 0,  // 无限制（只读操作）
       permissions: [
         { pattern: "read", action: "allow" },
         { pattern: "edit", action: "deny" },

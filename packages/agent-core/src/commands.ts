@@ -144,6 +144,38 @@ export function createCommands(): SlashCommand[] {
       },
     },
     {
+      name: "permission",
+      description: "查看/切换权限模式",
+      handler: (args, ctx) => {
+        const modes = ["readonly", "acceptEdits", "auto", "bypass"]
+        const descriptions: Record<string, string> = {
+          readonly: "只读（Read, List, Glob, Grep）",
+          acceptEdits: "允许编辑（Read, Write, Edit, Run）",
+          auto: "自动判断（LLM 决定）",
+          bypass: "直接允许所有操作",
+        }
+
+        if (args.length === 0) {
+          const current = ctx.getPermissionMode()
+          const lines = [
+            `当前权限模式: ${current}`,
+            `说明: ${descriptions[current]}`,
+            "",
+            "可用模式：",
+            ...modes.map((m) => `  ${m === current ? "●" : "○"} ${m} — ${descriptions[m]}`),
+            "",
+            "用法：/permission <mode> 切换",
+          ]
+          return lines.join("\n")
+        }
+
+        const target = args[0]
+        if (!modes.includes(target)) return `未知权限模式: ${target}`
+        ctx.setPermissionMode(target as "readonly" | "acceptEdits" | "auto" | "bypass")
+        return `已切换到权限模式: ${target}`
+      },
+    },
+    {
       name: "fork",
       description: "分叉当前会话",
       handler: (_args, ctx) => {

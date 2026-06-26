@@ -10,6 +10,7 @@ export interface StatusBarProps {
   agent: string
   version: string
   todoProgress?: string  // 格式: "3/5" 或 "3/5 | Task: xxx"
+  permissionMode?: string  // 权限模式
 }
 
 function fitStart(value: string, maxWidth: number) {
@@ -42,7 +43,8 @@ export function __formatStatusLineForTest(props: StatusBarProps, columns: number
   const pct = props.tokenTotal > 0 ? Math.round((props.tokenUsed / props.tokenTotal) * 100) : 0
   const tokenBar = `${props.tokenUsed}/${props.tokenTotal} (${pct}%)`
   const todoStr = props.todoProgress ? `  ${props.todoProgress}` : ""
-  const right = `${fitStart(props.model, Math.max(8, Math.floor(columns * 0.28)))}  ${tokenBar}  ${props.agent}  ${props.version}${todoStr}`
+  const permStr = props.permissionMode ? `  [${props.permissionMode}]` : ""
+  const right = `${fitStart(props.model, Math.max(8, Math.floor(columns * 0.28)))}  ${tokenBar}  ${props.agent}  ${props.version}${todoStr}${permStr}`
   const available = Math.max(0, columns - 4)
 
   if (stringWidth(right) >= available) {
