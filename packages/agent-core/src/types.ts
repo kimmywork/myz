@@ -75,7 +75,7 @@ export interface AgentEvent {
 export interface AgentResult {
   content: string
   toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }>
-  usage?: { promptTokens: number; completionTokens: number; totalTokens: number }
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number; cachedTokens?: number }
   steps: number
 }
 

@@ -26,7 +26,7 @@ export interface AgentRuntime {
   currentAgentId: string
   sessionId: string
   messages: Message[]
-  tokenUsed: number
+  tokenUsage: TokenUsage
   tokenTotal: number
   todoState: TodoState
   permissionLevels: PermissionLevel
@@ -61,8 +61,24 @@ function createClientForCurrentModel(config: AgentConfig): LLMClient {
   })
 }
 
-function estimateMessageTokens(messages: Message[]) {
-  return messages.reduce((sum, message) => sum + Math.ceil(message.content.length / 4) + 4, 0)
+// --- Token tracking ---
+
+interface TokenUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  cachedTokens: number
+}
+
+function createEmptyTokenUsage(): TokenUsage {
+  return { promptTokens: 0, completionTokens: 0, totalTokens: 0, cachedTokens: 0 }
+}
+
+function addTokenUsage(target: TokenUsage, source: { promptTokens?: number; completionTokens?: number; totalTokens?: number; cachedTokens?: number }): void {
+  target.promptTokens += source.promptTokens || 0
+  target.completionTokens += source.completionTokens || 0
+  target.totalTokens += source.totalTokens || 0
+  target.cachedTokens += source.cachedTokens || 0
 }
 
 function buildSystemPrompt(agentId: string, config: AgentConfig, todoState: TodoState, permissionMode: PermissionMode): string {
@@ -240,7 +256,7 @@ export function createRuntime(options: {
     currentAgentId: "build",
     sessionId: createSessionId(),
     messages: [],
-    tokenUsed: 0,
+    tokenUsage: createEmptyTokenUsage(),
     tokenTotal: resolved?.model.contextWindow || 0,
     todoState: loadTodoState(todoPath),
     permissionLevels: loadPermissions(permissionsPath),
@@ -302,7 +318,7 @@ export async function processUserInput(
           name: definition.name,
           description: definition.description,
         })),
-        getSessionTokens: () => ({ used: runtime.tokenUsed || estimateMessageTokens(runtime.messages), total: runtime.tokenTotal }),
+        getSessionTokens: () => ({ used: runtime.tokenUsage.totalTokens, total: runtime.tokenTotal }),
         compactSession: async () => {
           const systemPrompt = buildSystemPrompt(runtime.currentAgentId, runtime.config, runtime.todoState, runtime.permissionMode)
           const resolved = resolveModel(runtime.config)
@@ -326,7 +342,7 @@ export async function processUserInput(
             messageCount: runtime.messages.length,
           }
         },
-        clearSession: () => { runtime.messages = []; runtime.sessionId = createSessionId(); runtime.tokenUsed = 0 },
+        clearSession: () => { runtime.messages = []; runtime.sessionId = createSessionId(); runtime.tokenUsage = createEmptyTokenUsage() },
       }
       return (await handler.handler(cmd.args, ctx)) || ""
     }
@@ -386,8 +402,10 @@ export async function processUserInput(
     },
   })
 
-  if (result.usage?.totalTokens) runtime.tokenUsed = result.usage.totalTokens
-  else runtime.tokenUsed = estimateMessageTokens(runtime.messages)
+  // 更新 token 统计
+  if (result.usage) {
+    addTokenUsage(runtime.tokenUsage, result.usage)
+  }
   runtime.tokenTotal = resolved?.model.contextWindow || runtime.tokenTotal
 
   if (result.content) runtime.messages.push({ role: "assistant", content: result.content })

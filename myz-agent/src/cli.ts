@@ -303,7 +303,7 @@ program
       const App = () => {
         const [entries, setEntries] = React.useState<ChatEntry[]>(sessionHistory)
         const [status, setStatus] = React.useState<"idle" | "thinking" | "tool" | "sending">("idle")
-        const [tokenUsed, setTokenUsed] = React.useState(runtime.tokenUsed)
+        const [tokenUsed, setTokenUsed] = React.useState(runtime.tokenUsage.totalTokens)
         const [tokenTotal, setTokenTotal] = React.useState(runtime.tokenTotal)
         const [currentModel, setCurrentModel] = React.useState(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
         const [todoProgress, setTodoProgress] = React.useState(() => getActiveTodosSummary(runtime.todoState))
@@ -384,7 +384,7 @@ program
           if (text === "/clear") {
             await processUserInput(runtime, text)
             setEntries([])
-            setTokenUsed(runtime.tokenUsed)
+            setTokenUsed(runtime.tokenUsage.totalTokens)
             setTokenTotal(runtime.tokenTotal)
             setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
             return
@@ -404,7 +404,7 @@ program
               onStreamDelta: updateStream,
             })
             finishTurnRef.current?.(result)
-            setTokenUsed(runtime.tokenUsed)
+            setTokenUsed(runtime.tokenUsage.totalTokens)
             setTokenTotal(runtime.tokenTotal)
             setCurrentModel(`${runtime.config.defaults.provider}/${runtime.config.defaults.model}`)
             setTodoProgress(getActiveTodosSummary(runtime.todoState))

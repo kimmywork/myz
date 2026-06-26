@@ -20,7 +20,7 @@ export interface AgentLoopOptions {
   callLLM: (messages: Message[]) => Promise<{
     content: string
     toolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown> }>
-    usage?: { promptTokens: number; completionTokens: number; totalTokens: number }
+    usage?: { promptTokens: number; completionTokens: number; totalTokens: number; cachedTokens?: number }
   }>
 }
 
@@ -73,13 +73,19 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentResu
   const allToolCalls: AgentResult["toolCalls"] = []
   let steps = 0
   const maxSteps = agent.maxSteps || 50
-  let lastUsage: AgentResult["usage"]
+  const totalUsage: AgentResult["usage"] = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
 
   while (steps < maxSteps) {
     steps++
 
     const response = await callLLM(messages)
-    lastUsage = response.usage
+    
+    // 累加 usage
+    if (response.usage) {
+      totalUsage.promptTokens += response.usage.promptTokens || 0
+      totalUsage.completionTokens += response.usage.completionTokens || 0
+      totalUsage.totalTokens += response.usage.totalTokens || 0
+    }
 
     if (response.toolCalls && response.toolCalls.length > 0) {
       const assistantMsg = createAssistantMessage(response.content, response.toolCalls)
@@ -171,7 +177,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentResu
       return {
         content: response.content,
         toolCalls: allToolCalls,
-        usage: lastUsage,
+        usage: totalUsage,
         steps,
       }
     }
@@ -185,7 +191,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentResu
   return {
     content: "",
     toolCalls: allToolCalls,
-    usage: lastUsage,
+    usage: totalUsage,
     steps,
   }
 }
