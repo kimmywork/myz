@@ -1,8 +1,3 @@
-import type {
-  AIModelSetting,
-  AIProviderSetting,
-  MaxOutputTokenParam,
-} from "../settings"
 import { normalizeMessagePayload } from "../normalize/message"
 import { PromptBuilder } from "../prompt/builder"
 import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt"
@@ -10,6 +5,11 @@ import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
 } from "../providers/types"
+import type {
+  AIModelSetting,
+  AIProviderSetting,
+  MaxOutputTokenParam,
+} from "../settings"
 
 export interface ConversationTitleAgentDeps {
   client: ChatCompletionClient

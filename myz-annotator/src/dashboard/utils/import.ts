@@ -5,17 +5,10 @@ import { type MyZRecord, RECORD_KINDS } from "@/shared/types.ts";
 const IMPORTED_TAG = "imported";
 
 export type ImportFileFormat =
-  | "json"
-  | "raindrop"
-  | "chrome-bookmarks"
-  | "weava";
+  "json" | "raindrop" | "chrome-bookmarks" | "weava";
 
 export type ImportSource =
-  | "auto"
-  | "myz-json"
-  | "raindrop-csv"
-  | "chrome-bookmarks"
-  | "weava-csv";
+  "auto" | "myz-json" | "raindrop-csv" | "chrome-bookmarks" | "weava-csv";
 
 const ImportStructureSchema = z.union([
   z.array(z.unknown()),
@@ -27,9 +20,7 @@ const ImportStructureSchema = z.union([
 
 export function normalizeImportedPayload(
   payload:
-    | MyZRecord[]
-    | { highlights?: MyZRecord[]; data?: MyZRecord[] }
-    | unknown,
+    MyZRecord[] | { highlights?: MyZRecord[]; data?: MyZRecord[] } | unknown,
 ): MyZRecord[] {
   const result = ImportStructureSchema.safeParse(payload);
 
@@ -391,9 +382,7 @@ function parseChromeBookmarksHtml(text: string): MyZRecord[] {
       };
       return record;
     })
-    .filter(
-      (record): record is NonNullable<typeof record> => record !== null,
-    )
+    .filter((record): record is NonNullable<typeof record> => record !== null)
     .map((record) => normalizeRecord(record))
     .filter((record): record is MyZRecord => record !== null);
 }

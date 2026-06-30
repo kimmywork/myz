@@ -2,3 +2,6 @@
 workflow/video-pipeline/output/
 
 node_modules
+
+# monorepo: only root lock file is needed
+*/package-lock.json

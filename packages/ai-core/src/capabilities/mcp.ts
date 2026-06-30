@@ -1,4 +1,5 @@
 import { McpClient } from "@myz/ai-core/mcp"
+import { isRecord } from "@myz/shared/typeUtils"
 import type { McpServerSetting } from "../settings"
 import {
   executeToolCall,
@@ -9,7 +10,6 @@ import {
   type ToolWithServer,
 } from "../tools/registry"
 import type { ToolExecutionResult } from "../types"
-import { isRecord } from "@myz/shared/typeUtils"
 
 export interface McpCapabilityOptions {
   getServers: () => McpServerSetting[]

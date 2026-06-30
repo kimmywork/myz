@@ -1,8 +1,8 @@
-import type { AgentDefinition, AgentResult, ToolDefinition, ToolHandler, ToolResult } from "./types"
 import type { Message, LLMClient } from "@myz/agent-providers"
-import type { AgentConfig } from "./types"
 import { loadAgentDefinitions, loadBuiltinAgentDefinitions } from "./agents"
 import { matchPermission } from "./permissions"
+import type { AgentConfig } from "./types"
+import type { AgentDefinition, AgentResult, ToolDefinition, ToolHandler, ToolResult } from "./types"
 
 export interface SubagentSpawnOptions {
   agentId: string

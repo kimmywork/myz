@@ -1,6 +1,5 @@
 import { defineComponent, computed, ref, watch } from "vue";
 import type { PropType } from "vue";
-import ToggleSwitch from "./ToggleSwitch";
 import AiHeadersEditor from "./AiHeadersEditor";
 import AiModelListEditor from "./AiModelListEditor";
 import {
@@ -10,6 +9,7 @@ import {
   OPENAI_COMPATIBLE_PROFILE_OPTIONS,
   PROVIDER_TYPE_OPTIONS,
 } from "./providerCatalog";
+import ToggleSwitch from "./ToggleSwitch";
 import type {
   AIModelSetting,
   AIProviderSetting,

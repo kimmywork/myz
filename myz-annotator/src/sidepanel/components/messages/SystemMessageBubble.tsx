@@ -16,7 +16,7 @@ export default defineComponent({
   props: {
     message: {
       type: Object,
-      required: true,
+      required: false,
       default: () => ({}),
     },
   },

@@ -1,117 +1,81 @@
 import { defineConfig } from "eslint/config";
 import { includeIgnoreFile } from "@eslint/compat";
 import { fileURLToPath } from "node:url";
-import js from "@eslint/js";
-import tseslint from "@typescript-eslint/eslint-plugin";
-import tsParser from "@typescript-eslint/parser";
-import importPlugin from "eslint-plugin-import";
-import jsdoc from "eslint-plugin-jsdoc";
-import unicorn from "eslint-plugin-unicorn";
-
 import pluginVue from "eslint-plugin-vue";
-import globals from "globals";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import globals from "globals";
+import { createBaseConfig } from "../eslint.config.base.js";
+
 const gitignorePath = fileURLToPath(new URL(".gitignore", import.meta.url));
+
+const baseConfigs = createBaseConfig({
+  tsconfigRootDir: import.meta.dirname,
+});
+
+// Add browser globals to base TS config
+for (const config of baseConfigs) {
+  if (config.files?.includes("**/*.ts")) {
+    config.languageOptions.globals = {
+      ...config.languageOptions.globals,
+      RequestCredentials: "readonly",
+      IDBTransactionMode: "readonly",
+      IDBValidKey: "readonly",
+      ParentNode: "readonly",
+      BlobPart: "readonly",
+      PointerEventInit: "readonly",
+      MouseEventInit: "readonly",
+      KeyboardEventInit: "readonly",
+      InputEventInit: "readonly",
+    };
+    // Also apply to JS files
+    config.files = ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"];
+    config.rules = {
+      ...config.rules,
+      "no-empty": ["error", { allowEmptyCatch: true }],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_|^error$|^e$|^event$|^tab$|^options$|^styles$",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_|^error$|^e$",
+        },
+      ],
+    };
+  }
+}
 
 export default defineConfig([
   eslintPluginPrettierRecommended,
   ...pluginVue.configs["flat/recommended"],
   includeIgnoreFile(gitignorePath, "Imported .gitignore patterns"),
+  ...baseConfigs,
+  // Test files need node globals
   {
-    // your overrides
-  },
-  {
-    files: [
-      "**/*.js",
-      "**/*.mjs",
-      "!dev/repro.js",
-      "*.jsx",
-      "**/*.jsx",
-      "!tests/**/*.js",
-    ],
-    plugins: {
-      js,
-    },
-    ...js.configs.recommended,
-    rules: {
-      "no-unused-vars": "warn",
-    },
+    files: ["**/*.test.ts", "**/*.spec.ts", "tests/**/*.ts"],
     languageOptions: {
-      sourceType: "module",
-      globals: {
-        ...globals.browser,
-        chrome: true,
-      },
-      parserOptions: {
-        ecmaVersion: 2025,
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
-  },
-  {
-    files: ["dev/**/*.js", "tests/**/*.js"],
-    plugins: {
-      js,
-    },
-    ...js.configs.recommended,
-    rules: {
-      "no-unused-vars": "warn",
-    },
-    languageOptions: {
-      sourceType: "module",
       globals: {
         ...globals.node,
         ...globals.jest,
+        global: "readonly",
       },
     },
   },
+  // Config and script files need node globals
   {
-    files: ["**/*.ts", "**/*.tsx"],
+    files: [
+      "**/*.config.ts",
+      "**/*.config.js",
+      "**/*.config.mjs",
+      "scripts/**/*.mjs",
+    ],
     languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        project: false,
-        ecmaVersion: "latest",
-        sourceType: "module",
-      },
       globals: {
-        ...globals.browser,
-        ...globals.webworker,
-        ...globals.es2021,
-        chrome: "readonly",
+        ...globals.node,
+        process: "readonly",
+        URL: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
       },
-    },
-    plugins: {
-      "@typescript-eslint": tseslint,
-      import: importPlugin,
-      jsdoc,
-      unicorn,
-    },
-    rules: {
-      "no-unused-vars": "off",
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-        },
-      ],
-      "unicorn/prefer-module": "off",
-      "import/order": [
-        "warn",
-        {
-          groups: [
-            ["builtin", "external"],
-            "internal",
-            "parent",
-            "sibling",
-            "index",
-          ],
-          alphabetize: { order: "asc", caseInsensitive: true },
-        },
-      ],
     },
   },
 ]);

@@ -1,3 +1,4 @@
+import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { isBuiltinSkill, listBuiltinSkillSeeds } from "./builtins.js";
 import {
   buildSkillInstruction,
@@ -12,111 +13,41 @@ import type {
   SkillMetadata,
 } from "./types.js";
 
-const DB_NAME = "MyZAgentSkillsDB";
-const DB_VERSION = 1;
-const SKILLS_STORE = "skills";
-const FILES_STORE = "skill_files";
-
-let dbPromise: Promise<IDBDatabase> | null = null;
-let builtinSeedPromise: Promise<void> | null = null;
-
-function openDb(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(SKILLS_STORE)) {
-        db.createObjectStore(SKILLS_STORE, { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains(FILES_STORE)) {
-        const store = db.createObjectStore(FILES_STORE, { keyPath: "key" });
-        store.createIndex("skillId", "skillId", { unique: false });
-      }
-    };
-  });
-  return dbPromise;
+interface SkillsDB extends DBSchema {
+  skills: {
+    key: string;
+    value: SkillMetadata;
+  };
+  skill_files: {
+    key: string;
+    value: SkillFileRecord & { key: string };
+    indexes: { "by-skillId": string };
+  };
 }
 
-async function ensureBuiltinSkills() {
-  if (builtinSeedPromise) {
-    return builtinSeedPromise;
-  }
-  const seeds = listBuiltinSkillSeeds();
-  if (!seeds.length) {
-    builtinSeedPromise = Promise.resolve();
-    return builtinSeedPromise;
-  }
-  builtinSeedPromise = (async () => {
-    const db = await openDb();
-    for (const seed of seeds) {
-      const existing = await new Promise<SkillMetadata | null>(
-        (resolve, reject) => {
-          const tx = db.transaction(SKILLS_STORE, "readonly");
-          const store = tx.objectStore(SKILLS_STORE);
-          const request = store.get(seed.id);
-          request.onsuccess = () =>
-            resolve((request.result as SkillMetadata) || null);
-          request.onerror = () => reject(request.error);
-        },
-      );
-      if (existing) {
-        continue;
-      }
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([SKILLS_STORE, FILES_STORE], "readwrite");
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-        const skillsStore = tx.objectStore(SKILLS_STORE);
-        const filesStore = tx.objectStore(FILES_STORE);
-        skillsStore.put(seed.record);
-        seed.files.forEach((file) => {
-          filesStore.put({
-            key: buildFileKey(seed.id, file.path),
-            skillId: seed.id,
-            path: file.path,
-            content: file.content,
-            encoding: file.encoding,
-            updatedAt: file.updatedAt,
-          });
-        });
-      });
-    }
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([SKILLS_STORE, FILES_STORE], "readwrite");
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      const skillsStore = tx.objectStore(SKILLS_STORE);
-      const filesStore = tx.objectStore(FILES_STORE);
-      const skillCursor = skillsStore.openCursor();
-      skillCursor.onsuccess = () => {
-        const cursor = skillCursor.result;
-        if (!cursor) return;
-        const record = cursor.value as SkillMetadata;
-        if (record?.builtin === true && !isBuiltinSkill(record.id)) {
-          const index = filesStore.index("skillId");
-          const fileCursor = index.openCursor(IDBKeyRange.only(record.id));
-          fileCursor.onsuccess = () => {
-            const item = fileCursor.result;
-            if (!item) {
-              cursor.delete();
-              cursor.continue();
-              return;
-            }
-            item.delete();
-            item.continue();
-          };
-          fileCursor.onerror = () => reject(fileCursor.error);
-          return;
+const DB_NAME = "MyZAgentSkillsDB";
+const DB_VERSION = 1;
+
+let dbPromise: Promise<IDBPDatabase<SkillsDB>> | null = null;
+let builtinSeedPromise: Promise<void> | null = null;
+
+function getDb(): Promise<IDBPDatabase<SkillsDB>> {
+  if (!dbPromise) {
+    dbPromise = openDB<SkillsDB>(DB_NAME, DB_VERSION, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains("skills")) {
+          db.createObjectStore("skills", { keyPath: "id" });
         }
-        cursor.continue();
-      };
-      skillCursor.onerror = () => reject(skillCursor.error);
+        if (!db.objectStoreNames.contains("skill_files")) {
+          const store = db.createObjectStore("skill_files", {
+            keyPath: "key",
+          });
+          store.createIndex("by-skillId", "skillId");
+        }
+      },
     });
-  })();
-  return builtinSeedPromise;
+  }
+  return dbPromise;
 }
 
 function buildFileKey(skillId: string, path: string) {
@@ -128,125 +59,73 @@ function normalizePath(path: string) {
   return raw.replace(/^[./]+/, "");
 }
 
-async function getSkillRecord(skillId: string): Promise<SkillMetadata | null> {
-  await ensureBuiltinSkills();
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(SKILLS_STORE, "readonly");
-    const store = tx.objectStore(SKILLS_STORE);
-    const request = store.get(skillId);
-    request.onsuccess = () => {
-      const record = (request.result as SkillMetadata) || null;
-      if (!record) {
-        resolve(null);
-        return;
+async function ensureBuiltinSkills() {
+  if (builtinSeedPromise) return builtinSeedPromise;
+
+  const seeds = listBuiltinSkillSeeds();
+  if (!seeds.length) {
+    builtinSeedPromise = Promise.resolve();
+    return builtinSeedPromise;
+  }
+
+  builtinSeedPromise = (async () => {
+    const db = await getDb();
+
+    // Seed missing builtin skills
+    for (const seed of seeds) {
+      const existing = await db.get("skills", seed.id);
+      if (existing) continue;
+
+      const tx = db.transaction(["skills", "skill_files"], "readwrite");
+      await tx.objectStore("skills").put(seed.record);
+      for (const file of seed.files) {
+        await tx.objectStore("skill_files").put({
+          key: buildFileKey(seed.id, file.path),
+          ...file,
+        });
       }
-      resolve(
-        isBuiltinSkill(record.id) ? { ...record, builtin: true } : record,
-      );
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
+      await tx.done;
+    }
 
-async function writeSkillRecord(record: SkillMetadata): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(SKILLS_STORE, "readwrite");
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    const store = tx.objectStore(SKILLS_STORE);
-    store.put(record);
-  });
-}
-
-async function deleteSkillFiles(skillId: string): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(FILES_STORE, "readwrite");
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    const store = tx.objectStore(FILES_STORE);
-    const index = store.index("skillId");
-    const cursorRequest = index.openCursor(IDBKeyRange.only(skillId));
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (cursor) {
-        cursor.delete();
-        cursor.continue();
+    // Cleanup stale builtin skills (ones that no longer exist in code)
+    const allSkills = await db.getAll("skills");
+    const tx = db.transaction(["skills", "skill_files"], "readwrite");
+    for (const skill of allSkills) {
+      if (skill.builtin && !isBuiltinSkill(skill.id)) {
+        await tx.objectStore("skills").delete(skill.id);
+        const files = await tx
+          .objectStore("skill_files")
+          .index("by-skillId")
+          .getAll(skill.id);
+        for (const file of files) {
+          await tx.objectStore("skill_files").delete(file.key);
+        }
       }
-    };
-    cursorRequest.onerror = () => reject(cursorRequest.error);
-  });
-}
+    }
+    await tx.done;
+  })();
 
-async function upsertSkillFiles(
-  skillId: string,
-  files: Array<SkillFileRecord>,
-): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(FILES_STORE, "readwrite");
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    const store = tx.objectStore(FILES_STORE);
-    files.forEach((file) => {
-      store.put({
-        key: buildFileKey(skillId, file.path),
-        skillId,
-        path: file.path,
-        content: file.content,
-        encoding: file.encoding,
-        updatedAt: file.updatedAt,
-      });
-    });
-  });
+  return builtinSeedPromise;
 }
 
 export async function listSkills(): Promise<SkillMetadata[]> {
   await ensureBuiltinSkills();
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(SKILLS_STORE, "readonly");
-    const store = tx.objectStore(SKILLS_STORE);
-    const request = store.getAll();
-    request.onsuccess = () => {
-      const result = (request.result as SkillMetadata[]) || [];
-      const normalized = result.map((item) =>
-        isBuiltinSkill(item.id) ? { ...item, builtin: true } : item,
-      );
-      resolve(normalized.sort((a, b) => a.name.localeCompare(b.name)));
-    };
-    request.onerror = () => reject(request.error);
-  });
+  const db = await getDb();
+  const skills = await db.getAll("skills");
+  return skills
+    .map((s) => (isBuiltinSkill(s.id) ? { ...s, builtin: true } : s))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function listSkillFiles(
   skillId: string,
 ): Promise<SkillFileRecord[]> {
   await ensureBuiltinSkills();
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(FILES_STORE, "readonly");
-    const store = tx.objectStore(FILES_STORE);
-    const index = store.index("skillId");
-    const request = index.getAll(IDBKeyRange.only(skillId));
-    request.onsuccess = () => {
-      const result = (request.result as SkillFileRecord[]) || [];
-      resolve(
-        result
-          .map((file) => ({
-            skillId: file.skillId,
-            path: file.path,
-            content: file.content,
-            encoding: file.encoding,
-            updatedAt: file.updatedAt,
-          }))
-          .sort((a, b) => a.path.localeCompare(b.path)),
-      );
-    };
-    request.onerror = () => reject(request.error);
-  });
+  const db = await getDb();
+  const files = await db.getAllFromIndex("skill_files", "by-skillId", skillId);
+  return files
+    .map(({ key: _, ...rest }) => rest)
+    .sort((a, b) => a.path.localeCompare(b.path));
 }
 
 export async function getSkillFile(
@@ -254,28 +133,23 @@ export async function getSkillFile(
   path: string,
 ): Promise<SkillFileRecord | null> {
   await ensureBuiltinSkills();
-  const db = await openDb();
+  const db = await getDb();
   const normalizedPath = normalizePath(path);
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(FILES_STORE, "readonly");
-    const store = tx.objectStore(FILES_STORE);
-    const request = store.get(buildFileKey(skillId, normalizedPath));
-    request.onsuccess = () => {
-      const result = request.result;
-      resolve(
-        result
-          ? {
-              skillId: result.skillId,
-              path: result.path,
-              content: result.content,
-              encoding: result.encoding,
-              updatedAt: result.updatedAt,
-            }
-          : null,
-      );
-    };
-    request.onerror = () => reject(request.error);
-  });
+  const file = await db.get(
+    "skill_files",
+    buildFileKey(skillId, normalizedPath),
+  );
+  if (!file) return null;
+  const { key: _, ...rest } = file;
+  return rest;
+}
+
+async function getSkillRecord(skillId: string): Promise<SkillMetadata | null> {
+  await ensureBuiltinSkills();
+  const db = await getDb();
+  const record = await db.get("skills", skillId);
+  if (!record) return null;
+  return isBuiltinSkill(record.id) ? { ...record, builtin: true } : record;
 }
 
 export async function importSkill(
@@ -318,11 +192,7 @@ export async function importSkill(
   const now = new Date().toISOString();
   const existing = await getSkillRecord(name);
   const record = buildSkillMetadata(
-    {
-      ...frontmatter,
-      name,
-      description,
-    },
+    { ...frontmatter, name, description },
     now,
     existing,
   );
@@ -336,9 +206,25 @@ export async function importSkill(
   }));
   record.fileCount = fileRecords.length;
 
-  await writeSkillRecord(record);
-  await deleteSkillFiles(name);
-  await upsertSkillFiles(name, fileRecords);
+  const db = await getDb();
+  const tx = db.transaction(["skills", "skill_files"], "readwrite");
+  await tx.objectStore("skills").put(record);
+  // Delete old files first
+  const oldFiles = await tx
+    .objectStore("skill_files")
+    .index("by-skillId")
+    .getAll(name);
+  for (const f of oldFiles) {
+    await tx.objectStore("skill_files").delete(f.key);
+  }
+  // Insert new files
+  for (const file of fileRecords) {
+    await tx.objectStore("skill_files").put({
+      key: buildFileKey(name, file.path),
+      ...file,
+    });
+  }
+  await tx.done;
 
   return { skill: record };
 }
@@ -353,7 +239,8 @@ export async function updateSkillEnabled(skillId: string, enabled: boolean) {
     enabled: Boolean(enabled),
     updatedAt: new Date().toISOString(),
   };
-  await writeSkillRecord(next);
+  const db = await getDb();
+  await db.put("skills", next);
   return next;
 }
 
@@ -361,15 +248,17 @@ export async function deleteSkill(skillId: string) {
   if (isBuiltinSkill(skillId)) {
     throw new Error("内置 Skill 不允许删除");
   }
-  const db = await openDb();
-  await deleteSkillFiles(skillId);
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(SKILLS_STORE, "readwrite");
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    const store = tx.objectStore(SKILLS_STORE);
-    store.delete(skillId);
-  });
+  const db = await getDb();
+  const tx = db.transaction(["skills", "skill_files"], "readwrite");
+  await tx.objectStore("skills").delete(skillId);
+  const files = await tx
+    .objectStore("skill_files")
+    .index("by-skillId")
+    .getAll(skillId);
+  for (const file of files) {
+    await tx.objectStore("skill_files").delete(file.key);
+  }
+  await tx.done;
 }
 
 export async function updateSkillFile(
@@ -390,7 +279,7 @@ export async function updateSkillFile(
   let recordToUpdate = existing;
 
   if (normalizedPath === "SKILL.md" && encoding === "utf-8") {
-    const { frontmatter, body, error } = splitSkillMarkdown(content);
+    const { frontmatter, error } = splitSkillMarkdown(content);
     if (error || !frontmatter) {
       throw new Error("无法解析 SKILL.md 的 YAML frontmatter");
     }
@@ -402,42 +291,30 @@ export async function updateSkillFile(
       throw new Error("SKILL.md name 不允许修改");
     }
     const nextRecord = buildSkillMetadata(
-      {
-        ...frontmatter,
-        name,
-        description,
-      },
+      { ...frontmatter, name, description },
       now,
       existing,
     );
     nextRecord.enabled = existing.enabled;
     nextRecord.createdAt = existing.createdAt;
     nextRecord.fileCount = existing.fileCount;
-    await writeSkillRecord(nextRecord);
     recordToUpdate = nextRecord;
-    void body;
   }
 
-  const db = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(FILES_STORE, "readwrite");
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    const store = tx.objectStore(FILES_STORE);
-    store.put({
-      key: buildFileKey(skillId, normalizedPath),
-      skillId,
-      path: normalizedPath,
-      content,
-      encoding,
-      updatedAt: now,
-    });
+  const db = await getDb();
+  await db.put("skill_files", {
+    key: buildFileKey(skillId, normalizedPath),
+    skillId,
+    path: normalizedPath,
+    content,
+    encoding,
+    updatedAt: now,
   });
 
   const files = await listSkillFiles(skillId);
   const shouldUpdateCount = files.length !== recordToUpdate.fileCount;
   if (shouldUpdateCount || recordToUpdate.updatedAt !== now) {
-    await writeSkillRecord({
+    await db.put("skills", {
       ...recordToUpdate,
       fileCount: files.length,
       updatedAt: now,
@@ -459,6 +336,5 @@ export async function getSkillInstruction(
     typeof frontmatter?.description === "string"
       ? frontmatter.description.trim()
       : record.description;
-  const normalizedRecord = { ...record, description };
-  return buildSkillInstruction(normalizedRecord, body || "");
+  return buildSkillInstruction({ ...record, description }, body || "");
 }

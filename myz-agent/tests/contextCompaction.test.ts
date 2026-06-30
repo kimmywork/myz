@@ -1,7 +1,7 @@
-import { test } from "node:test"
-import assert from "node:assert/strict"
 import { compactContext } from "@myz/agent-core"
 import type { Message } from "@myz/agent-providers"
+import assert from "node:assert/strict"
+import { test } from "node:test"
 
 function makeUser(content: string): Message {
   return { role: "user", content }

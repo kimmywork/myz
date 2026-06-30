@@ -1,15 +1,16 @@
+import { isRecord } from "@myz/shared/typeUtils";
 import { readSettings } from "../../storage.js";
 import { SkillSelectionAgent } from "../agents/skillSelectionAgent.js";
 import { ToolSelectionAgent } from "../agents/toolSelectionAgent.js";
 import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js";
-import { resolveAgentTarget } from "../runtime/agentSelection.js";
-import { createProviderSession } from "../runtime/providerSession.js";
-import { getSkillFile, listSkillFiles, listSkills } from "../skills/storage.js";
 import type {
   ProviderChatCompletionRequest,
   ProviderMessage,
   ProviderToolCall,
 } from "../providers/types.js";
+import { resolveAgentTarget } from "../runtime/agentSelection.js";
+import { createProviderSession } from "../runtime/providerSession.js";
+import { getSkillFile, listSkillFiles, listSkills } from "../skills/storage.js";
 import {
   completeAllTasks,
   getTaskPlan,
@@ -25,12 +26,11 @@ import type {
   TaskPriority,
   TaskStatus,
 } from "../tasks/taskManager.js";
+import type { ToolExecutionResult } from "../types.js";
 import { listFiles, readFile, writeFile } from "../vfs.js";
 import type { VirtualFileRecord } from "../vfs.js";
 import { executeSandboxedCode } from "./codeExecution.js";
 import { LOCAL_TOOL_DEFINITIONS } from "./localDefinitions.js";
-import type { ToolExecutionResult } from "../types.js";
-import { isRecord } from "@myz/shared/typeUtils";
 
 function normalizeLimit(value: unknown, fallback = 20, max = 50): number {
   if (typeof value !== "number") return fallback;
@@ -60,13 +60,7 @@ function normalizeTaskAction(value: unknown) {
     init_plan: "init",
   };
   const mapped = aliases[normalized] || normalized;
-  const allowed = new Set([
-    "init",
-    "update",
-    "get",
-    "list",
-    "complete_all",
-  ]);
+  const allowed = new Set(["init", "update", "get", "list", "complete_all"]);
   return allowed.has(mapped) ? mapped : "";
 }
 
@@ -173,8 +167,7 @@ function resolveCompatTaskPayload(payload: unknown) {
   );
   const taskId = normalizeCompatText(source.task_id || source.taskId);
   const command = normalizeCompatText(source.command);
-  const model =
-    isRecord(source.model) ? source.model : null;
+  const model = isRecord(source.model) ? source.model : null;
   const managementSignals = [
     source.taskId,
     source.status,
@@ -585,7 +578,9 @@ const LOCAL_TOOL_HANDLERS: Record<
 
       const resp = await requestSearchResultsFromTab({ tabId, engine, limit });
       const payload = isRecord(resp)
-        ? (isRecord(resp.data) ? resp.data : resp)
+        ? isRecord(resp.data)
+          ? resp.data
+          : resp
         : {};
       const results =
         isRecord(payload) && Array.isArray(payload.results)
@@ -682,7 +677,9 @@ const LOCAL_TOOL_HANDLERS: Record<
       const timeoutMs =
         typeof args.timeoutMs === "number" ? args.timeoutMs : undefined;
       const maxResultChars =
-        typeof args.maxResultChars === "number" ? args.maxResultChars : undefined;
+        typeof args.maxResultChars === "number"
+          ? args.maxResultChars
+          : undefined;
       const result = await executeSandboxedCode({
         code,
         timeoutMs,
@@ -1255,8 +1252,6 @@ const LOCAL_TOOL_HANDLERS: Record<
       } else if (
         typeof payload.status === "string" ||
         typeof payload.currentTaskId === "string" ||
-        typeof payload.summary === "string" ||
-        typeof payload.outcome === "string" ||
         typeof payload.note === "string" ||
         (payload.patch && typeof payload.patch === "object")
       ) {
@@ -1347,14 +1342,19 @@ const LOCAL_TOOL_HANDLERS: Record<
           typeof payload.currentTaskId === "string"
             ? payload.currentTaskId.trim()
             : undefined,
-        goal: typeof payload.goal === "string" ? payload.goal.trim() : undefined,
+        goal:
+          typeof payload.goal === "string" ? payload.goal.trim() : undefined,
         assumptions: Array.isArray(payload.assumptions)
           ? payload.assumptions
           : undefined,
         summary:
-          typeof payload.summary === "string" ? payload.summary.trim() : undefined,
+          typeof payload.summary === "string"
+            ? payload.summary.trim()
+            : undefined,
         outcome:
-          typeof payload.outcome === "string" ? payload.outcome.trim() : undefined,
+          typeof payload.outcome === "string"
+            ? payload.outcome.trim()
+            : undefined,
       });
       const contentText = appendToolData("计划状态已更新。", plan, 6000);
       return { content: [{ type: "text", text: contentText }], data: plan };
@@ -1412,9 +1412,13 @@ const LOCAL_TOOL_HANDLERS: Record<
       const plan = await completeAllTasks({
         conversationId,
         summary:
-          typeof payload.summary === "string" ? payload.summary.trim() : undefined,
+          typeof payload.summary === "string"
+            ? payload.summary.trim()
+            : undefined,
         outcome:
-          typeof payload.outcome === "string" ? payload.outcome.trim() : undefined,
+          typeof payload.outcome === "string"
+            ? payload.outcome.trim()
+            : undefined,
       });
       const contentText = appendToolData("所有任务已标记完成。", plan, 6000);
       return { content: [{ type: "text", text: contentText }], data: plan };
@@ -1486,7 +1490,8 @@ const LOCAL_TOOL_HANDLERS: Record<
       const toolCandidates = rawTools.map((tool) => ({
         name: tool.name,
         description: tool.description || "",
-        server: isRecord(tool) && typeof tool.server === "string" ? tool.server : "",
+        server:
+          isRecord(tool) && typeof tool.server === "string" ? tool.server : "",
       }));
 
       let selectedTools: string[] = [];
@@ -2148,8 +2153,7 @@ const LOCAL_TOOL_HANDLERS: Record<
           } catch (error: unknown) {
             return {
               ok: false,
-              error:
-                (error instanceof Error && error.message) || String(error),
+              error: (error instanceof Error && error.message) || String(error),
             };
           }
         },

@@ -1,6 +1,6 @@
+import { type MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared"
 import { computed, defineComponent, ref } from "vue"
 import type { PropType } from "vue"
-import { type MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared"
 import {
   getKindLabel,
   getSocialBadgeLabel,

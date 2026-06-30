@@ -1,6 +1,6 @@
+import { type MyZRecord } from "@myz/shared"
 import { defineComponent } from "vue"
 import type { PropType } from "vue"
-import { type MyZRecord } from "@myz/shared"
 import HighlightCard from "./HighlightCard"
 import HighlightListRow from "./HighlightListRow"
 import type { HighlightGroupSection, HighlightItemAction } from "./highlightMeta"

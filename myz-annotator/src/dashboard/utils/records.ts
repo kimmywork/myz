@@ -8,8 +8,8 @@ import {
   getRecordKind,
   resolveRecordContentType,
 } from "@/shared/types.ts";
-import { extractHostname } from "@/shared/url.js";
 import { isRecord } from "@/shared/typeUtils";
+import { extractHostname } from "@/shared/url.js";
 
 export type PageSortMode = "time" | "range";
 

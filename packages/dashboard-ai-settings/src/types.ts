@@ -179,22 +179,6 @@ export interface AIAgentsSettings {
   autoHighlight: AutoHighlightAgentConfig
 }
 
-export interface VectorSearchLastTestStatus {
-  ok: boolean
-  message: string
-  testedAt: string
-  providerId: string
-  modelId: string
-  model: string
-}
-
-export interface VectorSettings {
-  enabled: boolean
-  target: AIAgentModelRef | null
-  lastTest: VectorSearchLastTestStatus | null
-  matchThreshold: number
-}
-
 export interface McpServerSetting {
   id: string
   name: string
@@ -248,7 +232,6 @@ export interface DesktopStoredSettings {
   aiMcpServers: McpServerSetting[]
   aiLocalTools: AILocalToolsSettings
   aiSkills: AISkillsSettings
-  vectorSearch: VectorSettings
   socialImport: SocialImportSettings
   desktopAgent: DesktopAgentSettings
 }
@@ -297,7 +280,7 @@ export function createDefaultSyncSettings(): SyncSettings {
       accessKeyId: "",
       secretAccessKey: "",
       sessionToken: "",
-      prefix: "myz-desktop",
+      prefix: "myz",
     },
   }
 }
@@ -349,12 +332,6 @@ export function createDefaultDesktopStoredSettings(): DesktopStoredSettings {
     aiSkills: {
       mode: "manual",
       autoSelectorTarget: null,
-    },
-    vectorSearch: {
-      enabled: false,
-      target: null,
-      lastTest: null,
-      matchThreshold: 0.5,
     },
     socialImport: {
       twitter: {

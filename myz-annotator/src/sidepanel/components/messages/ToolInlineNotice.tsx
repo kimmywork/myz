@@ -1,1 +1,1 @@
-export { ToolInlineNotice as default } from "@myz/dashboard-chat-ui"
+export { ToolInlineNotice as default } from "@myz/dashboard-chat-ui";

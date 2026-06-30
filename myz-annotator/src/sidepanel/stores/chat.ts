@@ -14,6 +14,7 @@ import {
 import { usePageStore } from "./page.js";
 import { useTaskPlanStore } from "./taskPlan.js";
 import { useUIStore } from "./ui.js";
+import type { TaskPlan } from "@/background/ai/tasks/taskManager.js";
 import {
   Message,
   MessageStream,
@@ -22,9 +23,7 @@ import {
   MessageMetadata,
   ToolInvocationDetails,
 } from "@/background/ai/types.js";
-import type { TaskPlan } from "@/background/ai/tasks/taskManager.js";
 import type { Settings } from "@/background/settings.js";
-import { VectoriaSearchResult } from "@/background/vectoria-index.js";
 import { sendMessage } from "@/shared/messaging.js";
 import type { JsonRecord, UnknownRecord } from "@/shared/typeUtils";
 import { isRecord, isString, isStringArray } from "@/shared/typeUtils";
@@ -48,7 +47,6 @@ interface SidePanelActionPayload {
   action?: AutoAction;
   draftId?: string;
   tabId?: number;
-  matches?: VectoriaSearchResult[];
   prompt?: string;
   attachments?: ImageAttachment[];
   selectionText?: string;
@@ -817,21 +815,19 @@ export const useChatStore = defineStore("chat", () => {
     autoInsights.loading = true;
 
     try {
-      const envelope = await chrome.tabs.sendMessage(
-        pageStore.currentTabId,
-        {
-          type: "myz:analyzePage",
-          payload: { action },
-        },
-      );
+      const envelope = await chrome.tabs.sendMessage(pageStore.currentTabId, {
+        type: "myz:analyzePage",
+        payload: { action },
+      });
       if (isRecord(envelope) && envelope.ok === false) {
         throw new Error(
           typeof envelope.error === "string" ? envelope.error : "分析失败",
         );
       }
-      const result = isRecord(envelope) && "data" in envelope
-        ? (envelope.data as unknown)
-        : envelope;
+      const result =
+        isRecord(envelope) && "data" in envelope
+          ? (envelope.data as unknown)
+          : envelope;
       const resultRecord = isRecord(result) ? result : null;
 
       if (resultRecord && resultRecord.success === true) {
@@ -865,8 +861,7 @@ export const useChatStore = defineStore("chat", () => {
 
   const isContextPreferenceUpdating = ref(false);
   let runtimeListener:
-    | ((message: SidePanelCommunicationMessage) => void)
-    | null = null;
+    ((message: SidePanelCommunicationMessage) => void) | null = null;
 
   async function toggleContext(event: Event) {
     const enabled = Boolean(
@@ -1101,9 +1096,9 @@ export const useChatStore = defineStore("chat", () => {
         );
         multimodalVision = Boolean(
           multimodalProvider?.enabled &&
-            multimodalProvider?.lastTest?.ok &&
-            multimodalModel?.enabled &&
-            multimodalModel?.capabilities?.vision,
+          multimodalProvider?.lastTest?.ok &&
+          multimodalModel?.enabled &&
+          multimodalModel?.capabilities?.vision,
         );
         if (typeof multimodalModel?.limits?.contextWindow === "number") {
           multimodalContextWindow = Math.floor(
@@ -1200,8 +1195,6 @@ export const useChatStore = defineStore("chat", () => {
     const uiStore = useUIStore();
     // Setup listener
     runtimeListener = (message: SidePanelCommunicationMessage) => {
-      const uiStore = useUIStore();
-
       if (
         message.type === "myz:openSidePanelWithAction" &&
         message.payload?.action
@@ -1288,12 +1281,6 @@ export const useChatStore = defineStore("chat", () => {
         handleStreamCompleteEvent(message.data as MessageStreamData);
       } else if (message.type === "myz:aiStreamError" && message.data) {
         handleStreamErrorEvent(message.data as MessageStreamData);
-      } else if (
-        message.type === "myz:showRelatedHighlights" &&
-        Array.isArray(message.payload?.matches)
-      ) {
-        pageStore.relatedMatches = message.payload!.matches;
-        uiStore.setView("related");
       }
     };
     chrome.runtime.onMessage.addListener(runtimeListener);
@@ -1304,14 +1291,14 @@ export const useChatStore = defineStore("chat", () => {
     // - If opened from a draft action, use its originating tab.
     // - Otherwise use the current active tab.
     try {
-      const pending = await sendMessage<undefined, SidePanelActionPayload | null>(
-        "myz:popSidePanelAction",
-      );
+      const pending = await sendMessage<
+        undefined,
+        SidePanelActionPayload | null
+      >("myz:popSidePanelAction");
       if (pending?.action) {
-        const pendingRecord: UnknownRecord = { ...pending }
-        lastSidePanelAction.value = pendingRecord
-        const tabId =
-          typeof pending?.tabId === "number" ? pending.tabId : null;
+        const pendingRecord: UnknownRecord = { ...pending };
+        lastSidePanelAction.value = pendingRecord;
+        const tabId = typeof pending?.tabId === "number" ? pending.tabId : null;
         if (typeof tabId === "number") {
           await pageStore.loadPageContext(tabId, { includeContent: false });
         }
@@ -1326,21 +1313,6 @@ export const useChatStore = defineStore("chat", () => {
       try {
         await pageStore.loadPageContext(undefined, { includeContent: false });
       } catch {}
-    }
-
-    // If a related-highlights payload was produced while the SidePanel was closed,
-    // pull it once on startup and show it.
-    try {
-      const pendingRelated = await sendMessage<
-        undefined,
-        { matches?: VectoriaSearchResult[] } | null
-      >("myz:popPendingRelatedHighlights");
-      if (pendingRelated && Array.isArray(pendingRelated.matches)) {
-        pageStore.relatedMatches = pendingRelated.matches;
-        uiStore.setView("related");
-      }
-    } catch {
-      // ignore
     }
 
     // On each SidePanel open/reload, start a fresh conversation.

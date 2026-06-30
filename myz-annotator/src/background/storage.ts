@@ -19,14 +19,13 @@ import type {
   Settings,
   SettingsBundle,
 } from "./settings.js";
-import { applyVectorSearchSettings } from "./vectoria-index.js";
 import {
   normalizeColor,
   normalizeHighlightStyle,
 } from "@/shared/highlightUtils.js";
 import { MyZRecord, ensureRecordSchemaVersion } from "@/shared/types.js";
-import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
 import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
+import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
 
 const DB_NAME = "myz_db";
 const DB_VERSION = 1;
@@ -85,9 +84,9 @@ async function migrateFromLocalStorage(db: IDBDatabase) {
     const highlightsStore = tx.objectStore("highlights");
 
     if (isRecord((stored as UnknownRecord).highlights)) {
-      Object.values((stored as UnknownRecord).highlights as UnknownRecord).forEach(
-        (highlight) => highlightsStore.put(highlight),
-      );
+      Object.values(
+        (stored as UnknownRecord).highlights as UnknownRecord,
+      ).forEach((highlight) => highlightsStore.put(highlight));
     }
   });
 }
@@ -158,9 +157,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       parallelToolCalls: normalizeToolFlag(record?.parallelToolCalls),
     };
   };
-  const normalizeCompatProfile = (
-    value: unknown,
-  ): OpenAICompatibleProfile => {
+  const normalizeCompatProfile = (value: unknown): OpenAICompatibleProfile => {
     switch (value) {
       case "deepseek":
       case "moonshot":
@@ -199,7 +196,9 @@ function normalizeSettings<T extends Settings>(settings: T): T {
   const normalizeModelSetting = (model: unknown): AIModelSetting => {
     const record = isRecord(model) ? model : {};
     const limits = isRecord(record.limits) ? record.limits : {};
-    const capabilities = isRecord(record.capabilities) ? record.capabilities : {};
+    const capabilities = isRecord(record.capabilities)
+      ? record.capabilities
+      : {};
     return {
       ...(record as Partial<AIModelSetting>),
       id: typeof record.id === "string" ? record.id : "",
@@ -280,9 +279,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     ? (settings.aiAgents as AIAgentsSettings)
     : fallbackAgents;
   const aiAgents = settings.aiAgents;
-  const normalizeAgentTarget = (
-    target: unknown,
-  ): AIAgentConfig["target"] => {
+  const normalizeAgentTarget = (target: unknown): AIAgentConfig["target"] => {
     if (
       isRecord(target) &&
       typeof target.providerId === "string" &&
@@ -335,9 +332,8 @@ function normalizeSettings<T extends Settings>(settings: T): T {
         : 0.7;
   }
   if (!isRecord(aiAgents.autoHighlight)) {
-    const fallbackCategoryStyles =
-      DEFAULT_SETTINGS.aiAgents.autoHighlight
-        .categoryStyles as AutoHighlightCategoryStyles;
+    const fallbackCategoryStyles = DEFAULT_SETTINGS.aiAgents.autoHighlight
+      .categoryStyles as AutoHighlightCategoryStyles;
     aiAgents.autoHighlight = {
       target: null,
       temperature: 0.4,
@@ -359,9 +355,8 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     const maxHighlights = clampPercent(maxCount, 5, 30, 15);
     aiAgents.autoHighlight.maxHighlights = maxHighlights;
 
-    const defaultCategoryStyles =
-      DEFAULT_SETTINGS.aiAgents.autoHighlight
-        .categoryStyles as AutoHighlightCategoryStyles;
+    const defaultCategoryStyles = DEFAULT_SETTINGS.aiAgents.autoHighlight
+      .categoryStyles as AutoHighlightCategoryStyles;
     const rawCategoryStyles = isRecord(aiAgents.autoHighlight.categoryStyles)
       ? (aiAgents.autoHighlight
           .categoryStyles as Partial<AutoHighlightCategoryStyles>)
@@ -408,7 +403,9 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       const headers = isRecord(server.headers) ? server.headers : null;
       if (headers) {
         const cleaned = Object.fromEntries(
-          Object.entries(headers).filter(([, value]) => typeof value === "string"),
+          Object.entries(headers).filter(
+            ([, value]) => typeof value === "string",
+          ),
         ) as Record<string, string>;
         if (Object.keys(cleaned).length) {
           normalized.headers = cleaned;
@@ -418,8 +415,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
       if (lastTest) {
         normalized.lastTest = {
           ok: Boolean(lastTest.ok),
-          message:
-            typeof lastTest.message === "string" ? lastTest.message : "",
+          message: typeof lastTest.message === "string" ? lastTest.message : "",
           testedAt:
             typeof lastTest.testedAt === "string" ? lastTest.testedAt : "",
         };
@@ -500,57 +496,6 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     } else {
       aiSkills.autoSelectorTarget = null;
     }
-  }
-  const vectorSearch = settings.vectorSearch;
-  if (!isRecord(vectorSearch)) {
-    settings.vectorSearch = {
-      enabled: false,
-      target: null,
-      lastTest: null,
-      matchThreshold: 0.5,
-    };
-  } else {
-    vectorSearch.enabled = Boolean(vectorSearch.enabled);
-    const target = vectorSearch.target;
-    if (
-      isRecord(target) &&
-      typeof target.providerId === "string" &&
-      typeof target.modelId === "string"
-    ) {
-      vectorSearch.target = {
-        providerId: target.providerId,
-        modelId: target.modelId,
-      };
-    } else {
-      vectorSearch.target = null;
-    }
-
-    const lastTest = isRecord(vectorSearch.lastTest)
-      ? vectorSearch.lastTest
-      : null;
-    if (lastTest) {
-      vectorSearch.lastTest = {
-        ok: Boolean(lastTest.ok),
-        message: typeof lastTest.message === "string" ? lastTest.message : "",
-        testedAt:
-          typeof lastTest.testedAt === "string" ? lastTest.testedAt : "",
-        providerId:
-          typeof lastTest.providerId === "string" ? lastTest.providerId : "",
-        modelId: typeof lastTest.modelId === "string" ? lastTest.modelId : "",
-        model: typeof lastTest.model === "string" ? lastTest.model : "",
-      };
-    } else if (vectorSearch.lastTest === null) {
-      vectorSearch.lastTest = null;
-    } else {
-      vectorSearch.lastTest = null;
-    }
-
-    const rawThreshold = vectorSearch.matchThreshold;
-    const threshold =
-      typeof rawThreshold === "number" && Number.isFinite(rawThreshold)
-        ? rawThreshold
-        : 0.5;
-    vectorSearch.matchThreshold = Math.min(1, Math.max(0.4, threshold));
   }
 
   settings.colorPalette = Array.isArray(settings.colorPalette)
@@ -700,11 +645,6 @@ export async function writeSettings(
     await syncAiRequestHeaderRules(updated);
   } catch (error) {
     console.warn("Failed to sync AI header rules", error);
-  }
-  try {
-    applyVectorSearchSettings(updated);
-  } catch (error) {
-    console.warn("Failed to apply vector search settings", error);
   }
   return updated;
 }

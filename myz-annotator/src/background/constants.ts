@@ -67,13 +67,6 @@ export const DEFAULT_SETTINGS: Settings = {
     mode: "manual",
     autoSelectorTarget: null,
   },
-  // Vector search / Vectoria
-  vectorSearch: {
-    enabled: false,
-    target: null,
-    lastTest: null,
-    matchThreshold: 0.5,
-  },
   // Social import (extensible)
   socialImport: {
     twitter: {

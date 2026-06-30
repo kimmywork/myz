@@ -11,9 +11,12 @@
   "dependencies": {
     "@myz/ai-core": "*",
     "@myz/shared": "*",
-    "@noble/curves": "^1.9.7",
-    "fflate": "^0.8.2",
-    "hash-wasm": "^4.12.0",
-    "zod": "^4.2.1"
+    "@noble/curves": "*",
+    "fflate": "*",
+    "hash-wasm": "*",
+    "zod": "*"
+  },
+  "scripts": {
+    "lint": "eslint ."
   }
 }

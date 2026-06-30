@@ -1,8 +1,8 @@
+import { AgentShell, type ChatEntry } from "@myz/agent-tui"
+import { renderToString } from "ink"
 import assert from "node:assert/strict"
 import test from "node:test"
 import React from "react"
-import { renderToString } from "ink"
-import { AgentShell, type ChatEntry } from "@myz/agent-tui"
 
 test("AgentShell keeps the first user message visible while assistant is pending", () => {
   const entries: ChatEntry[] = [

@@ -1,1 +1,1 @@
-export * from "@myz/ai-core/capabilities/mcp"
+export * from "@myz/ai-core/capabilities/mcp";

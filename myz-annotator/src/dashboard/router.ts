@@ -7,7 +7,6 @@ import AiLocalToolsPage from "./pages/settings/ai/AiLocalToolsPage.jsx";
 import AiMcpPage from "./pages/settings/ai/AiMcpPage.jsx";
 import AiProvidersPage from "./pages/settings/ai/AiProvidersPage.jsx";
 import AiSkillsPage from "./pages/settings/ai/AiSkillsPage.jsx";
-import AiVectorSearchPage from "./pages/settings/ai/AiVectorSearchPage.jsx";
 import SettingsAiLayout from "./pages/settings/ai/SettingsAiLayout.jsx";
 import HighlightPreferencesPage from "./pages/settings/highlight/HighlightPreferencesPage.jsx";
 import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx";
@@ -78,11 +77,6 @@ const routes = [
             path: "skills",
             name: "settings-ai-skills",
             component: AiSkillsPage,
-          },
-          {
-            path: "vector",
-            name: "settings-ai-vector",
-            component: AiVectorSearchPage,
           },
         ],
       },

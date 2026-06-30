@@ -1,22 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { installFakeIndexedDB } from "./testUtils.ts";
+import "fake-indexeddb/auto";
+import { beforeEach, describe, expect, it } from "vitest";
 
 const skillContent = `---\nname: custom-skill\ndescription: Custom skill\n---\n\nBody content.`;
 
 const updatedSkillContent = `---\nname: custom-skill\ndescription: Updated description\n---\n\nUpdated body.`;
 
-const setup = installFakeIndexedDB();
-
 beforeEach(() => {
-  setup.reset();
-  vi.resetModules();
+  // Reset the DB between tests by deleting and reopening
+  indexedDB.deleteDatabase("MyZAgentSkillsDB");
 });
 
 describe("skills storage", () => {
   it("imports and lists custom skill", async () => {
-    const { importSkill, listSkills } = await import(
-      "@/background/ai/skills/storage.ts"
-    );
+    const { importSkill, listSkills } =
+      await import("@/background/ai/skills/storage.ts");
     await importSkill({
       rootDir: "custom-skill",
       files: [{ path: "SKILL.md", content: skillContent, encoding: "utf-8" }],
@@ -27,9 +24,8 @@ describe("skills storage", () => {
   });
 
   it("updates enabled state", async () => {
-    const { importSkill, updateSkillEnabled } = await import(
-      "@/background/ai/skills/storage.ts"
-    );
+    const { importSkill, updateSkillEnabled } =
+      await import("@/background/ai/skills/storage.ts");
     await importSkill({
       rootDir: "custom-skill",
       files: [{ path: "SKILL.md", content: skillContent, encoding: "utf-8" }],
@@ -40,9 +36,8 @@ describe("skills storage", () => {
   });
 
   it("updates SKILL.md metadata and instruction", async () => {
-    const { importSkill, updateSkillFile, getSkillInstruction } = await import(
-      "@/background/ai/skills/storage.ts"
-    );
+    const { importSkill, updateSkillFile, getSkillInstruction } =
+      await import("@/background/ai/skills/storage.ts");
     await importSkill({
       rootDir: "custom-skill",
       files: [{ path: "SKILL.md", content: skillContent, encoding: "utf-8" }],
@@ -59,9 +54,8 @@ describe("skills storage", () => {
   });
 
   it("blocks deletion of builtin skill", async () => {
-    const { listSkills, deleteSkill } = await import(
-      "@/background/ai/skills/storage.ts"
-    );
+    const { listSkills, deleteSkill } =
+      await import("@/background/ai/skills/storage.ts");
     const skills = await listSkills();
     const builtin = skills.find((skill) => skill.builtin);
     expect(builtin).toBeTruthy();

@@ -3,12 +3,10 @@ import {
   resolveConversationMultimodalTarget,
 } from "./background/ai/runtime/agentSelection.js";
 import {
-  registerLocalTools,
-} from "./background/ai/tools/registry.js";
-import {
   LOCAL_TOOL_DEFINITIONS,
   LOCAL_TOOL_HANDLERS,
 } from "./background/ai/tools/local.js";
+import { registerLocalTools } from "./background/ai/tools/registry.js";
 import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
 import { initializeAIMessageHandlers } from "./background/messages/ai.js";
@@ -19,13 +17,8 @@ import { initializeSettingsMessageHandlers } from "./background/messages/setting
 import { initializeSkillMessageHandlers } from "./background/messages/skills.js";
 import { initializeSocialImportMessageHandlers } from "./background/messages/social-import.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
-import { initializeVectoriaMessageHandlers } from "./background/messages/vectoria.js";
 import { readSettings } from "./background/storage.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
-import {
-  applyVectorSearchSettings,
-  getEngine,
-} from "./background/vectoria-index.js"
 import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 
 const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
@@ -77,16 +70,6 @@ async function queueSidePanelAction(payload: unknown) {
     console.warn("Failed to initialize AI header rules", error);
   }
 })();
-
-(async function initializeVectoriaSettings() {
-  try {
-    const settings = await readSettings()
-    applyVectorSearchSettings(settings)
-    await getEngine()
-  } catch (error) {
-    console.warn("Failed to initialize vector settings", error)
-  }
-})()
 
 async function ensureContextMenus() {
   try {
@@ -218,11 +201,10 @@ async function refreshAiImageMenuVisibility() {
   }
 }
 
-const contextMenus =
-  chrome.contextMenus as typeof chrome.contextMenus & {
-    onShown?: chrome.events.Event<() => void>;
-    refresh?: () => void;
-  };
+const contextMenus = chrome.contextMenus as typeof chrome.contextMenus & {
+  onShown?: chrome.events.Event<() => void>;
+  refresh?: () => void;
+};
 if (contextMenus?.onShown?.addListener) {
   contextMenus.onShown.addListener(() => {
     refreshAiImageMenuVisibility()
@@ -480,19 +462,25 @@ initializeSettingsMessageHandlers();
 initializeSkillMessageHandlers();
 initializeSocialImportMessageHandlers();
 initializeSyncMessageHandlers();
-initializeVectoriaMessageHandlers();
 initializeSyncScheduler();
 
 chrome.runtime.onMessage.addListener(
-  (message: { type: string; payload: unknown; [key: string]: unknown }, sender, sendResponse) => {
+  (
+    message: { type: string; payload: unknown; [key: string]: unknown },
+    sender,
+    sendResponse,
+  ) => {
     if (!message || !message.type) {
       return false;
     }
     // Support both {type, payload} and {type, ...rest} formats
-    const payload = message.payload !== undefined ? message.payload : (() => {
-      const { type, payload: _, ...rest } = message
-      return Object.keys(rest).length > 0 ? rest : undefined
-    })()
+    const payload =
+      message.payload !== undefined
+        ? message.payload
+        : (() => {
+            const { type: _type, payload: _, ...rest } = message;
+            return Object.keys(rest).length > 0 ? rest : undefined;
+          })();
     try {
       handleMessage(message.type, payload, sender)
         .then((result) => sendResponse({ ok: true, data: result }))

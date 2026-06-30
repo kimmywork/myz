@@ -1,5 +1,5 @@
-import { test } from "node:test"
 import assert from "node:assert/strict"
+import { test } from "node:test"
 import { createToolCallingCapability } from "../src/providers/capabilities/toolCalling"
 import type {
   ChatCompletionClient,

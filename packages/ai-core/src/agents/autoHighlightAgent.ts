@@ -1,9 +1,5 @@
-import type {
-  AIModelSetting,
-  AIProviderSetting,
-  AutoHighlightCategory,
-  MaxOutputTokenParam,
-} from "../settings"
+import { AUTO_HIGHLIGHT_CATEGORIES } from "@myz/shared/types"
+import { isRecord } from "@myz/shared/typeUtils"
 import { normalizeMessagePayload } from "../normalize/message"
 import { PromptBuilder } from "../prompt/builder"
 import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt"
@@ -12,8 +8,12 @@ import type {
   ProviderChatCompletionChoice,
   ProviderChatCompletionRequest,
 } from "../providers/types"
-import { AUTO_HIGHLIGHT_CATEGORIES } from "@myz/shared/types"
-import { isRecord } from "@myz/shared/typeUtils"
+import type {
+  AIModelSetting,
+  AIProviderSetting,
+  AutoHighlightCategory,
+  MaxOutputTokenParam,
+} from "../settings"
 
 export interface AutoHighlightPayload {
   text: string
@@ -412,7 +412,7 @@ export class AutoHighlightAgent {
       }
 
       // messages.push({ role: "user", content: "continue" })
-    } while (true)
+    } while (true) // eslint-disable-line no-constant-condition
 
     const parsed = extractJsonPayload(combinedContent)
     const highlights = normalizeHighlights(parsed, text, { maxHighlights })

@@ -1,3 +1,8 @@
+import Anthropic from "@anthropic-ai/sdk"
+import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
+import type { JsonRecord } from "@myz/shared/typeUtils"
+import { isJsonRecord, isRecord, toJsonRecord } from "@myz/shared/typeUtils"
+import { emitProviderRequestDebug } from "../debug"
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
@@ -6,17 +11,12 @@ import type {
   ProviderStreamOptions,
   ProviderToolCall,
 } from "../types"
-import { emitProviderRequestDebug } from "../debug"
 import {
   coerceContentToText,
   normalizeBaseUrl,
   parseDataUrl,
   safeJsonParse,
 } from "../utils"
-import Anthropic from "@anthropic-ai/sdk"
-import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
-import type { JsonRecord } from "@myz/shared/typeUtils"
-import { isJsonRecord, isRecord, toJsonRecord } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
 

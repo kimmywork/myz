@@ -1,7 +1,7 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js"
+import { isRecord } from "@myz/shared/typeUtils"
 import { McpClient } from "../mcp"
 import type { ToolExecutionResult } from "../types"
-import { isRecord } from "@myz/shared/typeUtils"
 
 export interface ToolCallLike {
   function: { name: string; arguments: string | Record<string, unknown> }

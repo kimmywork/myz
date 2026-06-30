@@ -30,9 +30,8 @@ vi.mock("@/background/storage.js", () => ({
   })),
 }));
 
-const { ConversationAgent } = await import(
-  "@/background/ai/agents/conversationAgent.ts"
-);
+const { ConversationAgent } =
+  await import("@/background/ai/agents/conversationAgent.ts");
 
 describe("ConversationAgent", () => {
   it("rejects attachments when model lacks vision", async () => {

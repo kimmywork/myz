@@ -7,7 +7,7 @@ import {
 } from "@/background/ai/skills/parser.ts";
 import { isRecord } from "@/shared/typeUtils";
 
-const sampleSkill = `---\nname: demo-skill\ndescription: \"A demo skill\"\nmetadata:\n  author: \"me\"\n---\n\n# Title\n\nBody content.`;
+const sampleSkill = `---\nname: demo-skill\ndescription: "A demo skill"\nmetadata:\n  author: "me"\n---\n\n# Title\n\nBody content.`;
 
 describe("skills parser", () => {
   it("splits frontmatter and body", () => {

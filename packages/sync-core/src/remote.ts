@@ -1,17 +1,17 @@
-import { splitNoncePayload, bytesToUtf8, utf8ToBytes } from "./crypto"
-import { decryptRecordPayload, decryptChunkEnvelope } from "./chunks"
-import { decryptManifest, verifyManifest } from "./manifest"
-import { decodeBinaryPayload } from "./utils"
-import type {
-  ManifestRecordEntry,
-  SyncRecordPayload,
-} from "./types"
+import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning"
 import type {
   SyncObjectStore,
   SyncRemoteKeyset,
   SyncRemoteManifestSnapshot,
 } from "./adapters"
-import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning"
+import { decryptRecordPayload, decryptChunkEnvelope } from "./chunks"
+import { splitNoncePayload, bytesToUtf8, utf8ToBytes } from "./crypto"
+import { decryptManifest, verifyManifest } from "./manifest"
+import type {
+  ManifestRecordEntry,
+  SyncRecordPayload,
+} from "./types"
+import { decodeBinaryPayload } from "./utils"
 
 export function formatManifestVersion(version: number) {
   return `v${String(version).padStart(10, "0")}`

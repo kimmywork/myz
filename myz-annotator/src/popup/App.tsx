@@ -9,8 +9,8 @@ import { normalizeWhitespace } from "@/shared/highlightUtils.js";
 import { IconSettings } from "@/shared/icons.js";
 
 import { sendMessage } from "@/shared/messaging.js";
-import { isRecord } from "@/shared/typeUtils";
 import { RECORD_KINDS, MyZRecord } from "@/shared/types.js";
+import { isRecord } from "@/shared/typeUtils";
 
 import {
   canonicalUrl,

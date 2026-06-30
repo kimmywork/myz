@@ -86,14 +86,14 @@ describe("provider registry", () => {
       headers: new Headers({ "content-type": "text/event-stream" }),
       body: new ReadableStream({
         start(controller) {
-          const encoder = new TextEncoder()
+          const encoder = new TextEncoder();
           controller.enqueue(
             encoder.encode(
               'data: {"choices":[{"delta":{"content":"Connection successful"}}]}\n\n' +
                 "data: [DONE]\n\n",
             ),
-          )
-          controller.close()
+          );
+          controller.close();
         },
       }) as any,
       json: async () => ({
@@ -113,8 +113,10 @@ describe("provider registry", () => {
     });
     expect(result.success).toBe(true);
 
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body || "{}"))
-    expect(requestBody.stream).toBe(true)
+    const requestBody = JSON.parse(
+      String(fetchMock.mock.calls[0]?.[1]?.body || "{}"),
+    );
+    expect(requestBody.stream).toBe(true);
   });
 
   it("tests mistral provider connection", async () => {

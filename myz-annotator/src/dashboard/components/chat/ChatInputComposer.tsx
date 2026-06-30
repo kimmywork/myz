@@ -1,18 +1,18 @@
-import { ChatInputComposerBase } from "@myz/dashboard-chat-ui"
-import { computed, defineComponent, ref } from "vue"
-import { useChatStore } from "@/dashboard/stores/chat.js"
-import { useChatUIStore } from "@/dashboard/stores/chatUi.js"
-import { useSkillMentions } from "@/shared/useSkillMentions.js"
+import { ChatInputComposerBase } from "@myz/dashboard-chat-ui";
+import { computed, defineComponent, ref } from "vue";
+import { useChatStore } from "@/dashboard/stores/chat.js";
+import { useChatUIStore } from "@/dashboard/stores/chatUi.js";
+import { useSkillMentions } from "@/shared/useSkillMentions.js";
 
 export default defineComponent({
   name: "DashboardChatInputComposer",
   setup() {
-    const chatStore = useChatStore()
-    const uiStore = useChatUIStore()
-    const fileInputRef = ref<HTMLInputElement | null>(null)
-    const textareaRef = ref<HTMLTextAreaElement | null>(null)
-    const isFocused = ref(false)
-    const isAssistantDisabled = computed(() => !chatStore.assistantEnabled)
+    const chatStore = useChatStore();
+    const uiStore = useChatUIStore();
+    const fileInputRef = ref<HTMLInputElement | null>(null);
+    const textareaRef = ref<HTMLTextAreaElement | null>(null);
+    const isFocused = ref(false);
+    const isAssistantDisabled = computed(() => !chatStore.assistantEnabled);
     const {
       mentionOpen,
       filteredSkills,
@@ -24,44 +24,44 @@ export default defineComponent({
       textareaRef,
       getValue: () => chatStore.userInput || "",
       setValue: (value) => {
-        chatStore.userInput = value
+        chatStore.userInput = value;
       },
-    })
+    });
 
     const handlePickImages = () => {
-      if (isAssistantDisabled.value) return
-      fileInputRef.value?.click()
-    }
+      if (isAssistantDisabled.value) return;
+      fileInputRef.value?.click();
+    };
 
     const handleFilesChanged = async (event: Event) => {
-      const target = event.target as HTMLInputElement
-      await chatStore.addImageFiles(target.files)
-      target.value = ""
-    }
+      const target = event.target as HTMLInputElement;
+      await chatStore.addImageFiles(target.files);
+      target.value = "";
+    };
 
     const handleKeydown = async (event: KeyboardEvent) => {
       if (isAssistantDisabled.value) {
-        event.preventDefault()
-        return
+        event.preventDefault();
+        return;
       }
       if (uiStore.isComposing) {
-        return
+        return;
       }
       if (await handleMentionKeydown(event)) {
-        return
+        return;
       }
       if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault()
-        closeMentions()
-        await chatStore.sendUserMessage(chatStore.userInput)
+        event.preventDefault();
+        closeMentions();
+        await chatStore.sendUserMessage(chatStore.userInput);
       }
-    }
+    };
 
     const handleSend = async () => {
-      if (isAssistantDisabled.value) return
-      closeMentions()
-      await chatStore.sendUserMessage(chatStore.userInput)
-    }
+      if (isAssistantDisabled.value) return;
+      closeMentions();
+      await chatStore.sendUserMessage(chatStore.userInput);
+    };
 
     return () => (
       <ChatInputComposerBase
@@ -74,22 +74,23 @@ export default defineComponent({
         error={chatStore.error || ""}
         sendDisabled={
           isAssistantDisabled.value ||
-          (!chatStore.userInput?.trim() && chatStore.attachments.length === 0) ||
+          (!chatStore.userInput?.trim() &&
+            chatStore.attachments.length === 0) ||
           chatStore.isLoading
         }
         setTextareaRef={(element) => {
-          textareaRef.value = element
+          textareaRef.value = element;
         }}
         setFileInputRef={(element) => {
-          fileInputRef.value = element
+          fileInputRef.value = element;
         }}
         onInput={handleInput}
         onKeydown={handleKeydown}
         onFocus={() => {
-          isFocused.value = true
+          isFocused.value = true;
         }}
         onBlur={() => {
-          isFocused.value = false
+          isFocused.value = false;
         }}
         onCompositionStart={() => uiStore.setComposing(true)}
         onCompositionEnd={() => uiStore.setComposing(false)}
@@ -122,6 +123,6 @@ export default defineComponent({
           ) : null
         }
       />
-    )
+    );
   },
-})
+});

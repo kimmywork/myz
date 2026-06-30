@@ -1,12 +1,12 @@
-import { Command } from "commander"
-import { loadConfigNew } from "./config"
-import { createRuntime, processUserInput } from "./index"
 import type { AgentEvent } from "@myz/agent-core"
 import { getActiveTodosSummary, addPermissionRule, savePermissions } from "@myz/agent-core"
 import type { ChatEntry } from "@myz/agent-tui"
+import { Command } from "commander"
 import { mkdirSync, appendFileSync, existsSync, readFileSync } from "node:fs"
-import { resolve, join } from "node:path"
 import { homedir } from "node:os"
+import { resolve, join } from "node:path"
+import { loadConfigNew } from "./config"
+import { createRuntime, processUserInput } from "./index"
 
 // --- Session persistence ---
 

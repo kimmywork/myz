@@ -1,5 +1,5 @@
-import type { MyZRecord } from "@myz/shared/types"
 import type { Message, ConversationInfo } from "@myz/ai-core/types"
+import type { MyZRecord } from "@myz/shared/types"
 
 export type SyncRecordType = "highlight" | "ai-conversation"
 

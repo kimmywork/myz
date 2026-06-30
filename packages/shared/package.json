@@ -13,6 +13,9 @@
     "./schemas": "./src/schemas.ts"
   },
   "dependencies": {
-    "zod": "^4.2.1"
+    "zod": "*"
+  },
+  "scripts": {
+    "lint": "eslint ."
   }
 }

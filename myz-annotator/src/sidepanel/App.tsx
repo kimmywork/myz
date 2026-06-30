@@ -1,10 +1,9 @@
-import { defineComponent, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { defineComponent, onMounted, onBeforeUnmount } from "vue";
 import AutoInsightsPanel from "./components/AutoInsightsPanel.jsx";
 import ContextStatusBar from "./components/ContextStatusBar.jsx";
 import ConversationList from "./components/ConversationList.jsx";
 import ImagePreviewModal from "./components/ImagePreviewModal.jsx";
 import InputComposer from "./components/InputComposer.jsx";
-import InterestsPanel from "./components/InterestsPanel.jsx";
 import TaskPlanPanel from "./components/TaskPlanPanel.jsx";
 import ToolResponseModal from "./components/ToolResponseModal.jsx";
 import HistoryView from "./HistoryView.jsx";
@@ -14,9 +13,6 @@ import { usePageStore } from "./stores/page.js";
 import { useUIStore } from "./stores/ui.js";
 import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 import { IconChatPlus, IconHistory, IconSettings } from "@/shared/icons.js";
-import { isRecord } from "@/shared/typeUtils";
-
-const SETTINGS_STORAGE_KEY = "myz::settings";
 
 export default defineComponent({
   name: "SidePanelApp",
@@ -24,40 +20,6 @@ export default defineComponent({
     const chatStore = useChatStore();
     const pageStore = usePageStore();
     const uiStore = useUIStore();
-    const vectorSearchEnabled = ref(false);
-    let settingsListener:
-      | ((
-          changes: Record<string, chrome.storage.StorageChange>,
-          areaName: string,
-        ) => void)
-      | null = null;
-
-    const resolveVectorSearchEnabled = (settings?: unknown) => {
-      if (!isRecord(settings)) return false;
-      const vectorSearch = isRecord(settings.vectorSearch)
-        ? settings.vectorSearch
-        : null;
-      const target =
-        vectorSearch && isRecord(vectorSearch.target)
-          ? vectorSearch.target
-          : null;
-      return Boolean(
-        vectorSearch?.enabled === true &&
-          target &&
-          typeof target.modelId === "string" &&
-          target.modelId.trim(),
-      );
-    };
-
-    const loadVectorSearchEnabled = async () => {
-      try {
-        const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
-        const storedSettings = stored?.[SETTINGS_STORAGE_KEY];
-        vectorSearchEnabled.value = resolveVectorSearchEnabled(storedSettings);
-      } catch {
-        vectorSearchEnabled.value = false;
-      }
-    };
 
     function showHistory() {
       uiStore.setView("history");
@@ -79,47 +41,17 @@ export default defineComponent({
         await pageStore.loadPageContext();
       }
       pageStore.startTabTracking();
-      void loadVectorSearchEnabled();
-      settingsListener = (changes, areaName) => {
-        if (areaName !== "local") return;
-        const change = changes?.[SETTINGS_STORAGE_KEY];
-        if (!change) return;
-        vectorSearchEnabled.value = resolveVectorSearchEnabled(change.newValue);
-      };
-      try {
-        chrome.storage.onChanged.addListener(settingsListener);
-      } catch {
-        // ignore
-      }
     });
 
     onBeforeUnmount(() => {
       chatStore.cleanup();
       pageStore.stopTabTracking();
       pageStore.clearPageChunkAnchors();
-      if (settingsListener) {
-        try {
-          chrome.storage.onChanged.removeListener(settingsListener);
-        } catch {
-          // ignore
-        }
-      }
-      settingsListener = null;
-    });
-
-    watch(vectorSearchEnabled, (enabled) => {
-      if (!enabled && uiStore.view === "related") {
-        uiStore.setView("chat");
-      }
     });
 
     return () => (
       <div class="flex h-screen flex-col bg-slate-50 px-4 py-4 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-        {uiStore.view === "related" &&
-        vectorSearchEnabled.value &&
-        pageStore.relatedMatches.length ? (
-          <InterestsPanel />
-        ) : uiStore.view === "history" ? (
+        {uiStore.view === "history" ? (
           <HistoryView />
         ) : (
           <>

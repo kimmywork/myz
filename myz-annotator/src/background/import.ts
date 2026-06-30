@@ -14,8 +14,8 @@ import {
   normalizeContentType,
   resolveRecordContentType,
 } from "@/shared/types";
-import { extractHostname } from "@/shared/url.js";
 import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
+import { extractHostname } from "@/shared/url.js";
 
 export type ImportStrategy = "skip" | "overwrite" | "latest";
 

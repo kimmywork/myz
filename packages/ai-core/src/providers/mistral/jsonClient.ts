@@ -1,3 +1,10 @@
+import { Mistral } from "@mistralai/mistralai"
+import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
+import { isRecord } from "@myz/shared/typeUtils"
+import { splitContentAndReasoning } from "../../normalize/message"
+import { getProviderReasoningEffort, getProviderReasoningMode } from "../../runtime/openaiCompatible"
+import type { AIProviderSetting } from "../../settings"
+import { emitProviderRequestDebug } from "../debug"
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
@@ -6,17 +13,10 @@ import type {
   ProviderStreamOptions,
   ProviderToolCall,
 } from "../types"
-import { emitProviderRequestDebug } from "../debug"
 import {
   coerceContentToText,
   normalizeBaseUrl,
 } from "../utils"
-import { getProviderReasoningEffort, getProviderReasoningMode } from "../../runtime/openaiCompatible"
-import type { AIProviderSetting } from "../../settings"
-import { splitContentAndReasoning } from "../../normalize/message"
-import { Mistral } from "@mistralai/mistralai"
-import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
-import { isRecord } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
 

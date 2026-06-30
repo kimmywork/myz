@@ -8,12 +8,6 @@ import type {
   SkillMetadata,
 } from "@/background/ai/skills/types.js";
 import type {
-  AIProviderSetting,
-  AISkillsSettings,
-} from "@/background/settings.js";
-import { sendMessage } from "@/shared/messaging.js";
-import { isRecord } from "@/shared/typeUtils";
-import type {
   DeleteSkillMessageResult,
   GetSkillDetailMessageResult,
   ImportSkillsMessageResult,
@@ -21,6 +15,12 @@ import type {
   UpdateSkillEnabledMessageResult,
   UpdateSkillFileMessageResult,
 } from "@/background/messages/skills";
+import type {
+  AIProviderSetting,
+  AISkillsSettings,
+} from "@/background/settings.js";
+import { sendMessage } from "@/shared/messaging.js";
+import { isRecord } from "@/shared/typeUtils";
 
 const TEXT_EXTENSIONS = new Set([
   "md",
@@ -303,177 +303,177 @@ export default defineComponent({
         description="Skills 通过 IndexedDB 存储；可用 @skill-name 显式引用，或由选择器模型自动匹配。"
         renderAfterSelector={() => (
           <>
-        <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
-          <div class="mb-2 flex items-center justify-between gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-            <span>已安装 Skills</span>
-            <div class="flex items-center gap-2">
-              <input
-                ref={zipInputRef}
-                type="file"
-                accept=".zip"
-                class="hidden"
-                onChange={(e) => {
-                  const file =
-                    (e.target as HTMLInputElement).files?.[0] || null;
-                  void importZip(file);
-                  (e.target as HTMLInputElement).value = "";
-                }}
-              />
-              <input
-                ref={folderInputRef}
-                type="file"
-                class="hidden"
-                onChange={(e) => {
-                  void importFolder((e.target as HTMLInputElement).files);
-                  (e.target as HTMLInputElement).value = "";
-                }}
-              />
-              <button
-                type="button"
-                class="btn btn-secondary text-xs"
-                onClick={() => zipInputRef.value?.click()}
-              >
-                导入 Zip
-              </button>
-              <button
-                type="button"
-                class="btn btn-secondary text-xs"
-                onClick={() => folderInputRef.value?.click()}
-              >
-                导入文件夹
-              </button>
-            </div>
-          </div>
-
-          {status.value && (
-            <div class="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              {status.value}
-            </div>
-          )}
-
-          {loading.value ? (
-            <div class="text-xs text-slate-500">加载中...</div>
-          ) : skills.value.length === 0 ? (
-            <div class="text-xs text-slate-500">暂无 Skill</div>
-          ) : (
-            <div class="space-y-2">
-              {skills.value.map((skill) => (
-                <div class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+              <div class="mb-2 flex items-center justify-between gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <span>已安装 Skills</span>
+                <div class="flex items-center gap-2">
                   <input
-                    type="checkbox"
-                    class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
-                    checked={skill.enabled}
-                    onChange={(e) =>
-                      toggleSkill(
-                        skill.id,
-                        (e.target as HTMLInputElement).checked,
-                      )
-                    }
+                    ref={zipInputRef}
+                    type="file"
+                    accept=".zip"
+                    class="hidden"
+                    onChange={(e) => {
+                      const file =
+                        (e.target as HTMLInputElement).files?.[0] || null;
+                      void importZip(file);
+                      (e.target as HTMLInputElement).value = "";
+                    }}
                   />
-                  <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span class="font-medium">{skill.name}</span>
-                      {skill.builtin ? (
-                        <span class="rounded-full border border-indigo-200 px-2 py-0.5 text-[10px] text-indigo-600 dark:border-indigo-400/40 dark:text-indigo-200">
-                          内置
-                        </span>
-                      ) : null}
-                      <span class="text-xs text-slate-500 dark:text-slate-400">
-                        {skill.description}
-                      </span>
-                    </div>
-                    <div class="mt-1 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      <button
-                        type="button"
-                        class="btn-link text-xs"
-                        onClick={() => openEditor(skill.id)}
-                      >
-                        编辑
-                      </button>
-                      {!skill.builtin ? (
-                        <button
-                          type="button"
-                          class="btn-link text-xs text-rose-500"
-                          onClick={() => deleteSkill(skill.id)}
-                        >
-                          删除
-                        </button>
-                      ) : null}
-                      <span>文件数: {skill.fileCount}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {selectedSkillId.value && (
-          <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
-            <div class="mb-2 flex items-center justify-between gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-              <span>编辑 Skill：{selectedSkillId.value}</span>
-              <button
-                type="button"
-                class="btn btn-secondary text-xs"
-                onClick={closeEditor}
-              >
-                关闭
-              </button>
-            </div>
-
-            {editorStatus.value && (
-              <div class="mb-2 text-xs text-slate-500 dark:text-slate-400">
-                {editorStatus.value}
-              </div>
-            )}
-
-            <div class="grid gap-3 md:grid-cols-[220px,1fr]">
-              <div class="space-y-1 text-xs text-slate-600 dark:text-slate-300">
-                {files.value.map((file) => (
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    class="hidden"
+                    onChange={(e) => {
+                      void importFolder((e.target as HTMLInputElement).files);
+                      (e.target as HTMLInputElement).value = "";
+                    }}
+                  />
                   <button
                     type="button"
-                    class={`block w-full truncate rounded-lg px-2 py-1 text-left ${
-                      activePath.value === file.path
-                        ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200"
-                        : "hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                    onClick={() => selectFile(file)}
+                    class="btn btn-secondary text-xs"
+                    onClick={() => zipInputRef.value?.click()}
                   >
-                    {file.path}
+                    导入 Zip
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    class="btn btn-secondary text-xs"
+                    onClick={() => folderInputRef.value?.click()}
+                  >
+                    导入文件夹
+                  </button>
+                </div>
               </div>
-              <div class="space-y-2">
-                {activeEncoding.value !== "utf-8" ? (
-                  <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    该文件为二进制内容，暂不支持编辑。
-                  </div>
-                ) : (
-                  <>
-                    <textarea
-                      class="h-56 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-800 shadow-sm outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      value={activeContent.value}
-                      onInput={(e) => {
-                        activeContent.value = (
-                          e.target as HTMLTextAreaElement
-                        ).value;
-                        fileDirty.value = true;
-                      }}
-                    />
-                    <button
-                      type="button"
-                      class="btn btn-primary text-xs"
-                      disabled={!fileDirty.value}
-                      onClick={saveFile}
-                    >
-                      保存文件
-                    </button>
-                  </>
-                )}
-              </div>
+
+              {status.value && (
+                <div class="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                  {status.value}
+                </div>
+              )}
+
+              {loading.value ? (
+                <div class="text-xs text-slate-500">加载中...</div>
+              ) : skills.value.length === 0 ? (
+                <div class="text-xs text-slate-500">暂无 Skill</div>
+              ) : (
+                <div class="space-y-2">
+                  {skills.value.map((skill) => (
+                    <div class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800"
+                        checked={skill.enabled}
+                        onChange={(e) =>
+                          toggleSkill(
+                            skill.id,
+                            (e.target as HTMLInputElement).checked,
+                          )
+                        }
+                      />
+                      <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="font-medium">{skill.name}</span>
+                          {skill.builtin ? (
+                            <span class="rounded-full border border-indigo-200 px-2 py-0.5 text-[10px] text-indigo-600 dark:border-indigo-400/40 dark:text-indigo-200">
+                              内置
+                            </span>
+                          ) : null}
+                          <span class="text-xs text-slate-500 dark:text-slate-400">
+                            {skill.description}
+                          </span>
+                        </div>
+                        <div class="mt-1 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <button
+                            type="button"
+                            class="btn-link text-xs"
+                            onClick={() => openEditor(skill.id)}
+                          >
+                            编辑
+                          </button>
+                          {!skill.builtin ? (
+                            <button
+                              type="button"
+                              class="btn-link text-xs text-rose-500"
+                              onClick={() => deleteSkill(skill.id)}
+                            >
+                              删除
+                            </button>
+                          ) : null}
+                          <span>文件数: {skill.fileCount}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+
+            {selectedSkillId.value && (
+              <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+                <div class="mb-2 flex items-center justify-between gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <span>编辑 Skill：{selectedSkillId.value}</span>
+                  <button
+                    type="button"
+                    class="btn btn-secondary text-xs"
+                    onClick={closeEditor}
+                  >
+                    关闭
+                  </button>
+                </div>
+
+                {editorStatus.value && (
+                  <div class="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                    {editorStatus.value}
+                  </div>
+                )}
+
+                <div class="grid gap-3 md:grid-cols-[220px,1fr]">
+                  <div class="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                    {files.value.map((file) => (
+                      <button
+                        type="button"
+                        class={`block w-full truncate rounded-lg px-2 py-1 text-left ${
+                          activePath.value === file.path
+                            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200"
+                            : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                        }`}
+                        onClick={() => selectFile(file)}
+                      >
+                        {file.path}
+                      </button>
+                    ))}
+                  </div>
+                  <div class="space-y-2">
+                    {activeEncoding.value !== "utf-8" ? (
+                      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        该文件为二进制内容，暂不支持编辑。
+                      </div>
+                    ) : (
+                      <>
+                        <textarea
+                          class="h-56 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-800 shadow-sm outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                          value={activeContent.value}
+                          onInput={(e) => {
+                            activeContent.value = (
+                              e.target as HTMLTextAreaElement
+                            ).value;
+                            fileDirty.value = true;
+                          }}
+                        />
+                        <button
+                          type="button"
+                          class="btn btn-primary text-xs"
+                          disabled={!fileDirty.value}
+                          onClick={saveFile}
+                        >
+                          保存文件
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       />

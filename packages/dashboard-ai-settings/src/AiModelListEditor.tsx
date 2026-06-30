@@ -1,7 +1,7 @@
 import { computed, defineComponent, ref, watch } from "vue";
 import type { PropType } from "vue";
-import ToggleSwitch from "./ToggleSwitch";
 import { createModelSetting } from "./factories";
+import ToggleSwitch from "./ToggleSwitch";
 import type { AIModelSetting } from "./types";
 
 function clampNumber(

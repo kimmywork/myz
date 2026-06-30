@@ -11,7 +11,7 @@ const md = new MarkdownIt({
 // Add target="_blank" to all links
 const defaultRender =
   md.renderer.rules.link_open ||
-  function (tokens, idx, options, _env, self) {
+  function (tokens, idx, options, env, self) {
     return self.renderToken(tokens, idx, options)
   }
 
@@ -42,7 +42,7 @@ export function hasMarkdown(text: string): boolean {
   if (!text) return false
   // Simple check for common markdown patterns
   const patterns = [
-    /[#\*\-_>\[\]`]/, // Headers, bold/italic, lists, quotes, links, code
+    /[#*\->_[\]`]/, // Headers, bold/italic, lists, quotes, links, code
     /\n\s*\n/, // Multiple line breaks (paragraphs)
   ]
   return patterns.some((pattern) => pattern.test(text))

@@ -1,4 +1,6 @@
-import type { AIProviderSetting, MaxOutputTokenParam } from "../settings"
+import Anthropic from "@anthropic-ai/sdk"
+import { isRecord } from "@myz/shared/typeUtils"
+import OpenAI from "openai"
 import {
   buildChatCompletionsUrl,
   buildModelsUrl,
@@ -6,6 +8,7 @@ import {
   extractOpenAICompatibleModels,
   shouldReplayOpenAICompatibleReasoning,
 } from "../runtime/openaiCompatible"
+import type { AIProviderSetting, MaxOutputTokenParam } from "../settings"
 import {
   AnthropicJsonClient,
   buildAnthropicHeaders,
@@ -17,7 +20,6 @@ import { createReasoningNormalizationCapability } from "./capabilities/reasoning
 import { createToolCallingCapability } from "./capabilities/toolCalling"
 import { composeCapabilities } from "./capability"
 import type { ProviderToolingOptions, ProviderClients } from "./factory"
-import type { ProviderChatCompletionRequest } from "./types"
 import { createOpenAICompatibleClients } from "./factory"
 import {
   GeminiJsonClient,
@@ -32,9 +34,7 @@ import {
   extractMistralModels,
 } from "./mistral/jsonClient"
 import { OpenAIResponsesJsonClient } from "./openaiResponses/jsonClient"
-import { isRecord } from "@myz/shared/typeUtils"
-import OpenAI from "openai"
-import Anthropic from "@anthropic-ai/sdk"
+import type { ProviderChatCompletionRequest } from "./types"
 
 export function createProviderClients(
   provider: AIProviderSetting,

@@ -37,7 +37,10 @@ describe("provider factory", () => {
   it("creates client and clientWithTools", async () => {
     const clients = createOpenAICompatibleClients(
       { endpoint: "http://localhost", buildHeaders: {} },
-      { getTools: async () => [], executeToolCall: async () => ({ content: [] }) },
+      {
+        getTools: async () => [],
+        executeToolCall: async () => ({ content: [] }),
+      },
     );
 
     await clients.client.createCompletion({} as any, {} as any);

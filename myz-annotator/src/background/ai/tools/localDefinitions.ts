@@ -340,7 +340,14 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
         status: {
           type: "string",
           description: "状态值（task 或 plan 级 update 用）。",
-          enum: ["pending", "in_progress", "done", "blocked", "planning", "executing"],
+          enum: [
+            "pending",
+            "in_progress",
+            "done",
+            "blocked",
+            "planning",
+            "executing",
+          ],
         },
         patch: {
           type: "object",
@@ -363,6 +370,15 @@ export const LOCAL_TOOL_DEFINITIONS: Tool[] = [
           type: "array",
           description: "list 动作：按状态过滤。",
           items: { type: "string" },
+        },
+        reason: {
+          type: "string",
+          description: "complete_all 动作：完成原因说明。",
+        },
+        role: {
+          type: "string",
+          enum: ["validator"],
+          description: "complete_all 动作：完成者角色。",
         },
       },
     },

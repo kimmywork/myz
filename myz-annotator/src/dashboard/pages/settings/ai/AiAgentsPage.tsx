@@ -1,5 +1,5 @@
-import { defineComponent } from "vue";
 import { AiAgentsPanel } from "@myz/dashboard-ai-settings";
+import { defineComponent } from "vue";
 import { useAiSettingsContext } from "./aiSettingsContext.js";
 
 export default defineComponent({

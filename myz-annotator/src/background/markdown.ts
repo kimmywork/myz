@@ -244,7 +244,7 @@ export function cleanMultiline(value: string): string {
   const lines = String(value)
     .replace(/\r\n?/g, "\n")
 
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ") // eslint-disable-line no-control-regex
     .split("\n");
 
   while (lines.length && !lines[0].trim()) {

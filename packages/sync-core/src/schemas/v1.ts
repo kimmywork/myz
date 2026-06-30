@@ -1,5 +1,5 @@
-import { z } from "zod"
 import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning"
+import { z } from "zod"
 
 export const SyncProtocolVersionV1 = SYNC_PROTOCOL_VERSION
 

@@ -1,3 +1,6 @@
+import type { JsonRecord, JsonValue } from "@myz/shared/typeUtils"
+import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
+import { createOpenAISdkClient } from "../openaiCompatible/sdkClient"
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
@@ -8,9 +11,6 @@ import type {
   ProviderToolSpec,
 } from "../types"
 import { coerceContentToText, normalizeBaseUrl } from "../utils"
-import { createOpenAISdkClient } from "../openaiCompatible/sdkClient"
-import type { JsonRecord, JsonValue } from "@myz/shared/typeUtils"
-import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
 

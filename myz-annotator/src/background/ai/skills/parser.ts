@@ -1,5 +1,5 @@
-import type { SkillInstruction, SkillMetadata } from "./types.js";
 import { isRecord, type UnknownRecord } from "@myz/shared/typeUtils";
+import type { SkillInstruction, SkillMetadata } from "./types.js";
 
 const FRONTMATTER_DELIMITER = "---";
 const SKILL_NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -141,17 +141,16 @@ export function buildSkillMetadata(
   now: string,
   existing?: SkillMetadata | null,
 ): SkillMetadata {
-  const metadata =
-    isRecord(frontmatter.metadata)
-      ? (Object.fromEntries(
-          Object.entries(frontmatter.metadata).filter(
-            ([key, value]) =>
-              typeof key === "string" &&
-              typeof value === "string" &&
-              value.trim(),
-          ),
-        ) as Record<string, string>)
-      : undefined;
+  const metadata = isRecord(frontmatter.metadata)
+    ? (Object.fromEntries(
+        Object.entries(frontmatter.metadata).filter(
+          ([key, value]) =>
+            typeof key === "string" &&
+            typeof value === "string" &&
+            value.trim(),
+        ),
+      ) as Record<string, string>)
+    : undefined;
   const allowedTools =
     typeof frontmatter["allowed-tools"] === "string"
       ? frontmatter["allowed-tools"].trim()

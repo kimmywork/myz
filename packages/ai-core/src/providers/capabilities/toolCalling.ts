@@ -1,3 +1,4 @@
+import { isRecord } from "@myz/shared/typeUtils"
 import { splitGeminiThoughtTaggedContent } from "../../vendors/googleGemini"
 import type { Capability } from "../capability"
 import type {
@@ -7,7 +8,6 @@ import type {
   ProviderToolSpec,
   ProviderStreamOptions,
 } from "../types"
-import { isRecord } from "@myz/shared/typeUtils"
 
 export interface ToolCallingCapabilityOptions {
   getTools: () => Promise<ProviderToolSpec[]>

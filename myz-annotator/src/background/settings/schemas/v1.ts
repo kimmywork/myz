@@ -137,22 +137,6 @@ const McpServerSettingSchema = z.object({
     .optional(),
 });
 
-const VectorSearchLastTestStatusSchema = z.object({
-  ok: z.boolean(),
-  message: z.string(),
-  testedAt: z.string(),
-  providerId: z.string(),
-  modelId: z.string(),
-  model: z.string(),
-});
-
-const VectorSettingsSchema = z.object({
-  enabled: z.boolean(),
-  target: AIAgentModelRefSchema.nullable(),
-  lastTest: VectorSearchLastTestStatusSchema.nullable(),
-  matchThreshold: z.number(),
-});
-
 const SocialImportProviderSettingsSchema = z.object({
   profileUrl: z.string(),
 });
@@ -190,7 +174,6 @@ export const SettingsSchemaV1 = z.object({
   aiMcpServers: z.array(McpServerSettingSchema),
   aiLocalTools: AILocalToolsSettingsSchema,
   aiSkills: AISkillsSettingsSchema,
-  vectorSearch: VectorSettingsSchema,
 });
 
 export const SettingsBundleSchemaV1 = z.object({

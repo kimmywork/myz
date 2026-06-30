@@ -1,4 +1,5 @@
 import { ed25519 } from "@noble/curves/ed25519"
+import type { SyncObjectStore } from "./adapters"
 import {
   aesGcmDecrypt,
   aesGcmEncrypt,
@@ -8,7 +9,6 @@ import {
   splitNoncePayload,
   utf8ToBytes,
 } from "./crypto"
-import type { SyncObjectStore } from "./adapters"
 import type { LockPayload } from "./types"
 import { decodeBinaryPayload, encodeBinaryPayload } from "./utils"
 

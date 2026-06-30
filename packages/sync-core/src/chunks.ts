@@ -1,3 +1,4 @@
+import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning"
 import {
   aesGcmDecrypt,
   aesGcmEncrypt,
@@ -14,7 +15,6 @@ import {
   decodeBinaryPayload,
   encodeBinaryPayload,
 } from "./utils"
-import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning"
 
 export interface BuiltChunk {
   chunkId: string

@@ -1,1 +1,1 @@
-export { ToolMessageCard as default } from "@myz/dashboard-chat-ui"
+export { ToolMessageCard as default } from "@myz/dashboard-chat-ui";

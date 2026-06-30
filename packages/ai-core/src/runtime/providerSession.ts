@@ -1,9 +1,9 @@
-import type { AIProviderSetting, McpServerSetting } from "../settings"
 import { McpCapability } from "../capabilities/mcp"
 import { createProviderClients } from "../providers/registry"
 import type { ChatCompletionClient } from "../providers/types"
-import type { ToolDefinition } from "../types"
+import type { AIProviderSetting, McpServerSetting } from "../settings"
 import type { ToolWithServer } from "../tools/registry"
+import type { ToolDefinition } from "../types"
 
 export interface ProviderSession {
   provider: AIProviderSetting

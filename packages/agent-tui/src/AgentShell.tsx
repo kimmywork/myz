@@ -1,9 +1,9 @@
-import React from "react"
 import { Box, Static, Text, useApp, useInput } from "ink"
+import React from "react"
 import { ChatHistory, type ChatEntry } from "./ChatHistory"
 import { InputBar } from "./InputBar"
-import { StatusBar } from "./StatusBar"
 import { PermissionModal } from "./PermissionModal"
+import { StatusBar } from "./StatusBar"
 
 export interface SubAgentStatus {
   agentId: string

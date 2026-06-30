@@ -1,3 +1,4 @@
+import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
 import {
   getProviderReasoningEffort,
   getProviderReasoningMode,
@@ -6,7 +7,6 @@ import {
 import type { AIProviderSetting } from "../../settings"
 import type { Capability } from "../capability"
 import type { ProviderChatCompletionRequest, ProviderStreamOptions } from "../types"
-import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
 
 function patchThinkingType(
   extraBody: Record<string, unknown>,

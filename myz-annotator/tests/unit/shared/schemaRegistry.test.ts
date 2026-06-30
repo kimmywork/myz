@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { MyZRecordRegistry } from "@/shared/recordRegistry";
 import {
-  RECORD_SCHEMA_VERSION,
-  SETTINGS_SCHEMA_VERSION,
-  SYNC_PROTOCOL_VERSION,
-  AI_SCHEMA_VERSION,
-} from "@/shared/versioning";
+  AiMessageRegistry,
+  AiConversationRegistry,
+  AiToolCallRegistry,
+} from "@/background/ai/registry";
+import { DEFAULT_SETTINGS } from "@/background/constants";
 import {
   SettingsRegistry,
   SettingsBundleRegistry,
@@ -16,12 +15,13 @@ import {
   SyncChunkEnvelopeRegistry,
   SyncLockPayloadRegistry,
 } from "@/background/sync/registry";
+import { MyZRecordRegistry } from "@/shared/recordRegistry";
 import {
-  AiMessageRegistry,
-  AiConversationRegistry,
-  AiToolCallRegistry,
-} from "@/background/ai/registry";
-import { DEFAULT_SETTINGS } from "@/background/constants";
+  RECORD_SCHEMA_VERSION,
+  SETTINGS_SCHEMA_VERSION,
+  SYNC_PROTOCOL_VERSION,
+  AI_SCHEMA_VERSION,
+} from "@/shared/versioning";
 
 describe("schema registry mapping", () => {
   it("should map record schema by version", () => {
@@ -47,7 +47,8 @@ describe("schema registry mapping", () => {
     expect(settingsSchema.safeParse(DEFAULT_SETTINGS).success).toBe(true);
 
     expect(SettingsBundleRegistry.latestVersion).toBe(SETTINGS_SCHEMA_VERSION);
-    const bundleSchema = SettingsBundleRegistry.versions[SETTINGS_SCHEMA_VERSION];
+    const bundleSchema =
+      SettingsBundleRegistry.versions[SETTINGS_SCHEMA_VERSION];
     expect(bundleSchema).toBeDefined();
     const bundleResult = bundleSchema.safeParse({
       schemaVersion: SETTINGS_SCHEMA_VERSION,

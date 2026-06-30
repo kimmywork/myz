@@ -2,9 +2,9 @@ import { normalizeTokenUsage } from "@myz/ai-core/tokenUsage"
 import { renderMarkdown } from "@myz/shared/markdownRenderer"
 import { computed, defineComponent, ref, watch } from "vue"
 import type { PropType } from "vue"
-import type { ChatMessageLike } from "./types"
-import ToolInlineNotice from "./ToolInlineNotice"
 import { resolveToolNames } from "./resolveToolNames"
+import ToolInlineNotice from "./ToolInlineNotice"
+import type { ChatMessageLike } from "./types"
 
 function formatTokenCount(value: number) {
   if (value >= 1_000_000) {

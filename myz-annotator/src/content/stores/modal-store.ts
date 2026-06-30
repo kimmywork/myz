@@ -13,15 +13,15 @@ import {
 } from "../highlight-state";
 import { usePreferenceStore } from "./preference-store";
 import { useToolbarStore } from "./toolbar-store";
+import type {
+  SaveHighlightMessagePayload,
+  SaveHighlightMessageResult,
+} from "@/background/messages/highlights";
 import {
   isHighlightRecord,
   normalizeHighlightStyle,
 } from "@/shared/highlightUtils";
 import { sendMessage } from "@/shared/messaging";
-import type {
-  SaveHighlightMessagePayload,
-  SaveHighlightMessageResult,
-} from "@/background/messages/highlights";
 import { serializeRange } from "@/shared/serializer";
 import {
   CONTENT_TYPES,
@@ -224,10 +224,7 @@ export const useModalStore = defineStore("modal", () => {
         const record = await sendMessage<
           SaveHighlightMessagePayload,
           SaveHighlightMessageResult
-        >(
-          "myz:saveHighlight",
-          payloadToSave,
-        );
+        >("myz:saveHighlight", payloadToSave);
         if (record) {
           const stored = storeRecord(record);
           if (stored) {
@@ -252,10 +249,7 @@ export const useModalStore = defineStore("modal", () => {
         const record = await sendMessage<
           SaveHighlightMessagePayload,
           SaveHighlightMessageResult
-        >(
-          "myz:saveHighlight",
-          payloadToSave,
-        );
+        >("myz:saveHighlight", payloadToSave);
         if (record) {
           const stored = storeRecord(record);
           if (stored) {

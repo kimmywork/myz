@@ -1,14 +1,14 @@
 import type { Message } from "@myz/agent-providers"
+import type { ExtensionState } from "./extensions"
+import { emitHooks } from "./extensions"
+import { matchPermission, matchHierarchicalPermission } from "./permissions"
+import type { PermissionLevel, PermissionMode } from "./permissions"
 import type {
   AgentDefinition,
   AgentEvent,
   AgentResult,
   ToolResult,
 } from "./types"
-import type { ExtensionState } from "./extensions"
-import { emitHooks } from "./extensions"
-import { matchPermission, matchHierarchicalPermission } from "./permissions"
-import type { PermissionLevel, PermissionMode } from "./permissions"
 
 export interface AgentLoopOptions {
   agent: AgentDefinition

@@ -1,3 +1,9 @@
+import { isRecord } from "@myz/shared/typeUtils"
+import {
+  normalizeReasoningChunk,
+  splitContentAndReasoning,
+} from "../../normalize/message"
+import { extractGeminiThoughtSegments } from "../../vendors/googleGemini"
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
@@ -7,12 +13,6 @@ import type {
   ProviderStreamOptions,
 } from "../types"
 import { createOpenAISdkClient } from "./sdkClient"
-import {
-  normalizeReasoningChunk,
-  splitContentAndReasoning,
-} from "../../normalize/message"
-import { extractGeminiThoughtSegments } from "../../vendors/googleGemini"
-import { isRecord } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
 

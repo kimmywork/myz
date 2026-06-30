@@ -237,7 +237,7 @@ describe("provider capabilities", () => {
       (msg: any) => msg.role === "assistant",
     );
     expect(assistantMessage?.content).toBe("Visible");
-    expect(assistantMessage?.reasoning_content).toBe("hidden")
+    expect(assistantMessage?.reasoning_content).toBe("hidden");
   });
 
   it("parses SSE streaming responses", async () => {

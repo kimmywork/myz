@@ -1,11 +1,11 @@
+import { createSchemaRegistry } from "@myz/shared/schemaRegistry"
+import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning"
 import {
   SyncRecordPayloadSchemaV1,
   ManifestDataSchemaV1,
   ChunkEnvelopeSchemaV1,
   LockPayloadSchemaV1,
 } from "./schemas"
-import { createSchemaRegistry } from "@myz/shared/schemaRegistry"
-import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning"
 
 export const SyncRecordPayloadRegistry = createSchemaRegistry({
   latestVersion: SYNC_PROTOCOL_VERSION,

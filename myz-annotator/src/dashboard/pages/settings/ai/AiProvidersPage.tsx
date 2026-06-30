@@ -1,8 +1,5 @@
+import { AiProviderEditor, AiProvidersPanel } from "@myz/dashboard-ai-settings";
 import { defineComponent } from "vue";
-import {
-  AiProviderEditor,
-  AiProvidersPanel,
-} from "@myz/dashboard-ai-settings";
 import { useAiSettingsContext } from "./aiSettingsContext.js";
 
 export default defineComponent({

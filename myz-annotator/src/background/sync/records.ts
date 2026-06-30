@@ -1,3 +1,6 @@
+import type { MyZRecord } from "@myz/shared/types";
+import { toJsonRecord } from "@myz/shared/typeUtils";
+import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
 import {
   getMessagesForConversation,
   listConversations,
@@ -17,10 +20,7 @@ import {
   encodeBinaryPayload,
   stableStringify,
 } from "./utils";
-import type { MyZRecord } from "@myz/shared/types";
 import type { ConversationInfo } from "@/sidepanel/aiStorage";
-import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
-import { toJsonRecord } from "@myz/shared/typeUtils";
 
 const HIGHLIGHT_PREFIX = "h:";
 const CONVERSATION_PREFIX = "ai:";

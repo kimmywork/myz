@@ -1,5 +1,5 @@
-import test from "node:test"
 import assert from "node:assert/strict"
+import test from "node:test"
 import { createCommands, type CommandContext } from "../src/index"
 
 function createContext(overrides: Partial<CommandContext> = {}): CommandContext {

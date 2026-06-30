@@ -1,7 +1,10 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { getConversation } from "../aiStorage.js";
-import { normalizeTaskPlanPayload, type TaskPlan } from "@/background/ai/tasks/taskManager";
+import {
+  normalizeTaskPlanPayload,
+  type TaskPlan,
+} from "@/background/ai/tasks/taskManager";
 
 export const useTaskPlanStore = defineStore("taskPlan", () => {
   const conversationId = ref<string | null>(null);

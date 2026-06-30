@@ -1,10 +1,10 @@
-import type { AIModelSetting, MaxOutputTokenParam } from "../settings"
 import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt"
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
   ProviderMessage,
 } from "../providers/types"
+import type { AIModelSetting, MaxOutputTokenParam } from "../settings"
 
 export interface SkillSelectionCandidate {
   name: string

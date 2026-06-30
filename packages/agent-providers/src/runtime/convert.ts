@@ -1,5 +1,5 @@
-import type { Message } from "../types"
 import type { ProviderMessage } from "../providers/types"
+import type { Message } from "../types"
 
 export function toProviderMessages(messages: Message[]): ProviderMessage[] {
   return messages.map((m) => ({

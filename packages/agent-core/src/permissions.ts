@@ -1,6 +1,6 @@
-import type { PermissionRule } from "./types"
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs"
 import { dirname } from "node:path"
+import type { PermissionRule } from "./types"
 
 // --- Permission Mode ---
 

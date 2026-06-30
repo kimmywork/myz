@@ -1,10 +1,10 @@
-import type { ProviderType, CompatProfile } from "../settings"
-import type { LLMClient } from "../providers/types"
-import { createOpenAICompatibleClient } from "../providers/openaiCompatible"
-import { createOpenAIResponsesClient } from "../providers/openaiResponses"
 import { createAnthropicClient } from "../providers/anthropic"
 import { createGeminiClient } from "../providers/gemini"
 import { createMistralClient } from "../providers/mistral"
+import { createOpenAICompatibleClient } from "../providers/openaiCompatible"
+import { createOpenAIResponsesClient } from "../providers/openaiResponses"
+import type { LLMClient } from "../providers/types"
+import type { ProviderType, CompatProfile } from "../settings"
 
 export interface ProviderConfig {
   type: ProviderType

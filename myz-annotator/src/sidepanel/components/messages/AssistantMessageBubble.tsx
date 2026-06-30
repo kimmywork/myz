@@ -1,1 +1,1 @@
-export { AssistantMessageBubble as default } from "@myz/dashboard-chat-ui"
+export { AssistantMessageBubble as default } from "@myz/dashboard-chat-ui";

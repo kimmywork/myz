@@ -1,29 +1,29 @@
-import { ChatConversationShell } from "@myz/dashboard-chat-ui"
-import { computed, defineComponent } from "vue"
-import ChatConversationList from "./ChatConversationList.jsx"
-import ChatInputComposer from "./ChatInputComposer.jsx"
-import { useChatStore } from "@/dashboard/stores/chat.js"
+import { ChatConversationShell } from "@myz/dashboard-chat-ui";
+import { computed, defineComponent } from "vue";
+import ChatConversationList from "./ChatConversationList.jsx";
+import ChatInputComposer from "./ChatInputComposer.jsx";
+import { useChatStore } from "@/dashboard/stores/chat.js";
 
 export default defineComponent({
   name: "DashboardChatConversationPane",
   setup() {
-    const chatStore = useChatStore()
+    const chatStore = useChatStore();
 
     const displayTitle = computed(() =>
       chatStore.conversationTitle?.trim()
         ? chatStore.conversationTitle
         : "未命名对话",
-    )
+    );
 
     const updatedAtText = computed(() => {
-      const updatedAt = chatStore.activeConversation?.updatedAt
-      if (!updatedAt) return ""
+      const updatedAt = chatStore.activeConversation?.updatedAt;
+      if (!updatedAt) return "";
       try {
-        return new Date(updatedAt).toLocaleString()
+        return new Date(updatedAt).toLocaleString();
       } catch {
-        return updatedAt
+        return updatedAt;
       }
-    })
+    });
 
     return () => (
       <ChatConversationShell
@@ -66,6 +66,6 @@ export default defineComponent({
           !chatStore.isReadOnly ? <ChatInputComposer /> : null
         }
       />
-    )
+    );
   },
-})
+});

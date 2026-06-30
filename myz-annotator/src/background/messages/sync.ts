@@ -1,6 +1,5 @@
-import { readSettings, writeSettings } from "../storage";
 import type { SyncS3Settings, SyncSettings } from "../settings";
-import { isRecord } from "@/shared/typeUtils";
+import { readSettings, writeSettings } from "../storage";
 import {
   clearKeyset,
   deriveKeysetFromSecret,
@@ -18,6 +17,7 @@ import {
 } from "../sync/storage";
 import { syncNow } from "../sync/syncEngine";
 import { registerMessageHandler } from "./handler";
+import { isRecord } from "@/shared/typeUtils";
 
 export interface SyncStatusMessageResult {
   enabled: boolean;
@@ -86,9 +86,7 @@ export function initializeSyncMessageHandlers() {
     async (payload: { s3?: Partial<SyncS3Settings> }) => {
       const settings = await readSettings();
       const baseS3 = settings.sync.s3;
-      const s3 = isRecord(payload?.s3)
-        ? { ...baseS3, ...payload.s3 }
-        : baseS3;
+      const s3 = isRecord(payload?.s3) ? { ...baseS3, ...payload.s3 } : baseS3;
       if (
         !s3?.endpoint ||
         !s3?.bucket ||

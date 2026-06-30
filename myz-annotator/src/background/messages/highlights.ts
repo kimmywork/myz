@@ -19,11 +19,6 @@ import {
   getAllHighlights,
 } from "../storage";
 import { recordHighlightDeletion } from "../sync/deletions";
-import {
-  removeRecordFromIndex,
-  indexRecord,
-  indexRecords,
-} from "../vectoria-index";
 import { registerMessageHandler } from "./handler";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils";
 import {
@@ -83,51 +78,50 @@ export function initializeHighlightMessageHandlers() {
   registerMessageHandler(
     "myz:saveHighlight",
     async (payload: SaveHighlightMessagePayload) => {
-    if (!payload) {
-      throw new Error("Missing highlight payload");
-    }
-    const now = new Date().toISOString();
-    const id = payload.id || generateId();
-    const kind = (() => {
-      const candidate = payload.kind;
-      if (typeof candidate === "string") {
-        const normalized = candidate.trim();
-        if (
-          normalized &&
-          Object.values(RECORD_KINDS).includes(normalized as RECORD_KINDS)
-        ) {
-          return normalized as RECORD_KINDS;
-        }
+      if (!payload) {
+        throw new Error("Missing highlight payload");
       }
-      return RECORD_KINDS.HIGHLIGHT;
-    })();
-    const record: MyZRecord = ensureRecordSchemaVersion({
-      ...payload,
-      id,
-      kind,
-      createdAt: payload.createdAt || now,
-      updatedAt: now,
-    }) as MyZRecord;
-    record.contentType = resolveRecordContentType(record);
+      const now = new Date().toISOString();
+      const id = payload.id || generateId();
+      const kind = (() => {
+        const candidate = payload.kind;
+        if (typeof candidate === "string") {
+          const normalized = candidate.trim();
+          if (
+            normalized &&
+            Object.values(RECORD_KINDS).includes(normalized as RECORD_KINDS)
+          ) {
+            return normalized as RECORD_KINDS;
+          }
+        }
+        return RECORD_KINDS.HIGHLIGHT;
+      })();
+      const record: MyZRecord = ensureRecordSchemaVersion({
+        ...payload,
+        id,
+        kind,
+        createdAt: payload.createdAt || now,
+        updatedAt: now,
+      }) as MyZRecord;
+      record.contentType = resolveRecordContentType(record);
 
-    if (kind !== RECORD_KINDS.HIGHLIGHT) {
-      record.range = undefined;
-      record.color = undefined;
-      record.style = undefined;
-    } else {
-      record.style = normalizeHighlightStyle(payload.style);
-    }
+      if (kind !== RECORD_KINDS.HIGHLIGHT) {
+        record.range = undefined;
+        record.color = undefined;
+        record.style = undefined;
+      } else {
+        record.style = normalizeHighlightStyle(payload.style);
+      }
 
-    await saveHighlight(record);
+      await saveHighlight(record);
 
-    if (kind === RECORD_KINDS.HIGHLIGHT) {
-      await persistHighlightPreferences({
-        color: record.color,
-        style: record.style,
-      });
-    }
-    await indexRecord(record);
-    return record;
+      if (kind === RECORD_KINDS.HIGHLIGHT) {
+        await persistHighlightPreferences({
+          color: record.color,
+          style: record.style,
+        });
+      }
+      return record;
     },
   );
 
@@ -168,7 +162,6 @@ export function initializeHighlightMessageHandlers() {
           style: updated.style,
         });
       }
-      await indexRecord(updated);
       return updated;
     },
   );
@@ -181,7 +174,6 @@ export function initializeHighlightMessageHandlers() {
       }
       await recordHighlightDeletion(payload.id);
       await deleteHighlight(payload.id);
-      await removeRecordFromIndex(payload.id);
       return { success: true };
     },
   );
@@ -203,7 +195,6 @@ export function initializeHighlightMessageHandlers() {
       for (const id of unique) {
         await recordHighlightDeletion(id);
         await deleteHighlight(id);
-        await removeRecordFromIndex(id);
       }
       return { removed: unique.length };
     },
@@ -241,7 +232,6 @@ export function initializeHighlightMessageHandlers() {
           updatedAt: now,
         };
         await saveHighlight(updated);
-        await indexRecord(updated);
       }
       return { updated: unique.length };
     },
@@ -437,13 +427,6 @@ export function initializeHighlightMessageHandlers() {
       additions.forEach((record) => savePromises.push(saveHighlight(record)));
       await Promise.all(savePromises);
 
-      const toIndex = [
-        ...Array.from(additions.values()),
-        ...Array.from(replacements.values()),
-      ];
-      if (toIndex.length) {
-        await indexRecords(toIndex);
-      }
       return {
         inserted: additions.size,
         replaced: replacements.size,

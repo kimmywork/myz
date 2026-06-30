@@ -137,7 +137,9 @@ describe("provider clients", () => {
       messages: [],
     } as any);
 
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body || "{}"));
+    const requestBody = JSON.parse(
+      String(fetchMock.mock.calls[0]?.[1]?.body || "{}"),
+    );
     expect(requestBody.temperature).toBeUndefined();
   });
 
@@ -190,7 +192,9 @@ describe("provider clients", () => {
       ],
     } as any);
 
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body || "{}"));
+    const requestBody = JSON.parse(
+      String(fetchMock.mock.calls[0]?.[1]?.body || "{}"),
+    );
     expect(requestBody.input).not.toContainEqual(
       expect.objectContaining({
         type: "function_call",
@@ -264,7 +268,9 @@ describe("provider clients", () => {
       ],
     } as any);
 
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body || "{}"));
+    const requestBody = JSON.parse(
+      String(fetchMock.mock.calls[0]?.[1]?.body || "{}"),
+    );
     expect(requestBody.input).toContainEqual(
       expect.objectContaining({
         type: "function_call",
@@ -447,9 +453,9 @@ describe("provider clients", () => {
     expect(extractAnthropicModels({ data: [{ id: "claude" }] })).toEqual([
       "claude",
     ]);
-    expect(extractMistralModels({ data: [{ id: "mistral-small-latest" }] })).toEqual([
-      "mistral-small-latest",
-    ]);
+    expect(
+      extractMistralModels({ data: [{ id: "mistral-small-latest" }] }),
+    ).toEqual(["mistral-small-latest"]);
     expect(buildGeminiHeaders("key", "")["x-goog-api-key"]).toBe("key");
     expect(buildAnthropicHeaders("key", "")["x-api-key"]).toBe("key");
   });

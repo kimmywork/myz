@@ -36,27 +36,27 @@ describe("openaiCompatible runtime", () => {
         type: "openai_compatible",
         baseUrl: "https://api.example.com/v1",
       }),
-    ).toBe(true)
+    ).toBe(true);
     expect(
       shouldReplayOpenAICompatibleReasoning({
         type: "openai_compatible",
         baseUrl: "https://api.openai.com/v1",
       }),
-    ).toBe(false)
+    ).toBe(false);
     expect(
       shouldReplayOpenAICompatibleReasoning({
         type: "gemini",
         baseUrl: "https://generativelanguage.googleapis.com",
       }),
-    ).toBe(false)
+    ).toBe(false);
     expect(
       shouldReplayOpenAICompatibleReasoning({
         type: "openai_compatible",
         baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
         compatProfile: "qwen",
       }),
-    ).toBe(false)
-  })
+    ).toBe(false);
+  });
 
   it("resolves openai-compatible profiles from base url or explicit config", () => {
     expect(
@@ -65,20 +65,20 @@ describe("openaiCompatible runtime", () => {
         baseUrl: "https://api.deepseek.com/v1",
         compatProfile: "auto",
       }),
-    ).toBe("deepseek")
+    ).toBe("deepseek");
     expect(
       resolveOpenAICompatibleProfile({
         type: "openai_compatible",
         baseUrl: "https://open.bigmodel.cn/api/paas/v4",
         compatProfile: "auto",
       }),
-    ).toBe("glm")
+    ).toBe("glm");
     expect(
       resolveOpenAICompatibleProfile({
         type: "openai_compatible",
         baseUrl: "https://api.anything.invalid/v1",
         compatProfile: "moonshot",
       }),
-    ).toBe("moonshot")
-  })
+    ).toBe("moonshot");
+  });
 });

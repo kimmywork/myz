@@ -3,10 +3,10 @@
  * Uses a more robust storage mechanism for large conversation data
  */
 
-import { Message } from "@/background/ai/types.js";
 import { normalizeTokenUsage } from "@myz/ai-core/tokenUsage";
-import { AI_SCHEMA_VERSION } from "@/shared/versioning";
+import { Message } from "@/background/ai/types.js";
 import type { UnknownRecord } from "@/shared/typeUtils";
+import { AI_SCHEMA_VERSION } from "@/shared/versioning";
 
 const DB_NAME = "MyZAIAssistantDB";
 const DB_VERSION = 1;

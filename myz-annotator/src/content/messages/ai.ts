@@ -20,13 +20,6 @@ import { useModalStore } from "../stores/modal-store";
 import { useNotificationStore } from "../stores/notification-store";
 import { usePreferenceStore } from "../stores/preference-store";
 import { registerMessageHandler } from "./handler";
-import {
-  normalizeColor,
-  normalizeWhitespace,
-} from "@/shared/highlightUtils.js";
-import { sendMessage } from "@/shared/messaging.js";
-import { serializeRange, isNodeFromMyz } from "@/shared/serializer.js";
-import { isRecord } from "@/shared/typeUtils";
 import type {
   GenerateAutoHighlightsMessageResult,
   GeneratePageInsightsMessageResult,
@@ -36,6 +29,12 @@ import type {
   SaveHighlightMessageResult,
 } from "@/background/messages/highlights";
 import {
+  normalizeColor,
+  normalizeWhitespace,
+} from "@/shared/highlightUtils.js";
+import { sendMessage } from "@/shared/messaging.js";
+import { serializeRange, isNodeFromMyz } from "@/shared/serializer.js";
+import {
   AUTO_HIGHLIGHT_CATEGORIES,
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
@@ -43,6 +42,7 @@ import {
   RECORD_KINDS,
   type MyZRecord,
 } from "@/shared/types.js";
+import { isRecord } from "@/shared/typeUtils";
 import { canonicalUrl, extractHostname } from "@/shared/url.js";
 
 const TEXT_TAG_BLACKLIST = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
@@ -523,10 +523,7 @@ export function initializeAiMessageHandlers() {
           const record = await sendMessage<
             SaveHighlightMessagePayload,
             SaveHighlightMessageResult
-          >(
-            "myz:saveHighlight",
-            payloadItem,
-          );
+          >("myz:saveHighlight", payloadItem);
           if (!record) continue;
           const stored = storeRecord(record);
           if (stored) {

@@ -1,10 +1,15 @@
-import { computed, inject, ref, watch } from "vue";
 import {
   createProviderSetting,
   createModelSetting,
   getProviderTypeMeta,
 } from "@myz/dashboard-ai-settings";
+import { computed, inject, ref, watch } from "vue";
 import { useSettingsStore } from "../../../stores/settings.js";
+import type {
+  AIProviderFetchModelsMessageResult,
+  AIProviderTestConnectionMessageResult,
+  TestMcpConnectionMessageResult,
+} from "@/background/messages/ai";
 import type {
   AIAgentsSettings,
   AIModelSetting,
@@ -12,28 +17,11 @@ import type {
   AILocalToolsSettings,
   AISkillsSettings,
   McpServerSetting,
-  VectorSettings,
 } from "@/background/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
-import type {
-  AIProviderFetchModelsMessageResult,
-  AIProviderTestConnectionMessageResult,
-  TestMcpConnectionMessageResult,
-} from "@/background/messages/ai";
-import type {
-  RebuildVectorIndexMessageResult,
-  VectorTestConnectionMessageResult,
-} from "@/background/messages/vectoria";
 import { DEFAULT_COLORS, HIGHLIGHT_STYLES } from "@/shared/types.js";
 
 export const aiSettingsKey = Symbol("ai-settings");
-
-const DEFAULT_VECTOR_SETTINGS: VectorSettings = {
-  enabled: false,
-  target: null,
-  lastTest: null,
-  matchThreshold: 0.5,
-};
 
 function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
@@ -137,7 +125,6 @@ export const createAiSettingsContext = () => {
     mode: "manual",
     autoSelectorTarget: null,
   });
-  const vectorSettings = ref<VectorSettings>(deepClone(DEFAULT_VECTOR_SETTINGS));
   const skillsSettings = ref<AISkillsSettings>({
     mode: "manual",
     autoSelectorTarget: null,
@@ -154,13 +141,7 @@ export const createAiSettingsContext = () => {
   const mcpTestNotice = ref("");
   const localToolsSaveNotice = ref("");
   const skillsSaveNotice = ref("");
-  const vectorSaveNotice = ref("");
-  const vectorTestNotice = ref("");
-  const vectorStatusMessage = ref("");
-  const vectorReindexHint = ref("");
   const testingMcpServerId = ref<string | null>(null);
-  const isVectorTesting = ref(false);
-  const isRebuildingVector = ref(false);
 
   const usedByMap = computed(() => {
     const map: Record<string, string[]> = {};
@@ -192,35 +173,6 @@ export const createAiSettingsContext = () => {
     return catalogByProviderId.value[id] || [];
   });
 
-  const resolveModelTarget = (target: {
-    providerId: string;
-    modelId: string;
-  } | null) => {
-    if (!target?.providerId || !target?.modelId) return null;
-    const provider =
-      providers.value.find((item) => item.id === target.providerId) || null;
-    const model =
-      provider?.models?.find((item) => item.id === target.modelId) || null;
-    if (!provider || !model || !String(model.model || "").trim()) return null;
-    return { provider, model };
-  };
-
-  const vectorTargetSummary = computed(() => {
-    const resolved = resolveModelTarget(vectorSettings.value.target);
-    if (!resolved) return "未选择";
-    return `${resolved.provider.name} / ${resolved.model.model}`;
-  });
-
-  const isVectorDirty = computed(
-    () =>
-      JSON.stringify(vectorSettings.value) !==
-      JSON.stringify(store.settings.vectorSearch || DEFAULT_VECTOR_SETTINGS),
-  );
-
-  const canRebuildVectorIndex = computed(() =>
-    Boolean(store.settings.vectorSearch?.enabled),
-  );
-
   const setFormFromStore = () => {
     aiAssistantEnabled.value = Boolean(store.settings.aiAssistantEnabled);
     providers.value = (store.settings.aiProviders || []).map((p) =>
@@ -238,9 +190,6 @@ export const createAiSettingsContext = () => {
     localTools.value = store.settings.aiLocalTools
       ? deepClone(store.settings.aiLocalTools)
       : localTools.value;
-    vectorSettings.value = store.settings.vectorSearch
-      ? deepClone(store.settings.vectorSearch)
-      : deepClone(DEFAULT_VECTOR_SETTINGS);
     skillsSettings.value = store.settings.aiSkills
       ? deepClone(store.settings.aiSkills)
       : skillsSettings.value;
@@ -471,7 +420,8 @@ export const createAiSettingsContext = () => {
   };
 
   const runMcpConnectionTest = async (serverId: string) => {
-    const server = mcpServers.value.find((item) => item.id === serverId) || null;
+    const server =
+      mcpServers.value.find((item) => item.id === serverId) || null;
     const url = server?.url?.trim() || "";
     if (!server || !url) {
       setTimedNotice(mcpTestNotice, "请输入 MCP Server URL");
@@ -544,115 +494,12 @@ export const createAiSettingsContext = () => {
     setTimedNotice(skillsSaveNotice, "已保存");
   };
 
-  const runVectorConnectionTest = async () => {
-    const resolved = resolveModelTarget(vectorSettings.value.target);
-    if (!resolved) {
-      setTimedNotice(vectorTestNotice, "请选择模型");
-      return;
-    }
-
-    isVectorTesting.value = true;
-    vectorTestNotice.value = "连接测试中…";
-    vectorStatusMessage.value = "";
-    try {
-      const result = await sendMessage<
-        {
-          provider: Pick<AIProviderSetting, "baseUrl" | "apiKey">;
-          model: string;
-        },
-        VectorTestConnectionMessageResult
-      >("myz:vectorTestConnection", {
-        provider: {
-          baseUrl: resolved.provider.baseUrl,
-          apiKey: resolved.provider.apiKey,
-        },
-        model: resolved.model.model,
-      });
-      const ok = Boolean(result?.success);
-      const message = ok ? "连接成功" : result?.error || "连接失败";
-      vectorSettings.value = {
-        ...vectorSettings.value,
-        enabled: ok ? vectorSettings.value.enabled : false,
-        lastTest: {
-          ok,
-          message,
-          testedAt: new Date().toISOString(),
-          providerId: resolved.provider.id,
-          modelId: resolved.model.id,
-          model: resolved.model.model,
-        },
-      };
-      setTimedNotice(
-        vectorTestNotice,
-        ok ? `连接成功：${resolved.model.model}` : `连接失败：${message}`,
-      );
-    } catch (error) {
-      const message = (error as Error).message;
-      vectorSettings.value = {
-        ...vectorSettings.value,
-        enabled: false,
-        lastTest: {
-          ok: false,
-          message,
-          testedAt: new Date().toISOString(),
-          providerId: resolved.provider.id,
-          modelId: resolved.model.id,
-          model: resolved.model.model,
-        },
-      };
-      setTimedNotice(vectorTestNotice, `连接失败：${message}`);
-    } finally {
-      isVectorTesting.value = false;
-    }
-  };
-
-  const saveVectorSection = async () => {
-    const previousTarget = store.settings.vectorSearch?.target;
-    const previousKey = previousTarget
-      ? `${previousTarget.providerId}:${previousTarget.modelId}`
-      : "";
-    const nextTarget = vectorSettings.value.target;
-    const nextKey = nextTarget
-      ? `${nextTarget.providerId}:${nextTarget.modelId}`
-      : "";
-    await store.saveSettings({ vectorSearch: vectorSettings.value });
-    setTimedNotice(vectorSaveNotice, "已保存");
-    if (previousKey && nextKey && previousKey !== nextKey) {
-      vectorReindexHint.value = "模型已变更，保存后请重建索引";
-    } else if (!previousKey && nextKey) {
-      vectorReindexHint.value = "已选择模型，建议重建索引以覆盖历史标注";
-    }
-  };
-
-  const rebuildVectorIndex = async () => {
-    if (isVectorDirty.value) {
-      vectorStatusMessage.value = "请先保存设置再重建索引";
-      return;
-    }
-    isRebuildingVector.value = true;
-    vectorStatusMessage.value = "";
-    try {
-      const result = await sendMessage<undefined, RebuildVectorIndexMessageResult>(
-        "myz:rebuildVectorIndex",
-      );
-      vectorStatusMessage.value = result?.count
-        ? `索引已重建（${result.count} 条）`
-        : "索引已重建";
-      vectorReindexHint.value = "";
-    } catch (error) {
-      vectorStatusMessage.value = (error as Error).message;
-    } finally {
-      isRebuildingVector.value = false;
-    }
-  };
-
   return {
     aiAssistantEnabled,
     providers,
     agents,
     mcpServers,
     localTools,
-    vectorSettings,
     skillsSettings,
     selectedProviderId,
     selectedProvider,
@@ -667,17 +514,8 @@ export const createAiSettingsContext = () => {
     mcpTestNotice,
     localToolsSaveNotice,
     skillsSaveNotice,
-    vectorSaveNotice,
-    vectorTestNotice,
-    vectorStatusMessage,
-    vectorReindexHint,
     testingMcpServerId,
-    isVectorTesting,
-    isRebuildingVector,
     hasEnabledProvider,
-    vectorTargetSummary,
-    isVectorDirty,
-    canRebuildVectorIndex,
     replaceProvider,
     renameProvider,
     addProvider,
@@ -690,9 +528,6 @@ export const createAiSettingsContext = () => {
     runMcpConnectionTest,
     saveLocalToolsSection,
     saveSkillsSection,
-    runVectorConnectionTest,
-    saveVectorSection,
-    rebuildVectorIndex,
   };
 };
 

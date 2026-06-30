@@ -1,15 +1,15 @@
 import { defineComponent, ref, watchEffect } from "vue";
 import { useHighlightsStore } from "../../stores/highlights.js";
 import { useSettingsStore } from "../../stores/settings.js";
-import { sendMessage } from "@/shared/messaging.js";
-import { parseMastodonProfileUrl } from "@/shared/social/mastodon";
-import { parseTwitterProfileUrl } from "@/shared/social/twitter";
-import { RECORD_KINDS } from "@/shared/types";
-import type { SocialImportRequest } from "@/background/social-import";
 import type {
   ClearTweetImportsMessageResult,
   ImportSocialRecordsMessageResult,
 } from "@/background/messages/social-import";
+import type { SocialImportRequest } from "@/background/social-import";
+import { sendMessage } from "@/shared/messaging.js";
+import { parseMastodonProfileUrl } from "@/shared/social/mastodon";
+import { parseTwitterProfileUrl } from "@/shared/social/twitter";
+import { RECORD_KINDS } from "@/shared/types";
 
 type StatusTone = "info" | "error" | "success";
 

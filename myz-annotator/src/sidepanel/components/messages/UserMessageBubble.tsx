@@ -1,20 +1,20 @@
 import {
   ToolInlineNotice,
   UserMessageBubble as SharedUserMessageBubble,
-} from "@myz/dashboard-chat-ui"
-import { defineComponent } from "vue"
-import type { ImageAttachment } from "@/background/ai/types.js"
-import { useUIStore } from "../../stores/ui.js"
+} from "@myz/dashboard-chat-ui";
+import { defineComponent } from "vue";
+import { useUIStore } from "../../stores/ui.js";
+import type { ImageAttachment } from "@/background/ai/types.js";
 
 interface UserMessage {
-  id: string
-  content: string
-  timestamp: string
+  id: string;
+  content: string;
+  timestamp: string;
   metadata?: {
-    attachments?: ImageAttachment[]
-    selectionContextText?: string
-    skillNames?: string[] | string
-  }
+    attachments?: ImageAttachment[];
+    selectionContextText?: string;
+    skillNames?: string[] | string;
+  };
 }
 
 export default defineComponent({
@@ -26,22 +26,23 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const uiStore = useUIStore()
+    const uiStore = useUIStore();
 
     function resolveSkillNames() {
-      const raw = props.message?.metadata?.skillNames
+      const raw = props.message?.metadata?.skillNames;
       if (Array.isArray(raw)) {
-        return raw.map((name) => String(name).trim()).filter(Boolean)
+        return raw.map((name) => String(name).trim()).filter(Boolean);
       }
       if (typeof raw === "string" && raw.trim()) {
-        return [raw.trim()]
+        return [raw.trim()];
       }
-      return []
+      return [];
     }
 
     return () => {
-      const skillNames = resolveSkillNames()
-      const selectionContextText = props.message?.metadata?.selectionContextText?.trim()
+      const skillNames = resolveSkillNames();
+      const selectionContextText =
+        props.message?.metadata?.selectionContextText?.trim();
 
       return (
         <SharedUserMessageBubble
@@ -76,7 +77,7 @@ export default defineComponent({
             </>
           )}
         />
-      )
-    }
+      );
+    };
   },
-})
+});

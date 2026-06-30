@@ -1,5 +1,3 @@
-import { test } from "node:test"
-import assert from "node:assert/strict"
 import {
   parseBotCommand,
   isSupportedBotCommandName,
@@ -8,6 +6,8 @@ import {
   matchCommand,
   SUPPORTED_BOT_COMMAND_NAMES,
 } from "@myz/agent-core"
+import assert from "node:assert/strict"
+import { test } from "node:test"
 
 test("parseBotCommand parses slash commands", () => {
   assert.deepEqual(parseBotCommand("/help", "bot"), { name: "help", args: [] })

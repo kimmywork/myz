@@ -79,6 +79,49 @@ class FakeObjectStore {
     });
     return request;
   }
+
+  openCursor() {
+    const request = new FakeIDBRequest();
+    const items = Array.from(this.data.values());
+    let index = 0;
+    const store = this;
+
+    const cursor = {
+      get value() {
+        return items[index];
+      },
+      get key() {
+        const current = items[index];
+        return store.keyPath && current ? current[store.keyPath] : undefined;
+      },
+      delete: () => {
+        const current = items[index];
+        const key =
+          store.keyPath && current ? current[store.keyPath] : undefined;
+        if (key !== undefined) {
+          store.data.delete(key);
+        }
+        store.tx.scheduleComplete();
+      },
+      continue: () => {
+        index += 1;
+        queueMicrotask(() => {
+          request.result = index < items.length ? cursor : null;
+          request.onsuccess?.({ target: request });
+        });
+      },
+    } as any;
+
+    queueMicrotask(() => {
+      request.result = items.length ? cursor : null;
+      request.onsuccess?.({ target: request });
+      if (!items.length) {
+        store.tx.scheduleComplete();
+      }
+    });
+
+    return request;
+  }
 }
 
 class FakeIndex {
@@ -342,7 +385,7 @@ export function createToolCallSequenceClient(options: {
       message.extra_content = step.extra_content;
     }
     if (typeof (step as any).reasoning_content === "string") {
-      message.reasoning_content = (step as any).reasoning_content
+      message.reasoning_content = (step as any).reasoning_content;
     }
     return message;
   };

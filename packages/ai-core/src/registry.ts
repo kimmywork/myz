@@ -1,10 +1,10 @@
+import { createSchemaRegistry } from "@myz/shared/schemaRegistry"
+import { AI_SCHEMA_VERSION } from "@myz/shared/versioning"
 import {
   MessageSchemaV1,
   ConversationSchemaV1,
   ToolCallSchemaV1,
 } from "./schemas"
-import { createSchemaRegistry } from "@myz/shared/schemaRegistry"
-import { AI_SCHEMA_VERSION } from "@myz/shared/versioning"
 
 export const AiMessageRegistry = createSchemaRegistry({
   latestVersion: AI_SCHEMA_VERSION,

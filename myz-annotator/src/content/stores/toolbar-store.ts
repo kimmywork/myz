@@ -9,10 +9,10 @@ import {
 import type { CropRect } from "../image";
 import { useModalStore } from "./modal-store";
 import { useNotificationStore } from "./notification-store";
-import { sendMessage } from "@/shared/messaging";
-import { RECORD_KINDS } from "@/shared/types";
 import type { ImageAttachment } from "@/background/ai/types";
 import type { CaptureSelectionMessageResult } from "@/background/messages/capture";
+import { sendMessage } from "@/shared/messaging";
+import { RECORD_KINDS } from "@/shared/types";
 
 export interface ToolbarStore {
   show(position: DOMRect): void;

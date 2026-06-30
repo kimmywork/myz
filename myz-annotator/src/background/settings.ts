@@ -197,26 +197,6 @@ export interface AIAgentsSettings {
   autoHighlight: AutoHighlightAgentConfig;
 }
 
-export interface VectorSettings {
-  enabled: boolean;
-  target: AIAgentModelRef | null;
-  lastTest: VectorSearchLastTestStatus | null;
-  /**
-   * Only show matches whose similarity score >= matchThreshold.
-   * Stored as a fraction (0.0 - 1.0). UI exposes 40% - 100%.
-   */
-  matchThreshold: number;
-}
-
-export interface VectorSearchLastTestStatus {
-  ok: boolean;
-  message: string;
-  testedAt: string;
-  providerId: string;
-  modelId: string;
-  model: string;
-}
-
 export interface McpServerSetting {
   id: string;
   name: string;
@@ -238,7 +218,6 @@ export interface AIAssistantSettings {
   aiMcpServers: McpServerSetting[];
   aiLocalTools: AILocalToolsSettings;
   aiSkills: AISkillsSettings;
-  vectorSearch: VectorSettings;
 }
 
 export interface SocialImportProviderSettings {

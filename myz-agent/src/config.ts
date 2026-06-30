@@ -1,8 +1,8 @@
+import dotenv from "dotenv"
+import { createHash } from "node:crypto"
 import { readFileSync, existsSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { resolve } from "node:path"
-import { createHash } from "node:crypto"
-import dotenv from "dotenv"
 import yaml from "yaml"
 
 dotenv.config({ path: resolve(process.cwd(), ".env") })

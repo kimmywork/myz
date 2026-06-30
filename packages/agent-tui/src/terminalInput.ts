@@ -1,3 +1,4 @@
+/* eslint-disable no-control-regex */
 export function isLegacyMouseInput(input: string) {
   return /\x1B\[M[\s\S]{3}/.test(input)
 }

@@ -1,5 +1,5 @@
-import type { SyncS3Settings } from "./settings"
 import { hmacSha256, sha256, utf8ToBytes } from "./crypto"
+import type { SyncS3Settings } from "./settings"
 import { bytesToHex, toArrayBuffer } from "./utils"
 
 export interface S3ObjectInfo {

@@ -1,12 +1,12 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import type { Settings } from "@/background/settings.js";
 import {
   normalizeHighlightStyle,
   normalizeColor,
   normalizePalette,
 } from "@/shared/highlightUtils.js";
 import { sendMessage } from "@/shared/messaging.js";
-import type { Settings } from "@/background/settings.js";
 
 import {
   DEFAULT_COLORS,
@@ -39,7 +39,10 @@ async function persistSettings(patch: Partial<HightlightPreference>) {
     return;
   }
   try {
-    await sendMessage<Partial<Settings>, Settings>("myz:updateSettings", payload);
+    await sendMessage<Partial<Settings>, Settings>(
+      "myz:updateSettings",
+      payload,
+    );
   } catch (error) {
     console.warn("Failed to persist highlight preferences", error);
   }
@@ -82,7 +85,9 @@ export const usePreferenceStore = defineStore("preference", () => {
   // This will apply settings and set `isLoaded` when complete.
   async function loadSettings() {
     try {
-      const settings = await sendMessage<undefined, Settings>("myz:getSettings");
+      const settings = await sendMessage<undefined, Settings>(
+        "myz:getSettings",
+      );
       if (settings) {
         applySettings(settings);
       } else {

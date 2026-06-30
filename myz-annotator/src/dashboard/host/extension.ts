@@ -142,7 +142,9 @@ async function getSyncConfig(): Promise<SyncConfig> {
   };
 }
 
-async function updateSyncConfig(patch: Partial<SyncConfig>): Promise<SyncConfig> {
+async function updateSyncConfig(
+  patch: Partial<SyncConfig>,
+): Promise<SyncConfig> {
   const current = await getSyncConfig();
   const nextSync = {
     enabled:

@@ -8,5 +8,8 @@
   },
   "dependencies": {
     "@myz/shared": "*"
+  },
+  "scripts": {
+    "lint": "eslint ."
   }
 }

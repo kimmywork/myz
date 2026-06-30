@@ -149,10 +149,10 @@ export const useChatStore = defineStore("dashboard-chat", () => {
     }
   }
 
-  async function readActiveConversationId() {
+  async function readActiveConversationId(): Promise<string | null> {
     try {
       const result = await chrome.storage.local.get(ACTIVE_CONVERSATION_ID_KEY);
-      return result?.[ACTIVE_CONVERSATION_ID_KEY] || null;
+      return (result?.[ACTIVE_CONVERSATION_ID_KEY] as string) || null;
     } catch {
       return null;
     }
@@ -231,9 +231,9 @@ export const useChatStore = defineStore("dashboard-chat", () => {
         );
         multimodalVision = Boolean(
           multimodalProvider?.enabled &&
-            multimodalProvider?.lastTest?.ok &&
-            multimodalModel?.enabled &&
-            multimodalModel?.capabilities?.vision,
+          multimodalProvider?.lastTest?.ok &&
+          multimodalModel?.enabled &&
+          multimodalModel?.capabilities?.vision,
         );
         if (typeof multimodalModel?.limits?.contextWindow === "number") {
           multimodalContextWindow = Math.floor(

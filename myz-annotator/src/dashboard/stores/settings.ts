@@ -3,7 +3,6 @@ import { reactive, ref } from "vue";
 import { LOCAL_TOOL_NAMES } from "@/background/ai/tools/localDefinitions.js";
 import { Settings } from "@/background/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
-import { isRecord } from "@/shared/typeUtils";
 import {
   DEFAULT_COLOR,
   DEFAULT_COLORS,
@@ -56,12 +55,6 @@ export const useSettingsStore = defineStore("settings", () => {
     aiSkills: {
       mode: "manual",
       autoSelectorTarget: null,
-    },
-    vectorSearch: {
-      enabled: false,
-      target: null,
-      lastTest: null,
-      matchThreshold: 0.5,
     },
     lastUsedColor: DEFAULT_COLOR,
     lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
@@ -243,20 +236,6 @@ export const useSettingsStore = defineStore("settings", () => {
                     : null,
               }
             : settings.aiSkills,
-        vectorSearch: isRecord(result.vectorSearch)
-          ? {
-              enabled: Boolean(result.vectorSearch.enabled),
-              target: result.vectorSearch.target || null,
-              lastTest: result.vectorSearch.lastTest || null,
-              matchThreshold:
-                typeof result.vectorSearch.matchThreshold === "number"
-                  ? Math.min(
-                      1,
-                      Math.max(0.4, result.vectorSearch.matchThreshold),
-                    )
-                  : settings.vectorSearch.matchThreshold,
-            }
-          : settings.vectorSearch,
         socialImport:
           result.socialImport && typeof result.socialImport === "object"
             ? {
@@ -360,9 +339,6 @@ export const useSettingsStore = defineStore("settings", () => {
         }
         if ("aiSkills" in updated && updated.aiSkills) {
           settings.aiSkills = updated.aiSkills;
-        }
-        if ("vectorSearch" in updated && updated.vectorSearch) {
-          settings.vectorSearch = updated.vectorSearch;
         }
         if ("socialImport" in updated) {
           settings.socialImport =

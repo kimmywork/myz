@@ -1,5 +1,5 @@
-import React, { useState, useRef } from "react"
 import { Box, Text, useBoxMetrics, useCursor, useInput, useWindowSize, type DOMElement } from "ink"
+import React, { useState, useRef } from "react"
 import stringWidth from "string-width"
 import { isMouseInput } from "./terminalInput"
 

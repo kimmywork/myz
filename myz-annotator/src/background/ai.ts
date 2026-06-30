@@ -3,8 +3,8 @@ import {
   type MyZRecord,
   ensureRecordSchemaVersion,
 } from "@/shared/types.ts";
-import { AI_SCHEMA_VERSION } from "@/shared/versioning";
 import type { JsonRecord } from "@/shared/typeUtils";
+import { AI_SCHEMA_VERSION } from "@/shared/versioning";
 
 export const AI_CONVERSATION_KEY = "myz::ai-conversations";
 export const AI_MCP_SERVERS_KEY = "myz::ai-mcp-servers";
@@ -45,7 +45,11 @@ export function generateConversationId() {
 
 export async function readAiConversations(): Promise<AiConversationState> {
   const result = await chrome.storage.local.get(AI_CONVERSATION_KEY);
-  return result[AI_CONVERSATION_KEY] || { ...DEFAULT_AI_CONVERSATION_STATE };
+  return (
+    (result[AI_CONVERSATION_KEY] as AiConversationState) || {
+      ...DEFAULT_AI_CONVERSATION_STATE,
+    }
+  );
 }
 
 export async function writeAiConversations(state: AiConversationState) {

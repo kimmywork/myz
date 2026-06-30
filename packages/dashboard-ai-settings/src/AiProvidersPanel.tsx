@@ -1,7 +1,7 @@
 import { defineComponent } from "vue"
 import type { PropType } from "vue"
-import type { AIProviderSetting } from "./types"
 import AiProviderList from "./AiProviderList"
+import type { AIProviderSetting } from "./types"
 
 export default defineComponent({
   name: "AiProvidersPanel",

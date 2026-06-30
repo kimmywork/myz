@@ -1,5 +1,5 @@
-import { z } from "zod"
 import { AI_SCHEMA_VERSION } from "@myz/shared/versioning"
+import { z } from "zod"
 
 export const AiSchemaVersionV1 = AI_SCHEMA_VERSION
 

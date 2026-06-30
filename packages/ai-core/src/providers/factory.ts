@@ -1,3 +1,5 @@
+import type { AIProviderSetting } from "../settings"
+import type { ToolExecutionResult } from "../types"
 import { createGoogleGeminiThinkingCapability } from "./capabilities/googleGemini"
 import { createOpenAICompatibleProfileCapability } from "./capabilities/openaiCompatibleProfile"
 import { createReasoningNormalizationCapability } from "./capabilities/reasoning"
@@ -14,8 +16,6 @@ import type {
   ProviderToolCall,
   ProviderToolSpec,
 } from "./types"
-import type { ToolExecutionResult } from "../types"
-import type { AIProviderSetting } from "../settings"
 
 function mapDeveloperRole(
   request: ProviderChatCompletionRequest,

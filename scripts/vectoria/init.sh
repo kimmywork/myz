@@ -1,1 +1,0 @@
-git remote add -f vectoria git@github.com:myz-suite/vectoria.git

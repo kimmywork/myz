@@ -1,26 +1,18 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { VectoriaSearchResult } from "@/background/vectoria-index.js";
 
 export const usePageStore = defineStore("page", () => {
   const currentUrl = ref("");
   const currentTabId = ref<number | null>(null);
   const pageTitle = ref("");
   const pageContent = ref("");
-  const relatedMatches = ref<VectoriaSearchResult[]>([]);
 
   type TabActivatedInfo = { tabId: number; windowId?: number };
   type TabChangeInfo = { status?: string };
 
-  let tabActivatedListener:
-    | ((info: TabActivatedInfo) => void)
-    | null = null;
+  let tabActivatedListener: ((info: TabActivatedInfo) => void) | null = null;
   let tabUpdatedListener:
-    | ((
-        tabId: number,
-        changeInfo: TabChangeInfo,
-        tab: chrome.tabs.Tab,
-      ) => void)
+    | ((tabId: number, changeInfo: TabChangeInfo, tab: chrome.tabs.Tab) => void)
     | null = null;
 
   async function loadPageContext(
@@ -155,7 +147,6 @@ export const usePageStore = defineStore("page", () => {
     currentTabId,
     pageTitle,
     pageContent,
-    relatedMatches,
     loadPageContext,
     startTabTracking,
     stopTabTracking,

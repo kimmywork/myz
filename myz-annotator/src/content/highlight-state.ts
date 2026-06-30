@@ -7,15 +7,15 @@ import { useInspectorStore } from "./stores/inspector-store.ts";
 import { useModalStore } from "./stores/modal-store.ts";
 import { useNotificationStore } from "./stores/notification-store.ts";
 import { ensureContentStyles } from "./styles.ts";
-import { normalizeRecord } from "@/dashboard/utils/records.ts";
-import { isHighlightRecord, isClipRecord } from "@/shared/highlightUtils.ts";
-import { sendMessage } from "@/shared/messaging.ts";
 import type {
   GetAllTagsMessageResult,
   GetHighlightsForUrlMessageResult,
   RemoveHighlightMessageResult,
   UpdateHighlightMessageResult,
 } from "@/background/messages/highlights";
+import { normalizeRecord } from "@/dashboard/utils/records.ts";
+import { isHighlightRecord, isClipRecord } from "@/shared/highlightUtils.ts";
+import { sendMessage } from "@/shared/messaging.ts";
 
 import { deserializeRange, unwrapNode } from "@/shared/serializer.ts";
 
@@ -71,8 +71,8 @@ export async function restoreHighlights() {
       }),
       sendMessage<undefined, GetAllTagsMessageResult>("myz:getAllTags").catch(
         (error) => {
-        console.warn("Failed to load known tags", error);
-        return null;
+          console.warn("Failed to load known tags", error);
+          return null;
         },
       ),
     ]);

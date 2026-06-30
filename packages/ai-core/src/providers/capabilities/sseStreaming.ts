@@ -1,9 +1,11 @@
+import { isRecord } from "@myz/shared/typeUtils"
 import {
   normalizeReasoningChunk,
   splitContentAndReasoning,
 } from "../../normalize/message"
 import { extractGeminiThoughtSegments } from "../../vendors/googleGemini"
 import type { Capability } from "../capability"
+import { emitProviderRequestDebug } from "../debug"
 import type {
   ProviderChatCompletionRequest,
   ProviderChatCompletionResponse,
@@ -12,8 +14,6 @@ import type {
   ProviderMessage,
   ProviderToolCall,
 } from "../types"
-import { emitProviderRequestDebug } from "../debug"
-import { isRecord } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
 

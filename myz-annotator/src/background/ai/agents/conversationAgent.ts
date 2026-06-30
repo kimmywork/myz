@@ -1,3 +1,6 @@
+import { normalizeTokenUsage } from "@myz/ai-core/tokenUsage";
+import type { JsonRecord } from "@myz/shared/typeUtils";
+import { isRecord } from "@myz/shared/typeUtils";
 import {
   saveMessage,
   getConversation,
@@ -13,7 +16,6 @@ import { readSettings } from "../../storage.js";
 import { normalizeMessagePayload } from "../normalize/message.js";
 import { buildConversationPromptMessages } from "../prompt/conversation.js";
 import { injectSystemPromptAsUserMessage } from "../prompt/systemPrompt.js";
-import { shouldReplayOpenAICompatibleReasoning } from "../runtime/openaiCompatible.js";
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
@@ -24,6 +26,13 @@ import type {
   ProviderToolChoice,
   ProviderToolCall,
 } from "../providers/types.js";
+import { shouldReplayOpenAICompatibleReasoning } from "../runtime/openaiCompatible.js";
+import {
+  getCurrentTask,
+  normalizeTaskPlanPayload,
+  type TaskItem,
+  type TaskPlan,
+} from "../tasks/taskManager.js";
 import type {
   Message,
   MessageInPayload,
@@ -33,15 +42,6 @@ import type {
   ToolInvocationDetails,
   MessageStreamData,
 } from "../types.js";
-import {
-  getCurrentTask,
-  normalizeTaskPlanPayload,
-  type TaskItem,
-  type TaskPlan,
-} from "../tasks/taskManager.js";
-import { normalizeTokenUsage } from "@myz/ai-core/tokenUsage";
-import type { JsonRecord } from "@myz/shared/typeUtils";
-import { isRecord } from "@myz/shared/typeUtils";
 
 const AUTO_CONTINUE_MAX_TURNS = 4;
 const REQUIRE_USER_INPUT_MARKER = "[REQUIRE_USER_INPUT]";
@@ -367,19 +367,22 @@ function shouldIncludeAssistantReasoningForReplay(
       baseUrl: provider?.baseUrl,
     })
   ) {
-    return false
+    return false;
   }
-  if (typeof message?.reasoning_content !== "string" || !message.reasoning_content) {
-    return false
+  if (
+    typeof message?.reasoning_content !== "string" ||
+    !message.reasoning_content
+  ) {
+    return false;
   }
   const sourceProviderId =
     typeof message.metadata?.providerId === "string"
       ? message.metadata.providerId
-      : ""
+      : "";
   if (sourceProviderId && sourceProviderId !== provider.id) {
-    return false
+    return false;
   }
-  return true
+  return true;
 }
 
 export interface ConversationCallConfig {
@@ -626,7 +629,9 @@ export class ConversationAgent {
       arguments: call.function?.arguments || "",
     }));
     const toolNames = toolCallDetails.map((detail) => detail.name);
-    const normalizedToolCalls = message.tool_calls.map(normalizeProviderToolCall);
+    const normalizedToolCalls = message.tool_calls.map(
+      normalizeProviderToolCall,
+    );
     const { content: normalizedContent, reasoning: reasoningContent } =
       normalizeMessagePayload(message);
 
@@ -1019,7 +1024,10 @@ export class ConversationAgent {
           onToolResultMessage: async (message: ProviderMessage) =>
             this.persistToolResultMessage(conversationId, message),
         };
-        response = await deps.client.createCompletion(request, completionOptions);
+        response = await deps.client.createCompletion(
+          request,
+          completionOptions,
+        );
       } catch (error) {
         if (options.stream && streamMessageId) {
           const errorPayload: MessageStreamData = {
@@ -1057,13 +1065,11 @@ export class ConversationAgent {
         toolNamesList = message.tool_calls.map(
           (call) => call.function?.name || "unknown",
         );
-        toolCallDetails = message.tool_calls.map(
-          (call, index: number) => ({
-            id: call.id || `tool-${index + 1}`,
-            name: call.function?.name || "unknown",
-            arguments: call.function?.arguments || "",
-          }),
-        );
+        toolCallDetails = message.tool_calls.map((call, index: number) => ({
+          id: call.id || `tool-${index + 1}`,
+          name: call.function?.name || "unknown",
+          arguments: call.function?.arguments || "",
+        }));
         normalizedToolCalls = message.tool_calls.map(normalizeProviderToolCall);
       }
 

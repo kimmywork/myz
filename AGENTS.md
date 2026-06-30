@@ -8,7 +8,6 @@ This repo is a multi‑module suite (extensions + website + libraries). Keep cha
   - `src/content/` content scripts + page UI.
   - `src/popup/`, `src/dashboard/`, `src/sidepanel/` UI surfaces.
   - `src/shared/` shared utilities/types.
-- `myz-desktop/` — `@myz-suite/desktop`, a Tauri desktop app under active rebuild. Keep the app host-thin: minimal frontend/Tauri bootstraps locally, shared dashboard logic should move into reusable workspace packages instead of re-growing app-local placeholders.
 - `website/` — VitePress site (user‑facing docs). Content lives in Markdown under `website/annotator/`, `website/danmaku/`, `website/en/`, `website/guide/`.
 - `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/track/research/legal/archives).
 - `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).
@@ -18,8 +17,7 @@ This repo is a multi‑module suite (extensions + website + libraries). Keep cha
 - `packages/dashboard-ai-settings/` — shared dashboard AI settings UI primitives and catalogs. Keep host-specific state, tests, and runtime actions in app-local contexts; do not fork the presentational components per host.
 - `packages/dashboard-chat-ui/` — shared dashboard and sidepanel chat shells, message primitives, list/composer bases, and chat modals. Keep runtime, stores, page-context rendering, and host-only citation behaviors outside this package.
 - `packages/dashboard-ui/` — shared non-chat dashboard UI building blocks such as app shells, sidebars, and reusable inputs. Prefer wiring app stores into these components from page/container layers instead of re-copying the visuals per host.
-- `packages/sync-core/` — environment-agnostic E2EE sync core: crypto, protocol schemas, manifest/chunk handling, remote repository helpers, adapter interfaces. Both `myz-annotator` and `myz-desktop` consume this package; do not duplicate manifest/version/chunk logic in app code.
-- `packages/vectoria/` — hybrid vector search engine with HNSW index, n-gram matching, and tag-based retrieval. Uses OpenAI SDK for embeddings; do not add local model dependencies (onnxruntime, transformers.js).
+- `packages/sync-core/` — environment-agnostic E2EE sync core: crypto, protocol schemas, manifest/chunk handling, remote repository helpers, adapter interfaces.
 
 ## Common Commands
 myz-annotator:
@@ -30,10 +28,6 @@ website (VitePress):
 - `npm run dev` / `npm run build` / `npm run preview`
 
 Other modules: check each module’s `package.json` for scripts.
-
-@myz-suite/desktop:
-- `npm run dev` / `npm run build`
-- `npm run lint`
 
 ## Engineering Conventions (concise)
 - Indent 2 spaces; avoid semicolons in TS/TSX files.

@@ -1,10 +1,10 @@
-import { computed, defineComponent } from "vue"
-import type { PropType, StyleValue } from "vue"
 import {
   DEFAULT_COLORS,
   HIGHLIGHT_STYLE_OPTIONS,
   HIGHLIGHT_STYLES,
 } from "@myz/shared/types"
+import { computed, defineComponent } from "vue"
+import type { PropType, StyleValue } from "vue"
 import type {
   AIAgentsSettings,
   AIProviderSetting,

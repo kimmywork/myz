@@ -1,5 +1,5 @@
-import { decryptManifest } from "./manifest"
 import type { SyncObjectStore } from "./adapters"
+import { decryptManifest } from "./manifest"
 
 const MANIFEST_PREFIX = "manifests/"
 const CHUNKS_PREFIX = "chunks/"

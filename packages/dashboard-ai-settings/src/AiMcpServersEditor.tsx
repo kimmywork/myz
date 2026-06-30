@@ -1,6 +1,6 @@
+import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
 import { computed, defineComponent, ref, watch } from "vue"
 import type { PropType } from "vue"
-import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
 import ToggleSwitch from "./ToggleSwitch"
 import type { McpServerSetting } from "./types"
 

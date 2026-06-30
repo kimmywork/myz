@@ -1,5 +1,5 @@
-import { isHighlightRecord } from "./highlightUtils.js"
-import type { MyZRecord } from "./types.ts"
+import { isHighlightRecord } from "./highlightUtils.js";
+import type { MyZRecord } from "./types.ts";
 
 export function isMyzWrapper(node: Node): boolean {
   if (node && node.nodeType === node.ELEMENT_NODE) {

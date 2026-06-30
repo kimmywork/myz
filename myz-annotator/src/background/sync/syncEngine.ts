@@ -1,11 +1,14 @@
+import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
+import {
+  fetchRemoteRecords,
+  formatManifestVersion,
+  loadRemoteManifest,
+  readRemoteVersion,
+  writeRemoteVersion,
+} from "@myz/sync-core/remote";
 import { readSettings } from "../storage";
-import {
-  buildChunkForRecord,
-} from "./chunks";
-import {
-  packNoncePayload,
-  sha256,
-} from "./crypto";
+import { buildChunkForRecord } from "./chunks";
+import { packNoncePayload, sha256 } from "./crypto";
 import { runGc } from "./gc";
 import {
   clearKeyset,
@@ -14,23 +17,13 @@ import {
   verifySealedPublicKey,
 } from "./keyring";
 import { acquireLock, releaseLock } from "./lock";
-import {
-  encryptManifest,
-  signManifest,
-} from "./manifest";
+import { encryptManifest, signManifest } from "./manifest";
 import {
   applyRecordPayload,
   buildRecordHash,
   collectLocalRecords,
   deleteLocalRecord,
 } from "./records";
-import {
-  fetchRemoteRecords,
-  formatManifestVersion,
-  loadRemoteManifest,
-  readRemoteVersion,
-  writeRemoteVersion,
-} from "@myz/sync-core/remote";
 import { parseRotationNotice } from "./rotation";
 import { S3Client } from "./s3Client";
 import {
@@ -45,13 +38,8 @@ import {
   upsertDeletion,
   writeSyncState,
 } from "./storage";
-import type {
-  ManifestData,
-  ManifestRecordEntry,
-  SyncRecord,
-} from "./types";
+import type { ManifestData, ManifestRecordEntry, SyncRecord } from "./types";
 import { bytesToBase64, bytesToHex } from "./utils";
-import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
 
 const MANIFEST_KEEP_COUNT = 30;
 const LOCK_PATH = "lock/lease.bin";

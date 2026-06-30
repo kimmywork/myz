@@ -26,10 +26,10 @@ describe("records", () => {
     });
 
     it("should return HIGHLIGHT for other kinds", () => {
-      const invalidKindRecord = { kind: "other" } as unknown as Partial<MyZRecord>;
-      expect(getRecordKind(invalidKindRecord)).toBe(
-        RECORD_KINDS.HIGHLIGHT,
-      );
+      const invalidKindRecord = {
+        kind: "other",
+      } as unknown as Partial<MyZRecord>;
+      expect(getRecordKind(invalidKindRecord)).toBe(RECORD_KINDS.HIGHLIGHT);
       expect(getRecordKind({})).toBe(RECORD_KINDS.HIGHLIGHT);
     });
   });

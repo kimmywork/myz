@@ -1,3 +1,4 @@
+import { isRecord } from "@myz/shared/typeUtils"
 import type {
   ImageAttachment,
   Message,
@@ -6,7 +7,6 @@ import type {
   OpenAIMessageContentPart,
 } from "../types"
 import { PromptBuilder } from "./builder"
-import { isRecord } from "@myz/shared/typeUtils"
 
 function normalizeAttachments(value: unknown): ImageAttachment[] {
   if (!Array.isArray(value)) return []

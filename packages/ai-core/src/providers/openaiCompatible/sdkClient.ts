@@ -1,7 +1,7 @@
 import OpenAI from "openai"
-import type { ProviderStreamOptions } from "../types"
-import { emitProviderRequestDebug } from "../debug"
 import { buildProviderHeaders } from "../../runtime/openaiCompatible"
+import { emitProviderRequestDebug } from "../debug"
+import type { ProviderStreamOptions } from "../types"
 
 function stringifyEndpoint(input: string | URL | Request) {
   if (typeof input === "string") return input

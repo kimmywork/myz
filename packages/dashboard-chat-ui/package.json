@@ -16,6 +16,9 @@
   "dependencies": {
     "@myz/ai-core": "*",
     "@myz/shared": "*",
-    "vue": "^3.5.22"
+    "vue": "*"
+  },
+  "scripts": {
+    "lint": "eslint ."
   }
 }

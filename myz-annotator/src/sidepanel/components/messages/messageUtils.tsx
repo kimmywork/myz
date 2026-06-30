@@ -1,1 +1,1 @@
-export { resolveToolNames } from "@myz/dashboard-chat-ui"
+export { resolveToolNames } from "@myz/dashboard-chat-ui";

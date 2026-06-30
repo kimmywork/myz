@@ -3,8 +3,10 @@ export interface MessageHandler<T = unknown, R = unknown> {
   handler: (payload: T, sender: chrome.runtime.MessageSender) => Promise<R>;
 }
 
-const messageHandlers: Map<string, MessageHandler<unknown, unknown>> =
-  new Map();
+const messageHandlers: Map<
+  string,
+  MessageHandler<unknown, unknown>
+> = new Map();
 
 export function registerMessageHandler<T = unknown, R = unknown>(
   key: string,

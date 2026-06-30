@@ -1,7 +1,7 @@
+import { renderToString } from "ink"
 import assert from "node:assert/strict"
 import test from "node:test"
 import React from "react"
-import { renderToString } from "ink"
 import { ChatHistory, type ChatEntry } from "../src/ChatHistory"
 
 test("ChatHistory renders v22 transcript roles", () => {

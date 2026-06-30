@@ -21,15 +21,23 @@ import {
   fetchProviderModels,
   testProviderConnection,
 } from "../ai/providers/registry.js";
+import type {
+  ChatCompletionClient,
+  ProviderChatCompletionRequest,
+} from "../ai/providers/types.js";
 import {
   resolveAgentTarget,
   resolveConversationMultimodalTarget,
   resolveModelRef,
 } from "../ai/runtime/agentSelection.js";
-import type {
-  ChatCompletionClient,
-  ProviderChatCompletionRequest,
-} from "../ai/providers/types.js";
+import { acquireProviderRuntime } from "../ai/runtime/providerRuntime.js";
+import { extractSkillMentions } from "../ai/skills/mentions.js";
+import { listSkills } from "../ai/skills/storage.js";
+import {
+  LOCAL_TOOL_NAMES,
+  SUPERPOWER_TOOL_NAMES,
+} from "../ai/tools/localDefinitions.js";
+import type { ToolWithServer } from "../ai/tools/registry.js";
 import type {
   ImageAttachment,
   Message,
@@ -37,7 +45,6 @@ import type {
   ProcessConversationOptions,
 } from "../ai/types.js";
 import { testMcpConnection } from "../mcp";
-import type { ToolWithServer } from "../ai/tools/registry.js";
 import type {
   AIProviderSetting,
   MaxOutputTokenParam,
@@ -45,9 +52,10 @@ import type {
 } from "../settings";
 import type { Settings } from "../settings";
 import { generateId, readSettings, saveHighlight } from "../storage";
-import { isRecord } from "@/shared/typeUtils";
+import { recordConversationDeletion } from "../sync/deletions";
 import { registerMessageHandler } from "./handler";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types";
+import { isRecord } from "@/shared/typeUtils";
 import {
   deleteConversation,
   getConversation,
@@ -56,14 +64,6 @@ import {
   updateConversationMetadata,
   saveConversation,
 } from "@/sidepanel/aiStorage";
-import { recordConversationDeletion } from "../sync/deletions";
-import { acquireProviderRuntime } from "../ai/runtime/providerRuntime.js";
-import {
-  LOCAL_TOOL_NAMES,
-  SUPERPOWER_TOOL_NAMES,
-} from "../ai/tools/localDefinitions.js";
-import { extractSkillMentions } from "../ai/skills/mentions.js";
-import { listSkills } from "../ai/skills/storage.js";
 
 export interface AIProviderFetchModelsMessageResult {
   models: string[];
@@ -104,6 +104,12 @@ export interface ListMcpToolsMessageResult {
  * message fires before the SidePanel page is ready.
  */
 const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
+
+interface PendingSidePanelAction {
+  draftId?: string;
+  [key: string]: unknown;
+}
+
 const DEFAULT_CONTEXT_COMPACTION_RECENT_COUNT = 10;
 
 function generateDraftId(prefix = "draft") {
@@ -436,7 +442,8 @@ async function clearPendingSidePanelActionIfMatch(draftId: string) {
     const store =
       area === "session" ? chrome.storage.session : chrome.storage.local;
     const result = await store.get(PENDING_SIDEPANEL_ACTION_KEY);
-    const current = result?.[PENDING_SIDEPANEL_ACTION_KEY];
+    const current = result?.[PENDING_SIDEPANEL_ACTION_KEY] as
+      PendingSidePanelAction | undefined;
     if (current?.draftId && current.draftId === draftId) {
       await store.remove(PENDING_SIDEPANEL_ACTION_KEY);
       return true;
@@ -589,10 +596,11 @@ export function initializeAIMessageHandlers() {
           const enabledToolNames = Array.isArray(
             settings.aiLocalTools?.enabledToolNames,
           )
-            ? settings.aiLocalTools.enabledToolNames.filter(
-                (name): name is string =>
-                  typeof name === "string" && name.trim().length > 0,
-              )
+            ? settings.aiLocalTools.enabledToolNames
+                .filter(
+                  (name): name is string =>
+                    typeof name === "string" && name.trim().length > 0,
+                )
                 .map((name: string) => name.trim())
             : LOCAL_TOOL_NAMES.slice();
           const gatedToolNames = superpowerEnabled
@@ -1131,10 +1139,11 @@ export function initializeAIMessageHandlers() {
           const enabledToolNames = Array.isArray(
             settings.aiLocalTools?.enabledToolNames,
           )
-            ? settings.aiLocalTools.enabledToolNames.filter(
-                (name): name is string =>
-                  typeof name === "string" && name.trim().length > 0,
-              )
+            ? settings.aiLocalTools.enabledToolNames
+                .filter(
+                  (name): name is string =>
+                    typeof name === "string" && name.trim().length > 0,
+                )
                 .map((name: string) => name.trim())
             : LOCAL_TOOL_NAMES.slice();
           const gatedToolNames = superpowerEnabled

@@ -1,10 +1,5 @@
 import { mountApp } from "./app-state.js";
 import { restoreHighlights } from "./highlight-state.js";
-import { resetInterestStateForNavigation } from "./interests-state.js";
-import {
-  scheduleIndicatorUpdate,
-  startInterestMonitoring,
-} from "./interests-state.js";
 import { messageListener } from "./message-listener.js";
 import { useToolbarStore } from "./stores/toolbar-store.js";
 import { ensureContentStyles } from "./styles.js";
@@ -17,7 +12,6 @@ import {
   updateToolbarRange,
 } from "./toolbar-state.js";
 import { hasArticleElement, toggleZenMode, isZenModeEnabled } from "./zen.js";
-import { canonicalUrl } from "@/shared/url.js";
 
 declare global {
   interface Window {
@@ -34,7 +28,6 @@ declare global {
   window.__myz_app = appInstance;
 
   window.__myzAnnotatorInitialized = true;
-  const CANONICAL_URL = canonicalUrl(window.location.href);
 
   // Keep a handle to our injected style.
   ensureContentStyles();
@@ -52,12 +45,6 @@ declare global {
       passive: true,
     });
     window.addEventListener("resize", handleScrollWhileSelecting, {
-      passive: true,
-    });
-    window.addEventListener("scroll", scheduleIndicatorUpdate, {
-      passive: true,
-    });
-    window.addEventListener("resize", scheduleIndicatorUpdate, {
       passive: true,
     });
     document.addEventListener("click", handleDocumentClick, true);
@@ -113,18 +100,12 @@ declare global {
     maybeShowToolbarForActiveSelection();
 
     await restoreHighlights();
-    startInterestMonitoring();
   }
-
-  // Keep track of the last canonical URL so we only re-run restoreHighlights
-  // when the logical page changes.
-  let lastKnownCanonical = CANONICAL_URL;
 
   function attachSpaNavigationListeners() {
     // Debounced handler to avoid thrashing during router transitions.
     let navTimer: ReturnType<typeof setTimeout> | null = null;
     function scheduleRestoreIfUrlChanged() {
-      const nowCanonical = canonicalUrl(window.location.href);
       if (navTimer) {
         clearTimeout(navTimer);
       }
@@ -134,11 +115,7 @@ declare global {
         // lastKnownCanonical if restore succeeds so we can retry on later
         // attempts if page content isn't ready yet.
         try {
-          if (nowCanonical !== lastKnownCanonical) {
-            resetInterestStateForNavigation();
-          }
           await restoreHighlights();
-          lastKnownCanonical = nowCanonical;
         } catch (err) {
           console.error("Failed to restore highlights after navigation", err);
         }

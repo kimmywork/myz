@@ -1,5 +1,5 @@
-import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate"
 import { isRecord } from "@myz/shared/typeUtils"
+import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate"
 
 const BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567"
 

@@ -1,6 +1,6 @@
 import OpenAI from "openai"
-import type { LLMClient, ProviderRequest, ProviderResponse } from "./types"
 import type { CompatProfile } from "../settings"
+import type { LLMClient, ProviderRequest, ProviderResponse } from "./types"
 
 function toOpenAIMessages(msgs: ProviderRequest["messages"]): any[] {
   return msgs.map((m) => {

@@ -7,7 +7,6 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import manifest from "./manifest.json" with { type: "json" };
 import tailwindcss from "@tailwindcss/vite";
-import { ta } from "zod/locales";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
 

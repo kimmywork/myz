@@ -13,10 +13,9 @@ const listAvailableToolsMock = vi.hoisted(() =>
 );
 
 vi.mock("@myz/ai-core/tools/registry", async () => {
-  const actual =
-    await vi.importActual<typeof import("@myz/ai-core/tools/registry")>(
-      "@myz/ai-core/tools/registry",
-    );
+  const actual = await vi.importActual<
+    typeof import("@myz/ai-core/tools/registry")
+  >("@myz/ai-core/tools/registry");
   return {
     ...actual,
     executeToolCall: executeToolCallMock,
@@ -42,7 +41,9 @@ describe("McpCapability", () => {
     mcp.setLocalToolAllowlist(["Task"]);
     mcp.setActiveToolFilter(["Task"]);
     const tools = mcp.listTools();
-    expect(tools).toEqual([{ name: "Task", server: "myz-local" }]);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe("Task");
+    expect(tools[0].server).toBe("myz-local");
   });
 
   it("injects conversationId for Task calls", async () => {

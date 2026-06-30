@@ -6,7 +6,6 @@ import {
   saveHighlight,
 } from "./storage.js";
 import { recordHighlightDeletion } from "./sync/deletions";
-import { indexRecord, removeRecordFromIndex } from "./vectoria-index.js";
 import {
   buildTootRecordTitle,
   extractHashtagsFromText as extractMastodonHashtagsFromText,
@@ -249,7 +248,7 @@ function coercePositiveInt(value: unknown, fallback: number) {
 }
 
 function buildTweetRecord({
-  actorUsername,
+  actorUsername: _actorUsername,
   kind,
   url,
   text,
@@ -448,11 +447,10 @@ export async function importSocialRecords(
           requireReplyContext: kind === RECORD_KINDS.TWEET_REPLY,
         };
 
-        const scraped = await sendTabMessage<TwitterScrapePayload, UnknownRecord[]>(
-          tabId,
-          "myz:scrapeTwitterTimeline",
-          payload,
-        );
+        const scraped = await sendTabMessage<
+          TwitterScrapePayload,
+          UnknownRecord[]
+        >(tabId, "myz:scrapeTwitterTimeline", payload);
 
         const items = Array.isArray(scraped) ? scraped : [];
         const stats: SocialImportKindResult = {
@@ -548,7 +546,6 @@ export async function importSocialRecords(
           }
 
           await saveHighlight(record);
-          await indexRecord(record);
           stats.inserted += 1;
           inserted += 1;
         }
@@ -599,11 +596,10 @@ export async function importSocialRecords(
         requireBoostContext: kind === RECORD_KINDS.TOOT_BOOST,
       };
 
-      const scraped = await sendTabMessage<TwitterScrapePayload, UnknownRecord[]>(
-        tabId,
-        "myz:scrapeMastodonTimeline",
-        payload,
-      );
+      const scraped = await sendTabMessage<
+        TwitterScrapePayload,
+        UnknownRecord[]
+      >(tabId, "myz:scrapeMastodonTimeline", payload);
 
       const items = Array.isArray(scraped) ? scraped : [];
       const stats: SocialImportKindResult = {
@@ -622,7 +618,7 @@ export async function importSocialRecords(
         const author = getMastodonAuthorFromStatusUrl(itemUrl, url);
 
         if (kind === RECORD_KINDS.TOOT_REPLY) {
-          if (!Boolean(item.isReply)) {
+          if (!item.isReply) {
             continue;
           }
           if (
@@ -719,7 +715,6 @@ export async function importSocialRecords(
         }
 
         await saveHighlight(record);
-        await indexRecord(record);
         stats.inserted += 1;
         inserted += 1;
       }
@@ -753,11 +748,6 @@ export async function clearTweetImports() {
       await deleteHighlight(record.id);
     } catch (error) {
       // ignore individual failures
-    }
-    try {
-      await removeRecordFromIndex(record.id);
-    } catch (error) {
-      // ignore index failures
     }
   }
   return { removed: tweetRecords.length };

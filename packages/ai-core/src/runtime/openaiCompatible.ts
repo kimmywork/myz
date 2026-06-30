@@ -1,9 +1,9 @@
+import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
+import { isRecord } from "@myz/shared/typeUtils"
 import type {
   AIProviderSetting,
   OpenAICompatibleProfile,
 } from "../settings"
-import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
-import { isRecord } from "@myz/shared/typeUtils"
 
 const REPLAY_REASONING_COMPAT_PROFILES = new Set<OpenAICompatibleProfile>([
   "deepseek",

@@ -1,7 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js"
-import type { ContentBlock } from "./mcp_schema"
-import { AI_SCHEMA_VERSION } from "@myz/shared/versioning"
 import type { JsonRecord, JsonValue } from "@myz/shared/typeUtils"
+import { AI_SCHEMA_VERSION } from "@myz/shared/versioning"
+import type { ContentBlock } from "./mcp_schema"
 
 export type Role = "user" | "assistant" | "tool" | "system"
 

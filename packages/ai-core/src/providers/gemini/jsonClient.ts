@@ -1,3 +1,8 @@
+import { GoogleGenAI } from "@google/genai"
+import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
+import type { JsonRecord } from "@myz/shared/typeUtils"
+import { isJsonRecord, isRecord, toJsonValue } from "@myz/shared/typeUtils"
+import { emitProviderRequestDebug } from "../debug"
 import type {
   ChatCompletionClient,
   ProviderChatCompletionRequest,
@@ -6,17 +11,12 @@ import type {
   ProviderStreamOptions,
   ProviderToolCall,
 } from "../types"
-import { emitProviderRequestDebug } from "../debug"
-import { GoogleGenAI } from "@google/genai"
 import {
   coerceContentToText,
   normalizeBaseUrl,
   parseDataUrl,
   safeJsonParse,
 } from "../utils"
-import { parseAiRequestHeaders } from "@myz/shared/aiHeaderUtils"
-import type { JsonRecord } from "@myz/shared/typeUtils"
-import { isJsonRecord, isRecord, toJsonValue } from "@myz/shared/typeUtils"
 
 type ValueOrGetter<T> = T | (() => T)
 

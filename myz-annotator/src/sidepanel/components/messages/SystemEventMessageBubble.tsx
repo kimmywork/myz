@@ -1,1 +1,1 @@
-export { SystemEventMessageBubble as default } from "@myz/dashboard-chat-ui"
+export { SystemEventMessageBubble as default } from "@myz/dashboard-chat-ui";

@@ -1,7 +1,7 @@
+import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
 import type { Capability } from "../capability"
 import type { ProviderChatCompletionRequest } from "../types"
 import type { ProviderStreamOptions } from "../types"
-import { isRecord, toJsonRecord } from "@myz/shared/typeUtils"
 
 function isGeminiModel(model: unknown) {
   return typeof model === "string" && /^gemini/i.test(model)

@@ -29,12 +29,15 @@
     "./mcp_schema": "./src/mcp_schema.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.91.1",
-    "@google/genai": "^1.50.1",
-    "@mistralai/mistralai": "^2.2.1",
-    "@modelcontextprotocol/sdk": "^1.24.3",
+    "@anthropic-ai/sdk": "*",
+    "@google/genai": "*",
+    "@mistralai/mistralai": "*",
+    "@modelcontextprotocol/sdk": "*",
     "@myz/shared": "*",
-    "openai": "^6.34.0",
-    "zod": "^4.2.1"
+    "openai": "*",
+    "zod": "*"
+  },
+  "scripts": {
+    "lint": "eslint ."
   }
 }

@@ -1,6 +1,10 @@
 import {
-  utf8ToBytes,
-} from "./crypto";
+  deriveKeysetFromSecret as deriveSharedKeysetFromSecret,
+  sealPublicKey as sealSharedPublicKey,
+  type SyncKeyset,
+  verifySealedPublicKey as verifySharedSealedPublicKey,
+} from "@myz/sync-core/keyset";
+import { utf8ToBytes } from "./crypto";
 import {
   clearKeysetRecord,
   readDeviceKey,
@@ -8,17 +12,7 @@ import {
   writeDeviceKey,
   writeKeysetRecord,
 } from "./storage";
-import {
-  base64ToBytes,
-  bytesToBase64,
-  toArrayBuffer,
-} from "./utils";
-import {
-  deriveKeysetFromSecret as deriveSharedKeysetFromSecret,
-  sealPublicKey as sealSharedPublicKey,
-  type SyncKeyset,
-  verifySealedPublicKey as verifySharedSealedPublicKey,
-} from "@myz/sync-core/keyset";
+import { base64ToBytes, bytesToBase64, toArrayBuffer } from "./utils";
 
 const KEYSET_VERSION = "v1";
 

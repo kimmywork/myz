@@ -1,5 +1,5 @@
-import React from "react"
 import { Box, Text, useWindowSize } from "ink"
+import React from "react"
 import stringWidth from "string-width"
 
 export interface StatusBarProps {

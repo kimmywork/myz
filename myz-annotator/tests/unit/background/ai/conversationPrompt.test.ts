@@ -52,26 +52,26 @@ describe("buildConversationPromptMessages", () => {
           providerId: "provider-a",
         },
       },
-    ] as any
+    ] as any;
 
     const included = buildConversationPromptMessages(history, {
       includeAssistantReasoning: (message) =>
         message.metadata?.providerId === "provider-a",
-    })
+    });
     expect(included[0]).toMatchObject({
       role: "assistant",
       content: "answer",
       reasoning_content: "hidden chain",
-    })
+    });
 
     const omitted = buildConversationPromptMessages(history, {
       includeAssistantReasoning: (message) =>
         message.metadata?.providerId === "provider-b",
-    })
+    });
     expect(omitted[0]).toMatchObject({
       role: "assistant",
       content: "answer",
-    })
-    expect("reasoning_content" in omitted[0]).toBe(false)
-  })
+    });
+    expect("reasoning_content" in omitted[0]).toBe(false);
+  });
 });

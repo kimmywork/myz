@@ -52,7 +52,7 @@ function parseReplyAndBoostContext(container: HTMLElement) {
 
   const replyToUsernames = (() => {
     const handles: string[] = [];
-    const regex = /@([A-Za-z0-9_\.:-]{1,80})/g;
+    const regex = /@([A-Za-z0-9_.:-]{1,80})/g;
     let match: RegExpExecArray | null;
     while ((match = regex.exec(raw))) {
       if (match[1]) {
