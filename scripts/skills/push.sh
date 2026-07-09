@@ -1,3 +1,3 @@
 #!/bin/bash
 
-git subtree push --prefix=myz-annotator/src/skills skills master
+git subtree push --prefix=myz-skills skills master

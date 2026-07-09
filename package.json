@@ -6,8 +6,7 @@
     "myz-annotator",
     "myz-danmaku",
     "website",
-    "packages/*",
-    "myz-agent"
+    "packages/*"
   ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
