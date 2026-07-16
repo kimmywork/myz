@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "skills": {
+    "challenge": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceUrl": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "drafting/skills/challenge/SKILL.md",
+      "computedHash": "7571cde2342116a6c35e508f4df9292c81133118048dab27a8cac81213a5a50e"
+    },
+    "distillation": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceUrl": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "drafting/skills/distillation/SKILL.md",
+      "computedHash": "2c4ec56530cdafa5313fd4aa36ed2461a932ce2a3faffc64db8250caf75277cd"
+    },
+    "increment": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceUrl": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "drafting/skills/increment/SKILL.md",
+      "computedHash": "b78c9fbafb4889ea05b6c25a9ac9486595f92fc7b751c9473b214fea13da9f83"
+    },
+    "probing": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceUrl": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "drafting/skills/probing/SKILL.md",
+      "computedHash": "37ee7f289ccaade98838fa11ba940cf75dcd468286e1d78def1e741434d9ba1d"
+    },
+    "rationale": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceUrl": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "utility/skills/rationale/SKILL.md",
+      "computedHash": "93c6fb1d2ee0f5b4b7f4621bf305002e1ed1809766aa13a527211c1f399ee69d"
+    },
+    "vnv": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceUrl": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "drafting/skills/vnv/SKILL.md",
+      "computedHash": "b4107f4078ba214aa522e4435e7862ff939a9b7a1032dde1c96b3e5a5a4b8d38"
+    },
+    "worklog": {
+      "source": "git@github.com:kimmywork/skills",
+      "sourceUrl": "git@github.com:kimmywork/skills",
+      "sourceType": "git",
+      "skillPath": "drafting/skills/worklog/SKILL.md",
+      "computedHash": "9a8aa312ae9e8c416f3aeaae00c9a1c1995cf7a4aaf191d8a9791463e12c8a39"
+    }
+  }
+}
