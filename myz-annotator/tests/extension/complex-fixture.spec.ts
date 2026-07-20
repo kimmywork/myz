@@ -199,8 +199,8 @@ test("highlight_and_comment_on_complex_fixture", async () => {
   await page.waitForSelector(".myz-inspector:not(.myz-hidden)", {
     timeout: 5000,
   });
-  // click 编辑 (primary button in inspector)
-  await page.click(".myz-inspector .myz-btn-primary");
+  // click 编辑 (edit icon button in inspector)
+  await page.click(".myz-inspector .myz-inspector__icon-btn--edit");
   // modal should open in edit mode
   await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
     timeout: 5000,

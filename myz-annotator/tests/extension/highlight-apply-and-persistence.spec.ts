@@ -122,7 +122,7 @@ test("remove_highlight_updates_dom_and_storage", async () => {
   });
 
   // Click delete button in inspector
-  await page.click(".myz-inspector .myz-btn-danger");
+  await page.click(".myz-inspector .myz-inspector__icon-btn--delete");
 
   // Inspector should hide and highlight should be removed
   await page.waitForSelector(".myz-highlight", {

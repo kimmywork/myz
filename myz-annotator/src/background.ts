@@ -1,75 +1,10 @@
-import {
-  resolveAgentTarget,
-  resolveConversationMultimodalTarget,
-} from "./background/ai/runtime/agentSelection.js";
-import {
-  LOCAL_TOOL_DEFINITIONS,
-  LOCAL_TOOL_HANDLERS,
-} from "./background/ai/tools/local.js";
-import { registerLocalTools } from "./background/ai/tools/registry.js";
-import { syncAiRequestHeaderRules } from "./background/aiHeaders.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
-import { initializeAIMessageHandlers } from "./background/messages/ai.js";
 import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
 import { handleMessage } from "./background/messages/handler.js";
 import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
-import { initializeSkillMessageHandlers } from "./background/messages/skills.js";
-import { initializeSocialImportMessageHandlers } from "./background/messages/social-import.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
-import { readSettings } from "./background/storage.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
-import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
-
-const PENDING_SIDEPANEL_ACTION_KEY = "myz::pendingSidePanelAction";
-
-registerLocalTools({
-  definitions: LOCAL_TOOL_DEFINITIONS,
-  handlers: LOCAL_TOOL_HANDLERS,
-});
-
-function generateDraftId(prefix = "draft") {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-/**
- * Queues a SidePanel action so it can be delivered even if the SidePanel page
- * is not yet ready to receive runtime messages.
- */
-async function queueSidePanelAction(payload: unknown) {
-  const nextPayload: UnknownRecord = isRecord(payload) ? { ...payload } : {};
-  if (typeof nextPayload.draftId !== "string") {
-    nextPayload.draftId = generateDraftId();
-  }
-
-  try {
-    await chrome.storage.session.set({
-      [PENDING_SIDEPANEL_ACTION_KEY]: nextPayload,
-    });
-  } catch {
-    await chrome.storage.local.set({
-      [PENDING_SIDEPANEL_ACTION_KEY]: nextPayload,
-    });
-  }
-
-  try {
-    await chrome.runtime.sendMessage({
-      type: "myz:openSidePanelWithAction",
-      payload: nextPayload,
-    });
-  } catch {
-    // ignore
-  }
-}
-
-(async function initializeAiHeaderRules() {
-  try {
-    const settings = await readSettings();
-    await syncAiRequestHeaderRules(settings);
-  } catch (error) {
-    console.warn("Failed to initialize AI header rules", error);
-  }
-})();
 
 async function ensureContextMenus() {
   try {
@@ -92,64 +27,9 @@ async function ensureContextMenus() {
       contexts: ["page", "selection"],
       visible: false,
     });
-
-    // Add AI Assistant menu
-    try {
-      await chrome.contextMenus.remove("myz-ai-assistant");
-    } catch {}
-    chrome.contextMenus.create({
-      id: "myz-ai-assistant",
-      title: "打开AI助理",
-      contexts: ["page", "selection", "image"],
-    });
-
-    // Add AI Key Points menu (standalone)
-    try {
-      await chrome.contextMenus.remove("myz-ai-keypoints");
-    } catch {}
-    chrome.contextMenus.create({
-      id: "myz-ai-keypoints",
-      title: "发现关键要点",
-      contexts: ["page", "selection"],
-    });
-
-    // Add AI Assistant submenu actions
-    try {
-      await chrome.contextMenus.remove("myz-ai-summarize");
-    } catch {}
-    chrome.contextMenus.create({
-      id: "myz-ai-summarize",
-      parentId: "myz-ai-assistant",
-      title: "总结页面内容",
-      contexts: ["page", "selection"],
-    });
-
-    try {
-      await chrome.contextMenus.remove("myz-ai-custom");
-    } catch {}
-    chrome.contextMenus.create({
-      id: "myz-ai-custom",
-      parentId: "myz-ai-assistant",
-      title: "打开面板",
-      contexts: ["page", "selection"],
-    });
-
-    try {
-      await chrome.contextMenus.remove("myz-ai-interpret-image");
-    } catch {}
-    chrome.contextMenus.create({
-      id: "myz-ai-interpret-image",
-      parentId: "myz-ai-assistant",
-      title: "解读图片内容（需 Vision 模型）",
-      contexts: ["image"],
-      visible: true,
-      enabled: false,
-    } as chrome.contextMenus.CreateProperties);
   } catch (e) {
     // ignore menu creation failures
   }
-
-  refreshAiImageMenuVisibility().catch(() => {});
 }
 
 void ensureContextMenus();
@@ -163,124 +43,6 @@ chrome.runtime.onInstalled.addListener(async () => {
   await ensureContextMenus();
 });
 
-async function refreshAiImageMenuVisibility() {
-  try {
-    const settings = await readSettings();
-    if (!settings?.aiAssistantEnabled) {
-      try {
-        await chrome.contextMenus.update("myz-ai-interpret-image", {
-          enabled: false,
-          title: "解读图片内容（未启用 AI 助理）",
-        });
-      } catch {}
-      return;
-    }
-    const target = resolveAgentTarget(settings, "conversation");
-    let enabled = Boolean(target?.model?.capabilities?.vision);
-    if (!enabled) {
-      try {
-        const multimodal = resolveConversationMultimodalTarget(settings);
-        enabled = Boolean(multimodal?.model?.capabilities?.vision);
-      } catch {
-        enabled = false;
-      }
-    }
-    try {
-      await chrome.contextMenus.update("myz-ai-interpret-image", {
-        enabled,
-        title: enabled ? "解读图片内容" : "解读图片内容（需 Vision 模型）",
-      });
-    } catch {}
-  } catch {
-    try {
-      await chrome.contextMenus.update("myz-ai-interpret-image", {
-        enabled: false,
-        title: "解读图片内容（未配置）",
-      });
-    } catch {}
-  }
-}
-
-const contextMenus = chrome.contextMenus as typeof chrome.contextMenus & {
-  onShown?: chrome.events.Event<() => void>;
-  refresh?: () => void;
-};
-if (contextMenus?.onShown?.addListener) {
-  contextMenus.onShown.addListener(() => {
-    refreshAiImageMenuVisibility()
-      .then(() => contextMenus.refresh?.())
-      .catch(() => {});
-  });
-}
-
-chrome.runtime?.onStartup?.addListener(() => {
-  refreshAiImageMenuVisibility().catch(() => {});
-});
-
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local") return;
-  if (!changes || !(SETTINGS_KEY in changes)) return;
-  refreshAiImageMenuVisibility().catch(() => {});
-});
-
-function arrayBufferToBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
-function parseMimeType(value: string) {
-  const normalized = typeof value === "string" ? value.trim() : "";
-  if (!normalized) return "";
-  return normalized.split(";")[0].trim();
-}
-
-async function fetchImageDataUrl(
-  srcUrl: string,
-  tabId: number,
-): Promise<{ dataUrl: string; mimeType: string }> {
-  if (!srcUrl) {
-    throw new Error("srcUrl is required");
-  }
-  if (srcUrl.startsWith("data:")) {
-    const mimeType = parseMimeType(srcUrl.slice(5).split(";")[0] || "");
-    return { dataUrl: srcUrl, mimeType };
-  }
-
-  try {
-    const response = await fetch(srcUrl, {
-      credentials: "include" as RequestCredentials,
-    });
-    if (!response.ok) {
-      throw new Error(`fetch failed: ${response.status}`);
-    }
-    const mimeType = parseMimeType(response.headers.get("content-type") || "");
-    const buffer = await response.arrayBuffer();
-    const base64 = arrayBufferToBase64(buffer);
-    const safeMimeType = mimeType || "image/png";
-    return {
-      dataUrl: `data:${safeMimeType};base64,${base64}`,
-      mimeType: safeMimeType,
-    };
-  } catch (error) {
-    const result = await chrome.tabs.sendMessage(tabId, {
-      type: "myz:fetchImageAsDataUrl",
-      payload: { srcUrl },
-    });
-    const data = (result && (result.data || result)) || {};
-    const dataUrl = typeof data?.dataUrl === "string" ? data.dataUrl : "";
-    const mimeType = typeof data?.mimeType === "string" ? data.mimeType : "";
-    if (!dataUrl.startsWith("data:")) {
-      throw error instanceof Error ? error : new Error(String(error));
-    }
-    return { dataUrl, mimeType: mimeType || "image/png" };
-  }
-}
-
 chrome.contextMenus.onClicked.addListener(
   async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
     if (!tab || !tab.id) return;
@@ -292,105 +54,6 @@ chrome.contextMenus.onClicked.addListener(
         // In Zen mode, capture only the target article element instead of full page
         await chrome.tabs.sendMessage(tab.id, {
           type: "myz:captureZenTargetFull",
-        });
-      } else if (
-        info.menuItemId === "myz-ai-assistant" ||
-        info.menuItemId === "myz-ai-custom"
-      ) {
-        // Open side panel only (no auto-trigger for parent menu and "打开面板")
-        await chrome.sidePanel.open({ windowId: tab.windowId });
-      } else if (info.menuItemId === "myz-ai-summarize") {
-        // Open side panel with AI assistant
-        await chrome.sidePanel.open({ windowId: tab.windowId });
-
-        type ExtractPageContentResponse = {
-          data?: { text?: string };
-        };
-
-        // Try to extract page content first
-        try {
-          const result = await new Promise<ExtractPageContentResponse>(
-            (resolve, reject) => {
-              chrome.tabs.sendMessage<
-                { type: string },
-                ExtractPageContentResponse
-              >(tab.id!, { type: "myz:extractPageContent" }, (response) => {
-                if (chrome.runtime.lastError) {
-                  reject(chrome.runtime.lastError);
-                } else {
-                  resolve(response);
-                }
-              });
-            },
-          );
-
-          let hasContent = false;
-          if (
-            result &&
-            result.data &&
-            result.data.text &&
-            result.data.text.length > 100
-          ) {
-            hasContent = true;
-          }
-
-          // Only auto-trigger if we have enough page content
-          if (hasContent) {
-            // Extract action type from menu ID
-            let action = "custom";
-            if (info.menuItemId === "myz-ai-summarize") action = "summarize";
-
-            // Send message to side panel with the selected action
-            setTimeout(async () => {
-              try {
-                await chrome.runtime.sendMessage({
-                  type: "myz:openSidePanelWithAction",
-                  payload: { action, tabId: tab.id },
-                });
-              } catch (e) {
-                console.warn("Could not send side panel action message:", e);
-              }
-            }, 500);
-          } else {
-            console.log("Not enough page content, skipping auto-trigger");
-          }
-        } catch (e) {
-          console.warn(
-            "Could not check page content, skipping auto-trigger:",
-            e,
-          );
-        }
-      } else if (info.menuItemId === "myz-ai-keypoints") {
-        try {
-          await chrome.tabs.sendMessage(tab.id, {
-            type: "myz:runAutoHighlight",
-            payload: {},
-          });
-        } catch (error) {
-          console.warn("Failed to run auto highlight", error);
-        }
-      } else if (info.menuItemId === "myz-ai-interpret-image") {
-        if (!info.srcUrl) {
-          return;
-        }
-        await chrome.sidePanel.open({ windowId: tab.windowId });
-
-        const { dataUrl, mimeType } = await fetchImageDataUrl(
-          info.srcUrl,
-          tab.id,
-        );
-
-        await queueSidePanelAction({
-          action: "interpret_image",
-          tabId: tab.id,
-          prompt: "请解读这张图片的内容",
-          attachments: [
-            {
-              type: "image",
-              dataUrl,
-              mimeType,
-            },
-          ],
         });
       }
     } catch (e) {
@@ -455,12 +118,9 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   }
 });
 
-initializeAIMessageHandlers();
 initializeCaptureMessageHandlers();
 initializeHighlightMessageHandlers();
 initializeSettingsMessageHandlers();
-initializeSkillMessageHandlers();
-initializeSocialImportMessageHandlers();
 initializeSyncMessageHandlers();
 initializeSyncScheduler();
 

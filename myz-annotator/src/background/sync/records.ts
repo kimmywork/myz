@@ -1,36 +1,18 @@
 import type { MyZRecord } from "@myz/shared/types";
-import { toJsonRecord } from "@myz/shared/typeUtils";
 import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
-import {
-  getMessagesForConversation,
-  listConversations,
-  replaceConversationMessages,
-  saveConversation,
-} from "../../sidepanel/aiStorage";
 import { deleteHighlight, getAllHighlights, saveHighlight } from "../storage";
 import { sha256, utf8ToBytes } from "./crypto";
-import type {
-  SyncConversationBundle,
-  SyncRecord,
-  SyncRecordPayload,
-  SyncRecordType,
-} from "./types";
+import type { SyncRecord, SyncRecordPayload, SyncRecordType } from "./types";
 import {
   decodeBinaryPayload,
   encodeBinaryPayload,
   stableStringify,
 } from "./utils";
-import type { ConversationInfo } from "@/sidepanel/aiStorage";
 
 const HIGHLIGHT_PREFIX = "h:";
-const CONVERSATION_PREFIX = "ai:";
 
 export function recordIdForHighlight(id: string) {
   return `${HIGHLIGHT_PREFIX}${id}`;
-}
-
-export function recordIdForConversation(id: string) {
-  return `${CONVERSATION_PREFIX}${id}`;
 }
 
 export function parseRecordId(recordId: string): {
@@ -39,12 +21,6 @@ export function parseRecordId(recordId: string): {
 } | null {
   if (recordId.startsWith(HIGHLIGHT_PREFIX)) {
     return { type: "highlight", id: recordId.slice(HIGHLIGHT_PREFIX.length) };
-  }
-  if (recordId.startsWith(CONVERSATION_PREFIX)) {
-    return {
-      type: "ai-conversation",
-      id: recordId.slice(CONVERSATION_PREFIX.length),
-    };
   }
   return null;
 }
@@ -91,47 +67,6 @@ export async function collectLocalRecords(): Promise<SyncRecord[]> {
       recordHash,
     });
   }
-
-  const conversations: ConversationInfo[] = [];
-  const limit = 200;
-  let offset = 0;
-  while (true) {
-    const batch = await listConversations(limit, offset);
-    if (!batch.length) break;
-    conversations.push(...batch);
-    offset += batch.length;
-    if (batch.length < limit) break;
-  }
-  for (const conversation of conversations) {
-    const updatedAt = resolveUpdatedAt(
-      conversation.updatedAt || conversation.createdAt,
-    );
-    const messages = await getMessagesForConversation(conversation.id, 10_000);
-    const recordId = recordIdForConversation(conversation.id);
-    const metadata = conversation.metadata
-      ? toJsonRecord(conversation.metadata)
-      : undefined;
-    const data = {
-      conversation: { ...conversation, metadata },
-      messages,
-    };
-    const payload: SyncRecordPayload = {
-      protocolVersion: SYNC_PROTOCOL_VERSION,
-      recordId,
-      type: "ai-conversation",
-      updatedAt,
-      data,
-    };
-    const recordHash = await buildRecordHash(payload);
-    records.push({
-      recordId,
-      type: "ai-conversation",
-      updatedAt,
-      data,
-      recordHash,
-    });
-  }
-
   return records;
 }
 
@@ -165,17 +100,6 @@ export async function applyRecordPayload(
     await saveHighlight({ ...record, updatedAt: payload.updatedAt });
     return;
   }
-  if (payload.type === "ai-conversation") {
-    const data = payload.data as SyncConversationBundle;
-    await saveConversation({
-      ...data.conversation,
-      updatedAt: payload.updatedAt,
-    });
-    await replaceConversationMessages(
-      data.conversation.id,
-      data.messages || [],
-    );
-  }
 }
 
 export async function deleteLocalRecord(recordId: string): Promise<void> {
@@ -185,6 +109,4 @@ export async function deleteLocalRecord(recordId: string): Promise<void> {
     await deleteHighlight(parsed.id);
     return;
   }
-  const { deleteConversation } = await import("../../sidepanel/aiStorage");
-  await deleteConversation(parsed.id);
 }

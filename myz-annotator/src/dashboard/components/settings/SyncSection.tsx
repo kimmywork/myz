@@ -1,6 +1,6 @@
-import { ToggleSwitch } from "@myz/dashboard-ai-settings";
 import { defineComponent, onMounted, ref, watchEffect } from "vue";
 import { useSettingsStore } from "../../stores/settings.js";
+import ToggleSwitch from "../ToggleSwitch.jsx";
 import type {
   SyncNowMessageResult,
   SyncStatusMessageResult,

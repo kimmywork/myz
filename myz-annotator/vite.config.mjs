@@ -31,7 +31,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(rootDir, "src"),
-      "@myz/ai-core": resolve(rootDir, "../packages/ai-core/src"),
       "@myz/dashboard-core": resolve(rootDir, "../packages/dashboard-core/src"),
       "@myz/dashboard-ui": resolve(rootDir, "../packages/dashboard-ui/src"),
       "@myz/sync-core": resolve(rootDir, "../packages/sync-core/src"),
@@ -47,8 +46,6 @@ export default defineConfig({
       input: {
         popup: resolve(rootDir, "src/popup/popup.html"),
         dashboard: resolve(rootDir, "src/dashboard/index.html"),
-        offscreen: resolve(rootDir, "src/offscreen/code-execution.html"),
-        sandbox: resolve(rootDir, "src/sandbox/code-execution.html"),
       },
     },
   },

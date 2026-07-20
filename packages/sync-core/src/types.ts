@@ -1,14 +1,9 @@
-import type { Message, ConversationInfo } from "@myz/ai-core/types"
 import type { MyZRecord } from "@myz/shared/types"
 
-export type SyncRecordType = "highlight" | "ai-conversation"
+export type SyncRecordType = "highlight"
 
-export interface SyncConversationBundle {
-  conversation: ConversationInfo
-  messages: Message[]
-}
 
-export type SyncRecordData = MyZRecord | SyncConversationBundle
+export type SyncRecordData = MyZRecord
 
 export interface SyncRecordPayload {
   protocolVersion: string

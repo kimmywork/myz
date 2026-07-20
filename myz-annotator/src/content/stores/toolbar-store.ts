@@ -1,15 +1,10 @@
 import { defineStore } from "pinia";
 import { Ref, ref } from "vue";
 import { serializeRangeToHtml, waitForNextPaint } from "../html";
-import {
-  cropAndDownloadSelection,
-  cropToCanvas,
-  getSelectionBoundingRect,
-} from "../image";
+import { cropAndDownloadSelection, getSelectionBoundingRect } from "../image";
 import type { CropRect } from "../image";
 import { useModalStore } from "./modal-store";
 import { useNotificationStore } from "./notification-store";
-import type { ImageAttachment } from "@/background/ai/types";
 import type { CaptureSelectionMessageResult } from "@/background/messages/capture";
 import { sendMessage } from "@/shared/messaging";
 import { RECORD_KINDS } from "@/shared/types";
@@ -149,80 +144,6 @@ export const useToolbarStore = defineStore("toolbar", () => {
     }
   }
 
-  async function handleSendSelectionToAi() {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      hide();
-      return;
-    }
-    const range = selection.getRangeAt(0);
-    const rect = toCropRect(getSelectionBoundingRect(range));
-    const selectedText = selection.toString().trim();
-
-    const fragment = range.cloneContents();
-    const containsImage =
-      typeof fragment.querySelector === "function" &&
-      Boolean(fragment.querySelector("img"));
-
-    const storedRanges = [];
-    for (let index = 0; index < selection.rangeCount; index += 1) {
-      storedRanges.push(selection.getRangeAt(index).cloneRange());
-    }
-
-    selection.removeAllRanges();
-    await waitForNextPaint();
-
-    try {
-      let selectionAttachment: ImageAttachment | null = null;
-      if (containsImage && rect && rect.width > 4 && rect.height > 4) {
-        const result = await sendMessage<
-          { format?: "jpeg" | "png"; quality?: number },
-          CaptureSelectionMessageResult
-        >("myz:captureSelection", {
-          format: "png",
-        });
-        if (result?.dataUrl) {
-          const crop = await cropToCanvas(result.dataUrl, rect, {
-            width: window.innerWidth,
-            height: window.innerHeight,
-          });
-          selectionAttachment = {
-            type: "image",
-            dataUrl: crop.canvas.toDataURL("image/png"),
-            mimeType: "image/png",
-            name: `selection-${Date.now()}.png`,
-          };
-        }
-      }
-
-      await sendMessage("myz:openSidePanelDraft", {
-        action: "interpret_selection",
-        prompt: "请解读选中内容",
-        selectionText: selectedText,
-        selectionAttachment,
-        draftId: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      });
-    } catch (error) {
-      notificationStore.notify({
-        message: `打开 AI 助理失败：${(error as Error).message}`,
-      });
-    } finally {
-      try {
-        selection.removeAllRanges();
-        storedRanges.forEach((storedRange) => {
-          try {
-            selection.addRange(storedRange);
-          } catch (restoreError) {
-            console.warn("Failed to restore selection range", restoreError);
-          }
-        });
-      } catch (restoreError) {
-        console.warn("Unable to restore selection", restoreError);
-      }
-      hide();
-    }
-  }
-
   function handleAnnotateClick() {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
@@ -306,7 +227,6 @@ export const useToolbarStore = defineStore("toolbar", () => {
     toolbarRange,
     scrollUpdateHandle,
     handleScreenshotClick,
-    handleSendSelectionToAi,
     handleAnnotateClick,
     handleClipClick,
   };

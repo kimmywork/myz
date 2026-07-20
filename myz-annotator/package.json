@@ -18,10 +18,6 @@
     "playwright": "*"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "*",
-    "@myz/ai-core": "*",
-    "@myz/dashboard-ai-settings": "*",
-    "@myz/dashboard-chat-ui": "*",
     "@myz/dashboard-core": "*",
     "@myz/dashboard-ui": "*",
     "@myz/shared": "*",

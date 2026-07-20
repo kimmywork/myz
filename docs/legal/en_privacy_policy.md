@@ -1,1 +1,0 @@
-../../website/en/privacy.md

@@ -338,12 +338,6 @@ function hasSelectedAncestor(
   return false;
 }
 
-export function flashElement(el: HTMLElement): void {
-  if (!el || typeof el.classList?.add !== "function") return;
-  el.classList.add("myz-ai-chunk-flash");
-  setTimeout(() => el.classList.remove("myz-ai-chunk-flash"), 1200);
-}
-
 export function waitForNextPaint() {
   return new Promise((resolve) => {
     requestAnimationFrame(() => {

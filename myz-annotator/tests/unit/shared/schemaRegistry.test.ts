@@ -1,9 +1,4 @@
 import { describe, it, expect } from "vitest";
-import {
-  AiMessageRegistry,
-  AiConversationRegistry,
-  AiToolCallRegistry,
-} from "@/background/ai/registry";
 import { DEFAULT_SETTINGS } from "@/background/constants";
 import {
   SettingsRegistry,
@@ -20,7 +15,6 @@ import {
   RECORD_SCHEMA_VERSION,
   SETTINGS_SCHEMA_VERSION,
   SYNC_PROTOCOL_VERSION,
-  AI_SCHEMA_VERSION,
 } from "@/shared/versioning";
 
 describe("schema registry mapping", () => {
@@ -113,49 +107,6 @@ describe("schema registry mapping", () => {
         leaseExpiresAt: "2024-01-01T00:00:00.000Z",
         issuedAt: "2024-01-01T00:00:00.000Z",
         signature: "sig",
-      }).success,
-    ).toBe(true);
-  });
-
-  it("should map ai schemas by version", () => {
-    expect(AiMessageRegistry.latestVersion).toBe(AI_SCHEMA_VERSION);
-    const messageSchema = AiMessageRegistry.versions[AI_SCHEMA_VERSION];
-    expect(messageSchema).toBeDefined();
-    const message = {
-      schemaVersion: AI_SCHEMA_VERSION,
-      id: "m1",
-      conversationId: "c1",
-      role: "user",
-      content: "hello",
-      timestamp: "2024-01-01T00:00:00.000Z",
-    };
-    expect(messageSchema.safeParse(message).success).toBe(true);
-
-    expect(AiConversationRegistry.latestVersion).toBe(AI_SCHEMA_VERSION);
-    const conversationSchema =
-      AiConversationRegistry.versions[AI_SCHEMA_VERSION];
-    expect(conversationSchema).toBeDefined();
-    expect(
-      conversationSchema.safeParse({
-        schemaVersion: AI_SCHEMA_VERSION,
-        conversationId: "c1",
-        title: "Title",
-        url: "https://example.com",
-        createdAt: "2024-01-01T00:00:00.000Z",
-        updatedAt: "2024-01-01T00:00:00.000Z",
-        sendContextEnabled: false,
-        messages: [message],
-      }).success,
-    ).toBe(true);
-
-    expect(AiToolCallRegistry.latestVersion).toBe(AI_SCHEMA_VERSION);
-    const toolSchema = AiToolCallRegistry.versions[AI_SCHEMA_VERSION];
-    expect(toolSchema).toBeDefined();
-    expect(
-      toolSchema.safeParse({
-        id: "t1",
-        type: "function",
-        function: { name: "TestTool", arguments: "{}" },
       }).success,
     ).toBe(true);
   });
