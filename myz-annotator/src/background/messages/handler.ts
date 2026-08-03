@@ -29,3 +29,7 @@ export async function handleMessage<T = unknown, R = unknown>(
   }
   return messageHandler.handler(payload, sender) as Promise<R>;
 }
+
+export function hasHandler(key: string): boolean {
+  return messageHandlers.has(key);
+}

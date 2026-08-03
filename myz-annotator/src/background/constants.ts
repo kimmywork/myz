@@ -1,5 +1,5 @@
 import type { Settings } from "./settings.js";
-import { DEFAULT_COLORS, HIGHLIGHT_STYLES } from "@/shared/types";
+import { HIGHLIGHT_STYLES } from "@/shared/types";
 
 export const STORAGE_KEY = "myz::highlights";
 export const SETTINGS_KEY = "myz::settings";
@@ -23,24 +23,6 @@ export const DEFAULT_SETTINGS: Settings = {
   lastUsedColor: "#b58900",
   lastUsedStyle: HIGHLIGHT_STYLES.PAINT,
   dashboardView: "cards",
-
-  autoHighlight: {
-    maxHighlights: 15,
-    categoryStyles: {
-      conceptual: {
-        style: HIGHLIGHT_STYLES.PAINT,
-        color: DEFAULT_COLORS[0],
-      },
-      structural: {
-        style: HIGHLIGHT_STYLES.UNDERLINE,
-        color: DEFAULT_COLORS[3] || DEFAULT_COLORS[0],
-      },
-      behavioural: {
-        style: HIGHLIGHT_STYLES.WAVY,
-        color: DEFAULT_COLORS[1] || DEFAULT_COLORS[0],
-      },
-    },
-  },
   // E2EE sync
   sync: {
     enabled: false,

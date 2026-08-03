@@ -1,9 +1,15 @@
 import { ed25519 } from "@noble/curves/ed25519"
-import { argon2id } from "hash-wasm"
-import { aesGcmDecrypt, aesGcmEncrypt, hkdfSha256, sha256, utf8ToBytes } from "./crypto"
+import {
+  aesGcmDecrypt,
+  aesGcmEncrypt,
+  hkdfSha256,
+  pbkdf2Sha256,
+  sha256,
+  utf8ToBytes,
+} from "./crypto"
 import { base32Encode, bytesToHex, concatBytes } from "./utils"
 
-const ARGON2_SALT = utf8ToBytes("myz:e2ee:argon2id:v1")
+const PBKDF2_ITERATIONS = 100000
 
 export interface SyncKeyset {
   keyId: string
@@ -18,15 +24,12 @@ export async function deriveKeysetFromSecret(
   secret: string,
   epoch: number,
 ): Promise<SyncKeyset> {
-  const seed = await argon2id({
-    password: secret,
-    salt: ARGON2_SALT,
-    iterations: 3,
-    memorySize: 65536,
-    parallelism: 1,
-    hashLength: 32,
-    outputType: "binary",
-  })
+  const seed = await pbkdf2Sha256(
+    utf8ToBytes(secret),
+    utf8ToBytes("myz:e2ee:pbkdf2:v1"),
+    PBKDF2_ITERATIONS,
+    32,
+  )
   const privateKey = new Uint8Array(seed)
   const publicKey = ed25519.getPublicKey(privateKey)
   const masterKey = await hkdfSha256(privateKey, utf8ToBytes("myz:e2ee:master"), 32)

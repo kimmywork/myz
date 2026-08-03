@@ -1,26 +1,9 @@
 import { z } from "zod";
 
-import { AUTO_HIGHLIGHT_CATEGORIES, HIGHLIGHT_STYLES } from "@/shared/types";
+import { HIGHLIGHT_STYLES } from "@/shared/types";
 import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
 
 export const SettingsSchemaVersionV1 = SETTINGS_SCHEMA_VERSION;
-
-const AutoHighlightCategoryStyleSchema = z.object({
-  style: z.nativeEnum(HIGHLIGHT_STYLES),
-  color: z.string(),
-});
-
-const AutoHighlightCategoryStylesSchema = z
-  .object({
-    [AUTO_HIGHLIGHT_CATEGORIES.CONCEPTUAL]: AutoHighlightCategoryStyleSchema,
-    [AUTO_HIGHLIGHT_CATEGORIES.STRUCTURAL]: AutoHighlightCategoryStyleSchema,
-    [AUTO_HIGHLIGHT_CATEGORIES.BEHAVIOURAL]: AutoHighlightCategoryStyleSchema,
-  })
-  .partial();
-
-const AutoHighlightConfigSchema = z.object({
-  categoryStyles: AutoHighlightCategoryStylesSchema.optional(),
-});
 
 const SyncS3SettingsSchema = z.object({
   endpoint: z.string(),
@@ -43,7 +26,6 @@ export const SettingsSchemaV1 = z.object({
   lastUsedStyle: z.nativeEnum(HIGHLIGHT_STYLES),
   lastUsedColor: z.string(),
   sync: SyncSettingsSchema,
-  autoHighlight: AutoHighlightConfigSchema,
 });
 
 export const SettingsBundleSchemaV1 = z.object({

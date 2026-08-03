@@ -11,6 +11,7 @@ import {
   MyZRecord,
   RECORD_KINDS,
   ensureRecordSchemaVersion,
+  getRecordKind,
   normalizeContentType,
   resolveRecordContentType,
 } from "@/shared/types";
@@ -34,19 +35,7 @@ export function sanitizeImportedHighlight(raw: unknown): MyZRecord | null {
     return null;
   }
 
-  const kind = (() => {
-    const candidate = record.kind;
-    if (typeof candidate === "string") {
-      const normalized = candidate.trim();
-      if (
-        normalized &&
-        Object.values(RECORD_KINDS).includes(normalized as RECORD_KINDS)
-      ) {
-        return normalized as RECORD_KINDS;
-      }
-    }
-    return RECORD_KINDS.HIGHLIGHT;
-  })();
+  const kind = getRecordKind(raw);
 
   const rawRecord = record as Partial<MyZRecord>;
 
@@ -177,11 +166,6 @@ export function buildRecordSignature(record: MyZRecord): string {
       return url;
     }
   })();
-
-  // Tweet-like records are expected to be globally unique by (kind, url).
-  if (kind.startsWith("tweet:") || kind.startsWith("toot:")) {
-    return `${kind}::${canonicalUrl}`;
-  }
 
   const content =
     (typeof record.text === "string" ? record.text : "") ||

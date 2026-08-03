@@ -9,11 +9,9 @@
     "./schemas/*": "./src/schemas/*.ts"
   },
   "dependencies": {
-    "@myz/ai-core": "*",
     "@myz/shared": "*",
     "@noble/curves": "*",
     "fflate": "*",
-    "hash-wasm": "*",
     "zod": "*"
   },
   "scripts": {

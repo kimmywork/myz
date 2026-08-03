@@ -1,11 +1,11 @@
 import { TagInput } from "@myz/dashboard-ui";
-import { defineComponent, ref, computed, watch, type Ref } from "vue";
+import { Component, defineComponent, ref, computed, watch, type Ref } from "vue";
 import {
   useModalStore,
   ModalOpenOptions,
 } from "@/content/stores/modal-store.js";
 import { usePreferenceStore } from "@/content/stores/preference-store.js";
-import { IconPencil, highlightStyleIconMap, makeIcon } from "@/shared/icons.js";
+import { IconPencil, highlightStyleIconMap } from "@/shared/icons.js";
 import {
   RECORD_KINDS,
   HIGHLIGHT_STYLE_OPTIONS,
@@ -230,7 +230,7 @@ export default defineComponent({
               <div class="myz-style-picker" role="radiogroup">
                 {styleOptions.map(([value, meta]) => {
                   const isActive = value === store.modalOpenOptions.style;
-                  const IconComponent: ReturnType<typeof makeIcon> =
+                  const IconComponent: Component =
                     highlightStyleIconMap[meta.icon as HIGHLIGHT_STYLES] ||
                     highlightStyleIconMap.paint;
                   return (

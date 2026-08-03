@@ -67,6 +67,32 @@ export async function hkdfSha256(
   return new Uint8Array(bits)
 }
 
+export async function pbkdf2Sha256(
+  password: Uint8Array,
+  salt: Uint8Array,
+  iterations: number,
+  length: number,
+): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    toArrayBuffer(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"],
+  )
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt: toArrayBuffer(salt),
+      iterations,
+    },
+    key,
+    length * 8,
+  )
+  return new Uint8Array(bits)
+}
+
 export async function aesGcmEncrypt(
   keyBytes: Uint8Array,
   plaintext: Uint8Array,

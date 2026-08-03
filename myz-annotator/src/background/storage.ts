@@ -5,6 +5,7 @@ import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
 import { MyZRecord, ensureRecordSchemaVersion } from "@/shared/types.js";
 import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
+import { normalizeSyncSettings } from "@/shared/sync";
 
 const DB_NAME = "myz_db";
 const DB_VERSION = 1;
@@ -105,48 +106,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     ? settings.colorPalette.filter((c) => typeof c === "string" && c.trim())
     : [];
 
-  const sync = settings.sync;
-  if (!isRecord(sync)) {
-    settings.sync = {
-      enabled: false,
-      s3: {
-        endpoint: "",
-        region: "",
-        bucket: "",
-        accessKeyId: "",
-        secretAccessKey: "",
-        sessionToken: "",
-        prefix: "",
-      },
-    };
-  } else {
-    sync.enabled = Boolean(sync.enabled);
-    if (!isRecord(sync.s3)) {
-      sync.s3 = {
-        endpoint: "",
-        region: "",
-        bucket: "",
-        accessKeyId: "",
-        secretAccessKey: "",
-        sessionToken: "",
-        prefix: "",
-      };
-    } else {
-      sync.s3.endpoint =
-        typeof sync.s3.endpoint === "string" ? sync.s3.endpoint : "";
-      sync.s3.region = typeof sync.s3.region === "string" ? sync.s3.region : "";
-      sync.s3.bucket = typeof sync.s3.bucket === "string" ? sync.s3.bucket : "";
-      sync.s3.accessKeyId =
-        typeof sync.s3.accessKeyId === "string" ? sync.s3.accessKeyId : "";
-      sync.s3.secretAccessKey =
-        typeof sync.s3.secretAccessKey === "string"
-          ? sync.s3.secretAccessKey
-          : "";
-      sync.s3.sessionToken =
-        typeof sync.s3.sessionToken === "string" ? sync.s3.sessionToken : "";
-      sync.s3.prefix = typeof sync.s3.prefix === "string" ? sync.s3.prefix : "";
-    }
-  }
+  settings.sync = normalizeSyncSettings(settings.sync);
 
   return settings;
 }

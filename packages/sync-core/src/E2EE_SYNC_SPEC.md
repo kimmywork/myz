@@ -6,7 +6,7 @@ metadata (version number and updatedAt).
 
 ## Goals and Constraints
 
-- E2EE for highlights, AI conversations, and related records.
+- E2EE for highlights and related records.
 - S3 REST only (no SDK assumptions).
 - Plaintext in S3 is limited to: manifest version number and updatedAt metadata.
 - No key recovery. If the user forgets the key, cloud data is unreadable.
@@ -18,8 +18,8 @@ metadata (version number and updatedAt).
 ## Key Derivation (A -> B1/B2/C)
 
 1) Input: user secret A (not stored).
-2) salt: fixed ASCII salt (e.g., "myz:e2ee:argon2id:v1") to keep derivation deterministic.
-3) seed = Argon2id(A, salt, m=64MB, t=3, p=1) -> 32 bytes.
+2) salt: fixed ASCII salt (e.g., "myz:e2ee:pbkdf2:v1") to keep derivation deterministic.
+3) seed = PBKDF2-HMAC-SHA256(A, salt, iterations=100000) -> 32 bytes.
 4) B1/B2 = Ed25519 keypair derived deterministically from seed.
 5) C = HKDF-SHA256(seed, info="myz:e2ee:master", length=32).
 6) Clear A from memory after derivation.
@@ -33,7 +33,7 @@ metadata (version number and updatedAt).
 
 ## Crypto Primitives (WebCrypto first)
 
-- KDF: Argon2id via WASM library (WebCrypto does not provide Argon2id), m=64MB, t=3, p=1.
+- KDF: PBKDF2-HMAC-SHA256 via WebCrypto, iterations=100000.
 - HKDF: WebCrypto HKDF (SHA-256).
 - Symmetric: AES-GCM-256 (WebCrypto).
 - Hash: SHA-256 (WebCrypto).
@@ -166,7 +166,7 @@ Lease:
 
 ## Local Integration Notes
 
-- Source data: highlights from background storage, AI conversations from sidepanel IndexedDB.
+- Source data: highlights from background storage.
 - Sync engine runs in MV3 background with idle/interval triggers.
 - All network IO uses REST via fetch with S3 signature or user-provided credentials.
 

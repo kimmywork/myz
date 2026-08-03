@@ -1,22 +1,5 @@
-import { AUTO_HIGHLIGHT_CATEGORIES, HIGHLIGHT_STYLES } from "@/shared/types";
+import { HIGHLIGHT_STYLES } from "@/shared/types";
 import { type SettingsSchemaVersion } from "@/shared/versioning";
-
-export type AutoHighlightCategory = `${AUTO_HIGHLIGHT_CATEGORIES}`;
-
-export interface AutoHighlightCategoryStyle {
-  style: HIGHLIGHT_STYLES;
-  color: string;
-}
-
-export type AutoHighlightCategoryStyles = Record<
-  AutoHighlightCategory,
-  AutoHighlightCategoryStyle
->;
-
-export interface AutoHighlightAgentConfig {
-  maxHighlights: number;
-  categoryStyles?: AutoHighlightCategoryStyles;
-}
 
 export interface SyncS3Settings {
   endpoint: string;
@@ -38,7 +21,6 @@ export interface Settings {
   colorPalette: string[];
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;
-  autoHighlight: AutoHighlightAgentConfig;
   sync: SyncSettings;
 }
 

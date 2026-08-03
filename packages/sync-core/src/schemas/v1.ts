@@ -6,7 +6,7 @@ export const SyncProtocolVersionV1 = SYNC_PROTOCOL_VERSION
 export const SyncRecordPayloadSchemaV1 = z.object({
   protocolVersion: z.literal(SYNC_PROTOCOL_VERSION),
   recordId: z.string(),
-  type: z.enum(["highlight", "ai-conversation"]),
+  type: z.enum(["highlight"]),
   updatedAt: z.string(),
   data: z.unknown(),
 })
