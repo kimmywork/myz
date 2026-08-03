@@ -22,6 +22,7 @@ export interface ToolbarStore {
   handleSendSelectionToAi(): Promise<void>;
   handleAnnotateClick(): void;
   handleClipClick(): void;
+  handleSearchClick(): Promise<void>;
 }
 
 const TOOLBAR_MIN_VIEWPORT_GAP = 12;
@@ -144,6 +145,22 @@ export const useToolbarStore = defineStore("toolbar", () => {
     }
   }
 
+  async function handleSearchClick() {
+    const selection = window.getSelection();
+    const query = selection?.toString().trim() || "";
+    if (!query) {
+      hide();
+      return;
+    }
+    try {
+      await sendMessage<{ query: string }>("myz:search", { query });
+    } catch (error) {
+      console.error("Search failed", error);
+    } finally {
+      hide();
+    }
+  }
+
   function handleAnnotateClick() {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
@@ -229,5 +246,6 @@ export const useToolbarStore = defineStore("toolbar", () => {
     handleScreenshotClick,
     handleAnnotateClick,
     handleClipClick,
+    handleSearchClick,
   };
 });

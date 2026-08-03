@@ -1,7 +1,8 @@
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
+import { handleMessage, hasHandler } from "./background/messages/handler.js";
 import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
-import { handleMessage } from "./background/messages/handler.js";
 import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
+import { initializeSearchMessageHandlers } from "./background/messages/search.js";
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
@@ -11,7 +12,9 @@ async function ensureContextMenus() {
     // Remove existing if present to avoid duplicate id error
     try {
       await chrome.contextMenus.remove("myz-zen-mode");
-    } catch {}
+    } catch (error) {
+      console.warn("Failed to remove existing zen-mode menu", error);
+    }
     chrome.contextMenus.create({
       id: "myz-zen-mode",
       title: "禅定模式 (仅显示文章)",
@@ -20,15 +23,17 @@ async function ensureContextMenus() {
     // Add capture as image when in zen mode
     try {
       await chrome.contextMenus.remove("myz-zen-capture");
-    } catch {}
+    } catch (error) {
+      console.warn("Failed to remove existing zen-capture menu", error);
+    }
     chrome.contextMenus.create({
       id: "myz-zen-capture",
       title: "保存文章为图片",
       contexts: ["page", "selection"],
       visible: false,
     });
-  } catch (e) {
-    // ignore menu creation failures
+  } catch (error) {
+    console.warn("Context menu creation failed", error);
   }
 }
 
@@ -120,6 +125,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
 initializeCaptureMessageHandlers();
 initializeHighlightMessageHandlers();
+initializeSearchMessageHandlers();
 initializeSettingsMessageHandlers();
 initializeSyncMessageHandlers();
 initializeSyncScheduler();
@@ -131,6 +137,10 @@ chrome.runtime.onMessage.addListener(
     sendResponse,
   ) => {
     if (!message || !message.type) {
+      return false;
+    }
+    if (!hasHandler(message.type)) {
+      console.warn("Unknown message type", message.type);
       return false;
     }
     // Support both {type, payload} and {type, ...rest} formats

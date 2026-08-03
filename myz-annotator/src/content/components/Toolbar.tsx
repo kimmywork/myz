@@ -1,10 +1,10 @@
 import { defineComponent } from "vue";
 import { useToolbarStore } from "@/content/stores/toolbar-store.js";
 import {
-  IconPencil,
-  IconNotebook,
   IconCamera,
-  IconSparkles,
+  IconNotebook,
+  IconPencil,
+  IconSearch,
 } from "@/shared/icons.js";
 
 export default defineComponent({
@@ -27,6 +27,11 @@ export default defineComponent({
       store.handleScreenshotClick();
     };
 
+    const handleSearch = (event: Event) => {
+      event.preventDefault();
+      store.handleSearchClick();
+    };
+
     return () => (
       <div
         class={
@@ -46,8 +51,8 @@ export default defineComponent({
         <button type="button" aria-label="截取选区截图" onClick={handleCapture}>
           <IconCamera size={18} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="not implemented" onClick={() => {}}>
-          <IconSparkles size={18} aria-hidden="true" />
+        <button type="button" aria-label="搜索选中内容" onClick={handleSearch}>
+          <IconSearch size={18} aria-hidden="true" />
         </button>
       </div>
     );

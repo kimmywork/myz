@@ -17,8 +17,7 @@
     "activeTab",
     "contextMenus",
     "sidePanel",
-    "scripting",
-    "declarativeNetRequest"
+    "search"
   ],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -44,7 +43,7 @@
   },
   "options_page": "src/dashboard/index.html",
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+    "extension_pages": "script-src 'self'; object-src 'self';"
   },
   "web_accessible_resources": [
     {

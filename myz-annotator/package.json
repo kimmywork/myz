@@ -1,6 +1,6 @@
 {
   "name": "myz-annotator",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "build": "vue-tsc -b && vite build",
@@ -18,13 +18,15 @@
     "playwright": "*"
   },
   "dependencies": {
+    "@lucide/vue": "^1.27.0",
     "@myz/dashboard-core": "*",
     "@myz/dashboard-ui": "*",
     "@myz/shared": "*",
     "@myz/sync-core": "*",
     "@noble/curves": "*",
+    "defuddle": "^0.19.2",
+    "dompurify": "^3.4.12",
     "fflate": "*",
-    "hash-wasm": "*",
-    "markdown-it": "*"
+    "markdown-it": "^14.3.0"
   }
 }

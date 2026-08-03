@@ -8,6 +8,7 @@ import {
   applyTimestampFallback,
 } from "../import";
 import { buildMarkdownExport } from "../markdown";
+import { htmlToMarkdown } from "../utils/htmlToMarkdown";
 import {
   generateId,
   persistHighlightPreferences,
@@ -24,7 +25,9 @@ import { normalizeHighlightStyle } from "@/shared/highlightUtils";
 import {
   MyZRecord,
   RECORD_KINDS,
+  CONTENT_TYPES,
   ensureRecordSchemaVersion,
+  getRecordKind,
   resolveRecordContentType,
 } from "@/shared/types";
 
@@ -83,19 +86,7 @@ export function initializeHighlightMessageHandlers() {
       }
       const now = new Date().toISOString();
       const id = payload.id || generateId();
-      const kind = (() => {
-        const candidate = payload.kind;
-        if (typeof candidate === "string") {
-          const normalized = candidate.trim();
-          if (
-            normalized &&
-            Object.values(RECORD_KINDS).includes(normalized as RECORD_KINDS)
-          ) {
-            return normalized as RECORD_KINDS;
-          }
-        }
-        return RECORD_KINDS.HIGHLIGHT;
-      })();
+      const kind = getRecordKind(payload);
       const record: MyZRecord = ensureRecordSchemaVersion({
         ...payload,
         id,
@@ -104,6 +95,16 @@ export function initializeHighlightMessageHandlers() {
         updatedAt: now,
       }) as MyZRecord;
       record.contentType = resolveRecordContentType(record);
+
+      if (
+        typeof record.html === "string" &&
+        record.html.trim().length > 0
+      ) {
+        const markdown = await htmlToMarkdown(record.html);
+        record.text = markdown;
+        record.contentType = CONTENT_TYPES.MARKDOWN;
+        delete (record as Record<string, unknown>).html;
+      }
 
       if (kind !== RECORD_KINDS.HIGHLIGHT) {
         record.range = undefined;
@@ -390,7 +391,7 @@ export function initializeHighlightMessageHandlers() {
           return;
         }
 
-        // De-duplicate by record signature to avoid creating duplicates (e.g. identical clips or tweets).
+        // De-duplicate by record signature to avoid creating duplicates.
         const signature = buildRecordSignature(sanitized);
         if (signature && existingSignatures.has(signature)) {
           skipped += 1;

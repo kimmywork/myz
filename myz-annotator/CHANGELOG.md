@@ -1,5 +1,14 @@
 # Changelog
 
+# v0.5.0 Dashboard UI 重构与交互优化
+
+- ThemeToggle 下拉改为按 effective theme 显示状态，并修复 Dashboard 中下拉被面板遮挡的问题。
+- HighlightCard / HighlightListRow 的 RecordKind 与操作按钮统一改为 lucide icon，去除文字标签并支持 hover tooltip。
+- 标签区增加 Hash icon，紧凑化排列；Card 视图改为 CSS columns masonry 流式布局。
+- 摘要内容区应用 prose 排版，修复列表等富文本样式异常。
+- Card 内批注改为上下结构，适配瀑布流卡片高度。
+- 内容浮动工具条第四按钮改为搜索：调用 `chrome.search.query` 打开新页面搜索选中内容。
+
 # v0.4.4 Provider Tiering 与 Mistral SDK 接入
 
 - 新增 `mistral` provider type，并接入官方 `@mistralai/mistralai` SDK，用于模型列表、连接测试、对话、streaming 与 tool calling。
