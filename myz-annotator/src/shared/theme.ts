@@ -1,13 +1,15 @@
 import { computed, ref } from "vue";
 
 const THEME_STORAGE_KEY = "myz:theme";
-const themeRef = ref("dark");
+type ThemeMode = "auto" | "light" | "dark";
+const modeRef = ref<ThemeMode>("auto");
 const readyRef = ref(false);
-let initPromise: Promise<string> | null = null;
+let initPromise: Promise<ThemeMode> | null = null;
 let listenerRegistered = false;
 let bodyReady = false;
+let systemListener: (() => void) | null = null;
 
-function detectSystemTheme() {
+function detectSystemTheme(): "light" | "dark" {
   if (
     typeof window === "undefined" ||
     typeof window.matchMedia !== "function"
@@ -19,11 +21,11 @@ function detectSystemTheme() {
     : "dark";
 }
 
-function applyThemeClasses(value: string) {
+function applyThemeClasses(value: "light" | "dark") {
   if (typeof document === "undefined") {
     return;
   }
-  const normalized = value === "light" ? "light" : "dark";
+  const normalized = value;
   const root = document.documentElement;
   root.dataset.theme = normalized;
   root.style.colorScheme = normalized;
@@ -41,30 +43,47 @@ function applyThemeClasses(value: string) {
       "DOMContentLoaded",
       () => {
         bodyReady = true;
-        applyThemeClasses(themeRef.value);
+        applyEffectiveTheme();
       },
       { once: true },
     );
   }
 }
 
-function readStoredTheme() {
+function applyEffectiveTheme() {
+  const effective = getEffectiveTheme();
+  applyThemeClasses(effective);
+}
+
+function getEffectiveTheme(): "light" | "dark" {
+  if (modeRef.value === "light") {
+    return "light";
+  }
+  if (modeRef.value === "dark") {
+    return "dark";
+  }
+  return detectSystemTheme();
+}
+
+function readStoredTheme(): Promise<ThemeMode | null> {
   return new Promise((resolve) => {
     if (typeof chrome !== "undefined" && chrome.storage?.local) {
       chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
-        resolve(result?.[THEME_STORAGE_KEY] || null);
+        const value = result?.[THEME_STORAGE_KEY];
+        resolve(value === "light" || value === "dark" || value === "auto" ? value : null);
       });
       return;
     }
     if (typeof localStorage !== "undefined") {
-      resolve(localStorage.getItem(THEME_STORAGE_KEY));
+      const value = localStorage.getItem(THEME_STORAGE_KEY);
+      resolve(value === "light" || value === "dark" || value === "auto" ? value : null);
       return;
     }
     resolve(null);
   });
 }
 
-function persistTheme(value: string) {
+function persistTheme(value: ThemeMode) {
   if (typeof chrome !== "undefined" && chrome.storage?.local) {
     try {
       chrome.storage.local.set({ [THEME_STORAGE_KEY]: value });
@@ -82,14 +101,42 @@ function persistTheme(value: string) {
   }
 }
 
-async function initTheme(): Promise<string> {
+function clearSystemListener() {
+  if (systemListener && typeof window !== "undefined" && window.matchMedia) {
+    try {
+      window.matchMedia("(prefers-color-scheme: light)").removeEventListener("change", systemListener);
+    } catch {
+      // ignore
+    }
+    systemListener = null;
+  }
+}
+
+function ensureSystemListener() {
+  if (systemListener) {
+    return;
+  }
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return;
+  }
+  systemListener = () => {
+    if (modeRef.value === "auto") {
+      applyEffectiveTheme();
+    }
+  };
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", systemListener);
+}
+
+async function initTheme(): Promise<ThemeMode> {
   const stored = await readStoredTheme();
-  const next =
-    stored === "light" || stored === "dark" ? stored : detectSystemTheme();
-  themeRef.value = next;
-  applyThemeClasses(next);
+  const next: ThemeMode = stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
+  modeRef.value = next;
+  applyEffectiveTheme();
   readyRef.value = true;
   registerStorageListener();
+  if (next === "auto") {
+    ensureSystemListener();
+  }
   return next;
 }
 
@@ -116,11 +163,16 @@ function registerStorageListener() {
       return;
     }
     const nextValue = changes[THEME_STORAGE_KEY].newValue;
-    if (nextValue !== "light" && nextValue !== "dark") {
+    if (nextValue !== "light" && nextValue !== "dark" && nextValue !== "auto") {
       return;
     }
-    themeRef.value = nextValue;
-    applyThemeClasses(nextValue);
+    modeRef.value = nextValue;
+    if (nextValue === "auto") {
+      ensureSystemListener();
+    } else {
+      clearSystemListener();
+    }
+    applyEffectiveTheme();
   });
   listenerRegistered = true;
 }
@@ -129,20 +181,26 @@ export function useThemePreference() {
   if (typeof window !== "undefined") {
     ensureInitialized();
   }
-  const isDark = computed(() => themeRef.value === "dark");
-  function setTheme(next: string) {
-    const normalized = next === "light" ? "light" : "dark";
-    themeRef.value = normalized;
-    applyThemeClasses(normalized);
-    persistTheme(normalized);
+  const isDark = computed(() => getEffectiveTheme() === "dark");
+  function setTheme(next: ThemeMode) {
+    modeRef.value = next;
+    if (next === "auto") {
+      ensureSystemListener();
+    } else {
+      clearSystemListener();
+    }
+    applyEffectiveTheme();
+    persistTheme(next);
   }
   function toggleTheme() {
-    setTheme(isDark.value ? "light" : "dark");
+    const current = getEffectiveTheme();
+    setTheme(current === "dark" ? "light" : "dark");
   }
   return {
-    theme: themeRef,
+    mode: modeRef,
     ready: readyRef,
     isDark,
+    effectiveTheme: computed(() => getEffectiveTheme()),
     setTheme,
     toggleTheme,
   };
@@ -152,13 +210,13 @@ if (typeof window !== "undefined") {
   ensureInitialized();
   if (document.readyState !== "loading") {
     bodyReady = true;
-    applyThemeClasses(themeRef.value);
+    applyEffectiveTheme();
   } else {
     document.addEventListener(
       "DOMContentLoaded",
       () => {
         bodyReady = true;
-        applyThemeClasses(themeRef.value);
+        applyEffectiveTheme();
       },
       { once: true },
     );

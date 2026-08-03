@@ -7,6 +7,10 @@ const groups = [
     items: [{ label: "标注偏好", to: "/settings/highlight/preferences" }],
   },
   {
+    title: "外观",
+    items: [{ label: "外观设置", to: "/settings/appearance" }],
+  },
+  {
     title: "同步",
     items: [{ label: "加密同步", to: "/settings/sync" }],
   },

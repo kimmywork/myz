@@ -18,16 +18,15 @@ describe("theme", () => {
     });
   });
 
-  it("should initialize with default theme", () => {
-    const { theme, isDark } = useThemePreference();
-    expect(theme.value).toBe("dark");
+  it("should initialize with auto mode and dark effective theme", () => {
+    const { mode, isDark } = useThemePreference();
+    expect(mode.value).toBe("auto");
     expect(isDark.value).toBe(true);
   });
 
-  it("should toggle theme", () => {
-    const { toggleTheme, theme } = useThemePreference();
-    const initial = theme.value;
-    toggleTheme();
-    expect(theme.value).not.toBe(initial);
+  it("should switch theme mode", () => {
+    const { mode, setTheme } = useThemePreference();
+    setTheme("light");
+    expect(mode.value).toBe("light");
   });
 });

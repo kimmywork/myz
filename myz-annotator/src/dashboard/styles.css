@@ -19,6 +19,18 @@
   input[type="date"]::-webkit-calendar-picker-indicator {
     display: none;
   }
+
+  .prose ol,
+  .prose ul {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding-left: 1.25rem;
+  }
+
+  .prose li {
+    margin-top: 0.125rem;
+    margin-bottom: 0.125rem;
+  }
 }
 
 @layer components {
