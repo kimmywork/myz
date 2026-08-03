@@ -13,10 +13,7 @@ import {
   recordToMarkdown,
 } from "@/dashboard/utils/records.js";
 import { sendMessage } from "@/shared/messaging.js";
-import { normalizeMastodonStatusUrl } from "@/shared/social/mastodon";
-import { normalizeTweetUrl } from "@/shared/social/twitter";
 import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
-import { isRecord } from "@/shared/typeUtils";
 
 export type MessageTone = "info" | "error" | "success";
 
@@ -31,134 +28,6 @@ export const useHighlightsStore = defineStore("highlights", () => {
   const importStatus: ImportStatus = reactive({ message: "", tone: "info" });
   const operationStatus = ref("");
   const timers = new Map();
-
-  /**
-   * Dashboard requirement: if the same social URL is stored multiple times with different
-   * kinds (e.g. tweet:retweet + tweet:favorite + tweet:bookmark), display only one entry and
-   * expose all kinds for UI badges via `socialKinds`/`socialRecordIds`.
-   */
-  function mergeSocialRecordsForDashboard(records: MyZRecord[]): MyZRecord[] {
-    const buckets = new Map<string, MyZRecord[]>();
-    const others: MyZRecord[] = [];
-
-    records.forEach((record) => {
-      const kind = typeof record?.kind === "string" ? record.kind : "";
-      const isSocial = kind.startsWith("tweet:") || kind.startsWith("toot:");
-      if (!isSocial) {
-        others.push(record);
-        return;
-      }
-      const rawUrl = record.url || record.sourceUrl || "";
-      const normalized = kind.startsWith("tweet:")
-        ? normalizeTweetUrl(rawUrl)
-        : normalizeMastodonStatusUrl(rawUrl);
-      const key = normalized || rawUrl;
-      if (!key) {
-        others.push(record);
-        return;
-      }
-      const bucket = buckets.get(key) || [];
-      bucket.push(record);
-      buckets.set(key, bucket);
-    });
-
-    const tweetPriority: RECORD_KINDS[] = [
-      RECORD_KINDS.TWEET_RETWEET,
-      RECORD_KINDS.TWEET_POST,
-      RECORD_KINDS.TWEET_REPLY,
-      RECORD_KINDS.TWEET_FAVORITE,
-      RECORD_KINDS.TWEET_BOOKMARK,
-    ];
-    const tootPriority: RECORD_KINDS[] = [
-      RECORD_KINDS.TOOT_BOOST,
-      RECORD_KINDS.TOOT_POST,
-      RECORD_KINDS.TOOT_REPLY,
-      RECORD_KINDS.TOOT_FAVORITE,
-      RECORD_KINDS.TOOT_BOOKMARK,
-    ];
-
-    const mergedSocial: MyZRecord[] = [];
-    buckets.forEach((bucket, key) => {
-      if (!bucket.length) {
-        return;
-      }
-      const kinds = Array.from(
-        new Set(
-          bucket
-            .map((r) => (typeof r?.kind === "string" ? r.kind : ""))
-            .filter((k) => k.startsWith("tweet:") || k.startsWith("toot:")),
-        ),
-      ) as RECORD_KINDS[];
-      const isTweet = kinds.some((k) => String(k).startsWith("tweet:"));
-      const priority = isTweet ? tweetPriority : tootPriority;
-      kinds.sort((a, b) => priority.indexOf(a) - priority.indexOf(b));
-
-      const base =
-        bucket
-          .slice()
-          .sort(
-            (a, b) =>
-              priority.indexOf(a.kind as RECORD_KINDS) -
-              priority.indexOf(b.kind as RECORD_KINDS),
-          )[0] || bucket[0];
-
-      const tags = Array.from(
-        new Set(
-          bucket
-            .flatMap((r) => (Array.isArray(r.tags) ? r.tags : []))
-            .filter(Boolean),
-        ),
-      );
-      const note =
-        base.note ||
-        bucket.find((r) => typeof r.note === "string" && r.note.trim())?.note ||
-        "";
-      const updatedAt = bucket
-        .map((r) => Date.parse(r.updatedAt || r.createdAt || ""))
-        .filter((t) => Number.isFinite(t))
-        .sort((a, b) => b - a)[0];
-
-      const merged: MyZRecord = {
-        ...base,
-        url: key,
-        sourceUrl: key,
-        hostname:
-          base.hostname ||
-          (() => {
-            try {
-              return new URL(key).hostname || "";
-            } catch {
-              return isTweet ? "x.com" : "";
-            }
-          })(),
-        tags: tags.length ? tags : undefined,
-        note: note ? note : undefined,
-        updatedAt: Number.isFinite(updatedAt)
-          ? new Date(updatedAt).toISOString()
-          : base.updatedAt,
-        socialKinds: kinds,
-        socialRecordIds: bucket.map((r) => r.id).filter(Boolean),
-        ...(isTweet
-          ? {
-              tweetKinds: kinds,
-              tweetRecordIds: bucket.map((r) => r.id).filter(Boolean),
-            }
-          : {}),
-      };
-      mergedSocial.push(merged as MyZRecord);
-    });
-
-    const merged = [...others, ...mergedSocial];
-    merged.sort((a, b) => {
-      const timeA = Date.parse(a.createdAt || a.updatedAt || "");
-      const timeB = Date.parse(b.createdAt || b.updatedAt || "");
-      return (
-        (Number.isFinite(timeB) ? timeB : 0) -
-        (Number.isFinite(timeA) ? timeA : 0)
-      );
-    });
-    return merged;
-  }
 
   const availableSites = computed(() => {
     return [
@@ -225,7 +94,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
             .map((item) => normalizeRecord(item))
             .filter(Boolean) as MyZRecord[])
         : [];
-      highlights.value = mergeSocialRecordsForDashboard(normalized);
+      highlights.value = normalized;
     } catch (error) {
       console.error("Failed to load highlights", error);
       highlights.value = [];
@@ -260,22 +129,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
 
   async function deleteHighlight(id: string) {
     try {
-      const record = highlights.value.find((item) => item.id === id);
-      const recordBag = isRecord(record) ? record : null;
-      const legacyIds = Array.isArray(recordBag?.tweetRecordIds)
-        ? recordBag.tweetRecordIds.filter(
-            (entry): entry is string =>
-              typeof entry === "string" && entry.trim().length > 0,
-          )
-        : [];
-      const ids = Array.isArray(record?.socialRecordIds)
-        ? record.socialRecordIds
-        : legacyIds;
-      if (ids.length) {
-        await sendMessage("myz:removeRecordsByIds", { ids });
-      } else {
-        await sendMessage("myz:removeHighlight", { id });
-      }
+      await sendMessage("myz:removeHighlight", { id });
       highlights.value = highlights.value.filter((item) => item.id !== id);
     } catch (error) {
       console.error("删除失败", error);

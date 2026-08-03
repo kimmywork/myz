@@ -2,11 +2,27 @@ import { type MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared"
 import { computed, defineComponent, ref } from "vue"
 import type { PropType } from "vue"
 import {
+  Bookmark,
+  Copy,
+  ExternalLink,
+  Eye,
+  FilePenLine,
+  FileText,
+  Hash,
+  Highlighter,
+  RefreshCw,
+  Trash2,
+} from "@lucide/vue"
+import {
   getKindLabel,
-  getSocialBadgeLabel,
-  getSocialKinds,
   type HighlightItemAction,
 } from "./highlightMeta"
+
+const KIND_ICON: Record<string, typeof Bookmark> = {
+  [RECORD_KINDS.BOOKMARK]: Bookmark,
+  [RECORD_KINDS.HIGHLIGHT]: Highlighter,
+  [RECORD_KINDS.CLIP]: FileText,
+}
 
 export default defineComponent({
   name: "HighlightCard",
@@ -35,11 +51,6 @@ export default defineComponent({
   },
   setup(props) {
     const kind = computed(() => getRecordKind(props.record))
-    const isSocial = computed(() => {
-      const value = String(kind.value)
-      return value.startsWith("tweet:") || value.startsWith("toot:")
-    })
-    const socialKinds = computed(() => getSocialKinds(props.record))
     const hasNote = computed(() => Boolean(props.record.note))
     const tags = computed(() => props.record.tags || [])
     const showAllTags = ref(false)
@@ -52,18 +63,14 @@ export default defineComponent({
       Math.max(0, tags.value.length - maxVisibleTags),
     )
 
+    const KindIcon = KIND_ICON[kind.value] || Highlighter
+
     const cardClasses = computed(() => {
       const classes = [
-        "space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-5 text-sm text-slate-800 shadow-xl transition dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100",
+        "flex h-full flex-col rounded-3xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-800 shadow-xl transition dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100",
       ]
       if (kind.value === RECORD_KINDS.CLIP) {
         classes.push("border-teal-200 dark:border-cyan-500/30")
-      }
-      if (kind.value === RECORD_KINDS.AI_GENERATED) {
-        classes.push("border-fuchsia-200 dark:border-fuchsia-500/40")
-      }
-      if (isSocial.value) {
-        classes.push("border-sky-200 dark:border-sky-500/30")
       }
       return classes.join(" ")
     })
@@ -73,21 +80,17 @@ export default defineComponent({
     }
 
     return () => (
-      <article class={cardClasses.value} data-id={props.record.id} data-kind={kind.value}>
+      <article class={`${cardClasses.value} break-inside-avoid`} data-id={props.record.id} data-kind={kind.value}>
         <div class="flex items-center justify-between gap-4">
           <span
             class={[
-              "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide",
-              kind.value === RECORD_KINDS.AI_GENERATED
-                ? "bg-fuchsia-500 text-white"
-                : kind.value === RECORD_KINDS.CLIP
-                  ? "bg-teal-500 text-white"
-                  : isSocial.value
-                    ? "bg-sky-500 text-white"
-                    : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-wide",
+              kind.value === RECORD_KINDS.CLIP
+                ? "bg-teal-500 text-white"
+                : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
             ].join(" ")}
           >
-            {getKindLabel(kind.value)}
+            <KindIcon size={14} />
           </span>
           <div class="flex flex-col items-end text-xs text-slate-400">
             <span
@@ -107,116 +110,117 @@ export default defineComponent({
           </div>
         </div>
 
-        {hasNote.value ? (
-          <div class="grid gap-4 sm:grid-cols-2">
-            <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
+        <div class="mt-3 flex-1 overflow-y-auto">
+          {hasNote.value ? (
+            <div class="grid gap-4">
+              <section class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {getKindLabel(kind.value)}
+                </h4>
+                <blockquote
+                  class="mt-2 prose dark:prose-invert prose-sm max-w-none text-sm text-slate-800 dark:text-slate-100"
+                  innerHTML={props.renderHighlight(props.record)}
+                ></blockquote>
+              </section>
+              <section class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
+                <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  批注
+                </h4>
+                <p
+                  class="mt-2 prose dark:prose-invert prose-sm max-w-none text-sm text-slate-600 dark:text-slate-200"
+                  innerHTML={props.formatNote(props.record.note || "")}
+                ></p>
+              </section>
+            </div>
+          ) : (
+            <section class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
               <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 {getKindLabel(kind.value)}
               </h4>
               <blockquote
-                class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
+                class="mt-2 prose dark:prose-invert prose-sm max-w-none text-sm text-slate-800 dark:text-slate-100"
                 innerHTML={props.renderHighlight(props.record)}
               ></blockquote>
             </section>
-            <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
-              <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                批注
-              </h4>
-              <p
-                class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-                innerHTML={props.formatNote(props.record.note || "")}
-              ></p>
-            </section>
-          </div>
-        ) : (
-          <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
-            <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {getKindLabel(kind.value)}
-            </h4>
-            <blockquote
-              class="mt-2 max-h-32 overflow-y-auto text-sm text-slate-800 break-all whitespace-pre-wrap dark:text-slate-100"
-              innerHTML={props.renderHighlight(props.record)}
-            ></blockquote>
-          </section>
-        )}
+          )}
+        </div>
 
-        <div class="flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-          {socialKinds.value.map((kindValue) => (
-            <span
-              key={`kind:${kindValue}`}
-              class="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"
-            >
-              {getSocialBadgeLabel(kindValue)}
-            </span>
-          ))}
+        <div class="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
           {visibleTags.value.length
             ? visibleTags.value.map((tag) => (
                 <span
                   key={tag}
-                  class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 dark:border-white/10 dark:text-slate-100"
-                  innerHTML={props.formatInline(tag)}
-                ></span>
+                  class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-700 dark:border-white/10 dark:text-slate-100"
+                >
+                  <Hash size={12} />
+                  <span innerHTML={props.formatInline(tag)} />
+                </span>
               ))
             : "无标签"}
           {hiddenTagsCount.value > 0 ? (
             <button
               type="button"
-              class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:text-slate-700 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
+              class="rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:text-slate-700 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
               onClick={() => {
                 showAllTags.value = !showAllTags.value
               }}
             >
-              +{hiddenTagsCount.value} 个标签
+              +{hiddenTagsCount.value}
             </button>
           ) : null}
         </div>
 
-        <div class="mt-4 flex flex-wrap gap-3 border-t border-slate-200 pt-3 text-xs font-semibold dark:border-white/5">
+        <div class="mt-4 flex items-center gap-1 border-t border-slate-200 pt-3 text-xs font-semibold dark:border-white/5">
           <a
-            class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
+            class="rounded-md p-1.5 text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
             href={props.record.sourceUrl || props.record.url}
             target="_blank"
             rel="noopener"
             title={props.record.title || props.record.url}
           >
-            页面
+            <ExternalLink size={16} />
           </a>
           <button
-            class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
             type="button"
             onClick={() => emitAction("view")}
+            title="查看"
           >
-            查看
+            <Eye size={16} />
           </button>
           <button
-            class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
             type="button"
             onClick={() => emitAction("edit")}
+            title="编辑"
           >
-            编辑
+            <FilePenLine size={16} />
           </button>
           <button
-            class="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
             type="button"
             onClick={() => emitAction("copy")}
+            title="复制"
           >
-            复制
+            <Copy size={16} />
           </button>
           {kind.value === RECORD_KINDS.HIGHLIGHT ? (
             <button
-              class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              class="rounded-md p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               type="button"
               onClick={() => emitAction("downgrade")}
+              title="降级"
             >
-              降级
+              <RefreshCw size={16} />
             </button>
           ) : null}
           <button
-            class="text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
+            class="rounded-md p-1.5 text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
             type="button"
             onClick={() => emitAction("delete")}
+            title="删除"
           >
-            删除
+            <Trash2 size={16} />
           </button>
         </div>
       </article>

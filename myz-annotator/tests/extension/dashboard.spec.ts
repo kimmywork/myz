@@ -93,7 +93,7 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
   expect(card).toBeTruthy();
 
   // Delete the highlight via the card delete button
-  const deleteBtn = await card?.$('button:has-text("删除")');
+  const deleteBtn = await card?.$('button[title="删除"]');
   expect(deleteBtn).toBeTruthy();
   await deleteBtn?.click();
 
@@ -169,7 +169,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     if (!card) throw new Error("card not found");
     const btns = Array.from(card.querySelectorAll("button"));
     const edit = btns.find(
-      (b) => b.textContent && b.textContent.trim() === "编辑",
+      (b) => b.getAttribute("title") === "编辑",
     );
     if (!edit) throw new Error("edit button not found");
     edit.click();
@@ -244,7 +244,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     if (!card) throw new Error("highlight card not found");
     const btns = Array.from(card.querySelectorAll("button"));
     const down = btns.find(
-      (b) => b.textContent && b.textContent.trim() === "降级",
+      (b) => b.getAttribute("title") === "降级",
     );
     if (!down) throw new Error("downgrade button not found");
     down.click();
@@ -350,7 +350,7 @@ test("modal_tag_and_color_edit_checks", async () => {
     if (!card) throw new Error("card not found");
     const btns = Array.from(card.querySelectorAll("button"));
     const edit = btns.find(
-      (b) => b.textContent && b.textContent.trim() === "编辑",
+      (b) => b.getAttribute("title") === "编辑",
     );
     if (!edit) throw new Error("edit button not found");
     edit.click();

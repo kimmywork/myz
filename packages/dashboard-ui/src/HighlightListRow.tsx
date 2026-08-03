@@ -2,11 +2,26 @@ import { type MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared"
 import { computed, defineComponent, ref } from "vue"
 import type { PropType } from "vue"
 import {
-  getKindLabel,
-  getSocialBadgeLabel,
-  getSocialKinds,
+  Bookmark,
+  Copy,
+  ExternalLink,
+  Eye,
+  FilePenLine,
+  FileText,
+  Hash,
+  Highlighter,
+  RefreshCw,
+  Trash2,
+} from "@lucide/vue"
+import {
   type HighlightItemAction,
 } from "./highlightMeta"
+
+const KIND_ICON: Record<string, typeof Bookmark> = {
+  [RECORD_KINDS.BOOKMARK]: Bookmark,
+  [RECORD_KINDS.HIGHLIGHT]: Highlighter,
+  [RECORD_KINDS.CLIP]: FileText,
+}
 
 export default defineComponent({
   name: "HighlightListRow",
@@ -35,13 +50,8 @@ export default defineComponent({
   },
   setup(props) {
     const kind = computed(() => getRecordKind(props.record))
-    const isSocial = computed(() => {
-      const value = String(kind.value)
-      return value.startsWith("tweet:") || value.startsWith("toot:")
-    })
-    const socialKinds = computed(() => getSocialKinds(props.record))
-    const showAllTags = ref(false)
     const tags = computed(() => props.record.tags || [])
+    const showAllTags = ref(false)
     const maxVisibleTags = 5
     const visibleTags = computed(() =>
       showAllTags.value ? tags.value : tags.value.slice(0, maxVisibleTags),
@@ -50,6 +60,8 @@ export default defineComponent({
       Math.max(0, tags.value.length - maxVisibleTags),
     )
 
+    const KindIcon = KIND_ICON[kind.value] || Highlighter
+
     function emitAction(action: HighlightItemAction) {
       props.onAction?.(action, props.record)
     }
@@ -57,30 +69,20 @@ export default defineComponent({
     return () => (
       <div
         class={[
-          "rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-800 shadow-sm dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100",
+          "flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-3 text-sm text-slate-800 shadow-sm dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100",
           kind.value === RECORD_KINDS.CLIP ? "border-teal-200 dark:border-cyan-500/30" : "",
-          kind.value === RECORD_KINDS.AI_GENERATED
-            ? "border-fuchsia-200 dark:border-fuchsia-500/40"
-            : "",
-          isSocial.value ? "border-sky-200 dark:border-sky-500/30" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        ].join(" ")}
       >
-        <div class="mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
           <span
             class={[
-              "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-              kind.value === RECORD_KINDS.AI_GENERATED
-                ? "bg-fuchsia-500 text-white"
-                : kind.value === RECORD_KINDS.CLIP
-                  ? "bg-teal-500 text-white"
-                  : isSocial.value
-                    ? "bg-sky-500 text-white"
-                    : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+              kind.value === RECORD_KINDS.CLIP
+                ? "bg-teal-500 text-white"
+                : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
             ].join(" ")}
           >
-            {getKindLabel(kind.value)}
+            <KindIcon size={12} />
           </span>
           <span
             class="max-w-[120px] truncate font-semibold text-slate-600 dark:text-slate-200"
@@ -96,105 +98,105 @@ export default defineComponent({
           </span>
         </div>
 
-        {(socialKinds.value.length > 0 || visibleTags.value.length > 0) ? (
-          <div class="mb-4 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
-            {socialKinds.value.map((kindValue) => (
-              <span
-                key={`kind:${kindValue}`}
-                class="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"
-              >
-                {getSocialBadgeLabel(kindValue)}
-              </span>
-            ))}
+        {(visibleTags.value.length > 0) ? (
+          <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
             {visibleTags.value.map((tag) => (
               <span
                 key={tag}
-                class="rounded-full border border-slate-200 px-2 py-0.5 text-xs text-slate-700 dark:border-white/10 dark:text-slate-100"
-                innerHTML={props.formatInline(tag)}
-              ></span>
+                class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-700 dark:border-white/10 dark:text-slate-100"
+              >
+                <Hash size={12} />
+                <span innerHTML={props.formatInline(tag)} />
+              </span>
             ))}
             {hiddenTagsCount.value > 0 ? (
               <button
                 type="button"
-                class="rounded-full border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:text-slate-700 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
+                class="rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:text-slate-700 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
                 onClick={() => {
                   showAllTags.value = !showAllTags.value
                 }}
               >
-                +{hiddenTagsCount.value} 个标签
+                +{hiddenTagsCount.value}
               </button>
             ) : null}
           </div>
         ) : null}
 
-        <div class="grid grid-cols-[1fr_auto] gap-6">
-          <div class="min-h-0">
+        <div class="flex flex-col gap-4 md:flex-row">
+          <div class="min-h-0 flex-1">
             {props.record.note ? (
               <div class="grid gap-4 md:grid-cols-2">
                 <div
-                  class="max-h-32 overflow-y-auto break-all rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70"
+                  class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 prose dark:prose-invert prose-sm max-w-none"
                   innerHTML={props.renderHighlight(props.record)}
                 ></div>
                 <div
-                  class="max-h-32 overflow-y-auto break-all rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 dark:text-slate-200"
+                  class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 dark:text-slate-200 prose dark:prose-invert prose-sm max-w-none"
                   innerHTML={props.formatNote(props.record.note)}
                 ></div>
               </div>
             ) : (
               <div
-                class="max-h-32 overflow-y-auto break-all rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70"
+                class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 prose dark:prose-invert prose-sm max-w-none"
                 innerHTML={props.renderHighlight(props.record)}
               ></div>
             )}
           </div>
-          <div class="flex flex-col gap-2 text-xs font-semibold">
-            <a
-              class="whitespace-nowrap text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
-              href={props.record.sourceUrl || props.record.url}
-              target="_blank"
-              rel="noopener"
-              title={props.record.title || props.record.url}
-            >
-              页面
-            </a>
+        </div>
+
+        <div class="flex items-center gap-1 border-t border-slate-200 pt-3 text-xs font-semibold dark:border-white/5">
+          <a
+            class="rounded-md p-1.5 text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
+            href={props.record.sourceUrl || props.record.url}
+            target="_blank"
+            rel="noopener"
+            title={props.record.title || props.record.url}
+          >
+            <ExternalLink size={16} />
+          </a>
+          <button
+            class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            type="button"
+            onClick={() => emitAction("view")}
+            title="查看"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            type="button"
+            onClick={() => emitAction("edit")}
+            title="编辑"
+          >
+            <FilePenLine size={16} />
+          </button>
+          <button
+            class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            type="button"
+            onClick={() => emitAction("copy")}
+            title="复制"
+          >
+            <Copy size={16} />
+          </button>
+          {kind.value === RECORD_KINDS.HIGHLIGHT ? (
             <button
-              class="whitespace-nowrap text-left text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+              class="rounded-md p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               type="button"
-              onClick={() => emitAction("view")}
+              onClick={() => emitAction("downgrade")}
+              title="降级"
             >
-              查看
+              <RefreshCw size={16} />
             </button>
-            <button
-              class="whitespace-nowrap text-left text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-              type="button"
-              onClick={() => emitAction("edit")}
-            >
-              编辑
-            </button>
-            <button
-              class="whitespace-nowrap text-left text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-              type="button"
-              onClick={() => emitAction("copy")}
-            >
-              复制
-            </button>
-            {kind.value === RECORD_KINDS.HIGHLIGHT ? (
-              <button
-                class="whitespace-nowrap text-left text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                type="button"
-                onClick={() => emitAction("downgrade")}
-              >
-                降级
-              </button>
-            ) : null}
-            <button
-              class="whitespace-nowrap text-left text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
-              type="button"
-              onClick={() => emitAction("delete")}
-            >
-              删除
-            </button>
-          </div>
+          ) : null}
+          <button
+            class="rounded-md p-1.5 text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
+            type="button"
+            onClick={() => emitAction("delete")}
+            title="删除"
+          >
+            <Trash2 size={16} />
+          </button>
         </div>
       </div>
     )

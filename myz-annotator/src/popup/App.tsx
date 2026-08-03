@@ -30,8 +30,6 @@ export default defineComponent({
     const activeTabId = ref<number | null>(null);
     const canonicalPageUrl = ref("");
     const rawPageUrl = ref("");
-    const isAutoHighlighting = ref(false);
-
     const notifyContentScript = (type: string) => {
       if (activeTabId.value == null) {
         return;
@@ -104,33 +102,6 @@ export default defineComponent({
 
     const handleSearch = (event: Event) => {
       query.value = (event.target as HTMLInputElement).value;
-    };
-
-    const runAutoHighlight = async () => {
-      if (activeTabId.value == null) {
-        return;
-      }
-      isAutoHighlighting.value = true;
-      try {
-        await new Promise((resolve, reject) => {
-          chrome.tabs.sendMessage(
-            activeTabId.value!,
-            { type: "myz:runAutoHighlight", payload: {} },
-            (response) => {
-              if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
-                return;
-              }
-              resolve(response);
-            },
-          );
-        });
-        await loadHighlights();
-      } catch (err) {
-        error.value = (err as Error)?.message || "AI 标注失败";
-      } finally {
-        isAutoHighlighting.value = false;
-      }
     };
 
     const handleItemAction = async (
@@ -303,16 +274,6 @@ export default defineComponent({
           ) : (
             <div class="empty-state flex flex-col items-center gap-2 text-center text-sm text-slate-500 dark:text-slate-400">
               <p>当前页面还没有标注或保存的文字。</p>
-              <button
-                type="button"
-                class="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-indigo-400 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-200"
-                onClick={runAutoHighlight}
-                disabled={isAutoHighlighting.value}
-              >
-                {isAutoHighlighting.value
-                  ? "正在生成标注..."
-                  : "AI 自动生成标注"}
-              </button>
             </div>
           )}
         </main>

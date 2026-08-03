@@ -9,6 +9,7 @@
     "./TagInput": "./src/TagInput.tsx"
   },
   "dependencies": {
+    "@lucide/vue": "^1.27.0",
     "@myz/shared": "*",
     "vue": "*",
     "vue-router": "*"

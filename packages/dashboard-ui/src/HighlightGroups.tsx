@@ -68,7 +68,7 @@ export default defineComponent({
           {props.groups.map((group) => (
             <section
               key={group.date}
-              class="space-y-4 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-inner dark:border-white/5 dark:bg-slate-900/40"
+              class="space-y-2 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-inner dark:border-white/5 dark:bg-slate-900/40"
             >
               <h3 class="text-sm font-semibold text-slate-600 dark:text-slate-300">
                 {group.date} · 共 {group.stats.total} 条{group.detailText || ""}
@@ -76,8 +76,8 @@ export default defineComponent({
               <div
                 class={[
                   props.view === "cards"
-                    ? "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
-                    : "space-y-4",
+                    ? "space-y-2 columns-1 gap-2 sm:columns-2 xl:columns-3"
+                    : "space-y-2",
                 ].join(" ")}
               >
                 {group.items.map((item) =>

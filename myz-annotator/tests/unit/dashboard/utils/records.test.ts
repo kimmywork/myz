@@ -13,12 +13,6 @@ import { RECORD_SCHEMA_VERSION } from "@/shared/versioning";
 
 describe("records", () => {
   describe("getRecordKind", () => {
-    it("should return AI_GENERATED for ai-generated kind", () => {
-      expect(
-        getRecordKind({ kind: RECORD_KINDS.AI_GENERATED } as MyZRecord),
-      ).toBe(RECORD_KINDS.AI_GENERATED);
-    });
-
     it("should return CLIP for clip kind", () => {
       expect(getRecordKind({ kind: RECORD_KINDS.CLIP } as MyZRecord)).toBe(
         RECORD_KINDS.CLIP,
@@ -43,8 +37,8 @@ describe("records", () => {
         "保存文字",
       );
       expect(
-        getRecordKindLabel({ kind: RECORD_KINDS.AI_GENERATED } as MyZRecord),
-      ).toBe("AI摘录");
+        getRecordKindLabel({ kind: RECORD_KINDS.BOOKMARK } as MyZRecord),
+      ).toBe("网页书签");
     });
   });
 
@@ -80,8 +74,6 @@ describe("records", () => {
         total: 0,
         highlightCount: 0,
         savedCount: 0,
-        aiCount: 0,
-        tweetCount: 0,
       });
     });
 
@@ -90,15 +82,12 @@ describe("records", () => {
         { kind: RECORD_KINDS.HIGHLIGHT },
         { kind: RECORD_KINDS.CLIP },
         { kind: RECORD_KINDS.HIGHLIGHT },
-        { kind: RECORD_KINDS.AI_GENERATED },
       ] as MyZRecord[];
 
       expect(computeRecordStats(records)).toEqual({
-        total: 4,
+        total: 3,
         highlightCount: 2,
         savedCount: 1,
-        aiCount: 1,
-        tweetCount: 0,
       });
     });
   });
@@ -149,7 +138,7 @@ describe("records", () => {
         },
         {
           id: "3",
-          kind: RECORD_KINDS.AI_GENERATED,
+          kind: RECORD_KINDS.HIGHLIGHT,
           text: "",
           createdAt: "2024-02-03T10:00:00Z",
           updatedAt: "2024-02-03T10:00:00Z",

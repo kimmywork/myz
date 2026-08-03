@@ -1,15 +1,14 @@
 import { renderMarkdown } from "@/shared/markdownRenderer.js";
-import { MyZRecordSchema } from "@/shared/schemas";
 import {
   CONTENT_TYPES,
   MyZRecord,
   RECORD_KINDS,
-  ensureRecordSchemaVersion,
   getRecordKind,
   resolveRecordContentType,
 } from "@/shared/types.ts";
-import { isRecord } from "@/shared/typeUtils";
 import { extractHostname } from "@/shared/url.js";
+
+export { normalizeRecord } from "@/shared/types.ts";
 
 export type PageSortMode = "time" | "range";
 
@@ -32,58 +31,14 @@ export function getRecordKindLabel(record: MyZRecord) {
       return "保存文字";
     case RECORD_KINDS.BOOKMARK:
       return "网页书签";
-    case RECORD_KINDS.AI_GENERATED:
-      return "AI摘录";
-    case RECORD_KINDS.TWEET_POST:
-      return "推文";
-    case RECORD_KINDS.TWEET_REPLY:
-      return "回复";
-    case RECORD_KINDS.TWEET_RETWEET:
-      return "转推";
-    case RECORD_KINDS.TWEET_FAVORITE:
-      return "点赞推文";
-    case RECORD_KINDS.TWEET_BOOKMARK:
-      return "书签推文";
-    case RECORD_KINDS.TOOT_POST:
-      return "嘟文";
-    case RECORD_KINDS.TOOT_REPLY:
-      return "嘟文回复";
-    case RECORD_KINDS.TOOT_BOOST:
-      return "转嘟";
-    case RECORD_KINDS.TOOT_FAVORITE:
-      return "点赞嘟文";
-    case RECORD_KINDS.TOOT_BOOKMARK:
-      return "书签嘟文";
     default:
       return "标注";
   }
 }
 
-export function normalizeRecord(record?: unknown): MyZRecord | null {
-  if (!isRecord(record)) {
-    return null;
-  }
-  // Ensure kind is set correctly before validation
-  const recordWithKind: Partial<MyZRecord> = {
-    ...(record as Partial<MyZRecord>),
-    kind: getRecordKind(record as Partial<MyZRecord>),
-  };
-  const versioned = ensureRecordSchemaVersion(recordWithKind);
-  versioned.contentType = resolveRecordContentType(versioned);
-
-  const result = MyZRecordSchema.safeParse(versioned);
-  if (result.success) {
-    return result.data;
-  }
-  console.warn("Record validation failed", result.error);
-  return null;
-}
-
 export function computeRecordStats(records: MyZRecord[] = []) {
   let highlightCount = 0;
   let savedCount = 0;
-  let aiCount = 0;
-  let tweetCount = 0;
   records.forEach((item) => {
     if (!item) {
       return;
@@ -93,22 +48,12 @@ export function computeRecordStats(records: MyZRecord[] = []) {
       savedCount += 1;
       return;
     }
-    if (kind === RECORD_KINDS.AI_GENERATED) {
-      aiCount += 1;
-      return;
-    }
-    if (String(kind).startsWith("tweet:") || String(kind).startsWith("toot:")) {
-      tweetCount += 1;
-      return;
-    }
     highlightCount += 1;
   });
   return {
-    total: highlightCount + savedCount + aiCount + tweetCount,
+    total: highlightCount + savedCount,
     highlightCount,
     savedCount,
-    aiCount,
-    tweetCount,
   };
 }
 

@@ -12,7 +12,7 @@ export default defineComponent({
   setup() {
     const highlightsStore = useHighlightsStore();
     const settingsStore = useSettingsStore();
-    const { theme } = useThemePreference();
+    const { effectiveTheme } = useThemePreference();
 
     onMounted(async () => {
       try {
@@ -32,7 +32,7 @@ export default defineComponent({
 
     return () => (
       <DashboardAppShell
-        theme={theme.value}
+        theme={effectiveTheme.value}
         outerWidthClass="mx-auto flex w-full flex-col gap-6 lg:w-5/6 lg:max-w-[1400px]"
         mainClass="flex flex-col gap-6"
       >

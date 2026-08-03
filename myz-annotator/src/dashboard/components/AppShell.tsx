@@ -8,9 +8,9 @@ import { useThemePreference } from "@/shared/theme.js";
 export default defineComponent({
   name: "AppShell",
   setup() {
-    const { theme } = useThemePreference();
+    const { effectiveTheme } = useThemePreference();
     return () => (
-      <DashboardAppShell theme={theme.value}>
+      <DashboardAppShell theme={effectiveTheme.value}>
         {{
           navbar: () => <DashboardNavbar />,
           default: () => <RouterView />,
