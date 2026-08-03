@@ -31,12 +31,6 @@ describe("shared types", () => {
       ).toBe(CONTENT_TYPES.MARKDOWN);
     });
 
-    it("should default ai-generated to markdown", () => {
-      expect(
-        resolveRecordContentType({ kind: RECORD_KINDS.AI_GENERATED }),
-      ).toBe(CONTENT_TYPES.MARKDOWN);
-    });
-
     it("should use html when html is present", () => {
       expect(resolveRecordContentType({ html: "<p>hello</p>" })).toBe(
         CONTENT_TYPES.HTML,

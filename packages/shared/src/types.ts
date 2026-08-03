@@ -62,10 +62,6 @@ export function resolveRecordContentType(
   if (normalized) {
     return normalized
   }
-  const kind = getRecordKind(record)
-  if (kind === RECORD_KINDS.AI_GENERATED) {
-    return CONTENT_TYPES.MARKDOWN
-  }
   const html = typeof record?.html === "string" ? record.html.trim() : ""
   if (html) {
     return CONTENT_TYPES.HTML

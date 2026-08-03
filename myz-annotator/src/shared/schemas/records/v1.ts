@@ -5,14 +5,6 @@ import { SerializedRangeSchema, HighlightStyleSchema } from "../common";
 
 export const RecordSchemaVersionV1 = RECORD_SCHEMA_VERSION;
 
-const RecordAiMetadataSchema = z
-  .object({
-    prompt: z.string().optional(),
-    model: z.string().optional(),
-    action: z.string().optional(),
-  })
-  .optional();
-
 export const MyZRecordSchemaV1 = z
   .object({
     schemaVersion: z.literal(RECORD_SCHEMA_VERSION),
@@ -31,13 +23,7 @@ export const MyZRecordSchemaV1 = z
     title: z.string().optional(),
     hostname: z.string().optional(),
     range: SerializedRangeSchema.optional(),
-    conversationId: z.string().optional(),
     url: z.string(),
-    aiMetadata: RecordAiMetadataSchema,
-    socialKinds: z.array(z.nativeEnum(RECORD_KINDS)).optional(),
-    socialRecordIds: z.array(z.string()).optional(),
-    tweetKinds: z.array(z.nativeEnum(RECORD_KINDS)).optional(),
-    tweetRecordIds: z.array(z.string()).optional(),
     unreachable: z.boolean().optional(),
   })
   .passthrough();

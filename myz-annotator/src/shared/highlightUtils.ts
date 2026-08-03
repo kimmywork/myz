@@ -3,8 +3,8 @@ import {
   HIGHLIGHT_STYLES,
   RECORD_KINDS,
   getRecordKind,
+  normalizeRecord as normalizeBaseRecord,
 } from "./types.ts";
-import { normalizeRecord as normalizeBaseRecord } from "@/dashboard/utils/records.ts";
 import { HighlightStyleSchema, SanitizedColorSchema } from "@/shared/schemas";
 
 // Default single color and palette tuned for better visibility on dark
@@ -30,9 +30,6 @@ export function describeHighlightStyle(style: HIGHLIGHT_STYLES): string {
 export function normalizeRecord(
   record: MyZRecord | null | undefined,
 ): MyZRecord | null {
-  if (!record) {
-    return null;
-  }
   const base = normalizeBaseRecord(record);
   if (!base) {
     return base;
