@@ -1,5 +1,5 @@
-import { computed, defineComponent, ref, Teleport } from "vue";
 import { Monitor, Moon, Sun } from "@lucide/vue";
+import { computed, defineComponent, ref, Teleport } from "vue";
 import { useThemePreference } from "../theme.js";
 
 const OPTIONS = [

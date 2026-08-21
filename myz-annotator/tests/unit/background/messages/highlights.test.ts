@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RECORD_KINDS } from "@/shared/types";
+import { handleMessage } from "@/background/messages/handler";
 import {
   initializeHighlightMessageHandlers,
   SaveHighlightMessagePayload,
 } from "@/background/messages/highlights";
-import { handleMessage } from "@/background/messages/handler";
+import { RECORD_KINDS } from "@/shared/types";
 
 const mockSaveHighlight = vi.fn();
 const mockGetHighlight = vi.fn();
@@ -93,11 +93,9 @@ describe("background highlights message handlers", () => {
     };
     mockSaveHighlight.mockResolvedValue(undefined);
 
-    const result = (await handleMessage(
-      "myz:saveHighlight",
-      payload,
-      { tab: createTab() } as chrome.runtime.MessageSender,
-    )) as { id?: string };
+    const result = (await handleMessage("myz:saveHighlight", payload, {
+      tab: createTab(),
+    } as chrome.runtime.MessageSender)) as { id?: string };
 
     expect(mockSaveHighlight).toHaveBeenCalledTimes(1);
     expect(result.id).toBe("generated-id");

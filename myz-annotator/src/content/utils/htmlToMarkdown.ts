@@ -1,11 +1,11 @@
+import Defuddle from "defuddle/full";
 import DOMPurify from "dompurify";
-import { Defuddle } from "defuddle/node";
 
 function wrapHtmlDocument(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Selection</title></head><body><div class="content">${html}</div></body></html>`;
 }
 
-export async function htmlToMarkdown(html: string): Promise<string> {
+export function htmlToMarkdown(html: string): string {
   if (!html) {
     return "";
   }
@@ -54,8 +54,11 @@ export async function htmlToMarkdown(html: string): Promise<string> {
 
   try {
     const documentHtml = wrapHtmlDocument(cleaned);
-    const result = await Defuddle(documentHtml, undefined, { markdown: true });
-    const markdown = (result as { content?: string }).content || "";
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(documentHtml, "text/html");
+    const defuddle = new Defuddle(doc, { markdown: true });
+    const result = defuddle.parse();
+    const markdown = result.contentMarkdown || result.content || "";
     if (markdown.trim()) {
       return markdown.trim();
     }

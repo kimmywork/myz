@@ -8,7 +8,6 @@ import {
   applyTimestampFallback,
 } from "../import";
 import { buildMarkdownExport } from "../markdown";
-import { htmlToMarkdown } from "../utils/htmlToMarkdown";
 import {
   generateId,
   persistHighlightPreferences,
@@ -20,6 +19,7 @@ import {
   getAllHighlights,
 } from "../storage";
 import { recordHighlightDeletion } from "../sync/deletions";
+import { sendToContentScript } from "../utils/sendToContentScript";
 import { registerMessageHandler } from "./handler";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils";
 import {
@@ -80,7 +80,10 @@ export function initializeHighlightMessageHandlers() {
 
   registerMessageHandler(
     "myz:saveHighlight",
-    async (payload: SaveHighlightMessagePayload) => {
+    async (
+      payload: SaveHighlightMessagePayload,
+      sender: chrome.runtime.MessageSender,
+    ) => {
       if (!payload) {
         throw new Error("Missing highlight payload");
       }
@@ -96,11 +99,12 @@ export function initializeHighlightMessageHandlers() {
       }) as MyZRecord;
       record.contentType = resolveRecordContentType(record);
 
-      if (
-        typeof record.html === "string" &&
-        record.html.trim().length > 0
-      ) {
-        const markdown = await htmlToMarkdown(record.html);
+      if (typeof record.html === "string" && record.html.trim().length > 0) {
+        const tabId = sender?.tab?.id;
+        const { markdown } = await sendToContentScript<
+          { html: string },
+          { markdown: string }
+        >("myz:convertHtmlToMarkdown", { html: record.html }, tabId);
         record.text = markdown;
         record.contentType = CONTENT_TYPES.MARKDOWN;
         delete (record as Record<string, unknown>).html;

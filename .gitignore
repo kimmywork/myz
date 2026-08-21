@@ -3,5 +3,7 @@ workflow/video-pipeline/output/
 
 node_modules
 
+.reasonix/
+
 # monorepo: only root lock file is needed
 */package-lock.json

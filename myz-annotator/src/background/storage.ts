@@ -2,10 +2,10 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 
 import type { Settings, SettingsBundle } from "./settings.js";
 import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
+import { normalizeSyncSettings } from "@/shared/sync";
 import { MyZRecord, ensureRecordSchemaVersion } from "@/shared/types.js";
 import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
 import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
-import { normalizeSyncSettings } from "@/shared/sync";
 
 const DB_NAME = "myz_db";
 const DB_VERSION = 1;

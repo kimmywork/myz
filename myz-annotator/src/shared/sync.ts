@@ -25,16 +25,16 @@ export const DEFAULT_S3_SETTINGS: SyncS3Settings = {
   prefix: "",
 };
 
-export function normalizeSyncS3Settings(
-  value: unknown,
-): SyncS3Settings {
+export function normalizeSyncS3Settings(value: unknown): SyncS3Settings {
   if (!isRecord(value)) {
     return { ...DEFAULT_S3_SETTINGS };
   }
   const s3 = value as Record<string, unknown>;
   return {
     endpoint:
-      typeof s3.endpoint === "string" ? s3.endpoint : DEFAULT_S3_SETTINGS.endpoint,
+      typeof s3.endpoint === "string"
+        ? s3.endpoint
+        : DEFAULT_S3_SETTINGS.endpoint,
     region:
       typeof s3.region === "string" ? s3.region : DEFAULT_S3_SETTINGS.region,
     bucket:
@@ -56,9 +56,7 @@ export function normalizeSyncS3Settings(
   };
 }
 
-export function normalizeSyncSettings(
-  value: unknown,
-): SyncSettings {
+export function normalizeSyncSettings(value: unknown): SyncSettings {
   if (!isRecord(value)) {
     return { enabled: false, s3: { ...DEFAULT_S3_SETTINGS } };
   }

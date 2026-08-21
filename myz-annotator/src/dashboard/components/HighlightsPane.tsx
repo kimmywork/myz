@@ -3,11 +3,11 @@ import {
   HighlightsPaneShell,
   type HighlightItemAction,
 } from "@myz/dashboard-ui";
-import type { MyZRecord } from "@myz/shared";
 import { computed, defineComponent, nextTick, watch } from "vue";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
+import type { MyZRecord } from "@/shared/types";
 
 export default defineComponent({
   name: "HighlightsPane",

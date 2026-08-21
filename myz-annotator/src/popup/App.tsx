@@ -254,7 +254,7 @@ export default defineComponent({
             onInput={handleSearch}
           />
         </section>
-        <main class="highlight-list flex max-h-105 flex-col gap-3 overflow-y-auto pr-1">
+        <main class="highlight-list flex flex-col gap-3 overflow-y-auto pr-1">
           {loading.value ? (
             <p class="empty-state text-center text-sm text-slate-500 dark:text-slate-400">
               加载中…

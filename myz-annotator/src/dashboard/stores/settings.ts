@@ -2,12 +2,12 @@ import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
 import { Settings } from "@/background/settings.js";
 import { sendMessage } from "@/shared/messaging.js";
+import { normalizeSyncSettings } from "@/shared/sync";
 import {
   DEFAULT_COLOR,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLES,
 } from "@/shared/types.js";
-import { normalizeSyncSettings } from "@/shared/sync";
 
 export const useSettingsStore = defineStore("settings", () => {
   const settings: Settings = reactive({

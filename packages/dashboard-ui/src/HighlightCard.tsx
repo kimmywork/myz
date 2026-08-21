@@ -117,19 +117,19 @@ export default defineComponent({
                 <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {getKindLabel(kind.value)}
                 </h4>
-                <blockquote
+                <div
                   class="mt-2 prose dark:prose-invert prose-sm max-w-none text-sm text-slate-800 dark:text-slate-100"
                   innerHTML={props.renderHighlight(props.record)}
-                ></blockquote>
+                ></div>
               </section>
               <section class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900/70">
                 <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   批注
                 </h4>
-                <p
+                <div
                   class="mt-2 prose dark:prose-invert prose-sm max-w-none text-sm text-slate-600 dark:text-slate-200"
                   innerHTML={props.formatNote(props.record.note || "")}
-                ></p>
+                ></div>
               </section>
             </div>
           ) : (
@@ -137,10 +137,10 @@ export default defineComponent({
               <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 {getKindLabel(kind.value)}
               </h4>
-              <blockquote
+              <div
                 class="mt-2 prose dark:prose-invert prose-sm max-w-none text-sm text-slate-800 dark:text-slate-100"
                 innerHTML={props.renderHighlight(props.record)}
-              ></blockquote>
+              ></div>
             </section>
           )}
         </div>

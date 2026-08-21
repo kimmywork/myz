@@ -1,5 +1,12 @@
 import { TagInput } from "@myz/dashboard-ui";
-import { Component, defineComponent, ref, computed, watch, type Ref } from "vue";
+import {
+  Component,
+  defineComponent,
+  ref,
+  computed,
+  watch,
+  type Ref,
+} from "vue";
 import {
   useModalStore,
   ModalOpenOptions,

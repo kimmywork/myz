@@ -1,9 +1,11 @@
+import { initializeConvertMessageHandlers } from "./messages/convert";
 import { handleMessage, hasHandler } from "./messages/handler";
 import { initializeHighlightMessageHandlers } from "./messages/highlights";
 import { initializeZenMessageHandlers } from "./messages/zen";
 
 // Initialize handlers
 initializeHighlightMessageHandlers();
+initializeConvertMessageHandlers();
 initializeZenMessageHandlers();
 
 export interface MessagePayload {

@@ -1,3 +1,4 @@
+import typography from "@tailwindcss/typography";
 import type { Config } from "tailwindcss";
 
 export default {
@@ -8,4 +9,5 @@ export default {
     "./index.html",
     "../packages/dashboard-ui/src/**/*.{js,jsx,ts,tsx,vue}",
   ],
+  plugins: [typography()],
 } satisfies Config;

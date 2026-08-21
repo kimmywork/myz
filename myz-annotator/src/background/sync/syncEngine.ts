@@ -58,7 +58,10 @@ interface SyncContext {
   state: Awaited<ReturnType<typeof ensureSyncState>>;
   client: S3Client;
   preflightRecords: Awaited<ReturnType<typeof collectLocalRecords>>;
-  preflightRecordStateMap: Map<string, { recordId: string; recordHash: string; updatedAt: string }>;
+  preflightRecordStateMap: Map<
+    string,
+    { recordId: string; recordHash: string; updatedAt: string }
+  >;
   preflightDeletionMap: Map<string, { recordId: string; deletedAt: string }>;
 }
 
@@ -149,9 +152,7 @@ export async function syncNow(): Promise<SyncResult> {
   }
 }
 
-async function handleKeyRotation(
-  ctx: SyncContext,
-): Promise<SyncResult | null> {
+async function handleKeyRotation(ctx: SyncContext): Promise<SyncResult | null> {
   const { client, keyset, keyId } = ctx;
   const rotationNotice = await client.getObject(`${keyId}/rotation.notice`);
   if (rotationNotice) {
@@ -218,8 +219,14 @@ interface SyncPlan {
   remoteAppliedCount: number;
   localMap: Map<string, SyncRecord>;
   remoteIndex: Record<string, ManifestRecordEntry>;
-  remoteChunksIndex: Record<string, { hash: string; size: number; nonce: string }>;
-  remoteChainHeads: Record<string, { keyId: string; recordHash: string; updatedAt: string }>;
+  remoteChunksIndex: Record<
+    string,
+    { hash: string; size: number; nonce: string }
+  >;
+  remoteChainHeads: Record<
+    string,
+    { keyId: string; recordHash: string; updatedAt: string }
+  >;
   remoteManifestVersion: number;
   remoteCreatedAt: string | null;
   needsUpload: boolean;
@@ -228,7 +235,15 @@ interface SyncPlan {
 }
 
 async function buildSyncPlan(ctx: SyncContext): Promise<SyncPlan> {
-  const { client, keyset, keyId, state, preflightRecords, preflightRecordStateMap, preflightDeletionMap } = ctx;
+  const {
+    client,
+    keyset,
+    keyId,
+    state,
+    preflightRecords,
+    preflightRecordStateMap,
+    preflightDeletionMap,
+  } = ctx;
   const latestVersion = await readRemoteVersion(client, keyId);
   const remoteManifest = await loadRemoteManifest(
     client,
@@ -321,7 +336,11 @@ async function buildSyncPlan(ctx: SyncContext): Promise<SyncPlan> {
 
   const finalRecords = Array.from(localMap.values());
   const needsUpload = hasLocalChanges(finalRecords, remoteIndex);
-  const uploads: Array<{ path: string; payload: Uint8Array; updatedAt: string }> = [];
+  const uploads: Array<{
+    path: string;
+    payload: Uint8Array;
+    updatedAt: string;
+  }> = [];
   let manifestData: ManifestData | undefined;
 
   if (needsUpload) {
@@ -417,13 +436,19 @@ async function applyRemoteChanges(
   // This phase exists for explicit separation of concerns.
 }
 
-async function uploadChanges(ctx: SyncContext, plan: SyncPlan): Promise<{
+async function uploadChanges(
+  ctx: SyncContext,
+  plan: SyncPlan,
+): Promise<{
   nextVersion: number;
   nextCreatedAt: string | null;
 }> {
   const { client, keyset, keyId } = ctx;
   if (!plan.needsUpload || !plan.manifestData) {
-    return { nextVersion: plan.remoteManifestVersion, nextCreatedAt: plan.remoteCreatedAt };
+    return {
+      nextVersion: plan.remoteManifestVersion,
+      nextCreatedAt: plan.remoteCreatedAt,
+    };
   }
 
   for (const upload of plan.uploads) {
@@ -450,7 +475,12 @@ async function uploadChanges(ctx: SyncContext, plan: SyncPlan): Promise<{
     signature,
     { metadata: { "updated-at": plan.manifestData.createdAt } },
   );
-  await writeRemoteVersion(client, keyId, plan.manifestData.version, plan.manifestData.createdAt);
+  await writeRemoteVersion(
+    client,
+    keyId,
+    plan.manifestData.version,
+    plan.manifestData.createdAt,
+  );
 
   await runGc({
     client,
@@ -459,7 +489,10 @@ async function uploadChanges(ctx: SyncContext, plan: SyncPlan): Promise<{
     keepCount: MANIFEST_KEEP_COUNT,
   });
 
-  return { nextVersion: plan.manifestData.version, nextCreatedAt: plan.manifestData.createdAt };
+  return {
+    nextVersion: plan.manifestData.version,
+    nextCreatedAt: plan.manifestData.createdAt,
+  };
 }
 
 async function updateLocalSyncState(

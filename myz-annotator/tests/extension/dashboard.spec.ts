@@ -168,9 +168,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     const card = document.querySelector(sel);
     if (!card) throw new Error("card not found");
     const btns = Array.from(card.querySelectorAll("button"));
-    const edit = btns.find(
-      (b) => b.getAttribute("title") === "编辑",
-    );
+    const edit = btns.find((b) => b.getAttribute("title") === "编辑");
     if (!edit) throw new Error("edit button not found");
     edit.click();
   }, clipSelector);
@@ -243,9 +241,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     const card = document.querySelector(sel);
     if (!card) throw new Error("highlight card not found");
     const btns = Array.from(card.querySelectorAll("button"));
-    const down = btns.find(
-      (b) => b.getAttribute("title") === "降级",
-    );
+    const down = btns.find((b) => b.getAttribute("title") === "降级");
     if (!down) throw new Error("downgrade button not found");
     down.click();
   }, hlSelector);
@@ -349,9 +345,7 @@ test("modal_tag_and_color_edit_checks", async () => {
     const card = document.querySelector(sel);
     if (!card) throw new Error("card not found");
     const btns = Array.from(card.querySelectorAll("button"));
-    const edit = btns.find(
-      (b) => b.getAttribute("title") === "编辑",
-    );
+    const edit = btns.find((b) => b.getAttribute("title") === "编辑");
     if (!edit) throw new Error("edit button not found");
     edit.click();
   }, selector);

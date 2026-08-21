@@ -70,13 +70,21 @@ function readStoredTheme(): Promise<ThemeMode | null> {
     if (typeof chrome !== "undefined" && chrome.storage?.local) {
       chrome.storage.local.get([THEME_STORAGE_KEY], (result) => {
         const value = result?.[THEME_STORAGE_KEY];
-        resolve(value === "light" || value === "dark" || value === "auto" ? value : null);
+        resolve(
+          value === "light" || value === "dark" || value === "auto"
+            ? value
+            : null,
+        );
       });
       return;
     }
     if (typeof localStorage !== "undefined") {
       const value = localStorage.getItem(THEME_STORAGE_KEY);
-      resolve(value === "light" || value === "dark" || value === "auto" ? value : null);
+      resolve(
+        value === "light" || value === "dark" || value === "auto"
+          ? value
+          : null,
+      );
       return;
     }
     resolve(null);
@@ -104,7 +112,9 @@ function persistTheme(value: ThemeMode) {
 function clearSystemListener() {
   if (systemListener && typeof window !== "undefined" && window.matchMedia) {
     try {
-      window.matchMedia("(prefers-color-scheme: light)").removeEventListener("change", systemListener);
+      window
+        .matchMedia("(prefers-color-scheme: light)")
+        .removeEventListener("change", systemListener);
     } catch {
       // ignore
     }
@@ -116,7 +126,10 @@ function ensureSystemListener() {
   if (systemListener) {
     return;
   }
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
     return;
   }
   systemListener = () => {
@@ -124,12 +137,17 @@ function ensureSystemListener() {
       applyEffectiveTheme();
     }
   };
-  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", systemListener);
+  window
+    .matchMedia("(prefers-color-scheme: light)")
+    .addEventListener("change", systemListener);
 }
 
 async function initTheme(): Promise<ThemeMode> {
   const stored = await readStoredTheme();
-  const next: ThemeMode = stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
+  const next: ThemeMode =
+    stored === "light" || stored === "dark" || stored === "auto"
+      ? stored
+      : "auto";
   modeRef.value = next;
   applyEffectiveTheme();
   readyRef.value = true;

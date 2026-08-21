@@ -6,8 +6,10 @@ import {
   getRecordPlainText,
   normalizeWhitespace,
 } from "@/shared/highlightUtils.js";
-
 import { IconWarning } from "@/shared/icons.js";
+import { renderMarkdown } from "@/shared/markdownRenderer.js";
+import { CONTENT_TYPES, resolveRecordContentType } from "@/shared/types.js";
+
 import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";
@@ -42,7 +44,7 @@ export default defineComponent({
     const containerClass = computed(() => {
       const base = [
         "highlight-item",
-        "grid grid-cols-[4px_1fr] gap-3 rounded-2xl border p-4 text-sm shadow-sm transition",
+        "grid grid-cols-[4px_1fr] gap-3 rounded-2xl border p-4 text-sm shadow-sm transition overflow-x-auto",
       ];
       if (props.record.unreachable) {
         base.push(
@@ -61,8 +63,13 @@ export default defineComponent({
     });
 
     const quote = computed(() => {
+      const contentType = resolveRecordContentType(props.record);
+      if (contentType === CONTENT_TYPES.MARKDOWN && props.record.text) {
+        const rendered = renderMarkdown(props.record.text);
+        return { html: rendered, isHtml: true };
+      }
       const content = getRecordPlainText(props.record);
-      return content || "(无正文内容)";
+      return { html: content || "(无正文内容)", isHtml: false };
     });
 
     const noteText = computed(() => formatNote(props.record.note ?? ""));
@@ -100,12 +107,19 @@ export default defineComponent({
               </span>
             ) : null}
           </div>
-          <p
-            class="highlight-item__quote text-sm text-slate-700 dark:text-slate-100"
-            title={quote.value}
-          >
-            {quote.value}
-          </p>
+          {quote.value.isHtml ? (
+            <div
+              class="highlight-item__quote text-sm text-slate-700 dark:text-slate-100 prose prose-sm dark:prose-invert"
+              innerHTML={quote.value.html}
+            />
+          ) : (
+            <p
+              class="highlight-item__quote text-sm text-slate-700 dark:text-slate-100"
+              title={quote.value.html}
+            >
+              {quote.value.html}
+            </p>
+          )}
           {noteText.value ? (
             <p
               class="highlight-item__note text-sm text-amber-600 dark:text-amber-300"
