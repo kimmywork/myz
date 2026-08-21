@@ -1,11 +1,11 @@
+import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { createPinia, setActivePinia } from "pinia";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useHighlightsStore } from "@/dashboard/stores/highlights";
-import { MyZRecord, RECORD_KINDS } from "@/shared/types";
 
 const mockSendMessage = vi.fn();
 
-vi.mock("@/shared/messaging", () => ({
+vi.mock("@myz/shared/messaging", () => ({
   sendMessage: (...args: unknown[]) => mockSendMessage(...args),
 }));
 

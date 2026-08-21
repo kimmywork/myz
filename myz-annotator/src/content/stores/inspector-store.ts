@@ -1,10 +1,4 @@
-import { defineStore } from "pinia";
-import { computed, ref } from "vue";
-import { resolveHighlightColor } from "../apply-highlight.js";
-import { deleteHighlight, getFromHighlightCache } from "../highlight-state.js";
-import { useModalStore } from "./modal-store.js";
-import { recordToMarkdown } from "@/dashboard/utils/records.js";
-import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
+import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
 import {
   MyZRecord,
   RECORD_KINDS,
@@ -12,7 +6,13 @@ import {
   HIGHLIGHT_STYLES,
   getRecordKind,
   DEFAULT_COLORS,
-} from "@/shared/types.js";
+} from "@myz/shared/types";
+import { defineStore } from "pinia";
+import { computed, ref } from "vue";
+import { resolveHighlightColor } from "../apply-highlight.js";
+import { deleteHighlight, getFromHighlightCache } from "../highlight-state.js";
+import { useModalStore } from "./modal-store.js";
+import { recordToMarkdown } from "@/dashboard/utils/records.js";
 
 interface InspectorRecord {
   id: string | null;

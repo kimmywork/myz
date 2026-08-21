@@ -1,8 +1,8 @@
 import { TagInput } from "@myz/dashboard-ui";
+import { IconCalendar } from "@myz/shared/icons";
 import { defineComponent, ref, Ref } from "vue";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
-import { IconCalendar } from "@/shared/icons.js";
 
 export default defineComponent({
   name: "FilterToolbar",

@@ -1,6 +1,6 @@
+import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { describe, it, expect } from "vitest";
 import { normalizeImportedPayload } from "@/dashboard/utils/import";
-import { RECORD_SCHEMA_VERSION } from "@/shared/versioning";
 
 describe("import", () => {
   const baseRecord = {

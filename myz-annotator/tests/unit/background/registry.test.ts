@@ -1,3 +1,9 @@
+import { MyZRecordRegistry } from "@myz/shared/recordRegistry";
+import {
+  RECORD_SCHEMA_VERSION,
+  SETTINGS_SCHEMA_VERSION,
+  SYNC_PROTOCOL_VERSION,
+} from "@myz/shared/versioning";
 import { describe, it, expect } from "vitest";
 import { DEFAULT_SETTINGS } from "@/background/constants";
 import {
@@ -10,12 +16,6 @@ import {
   SyncChunkEnvelopeRegistry,
   SyncLockPayloadRegistry,
 } from "@/background/sync/registry";
-import { MyZRecordRegistry } from "@/shared/recordRegistry";
-import {
-  RECORD_SCHEMA_VERSION,
-  SETTINGS_SCHEMA_VERSION,
-  SYNC_PROTOCOL_VERSION,
-} from "@/shared/versioning";
 
 describe("schema registry mapping", () => {
   it("should map record schema by version", () => {

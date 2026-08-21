@@ -1,8 +1,24 @@
+import globals from "globals";
 import { createBaseConfig } from "../../eslint.config.base.js";
 
-export default createBaseConfig({
+const baseConfigs = createBaseConfig({
   tsconfigRootDir: import.meta.dirname,
   extraGlobals: {
     ParentNode: "readonly",
   },
 });
+
+export default [
+  ...baseConfigs,
+  // Test files need node globals
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx", "tests/**/*.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+        global: "readonly",
+      },
+    },
+  },
+];

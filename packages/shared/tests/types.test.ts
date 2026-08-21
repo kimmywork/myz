@@ -4,7 +4,7 @@ import {
   RECORD_KINDS,
   normalizeContentType,
   resolveRecordContentType,
-} from "@/shared/types";
+} from "../src/types";
 
 describe("shared types", () => {
   describe("normalizeContentType", () => {

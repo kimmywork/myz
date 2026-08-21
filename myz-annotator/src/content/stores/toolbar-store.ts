@@ -1,3 +1,5 @@
+import { sendMessage } from "@myz/shared/messaging";
+import { RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { Ref, ref } from "vue";
 import { serializeRangeToHtml, waitForNextPaint } from "../html";
@@ -6,8 +8,6 @@ import type { CropRect } from "../image";
 import { useModalStore } from "./modal-store";
 import { useNotificationStore } from "./notification-store";
 import type { CaptureSelectionMessageResult } from "@/background/messages/capture";
-import { sendMessage } from "@/shared/messaging";
-import { RECORD_KINDS } from "@/shared/types";
 
 export interface ToolbarStore {
   show(position: DOMRect): void;

@@ -1,9 +1,9 @@
 import { DashboardAppShell } from "@myz/dashboard-ui";
+import { useThemePreference } from "@myz/shared/theme";
 import { defineComponent } from "vue";
 import { RouterView } from "vue-router";
 import DashboardNavbar from "./DashboardNavbar.jsx";
 import RecordModal from "./RecordModal.jsx";
-import { useThemePreference } from "@/shared/theme.js";
 
 export default defineComponent({
   name: "AppShell",

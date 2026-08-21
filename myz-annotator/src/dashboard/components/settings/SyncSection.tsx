@@ -1,3 +1,4 @@
+import { sendMessage } from "@myz/shared/messaging";
 import { defineComponent, onMounted, ref, watchEffect } from "vue";
 import { useSettingsStore } from "../../stores/settings.js";
 import ToggleSwitch from "../ToggleSwitch.jsx";
@@ -6,7 +7,6 @@ import type {
   SyncStatusMessageResult,
   SyncTestConnectionMessageResult,
 } from "@/background/messages/sync";
-import { sendMessage } from "@/shared/messaging.js";
 
 type StatusTone = "info" | "error" | "success";
 

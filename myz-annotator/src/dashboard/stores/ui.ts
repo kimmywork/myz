@@ -1,3 +1,10 @@
+import { sendMessage } from "@myz/shared/messaging";
+import {
+  DEFAULT_COLOR,
+  MyZRecord,
+  RECORD_KINDS,
+  getRecordKind,
+} from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { computed, reactive, ref, Ref, watch } from "vue";
 import { PAGINATION_BATCH } from "../constants.js";
@@ -14,13 +21,6 @@ import {
   renderHighlightContent,
   sortRecordsForPage,
 } from "@/dashboard/utils/records.js";
-import { sendMessage } from "@/shared/messaging.js";
-import {
-  DEFAULT_COLOR,
-  MyZRecord,
-  RECORD_KINDS,
-  getRecordKind,
-} from "@/shared/types.js";
 
 export interface SearchFilters {
   search: string;

@@ -1,7 +1,6 @@
+import { HIGHLIGHT_STYLES } from "@myz/shared/types";
+import { SETTINGS_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { z } from "zod";
-
-import { HIGHLIGHT_STYLES } from "@/shared/types";
-import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
 
 export const SettingsSchemaVersionV1 = SETTINGS_SCHEMA_VERSION;
 

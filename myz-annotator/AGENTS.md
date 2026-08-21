@@ -12,7 +12,7 @@ Reuse existing types and utility functions wherever possible to avoid duplicatio
 
 ## Schema-first data modeling
 
-Update shared schemas/types first (e.g., `src/shared/schemas.ts`, `src/shared/types.ts`), then apply changes to storage and UI.
+Update shared schemas/types first (e.g., `packages/shared/src/schemas.ts`, `packages/shared/src/types.ts`, via `@myz/shared`), then apply changes to storage and UI.
 
 ## Refactoring brutally and fearlessly
 

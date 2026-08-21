@@ -1,10 +1,10 @@
+import { RECORD_KINDS } from "@myz/shared/types";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleMessage } from "@/background/messages/handler";
 import {
   initializeHighlightMessageHandlers,
   SaveHighlightMessagePayload,
 } from "@/background/messages/highlights";
-import { RECORD_KINDS } from "@/shared/types";
 
 const mockSaveHighlight = vi.fn();
 const mockGetHighlight = vi.fn();
@@ -29,7 +29,7 @@ vi.mock("@/background/sync/deletions", () => ({
   recordHighlightDeletion: vi.fn(),
 }));
 
-vi.mock("@/shared/types", () => ({
+vi.mock("@myz/shared/types", () => ({
   ensureRecordSchemaVersion: (...args: unknown[]) =>
     mockEnsureRecordSchemaVersion(...args),
   resolveRecordContentType: (...args: unknown[]) =>
@@ -42,7 +42,7 @@ vi.mock("@/shared/types", () => ({
   },
 }));
 
-vi.mock("@/shared/highlightUtils", () => ({
+vi.mock("@myz/shared/highlightUtils", () => ({
   normalizeHighlightStyle: (...args: unknown[]) =>
     mockNormalizeHighlightStyle(...args),
 }));

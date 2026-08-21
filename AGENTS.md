@@ -7,7 +7,7 @@ This repo is a multi‑module suite (extensions + website + libraries). Keep cha
   - `src/background/` service worker logic (no DOM).
   - `src/content/` content scripts + page UI.
   - `src/popup/`, `src/dashboard/`, `src/sidepanel/` UI surfaces.
-  - `src/shared/` shared utilities/types.
+- `packages/shared/` (`@myz/shared`) — environment-agnostic shared utilities, schemas, types, messaging, theme, icons, and highlight helpers shared across hosts (extension/desktop); referenced via `@myz/shared/*`.
 - `website/` — VitePress site (user‑facing docs). Content lives in Markdown under `website/annotator/`, `website/danmaku/`, `website/en/`, `website/guide/`.
 - `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/track/research/legal/archives).
 - `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).
@@ -35,7 +35,7 @@ Other modules: check each module’s `package.json` for scripts.
 - Schema-first: update/extend schemas and types before UI or storage changes.
 - Vue uses Composition API + JSX; state via Pinia.
 - Background service workers must be DOM‑free; keep message payloads serializable.
-- Prefer shared utilities/types in `myz-annotator/src/shared/` over duplicating logic.
+- Prefer shared utilities/types in `packages/shared/` (`@myz/shared`) over duplicating logic in app modules.
 - Dashboard uses Vue Router (`myz-annotator/src/dashboard/router.ts`); add new settings sections as routes and sidebar items.
 - Highlight records should use shared schemas/types (`MyZRecord`, `RECORD_KINDS`, serializers).
 

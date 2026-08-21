@@ -1,18 +1,17 @@
-import { defineStore } from "pinia";
-import { ref } from "vue";
-import type { Settings } from "@/background/settings.js";
 import {
   normalizeHighlightStyle,
   normalizeColor,
   normalizePalette,
-} from "@/shared/highlightUtils.js";
-import { sendMessage } from "@/shared/messaging.js";
-
+} from "@myz/shared/highlightUtils";
+import { sendMessage } from "@myz/shared/messaging";
 import {
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLES,
-} from "@/shared/types.js";
+} from "@myz/shared/types";
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import type { Settings } from "@/background/settings.js";
 
 interface HightlightPreference {
   colorPalette?: string[];

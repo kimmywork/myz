@@ -1,3 +1,4 @@
+import { IconClose, IconEdit, IconTrash } from "@myz/shared/icons";
 import { storeToRefs } from "pinia";
 import {
   defineComponent,
@@ -9,7 +10,6 @@ import {
   watch,
 } from "vue";
 import { useInspectorStore } from "@/content/stores/inspector-store.js";
-import { IconClose, IconEdit, IconTrash } from "@/shared/icons.js";
 
 export default defineComponent({
   name: "MyZInspector",

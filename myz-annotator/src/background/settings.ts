@@ -1,20 +1,8 @@
-import { HIGHLIGHT_STYLES } from "@/shared/types";
-import { type SettingsSchemaVersion } from "@/shared/versioning";
+import { HIGHLIGHT_STYLES } from "@myz/shared/types";
+import { type SettingsSchemaVersion } from "@myz/shared/versioning";
+import type { SyncS3Settings, SyncSettings } from "@myz/sync-core/settings";
 
-export interface SyncS3Settings {
-  endpoint: string;
-  region: string;
-  bucket: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  sessionToken?: string;
-  prefix?: string;
-}
-
-export interface SyncSettings {
-  enabled: boolean;
-  s3: SyncS3Settings;
-}
+export type { SyncS3Settings, SyncSettings };
 
 export interface Settings {
   dashboardView: "cards" | "list";

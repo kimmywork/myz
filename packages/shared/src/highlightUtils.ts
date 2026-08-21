@@ -1,11 +1,11 @@
+import { HighlightStyleSchema, SanitizedColorSchema } from "./schemas"
 import {
   type MyZRecord,
   HIGHLIGHT_STYLES,
   RECORD_KINDS,
   getRecordKind,
+  normalizeRecord as normalizeBaseRecord,
 } from "./types.ts"
-import { normalizeRecord as normalizeBaseRecord } from "@/dashboard/utils/records.ts"
-import { HighlightStyleSchema, SanitizedColorSchema } from "@/shared/schemas"
 
 // Default single color and palette tuned for better visibility on dark
 // backgrounds. These are slightly more saturated / deeper than the old

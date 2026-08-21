@@ -1,6 +1,8 @@
 import { z } from "zod"
 import { CONTENT_TYPES, RECORD_KINDS } from "./enums"
+import { hasMarkdown } from "./markdownRenderer"
 import { MyZRecordSchema } from "./schemas"
+import { isRecord } from "./typeUtils"
 import { RECORD_SCHEMA_VERSION, type RecordSchemaVersion } from "./versioning"
 
 export * from "./enums"
@@ -62,9 +64,35 @@ export function resolveRecordContentType(
   if (normalized) {
     return normalized
   }
+  const text = typeof record?.text === "string" ? record.text.trim() : ""
+  if (text) {
+    if (hasMarkdown(text)) {
+      return CONTENT_TYPES.MARKDOWN
+    }
+    return CONTENT_TYPES.PLAIN
+  }
   const html = typeof record?.html === "string" ? record.html.trim() : ""
   if (html) {
     return CONTENT_TYPES.HTML
   }
   return CONTENT_TYPES.PLAIN
+}
+
+export function normalizeRecord(record?: unknown): MyZRecord | null {
+  if (!isRecord(record)) {
+    return null
+  }
+  const recordWithKind: Partial<MyZRecord> = {
+    ...(record as Partial<MyZRecord>),
+    kind: getRecordKind(record as Partial<MyZRecord>),
+  }
+  const versioned = ensureRecordSchemaVersion(recordWithKind)
+  versioned.contentType = resolveRecordContentType(versioned)
+
+  const result = MyZRecordSchema.safeParse(versioned)
+  if (result.success) {
+    return result.data
+  }
+  console.warn("Record validation failed", result.error)
+  return null
 }

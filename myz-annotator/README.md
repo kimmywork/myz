@@ -166,7 +166,7 @@ npx playwright test tests --config=tests/playwright.config.ts
 ## 架构与本地开发提示
 
 - UI（Popup / Dashboard / 小组件）：使用 Vue 3 + JSX，组件位于 `myz-annotator/src/popup/` 与 `myz-annotator/src/dashboard/` 下。组件通常以 `.jsx` / `.tsx` 或 `.vue`（视情况）存在并使用 Composition API + composables。
-- 共享逻辑和工具函数放在 `myz-annotator/src/shared/` 与 `myz-annotator/src/common/`。Content script 仍在 `myz-annotator/src/content/`，背景脚本在 `myz-annotator/src/background/`。
+- 共享逻辑和工具函数放在 `packages/shared/`（`@myz/shared`）与 `myz-annotator/src/common/`。Content script 仍在 `myz-annotator/src/content/`，背景脚本在 `myz-annotator/src/background/`。
 - 使用 `readState` / `writeState` 等 storage helpers 操作 `chrome.storage.local`（state namespace 仍为 `myz::highlights` 与 `myz::settings`）。
 - 背景脚本运行在 MV3 Service Worker 环境：避免使用 DOM API（例如 `document`、`window` 的 DOM 操作），并确保异步 API 的错误被妥善捕获与记录。
 - 当修改背景脚本或 content script 时，手动在 `chrome://extensions/` 中重新加载扩展或点击 Service Worker 的 "更新"。UI 更改（Popup/Dashboard）在开发模式下可通过 Vite 的 HMR 快速查看。

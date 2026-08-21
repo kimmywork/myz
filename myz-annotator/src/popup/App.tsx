@@ -1,23 +1,23 @@
-import { defineComponent, ref, computed, onMounted } from "vue";
-import HighlightItem from "./components/HighlightItem.jsx";
-import {
-  normalizeRecord,
-  recordToMarkdown,
-} from "@/dashboard/utils/records.js";
-import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
-import { normalizeWhitespace } from "@/shared/highlightUtils.js";
-import { IconSettings } from "@/shared/icons.js";
+import ThemeToggle from "@myz/shared/components/ThemeToggle";
+import { normalizeWhitespace } from "@myz/shared/highlightUtils";
+import { IconSettings } from "@myz/shared/icons";
 
-import { sendMessage } from "@/shared/messaging.js";
-import { RECORD_KINDS, MyZRecord } from "@/shared/types.js";
-import { isRecord } from "@/shared/typeUtils";
+import { sendMessage } from "@myz/shared/messaging";
+import { RECORD_KINDS, MyZRecord } from "@myz/shared/types";
+import { isRecord } from "@myz/shared/typeUtils";
 
 import {
   canonicalUrl,
   extractHostname,
   truncateText,
   buildUrlAliases,
-} from "@/shared/url.js";
+} from "@myz/shared/url";
+import { defineComponent, ref, computed, onMounted } from "vue";
+import HighlightItem from "./components/HighlightItem.jsx";
+import {
+  normalizeRecord,
+  recordToMarkdown,
+} from "@/dashboard/utils/records.js";
 
 export default defineComponent({
   name: "PopupApp",

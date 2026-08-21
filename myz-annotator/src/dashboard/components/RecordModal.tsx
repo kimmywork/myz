@@ -1,8 +1,8 @@
 import { TagInput } from "@myz/dashboard-ui";
+import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "@myz/shared/types";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
-import { DEFAULT_COLOR, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
 
 export default defineComponent({
   name: "RecordModal",

@@ -1,11 +1,11 @@
 import { DashboardAppShell } from "@myz/dashboard-ui";
+import { useThemePreference } from "@myz/shared/theme";
 import { defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { RouterView } from "vue-router";
 import DashboardNavbar from "./components/DashboardNavbar.jsx";
 import RecordModal from "./components/RecordModal.jsx";
 import { useHighlightsStore } from "./stores/highlights.js";
 import { useSettingsStore } from "./stores/settings.js";
-import { useThemePreference } from "@/shared/theme.js";
 
 export default defineComponent({
   name: "DashboardApp",

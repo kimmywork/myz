@@ -1,6 +1,6 @@
-import { describeHighlightStyle } from "@/shared/highlightUtils.js";
-import { HIGHLIGHT_STYLES, MyZRecord } from "@/shared/types";
-import { extractHostname } from "@/shared/url.js";
+import { describeHighlightStyle } from "@myz/shared/highlightUtils";
+import { HIGHLIGHT_STYLES, MyZRecord } from "@myz/shared/types";
+import { extractHostname } from "@myz/shared/url";
 
 export function buildMarkdownExport(highlights: MyZRecord[]): string {
   if (!highlights.length) {

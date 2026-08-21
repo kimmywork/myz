@@ -1,3 +1,8 @@
+import { isHighlightRecord, isClipRecord } from "@myz/shared/highlightUtils";
+import { sendMessage } from "@myz/shared/messaging";
+import { deserializeRange, unwrapNode } from "@myz/shared/serializer";
+import { MyZRecord } from "@myz/shared/types";
+import { canonicalUrl, buildUrlAliases } from "@myz/shared/url";
 import {
   wrapRangeAcrossNodes,
   wrapSimpleRange,
@@ -14,13 +19,6 @@ import type {
   UpdateHighlightMessageResult,
 } from "@/background/messages/highlights";
 import { normalizeRecord } from "@/dashboard/utils/records.ts";
-import { isHighlightRecord, isClipRecord } from "@/shared/highlightUtils.ts";
-import { sendMessage } from "@/shared/messaging.ts";
-
-import { deserializeRange, unwrapNode } from "@/shared/serializer.ts";
-
-import { MyZRecord } from "@/shared/types.ts";
-import { canonicalUrl, buildUrlAliases } from "@/shared/url.ts";
 
 const HIGHLIGHT_REAPPLY_INTERVAL = 1200;
 const HIGHLIGHT_REAPPLY_TIMEOUT = 20000;

@@ -2,11 +2,11 @@ import {
   DashboardNavbarShell,
   type DashboardNavbarTab,
 } from "@myz/dashboard-ui";
+import ThemeToggle from "@myz/shared/components/ThemeToggle";
 import { computed, defineComponent } from "vue";
 import { useRoute } from "vue-router";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
-import ThemeToggle from "@/shared/components/ThemeToggle.jsx";
 
 export default defineComponent({
   name: "DashboardNavbar",

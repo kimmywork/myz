@@ -1,11 +1,10 @@
+import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
+import { MyZRecord, ensureRecordSchemaVersion } from "@myz/shared/types";
+import { isRecord, type UnknownRecord } from "@myz/shared/typeUtils";
+import { SETTINGS_SCHEMA_VERSION } from "@myz/shared/versioning";
+import { normalizeSyncSettings } from "@myz/sync-core/settings";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
-
 import type { Settings, SettingsBundle } from "./settings.js";
-import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
-import { normalizeSyncSettings } from "@/shared/sync";
-import { MyZRecord, ensureRecordSchemaVersion } from "@/shared/types.js";
-import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
-import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
 
 const DB_NAME = "myz_db";
 const DB_VERSION = 1;

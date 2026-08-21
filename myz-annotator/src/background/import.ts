@@ -1,4 +1,4 @@
-import { normalizeHighlightStyle } from "@/shared/highlightUtils.js";
+import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
 import {
   SerializedRangeSchema,
   ImportStrategySchema,
@@ -6,7 +6,7 @@ import {
   SanitizedColorSchema,
   SanitizedTimestampSchema,
   SanitizedTagsSchema,
-} from "@/shared/schemas";
+} from "@myz/shared/schemas";
 import {
   MyZRecord,
   RECORD_KINDS,
@@ -14,9 +14,9 @@ import {
   getRecordKind,
   normalizeContentType,
   resolveRecordContentType,
-} from "@/shared/types";
-import { isRecord, type UnknownRecord } from "@/shared/typeUtils";
-import { extractHostname } from "@/shared/url.js";
+} from "@myz/shared/types";
+import { isRecord, type UnknownRecord } from "@myz/shared/typeUtils";
+import { extractHostname } from "@myz/shared/url";
 
 export type ImportStrategy = "skip" | "overwrite" | "latest";
 

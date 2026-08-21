@@ -1,6 +1,6 @@
 import { Moon, Monitor, Sun } from "@lucide/vue";
+import { useThemePreference } from "@myz/shared/theme";
 import { computed, defineComponent, ref } from "vue";
-import { useThemePreference } from "@/shared/theme.js";
 
 const THEME_OPTIONS = [
   { value: "light", label: "亮色", Icon: Sun },

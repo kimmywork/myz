@@ -3,9 +3,9 @@ import {
   normalizeHighlightStyle,
   describeHighlightStyle,
   normalizeColor,
-} from "@/shared/highlightUtils";
+} from "../src/highlightUtils";
 
-import { HIGHLIGHT_STYLES, DEFAULT_HIGHLIGHT_STYLE } from "@/shared/types";
+import { HIGHLIGHT_STYLES, DEFAULT_HIGHLIGHT_STYLE } from "../src/types";
 
 describe("highlightUtils", () => {
   describe("normalizeHighlightStyle", () => {

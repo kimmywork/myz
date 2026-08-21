@@ -1,3 +1,4 @@
+import { isRecord } from "@myz/shared/typeUtils";
 import type { SyncS3Settings, SyncSettings } from "../settings";
 import { readSettings, writeSettings } from "../storage";
 import {
@@ -17,7 +18,6 @@ import {
 } from "../sync/storage";
 import { syncNow } from "../sync/syncEngine";
 import { registerMessageHandler } from "./handler";
-import { isRecord } from "@/shared/typeUtils";
 
 export interface SyncStatusMessageResult {
   enabled: boolean;

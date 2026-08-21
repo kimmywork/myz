@@ -1,16 +1,16 @@
-import { defineComponent, computed } from "vue";
-import { getRecordKindLabel } from "@/dashboard/utils/records.js";
 import {
   buildMeta,
   formatNote,
   getRecordPlainText,
   normalizeWhitespace,
-} from "@/shared/highlightUtils.js";
-import { IconWarning } from "@/shared/icons.js";
-import { renderMarkdown } from "@/shared/markdownRenderer.js";
-import { CONTENT_TYPES, resolveRecordContentType } from "@/shared/types.js";
+} from "@myz/shared/highlightUtils";
+import { IconWarning } from "@myz/shared/icons";
+import { renderMarkdown } from "@myz/shared/markdownRenderer";
+import { CONTENT_TYPES, resolveRecordContentType } from "@myz/shared/types";
 
-import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types.js";
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared/types";
+import { defineComponent, computed } from "vue";
+import { getRecordKindLabel } from "@/dashboard/utils/records.js";
 
 const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";
 

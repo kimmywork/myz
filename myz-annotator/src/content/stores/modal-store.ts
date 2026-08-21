@@ -1,3 +1,18 @@
+import {
+  isHighlightRecord,
+  normalizeHighlightStyle,
+} from "@myz/shared/highlightUtils";
+import { sendMessage } from "@myz/shared/messaging";
+import { serializeRange } from "@myz/shared/serializer";
+import {
+  CONTENT_TYPES,
+  DEFAULT_COLORS,
+  DEFAULT_HIGHLIGHT_STYLE,
+  HIGHLIGHT_STYLES,
+  MyZRecord,
+  RECORD_KINDS,
+} from "@myz/shared/types";
+import { canonicalUrl } from "@myz/shared/url";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import {
@@ -17,21 +32,6 @@ import type {
   SaveHighlightMessagePayload,
   SaveHighlightMessageResult,
 } from "@/background/messages/highlights";
-import {
-  isHighlightRecord,
-  normalizeHighlightStyle,
-} from "@/shared/highlightUtils";
-import { sendMessage } from "@/shared/messaging";
-import { serializeRange } from "@/shared/serializer";
-import {
-  CONTENT_TYPES,
-  DEFAULT_COLORS,
-  DEFAULT_HIGHLIGHT_STYLE,
-  HIGHLIGHT_STYLES,
-  MyZRecord,
-  RECORD_KINDS,
-} from "@/shared/types";
-import { canonicalUrl } from "@/shared/url";
 
 interface ModalState {
   currentRange: Range | null;

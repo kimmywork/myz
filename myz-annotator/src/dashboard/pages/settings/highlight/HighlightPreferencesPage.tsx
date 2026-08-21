@@ -1,16 +1,16 @@
-import { computed, defineComponent, ref, watch } from "vue";
-import { useSettingsStore } from "../../../stores/settings.js";
 import {
   normalizeColor,
   normalizeHighlightStyle,
   normalizePalette,
-} from "@/shared/highlightUtils.js";
+} from "@myz/shared/highlightUtils";
 import {
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLE_OPTIONS,
   HIGHLIGHT_STYLES,
-} from "@/shared/types.js";
+} from "@myz/shared/types";
+import { computed, defineComponent, ref, watch } from "vue";
+import { useSettingsStore } from "../../../stores/settings.js";
 
 const styleOptions = Object.entries(HIGHLIGHT_STYLE_OPTIONS) as [
   HIGHLIGHT_STYLES,

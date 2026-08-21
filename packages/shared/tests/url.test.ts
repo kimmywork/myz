@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canonicalUrl, buildUrlAliases, normalizeUrlValue } from "@/shared/url";
+import { canonicalUrl, buildUrlAliases, normalizeUrlValue } from "../src/url";
 
 describe("url", () => {
   describe("normalizeUrlValue", () => {

@@ -1,5 +1,5 @@
+import { HIGHLIGHT_STYLES } from "@myz/shared/types";
 import type { Settings } from "./settings.js";
-import { HIGHLIGHT_STYLES } from "@/shared/types";
 
 export const STORAGE_KEY = "myz::highlights";
 export const SETTINGS_KEY = "myz::settings";

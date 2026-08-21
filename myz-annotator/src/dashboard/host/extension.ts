@@ -13,9 +13,9 @@ import {
   DASHBOARD_HOST_CAPABILITY_PRESETS,
   DASHBOARD_HOST_FEATURE_PRESETS,
 } from "@myz/dashboard-core/host";
+import { sendMessage } from "@myz/shared/messaging";
 import type { MyZRecord } from "@myz/shared/types";
 import type { Settings } from "@/background/settings";
-import { sendMessage } from "@/shared/messaging";
 
 const THEME_STORAGE_KEY = "myz:theme";
 

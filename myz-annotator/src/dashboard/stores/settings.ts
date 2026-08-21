@@ -1,13 +1,13 @@
-import { defineStore } from "pinia";
-import { reactive, ref } from "vue";
-import { Settings } from "@/background/settings.js";
-import { sendMessage } from "@/shared/messaging.js";
-import { normalizeSyncSettings } from "@/shared/sync";
+import { sendMessage } from "@myz/shared/messaging";
 import {
   DEFAULT_COLOR,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLES,
-} from "@/shared/types.js";
+} from "@myz/shared/types";
+import { normalizeSyncSettings } from "@myz/sync-core/settings";
+import { defineStore } from "pinia";
+import { reactive, ref } from "vue";
+import { Settings } from "@/background/settings.js";
 
 export const useSettingsStore = defineStore("settings", () => {
   const settings: Settings = reactive({

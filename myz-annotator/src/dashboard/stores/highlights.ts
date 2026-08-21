@@ -1,3 +1,5 @@
+import { sendMessage } from "@myz/shared/messaging";
+import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { computed, reactive, ref, Ref } from "vue";
 import { IMPORT_MAX_BYTES } from "../constants.js";
@@ -12,8 +14,6 @@ import {
   normalizeRecord,
   recordToMarkdown,
 } from "@/dashboard/utils/records.js";
-import { sendMessage } from "@/shared/messaging.js";
-import { MyZRecord, RECORD_KINDS } from "@/shared/types.js";
 
 export type MessageTone = "info" | "error" | "success";
 

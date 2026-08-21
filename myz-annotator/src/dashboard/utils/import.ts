@@ -1,6 +1,6 @@
+import { type MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { z } from "zod";
 import { normalizeRecord, parseTags } from "./records";
-import { type MyZRecord, RECORD_KINDS } from "@/shared/types.ts";
 
 const IMPORTED_TAG = "imported";
 

@@ -6,7 +6,7 @@ import {
   getLogicalChildNodes,
   nodeName,
   sameNodeType,
-} from "@/shared/serializer";
+} from "../src/serializer";
 
 describe("serializer", () => {
   describe("isMyzWrapper", () => {

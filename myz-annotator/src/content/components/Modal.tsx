@@ -1,4 +1,11 @@
 import { TagInput } from "@myz/dashboard-ui";
+import { IconPencil, highlightStyleIconMap } from "@myz/shared/icons";
+import {
+  RECORD_KINDS,
+  HIGHLIGHT_STYLE_OPTIONS,
+  HIGHLIGHT_STYLES,
+  HighlightStyleOption,
+} from "@myz/shared/types";
 import {
   Component,
   defineComponent,
@@ -12,13 +19,6 @@ import {
   ModalOpenOptions,
 } from "@/content/stores/modal-store.js";
 import { usePreferenceStore } from "@/content/stores/preference-store.js";
-import { IconPencil, highlightStyleIconMap } from "@/shared/icons.js";
-import {
-  RECORD_KINDS,
-  HIGHLIGHT_STYLE_OPTIONS,
-  HIGHLIGHT_STYLES,
-  HighlightStyleOption,
-} from "@/shared/types.js";
 
 function uniqueNormalizedTags(tags: string[]): string[] {
   const seen = new Set();

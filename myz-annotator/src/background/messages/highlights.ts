@@ -1,3 +1,12 @@
+import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
+import {
+  MyZRecord,
+  RECORD_KINDS,
+  CONTENT_TYPES,
+  ensureRecordSchemaVersion,
+  getRecordKind,
+  resolveRecordContentType,
+} from "@myz/shared/types";
 import { normalizeBadgeCounts, BadgeCount, buildActionTitle } from "../badge";
 import {
   ImportStrategy,
@@ -21,15 +30,6 @@ import {
 import { recordHighlightDeletion } from "../sync/deletions";
 import { sendToContentScript } from "../utils/sendToContentScript";
 import { registerMessageHandler } from "./handler";
-import { normalizeHighlightStyle } from "@/shared/highlightUtils";
-import {
-  MyZRecord,
-  RECORD_KINDS,
-  CONTENT_TYPES,
-  ensureRecordSchemaVersion,
-  getRecordKind,
-  resolveRecordContentType,
-} from "@/shared/types";
 
 export type GetHighlightsForUrlMessageResult = MyZRecord[];
 export type SaveHighlightMessageResult = MyZRecord;

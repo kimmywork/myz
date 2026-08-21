@@ -10,12 +10,24 @@
     "./versioning": "./src/versioning.ts",
     "./aiHeaderUtils": "./src/aiHeaderUtils.ts",
     "./types": "./src/types.ts",
-    "./schemas": "./src/schemas.ts"
+    "./schemas": "./src/schemas.ts",
+    "./icons": "./src/icons.ts",
+    "./highlightUtils": "./src/highlightUtils.ts",
+    "./messaging": "./src/messaging.ts",
+    "./serializer": "./src/serializer.ts",
+    "./url": "./src/url.ts",
+    "./theme": "./src/theme.ts",
+    "./recordRegistry": "./src/recordRegistry.ts",
+    "./components/ThemeToggle": "./src/components/ThemeToggle.tsx"
   },
   "dependencies": {
+    "@lucide/vue": "^1.27.0",
+    "markdown-it": "^14.2.0",
+    "vue": "^3.5.39",
     "zod": "*"
   },
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   }
 }

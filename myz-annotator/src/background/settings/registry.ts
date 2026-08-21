@@ -1,6 +1,6 @@
+import { createSchemaRegistry } from "@myz/shared/schemaRegistry";
+import { SETTINGS_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { SettingsSchemaV1, SettingsBundleSchemaV1 } from "./schemas";
-import { createSchemaRegistry } from "@/shared/schemaRegistry";
-import { SETTINGS_SCHEMA_VERSION } from "@/shared/versioning";
 
 export const SettingsRegistry = createSchemaRegistry({
   latestVersion: SETTINGS_SCHEMA_VERSION,

@@ -1,14 +1,14 @@
-import { renderMarkdown } from "@/shared/markdownRenderer.js";
+import { renderMarkdown } from "@myz/shared/markdownRenderer";
 import {
   CONTENT_TYPES,
   MyZRecord,
   RECORD_KINDS,
   getRecordKind,
   resolveRecordContentType,
-} from "@/shared/types.ts";
-import { extractHostname } from "@/shared/url.js";
+} from "@myz/shared/types";
+import { extractHostname } from "@myz/shared/url";
 
-export { normalizeRecord } from "@/shared/types.ts";
+export { normalizeRecord } from "@myz/shared/types";
 
 export type PageSortMode = "time" | "range";
 

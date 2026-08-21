@@ -1,3 +1,5 @@
+import { MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared/types";
+import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { describe, it, expect } from "vitest";
 import {
   getRecordKindLabel,
@@ -8,8 +10,6 @@ import {
   sortRecordsForPage,
   formatDateTime,
 } from "@/dashboard/utils/records";
-import { MyZRecord, RECORD_KINDS, getRecordKind } from "@/shared/types";
-import { RECORD_SCHEMA_VERSION } from "@/shared/versioning";
 
 describe("records", () => {
   describe("getRecordKind", () => {
