@@ -218,6 +218,16 @@ function annotateHtmlLists(html: string): string {
   return result;
 }
 
+function trimBlankLines(lines: string[]): string[] {
+  while (lines.length && !lines[0].trim()) {
+    lines.shift();
+  }
+  while (lines.length && !lines[lines.length - 1].trim()) {
+    lines.pop();
+  }
+  return lines;
+}
+
 function normalizePreBlock(value: string): string {
   const decoded = decodeHtmlEntities(value || "")
     .replace(/<span\b[^>]*>([\s\S]*?)<\/span>/gi, "$1")
@@ -227,13 +237,7 @@ function normalizePreBlock(value: string): string {
   if (!decoded) {
     return "";
   }
-  const lines = decoded.replace(/\r\n?/g, "\n").split("\n");
-  while (lines.length && !lines[0].trim()) {
-    lines.shift();
-  }
-  while (lines.length && !lines[lines.length - 1].trim()) {
-    lines.pop();
-  }
+  const lines = trimBlankLines(decoded.replace(/\r\n?/g, "\n").split("\n"));
   return lines.map((line) => line.replace(/\s+$/g, "")).join("\n");
 }
 
@@ -241,18 +245,12 @@ export function cleanMultiline(value: string): string {
   if (!value) {
     return "";
   }
-  const lines = String(value)
-    .replace(/\r\n?/g, "\n")
-
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ") // eslint-disable-line no-control-regex
-    .split("\n");
-
-  while (lines.length && !lines[0].trim()) {
-    lines.shift();
-  }
-  while (lines.length && !lines[lines.length - 1].trim()) {
-    lines.pop();
-  }
+  const lines = trimBlankLines(
+    String(value)
+      .replace(/\r\n?/g, "\n")
+      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ") // eslint-disable-line no-control-regex
+      .split("\n"),
+  );
 
   const normalized = lines.map((line) =>
     line

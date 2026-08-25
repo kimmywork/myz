@@ -14,6 +14,7 @@ import {
   normalizeRecord,
   recordToMarkdown,
 } from "@/dashboard/utils/records.js";
+import { setTimedStatus } from "@/dashboard/utils/setTimedStatus.js";
 
 export type MessageTone = "info" | "error" | "success";
 
@@ -46,24 +47,6 @@ export const useHighlightsStore = defineStore("highlights", () => {
     });
     return [...set].sort((a, b) => a.localeCompare(b));
   });
-
-  function setTimedStatus(
-    target: Ref<string | null>,
-    message: string,
-    duration = 3000,
-  ) {
-    target.value = message;
-    if (timers.has(target)) {
-      clearTimeout(timers.get(target));
-    }
-    if (duration > 0) {
-      const id = setTimeout(() => {
-        target.value = "";
-        timers.delete(target);
-      }, duration);
-      timers.set(target, id);
-    }
-  }
 
   function setTimedImportStatus(
     message: string,

@@ -13,6 +13,46 @@ import type {
 } from "./types"
 import { decodeBinaryPayload } from "./utils"
 
+interface RemoteObjectPayload {
+  body: Uint8Array
+}
+
+async function loadAndVerifyManifest(
+  store: SyncObjectStore,
+  manifestPath: string,
+  manifestPayload: RemoteObjectPayload,
+  version: number,
+  keyset: SyncRemoteKeyset,
+): Promise<SyncRemoteManifestSnapshot> {
+  const signaturePath = manifestPath.replace(/\.bin$/, ".sig")
+  const signaturePayload = await store.getObject(signaturePath)
+  if (!signaturePayload) {
+    throw new Error("Missing manifest signature")
+  }
+  const { manifest, plainBytes } = await decryptManifest(
+    manifestPayload.body,
+    version,
+    keyset.masterKey,
+  )
+  const valid = await verifyManifest(
+    plainBytes,
+    signaturePayload.body,
+    keyset.publicKey,
+  )
+  if (!valid) {
+    throw new Error("Invalid manifest signature")
+  }
+  if (manifest.protocolVersion !== SYNC_PROTOCOL_VERSION) {
+    throw new Error("Unsupported sync manifest protocol version")
+  }
+  return {
+    manifest,
+    version,
+    manifestPath,
+    signaturePath,
+  }
+}
+
 export function formatManifestVersion(version: number) {
   return `v${String(version).padStart(10, "0")}`
 }
@@ -55,33 +95,13 @@ export async function loadRemoteManifest(
     const manifestPath = `${keyId}/manifests/${formatManifestVersion(versionHint)}.bin`
     const manifestPayload = await store.getObject(manifestPath)
     if (manifestPayload) {
-      const signaturePath = manifestPath.replace(/\.bin$/, ".sig")
-      const signaturePayload = await store.getObject(signaturePath)
-      if (!signaturePayload) {
-        throw new Error("Missing manifest signature")
-      }
-      const { manifest, plainBytes } = await decryptManifest(
-        manifestPayload.body,
-        versionHint,
-        keyset.masterKey,
-      )
-      const valid = await verifyManifest(
-        plainBytes,
-        signaturePayload.body,
-        keyset.publicKey,
-      )
-      if (!valid) {
-        throw new Error("Invalid manifest signature")
-      }
-      if (manifest.protocolVersion !== SYNC_PROTOCOL_VERSION) {
-        throw new Error("Unsupported sync manifest protocol version")
-      }
-      return {
-        manifest,
-        version: versionHint,
+      return loadAndVerifyManifest(
+        store,
         manifestPath,
-        signaturePath,
-      }
+        manifestPayload,
+        versionHint,
+        keyset,
+      )
     }
   }
 
@@ -99,35 +119,13 @@ export async function loadRemoteManifest(
   const manifestPayload = await store.getObject(latest.key)
   if (!manifestPayload) return null
 
-  const signaturePath = latest.key.replace(/\.bin$/, ".sig")
-  const signaturePayload = await store.getObject(signaturePath)
-  if (!signaturePayload) {
-    throw new Error("Missing manifest signature")
-  }
-
-  const { manifest, plainBytes } = await decryptManifest(
-    manifestPayload.body,
+  return loadAndVerifyManifest(
+    store,
+    latest.key,
+    manifestPayload,
     latest.version,
-    keyset.masterKey,
+    keyset,
   )
-  const valid = await verifyManifest(
-    plainBytes,
-    signaturePayload.body,
-    keyset.publicKey,
-  )
-  if (!valid) {
-    throw new Error("Invalid manifest signature")
-  }
-  if (manifest.protocolVersion !== SYNC_PROTOCOL_VERSION) {
-    throw new Error("Unsupported sync manifest protocol version")
-  }
-
-  return {
-    manifest,
-    version: latest.version,
-    manifestPath: latest.key,
-    signaturePath,
-  }
 }
 
 export async function fetchRemoteRecords(

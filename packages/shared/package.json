@@ -18,6 +18,7 @@
     "./url": "./src/url.ts",
     "./theme": "./src/theme.ts",
     "./recordRegistry": "./src/recordRegistry.ts",
+    "./messageRegistry": "./src/messageRegistry.ts",
     "./components/ThemeToggle": "./src/components/ThemeToggle.tsx"
   },
   "dependencies": {

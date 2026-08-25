@@ -173,24 +173,20 @@ export function sortRecordsForPage(
       if (rangeOrder !== 0) {
         return rangeOrder;
       }
-      const timeA = Date.parse(a.createdAt || a.updatedAt || "");
-      const timeB = Date.parse(b.createdAt || b.updatedAt || "");
-      return (
-        (Number.isFinite(timeB) ? timeB : 0) -
-        (Number.isFinite(timeA) ? timeA : 0)
-      );
+      return compareByTimeDesc(a, b);
     });
     return sorted;
   }
-  sorted.sort((a, b) => {
-    const timeA = Date.parse(a.createdAt || a.updatedAt || "");
-    const timeB = Date.parse(b.createdAt || b.updatedAt || "");
-    return (
-      (Number.isFinite(timeB) ? timeB : 0) -
-      (Number.isFinite(timeA) ? timeA : 0)
-    );
-  });
+  sorted.sort(compareByTimeDesc);
   return sorted;
+}
+
+function compareByTimeDesc(a: MyZRecord, b: MyZRecord): number {
+  const timeA = Date.parse(a.createdAt || a.updatedAt || "");
+  const timeB = Date.parse(b.createdAt || b.updatedAt || "");
+  return (
+    (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0)
+  );
 }
 
 export function groupHighlightsByDate(highlights: MyZRecord[]) {

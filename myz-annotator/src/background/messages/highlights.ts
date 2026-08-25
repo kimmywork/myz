@@ -31,6 +31,17 @@ import { recordHighlightDeletion } from "../sync/deletions";
 import { sendToContentScript } from "../utils/sendToContentScript";
 import { registerMessageHandler } from "./handler";
 
+export function normalizeIds(ids?: unknown): string[] {
+  const list = Array.isArray(ids) ? ids : [];
+  return Array.from(
+    new Set(
+      list
+        .map((id) => (typeof id === "string" ? id.trim() : ""))
+        .filter(Boolean),
+    ),
+  );
+}
+
 export type GetHighlightsForUrlMessageResult = MyZRecord[];
 export type SaveHighlightMessageResult = MyZRecord;
 export type SaveHighlightMessagePayload = Partial<MyZRecord>;
@@ -186,14 +197,7 @@ export function initializeHighlightMessageHandlers() {
   registerMessageHandler(
     "myz:removeRecordsByIds",
     async (payload: { ids?: string[] }) => {
-      const ids = Array.isArray(payload?.ids) ? payload.ids : [];
-      const unique = Array.from(
-        new Set(
-          ids
-            .map((id) => (typeof id === "string" ? id.trim() : ""))
-            .filter(Boolean),
-        ),
-      );
+      const unique = normalizeIds(payload?.ids);
       if (!unique.length) {
         return { removed: 0 };
       }
@@ -208,14 +212,7 @@ export function initializeHighlightMessageHandlers() {
   registerMessageHandler(
     "myz:updateRecordsByIds",
     async (payload: { ids?: string[]; patch?: Partial<MyZRecord> }) => {
-      const ids = Array.isArray(payload?.ids) ? payload.ids : [];
-      const unique = Array.from(
-        new Set(
-          ids
-            .map((id) => (typeof id === "string" ? id.trim() : ""))
-            .filter(Boolean),
-        ),
-      );
+      const unique = normalizeIds(payload?.ids);
       const patch =
         payload?.patch && typeof payload.patch === "object"
           ? payload.patch

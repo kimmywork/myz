@@ -8,6 +8,10 @@ import { normalizeSyncSettings } from "@myz/sync-core/settings";
 import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
 import { Settings } from "@/background/settings.js";
+import {
+  setTimedStatus,
+  clearAllTimedStatus,
+} from "@/dashboard/utils/setTimedStatus.js";
 
 export const useSettingsStore = defineStore("settings", () => {
   const settings: Settings = reactive({
@@ -30,25 +34,6 @@ export const useSettingsStore = defineStore("settings", () => {
   });
 
   const settingsStatus = ref("");
-  const timers = new Map();
-
-  function setTimedStatus(
-    target: typeof settingsStatus,
-    message: string,
-    duration = 3000,
-  ) {
-    target.value = message;
-    if (timers.has(target)) {
-      clearTimeout(timers.get(target));
-    }
-    if (duration > 0) {
-      const id = setTimeout(() => {
-        target.value = "";
-        timers.delete(target);
-      }, duration);
-      timers.set(target, id);
-    }
-  }
 
   async function initialize() {
     await loadSettings();
@@ -153,8 +138,7 @@ export const useSettingsStore = defineStore("settings", () => {
   }
 
   function cleanup() {
-    timers.forEach((id) => clearTimeout(id));
-    timers.clear();
+    clearAllTimedStatus();
   }
 
   return {
