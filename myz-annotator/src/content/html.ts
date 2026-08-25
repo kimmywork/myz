@@ -60,6 +60,22 @@ const BLOCK_TAG_SET = new Set([
   "OL",
 ]);
 
+// `white-space` values in which a bare "\n" in a text node produces a real
+// visual line break in the browser. For `normal`/`nowrap` (and the unset
+// default, serialized as "" / "normal") newlines are collapsed to a space by
+// the browser, so Turndown — which mirrors that collapsing — must NOT be fed
+// <br> for them. Only the "preserve newlines" family needs structural help:
+// once `serializeRangeToHtml` strips CSS context, Turndown has no way to tell
+// those newlines apart from source-formatting whitespace and would flatten
+// them to a single line. Converting them to <br> re-establishes the line
+// breaks Turndown already knows how to emit (`options.br + '\n'`).
+const WHITE_SPACE_PRESERVES_NEWLINES = new Set([
+  "pre",
+  "pre-wrap",
+  "pre-line",
+  "break-spaces",
+]);
+
 export interface ElementPosition {
   left: number;
   top: number;
@@ -69,17 +85,125 @@ export interface ElementPosition {
 
 export function serializeRangeToHtml(range: Range): string {
   try {
+    // Capture each text node's computed `white-space` BEFORE cloning.
+    // cloneContents() returns a detached fragment with no CSS context, so
+    // any newlines that the browser rendered as real line breaks (under
+    // pre/pre-wrap/pre-line/break-spaces) would be indistinguishable from
+    // collapsible source whitespace once they reach defuddle/Turndown. We
+    // pair original text nodes with the cloned ones by document order (a
+    // 1:1 correspondence that holds because cloneContents copies the
+    // in-range subtree verbatim, slicing only the boundary text nodes), and
+    // for matching nodes whose `white-space` preserves newlines we turn each
+    // "\n" in the clone into a <br> so the downstream converter re-emits a
+    // line break. pre/code descendants are skipped — defuddle runs with
+    // preformattedCode:true and keeps their newlines verbatim already.
+    const originalTextNodes = collectRangeTextNodes(range);
     const fragment = range.cloneContents();
     if (!fragment || !fragment.childNodes.length) {
       return "";
     }
     const container = document.createElement("div");
     container.appendChild(fragment);
+    preserveSoftNewlines(container, originalTextNodes);
     sanitizeNode(container);
     return container.innerHTML.trim();
   } catch (error) {
     console.warn("Failed to serialize selection HTML", error);
     return "";
+  }
+}
+
+// Document-order text nodes within `range`, each paired with the computed
+// `white-space` of its parent element. Boundary text nodes are sliced to the
+// [startOffset, endOffset) portion that actually falls inside the range, so
+// the list matches what cloneContents() will produce. Uses intersectsNode
+// (rather than compareBoundaryPoints) because the latter returns -1 instead
+// of 0 for coincident boundaries in jsdom, which would mis-filter every
+// node whose range exactly touches the selection boundary.
+function collectRangeTextNodes(range: Range) {
+  const root =
+    range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+      ? range.commonAncestorContainer.parentNode
+      : (range.commonAncestorContainer as Node);
+  if (!root) {
+    return [] as Array<{ preserveNewlines: boolean }>;
+  }
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const result: Array<{ preserveNewlines: boolean }> = [];
+  let node: Text | null;
+  while ((node = walker.nextNode() as Text | null)) {
+    if (!range.intersectsNode(node)) {
+      continue;
+    }
+    const parentElement = node.parentElement;
+    let preserveNewlines = false;
+    if (parentElement) {
+      // Skip pre/code: their newlines are preserved downstream by defuddle's
+      // preformattedCode:true and would be mangled by inserting <br>.
+      let cursor: Element | null = parentElement;
+      let insidePreOrCode = false;
+      while (cursor) {
+        if (cursor.tagName === "PRE" || cursor.tagName === "CODE") {
+          insidePreOrCode = true;
+          break;
+        }
+        cursor = cursor.parentElement;
+      }
+      if (!insidePreOrCode) {
+        const whiteSpace = getComputedStyle(parentElement).whiteSpace;
+        preserveNewlines = WHITE_SPACE_PRESERVES_NEWLINES.has(
+          whiteSpace.toLowerCase(),
+        );
+      }
+    }
+    result.push({ preserveNewlines });
+  }
+  return result;
+}
+
+// Walk the cloned fragment's text nodes in document order and, where the
+// corresponding original node preserved newlines, replace each "\n" in the
+// text with a <br>. Pairs by index; if counts ever diverge we bail out and
+// leave the fragment untouched rather than risk mis-assigning <br>.
+function preserveSoftNewlines(
+  root: Element,
+  originalTextNodes: Array<{ preserveNewlines: boolean }>,
+) {
+  if (!originalTextNodes.length) {
+    return;
+  }
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const cloneNodes: Text[] = [];
+  let node: Text | null;
+  while ((node = walker.nextNode() as Text | null)) {
+    cloneNodes.push(node);
+  }
+  if (cloneNodes.length !== originalTextNodes.length) {
+    return;
+  }
+  for (let index = 0; index < cloneNodes.length; index += 1) {
+    if (!originalTextNodes[index].preserveNewlines) {
+      continue;
+    }
+    const textNode = cloneNodes[index];
+    const value = textNode.nodeValue || "";
+    if (!value.includes("\n")) {
+      continue;
+    }
+    const parts = value.split("\n");
+    const fragment = document.createDocumentFragment();
+    parts.forEach((part, partIndex) => {
+      if (partIndex > 0) {
+        fragment.appendChild(document.createElement("br"));
+      }
+      if (part) {
+        fragment.appendChild(document.createTextNode(part));
+      }
+    });
+    const parent = textNode.parentNode;
+    if (parent) {
+      parent.replaceChild(fragment, textNode);
+    }
   }
 }
 

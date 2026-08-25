@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Soft Newlines Fixture</title>
+    <style>
+      body { font-family: system-ui, sans-serif; padding: 40px; }
+      .pre-wrap { white-space: pre-wrap; }
+      .normal { white-space: normal; }
+    </style>
+  </head>
+  <body>
+    <h1>Soft Newlines Fixture</h1>
+    <!-- A pre-wrap container holding pasted multi-line text. The newlines are
+         real visual line breaks in the browser, so the captured selection
+         must preserve them rather than collapsing to a single line. -->
+    <div id="pre-wrap-block" class="pre-wrap">Thoughts About Scaling Law
+
+Scaling, but not only of parameters. Every model release now ends with the same question: how many parameters?
+
+The field learned this the hard way. Kaplan et al. (2020) fit an exponent that told everyone to grow parameters faster than data.
+
+Chinchilla wasn't the end either. It optimized training compute for models that would be trained once and evaluated.</div>
+
+    <!-- A normal white-space container whose source newlines are pure
+         formatting and must collapse. -->
+    <p id="normal-block" class="normal">Soft wrap in source
+should collapse to a single line when captured.</p>
+  </body>
+</html>

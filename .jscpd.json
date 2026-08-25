@@ -1,0 +1,20 @@
+{
+  "threshold": 5,
+  "min-lines": 5,
+  "min-tokens": 50,
+  "max-lines": 500,
+  "max-size": "100kb",
+  "pattern": "src/**/*.{ts,tsx,js,jsx,vue,css,html}",
+  "ignore": [
+    "node_modules/**",
+    ".git/**",
+    "dist/**",
+    ".reasonix/**",
+    "coverage/**",
+    "workflow/video-pipeline/output/**",
+    "**/*.d.ts"
+  ],
+  "mode": "strict",
+  "format": ["typescript", "javascript", "jsx", "tsx", "vue", "css", "html"],
+  "ignore-case": true
+}
