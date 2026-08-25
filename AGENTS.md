@@ -1,6 +1,6 @@
 # Repository Guide
 
-This repo is a multi‑module suite (extensions + website + libraries). Keep changes scoped to the module you are touching and follow the existing patterns there.
+This repo is a multi‑module suite (extension + libraries). Keep changes scoped to the module you are touching and follow the existing patterns there.
 
 ## Layout (high level)
 - `myz-annotator/` — Chrome MV3 extension (Vue 3 + JSX, Vite). Core folders:
@@ -8,14 +8,10 @@ This repo is a multi‑module suite (extensions + website + libraries). Keep cha
   - `src/content/` content scripts + page UI.
   - `src/popup/`, `src/dashboard/`, `src/sidepanel/` UI surfaces.
 - `packages/shared/` (`@myz/shared`) — environment-agnostic shared utilities, schemas, types, messaging, theme, icons, and highlight helpers shared across hosts (extension/desktop); referenced via `@myz/shared/*`.
-- `website/` — VitePress site (user‑facing docs). Content lives in Markdown under `website/annotator/`, `website/danmaku/`, `website/en/`, `website/guide/`.
 - `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/track/research/legal/archives).
 - `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).
   - `workflow/video-pipeline/skills/screen-recording-narrator/scripts/` — command/script templates for the video pipeline.
-- `myz-danmaku/` — MV3 extension for danmaku overlay.
 - `packages/dashboard-core/` — shared dashboard host contracts (record/settings/theme/sync repositories and host capability presets) for extension, desktop, and mobile-extension adapters.
-- `packages/dashboard-ai-settings/` — shared dashboard AI settings UI primitives and catalogs. Keep host-specific state, tests, and runtime actions in app-local contexts; do not fork the presentational components per host.
-- `packages/dashboard-chat-ui/` — shared dashboard and sidepanel chat shells, message primitives, list/composer bases, and chat modals. Keep runtime, stores, page-context rendering, and host-only citation behaviors outside this package.
 - `packages/dashboard-ui/` — shared non-chat dashboard UI building blocks such as app shells, sidebars, and reusable inputs. Prefer wiring app stores into these components from page/container layers instead of re-copying the visuals per host.
 - `packages/sync-core/` — environment-agnostic E2EE sync core: crypto, protocol schemas, manifest/chunk handling, remote repository helpers, adapter interfaces.
 
@@ -24,10 +20,11 @@ myz-annotator:
 - `npm run dev` / `npm run build`
 - `npm run lint` / `npm run test:playwright`
 
-website (VitePress):
-- `npm run dev` / `npm run build` / `npm run preview`
+Root:
+- `npm run jscpd` — detect code duplication (configured via `.jscpd.json`; threshold 5%)
+- `npm run jscpd:check` — strict check (threshold 0%, exit code 1 on any duplicates)
 
-Other modules: check each module’s `package.json` for scripts.
+Other modules: check each module's `package.json` for scripts.
 
 ## Engineering Conventions (concise)
 - Indent 2 spaces; avoid semicolons in TS/TSX files.
@@ -40,13 +37,12 @@ Other modules: check each module’s `package.json` for scripts.
 - Highlight records should use shared schemas/types (`MyZRecord`, `RECORD_KINDS`, serializers).
 
 ## AGENTS.md upkeep
-- When a directory’s structure or responsibilities change, update the nearest `AGENTS.md`.
+- When a directory's structure or responsibilities change, update the nearest `AGENTS.md`.
 - Re-scan AGENTS with `rg --files -g 'AGENTS.md'` and keep cross-references current.
 
 ## Testing Notes
 - myz-annotator Playwright runs against built output; run `npm run build` first.
 
-## Docs & Website
-- `docs/knowledges/` is the ground truth for standards and external references.
-- `docs/track/` tracks requirements and delivery plans.
-- `website/` is user‑facing; keep language friendly and avoid internal file details.
+## Code Quality
+- `npm run jscpd` runs JSCPD (Copy/Paste Detector) to find duplicate code across the repo.
+- Configuration lives in `.jscpd.json` at the root — adjust thresholds there as needed.
