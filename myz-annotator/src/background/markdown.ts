@@ -27,7 +27,9 @@ export function buildMarkdownExport(highlights: MyZRecord[]): string {
       lines.push(
         `  - Page: [${escapeMarkdown(domain || item.url)}](${item.url})`,
       );
-      const quoteMarkdown = htmlToMarkdown(item.html || "");
+      const quoteMarkdown = item.html
+        ? htmlToMarkdown(item.html)
+        : item.text || "";
       if (quoteMarkdown) {
         lines.push("  - Quote:");
         quoteMarkdown.split("\n").forEach((line) => {

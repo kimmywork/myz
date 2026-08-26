@@ -1,4 +1,4 @@
-import { RECORD_KINDS } from "@myz/shared/types";
+import { RECORD_KINDS, CONTENT_TYPES } from "@myz/shared/types";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { handleMessage } from "@/background/messages/handler";
 import {
@@ -15,6 +15,7 @@ const mockEnsureRecordSchemaVersion = vi.fn();
 const mockResolveRecordContentType = vi.fn();
 const mockNormalizeHighlightStyle = vi.fn();
 const mockGetRecordKind = vi.fn();
+const mockSendToContentScript = vi.fn();
 
 vi.mock("@/background/storage", () => ({
   saveHighlight: (...args: unknown[]) => mockSaveHighlight(...args),
@@ -40,11 +41,20 @@ vi.mock("@myz/shared/types", () => ({
     CLIP: "clip",
     BOOKMARK: "bookmark",
   },
+  CONTENT_TYPES: {
+    MARKDOWN: "markdown",
+    PLAIN: "plain",
+    HTML: "html",
+  },
 }));
 
 vi.mock("@myz/shared/highlightUtils", () => ({
   normalizeHighlightStyle: (...args: unknown[]) =>
     mockNormalizeHighlightStyle(...args),
+}));
+
+vi.mock("@/background/utils/sendToContentScript", () => ({
+  sendToContentScript: (...args: unknown[]) => mockSendToContentScript(...args),
 }));
 
 const createTab = (overrides: Partial<chrome.tabs.Tab> = {}): chrome.tabs.Tab =>
@@ -136,5 +146,99 @@ describe("background highlights message handlers", () => {
 
     expect(mockDeleteHighlight).toHaveBeenCalledWith("to-delete");
     expect(result.success).toBe(true);
+  });
+
+  it("should use content script markdown conversion when available", async () => {
+    mockGenerateId.mockReturnValue("html-id");
+    mockEnsureRecordSchemaVersion.mockImplementation(
+      (record: unknown) => record,
+    );
+    mockResolveRecordContentType.mockReturnValue("plain");
+    mockGetRecordKind.mockReturnValue("clip");
+    mockSaveHighlight.mockResolvedValue(undefined);
+    mockSendToContentScript.mockResolvedValue({ markdown: "converted text" });
+
+    const payload: SaveHighlightMessagePayload = {
+      html: "<p>converted text</p>",
+      url: "https://example.com",
+      kind: RECORD_KINDS.CLIP,
+    };
+
+    const result = (await handleMessage("myz:saveHighlight", payload, {
+      tab: createTab(),
+    } as chrome.runtime.MessageSender)) as { text?: string; html?: string };
+
+    expect(mockSendToContentScript).toHaveBeenCalledWith(
+      "myz:convertHtmlToMarkdown",
+      { html: "<p>converted text</p>" },
+      1,
+    );
+    expect(result.text).toBe("converted text");
+    expect(result.html).toBeUndefined();
+  });
+
+  it("should fall back to HTML tag stripping when content script is unavailable", async () => {
+    mockGenerateId.mockReturnValue("fallback-id");
+    mockEnsureRecordSchemaVersion.mockImplementation(
+      (record: unknown) => record,
+    );
+    mockResolveRecordContentType.mockReturnValue("plain");
+    mockGetRecordKind.mockReturnValue("clip");
+    mockSaveHighlight.mockResolvedValue(undefined);
+    // Content script not available
+    mockSendToContentScript.mockRejectedValue(
+      new Error("No active tab found to send message"),
+    );
+
+    const payload: SaveHighlightMessagePayload = {
+      html: "<p><strong>bold</strong> and <em>italic</em></p>",
+      url: "https://example.com",
+      kind: RECORD_KINDS.CLIP,
+    };
+
+    const result = (await handleMessage("myz:saveHighlight", payload, {
+      tab: createTab(),
+    } as chrome.runtime.MessageSender)) as {
+      text?: string;
+      html?: string;
+      contentType?: string;
+    };
+
+    // HTML tags should be stripped, leaving text content
+    expect(result.text).toContain("bold");
+    expect(result.text).toContain("italic");
+    expect(result.text).not.toContain("<");
+    expect(result.contentType).toBe(CONTENT_TYPES.MARKDOWN);
+    // html field should be removed
+    expect(result.html).toBeUndefined();
+  });
+
+  it("should not set contentType to MARKDOWN when fallback text is empty", async () => {
+    mockGenerateId.mockReturnValue("empty-id");
+    mockEnsureRecordSchemaVersion.mockImplementation(
+      (record: unknown) => record,
+    );
+    mockResolveRecordContentType.mockReturnValue("plain");
+    mockGetRecordKind.mockReturnValue("clip");
+    mockSaveHighlight.mockResolvedValue(undefined);
+    mockSendToContentScript.mockRejectedValue(new Error("no tab"));
+
+    const payload: SaveHighlightMessagePayload = {
+      html: "<img src='x.png'>",
+      url: "https://example.com",
+      kind: RECORD_KINDS.CLIP,
+    };
+
+    const result = (await handleMessage("myz:saveHighlight", payload, {
+      tab: createTab(),
+    } as chrome.runtime.MessageSender)) as {
+      text?: string;
+      contentType?: string;
+    };
+
+    // text should be set to empty string (not left undefined)
+    expect(result.text).toBe("");
+    // contentType should NOT be set to MARKDOWN since there's no text content
+    expect(result.contentType).not.toBe(CONTENT_TYPES.MARKDOWN);
   });
 });

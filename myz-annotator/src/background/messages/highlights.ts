@@ -111,13 +111,26 @@ export function initializeHighlightMessageHandlers() {
       record.contentType = resolveRecordContentType(record);
 
       if (typeof record.html === "string" && record.html.trim().length > 0) {
-        const tabId = sender?.tab?.id;
-        const { markdown } = await sendToContentScript<
-          { html: string },
-          { markdown: string }
-        >("myz:convertHtmlToMarkdown", { html: record.html }, tabId);
-        record.text = markdown;
-        record.contentType = CONTENT_TYPES.MARKDOWN;
+        try {
+          const tabId = sender?.tab?.id;
+          const { markdown } = await sendToContentScript<
+            { html: string },
+            { markdown: string }
+          >("myz:convertHtmlToMarkdown", { html: record.html }, tabId);
+          record.text = markdown;
+          record.contentType = CONTENT_TYPES.MARKDOWN;
+        } catch {
+          // Content script not available — fall back to stripping HTML tags
+          // so the record can still be saved.
+          const fallbackText = record.html
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          record.text = fallbackText;
+          if (fallbackText) {
+            record.contentType = CONTENT_TYPES.MARKDOWN;
+          }
+        }
         delete (record as Record<string, unknown>).html;
       }
 
