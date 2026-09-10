@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "MyZ 网页标注智能助理",
-  "description": "高亮网页，添加注解，保存摘录，自动发现兴趣点，AI助理一键解答。",
-  "version": "0.4.1",
+  "name": "MyZ 高亮助理",
+  "description": "高亮网页，添加批注，保存摘录，在本地管理你的标注资料。",
+  "version": "0.5.0",
   "icons": {
     "16": "assets/icon-128.png",
     "32": "assets/icon-128.png",
@@ -16,7 +16,6 @@
     "tabs",
     "activeTab",
     "contextMenus",
-    "sidePanel",
     "search"
   ],
   "host_permissions": ["<all_urls>"],
@@ -39,7 +38,7 @@
       "32": "assets/icon-128.png"
     },
     "default_popup": "src/popup/popup.html",
-    "default_title": "MyZ 智能助理"
+    "default_title": "MyZ 高亮助理"
   },
   "options_page": "src/dashboard/index.html",
   "content_security_policy": {

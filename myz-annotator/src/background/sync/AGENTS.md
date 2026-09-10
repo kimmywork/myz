@@ -14,4 +14,4 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
 ## References
 
 - `packages/sync-core/` for protocol/crypto details.
-- `myz-annotator/src/background/AGENTS.md` for AI + sync architecture overview.
+- `myz-annotator/src/background/AGENTS.md` for background architecture overview.

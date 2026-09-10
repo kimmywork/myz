@@ -1,5 +1,12 @@
 # Changelog
 
+# v0.6.0 移除 AI 能力与 Dashboard 收敛
+
+- 移除 AI 智能助理（SidePanel）及其全部相关能力：Provider 配置、MCP Server、本地 tools、Agent Skills、向量检索（Vectoria）、自动高亮、Superpower 多 Agent 协作与 Dashboard 聊天页面。
+- 移除社区导入（X / Mastodon）；导入统一为本地文件导入（MyZ JSON、RainDrop CSV、Weava CSV、Chrome 书签 HTML）。
+- 精简扩展权限与右键菜单：移除 `sidePanel` 权限，右键菜单仅保留禅定模式相关项。
+- Dashboard 收敛为高亮管理与设置两大区域：高亮列表 / 查看器 + 设置（标注偏好、外观、导入、加密同步）。
+
 # v0.5.0 Dashboard UI 重构与交互优化
 
 - ThemeToggle 下拉改为按 effective theme 显示状态，并修复 Dashboard 中下拉被面板遮挡的问题。

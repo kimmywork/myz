@@ -6,9 +6,9 @@ This repo is a multi‑module suite (extension + libraries). Keep changes scoped
 - `myz-annotator/` — Chrome MV3 extension (Vue 3 + JSX, Vite). Core folders:
   - `src/background/` service worker logic (no DOM).
   - `src/content/` content scripts + page UI.
-  - `src/popup/`, `src/dashboard/`, `src/sidepanel/` UI surfaces.
+  - `src/popup/`, `src/dashboard/` UI surfaces.
 - `packages/shared/` (`@myz/shared`) — environment-agnostic shared utilities, schemas, types, messaging, theme, icons, and highlight helpers shared across hosts (extension/desktop); referenced via `@myz/shared/*`.
-- `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/track/research/legal/archives).
+- `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/legal/plan/research).
 - `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).
   - `workflow/video-pipeline/skills/screen-recording-narrator/scripts/` — command/script templates for the video pipeline.
 - `packages/dashboard-core/` — shared dashboard host contracts (record/settings/theme/sync repositories and host capability presets) for extension, desktop, and mobile-extension adapters.
