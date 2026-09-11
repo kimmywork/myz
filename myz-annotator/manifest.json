@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MyZ 高亮助理",
   "description": "高亮网页，添加批注，保存摘录，在本地管理你的标注资料。",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "icons": {
     "16": "assets/icon-128.png",
     "32": "assets/icon-128.png",
