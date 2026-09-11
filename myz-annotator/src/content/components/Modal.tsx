@@ -1,3 +1,4 @@
+import type { LucideIcon } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
 import { IconPencil, highlightStyleIconMap } from "@myz/shared/icons";
 import {
@@ -6,14 +7,7 @@ import {
   HIGHLIGHT_STYLES,
   HighlightStyleOption,
 } from "@myz/shared/types";
-import {
-  Component,
-  defineComponent,
-  ref,
-  computed,
-  watch,
-  type Ref,
-} from "vue";
+import { defineComponent, ref, computed, watch, type Ref } from "vue";
 import {
   useModalStore,
   ModalOpenOptions,
@@ -237,7 +231,7 @@ export default defineComponent({
               <div class="myz-style-picker" role="radiogroup">
                 {styleOptions.map(([value, meta]) => {
                   const isActive = value === store.modalOpenOptions.style;
-                  const IconComponent: Component =
+                  const IconComponent: LucideIcon =
                     highlightStyleIconMap[meta.icon as HIGHLIGHT_STYLES] ||
                     highlightStyleIconMap.paint;
                   return (
