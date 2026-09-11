@@ -60,17 +60,17 @@ export default defineComponent({
             {props.record!.note ? (
               <div class="grid gap-4 md:grid-cols-2">
                 <div
-                  class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 prose dark:prose-invert prose-sm max-w-none"
+                  class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm  dark:border-white/5 dark:bg-slate-900/70 prose dark:prose-invert prose-sm max-w-none"
                   innerHTML={props.renderHighlight!(props.record!)}
                 ></div>
                 <div
-                  class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 dark:text-slate-200 prose dark:prose-invert prose-sm max-w-none"
+                  class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600  dark:border-white/5 dark:bg-slate-900/70 dark:text-slate-200 prose dark:prose-invert prose-sm max-w-none"
                   innerHTML={props.formatNote!(props.record!.note)}
                 ></div>
               </div>
             ) : (
               <div
-                class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm whitespace-pre-wrap dark:border-white/5 dark:bg-slate-900/70 prose dark:prose-invert prose-sm max-w-none"
+                class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm  dark:border-white/5 dark:bg-slate-900/70 prose dark:prose-invert prose-sm max-w-none"
                 innerHTML={props.renderHighlight!(props.record!)}
               ></div>
             )}

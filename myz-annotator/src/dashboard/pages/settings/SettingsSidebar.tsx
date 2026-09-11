@@ -14,6 +14,10 @@ const groups = [
     title: "同步",
     items: [{ label: "加密同步", to: "/settings/sync" }],
   },
+  {
+    title: "数据",
+    items: [{ label: "导入", to: "/settings/import" }],
+  },
 ];
 
 export default defineComponent({

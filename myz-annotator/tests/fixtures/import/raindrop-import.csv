@@ -1,0 +1,4 @@
+url,title,excerpt,note,tags,created,highlights
+https://example.com/raindrop-a,Raindrop A,raindrop excerpt a,note a,"alpha, beta",2024-05-01T08:00:00.000Z,"Highlight: first quoted line
+Highlight: second quoted line"
+https://example.com/raindrop-b,Raindrop B,raindrop excerpt b,,"gamma",2024-05-02T09:00:00.000Z,""

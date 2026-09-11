@@ -460,6 +460,68 @@ test("import_by_file_via_settings", async () => {
   });
 });
 
+test("import_through_settings_ui_uploads_real_files", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html#/settings/import`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".settings__group", { timeout: 8000 });
+
+  // The settings sidebar exposes the 导入 entry we added.
+  const importNav = dash.locator('a[href="#/settings/import"]');
+  await expect(importNav).toHaveCount(1);
+
+  // Upload a real MyZ JSON file through the file input.
+  const jsonFile = path.join(
+    __dirname,
+    "..",
+    "fixtures",
+    "import",
+    "myz-import.json",
+  );
+  await dash.setInputFiles('input[type="file"]', jsonFile);
+
+  // Overwrite strategy keeps repeat runs idempotent.
+  await dash.selectOption(
+    'label:has(span:text-is("冲突处理")) select',
+    "overwrite",
+  );
+
+  await dash.click('button:has-text("开始导入")');
+
+  // The success status line is shown by the import section.
+  await dash.waitForFunction(
+    () => {
+      const el = document.querySelector(".status-line");
+      return !!el && /导入完成/.test((el as HTMLElement).textContent || "");
+    },
+    undefined,
+    { timeout: 8000 },
+  );
+
+  // Verify the parsed records actually landed in extension storage (full
+  // pipeline: file input → parseImportFile → store → background handler).
+  const allHighlights = await dash.evaluate<{ ok: boolean; data?: any[] }>(
+    async () => {
+      return await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "myz:getAllHighlights" }, (resp) => {
+          if (chrome.runtime.lastError)
+            return reject(new Error(chrome.runtime.lastError.message));
+          resolve(resp);
+        });
+      });
+    },
+  );
+  const allData = Array.isArray(allHighlights?.data) ? allHighlights.data : [];
+  const findImport = (id: string) => allData.find((record) => record.id === id);
+  expect(findImport("ui-import-json-a")).toMatchObject({
+    kind: "clip",
+    text: "imported from myz json file a",
+    note: "note from json a",
+  });
+  expect(findImport("ui-import-json-a")?.tags).toContain("imported");
+  expect(findImport("ui-import-json-b")).toBeTruthy();
+});
+
 test("bulk_import_and_search_filters", async () => {
   const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
   const dash = await context.newPage();

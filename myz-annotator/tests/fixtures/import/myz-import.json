@@ -1,0 +1,29 @@
+[
+  {
+    "id": "ui-import-json-a",
+    "kind": "clip",
+    "url": "https://example.com/ui-import-a",
+    "sourceUrl": "https://example.com/ui-import-a",
+    "title": "UI JSON Import A",
+    "text": "imported from myz json file a",
+    "html": "<p>imported from myz json file a</p>",
+    "note": "note from json a",
+    "tags": ["json"],
+    "hostname": "example.com",
+    "createdAt": "2024-06-01T10:00:00.000Z",
+    "updatedAt": "2024-06-01T10:00:00.000Z"
+  },
+  {
+    "id": "ui-import-json-b",
+    "kind": "clip",
+    "url": "https://example.com/ui-import-b",
+    "sourceUrl": "https://example.com/ui-import-b",
+    "title": "UI JSON Import B",
+    "text": "imported from myz json file b",
+    "note": "",
+    "tags": [],
+    "hostname": "example.com",
+    "createdAt": "2024-06-01T11:00:00.000Z",
+    "updatedAt": "2024-06-01T11:00:00.000Z"
+  }
+]
