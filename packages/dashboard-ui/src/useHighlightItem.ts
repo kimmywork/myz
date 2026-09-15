@@ -1,11 +1,11 @@
-import { type MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared"
-import { computed, ref } from "vue"
-import type { PropType } from "vue"
 import {
   Bookmark,
   FileText,
   Highlighter,
 } from "@lucide/vue"
+import { type MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared"
+import { computed, ref } from "vue"
+import type { PropType } from "vue"
 import type { HighlightItemAction } from "./highlightMeta"
 
 const KIND_ICON: Record<string, typeof Bookmark> = {
@@ -68,6 +68,12 @@ export function useHighlightItem(props: HighlightItemProps) {
   })
   const sourceTitle = computed(() => record().hostname || record().url || "")
 
+  const isPdf = computed(() => Boolean(record().pdfLocator))
+  const pageLabel = computed(() => {
+    const pageNumber = record().pdfLocator?.pageNumber
+    return pageNumber ? `第 ${pageNumber} 页` : ""
+  })
+
   return {
     kind,
     visibleTags,
@@ -76,6 +82,8 @@ export function useHighlightItem(props: HighlightItemProps) {
     kindIcon,
     sourceLabel,
     sourceTitle,
+    isPdf,
+    pageLabel,
     isClip: computed(() => kind.value === RECORD_KINDS.CLIP),
     isHighlight: computed(() => kind.value === RECORD_KINDS.HIGHLIGHT),
   }

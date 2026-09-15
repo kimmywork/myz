@@ -30,6 +30,7 @@ function createStaticServer(rootDir: string) {
               ".js": "application/javascript; charset=utf-8",
               ".css": "text/css; charset=utf-8",
               ".json": "application/json; charset=utf-8",
+              ".pdf": "application/pdf",
             }[ext] || "application/octet-stream";
           res.setHeader("Content-Type", mime);
           res.end(data);

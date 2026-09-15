@@ -1,6 +1,6 @@
 import ThemeToggle from "@myz/shared/components/ThemeToggle";
 import { normalizeWhitespace } from "@myz/shared/highlightUtils";
-import { IconSettings } from "@myz/shared/icons";
+import { IconFileText, IconSettings } from "@myz/shared/icons";
 
 import { sendMessage } from "@myz/shared/messaging";
 import { RECORD_KINDS, MyZRecord } from "@myz/shared/types";
@@ -18,6 +18,7 @@ import {
   normalizeRecord,
   recordToMarkdown,
 } from "@/dashboard/utils/records.js";
+import { resolvePdfTargetUrl } from "@/pdf/detect.js";
 
 export default defineComponent({
   name: "PopupApp",
@@ -197,6 +198,13 @@ export default defineComponent({
       chrome.runtime.openOptionsPage();
     };
 
+    const openPdfReader = async () => {
+      const target = await resolvePdfTargetUrl(rawPageUrl.value);
+      const base = chrome.runtime.getURL("src/pdf/pdf-viewer.html");
+      const query = target ? `?url=${encodeURIComponent(target)}` : "";
+      chrome.tabs.create({ url: `${base}${query}` });
+    };
+
     onMounted(async () => {
       try {
         const tab = await getActiveTab();
@@ -228,6 +236,15 @@ export default defineComponent({
               </h1>
               <ThemeToggle size="sm" />
             </div>
+            <button
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+              aria-label="打开 PDF 阅读器"
+              title="打开 PDF 阅读器"
+              type="button"
+              onClick={openPdfReader}
+            >
+              <IconFileText size={20} aria-hidden="true" />
+            </button>
             <button
               class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
               aria-label="打开 Dashboard"

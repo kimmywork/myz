@@ -1,4 +1,4 @@
-import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
+import { MyZRecord, RECORD_KINDS, SOURCE_TYPES } from "@myz/shared/types";
 import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { describe, it, expect } from "vitest";
 import {
@@ -19,6 +19,7 @@ describe("import normalizeImportedPayload", () => {
   const normalizedRecord = {
     ...baseRecord,
     contentType: "text/plain",
+    sourceType: SOURCE_TYPES.WEB,
     schemaVersion: RECORD_SCHEMA_VERSION,
   };
 

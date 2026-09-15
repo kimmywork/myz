@@ -6,6 +6,7 @@ import { initializeSearchMessageHandlers } from "./background/messages/search.js
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
+import { resolvePdfTargetUrl } from "./pdf/detect.js";
 
 async function ensureContextMenus() {
   try {
@@ -31,6 +32,16 @@ async function ensureContextMenus() {
       title: "保存文章为图片",
       contexts: ["page", "selection"],
       visible: false,
+    });
+    try {
+      await chrome.contextMenus.remove("myz-open-pdf");
+    } catch (error) {
+      console.warn("Failed to remove existing open-pdf menu", error);
+    }
+    chrome.contextMenus.create({
+      id: "myz-open-pdf",
+      title: "在 MyZ 中打开 PDF",
+      contexts: ["link"],
     });
   } catch (error) {
     console.warn("Context menu creation failed", error);
@@ -60,6 +71,12 @@ chrome.contextMenus.onClicked.addListener(
         await chrome.tabs.sendMessage(tab.id, {
           type: "myz:captureZenTargetFull",
         });
+      } else if (info.menuItemId === "myz-open-pdf") {
+        const candidate = info.linkUrl || info.pageUrl;
+        const target = await resolvePdfTargetUrl(candidate);
+        const base = chrome.runtime.getURL("src/pdf/pdf-viewer.html");
+        const url = target ? `${base}?url=${encodeURIComponent(target)}` : base;
+        await chrome.tabs.create({ url });
       }
     } catch (e) {
       // ignore

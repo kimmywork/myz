@@ -1,0 +1,125 @@
+import { test, expect, BrowserContext, Page } from "@playwright/test";
+import { Server } from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { launchExtension } from "../helpers/launch-extension.js";
+import { createStaticServer } from "../helpers/static-server.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let context: BrowserContext;
+let extensionId: string | null;
+let server: Server;
+let serverUrl: string;
+
+test.beforeAll(async () => {
+  const launched = await launchExtension(
+    path.join(__dirname, "..", "..", "dist"),
+  );
+  context = launched.context;
+  extensionId = launched.extensionId;
+  if (!extensionId) throw new Error("no extension id");
+  const fixtures = path.join(__dirname, "..", "fixtures");
+  const staticServer = createStaticServer(fixtures);
+  const listen = await staticServer.listen(0);
+  server = listen.server;
+  serverUrl = listen.url;
+});
+
+test.afterAll(async () => {
+  await context?.close();
+  await new Promise<void>((resolve, reject) =>
+    server.close((err) => (err ? reject(err) : resolve())),
+  );
+});
+
+async function openReader(url: string): Promise<Page> {
+  const page = await context.newPage();
+  await page.goto(url);
+  await page.waitForFunction(() => Boolean((window as any).__MYZ_PDF__));
+  await page.waitForFunction(
+    () => (window as any).__MYZ_PDF__?.getState().status === "ready",
+  );
+  return page;
+}
+
+async function measure(page: Page) {
+  return page.evaluate(() => {
+    const pageEl = document.querySelector(
+      '.pdf-page[data-page="1"]',
+    ) as HTMLElement;
+    const layer = pageEl.querySelector(".textLayer") as HTMLElement;
+    const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    let text = "";
+    let node = walker.nextNode();
+    while (node) {
+      nodes.push(node as Text);
+      text += (node as Text).data;
+      node = walker.nextNode();
+    }
+    const target = "Page One Alpha";
+    const index = text.indexOf(target);
+    let acc = 0;
+    let startNode: Text | null = null;
+    let endNode: Text | null = null;
+    let startOffset = 0;
+    let endOffset = 0;
+    for (const current of nodes) {
+      const len = current.data.length;
+      if (!startNode && index <= acc + len) {
+        startNode = current;
+        startOffset = index - acc;
+      }
+      if (!endNode && index + target.length <= acc + len) {
+        endNode = current;
+        endOffset = index + target.length - acc;
+        break;
+      }
+      acc += len;
+    }
+    const range = document.createRange();
+    range.setStart(startNode as Text, startOffset);
+    range.setEnd(endNode as Text, endOffset);
+    const textRect = range.getBoundingClientRect();
+    const overlay = document.querySelector(".pdf-annotation") as HTMLElement;
+    const overlayRect = overlay.getBoundingClientRect();
+    return {
+      dx: overlayRect.x - textRect.x,
+      dy: overlayRect.y - textRect.y,
+      dw: overlayRect.width - textRect.width,
+      dh: overlayRect.height - textRect.height,
+    };
+  });
+}
+
+test("pdf_overlay_aligns_with_text_before_and_after_reload", async () => {
+  const pdfUrl = `${serverUrl}/myz-pdf-reader.pdf`;
+  const page = await openReader(
+    `chrome-extension://${extensionId}/src/pdf/pdf-viewer.html?url=${encodeURIComponent(pdfUrl)}`,
+  );
+  await page.evaluate(() =>
+    (window as any).__MYZ_PDF__.selectText("Page One Alpha", 1),
+  );
+  await page.evaluate(() =>
+    (window as any).__MYZ_PDF__.createAnnotation("highlight"),
+  );
+  const created = await measure(page);
+  console.log("ALIGN_CREATED", JSON.stringify(created));
+  expect(Math.abs(created.dx)).toBeLessThan(2);
+  expect(Math.abs(created.dy)).toBeLessThan(2);
+  expect(Math.abs(created.dw)).toBeLessThan(3);
+  expect(Math.abs(created.dh)).toBeLessThan(3);
+
+  await page.reload();
+  await page.waitForFunction(() => Boolean((window as any).__MYZ_PDF__));
+  await page.waitForFunction(
+    () => (window as any).__MYZ_PDF__?.getState().status === "ready",
+  );
+  const restored = await measure(page);
+  console.log("ALIGN_RESTORED", JSON.stringify(restored));
+  expect(Math.abs(restored.dx)).toBeLessThan(2);
+  expect(Math.abs(restored.dy)).toBeLessThan(2);
+  await page.close();
+});

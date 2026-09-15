@@ -4,6 +4,14 @@ export enum RECORD_KINDS {
   BOOKMARK = "bookmark",
 }
 
+export enum SOURCE_TYPES {
+  WEB = "web",
+  PDF = "pdf",
+}
+
+/** Prefix for synthetic source urls that identify a local PDF by fingerprint. */
+export const PDF_SOURCE_URL_PREFIX = "myz-pdf:"
+
 export const DEFAULT_COLOR = "#b58900"
 
 export const DEFAULT_COLORS = [

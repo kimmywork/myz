@@ -1,5 +1,15 @@
 # Changelog
 
+# v0.6.1 PDF 阅读与标注
+
+- 新增内置 PDF 阅读器：显式打开本地文件（File System Access 文件句柄）或网页 PDF，默认连续滚动、按需懒渲染、缩放（50%–300%）与阅读进度记忆。
+- 支持在 PDF 中选中文本进行高亮 / 保存文字，添加批注与标签；重新打开同一 PDF（本地按文件指纹、网页按 URL）自动还原高亮，下划线 / 波浪线贴合字形。
+- 支持 JPEG2000 / JBIG2 等图片型 PDF：随包提供 pdf.js WASM 解码资源，并在 MV3 CSP 中启用 `'wasm-unsafe-eval'`。
+- 入口：Popup 的 PDF 按钮、右键链接「在 MyZ 中打开 PDF」；网页 PDF 无 `.pdf` 后缀（如 arXiv）也可识别。
+- Dashboard：卡片 / 列表 / 查看器显示「第 N 页」徽标，并可一键跳回阅读器对应页。
+- 新建标注沿用上次使用的高亮样式与颜色；Inspector 提供显式「保存」按钮与保存状态提示。
+- 说明：本地 PDF 目前仅支持 Chrome（依赖 File System Access API）。
+
 # v0.6.0 移除 AI 能力与 Dashboard 收敛
 
 - 移除 AI 智能助理（SidePanel）及其全部相关能力：Provider 配置、MCP Server、本地 tools、Agent Skills、向量检索（Vectoria）、自动高亮、Superpower 多 Agent 协作与 Dashboard 聊天页面。

@@ -17,6 +17,31 @@ export const SerializedRangeSchema = z.object({
   end: SerializedPointSchema.optional(),
 })
 
+/**
+ * A highlight rectangle normalized to the PDF page box.
+ * `x`/`y` are the top-left corner, `width`/`height` the size,
+ * all expressed as fractions in the range [0, 1] so overlays can be
+ * recomputed for any render scale or zoom.
+ */
+export const PdfRectSchema = z.object({
+  x: z.coerce.number(),
+  y: z.coerce.number(),
+  width: z.coerce.number(),
+  height: z.coerce.number(),
+})
+
+/**
+ * Locates an excerpt inside a PDF. `text` plus `occurrenceIndex` form the
+ * semantic anchor (re-locatable after re-render); `rects` are only used to
+ * paint the overlay.
+ */
+export const PdfLocatorSchema = z.object({
+  pageNumber: z.coerce.number().int().min(1),
+  text: z.string(),
+  occurrenceIndex: z.coerce.number().int().min(0).optional(),
+  rects: z.array(PdfRectSchema).optional(),
+})
+
 export const HighlightStyleSchema = z.preprocess((val) => {
   if (!val) return DEFAULT_HIGHLIGHT_STYLE
   const s = String(val).toLowerCase()
@@ -25,3 +50,7 @@ export const HighlightStyleSchema = z.preprocess((val) => {
   }
   return DEFAULT_HIGHLIGHT_STYLE
 }, z.nativeEnum(HIGHLIGHT_STYLES))
+
+export type PdfRect = z.infer<typeof PdfRectSchema>
+export type PdfLocator = z.infer<typeof PdfLocatorSchema>
+

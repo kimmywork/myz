@@ -1,8 +1,23 @@
 import { z } from "zod"
-import { HighlightStyleSchema, SerializedRangeSchema } from "./schemas/common"
+import {
+  HighlightStyleSchema,
+  SerializedRangeSchema,
+  PdfLocatorSchema,
+  PdfRectSchema,
+  type PdfLocator,
+  type PdfRect,
+} from "./schemas/common"
 import { MyZRecordSchema } from "./schemas/records"
 
-export { HighlightStyleSchema, SerializedRangeSchema, MyZRecordSchema }
+export {
+  HighlightStyleSchema,
+  SerializedRangeSchema,
+  PdfLocatorSchema,
+  PdfRectSchema,
+  MyZRecordSchema,
+}
+
+export type { PdfLocator, PdfRect }
 
 export const ImportStrategySchema = z.preprocess(
   (val) => {

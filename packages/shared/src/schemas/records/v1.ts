@@ -1,7 +1,11 @@
 import { z } from "zod"
-import { CONTENT_TYPES, RECORD_KINDS } from "../../enums"
+import { CONTENT_TYPES, RECORD_KINDS, SOURCE_TYPES } from "../../enums"
 import { RECORD_SCHEMA_VERSION } from "../../versioning"
-import { SerializedRangeSchema, HighlightStyleSchema } from "../common"
+import {
+  SerializedRangeSchema,
+  HighlightStyleSchema,
+  PdfLocatorSchema,
+} from "../common"
 
 export const RecordSchemaVersionV1 = RECORD_SCHEMA_VERSION
 
@@ -10,6 +14,8 @@ export const MyZRecordSchemaV1 = z
     schemaVersion: z.literal(RECORD_SCHEMA_VERSION),
     id: z.string(),
     kind: z.nativeEnum(RECORD_KINDS),
+    sourceType: z.nativeEnum(SOURCE_TYPES).optional(),
+    pdfLocator: PdfLocatorSchema.optional(),
     text: z.string(),
     html: z.string().optional(),
     contentType: z.nativeEnum(CONTENT_TYPES).optional(),

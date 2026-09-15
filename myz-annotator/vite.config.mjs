@@ -3,6 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import vueJsx from "@vitejs/plugin-vue-jsx";
 import { crx } from "@crxjs/vite-plugin";
 import zip from "vite-plugin-zip-pack";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import manifest from "./manifest.json" with { type: "json" };
@@ -12,20 +13,48 @@ const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 const target = process.env.TARGET !== "firefox" ? "chrome" : "firefox";
 
+const PDFJS_ASSET_DIRS = ["wasm", "cmaps", "standard_fonts", "iccs"];
+
+/**
+ * Copies pdf.js runtime assets (WASM codecs, CMaps, standard fonts, ICC
+ * profiles) into the extension build so image-heavy PDFs (JPEG2000/JBIG2)
+ * and CJK documents can be decoded at runtime.
+ */
+function copyPdfjsAssets() {
+  let outDir = "dist";
+  return {
+    name: "myz-copy-pdfjs-assets",
+    apply: "build",
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
+    closeBundle() {
+      const source = resolve(rootDir, "../node_modules/pdfjs-dist");
+      const dest = resolve(rootDir, outDir, "assets/pdfjs");
+      mkdirSync(dest, { recursive: true });
+      for (const dir of PDFJS_ASSET_DIRS) {
+        const from = resolve(source, dir);
+        if (existsSync(from)) {
+          cpSync(from, resolve(dest, dir), { recursive: true });
+        }
+      }
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     tailwindcss(),
     vue(),
     vueJsx(),
     crx({ manifest, browser: target }),
+    copyPdfjsAssets(),
     zip({
       inDir: target === "firefox" ? `dist-${target}` : "dist",
       outDir: "release",
       outFileName: `crx-myz-annotator-${manifest.version}-${target}.zip`,
       filter: (filePath) =>
-        !filePath.endsWith(".map") &&
-        !filePath.includes(".vite") &&
-        !filePath.endsWith(".wasm"),
+        !filePath.endsWith(".map") && !filePath.includes(".vite"),
     }),
   ],
   resolve: {
@@ -46,6 +75,8 @@ export default defineConfig({
       input: {
         popup: resolve(rootDir, "src/popup/popup.html"),
         dashboard: resolve(rootDir, "src/dashboard/index.html"),
+        "pdf-viewer": resolve(rootDir, "src/pdf/pdf-viewer.html"),
+        "pdf-spike": resolve(rootDir, "src/pdf/spike.html"),
       },
     },
   },

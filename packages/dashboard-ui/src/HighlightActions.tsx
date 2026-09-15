@@ -1,6 +1,5 @@
-import { defineComponent } from "vue"
-import type { PropType } from "vue"
 import {
+  BookOpen,
   Copy,
   ExternalLink,
   Eye,
@@ -10,6 +9,9 @@ import {
 } from "@lucide/vue"
 import type { MyZRecord } from "@myz/shared"
 import { RECORD_KINDS } from "@myz/shared"
+import { isPdfSourceUrl } from "@myz/shared/url"
+import type { PropType } from "vue"
+import { computed, defineComponent } from "vue"
 import type { HighlightItemAction } from "./highlightMeta"
 
 export default defineComponent({
@@ -30,17 +32,38 @@ export default defineComponent({
       props.onAction?.(action, props.record)
     }
 
+    const isPdf = computed(() => Boolean(props.record.pdfLocator))
+    const externalHref = computed(() =>
+      props.record.sourceUrl && !isPdfSourceUrl(props.record.sourceUrl)
+        ? props.record.sourceUrl
+        : !isPdfSourceUrl(props.record.url)
+          ? props.record.url
+          : undefined,
+    )
+
     return () => (
       <div class="flex items-center gap-1 border-t border-slate-200 pt-3 text-xs font-semibold dark:border-white/5">
-        <a
-          class="rounded-md p-1.5 text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
-          href={props.record.sourceUrl || props.record.url}
-          target="_blank"
-          rel="noopener"
-          title={props.record.title || props.record.url}
-        >
-          <ExternalLink size={16} />
-        </a>
+        {externalHref.value ? (
+          <a
+            class="rounded-md p-1.5 text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
+            href={externalHref.value}
+            target="_blank"
+            rel="noopener"
+            title={props.record.title || props.record.url}
+          >
+            <ExternalLink size={16} />
+          </a>
+        ) : null}
+        {isPdf.value ? (
+          <button
+            class="rounded-md p-1.5 text-amber-600 hover:text-amber-500 dark:text-amber-300 dark:hover:text-amber-200"
+            type="button"
+            onClick={() => emitAction("openPdf")}
+            title="在阅读器中打开"
+          >
+            <BookOpen size={16} />
+          </button>
+        ) : null}
         <button
           class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
           type="button"

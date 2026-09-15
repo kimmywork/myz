@@ -1,10 +1,10 @@
 import { computed, defineComponent } from "vue"
+import HighlightActions from "./HighlightActions"
+import HighlightTags from "./HighlightTags"
 import {
   highlightItemProps,
   useHighlightItem,
 } from "./useHighlightItem"
-import HighlightActions from "./HighlightActions"
-import HighlightTags from "./HighlightTags"
 
 export default defineComponent({
   name: "HighlightListRow",
@@ -12,7 +12,7 @@ export default defineComponent({
     ...highlightItemProps,
   },
   setup(props) {
-    const { kind, visibleTags, hiddenTagsCount, showAllTags, kindIcon, isClip, sourceLabel, sourceTitle } =
+    const { kind, visibleTags, hiddenTagsCount, showAllTags, kindIcon, isClip, sourceLabel, sourceTitle, pageLabel } =
       useHighlightItem(props)
     const KindIcon = kindIcon
 
@@ -44,6 +44,11 @@ export default defineComponent({
           <span class="text-slate-400 dark:text-slate-500">
             {props.formatDateTime!(props.record!.createdAt)}
           </span>
+          {pageLabel.value ? (
+            <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
+              {pageLabel.value}
+            </span>
+          ) : null}
         </div>
 
         <HighlightTags

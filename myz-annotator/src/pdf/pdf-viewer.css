@@ -1,0 +1,453 @@
+:root {
+  color-scheme: light dark;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+#app {
+  height: 100%;
+}
+
+.reader-app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.reader-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.92);
+  border-bottom: 1px solid #1e293b;
+  backdrop-filter: blur(8px);
+}
+
+.reader-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reader-toolbar__title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-pager {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: #94a3b8;
+  min-width: 64px;
+  text-align: center;
+}
+
+.reader-toolbar button,
+.reader-landing button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.reader-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reader-toolbar button:not(:disabled):hover,
+.reader-landing button:hover {
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.reader-zoom {
+  width: 30px;
+  padding: 6px 0;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.reader-zoom__value {
+  min-width: 48px;
+}
+
+.reader-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: safe center;
+  gap: 16px;
+  padding: 24px 16px 64px;
+  overflow: auto;
+}
+
+.pdf-page {
+  position: relative;
+  flex-shrink: 0;
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+.pdf-page canvas {
+  display: block;
+}
+
+.pdf-overlayLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.textLayer ::selection {
+  background: rgba(56, 189, 248, 0.4);
+}
+
+.reader-status {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid #334155;
+  font-size: 14px;
+}
+
+.reader-status--error {
+  color: #fda4af;
+  border-color: #7f1d1d;
+}
+
+.reader-busy {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #6366f1, transparent);
+  animation: reader-busy 1s linear infinite;
+}
+
+@keyframes reader-busy {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.reader-landing {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.reader-landing h1 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+
+.reader-landing p {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.reader-landing__cta {
+  margin-top: 12px;
+}
+
+.reader-recents {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.reader-recents button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reader-recents__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-recents__meta {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.pdf-annotation-group {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pdf-annotation-group[data-style="paint"] {
+  opacity: 0.35;
+}
+
+.pdf-annotation-group[data-style="paint"].is-active {
+  opacity: 0.55;
+}
+
+.pdf-annotation-group[data-style="underline"],
+.pdf-annotation-group[data-style="wavy"],
+.pdf-annotation-group[data-style="clip"] {
+  opacity: 0.85;
+}
+
+.pdf-annotation-group[data-style="underline"].is-active,
+.pdf-annotation-group[data-style="wavy"].is-active,
+.pdf-annotation-group[data-style="clip"].is-active {
+  opacity: 1;
+}
+
+.pdf-annotation {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.pdf-annotation[data-style="paint"] {
+  border-radius: 2px;
+  background-color: var(--myz-color, #b58900);
+}
+
+.pdf-annotation[data-style="underline"],
+.pdf-annotation[data-style="wavy"] {
+  /* Visible decoration is applied to the text spans (text-decoration) so it
+     hugs the glyphs; the overlay rect stays only as a click target. */
+  background: transparent;
+}
+
+.pdf-annotation[data-style="clip"] {
+  background: transparent;
+  border-bottom: 1px dashed
+    color-mix(in srgb, var(--myz-color, #94a3b8) 70%, transparent);
+}
+
+.textLayer span.myz-deco-underline {
+  text-decoration: underline;
+  text-decoration-color: var(--myz-color, #b58900);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.textLayer span.myz-deco-wavy {
+  text-decoration: underline wavy var(--myz-color, #b58900);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.selection-toolbar {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 40;
+}
+
+.selection-toolbar button {
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.selection-toolbar button:hover {
+  background: #334155;
+}
+
+.reader-inspector {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  width: 300px;
+  max-height: calc(100vh - 88px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.97);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 30;
+}
+
+.reader-inspector__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.reader-inspector__head button {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reader-inspector__quote {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid #6366f1;
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 4px;
+  font-size: 13px;
+  color: #e2e8f0;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.reader-inspector__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reader-inspector__label {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-right: 2px;
+}
+
+.reader-inspector__chip {
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.reader-inspector__chip.is-active {
+  border-color: #6366f1;
+  color: #fff;
+}
+
+.reader-inspector__swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.reader-inspector__swatch.is-active {
+  border-color: #e2e8f0;
+}
+
+.reader-inspector__note,
+.reader-inspector__tags {
+  width: 100%;
+  border: 1px solid #334155;
+  background: #0b1220;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.reader-inspector__note {
+  min-height: 64px;
+  resize: vertical;
+}
+
+.reader-inspector__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reader-inspector__status {
+  flex: 1;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.reader-inspector__save {
+  border: 1px solid #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.reader-inspector__save:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.reader-inspector__delete {
+  border: 1px solid #7f1d1d;
+  background: rgba(127, 29, 29, 0.35);
+  color: #fda4af;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}

@@ -1,4 +1,9 @@
-import { MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared/types";
+import {
+  MyZRecord,
+  RECORD_KINDS,
+  SOURCE_TYPES,
+  getRecordKind,
+} from "@myz/shared/types";
 import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { describe, it, expect } from "vitest";
 import {
@@ -63,6 +68,7 @@ describe("records", () => {
         ...baseRecord,
         kind: RECORD_KINDS.HIGHLIGHT,
         contentType: "text/plain",
+        sourceType: SOURCE_TYPES.WEB,
         schemaVersion: RECORD_SCHEMA_VERSION,
       });
     });

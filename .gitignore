@@ -1,6 +1,9 @@
 .DS_Store
 workflow/video-pipeline/output/
 
+# local reference documents (not part of the project)
+/*.pdf
+
 node_modules
 
 .reasonix/

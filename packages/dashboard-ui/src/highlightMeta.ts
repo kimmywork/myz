@@ -1,6 +1,12 @@
 import { type MyZRecord, RECORD_KINDS } from "@myz/shared"
 
-export type HighlightItemAction = "copy" | "view" | "edit" | "delete" | "downgrade"
+export type HighlightItemAction =
+  | "copy"
+  | "view"
+  | "edit"
+  | "delete"
+  | "downgrade"
+  | "openPdf"
 
 export interface HighlightGroupSection {
   date: string

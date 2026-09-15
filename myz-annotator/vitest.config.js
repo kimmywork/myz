@@ -20,6 +20,8 @@ export default defineConfig({
       "**/dist/**",
       "./temp/**",
       "tests/extension/**",
+      "tests/spike/**",
+      "tests/pdf/**",
     ],
   },
 });

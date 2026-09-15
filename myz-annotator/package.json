@@ -1,6 +1,6 @@
 {
   "name": "myz-annotator",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "type": "module",
   "scripts": {
     "build": "vue-tsc -b && vite build",
@@ -27,6 +27,7 @@
     "defuddle": "^0.19.2",
     "dompurify": "^3.4.12",
     "fflate": "*",
-    "markdown-it": "^14.3.0"
+    "markdown-it": "^14.3.0",
+    "pdfjs-dist": "^6.3.289"
   }
 }

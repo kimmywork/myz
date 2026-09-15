@@ -15,6 +15,7 @@ import {
   groupRecordsByPage,
   sortRecordsForPage,
 } from "@/dashboard/utils/records.js";
+import { openPdfRecordInReader } from "@/pdf/open.js";
 
 export default defineComponent({
   name: "HighlightViewerPage",
@@ -368,7 +369,26 @@ export default defineComponent({
                           ))
                         : null}
                     </div>
-                    <span>{uiStore.formatDateTime(item.createdAt)}</span>
+                    <div class="flex items-center gap-2">
+                      {item.pdfLocator ? (
+                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
+                          第 {item.pdfLocator.pageNumber} 页
+                        </span>
+                      ) : null}
+                      {item.pdfLocator ? (
+                        <button
+                          type="button"
+                          class="rounded-full border border-amber-300 px-2 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:text-amber-200 dark:hover:bg-amber-500/10"
+                          onClick={(event: Event) => {
+                            event.stopPropagation();
+                            openPdfRecordInReader(item);
+                          }}
+                        >
+                          在阅读器中打开
+                        </button>
+                      ) : null}
+                      <span>{uiStore.formatDateTime(item.createdAt)}</span>
+                    </div>
                   </div>
 
                   <div class="mt-3 text-sm text-slate-800 dark:text-slate-100">

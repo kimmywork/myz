@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { CONTENT_TYPES, RECORD_KINDS } from "./enums"
+import { CONTENT_TYPES, RECORD_KINDS, SOURCE_TYPES } from "./enums"
 import { hasMarkdown } from "./markdownRenderer"
 import { MyZRecordSchema } from "./schemas"
 import { isRecord } from "./typeUtils"
@@ -57,6 +57,28 @@ export function normalizeContentType(
     : undefined
 }
 
+export function normalizeSourceType(
+  value: unknown,
+): SOURCE_TYPES | undefined {
+  if (!value) {
+    return undefined
+  }
+  const normalized = String(value).trim().toLowerCase()
+  if (!normalized) {
+    return undefined
+  }
+  return (Object.values(SOURCE_TYPES) as string[]).includes(normalized)
+    ? (normalized as SOURCE_TYPES)
+    : undefined
+}
+
+/** Old records without an explicit source type are treated as web pages. */
+export function resolveRecordSourceType(
+  record: Partial<MyZRecord>,
+): SOURCE_TYPES {
+  return normalizeSourceType(record?.sourceType) ?? SOURCE_TYPES.WEB
+}
+
 export function resolveRecordContentType(
   record: Partial<MyZRecord>,
 ): CONTENT_TYPES {
@@ -88,6 +110,7 @@ export function normalizeRecord(record?: unknown): MyZRecord | null {
   }
   const versioned = ensureRecordSchemaVersion(recordWithKind)
   versioned.contentType = resolveRecordContentType(versioned)
+  versioned.sourceType = resolveRecordSourceType(versioned)
 
   const result = MyZRecordSchema.safeParse(versioned)
   if (result.success) {

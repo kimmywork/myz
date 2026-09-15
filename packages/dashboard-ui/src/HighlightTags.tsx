@@ -1,6 +1,6 @@
+import { Hash } from "@lucide/vue"
 import { defineComponent } from "vue"
 import type { PropType } from "vue"
-import { Hash } from "@lucide/vue"
 
 export default defineComponent({
   name: "HighlightTags",

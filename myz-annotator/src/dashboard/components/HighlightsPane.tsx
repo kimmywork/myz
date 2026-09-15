@@ -8,6 +8,7 @@ import { computed, defineComponent, nextTick, watch } from "vue";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
+import { openPdfRecordInReader } from "@/pdf/open.js";
 
 export default defineComponent({
   name: "HighlightsPane",
@@ -73,6 +74,9 @@ export default defineComponent({
           break;
         case "downgrade":
           void highlightsStore.downgradeHighlight(record.id);
+          break;
+        case "openPdf":
+          openPdfRecordInReader(record);
           break;
       }
     }
