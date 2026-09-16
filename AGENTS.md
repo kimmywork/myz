@@ -47,3 +47,8 @@ Other modules: check each module's `package.json` for scripts.
 ## Code Quality
 - `npm run jscpd` runs JSCPD (Copy/Paste Detector) to find duplicate code across the repo.
 - Configuration lives in `.jscpd.json` at the root — adjust thresholds there as needed.
+
+## Worklog
+- Current state: `.agents/worklog/WORKSTATE.md`
+- Entries: `.agents/worklog/YYYY-MM.md` (monthly rotation)
+- Format: ISO timestamp, then what changed and why (one entry per logical change)

@@ -1,0 +1,5267 @@
+<!doctype html>
+<html lang="zh-CN" data-scheme="paper" data-theme="light" data-cjk="sc">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MyZ 设计系统</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      id="font-cjk"
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        /* 尺寸与字体（和配色无关，所有方案共用） */
+        --r-xs: 4px;
+        --r-sm: 6px;
+        --r: 8px;
+        --r-lg: 12px;
+        --r-pill: 999px;
+        --sans:
+          system-ui, -apple-system, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", sans-serif;
+        --cjk: "Noto Serif SC";
+        --read: Newsreader, var(--cjk), serif;
+        --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+        /* 高亮五色是记录数据，不随配色方案变 */
+        --mark-1: #b58900;
+        --mark-2: #ef476f;
+        --mark-3: #9f7aea;
+        --mark-4: #38bdf8;
+        --mark-5: #34d399;
+
+        /* 阅读设置，全部可调 */
+        --read-size-1: 15px;
+        --read-size-2: 16px;
+        --read-size-3: 18px;
+        --read-size-4: 20px;
+        --read-size-5: 22px;
+        --read-leading: 1.8;
+        --read-tracking: 0.01em;
+        --read-measure: 38em;
+        --read-gutter: 24px;
+
+        /* 浮在任意网页上的采集条和提示 */
+        --overlay: #141413;
+        --overlay-text: #f5f4ed;
+        --overlay-hover: #30302e;
+
+        --top-bar-height: 61px;
+        --hit-compact: 32px;
+        --hit-regular: 36px;
+        --hit-touch: 44px;
+        --motion-fast: 120ms;
+        --motion-med: 180ms;
+        --motion-panel: 240ms;
+        --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      /* ── 配色方案：米纸（默认）──────────────── */
+      :root,
+      html[data-scheme="paper"] {
+        --bg: #f5f4ed;
+        --surface: #faf9f5;
+        --surface-2: #eceae0;
+        --text: #141413;
+        --muted: #6b6a64;
+        --line: #ddd9cc;
+        --accent: #1b365d;
+        --accent-hover: #152a4a;
+        --accent-text: #1b365d;
+        --on-accent: #faf9f5;
+        --tag-bg: #e4ecf5;
+        --tag-fg: #1b365d;
+        --shadow: 0 14px 36px rgba(20, 20, 19, 0.12);
+        --control-bg: #ffffff;
+        --control-border: #ccc6b4;
+        --skeleton: #e3e0d4;
+        --well: #e4e1d6;
+        --well-chrome: #f0eee6;
+        --well-border: #d6d1c2;
+        --well-text: #141413;
+        --well-muted: #65645e;
+        --well-control-bg: #ffffff;
+        --well-control-border: #ccc6b4;
+      }
+      html[data-scheme="paper"][data-theme="dark"] {
+        --bg: #141413;
+        --surface: #1c1c1a;
+        --surface-2: #262624;
+        --text: #f5f4ed;
+        --muted: #a8a59c;
+        --line: #3a3a36;
+        --accent: #3d6692;
+        --accent-hover: #4a7aab;
+        --accent-text: #9eb6d4;
+        --on-accent: #faf9f5;
+        --tag-bg: #243044;
+        --tag-fg: #9eb6d4;
+        --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        --control-bg: #2a2a27;
+        --control-border: #4a4a44;
+        --skeleton: #333330;
+        --well: #0f0f0e;
+        --well-chrome: #1c1c1a;
+        --well-border: #3a3a36;
+        --well-text: #f5f4ed;
+        --well-muted: #8e8c83;
+        --well-control-bg: #262624;
+        --well-control-border: #4a4a44;
+      }
+
+      /* ── 配色方案：冷灰 ────────────────────── */
+      html[data-scheme="slate"] {
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --surface-2: #f1f5f9;
+        --text: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --accent: #4f46e5;
+        --accent-hover: #4338ca;
+        --accent-text: #4f46e5;
+        --on-accent: #ffffff;
+        --tag-bg: #eef2ff;
+        --tag-fg: #4f46e5;
+        --shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+        --control-bg: #ffffff;
+        --control-border: #c3cedb;
+        --skeleton: #e2e8f0;
+        --well: #eef2f7;
+        --well-chrome: #f8fafc;
+        --well-border: #dbe3ec;
+        --well-text: #0f172a;
+        --well-muted: #5e6e82;
+        --well-control-bg: #ffffff;
+        --well-control-border: #c3cedb;
+      }
+      html[data-scheme="slate"][data-theme="dark"] {
+        --bg: #0f172a;
+        --surface: #1e293b;
+        --surface-2: #0b1220;
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --line: #334155;
+        --accent: #5f62ea;
+        --accent-hover: #818cf8;
+        --accent-text: #a5b4fc;
+        --on-accent: #ffffff;
+        --tag-bg: rgba(99, 102, 241, 0.2);
+        --tag-fg: #c7d2fe;
+        --shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+        --control-bg: #26344a;
+        --control-border: #47576e;
+        --skeleton: #334155;
+        --well: #0b1220;
+        --well-chrome: #1e293b;
+        --well-border: #334155;
+        --well-text: #e2e8f0;
+        --well-muted: #94a3b8;
+        --well-control-bg: #26344a;
+        --well-control-border: #46566f;
+      }
+
+      /* ── 配色方案：青瓷 ────────────────────── */
+      html[data-scheme="celadon"] {
+        --bg: #f2f4ee;
+        --surface: #f8faf4;
+        --surface-2: #e6ebe0;
+        --text: #16201a;
+        --muted: #5f6b60;
+        --line: #d4dacd;
+        --accent: #2f5d4a;
+        --accent-hover: #244a3a;
+        --accent-text: #2f5d4a;
+        --on-accent: #f8faf4;
+        --tag-bg: #e0ece3;
+        --tag-fg: #2f5d4a;
+        --shadow: 0 14px 36px rgba(18, 30, 22, 0.12);
+        --control-bg: #ffffff;
+        --control-border: #ccd4c4;
+        --skeleton: #dfe5d7;
+        --well: #e2e8db;
+        --well-chrome: #eef1e8;
+        --well-border: #ccd4c4;
+        --well-text: #16201a;
+        --well-muted: #5d695e;
+        --well-control-bg: #ffffff;
+        --well-control-border: #ccd4c4;
+      }
+      html[data-scheme="celadon"][data-theme="dark"] {
+        --bg: #101512;
+        --surface: #171d19;
+        --surface-2: #202821;
+        --text: #eef2ea;
+        --muted: #9aa79b;
+        --line: #334036;
+        --accent: #6fa88c;
+        --accent-hover: #86bba0;
+        --accent-text: #9dc9b2;
+        --on-accent: #101512;
+        --tag-bg: #22322a;
+        --tag-fg: #9dc9b2;
+        --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        --control-bg: #253026;
+        --control-border: #495a4d;
+        --skeleton: #2b352c;
+        --well: #0c110e;
+        --well-chrome: #171d19;
+        --well-border: #334036;
+        --well-text: #eef2ea;
+        --well-muted: #9aa79b;
+        --well-control-bg: #253026;
+        --well-control-border: #495a4d;
+      }
+
+      /* ── 配色方案：赭石 ────────────────────── */
+      html[data-scheme="ochre"] {
+        --bg: #f6f0e6;
+        --surface: #fbf6ee;
+        --surface-2: #ece2d2;
+        --text: #231a12;
+        --muted: #6f6152;
+        --line: #ddd0bb;
+        --accent: #8a4b24;
+        --accent-hover: #6f3b1a;
+        --accent-text: #8a4b24;
+        --on-accent: #fbf6ee;
+        --tag-bg: #f0e0cf;
+        --tag-fg: #8a4b24;
+        --shadow: 0 14px 36px rgba(35, 26, 18, 0.14);
+        --control-bg: #fffaf3;
+        --control-border: #d8c9b2;
+        --skeleton: #e8ddca;
+        --well: #ece2d2;
+        --well-chrome: #f4ecdf;
+        --well-border: #d8c9b2;
+        --well-text: #231a12;
+        --well-muted: #6f6152;
+        --well-control-bg: #fffaf3;
+        --well-control-border: #d8c9b2;
+      }
+      html[data-scheme="ochre"][data-theme="dark"] {
+        --bg: #17130f;
+        --surface: #1f1a14;
+        --surface-2: #292219;
+        --text: #f3ece0;
+        --muted: #ab9d89;
+        --line: #3d3428;
+        --accent: #c98a5a;
+        --accent-hover: #d69c6f;
+        --accent-text: #e0b088;
+        --on-accent: #17130f;
+        --tag-bg: #33271a;
+        --tag-fg: #e0b088;
+        --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+        --control-bg: #2b2419;
+        --control-border: #554733;
+        --skeleton: #362d21;
+        --well: #0f0c09;
+        --well-chrome: #1f1a14;
+        --well-border: #3d3428;
+        --well-text: #f3ece0;
+        --well-muted: #ab9d89;
+        --well-control-bg: #2b2419;
+        --well-control-border: #4a3d2e;
+      }
+
+      /* ── 语义色：跟深浅色走，不跟配色方案走 ── */
+      :root {
+        --warn: #8a5a00;
+        --warn-bg: #f6ecd3;
+        --warn-border: #e6d3a3;
+        --error: #b53333;
+        --error-bg: #f7e3e3;
+        --error-border: #e6bfbf;
+        --success: #2f6f56;
+        --success-bg: #e0efe8;
+        --success-border: #bcdccf;
+        --info: #2b5f8a;
+        --info-bg: #e1ecf5;
+        --info-border: #c0d6e8;
+        --clip: #2b766c;
+        --clip-bg: #dcefec;
+        --clip-border: #b8ded7;
+      }
+      html[data-theme="dark"] {
+        --warn: #e0b352;
+        --warn-bg: #2e2614;
+        --warn-border: #4a3d20;
+        --error: #e08a8a;
+        --error-bg: #331c1c;
+        --error-border: #533030;
+        --success: #7fc4a6;
+        --success-bg: #16291f;
+        --success-border: #2a4436;
+        --info: #8fb8d8;
+        --info-bg: #16232e;
+        --info-border: #2a3d4d;
+        --clip: #4fb3a3;
+        --clip-bg: #12302c;
+        --clip-border: #245049;
+      }
+
+      html[data-cjk="tc"] {
+        --cjk: "Noto Serif TC";
+        --sans:
+          system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei",
+          sans-serif;
+      }
+      html[data-cjk="hk"] {
+        --cjk: "Noto Serif HK";
+        --sans:
+          system-ui, -apple-system, "PingFang HK", "Noto Sans HK", sans-serif;
+      }
+      html[data-cjk="jp"] {
+        --cjk: "Noto Serif JP";
+        --sans:
+          system-ui, -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
+      }
+      html[data-cjk="kr"] {
+        --cjk: "Noto Serif KR";
+        --sans:
+          system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 15px;
+        line-height: 1.6;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease;
+      }
+      a {
+        color: var(--accent-text);
+        text-decoration: none;
+      }
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+      }
+
+      .i {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .i-lg {
+        width: 20px;
+        height: 20px;
+      }
+
+      /* ── 顶栏 ───────────────────────────── */
+      .top {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: nowrap;
+        padding: 10px 20px;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--line);
+        font-family: var(--sans);
+      }
+      .brand {
+        font-weight: 650;
+      }
+      .brand span {
+        color: var(--muted);
+        font-weight: 500;
+        margin-left: 8px;
+        font-size: 12px;
+      }
+      .top nav {
+        display: flex;
+        gap: 14px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        min-width: 0;
+        font-size: 13px;
+        scrollbar-width: none;
+      }
+      .top nav::-webkit-scrollbar {
+        display: none;
+      }
+      .brand,
+      .top-actions {
+        flex: none;
+      }
+      @media (max-width: 760px) {
+        .top nav,
+        .brand span {
+          display: none;
+        }
+        .top-actions {
+          margin-left: auto;
+          flex-wrap: nowrap;
+        }
+      }
+      .top nav a {
+        display: inline-flex;
+        align-items: center;
+        min-height: var(--hit-compact);
+        padding: 0 4px;
+        color: var(--muted);
+      }
+      .top nav a:hover {
+        color: var(--text);
+      }
+      .top-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .switch {
+        display: flex;
+        gap: 4px;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--surface);
+      }
+      .switch .chip {
+        border: 0;
+        background: transparent;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        line-height: 1;
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 0 12px;
+        font-size: 12px;
+        cursor: pointer;
+        height: var(--hit-compact);
+      }
+      .chip .i {
+        width: 14px;
+        height: 14px;
+      }
+      .chip.is-on {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--on-accent);
+      }
+      .scheme-picker {
+        position: relative;
+      }
+      .scheme-trigger {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: var(--hit-compact);
+        padding: 0 10px;
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        border-radius: var(--r);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .scheme-trigger .i {
+        color: var(--muted);
+      }
+      .scheme-trigger .chev {
+        width: 12px;
+        height: 12px;
+        transform: rotate(90deg);
+      }
+      .scheme-trigger:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .scheme-menu {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 6px);
+        width: 200px;
+        max-height: 224px;
+        overflow-y: auto;
+        display: none;
+        z-index: 50;
+      }
+      .scheme-menu.is-open {
+        display: block;
+      }
+      .menu-item .check {
+        width: 14px;
+        height: 14px;
+        visibility: hidden;
+        color: var(--accent-text);
+      }
+      .menu-item.is-on .check {
+        visibility: visible;
+      }
+      .menu-item .meta {
+        font-size: 11px;
+      }
+
+      /* ── 排印层级 ───────────────────────── */
+      .type-scale {
+        margin-top: 12px;
+      }
+      .type-scale .ts-row {
+        display: grid;
+        grid-template-columns: 160px 1fr 210px;
+        gap: 16px;
+        align-items: baseline;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .type-scale .ts-name {
+        font-family: var(--sans);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .type-scale .ts-spec {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      @media (max-width: 800px) {
+        .type-scale .ts-row {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+      }
+      .ts-display {
+        font-size: 32px;
+        font-weight: 600;
+        line-height: 1.2;
+      }
+      .ts-title {
+        font-size: 24px;
+        font-weight: 600;
+        line-height: 1.25;
+      }
+      .ts-section {
+        font-size: 17px;
+        font-weight: 600;
+        line-height: 1.35;
+      }
+      .ts-body {
+        font-size: 15px;
+        font-weight: 400;
+        line-height: 1.7;
+      }
+      .ts-table {
+        font-family: var(--sans);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .ts-caption {
+        font-size: 13px;
+        font-weight: 400;
+        line-height: 1.55;
+        color: var(--muted);
+      }
+      .ts-intro {
+        font-size: 17px;
+        font-weight: 400;
+        line-height: 1.7;
+        color: var(--muted);
+      }
+      .ts-aux {
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      .ts-label {
+        font-family: var(--sans);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+
+      /* ── 阅读字号档位 ───────────────────── */
+      .read-sizes {
+        display: grid;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .read-sizes .rs {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        padding: 14px 16px;
+      }
+      .read-sizes .rs-head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-family: var(--sans);
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .read-sizes .rs-head b {
+        color: var(--text);
+        font-size: 12px;
+      }
+      .read-sizes p {
+        margin: 0;
+        font-family: var(--read);
+        line-height: var(--read-leading);
+        letter-spacing: var(--read-tracking);
+      }
+      .read-sizes .rs-1 p {
+        font-size: var(--read-size-1);
+      }
+      .read-sizes .rs-2 p {
+        font-size: var(--read-size-2);
+      }
+      .read-sizes .rs-3 p {
+        font-size: var(--read-size-3);
+      }
+      .read-sizes .rs-4 p {
+        font-size: var(--read-size-4);
+      }
+      .read-sizes .rs-5 p {
+        font-size: var(--read-size-5);
+      }
+
+      /* ── 语义色 ─────────────────────────── */
+      .semantic {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 12px;
+      }
+      @media (max-width: 800px) {
+        .semantic {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .semantic .s {
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        overflow: hidden;
+        background: var(--surface);
+      }
+      .semantic .s .s-top {
+        padding: 10px 12px;
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .semantic .s .s-body {
+        padding: 10px 12px;
+        font-family: var(--sans);
+        font-size: 11px;
+      }
+      .semantic .s code {
+        color: var(--muted);
+      }
+      .s-warn .s-top {
+        background: var(--warn-bg);
+        color: var(--warn);
+      }
+      .s-error .s-top {
+        background: var(--error-bg);
+        color: var(--error);
+      }
+      .s-success .s-top {
+        background: var(--success-bg);
+        color: var(--success);
+      }
+      .s-info .s-top {
+        background: var(--info-bg);
+        color: var(--info);
+      }
+
+      /* ── 下拉菜单 / 建议 ─────────────────── */
+      .menu {
+        width: 260px;
+        background: var(--surface);
+        border: 1px solid var(--control-border);
+        border-radius: var(--r-lg);
+        box-shadow: var(--shadow);
+        padding: 6px;
+        font-family: var(--sans);
+        font-size: 13px;
+      }
+      .menu-group {
+        padding: 8px 10px 4px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .menu-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 7px 10px;
+        border: 0;
+        background: transparent;
+        border-radius: var(--r-sm);
+        color: var(--text);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      .menu-item:hover,
+      .menu-item.on {
+        background: var(--surface-2);
+      }
+      .menu-item.on {
+        color: var(--accent-text);
+        font-weight: 600;
+      }
+      .menu-item .i {
+        color: var(--muted);
+      }
+      .menu-item .meta {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .menu-sep {
+        height: 1px;
+        background: var(--line);
+        margin: 6px 4px;
+      }
+      .menu-hint {
+        padding: 8px 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .suggest {
+        width: 340px;
+        background: var(--surface);
+        border: 1px solid var(--control-border);
+        border-radius: var(--r-lg);
+        box-shadow: var(--shadow);
+        padding: 6px;
+        font-family: var(--sans);
+      }
+      .suggest .sg-input {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        border-radius: var(--r-sm);
+        background: var(--surface-2);
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      .suggest .sg-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: var(--r-sm);
+        font-size: 13px;
+      }
+      .suggest .sg-item:hover,
+      .suggest .sg-item.on {
+        background: var(--surface-2);
+      }
+      .suggest .sg-item .tag {
+        flex: none;
+      }
+      .suggest .sg-item .kind {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      /* ── 版面 ───────────────────────────── */
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 40px 20px 96px;
+        font-family: var(--read);
+      }
+      .hero {
+        padding: 28px 0 8px;
+        max-width: 44rem;
+      }
+      .kicker {
+        font-family: var(--sans);
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      h1 {
+        font-size: clamp(28px, 4vw, 32px);
+        line-height: 1.2;
+        font-weight: 600;
+        margin: 10px 0 14px;
+      }
+      h2 {
+        font-size: 24px;
+        font-weight: 600;
+        margin: 6px 0 12px;
+      }
+      h3 {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 32px 0 8px;
+      }
+      .sec {
+        margin-top: 56px;
+        padding-top: 28px;
+        border-top: 1px solid var(--line);
+      }
+      /* 锚点跳转要给吸顶工具栏留出高度，否则标题会被压在栏下 */
+      .sec,
+      .spec > h3 {
+        scroll-margin-top: calc(var(--top-bar-height) + 20px);
+      }
+      .sec > p {
+        max-width: 44rem;
+        color: var(--muted);
+        margin: 8px 0;
+      }
+      .sec p,
+      .sec li {
+        line-height: 1.7;
+      }
+      .num {
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 500;
+        margin-right: 8px;
+        color: var(--muted);
+        letter-spacing: 0.04em;
+      }
+      .hero-spec {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 32px;
+        margin: 28px 0 0;
+      }
+      .hero-spec div {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .hero-spec dt {
+        font-family: var(--sans);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .hero-spec dd {
+        margin: 0;
+        font-size: 15px;
+      }
+      .lede {
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.8;
+      }
+      .why {
+        margin: 12px 0 32px;
+        padding: 12px 16px;
+        background: var(--surface-2);
+        border-radius: 8px;
+        font-size: 14px;
+        max-width: 44rem;
+        line-height: 1.75;
+      }
+      .why b {
+        font-family: var(--sans);
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--accent-text);
+        letter-spacing: 0.06em;
+        display: block;
+        margin-bottom: 4px;
+      }
+      .why + h3 {
+        margin-top: 36px;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 800px) {
+        .grid-2,
+        .grid-3 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        padding: 16px;
+      }
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 16px;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 10px 10px 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        font-family: var(--sans);
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      td:first-child {
+        white-space: nowrap;
+      }
+
+      .palette {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+        margin: 16px 0 0;
+      }
+      .palette figure {
+        margin: 0;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .palette i {
+        display: block;
+        height: 48px;
+      }
+      .palette figcaption {
+        padding: 8px 10px 10px;
+        font-family: var(--sans);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .palette strong {
+        display: block;
+        color: var(--text);
+        font-size: 12px;
+      }
+      @media (max-width: 800px) {
+        .palette {
+          grid-template-columns: 1fr 1fr 1fr;
+        }
+      }
+
+      .swatches {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .sw {
+        width: 22px;
+        height: 22px;
+        border-radius: 99px;
+        display: inline-block;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+      }
+      .sw.on {
+        outline: 2px solid var(--text);
+        outline-offset: 2px;
+      }
+
+      /* ── 基础控件 ───────────────────────── */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: center;
+        height: var(--hit-compact);
+        padding: 0 12px;
+        border-radius: var(--r);
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background var(--motion-fast) ease,
+          border-color var(--motion-fast) ease;
+      }
+      .btn:hover {
+        border-color: color-mix(
+          in srgb,
+          var(--accent) 45%,
+          var(--control-border)
+        );
+      }
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--on-accent);
+      }
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+      }
+      .btn-ghost {
+        background: transparent;
+      }
+      .btn-danger {
+        color: var(--error);
+        background: transparent;
+      }
+      .btn-icon {
+        width: var(--hit-compact);
+        padding: 0;
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 22px;
+        padding: 0 8px;
+        border-radius: 6px;
+        background: var(--tag-bg);
+        color: var(--tag-fg);
+        font-family: var(--sans);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .tag-x {
+        opacity: 0.6;
+        cursor: pointer;
+      }
+
+      .row-demo {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 12px 0 20px;
+      }
+
+      /* ── 左右分栏：说明在左，表格在右 ─────── */
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 28px;
+        align-items: start;
+        margin-top: 12px;
+      }
+      .split > .side {
+        min-width: 0;
+      }
+      .split > .side table {
+        margin: 0;
+      }
+      .split > .main > .why:first-child {
+        margin-top: 0;
+      }
+      .split.uneven {
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      }
+      @media (max-width: 900px) {
+        .split,
+        .split.uneven {
+          grid-template-columns: 1fr;
+          gap: 16px;
+        }
+      }
+
+      /* ── 采集条两种变体 ─────────────────── */
+      .capture-stage {
+        position: relative;
+        border-radius: var(--r-lg);
+        padding: 18px 20px 58px;
+        font-family: var(--sans);
+        font-size: 12px;
+        border: 1px solid var(--line);
+      }
+      .capture-stage.page-light {
+        background: #ffffff;
+        color: #33302c;
+      }
+      .capture-stage.page-dark {
+        background: #1b1b1f;
+        color: #d9d7d0;
+      }
+      .capture-bar {
+        position: absolute;
+        left: 20px;
+        bottom: 12px;
+        display: inline-flex;
+        gap: 4px;
+        padding: 5px;
+        border-radius: var(--r-pill);
+        box-shadow: var(--shadow);
+      }
+      .capture-bar.dark {
+        background: var(--overlay);
+        color: var(--overlay-text);
+        /* 深色投影负责在浅色页面上浮起，浅色描边负责在深色页面上勾出轮廓 */
+        box-shadow:
+          0 8px 24px rgba(0, 0, 0, 0.35),
+          0 0 0 1px rgba(255, 255, 255, 0.16);
+      }
+      .capture-bar button {
+        width: var(--hit-compact);
+        height: var(--hit-compact);
+        border: 0;
+        border-radius: var(--r-pill);
+        background: transparent;
+        color: inherit;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+      }
+      .capture-bar.dark button:hover {
+        background: var(--overlay-hover);
+      }
+      .icon-hit {
+        width: var(--hit-compact);
+        height: var(--hit-compact);
+        border-radius: var(--r);
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        display: grid;
+        place-items: center;
+        color: var(--text);
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-family: var(--sans);
+        font-size: 12px;
+        color: var(--muted);
+        max-width: 320px;
+      }
+      .field-box {
+        font-family: var(--read);
+        font-size: 14px;
+        color: var(--text);
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        border-radius: 8px;
+        height: var(--hit-regular);
+        padding: 0 10px;
+        outline: none;
+        width: 100%;
+        transition:
+          border-color var(--motion-fast) ease,
+          box-shadow var(--motion-fast) ease;
+      }
+      textarea.field-box {
+        height: auto;
+        min-height: 76px;
+        padding: 8px 10px;
+        resize: vertical;
+      }
+      .field-box:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+      }
+      .field-box:disabled {
+        background: var(--surface-2);
+        color: var(--muted);
+      }
+
+      /* ── 布局示意 ───────────────────────── */
+      .wire {
+        display: grid;
+        gap: 8px;
+        background: var(--surface-2);
+        border: 1px dashed var(--line);
+        border-radius: var(--r-lg);
+        padding: 8px;
+        font-family: var(--sans);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .wire b {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .wire > div {
+        background: var(--surface);
+        border-radius: 6px;
+        padding: 10px;
+      }
+      .wire-2 {
+        grid-template-columns: 240px 1fr;
+        min-height: 96px;
+      }
+      .wire-3 {
+        grid-template-columns: 200px 1fr 240px;
+        min-height: 120px;
+      }
+      .wire-4 {
+        grid-template-columns: 220px 1fr;
+        min-height: 120px;
+      }
+      @media (max-width: 800px) {
+        .wire-2,
+        .wire-3,
+        .wire-4 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* ── 多语言样本 ─────────────────────── */
+      .lang-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 16px 0 0;
+      }
+      @media (max-width: 800px) {
+        .lang-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .lang-grid figure {
+        margin: 0;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        padding: 16px;
+      }
+      .lang-grid figcaption {
+        font-family: var(--sans);
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .lang-grid p {
+        margin: 0;
+        font-size: 17px;
+        line-height: 1.9;
+      }
+      .lang-grid .glyph {
+        font-size: 22px;
+        letter-spacing: 0.1em;
+        margin-top: 10px;
+        color: var(--muted);
+      }
+
+      /* ── 场景演示 ───────────────────────── */
+      .tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 16px 0;
+      }
+      .frame {
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        padding: 14px;
+        overflow: auto;
+      }
+      .panel {
+        display: none;
+      }
+      .panel.is-on {
+        display: block;
+      }
+
+      .dash {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        min-width: 840px;
+        overflow: hidden;
+        font-family: var(--sans);
+      }
+      .dash-nav {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--line);
+      }
+      .dash-nav .name {
+        font-weight: 700;
+      }
+      .seg {
+        display: flex;
+        background: var(--surface-2);
+        border-radius: 999px;
+        padding: 3px;
+      }
+      .seg span {
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .seg span.on {
+        background: var(--accent);
+        color: var(--on-accent);
+      }
+      .search {
+        margin-left: auto;
+        width: 220px;
+        height: var(--hit-compact);
+        border-radius: 8px;
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+      .dash-body {
+        display: grid;
+        grid-template-columns: 210px 1fr;
+        min-height: 380px;
+      }
+      .side {
+        padding: 12px;
+        border-right: 1px solid var(--line);
+      }
+      .side h4 {
+        margin: 0 0 8px;
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .src {
+        padding: 8px;
+        border-radius: 8px;
+      }
+      .src.on {
+        background: var(--surface);
+      }
+      .src b {
+        display: block;
+        font-size: 13px;
+      }
+      .src em {
+        font-style: normal;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .main {
+        padding: 14px 16px;
+      }
+      .main header {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .main h3 {
+        font-size: 17px;
+        margin: 0;
+      }
+      .cards {
+        columns: 2;
+        column-gap: 10px;
+      }
+      .hcard {
+        break-inside: avoid;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      .hcard .kind {
+        font-family: var(--sans);
+        font-size: 11px;
+        color: var(--accent-text);
+        font-weight: 700;
+      }
+      .hcard blockquote {
+        margin: 8px 0;
+        font-size: 14px;
+        line-height: 1.65;
+      }
+      .hcard .note {
+        color: var(--muted);
+        font-size: 13px;
+        margin: 8px 0;
+      }
+      .hcard footer {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--sans);
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .popup {
+        width: 320px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: var(--shadow);
+        font-family: var(--sans);
+      }
+      .popup header {
+        display: flex;
+        align-items: center;
+        font-weight: 700;
+        margin-bottom: 10px;
+        gap: 8px;
+      }
+      .popup .icons {
+        margin-left: auto;
+        display: flex;
+        gap: 6px;
+      }
+      .icon-btn {
+        width: var(--hit-compact);
+        height: var(--hit-compact);
+        border-radius: var(--r);
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+      }
+      .hit {
+        display: grid;
+        grid-template-columns: 3px 1fr;
+        gap: 8px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+        font-family: var(--read);
+      }
+      .hit p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .hit small {
+        font-family: var(--sans);
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .webpage {
+        background: #fff;
+        color: #111;
+        border-radius: var(--r-lg);
+        padding: 24px 28px 76px;
+        position: relative;
+        min-height: 340px;
+        font-family: Georgia, "Songti SC", serif;
+      }
+      html[data-theme="dark"] .webpage {
+        box-shadow: inset 0 0 0 1px var(--line);
+      }
+      .webpage .site {
+        font-family: var(--sans);
+        font-size: 11px;
+        color: #64748b;
+      }
+      .webpage h3 {
+        font-size: 22px;
+        margin: 6px 0 12px;
+      }
+      .webpage p {
+        font-size: 16px;
+        line-height: 1.8;
+        max-width: 42em;
+      }
+      mark.inherit {
+        background: color-mix(
+          in srgb,
+          var(--mark-1) var(--mark-alpha),
+          transparent
+        );
+        color: inherit;
+        padding: 0 1px;
+      }
+      :root {
+        --mark-alpha: 42%;
+        --mark-underline: 2px;
+        --mark-wavy: 1.5px;
+        --mark-radius: 3px;
+      }
+      .mark-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 4px;
+      }
+      @media (max-width: 720px) {
+        .mark-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .mark-page {
+        border-radius: var(--r-lg);
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        font-family: var(--read);
+        font-size: 15px;
+        line-height: 1.8;
+      }
+      .mark-page p {
+        margin: 8px 0 0;
+      }
+      .mark-page.is-light {
+        background: #ffffff;
+        color: #24211d;
+      }
+      .mark-page.is-dark {
+        background: #1b1b1f;
+        color: #dedbd4;
+      }
+      .mark-page .mark-site {
+        font-family: var(--sans);
+        font-size: 11px;
+        opacity: 0.6;
+      }
+      .swatch-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 12px 0 20px;
+      }
+      .swatch-wrap {
+        position: relative;
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+      }
+      .swatch-wrap .sw {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+      }
+      .swatch-edit {
+        position: absolute;
+        right: -5px;
+        bottom: -5px;
+        width: 18px;
+        height: 18px;
+        border-radius: var(--r-sm);
+        background: var(--surface);
+        border: 1px solid var(--control-border);
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+      }
+      .swatch-edit .i {
+        width: 11px;
+        height: 11px;
+      }
+      mark.paint {
+        background: color-mix(
+          in srgb,
+          var(--c, var(--mark-1)) var(--mark-alpha),
+          transparent
+        );
+        color: inherit;
+        border-radius: var(--mark-radius);
+        padding: 0 2px;
+      }
+      mark.under,
+      mark.wavy {
+        background: none;
+        color: inherit;
+        text-decoration-color: var(--c, var(--mark-1));
+        text-decoration-thickness: var(--mark-underline);
+        text-underline-offset: 0.12em;
+        text-decoration-skip-ink: auto;
+      }
+      mark.under {
+        text-decoration-line: underline;
+        text-decoration-style: solid;
+      }
+      mark.wavy {
+        text-decoration-line: underline;
+        text-decoration-style: wavy;
+        text-decoration-thickness: var(--mark-wavy);
+        text-underline-offset: 0.16em;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+      .float-bar {
+        position: absolute;
+        left: 36%;
+        top: 46%;
+        display: flex;
+        gap: 4px;
+        padding: 5px;
+        border-radius: 999px;
+        background: var(--overlay);
+        color: var(--overlay-text);
+        box-shadow: var(--shadow);
+      }
+      .float-bar button {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: 99px;
+        background: transparent;
+        color: var(--overlay-text);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+      .float-bar button:hover {
+        background: var(--overlay-hover);
+      }
+      .modal {
+        position: absolute;
+        right: 16px;
+        top: 48px;
+        width: 264px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: var(--shadow);
+        font-family: var(--sans);
+      }
+      .modal .modal-kind {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+      .modal .preview {
+        font-family: var(--read);
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 8px 0 10px;
+        padding: 8px 10px;
+        background: var(--surface-2);
+        border-radius: 8px;
+      }
+      .modal input {
+        width: 100%;
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 7px 8px;
+      }
+
+      .pdf {
+        display: grid;
+        grid-template-rows: 44px 1fr;
+        min-height: 520px;
+        background: var(--well);
+        color: var(--well-text);
+        border-radius: var(--r-lg);
+        overflow: hidden;
+        font-family: var(--sans);
+      }
+      .pdf-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        background: var(--well-chrome);
+        border-bottom: 1px solid var(--well-border);
+        font-size: 12px;
+      }
+      .pdf-bar button {
+        height: var(--hit-compact);
+        padding: 0 8px;
+        border-radius: var(--r);
+        border: 1px solid var(--well-control-border);
+        background: var(--well-control-bg);
+        color: var(--well-text);
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .pdf-bar .title {
+        flex: 1;
+        text-align: center;
+        color: var(--well-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .pdf-bar .count {
+        color: var(--well-muted);
+        min-width: 52px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .pdf-body {
+        display: grid;
+        grid-template-columns: 190px 1fr 230px;
+        min-height: 0;
+      }
+      .pdf-col {
+        background: var(--well-chrome);
+        padding: 10px;
+        font-size: 12px;
+        overflow: auto;
+      }
+      .pdf-col + .pdf-col,
+      .pdf-stage {
+        border-left: 1px solid var(--well-border);
+      }
+      .pdf-col h4 {
+        margin: 0 0 8px;
+        color: var(--well-muted);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .pdf-item {
+        padding: 7px 8px;
+        border-radius: 6px;
+        color: var(--well-text);
+      }
+      .pdf-item.on {
+        background: var(--well-border);
+      }
+      .pdf-item small {
+        display: block;
+        color: var(--well-muted);
+      }
+      .pdf-stage {
+        background: var(--well);
+        display: flex;
+        justify-content: center;
+        padding: 20px 16px 32px;
+      }
+      .pdf-page {
+        position: relative;
+        width: min(420px, 100%);
+        aspect-ratio: 210 / 297;
+        background: #fff;
+        color: #111;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+        padding: 22px 24px 28px;
+        font-family: "Times New Roman", "Songti SC", serif;
+        overflow: hidden;
+      }
+      .pdf-page .running {
+        font-family: var(--sans);
+        font-size: 9px;
+        color: #666;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .pdf-page h3 {
+        font-size: 13px;
+        margin: 0 0 8px;
+      }
+      .pdf-page .cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        font-size: 9.5px;
+        line-height: 1.45;
+        text-align: justify;
+      }
+      .pdf-page .pg {
+        position: absolute;
+        bottom: 10px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 10px;
+        color: #666;
+      }
+      .quad {
+        position: absolute;
+        left: 24px;
+        top: 92px;
+        width: 46%;
+        height: 28px;
+        background: color-mix(in srgb, var(--mark-1) 38%, transparent);
+      }
+      .pdf-insp blockquote {
+        margin: 8px 0;
+        color: var(--well-text);
+        font-size: 13px;
+        line-height: 1.5;
+        font-family: var(--read);
+      }
+      .pdf-insp textarea {
+        width: 100%;
+        height: 70px;
+        border-radius: 8px;
+        border: 1px solid var(--well-control-border);
+        background: var(--well-control-bg);
+        color: var(--well-text);
+        padding: 8px;
+        font-size: 12px;
+        font-family: var(--read);
+      }
+
+      .reader {
+        background: var(--surface);
+        border-radius: var(--r-lg);
+        padding: 28px 18px 40px;
+        display: flex;
+        justify-content: center;
+      }
+      .reader article {
+        max-width: 38em;
+      }
+      .reader .meta {
+        font-family: var(--sans);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .reader h3 {
+        font-size: 28px;
+        font-weight: 600;
+        margin: 8px 0 14px;
+      }
+      .reader p {
+        font-size: 17px;
+        line-height: 1.85;
+      }
+      .tools {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+        font-family: var(--sans);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .tools span {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 4px 8px;
+      }
+      .phone-in header {
+        padding: 16px 16px 8px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .phone-in .row {
+        margin: 0 12px 8px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        font-size: 13px;
+        font-family: var(--read);
+        line-height: 1.5;
+      }
+      /* ── 状态示例 ───────────────────────── */
+      .state-demo {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      @media (max-width: 800px) {
+        .state-demo {
+          grid-template-columns: 1fr;
+        }
+      }
+      .state {
+        min-height: 140px;
+        display: grid;
+        place-content: center;
+        gap: 8px;
+        text-align: center;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        padding: 16px;
+      }
+      .state .i {
+        margin: 0 auto;
+        color: var(--muted);
+        width: 22px;
+        height: 22px;
+      }
+      .state p {
+        margin: 0;
+        font-size: 14px;
+      }
+      .state small {
+        font-family: var(--sans);
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .skeleton {
+        height: 12px;
+        border-radius: 6px;
+        background: var(--skeleton);
+        background-image: linear-gradient(
+          90deg,
+          transparent,
+          color-mix(in srgb, var(--text) 8%, transparent),
+          transparent
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.6s linear infinite;
+      }
+      .skeleton.w1 {
+        width: 70%;
+        margin: 0 auto;
+      }
+      .skeleton.w2 {
+        width: 45%;
+        margin: 0 auto;
+      }
+      @keyframes shimmer {
+        from {
+          background-position: 200% 0;
+        }
+        to {
+          background-position: -200% 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .skeleton {
+          animation: none;
+        }
+      }
+      .toast {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: var(--overlay);
+        color: var(--overlay-text);
+        font-family: var(--sans);
+        font-size: 12px;
+        box-shadow: var(--shadow);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr auto 1fr;
+        gap: 8px;
+        align-items: stretch;
+      }
+      .flow .card {
+        margin: 0;
+      }
+      .arrow {
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+      }
+      @media (max-width: 800px) {
+        .flow {
+          grid-template-columns: 1fr;
+        }
+        .flow .arrow {
+          transform: rotate(90deg);
+        }
+      }
+
+      /* ── 浮动目录 ───────────────────────── */
+      .toc {
+        position: fixed;
+        left: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 30;
+        width: 200px;
+        max-height: min(72vh, 620px);
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        gap: 0;
+        background: var(--surface);
+        border: 1px solid var(--control-border);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        font-family: var(--sans);
+        overflow: hidden;
+        transition: width var(--motion-med) var(--ease-out);
+      }
+      .toc-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 8px 8px 12px;
+        flex: none;
+      }
+      .toc-title {
+        flex: 1;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        letter-spacing: 0.06em;
+      }
+      .toc-toggle {
+        width: var(--hit-compact);
+        height: var(--hit-compact);
+        border-radius: 8px;
+        border: 1px solid var(--control-border);
+        background: var(--control-bg);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+      }
+      .toc-toggle .i {
+        transition: transform var(--motion-med) var(--ease-out);
+      }
+      .toc-list {
+        list-style: none;
+        margin: 0;
+        padding: 2px 8px 10px;
+        overflow-y: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+      .toc-list ol {
+        list-style: none;
+        margin: 2px 0 6px 12px;
+        padding: 0 0 0 8px;
+        border-left: 1px solid var(--line);
+        display: none;
+      }
+      .toc-list li.is-open > ol {
+        display: block;
+      }
+      .toc-list a {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        min-height: var(--hit-compact);
+        padding: 4px 8px;
+        border-radius: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .toc-list ol a {
+        font-size: 11px;
+        padding: 4px 8px;
+      }
+      .toc-list a:hover {
+        background: var(--surface-2);
+        color: var(--text);
+      }
+      .toc-list a.on {
+        background: var(--surface-2);
+        color: var(--accent-text);
+        font-weight: 600;
+      }
+      .toc-list .n {
+        font-size: 10px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        flex: none;
+      }
+      .toc.is-collapsed {
+        width: 44px;
+      }
+      .toc.is-collapsed .toc-head {
+        padding: 0;
+      }
+      .toc.is-collapsed .toc-title,
+      .toc.is-collapsed .toc-list {
+        display: none;
+      }
+      .toc.is-collapsed .toc-toggle {
+        width: 42px;
+        height: 42px;
+        border: 0;
+        background: transparent;
+        border-radius: var(--r);
+      }
+      .toc.is-collapsed .toc-toggle .i {
+        transform: rotate(180deg);
+      }
+      @media (max-width: 860px) {
+        .toc {
+          display: none;
+        }
+      }
+
+      /* ── 瀑布流 ─────────────────────────── */
+      .masonry-demo {
+        columns: 3;
+        column-gap: 10px;
+      }
+      .masonry-demo .m {
+        break-inside: avoid;
+        margin: 0 0 10px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        padding: 12px;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .masonry-demo .m .tag {
+        margin-bottom: 6px;
+      }
+      @media (max-width: 860px) {
+        .masonry-demo {
+          columns: 2;
+        }
+      }
+      @media (max-width: 560px) {
+        .masonry-demo {
+          columns: 1;
+        }
+      }
+
+      footer.foot {
+        margin-top: 64px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        font-family: var(--sans);
+        color: var(--muted);
+        font-size: 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="i-highlighter" viewBox="0 0 24 24">
+        <path d="m9 11-6 6v3h9l3-3" />
+        <path
+          d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"
+        />
+      </symbol>
+      <symbol id="i-clip" viewBox="0 0 24 24">
+        <path
+          d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+        />
+        <rect x="8" y="2" width="8" height="4" rx="1" />
+      </symbol>
+      <symbol id="i-crop" viewBox="0 0 24 24">
+        <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+        <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </symbol>
+      <symbol id="i-file" viewBox="0 0 24 24">
+        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+        <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+        <path d="M16 13H8" />
+        <path d="M16 17H8" />
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <path
+          d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+        />
+        <circle cx="12" cy="12" r="3" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M3 6h18" />
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect width="14" height="14" x="8" y="8" rx="2" />
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+      </symbol>
+      <symbol id="i-external" viewBox="0 0 24 24">
+        <path d="M15 3h6v6" />
+        <path d="M10 14 21 3" />
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      </symbol>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24">
+        <path d="m15 18-6-6 6-6" />
+      </symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6" />
+      </symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24">
+        <path d="M4 6h16" />
+        <path d="M4 12h16" />
+        <path d="M4 18h16" />
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M5 12h14" />
+        <path d="M12 5v14" />
+      </symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2" />
+        <path d="M12 20v2" />
+        <path d="m4.93 4.93 1.41 1.41" />
+        <path d="m17.66 17.66 1.41 1.41" />
+        <path d="M2 12h2" />
+        <path d="M20 12h2" />
+        <path d="m6.34 17.66-1.41 1.41" />
+        <path d="m19.07 4.93-1.41 1.41" />
+      </symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24">
+        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+      </symbol>
+      <symbol id="i-tag" viewBox="0 0 24 24">
+        <path
+          d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+        />
+        <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+      </symbol>
+      <symbol id="i-book" viewBox="0 0 24 24">
+        <path d="M12 7v14" />
+        <path
+          d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"
+        />
+      </symbol>
+      <symbol id="i-list" viewBox="0 0 24 24">
+        <path d="M8 6h13" />
+        <path d="M8 12h13" />
+        <path d="M8 18h13" />
+        <path d="M3 6h.01" />
+        <path d="M3 12h.01" />
+        <path d="M3 18h.01" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="M20 6 9 17l-5-5" />
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M12 15V3" />
+      </symbol>
+      <symbol id="i-text" viewBox="0 0 24 24">
+        <path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2" />
+        <path d="M9 20h6" />
+        <path d="M12 4v16" />
+      </symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24">
+        <path d="m12 2 9 5-9 5-9-5 9-5" />
+        <path d="m3 12 9 5 9-5" />
+        <path d="m3 17 9 5 9-5" />
+      </symbol>
+    </svg>
+
+    <div class="top">
+      <div class="brand">MyZ<span>设计系统 · v0.1</span></div>
+      <nav>
+        <a href="#principles">原则</a>
+        <a href="#color">色彩</a>
+        <a href="#type">字体</a>
+        <a href="#voice">文案</a>
+        <a href="#layout">布局</a>
+        <a href="#ui">组件</a>
+        <a href="#motion">动效</a>
+        <a href="#a11y">无障碍</a>
+        <a href="#scenes">场景</a>
+      </nav>
+      <div class="top-actions">
+        <div class="scheme-picker" id="scheme-picker">
+          <button
+            class="scheme-trigger"
+            id="scheme-trigger"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+          >
+            <svg class="i" aria-hidden="true"><use href="#i-layers" /></svg>
+            <span id="scheme-label">米纸</span>
+            <svg class="i chev" aria-hidden="true">
+              <use href="#i-chevron-right" />
+            </svg>
+          </button>
+          <div
+            class="menu scheme-menu"
+            id="scheme-menu"
+            role="listbox"
+            aria-label="配色方案"
+          >
+            <div class="menu-group">配色方案</div>
+            <button
+              class="menu-item is-on"
+              type="button"
+              role="option"
+              data-scheme="paper"
+            >
+              <svg class="i check" aria-hidden="true">
+                <use href="#i-check" /></svg
+              >米纸<span class="meta">默认</span>
+            </button>
+            <button
+              class="menu-item"
+              type="button"
+              role="option"
+              data-scheme="slate"
+            >
+              <svg class="i check" aria-hidden="true">
+                <use href="#i-check" /></svg
+              >冷灰
+            </button>
+            <button
+              class="menu-item"
+              type="button"
+              role="option"
+              data-scheme="celadon"
+            >
+              <svg class="i check" aria-hidden="true">
+                <use href="#i-check" /></svg
+              >青瓷
+            </button>
+            <button
+              class="menu-item"
+              type="button"
+              role="option"
+              data-scheme="ochre"
+            >
+              <svg class="i check" aria-hidden="true">
+                <use href="#i-check" /></svg
+              >赭石
+            </button>
+          </div>
+        </div>
+        <div class="switch" role="group" aria-label="浅色或深色">
+          <button class="chip is-on" id="theme-light" type="button">
+            <svg class="i" aria-hidden="true"><use href="#i-sun" /></svg>浅色
+          </button>
+          <button class="chip" id="theme-dark" type="button">
+            <svg class="i" aria-hidden="true"><use href="#i-moon" /></svg>深色
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <nav class="toc" id="toc" aria-label="页面目录">
+      <div class="toc-head">
+        <span class="toc-title">目录</span>
+        <button
+          class="toc-toggle"
+          id="toc-toggle"
+          type="button"
+          aria-label="收起目录"
+          aria-expanded="true"
+        >
+          <svg class="i" aria-hidden="true"><use href="#i-chevron-left" /></svg>
+        </button>
+      </div>
+      <ol class="toc-list" id="toc-list"></ol>
+    </nav>
+
+    <main class="wrap">
+      <header class="hero">
+        <div class="kicker">MyZ Annotator 设计系统 · 草案 · 2026.09</div>
+        <h1>用于标注与阅读的设计系统</h1>
+        <p class="lede">
+          这套东西主要用在 MyZ Annotator
+          里：一个本地优先的标注与阅读工具。用户在网页和 PDF
+          上划线、摘录、写批注，之后回到自己的文库里重新翻看。系统围绕这两件事展开——采集要快，不打断阅读；回看要清楚，找得到、读得下去。
+        </p>
+        <dl class="hero-spec">
+          <div>
+            <dt>默认底色</dt>
+            <dd>米纸 #F5F4ED</dd>
+          </div>
+          <div>
+            <dt>强调色</dt>
+            <dd>油墨蓝 #1B365D</dd>
+          </div>
+          <div>
+            <dt>长文</dt>
+            <dd>Newsreader + Noto Serif</dd>
+          </div>
+          <div>
+            <dt>界面</dt>
+            <dd>系统无衬线</dd>
+          </div>
+          <div>
+            <dt>图标</dt>
+            <dd>Lucide</dd>
+          </div>
+        </dl>
+      </header>
+
+      <section class="sec" id="scene" data-label="使用场景">
+        <h2><span class="num">01 ·</span>使用场景</h2>
+        <p>
+          系统服务的是个人知识工作者和学习者本人。颜色、字体、控件都围绕他们真实的几种动作来定。
+        </p>
+        <div class="split">
+          <div class="main">
+            <h3 style="margin-top: 0">产品是什么</h3>
+            <p>
+              一个本地的文本采集与阅读工具。把网页或 PDF
+              里值得留下的句子划线、摘录下来，加上自己的批注，之后能在文库或阅读器里重新找到、重新读。不做
+              AI，不联网也能用。
+            </p>
+            <h3>给谁用</h3>
+            <p>
+              个人知识工作者和学习者本人。一边读一边记，几个月后还要翻出来用。通常不整理成漂亮的笔记，只是想把好句子留下来。
+            </p>
+            <h3>日常怎么用</h3>
+            <p>
+              一天里很多次「随手一划」，偶尔几次「坐下来回看」。采集必须快、不能打断阅读；回看必须找得到、读得下去。这两件事的时间完全不同，也是一切取舍的依据。
+            </p>
+          </div>
+          <div class="side">
+            <table>
+              <thead>
+                <tr>
+                  <th>习惯</th>
+                  <th>对设计的要求</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>选中一段，马上就想划线</td>
+                  <td>
+                    采集条要在视线附近出现，动作一步到位，不能弹大窗口挡住上下文
+                  </td>
+                </tr>
+                <tr>
+                  <td>经常在深夜或通勤路上读</td>
+                  <td>深色和浅色都要真能用，不能一套是附赠</td>
+                </tr>
+                <tr>
+                  <td>一读就是半小时以上</td>
+                  <td>长文用衬线、纸色、宽行距，界面要退到后面</td>
+                </tr>
+                <tr>
+                  <td>PDF 占很大一部分</td>
+                  <td>原页不能动，页码和图注得对得上，否则下次找不回来</td>
+                </tr>
+                <tr>
+                  <td>几个月后回来找一句话</td>
+                  <td>记录要能按来源和文中顺序还原，不能只剩一坨卡片</td>
+                </tr>
+                <tr>
+                  <td>既在电脑也在手机上</td>
+                  <td>跨设备共用同一套语言，不要每个端换一副面孔</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="principles" data-label="原则">
+        <h2><span class="num">02 ·</span>原则</h2>
+        <p>
+          MyZ 同时待在别人的网页上、翻 PDF
+          原页，也在自己的文库里回看。先把界限划清楚，再谈好看。每条原则下面都写了理由，方便以后判断一个新想法该不该做。
+        </p>
+
+        <h3 style="margin-top: 0">原页不重排</h3>
+        <p>
+          网页用网站自己的排版。PDF 用 pdf.js
+          画出的原页，划线是叠在页面坐标上的一个框。缩放只改整页大小，不改断行。
+        </p>
+        <div class="why" style="margin-top: 0">
+          <b>Rationale</b
+          >产品对用户的承诺很具体：点开原文，还能看见那句话就在原处。一旦重排，页码、分栏、图注、标注坐标都会对不上。EPUB
+          以后可以重排，是因为它本身没有固定页，这和 PDF 是两回事。
+        </div>
+
+        <h3>只统一属于我们的部分</h3>
+        <p>
+          采集条、弹窗、文库、PDF
+          阅读器的外框共用同一套颜色和组件，深浅色跟着设置走。原文本身不跟着换字体。
+        </p>
+        <div class="why" style="margin-top: 0">
+          <b>Rationale</b
+          >外框是我们的产品，原文是别人的。只统一能统一的，扩展、桌面、手机才能共用同一份代码。
+        </div>
+
+        <h3>划线是记录，不是装饰</h3>
+        <p>
+          五个高亮颜色是用户自己定的记录数据，换配色方案和深浅色都不能跟着变。品牌色只用在按钮、当前项和链接上，不跟划线抢颜色。
+        </p>
+        <div class="why" style="margin-top: 0">
+          <b>Rationale</b
+          >用户可能已经用琥珀色标了半年，换一套主题就改写颜色，等于把他整理过的东西打乱了。同类道理也适用于采集条：它是临时的操作层，不是用户的阅读环境，所以固定深色，不跟主题变。
+        </div>
+
+        <h3>按阅读时长选字体</h3>
+        <p>
+          界面用系统自带字体。需要长时间阅读的内容用衬线体：西文用
+          Newsreader，中文按界面语言选对应的 Noto Serif 地区版本。
+        </p>
+        <div class="why" style="margin-top: 0">
+          <b>Rationale</b
+          >按钮看一眼就走，摘录却会盯着读很久。衬线体更适合长段阅读，西文和中文也用同一类气质，一段英文插进来不会显得突兀。界面跟着系统走，插件才不像贴上去的一层皮。
+        </div>
+
+        <h3>松紧看场景</h3>
+        <p>
+          采集条和 PDF 顶栏用紧凑尺寸 32，文库用常规 36，手机上用触控尺寸
+          44。同一种组件只改高度，不改长相。
+        </p>
+        <div class="why" style="margin-top: 0">
+          <b>Rationale</b
+          >采集是在别人的文字上面操作，按钮一大就挡住内容；手机手指粗，按钮一小就点不准。尺寸跟着使用场景走，视觉语言只保留一套。
+        </div>
+
+        <h3>默认不用阴影</h3>
+        <p>
+          层次靠留白和一条细线来分。只给真正浮起来的采集条、批注面板和弹窗加阴影。
+        </p>
+        <div class="why" style="margin-top: 0">
+          <b>Rationale</b
+          >到处加阴影和大圆角，是在和网页本身抢层级，也让文库看着像数据管理工具，而不是阅读工具。
+        </div>
+
+        <h3>一个动作一个词</h3>
+        <p>
+          同一个功能只用一个说法。代码里的内部叫法可以保留，但不能印在按钮上让用户猜。
+        </p>
+        <div class="why" style="margin-top: 0">
+          <b>Rationale</b
+          >「定位」「查看」「在阅读器中打开」其实是同一件事，却像三个功能。用词不稳定，按钮和空状态就没法复用。「智能助理」也和已经确定的「不做
+          AI」矛盾。
+        </div>
+
+        <h3>动效只解释变化</h3>
+        <p>动效回答的是「它出现了」「找到了」。正在读的文字，位置不要动。</p>
+        <div class="why" style="margin-top: 0">
+          <b>Rationale</b
+          >划线和阅读都需要集中注意力，正文一动，用户会以为页面自己在跳。切换深浅色时只改颜色，文字保持原位。
+        </div>
+      </section>
+
+      <section class="sec" id="color" data-label="色彩">
+        <h2><span class="num">03 ·</span>色彩</h2>
+        <p>
+          顶栏可以选择配色方案和浅色深色。默认米纸，喜欢中性一点可以换冷灰，青瓷偏冷绿，赭石偏暖棕。换的只是文库、弹窗、采集条和阅读器的外框，高亮五色始终不变。
+        </p>
+        <div class="grid-2" style="margin-top: 16px">
+          <div class="card">
+            <h3>米纸 · 默认</h3>
+            <p>
+              暖米底，油墨蓝强调色。长时间阅读不刺眼，也是产品的默认长相。浅色
+              <code>#F5F4ED</code>，深色 <code>#141413</code>。
+            </p>
+          </div>
+          <div class="card">
+            <h3>冷灰</h3>
+            <p>
+              中性冷灰配靛蓝，最接近系统默认观感。浅色
+              <code>#F8FAFC</code>，深色 <code>#0F172A</code>。
+            </p>
+          </div>
+          <div class="card">
+            <h3>青瓷</h3>
+            <p>
+              极浅的青绿底，深绿强调色。冷静、偏自然，适合长时间看文字。浅色
+              <code>#F2F4EE</code>，深色 <code>#101512</code>。
+            </p>
+          </div>
+          <div class="card">
+            <h3>赭石</h3>
+            <p>
+              暖沙底，铁锈红强调色。比米纸更暖更旧纸，适合喜欢纸张质感的人。浅色
+              <code>#F6F0E6</code>，深色 <code>#17130F</code>。
+            </p>
+          </div>
+        </div>
+        <div class="why">
+          <b>Rationale</b
+          >配色方案是「外框的气质」，不是功能。做成可选项，是因为不同人对底色温度的接受度差很多：有人喜欢米纸的暖，有人觉得冷灰更干净。但无论选哪套，高亮五色、语义色、控件尺寸都不变，文库里的记录也不会因为换方案而改颜色。
+        </div>
+        <div class="palette" id="live-palette">
+          <figure>
+            <i style="background: var(--bg)"></i>
+            <figcaption>
+              <strong>背景</strong><span data-token="bg"></span>
+            </figcaption>
+          </figure>
+          <figure>
+            <i style="background: var(--surface)"></i>
+            <figcaption>
+              <strong>卡片</strong><span data-token="surface"></span>
+            </figcaption>
+          </figure>
+          <figure>
+            <i style="background: var(--surface-2)"></i>
+            <figcaption>
+              <strong>浅底</strong><span data-token="surface-2"></span>
+            </figcaption>
+          </figure>
+          <figure>
+            <i style="background: var(--text)"></i>
+            <figcaption>
+              <strong>正文</strong><span data-token="text"></span>
+            </figcaption>
+          </figure>
+          <figure>
+            <i style="background: var(--accent)"></i>
+            <figcaption>
+              <strong>强调色</strong><span data-token="accent"></span>
+            </figcaption>
+          </figure>
+          <figure>
+            <i style="background: var(--well)"></i>
+            <figcaption>
+              <strong>阅读底</strong><span data-token="well"></span>
+            </figcaption>
+          </figure>
+        </div>
+        <div class="grid-2" style="margin-top: 16px">
+          <div class="card">
+            <h3>五支笔</h3>
+            <div class="swatches" style="margin: 8px 0">
+              <span class="sw on" style="background: #b58900"></span>
+              <span class="sw" style="background: #ef476f"></span>
+              <span class="sw" style="background: #9f7aea"></span>
+              <span class="sw" style="background: #38bdf8"></span>
+              <span class="sw" style="background: #34d399"></span>
+            </div>
+            <p>
+              网页上的划线跟着原文的字体走，PDF
+              上是页面上的一个色块。这五个颜色属于记录数据，换配色方案和深浅色都不改。
+            </p>
+          </div>
+          <div class="card">
+            <h3>采集条的底色</h3>
+            <p>
+              采集条出现在任何网页上，且不知道页面是什么颜色，所以固定用深色，不跟随配色方案和深浅色。组件一节有它在浅色和深色网页上的样子。
+            </p>
+          </div>
+        </div>
+
+        <h3>划线怎么画</h3>
+        <div class="split">
+          <div class="main">
+            <p style="margin-top: 0">
+              存下来的颜色是不透明的十六进制值，但画到页面上时不直接铺满，而是混进透明再叠上去，让原来的字保持清楚。涂色大约
+              40%，下划线和波浪线只画线、不填底，所以用实色也没有遮挡问题。
+            </p>
+            <div class="mark-grid">
+              <div class="mark-page is-light">
+                <div class="mark-site">浅色网页</div>
+                <p>
+                  阅读时留下痕迹，但
+                  <mark class="paint" style="--c: var(--mark-1)"
+                    >字本身必须还能读</mark
+                  >，所以底色是
+                  <mark class="paint" style="--c: var(--mark-4)">半透明的</mark
+                  >，不是一块实心色。
+                </p>
+                <p>
+                  需要保留纸面时用
+                  <mark class="under" style="--c: var(--mark-3)">下划线</mark
+                  >，存疑或存异用
+                  <mark class="wavy" style="--c: var(--mark-2)">波浪线</mark>。
+                </p>
+              </div>
+              <div class="mark-page is-dark">
+                <div class="mark-site">深色网页</div>
+                <p>
+                  同一套颜色和同一个透明度，叠在深色底上。
+                  <mark class="paint" style="--c: var(--mark-1)"
+                    >文字依然压得住底色</mark
+                  >，不会因为变亮而糊掉。
+                </p>
+                <p>
+                  <mark class="under" style="--c: var(--mark-5)">下划线</mark
+                  >在深色底上更倚赖颜色本身的亮度。
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="side">
+            <table>
+              <thead>
+                <tr>
+                  <th>样式</th>
+                  <th>怎么画</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>涂色 paint</td>
+                  <td>
+                    <code>color-mix(in srgb, &lt;色&gt; 42%, transparent)</code
+                    >，圆角 3，左右各留 2px
+                  </td>
+                </tr>
+                <tr>
+                  <td>下划线 underline</td>
+                  <td>不填底，线用实色，粗 2px，下移约 0.12em</td>
+                </tr>
+                <tr>
+                  <td>波浪线 wavy</td>
+                  <td>不填底，线用实色，粗 1.5px，下移约 0.16em</td>
+                </tr>
+                <tr>
+                  <td>存储的值</td>
+                  <td>
+                    始终是不透明十六进制；透明度只在渲染时加，数据不随主题变
+                  </td>
+                </tr>
+                <tr>
+                  <td>PDF</td>
+                  <td>
+                    盖在渲染好的页面上，用图层透明度 35%，选中的那条升到 55%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="why">
+          <b>Rationale</b
+          >用户划线是为了以后还能读，不是为了把句子涂掉。如果铺实色，底色下面的文字、行距和相邻内容都会被压掉，读第二遍反而更费劲；换成半透明之后，痕迹还在，字也在。透明度只在渲染时用
+          <code>color-mix</code>
+          加，所以同一份记录换配色方案、换深浅色，存的值都不变。下划线和波浪线本来就不盖字，直接用实色最清楚。这套规则对网页和
+          PDF 都成立，只是 PDF
+          那边盖的是渲染结果，改用图层透明度来实现。另外，天蓝、青绿这类本身偏亮的颜色，在浅色页面上可以比其他颜色多混一点（约
+          50%），把文字对比度拉回来，其余三个中等明度的颜色维持 42% 即可。
+        </div>
+
+        <h3>对外框说同一件事：警告、错误、成功、提示</h3>
+        <p>
+          除了品牌色，产品还需要一组说明状态的颜色。它们统一跟深浅色走，不跟配色方案走——错误就是错误，不该因为换了主题变成另一种红。
+        </p>
+        <div class="semantic">
+          <div class="s s-warn">
+            <div class="s-top">警告</div>
+            <div class="s-body">
+              用于可恢复的提示，例如「选区与已有划线重叠」。<br /><code
+                >--warn / --warn-bg</code
+              >
+            </div>
+          </div>
+          <div class="s s-error">
+            <div class="s-top">错误</div>
+            <div class="s-body">
+              用于失败，例如「没能打开这份文件」。<br /><code
+                >--error / --error-bg</code
+              >
+            </div>
+          </div>
+          <div class="s s-success">
+            <div class="s-top">成功</div>
+            <div class="s-body">
+              用于确认，例如「已保存」。<br /><code
+                >--success / --success-bg</code
+              >
+            </div>
+          </div>
+          <div class="s s-info">
+            <div class="s-top">提示</div>
+            <div class="s-body">
+              用于中性说明，例如「这条已改成摘录」。<br /><code
+                >--info / --info-bg</code
+              >
+            </div>
+          </div>
+        </div>
+        <div class="why">
+          <b>Rationale</b
+          >状态色收敛成四个语义名，深浅色各一套，同一个意思在任何页面都是同一个色号。写代码时只要说「这是警告」，不用每次去挑颜色；换主题也只改一处。
+        </div>
+        <h3>状态色的对比度</h3>
+        <div class="split">
+          <div class="main">
+            <p style="margin-top: 0">
+              语义色也逐对验算过：文字色落在自己的浅底色上、以及落在四种配色方案的页面底色上，都要求达到
+              4.5:1。
+            </p>
+            <div class="why" style="margin-top: 0">
+              <b>Rationale</b>浅色模式下「摘录」用的青色如果取
+              <code>#2F7F74</code>，落在赭石和青瓷的底色上只有 4.2
+              左右，偏浅。调深到 <code>#2B766C</code>
+              之后，最差的一组也有
+              4.5，其余状态色本来就达标。深色模式下这些颜色都是亮色压在深底上，最低
+              5.6，不需要动。
+            </div>
+          </div>
+          <div class="side">
+            <table>
+              <thead>
+                <tr>
+                  <th>语义色</th>
+                  <th>浅色 · 最低</th>
+                  <th>深色 · 最低</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>警告 warn</td>
+                  <td>4.97</td>
+                  <td>7.65</td>
+                </tr>
+                <tr>
+                  <td>错误 error</td>
+                  <td>5.05</td>
+                  <td>6.17</td>
+                </tr>
+                <tr>
+                  <td>成功 success</td>
+                  <td>4.99</td>
+                  <td>7.55</td>
+                </tr>
+                <tr>
+                  <td>提示 info</td>
+                  <td>5.67</td>
+                  <td>7.62</td>
+                </tr>
+                <tr>
+                  <td>摘录 clip</td>
+                  <td>4.50</td>
+                  <td>5.60</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <h3>深色下怎么分层</h3>
+        <div class="split">
+          <div class="main">
+            <p style="margin-top: 0">
+              浅色模式里，按钮靠一条边框就能和卡片分开。深色模式不行：卡片是
+              <code>#1C1C1A</code
+              >，按钮如果也用同一个颜色，就只剩一圈很淡的边，看不出哪里能点。
+            </p>
+            <div class="why" style="margin-top: 0">
+              <b>Rationale</b
+              >深色环境里眼睛对纯色的边界不敏感，靠加深阴影也没用——阴影落在本来就黑的底上什么都看不见。所以深色的层级改用「抬高底色」：按钮、输入框比所在容器亮一档，再加一条更清楚的边框。
+            </div>
+          </div>
+          <div class="side">
+            <table>
+              <thead>
+                <tr>
+                  <th>变量</th>
+                  <th>管什么</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>--control-bg</code></td>
+                  <td>按钮、输入框、下拉的底色，比所在卡片亮一档</td>
+                </tr>
+                <tr>
+                  <td><code>--control-border</code></td>
+                  <td>同一批控件的边框，比普通分隔线更明显</td>
+                </tr>
+                <tr>
+                  <td><code>--skeleton</code></td>
+                  <td>加载占位条的颜色，四种主题下都保证看得清</td>
+                </tr>
+                <tr>
+                  <td><code>--well-control-bg</code></td>
+                  <td>PDF 顶栏等阅读器外框里的控件底色</td>
+                </tr>
+                <tr>
+                  <td><code>--well-control-border</code></td>
+                  <td>阅读器外框里的控件边框</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="type" data-label="字体与排版">
+        <h2><span class="num">04 ·</span>字体与排版</h2>
+        <p>
+          字体栈是 <code>Newsreader, var(--cjk), serif</code>。西文走
+          Newsreader，中日韩文字走 Noto Serif
+          的地区版本，两者都是衬线，气质接近。中文只加载当前语言那一套，五套一起下会多出好几
+          MB。
+        </p>
+        <div class="split">
+          <div class="main">
+            <p style="margin-top: 0">
+              判断顺序是：用户在设置里选的语言，其次是
+              <code>chrome.i18n.getUILanguage()</code>，最后是
+              <code>navigator.language</code
+              >。换语言只换中文字体文件，Newsreader 和组件尺寸都不动。
+            </p>
+            <div class="why" style="margin-top: 0">
+              <b>Rationale</b
+              >简体、繁体、香港、日文、韩文不是字重区别，而是字形和字库不同。比如「骨」「門」在各地写法并不一样，用港台字体去凑日文会看着别扭。按界面语言换文件，比硬做一套「亚洲宋体」更准确，也更省流量。界面仍然用系统字体，因为操作系统早就按语言给了
+              PingFang、Hiragino、Apple SD Gothic。
+            </div>
+          </div>
+          <div class="side">
+            <table>
+              <thead>
+                <tr>
+                  <th>界面语言</th>
+                  <th>加载的字体</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>zh-CN</code> <code>zh-SG</code></td>
+                  <td>Noto Serif SC</td>
+                  <td>简体，默认</td>
+                </tr>
+                <tr>
+                  <td><code>zh-TW</code></td>
+                  <td>Noto Serif TC</td>
+                  <td>台湾正体</td>
+                </tr>
+                <tr>
+                  <td><code>zh-HK</code> <code>zh-MO</code></td>
+                  <td>Noto Serif HK</td>
+                  <td>香港字形单独一套，TC 代替不了</td>
+                </tr>
+                <tr>
+                  <td><code>ja</code></td>
+                  <td>Noto Serif JP</td>
+                  <td>日文假名和日式汉字</td>
+                </tr>
+                <tr>
+                  <td><code>ko</code></td>
+                  <td>Noto Serif KR</td>
+                  <td>韩文</td>
+                </tr>
+                <tr>
+                  <td>其它</td>
+                  <td>Noto Serif SC</td>
+                  <td>默认</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="lang-grid" id="lang-samples">
+          <figure
+            data-lang="sc"
+            style="font-family: &quot;Noto Serif SC&quot;, serif"
+          >
+            <figcaption>简体 · Noto Serif SC</figcaption>
+            <p lang="zh-Hans">
+              页面用暖米色做底，强调色只有油墨蓝，正文用衬线体，慢慢读也不累。
+            </p>
+            <p class="glyph">骨 门 说 国 没 为</p>
+          </figure>
+          <figure
+            data-lang="tc"
+            style="font-family: &quot;Noto Serif TC&quot;, serif"
+          >
+            <figcaption>繁體 · Noto Serif TC</figcaption>
+            <p lang="zh-Hant">
+              頁面用暖米色做底，強調色只有油墨藍，正文用襯線體，慢慢讀也不累。
+            </p>
+            <p class="glyph">骨 門 說 國 沒 為</p>
+          </figure>
+          <figure
+            data-lang="hk"
+            style="font-family: &quot;Noto Serif HK&quot;, serif"
+          >
+            <figcaption>香港 · Noto Serif HK</figcaption>
+            <p lang="zh-Hant-HK">
+              頁面用暖米色做底，強調色只有油墨藍，正文用襯線體，慢慢讀都唔攰。
+            </p>
+            <p class="glyph">骨 門 說 國 沒 為</p>
+          </figure>
+          <figure
+            data-lang="jp"
+            style="font-family: &quot;Noto Serif JP&quot;, serif"
+          >
+            <figcaption>日本語 · Noto Serif JP</figcaption>
+            <p lang="ja">
+              紙のような温かい背景に、差し色はインクブルーだけ。本文は明朝体で。
+            </p>
+            <p class="glyph">骨 門 説 国 没 為</p>
+          </figure>
+          <figure
+            data-lang="kr"
+            style="font-family: &quot;Noto Serif KR&quot;, serif"
+          >
+            <figcaption>한국어 · Noto Serif KR</figcaption>
+            <p lang="ko">
+              종이 같은 따뜻한 배경에 강조색은 잉크 블루 하나뿐, 본문은
+              명조체입니다.
+            </p>
+            <p class="glyph">骨 門 說 國 沒 為</p>
+          </figure>
+        </div>
+        <p
+          style="
+            font-family: var(--sans);
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 12px;
+          "
+        >
+          上面五块会滚动到时才各自加载对应字体，方便直接对比字形。实际产品里只会加载当前语言那一套。
+        </p>
+
+        <h3>等宽字体</h3>
+        <p>
+          代码、页码、文件指纹、快捷键用
+          <code>JetBrains Mono</code
+          >。等宽字体让数字对齐，读代码和版本号时不容易串行。
+        </p>
+        <div class="row-demo" style="align-items: stretch">
+          <pre
+            style="
+              margin: 0;
+              padding: 12px 14px;
+              background: var(--surface);
+              border: 1px solid var(--line);
+              border-radius: 10px;
+              font-family: var(--mono);
+              font-size: 13px;
+              line-height: 1.7;
+              overflow: auto;
+              flex: 1;
+            "
+          ><code>myz-pdf:8f3c1a9d  第 3 页  100%
+myz:theme          dark
+chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
+        </div>
+
+        <h3>标题和正文的字号</h3>
+        <p>
+          界面在哪个层级，用哪一号字、什么字重、什么颜色，先在这里定死，后面各页面照抄。
+        </p>
+        <div class="type-scale">
+          <div class="ts-row">
+            <div class="ts-name">页面大标题</div>
+            <div class="ts-display">全部记录</div>
+            <div class="ts-spec">32 / 600 / 1.2 · 正文色</div>
+          </div>
+          <div class="ts-row">
+            <div class="ts-name">区块标题</div>
+            <div class="ts-title">按来源查看</div>
+            <div class="ts-spec">24 / 600 / 1.25 · 正文色</div>
+          </div>
+          <div class="ts-row">
+            <div class="ts-name">小节标题</div>
+            <div class="ts-section">划线设置</div>
+            <div class="ts-spec">17 / 600 / 1.35 · 正文色</div>
+          </div>
+          <div class="ts-row">
+            <div class="ts-name">导语</div>
+            <div class="ts-intro">
+              一段话交代这一节要讲什么，比正文大一号，颜色略淡。
+            </div>
+            <div class="ts-spec">17 / 400 / 1.7 · 次要色</div>
+          </div>
+          <div class="ts-row">
+            <div class="ts-name">正文</div>
+            <div class="ts-body">正文和摘录都走长文衬线字体，行距放开。</div>
+            <div class="ts-spec">15 / 400 / 1.7 · 正文色</div>
+          </div>
+          <div class="ts-row">
+            <div class="ts-name">表格 / 紧凑正文</div>
+            <div class="ts-table">
+              属性、取值这类需要对齐的短行，用界面字体。
+            </div>
+            <div class="ts-spec">14 / 400 / 1.5 · 正文色</div>
+          </div>
+          <div class="ts-row">
+            <div class="ts-name">说明文字</div>
+            <div class="ts-caption">来源、时间、页数这类补充信息。</div>
+            <div class="ts-spec">13 / 400 / 1.55 · 次要色</div>
+          </div>
+          <div class="ts-row">
+            <div class="ts-name">编号 / 辅助</div>
+            <div class="ts-aux">01 · 章节编号、分组标题</div>
+            <div class="ts-spec">12 / 500 / 1.4 · 次要色</div>
+          </div>
+          <div class="ts-row">
+            <div class="ts-name">标签 / 小标题</div>
+            <div class="ts-label">划线 · 摘录 · 批注</div>
+            <div class="ts-spec">11 / 600 / 1.4 · 次要色或强调色</div>
+          </div>
+        </div>
+        <div class="why">
+          <b>Rationale</b
+          >同一层意思如果每个页面自己挑字号，很快就会出现七八种相邻的字号，光靠眼睛记不住，也没法判断哪个才对。定成这九级之后，新页面只要说「这是小节标题」，答案就是确定的。
+        </div>
+
+        <h3>阅读字号，五档</h3>
+        <p>
+          阅读设置里字号分五档，从 15 到 22，默认第三档
+          18。下面每一档都用当前的长文衬线字体和行距渲染，可以直接比。
+        </p>
+        <div class="read-sizes">
+          <div class="rs rs-1">
+            <div class="rs-head"><b>一档 · 小</b><span>15px</span></div>
+            <p>读完这段可以退到下一屏，文字小一点，一屏能多放些内容。</p>
+          </div>
+          <div class="rs rs-2">
+            <div class="rs-head"><b>二档</b><span>16px</span></div>
+            <p>比正文略小，适合在笔记本上并排看两栏的时候。</p>
+          </div>
+          <div class="rs rs-3">
+            <div class="rs-head"><b>三档 · 默认</b><span>18px</span></div>
+            <p>默认就是这一档，长文阅读最舒服的尺寸，中文一行大约三四十字。</p>
+          </div>
+          <div class="rs rs-4">
+            <div class="rs-head"><b>四档</b><span>20px</span></div>
+            <p>屏幕离得远，或者想更放松地读，可以调到这一档。</p>
+          </div>
+          <div class="rs rs-5">
+            <div class="rs-head"><b>五档 · 大</b><span>22px</span></div>
+            <p>视力需要更大的字时用，行距和字距也一起放大，不会挤在一起。</p>
+          </div>
+        </div>
+        <div class="spec">
+          <h3>专注阅读和重排</h3>
+          <div class="split">
+            <div class="main">
+              <div class="why">
+                <b>Rationale</b>这是给我们自己保存的文字和 HTML
+                文章用的阅读设置，不是 PDF 的开关。以后做
+                EPUB，接的是同一套变量，改一处就两处都变。PDF
+                那边还是原页加缩放，两不相干。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>用在哪里</td>
+                    <td>专注阅读、查看器里的摘录和 Markdown、将来的 EPUB</td>
+                  </tr>
+                  <tr>
+                    <td>不用在哪</td>
+                    <td>PDF 原页，以及网页上的划线（那些跟着原文走）</td>
+                  </tr>
+                  <tr>
+                    <td>字体</td>
+                    <td>Newsreader 加当前语言的 Noto Serif</td>
+                  </tr>
+                  <tr>
+                    <td>纸色</td>
+                    <td>跟随当前配色方案和深浅色</td>
+                  </tr>
+                  <tr>
+                    <td>外框</td>
+                    <td>只留退出和排版控件，其余都藏起来</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="split">
+            <div class="main">
+              <p style="margin-top: 0">
+                下面这些全部做成变量，用户能调，以后 EPUB
+                也能直接复用。默认值放在这里，改动只在变量表里改。
+              </p>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>变量</th>
+                    <th>管什么</th>
+                    <th>范围</th>
+                    <th>默认</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>--read-size-1…5</code></td>
+                    <td>阅读字号五档</td>
+                    <td>15 / 16 / 18 / 20 / 22</td>
+                    <td>18（三档）</td>
+                  </tr>
+                  <tr>
+                    <td><code>--read-leading</code></td>
+                    <td>行距</td>
+                    <td>1.5 到 1.9</td>
+                    <td>1.8</td>
+                  </tr>
+                  <tr>
+                    <td><code>--read-tracking</code></td>
+                    <td>字间距</td>
+                    <td>0 到 0.04em</td>
+                    <td>0.01em</td>
+                  </tr>
+                  <tr>
+                    <td><code>--read-measure</code></td>
+                    <td>栏宽（每行最长）</td>
+                    <td>32 到 42em</td>
+                    <td>38em</td>
+                  </tr>
+                  <tr>
+                    <td><code>--read-gutter</code></td>
+                    <td>页边距</td>
+                    <td>16 到 48</td>
+                    <td>24</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="voice" data-label="文案">
+        <h2><span class="num">05 ·</span>文案</h2>
+        <p>界面上的句子要短、能做、说人话。空状态是说明，不是报错。</p>
+        <div class="why">
+          <b>Rationale</b
+          >同一个功能在代码里有内部叫法没关系，但不能印到按钮上让用户猜。名称稳定了，按钮、提示、空状态才能共用一套写法。
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>说的是什么</th>
+              <th>就这样写</th>
+              <th>不要写</th>
+              <th>原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>产品名</td>
+              <td>MyZ</td>
+              <td>智能助理</td>
+              <td>已经确定不做 AI</td>
+            </tr>
+            <tr>
+              <td>给选区上色</td>
+              <td>划线</td>
+              <td>高亮、划线标注</td>
+              <td>「高亮」是样式名，容易混</td>
+            </tr>
+            <tr>
+              <td>只保存文字</td>
+              <td>摘录</td>
+              <td>保存文字、文字</td>
+              <td>和划线并列的一种记录</td>
+            </tr>
+            <tr>
+              <td>自己写的那句</td>
+              <td>批注</td>
+              <td>笔记、评论</td>
+              <td>「评论」听着像社交软件</td>
+            </tr>
+            <tr>
+              <td>同一个网页的汇总</td>
+              <td>来源</td>
+              <td>网页书签</td>
+              <td>网页和 PDF 都用这个词</td>
+            </tr>
+            <tr>
+              <td>回到原本的位置</td>
+              <td>打开原文</td>
+              <td>定位、查看</td>
+              <td>用户知道点下去会发生什么</td>
+            </tr>
+            <tr>
+              <td>按文中位置排序</td>
+              <td>文中顺序</td>
+              <td>Range</td>
+              <td>是代码里的字段名，不用露出来</td>
+            </tr>
+            <tr>
+              <td>只看网页正文</td>
+              <td>专注阅读</td>
+              <td>禅定模式</td>
+              <td>「禅定」只留给代码</td>
+            </tr>
+            <tr>
+              <td>一条都没找到</td>
+              <td>这里还没有记录</td>
+              <td>没有符合条件的记录。</td>
+              <td>说清楚现状，不写条件的客套话</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="sec" id="layout" data-label="布局">
+        <h2><span class="num">06 ·</span>布局</h2>
+        <p>
+          间距以 4px 为基准。桌面页边距 40，窄屏 16。阅读栏最宽 38em。侧栏 240
+          到 280，PDF 目录 200，批注面板 240。窗口窄于 900
+          时收成单栏，侧栏变成抽屉。
+        </p>
+        <div class="why">
+          <b>Rationale</b>文库要并排看「来源」和「记录」；PDF 要并排看「目录 /
+          标注」「原页」「批注」。栏宽是为了让原文和批注同时看得见，不是为了把宽屏填满。阅读栏限宽是为了每行别太长，不是为了居中好看。
+        </div>
+        <div class="wire wire-2" style="margin: 16px 0">
+          <div><b>来源 240</b><br />文库和设置的导航</div>
+          <div><b>主区域</b><br />记录或设置内容；进入阅读时收成 38em 居中</div>
+        </div>
+        <div class="wire wire-3">
+          <div><b>目录 / 标注 200</b></div>
+          <div><b>原页 1fr</b><br />PDF 深色底，页面居中，不重排</div>
+          <div><b>批注 240</b></div>
+        </div>
+      </section>
+
+      <section class="sec" id="ui" data-label="组件">
+        <h2><span class="num">07 ·</span>组件</h2>
+        <p>
+          网页和 PDF 共用采集条和批注面板。松紧只改高度：紧凑 32、常规 36、触控
+          44。控件圆角 8，卡片圆角 12，只有胶囊形的工具条才用全圆。
+        </p>
+
+        <div class="spec">
+          <h3>图标</h3>
+          <div class="split">
+            <div class="main">
+              <div class="row-demo">
+                <span class="icon-hit"
+                  ><svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-highlighter" /></svg
+                ></span>
+                <span class="icon-hit"
+                  ><svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-clip" /></svg
+                ></span>
+                <span class="icon-hit"
+                  ><svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-search" /></svg
+                ></span>
+                <span class="icon-hit"
+                  ><svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-menu" /></svg
+                ></span>
+                <span class="icon-hit"
+                  ><svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-tag" /></svg
+                ></span>
+              </div>
+              <div class="why">
+                <b>Rationale</b>统一用 Lucide（MIT 协议），只描边、不填充。PDF
+                阅读器里还在用「☰」「×」这样的字符，正是同一个动作长得不一样的原因。图标表达动作，不表达品牌。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>来源</td>
+                    <td>Lucide，线宽 1.75，圆角端点</td>
+                  </tr>
+                  <tr>
+                    <td>尺寸</td>
+                    <td>默认 16，36 的按钮里用 20，手机上 24</td>
+                  </tr>
+                  <tr>
+                    <td>点击范围</td>
+                    <td>图标周围至少留 32×32 可点</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>圆角</h3>
+          <div class="split">
+            <div class="main">
+              <p>圆角一共四档，什么元素用哪一档是固定的，照表取用即可。</p>
+              <div class="row-demo">
+                <span
+                  style="
+                    display: grid;
+                    place-items: center;
+                    width: 64px;
+                    height: 44px;
+                    background: var(--surface);
+                    border: 1px solid var(--line);
+                    border-radius: var(--r-xs);
+                    font-family: var(--sans);
+                    font-size: 11px;
+                    color: var(--muted);
+                  "
+                  >4</span
+                >
+                <span
+                  style="
+                    display: grid;
+                    place-items: center;
+                    width: 64px;
+                    height: 44px;
+                    background: var(--surface);
+                    border: 1px solid var(--line);
+                    border-radius: var(--r-sm);
+                    font-family: var(--sans);
+                    font-size: 11px;
+                    color: var(--muted);
+                  "
+                  >6</span
+                >
+                <span
+                  style="
+                    display: grid;
+                    place-items: center;
+                    width: 64px;
+                    height: 44px;
+                    background: var(--surface);
+                    border: 1px solid var(--line);
+                    border-radius: var(--r);
+                    font-family: var(--sans);
+                    font-size: 11px;
+                    color: var(--muted);
+                  "
+                  >8</span
+                >
+                <span
+                  style="
+                    display: grid;
+                    place-items: center;
+                    width: 64px;
+                    height: 44px;
+                    background: var(--surface);
+                    border: 1px solid var(--line);
+                    border-radius: var(--r-lg);
+                    font-family: var(--sans);
+                    font-size: 11px;
+                    color: var(--muted);
+                  "
+                  >12</span
+                >
+                <span
+                  style="
+                    display: grid;
+                    place-items: center;
+                    width: 96px;
+                    height: 44px;
+                    background: var(--surface);
+                    border: 1px solid var(--line);
+                    border-radius: var(--r-pill);
+                    font-family: var(--sans);
+                    font-size: 11px;
+                    color: var(--muted);
+                  "
+                  >胶囊</span
+                >
+              </div>
+              <div class="why">
+                <b>Rationale</b>圆角如果自己定 都有，同一个按钮在文库是圆角
+                24、在 PDF 是
+                8、在采集条是满圆，切换页面时观感是散的。收成四档之后，「这是卡片还是控件」一眼能看出来，也不用每次纠结取多少。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>圆角</th>
+                    <th>用在哪</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>4 <code>--r-xs</code></td>
+                    <td>色块、条形、行内小标记</td>
+                  </tr>
+                  <tr>
+                    <td>6 <code>--r-sm</code></td>
+                    <td>标签、下拉里的单个选项</td>
+                  </tr>
+                  <tr>
+                    <td>8 <code>--r</code></td>
+                    <td>按钮、输入框、图标按钮——所有能点的小控件</td>
+                  </tr>
+                  <tr>
+                    <td>12 <code>--r-lg</code></td>
+                    <td>卡片、弹窗、下拉面板、目录浮层——所有装东西的面</td>
+                  </tr>
+                  <tr>
+                    <td>胶囊 <code>--r-pill</code></td>
+                    <td>只给浮在页面上的工具条和分段选择，例如采集条、Tab</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p>
+            一条简单的判断：控件比容器小一档。容器 12，里面的按钮就 8；按钮
+            8，里面的标签就 6。胶囊只留给工具条，卡片和按钮各用各的圆角。
+          </p>
+        </div>
+
+        <div class="spec">
+          <h3>卡片</h3>
+          <div class="split">
+            <div class="main">
+              <div class="why">
+                <b>Rationale</b
+                >记录卡是一张纸片，不是仪表盘里的小部件。不加阴影，引用用长文本字体，来源和时间用界面字体。摘录太长就在卡片内部滚动，不去撑高整张卡。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>外观</td>
+                    <td>卡片底色，一条细边框，圆角 12，内边距 12 到 16</td>
+                  </tr>
+                  <tr>
+                    <td>类型标签</td>
+                    <td>系统字体 11，强调色</td>
+                  </tr>
+                  <tr>
+                    <td>引用和批注</td>
+                    <td>长文本字体，14 到 16，行高 1.55 到 1.6</td>
+                  </tr>
+                  <tr>
+                    <td>来源行</td>
+                    <td>系统字体 11，次要颜色</td>
+                  </tr>
+                  <tr>
+                    <td>正文限高</td>
+                    <td>
+                      <code>max-height: 20lh</code>（20
+                      倍行高），超出后卡片内部滚动
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p
+            style="
+              font-family: var(--sans);
+              font-size: 12px;
+              color: var(--muted);
+            "
+          >
+            用「行高」而不是固定 px
+            当单位，是因为换配色方案或调阅读字号时，卡片上限会跟着字体一起缩放，不会出现小字卡片很高、大字卡片装不下的情况。
+          </p>
+        </div>
+
+        <div class="spec">
+          <h3>按钮</h3>
+          <div class="split">
+            <div class="main">
+              <div class="row-demo">
+                <button class="btn btn-primary" type="button">
+                  <svg class="i" aria-hidden="true"><use href="#i-check" /></svg
+                  >保存
+                </button>
+                <button class="btn" type="button">取消</button>
+                <button class="btn btn-ghost" type="button">
+                  <svg class="i" aria-hidden="true">
+                    <use href="#i-external" /></svg
+                  >打开原文
+                </button>
+                <button class="btn btn-danger" type="button">
+                  <svg class="i" aria-hidden="true"><use href="#i-trash" /></svg
+                  >删除
+                </button>
+                <button class="btn btn-icon" type="button" aria-label="设置">
+                  <svg class="i" aria-hidden="true">
+                    <use href="#i-settings" />
+                  </svg>
+                </button>
+              </div>
+              <div class="why">
+                <b>Rationale</b
+                >一屏里只有一个实心强调色按钮。删除永远用文字加危险色，不用实心红，免得和珊瑚色划线混在一起。图标按钮做成正方形，和采集条上的
+                32 对齐。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>高度</td>
+                    <td>32 / 36 / 44，左右内边距 12</td>
+                  </tr>
+                  <tr>
+                    <td>文字</td>
+                    <td>系统字体 13，字重 600</td>
+                  </tr>
+                  <tr>
+                    <td>聚焦</td>
+                    <td>强调色 2px 外圈，偏移 2，不用浏览器默认样式</td>
+                  </tr>
+                  <tr>
+                    <td>禁用</td>
+                    <td>整体透明度 45%，文字颜色不变</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>标签</h3>
+          <div class="split">
+            <div class="main">
+              <div class="row-demo">
+                <span class="tag"
+                  ><svg class="i" aria-hidden="true"><use href="#i-tag" /></svg
+                  >阅读<span class="tag-x"
+                    ><svg class="i" aria-hidden="true">
+                      <use href="#i-x" /></svg></span
+                ></span>
+                <span class="tag">PDF</span>
+              </div>
+              <div class="why">
+                <b>Rationale</b
+                >标签只是标记，不是集合。颜色留给划线色板，标签固定用浅蓝底。PDF
+                里那种用逗号分隔的输入要去掉，和网页共用同一个标签输入组件。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>尺寸和文字</td>
+                    <td>高 22，系统字体 11，字重 600</td>
+                  </tr>
+                  <tr>
+                    <td>颜色</td>
+                    <td>实色浅蓝配深蓝字，不用半透明叠加</td>
+                  </tr>
+                  <tr>
+                    <td>输入方式</td>
+                    <td>回车生成一个标签，不解析逗号字符串</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>输入框</h3>
+          <div class="split">
+            <div class="main">
+              <div class="row-demo" style="align-items: flex-start">
+                <label class="field"
+                  >搜索<input class="field-box" placeholder="记录、标签、来源"
+                /></label>
+                <label class="field"
+                  >批注<textarea class="field-box" rows="3">
+纸色压住反光，标色只落在句子上。</textarea>
+                </label>
+              </div>
+              <div class="why">
+                <b>Rationale</b
+                >搜索和设置用界面字体。批注是长文本，用长文本字体。聚焦时用强调色的浅色光圈，不用浏览器默认的蓝色描边。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>高度</td>
+                    <td>单行 36，紧凑场景 32，圆角 8</td>
+                  </tr>
+                  <tr>
+                    <td>标签</td>
+                    <td>系统字体 12，次要颜色，距输入框 6</td>
+                  </tr>
+                  <tr>
+                    <td>聚焦</td>
+                    <td>边框变强调色，外面加一圈 3px 浅光</td>
+                  </tr>
+                  <tr>
+                    <td>禁用</td>
+                    <td>浅底，文字仍然清晰，不压到看不清</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>采集条</h3>
+          <p>选中文字后浮出来的工具条，是采集这一步唯一的入口。</p>
+          <div class="split">
+            <div class="main">
+              <div class="capture-stage page-light">
+                网页正文 · 白色背景
+                <div class="capture-bar dark">
+                  <button type="button" aria-label="划线">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-highlighter" />
+                    </svg>
+                  </button>
+                  <button type="button" aria-label="摘录">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-clip" />
+                    </svg>
+                  </button>
+                  <button type="button" aria-label="截取">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-crop" />
+                    </svg>
+                  </button>
+                  <button type="button" aria-label="搜索">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-search" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <p
+                style="
+                  font-family: var(--sans);
+                  font-size: 12px;
+                  color: var(--muted);
+                  margin-top: 8px;
+                "
+              >
+                浅色网页上
+              </p>
+            </div>
+            <div class="side">
+              <div class="capture-stage page-dark">
+                网页正文 · 深色背景
+                <div class="capture-bar dark">
+                  <button type="button" aria-label="划线">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-highlighter" />
+                    </svg>
+                  </button>
+                  <button type="button" aria-label="摘录">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-clip" />
+                    </svg>
+                  </button>
+                  <button type="button" aria-label="截取">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-crop" />
+                    </svg>
+                  </button>
+                  <button type="button" aria-label="搜索">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-search" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <p
+                style="
+                  font-family: var(--sans);
+                  font-size: 12px;
+                  color: var(--muted);
+                  margin-top: 8px;
+                "
+              >
+                深色网页上
+              </p>
+            </div>
+          </div>
+          <div class="why" style="margin-top: 16px">
+            <b>Rationale</b
+            >采集条会出现在任何网页上，底色可能是白的、灰的，也可能是花的，而且它无法知道自己压在什么背景上。所以它只有深色一种，固定用深色
+            <code>#141413</code
+            >，配米白文字。<br /><br />这样在浅色网页上靠一层普通的深色投影就能浮起来；在深色网页上，投影看不见了，但深色块本身仍然和页面区分得开，再加一圈极淡的浅色描边把轮廓勾出来。两样一起用，同一种样式在两种网页上都成立：浅色页面上描边几乎看不见，深色页面上投影不起作用，各自不需要知道对方。<br /><br />它也刻意不跟随用户的配色方案和深浅色。采集条是临时的操作层，不是用户的阅读环境；固定深色反而让它在任何页面上都保持同一个熟悉的样子。
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>弹窗和浮层</h3>
+          <div class="split">
+            <div class="main">
+              <div class="why">
+                <b>Rationale</b>采集时写批注是「写一句就走」，用 280 到 320
+                的小卡片最合适，不用弹全屏。读长文走查看器页面，不用大模态。扩展弹窗属于系统面板，不算这种对话框。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>采集批注</td>
+                    <td>宽 280 到 320，卡片底色，圆角 12，带阴影</td>
+                  </tr>
+                  <tr>
+                    <td>遮罩</td>
+                    <td>只有居中的大对话框才加；采集小卡片不加全屏遮罩</td>
+                  </tr>
+                  <tr>
+                    <td>关闭</td>
+                    <td>按 Esc 关闭；点外侧只关掉不会丢数据的</td>
+                  </tr>
+                  <tr>
+                    <td>焦点</td>
+                    <td>打开时自动落到第一个输入框，关闭后回到触发它的按钮</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>卡片瀑布流</h3>
+          <div class="split">
+            <div class="main">
+              <p>
+                文库的记录列表用瀑布流排，每张卡片高度跟着内容走，长短都能自然错开。
+              </p>
+              <div class="masonry-demo" style="margin: 12px 0 16px">
+                <article class="m">
+                  <span class="tag">划线</span><br />Chrome 自带的 PDF
+                  阅读器插不进去，只能自己做一个。
+                </article>
+                <article class="m">
+                  <span class="tag">摘录</span
+                  ><br />低摩擦地采集，结构清楚地查看，偶尔再翻出来看看。摘录往往比划线长，卡片就自然高一些。
+                </article>
+                <article class="m">
+                  <span class="tag">划线</span
+                  ><br />标注只进库，不保存文件本身。
+                </article>
+                <article class="m">
+                  <span class="tag">批注</span
+                  ><br />打开原文应该回到同一页、同一条。
+                </article>
+                <article class="m">
+                  <span class="tag">摘录</span
+                  ><br />能不能重排是格式决定的，不是阅读器的一个开关，所以两种文字要分开处理。
+                </article>
+              </div>
+              <div class="why">
+                <b>Rationale</b
+                >记录长短差别很大，如果强行排成等高网格，短记录会留一大块空白。瀑布流让每张卡片只占自己需要的高度，扫读时节奏也更自然。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>列数</td>
+                    <td>窄屏 1 列，中等 2 列，宽屏 3 列</td>
+                  </tr>
+                  <tr>
+                    <td>间距</td>
+                    <td>列间距和行间距都用 12</td>
+                  </tr>
+                  <tr>
+                    <td>卡片高度</td>
+                    <td>
+                      跟着内容走，不裁成等高；但每张卡正文限高
+                      <code>20lh</code>，超出后在卡片内部滚动
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>顺序</td>
+                    <td>
+                      从上到下、再从左到右阅读符合直觉，但排布本身是逐列填充，切换排序时以「时间」或「文中顺序」为准
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>加载顺序</td>
+                    <td>优先渲染第一屏，后续卡片懒加载图片</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>菜单和目录的层级</h3>
+          <div class="split">
+            <div class="main">
+              <p>
+                下拉、目录、侧栏都是「一列可点的东西」。层级靠间距和颜色区分，不靠堆装饰。
+              </p>
+              <div class="why">
+                <b>Rationale</b
+                >目录里既有大章节也有子项，下拉里既有分组也有普通选项。如果全用一个样式，用户看不出从属关系；如果每层都加线加图标，又会很吵。规则是：层级只影响「缩进、字重、颜色」这三样，不影响圆角和底色。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>问题</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>从属关系怎么表达</td>
+                    <td>
+                      子项相对父项缩进 12 到
+                      16，字号小一档或颜色更淡，不画引导线
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>分组怎么表达</td>
+                    <td>
+                      组标题用 10 号大写字加次要色，和第一个选项留
+                      4px；组之间用一条细线，不用空行
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>层叠深度怎么表达</td>
+                    <td>
+                      最多两层（组 →
+                      项）。需要第三层时，改成跳到单独的面板，不在菜单里继续缩进
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>重点怎么表达</td>
+                    <td>
+                      当前项用「浅底 +
+                      强调色文字」，不用实心填充；数量、时间这类次要信息靠右对齐
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>可折叠</td>
+                    <td>
+                      折叠箭头放最左，点击标题行整行展开；展开状态记在本地
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>长目录</td>
+                    <td>和正文滚动联动、当前节高亮；不自动滚动抢位置</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>浮动目录</h3>
+          <div class="split">
+            <div class="main">
+              <p>
+                PDF
+                阅读器和长文查看器都用同一套目录：浮在内容左边，不挤压原文，可以整体收起。左下角那个就是本页正在用的组件，可以点一下试试。
+              </p>
+              <div class="why">
+                <b>Rationale</b
+                >目录是「路过看一眼」的东西，不该常驻占掉正文宽度，所以做成浮层而不是固定分栏。收起后只留一个小按钮，正文立刻占满；宽屏默认展开，窄屏默认收起，避免挡住内容。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>两种状态</td>
+                    <td>展开 200px，收起 44px。收起时只留一个按钮，点击展开</td>
+                  </tr>
+                  <tr>
+                    <td>浮层位置</td>
+                    <td>
+                      固定在左侧，垂直居中；正文外侧有余量时展开，没有就先收起成按钮
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>和主体关系</td>
+                    <td>
+                      浮在内容之上，不改变正文宽度，所以展开收起时正文不跳动
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>滚动联动</td>
+                    <td>正在读的那一节自动高亮，跟手但不抢焦点</td>
+                  </tr>
+                  <tr>
+                    <td>点击</td>
+                    <td>跳到对应位置，当前项保持高亮。PDF 里跳到对应页</td>
+                  </tr>
+                  <tr>
+                    <td>切换动画</td>
+                    <td>240ms 收起展开，只改宽度和箭头方向</td>
+                  </tr>
+                  <tr>
+                    <td>窄屏</td>
+                    <td>默认收起，点开时盖住内容、点外部关闭</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>下拉菜单</h3>
+          <div class="split">
+            <div class="main">
+              <p>
+                选择配色方案、导出格式、切换视图都用同一套下拉。下面是本页顶栏在用的那一个。
+              </p>
+              <div class="row-demo" style="align-items: flex-start">
+                <div class="menu">
+                  <div class="menu-group">配色方案</div>
+                  <button class="menu-item on" type="button">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-check" /></svg
+                    >米纸<span class="meta">默认</span>
+                  </button>
+                  <button class="menu-item" type="button">冷灰</button>
+                  <button class="menu-item" type="button">青瓷</button>
+                  <button class="menu-item" type="button">赭石</button>
+                  <div class="menu-sep"></div>
+                  <button class="menu-item" type="button">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-external" /></svg
+                    >导出为 Markdown
+                  </button>
+                  <button class="menu-item" type="button">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-copy" /></svg
+                    >复制 JSON
+                  </button>
+                </div>
+              </div>
+              <div class="why">
+                <b>Rationale</b>下拉面板圆角
+                16、投影很重，和卡片、弹窗不是一个重量级。收到和卡片同样的圆角
+                12 和同一套阴影，点击外部关闭、Esc
+                关闭、方向键选择这三件基本的事要一致。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>面板</td>
+                    <td>卡片底色，圆角 12，边框用控件边框色，阴影和弹窗同源</td>
+                  </tr>
+                  <tr>
+                    <td>单个选项</td>
+                    <td>高 32，圆角 6，左右内边距 10</td>
+                  </tr>
+                  <tr>
+                    <td>当前项</td>
+                    <td>浅色底加重，左侧可能出现对勾；不用纯色填充</td>
+                  </tr>
+                  <tr>
+                    <td>分组</td>
+                    <td>
+                      组标题是 10 号大写字，和选项之间留 4；组之间用一条细线
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>长列表</td>
+                    <td>最高约 224，超出后滚动；滚动到底再加载更多</td>
+                  </tr>
+                  <tr>
+                    <td>键盘</td>
+                    <td>上下键移动，回车确认，Esc 关闭且焦点回到触发按钮</td>
+                  </tr>
+                  <tr>
+                    <td>避免</td>
+                    <td>
+                      圆角 16/24、比弹窗还重的阴影、悬停时整行变成实心强调色
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>搜索建议</h3>
+          <div class="split">
+            <div class="main">
+              <p>
+                文库顶栏搜索时弹出的建议。输入 <code>#</code> 是找标签，输入
+                <code>site:</code> 是找网站。
+              </p>
+              <div class="row-demo" style="align-items: flex-start">
+                <div class="suggest">
+                  <div class="sg-input">
+                    <svg class="i" aria-hidden="true">
+                      <use href="#i-search" /></svg
+                    >#设
+                  </div>
+                  <div class="sg-item on">
+                    <span class="tag">标签</span>#设计
+                  </div>
+                  <div class="sg-item">
+                    <span class="tag">标签</span>#设计系统
+                  </div>
+                  <div class="sg-item"><span class="tag">标签</span>#设备</div>
+                  <div class="menu-sep"></div>
+                  <div class="sg-item">
+                    <span
+                      class="tag"
+                      style="background: var(--surface-2); color: var(--muted)"
+                      >网站</span
+                    >design.example.com<span class="kind">网站</span>
+                  </div>
+                </div>
+              </div>
+              <div class="why">
+                <b>Rationale</b
+                >建议列表的作用是「让你少打字」，所以要把「这是什么类型」和点下去会做什么都说清楚。标签和网站要用不同的标记分开，不能只靠一个灰字。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>触发</td>
+                    <td>
+                      输入框获得焦点且已有输入时出现；没有输入时也可以点右侧按钮展开全部
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>每行</td>
+                    <td>左侧类型标签，中间内容，右侧可留类别或次数</td>
+                  </tr>
+                  <tr>
+                    <td>排序</td>
+                    <td>完全相等 → 前缀匹配 → 包含匹配；同分按字母序</td>
+                  </tr>
+                  <tr>
+                    <td>上限</td>
+                    <td>最多 10 条，超出滚动</td>
+                  </tr>
+                  <tr>
+                    <td>选择</td>
+                    <td>
+                      点选后填入对应的筛选语法（<code>#标签</code> 或
+                      <code>site:网站</code>）并关闭
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>键盘</td>
+                    <td>和下拉菜单一样：上下移动、回车选中、Esc 关闭</td>
+                  </tr>
+                  <tr>
+                    <td>空结果</td>
+                    <td>不弹面板，而不是弹一个「没有结果」的框</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>调色盘</h3>
+          <div class="split">
+            <div class="main">
+              <p>
+                用户自己改的五个划线颜色。采集时的浮层和设置页共用同一套，PDF
+                阅读器也要用同一个，不再写死。
+              </p>
+              <div class="swatch-row">
+                <span class="swatch-wrap">
+                  <button
+                    class="sw on"
+                    style="background: #b58900"
+                    aria-label="选择琥珀色"
+                  ></button>
+                  <span class="swatch-edit" aria-hidden="true"
+                    ><svg class="i"><use href="#i-settings" /></svg
+                  ></span>
+                </span>
+                <span class="swatch-wrap">
+                  <button
+                    class="sw"
+                    style="background: #ef476f"
+                    aria-label="选择珊瑚色"
+                  ></button>
+                </span>
+                <span class="swatch-wrap">
+                  <button
+                    class="sw"
+                    style="background: #9f7aea"
+                    aria-label="选择紫色"
+                  ></button>
+                </span>
+                <span class="swatch-wrap">
+                  <button
+                    class="sw"
+                    style="background: #38bdf8"
+                    aria-label="选择天蓝"
+                  ></button>
+                </span>
+                <span class="swatch-wrap">
+                  <button
+                    class="sw"
+                    style="background: #34d399"
+                    aria-label="选择青绿"
+                  ></button>
+                </span>
+                <span
+                  style="
+                    font-family: var(--sans);
+                    font-size: 12px;
+                    color: var(--muted);
+                  "
+                >
+                  选中的一圈描边，角上的小铅笔用来改色
+                </span>
+              </div>
+              <div class="why">
+                <b>Rationale</b
+                >调色盘是记录数据的一部分（<code>colorPalette</code>），不是纯装饰，所以它的交互要稳：选中和编辑分开，点一下只做一件事。采集浮层和设置页共用同一套色块加铅笔的交互。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>色块</td>
+                    <td>直径 32，间距 8，居中对齐（够得着，也够看清）</td>
+                  </tr>
+                  <tr>
+                    <td>选中态</td>
+                    <td>外圈一圈正文色的环，不用对勾，因为色块太小</td>
+                  </tr>
+                  <tr>
+                    <td>改色入口</td>
+                    <td>
+                      每个色块角上一支小铅笔，点开系统取色器；采集浮层和设置页一致
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>默认色</td>
+                    <td>单独一行显示当前默认值的色块和色号，方便对照</td>
+                  </tr>
+                  <tr>
+                    <td>恢复默认</td>
+                    <td>一个按钮复位全部五个颜色，不逐个确认</td>
+                  </tr>
+                  <tr>
+                    <td>无障碍</td>
+                    <td>每个色块有可读的名字（琥珀、珊瑚…），不只报色号</td>
+                  </tr>
+                  <tr>
+                    <td>避免</td>
+                    <td>
+                      色块和「编辑」按钮分开摆得太远、用文字输入框当唯一改色方式
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>空、加载、出错</h3>
+          <p>同一个列表在三种情况下都要有交代，不摆空白，也不写道歉。</p>
+          <div class="state-demo">
+            <div class="state">
+              <svg class="i" aria-hidden="true"><use href="#i-book" /></svg>
+              <p>这里还没有记录</p>
+              <small>在网页上选中文字就能划线</small>
+            </div>
+            <div class="state">
+              <div style="display: grid; gap: 8px">
+                <div class="skeleton w1"></div>
+                <div class="skeleton w2"></div>
+              </div>
+              <small>正在读取…</small>
+            </div>
+            <div class="state">
+              <svg class="i" aria-hidden="true" style="color: var(--error)">
+                <use href="#i-x" />
+              </svg>
+              <p>没能打开这份文件</p>
+              <small>它可能已经被移动或删除了</small>
+            </div>
+          </div>
+          <div class="row-demo" style="margin-top: 16px">
+            <span class="toast"
+              ><svg class="i" aria-hidden="true"><use href="#i-check" /></svg
+              >已保存</span
+            >
+            <span class="toast"
+              ><svg class="i" aria-hidden="true"><use href="#i-clip" /></svg
+              >这条内容太长，已改成摘录</span
+            >
+          </div>
+          <div class="split">
+            <div class="main">
+              <div class="why" style="margin-top: 0">
+                <b>Rationale</b
+                >空状态要告诉用户下一步能做什么，出错要说清可能的原因，加载要给一个和内容同高的形状。提示条出现在采集区域附近，几秒后自己消失；同一件事只用一个地方来说。
+              </div>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>情况</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>空</td>
+                    <td>一个图标 + 一句状态 + 一句下一步，不写「无数据」</td>
+                  </tr>
+                  <tr>
+                    <td>加载</td>
+                    <td>
+                      用和内容同高的骨架条，颜色走
+                      <code>--skeleton</code>，深浅色都要看清
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>出错</td>
+                    <td>用错误色图标，说明可能的原因，给一个重试或替代动作</td>
+                  </tr>
+                  <tr>
+                    <td>成功 / 提示</td>
+                    <td>用提示条，贴近操作发生的位置，不弹窗打断</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="motion" data-label="动效">
+        <h2><span class="num">08 ·</span>动效</h2>
+        <p>动效只回答「它出现了」「找到了」。正在读的文字保持在原位。</p>
+        <div class="split">
+          <div class="main">
+            <p style="margin-top: 0">
+              <b>跳到某条划线</b
+              >时，用这条自己的划线颜色闪一下，大约一秒。悬停反馈也用这条的颜色，而不是品牌色。
+            </p>
+            <p>
+              系统开启「减少动态效果」时，去掉位移，淡入控制在 120ms 以内。PDF
+              缩放是用户手势，不算动画。
+            </p>
+            <p>
+              动效只用淡入和短的位移，用来解释出现、找到和开合；弹簧、视差和逐条入场不属于这套语言。
+            </p>
+            <div class="why" style="margin-top: 0">
+              <b>Rationale</b
+              >划线和阅读都要集中注意力，正文一动，用户会以为页面自己在跳。动效只需要说清三件事：有东西出现了、找到了这一条、侧栏打开了。
+            </div>
+          </div>
+          <div class="side">
+            <table>
+              <thead>
+                <tr>
+                  <th>标记</th>
+                  <th>时长</th>
+                  <th>用在哪里</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>--motion-fast</code></td>
+                  <td>120ms</td>
+                  <td>鼠标悬停变色、聚焦光圈、按钮反馈</td>
+                </tr>
+                <tr>
+                  <td><code>--motion-med</code></td>
+                  <td>180ms，缓出</td>
+                  <td>采集条和批注面板淡入、提示条</td>
+                </tr>
+                <tr>
+                  <td><code>--motion-panel</code></td>
+                  <td>240ms</td>
+                  <td>侧栏、抽屉</td>
+                </tr>
+                <tr>
+                  <td>正文和 PDF 页面</td>
+                  <td>不动</td>
+                  <td>文字位置、PDF 内容一律不加动画</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="a11y" data-label="无障碍">
+        <h2><span class="num">09 ·</span>无障碍</h2>
+        <div class="split">
+          <div class="main">
+            <p style="margin-top: 0">
+              无障碍不是附加项，配色、控件、动效都要过一遍。下面这张表是四套配色
+              × 深浅共八种组合的实测结果。
+            </p>
+            <div class="why" style="margin-top: 0">
+              <b>Rationale</b
+              >深色界面最容易糊弄的就是「次要文字」和「按钮边框」：在浅色下没问题，一到深色就低于标准。所以这八套组合是逐对算过对比度的，正文、次要文字、链接、阅读器文字、按钮上文字都要求
+              ≥ 4.5:1；控件边框和填充的差异作为辅助识别，配合抬高的底色一起用。
+            </div>
+          </div>
+          <div class="side">
+            <table>
+              <thead>
+                <tr>
+                  <th>方面</th>
+                  <th>要求</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>对比度</td>
+                  <td>
+                    正文、次要文字、链接、按钮文字都 ≥ 4.5:1；四种配色 ×
+                    深浅色共八套全部通过
+                  </td>
+                </tr>
+                <tr>
+                  <td>聚焦</td>
+                  <td>
+                    每个可点元素都有明显的聚焦外圈，颜色用强调色而不是浏览器默认
+                  </td>
+                </tr>
+                <tr>
+                  <td>点击范围</td>
+                  <td>桌面至少 32×32，手机上至少 44×44</td>
+                </tr>
+                <tr>
+                  <td>动效</td>
+                  <td>尊重系统的「减少动态效果」设置</td>
+                </tr>
+                <tr>
+                  <td>颜色之外</td>
+                  <td>高亮不能只靠颜色区分，配合下划线、波浪线或左侧色条</td>
+                </tr>
+                <tr>
+                  <td>文字缩放</td>
+                  <td>放大到 200% 时布局不破、内容不丢</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <h3>对比度实测</h3>
+        <p>
+          下面是每套配色在最关键的几组前景 / 背景上的对比度。最低的一组是
+          4.53，其余都在 5 以上。
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>配色 · 深浅</th>
+              <th>正文</th>
+              <th>次要文字</th>
+              <th>链接</th>
+              <th>阅读器文字</th>
+              <th>按钮文字</th>
+            </tr>
+          </thead>
+          <tbody id="contrast-table"></tbody>
+        </table>
+        <p
+          style="font-family: var(--sans); font-size: 12px; color: var(--muted)"
+        >
+          数值由本页直接读取当前 CSS 变量算出（WCAG
+          相对亮度公式），改配色后刷新即可复核。
+        </p>
+      </section>
+
+      <section class="sec" id="scenes" data-label="场景示例">
+        <h2><span class="num">10 ·</span>场景示例</h2>
+        <p>同一套外框，换到不同场景里长什么样。点上面的标签切换。</p>
+        <div class="tabs" id="scene-tabs">
+          <button class="chip is-on" type="button" data-scene="dash">
+            文库
+          </button>
+          <button class="chip" type="button" data-scene="popup">
+            扩展弹窗
+          </button>
+          <button class="chip" type="button" data-scene="capture">
+            网页采集
+          </button>
+          <button class="chip" type="button" data-scene="pdf">PDF 原页</button>
+          <button class="chip" type="button" data-scene="owned">
+            专注阅读
+          </button>
+          <button class="chip" type="button" data-scene="epub">
+            EPUB（以后）
+          </button>
+        </div>
+
+        <div class="frame">
+          <div class="panel is-on" id="scene-dash">
+            <div class="dash">
+              <div class="dash-nav">
+                <div class="name">MyZ</div>
+                <div class="seg">
+                  <span class="on">记录</span><span>设置</span>
+                </div>
+                <div class="search">
+                  <svg class="i" aria-hidden="true">
+                    <use href="#i-search" /></svg
+                  >搜索记录、标签、来源
+                </div>
+              </div>
+              <div class="dash-body">
+                <aside class="side">
+                  <h4>来源</h4>
+                  <div class="src on"><b>Kami 纸</b><em>网页 · 4 条</em></div>
+                  <div class="src">
+                    <b>阅读的方法.pdf</b><em>PDF · 第 3 页起</em>
+                  </div>
+                  <div class="src"><b>课堂笔记</b><em>摘录 · 2 条</em></div>
+                </aside>
+                <div class="main">
+                  <header>
+                    <h3 style="font-family: var(--read)">全部记录</h3>
+                    <span style="color: var(--muted); font-size: 12px"
+                      >按文中顺序</span
+                    >
+                  </header>
+                  <div class="cards">
+                    <article class="hcard">
+                      <div class="kind">划线</div>
+                      <blockquote>
+                        Chrome 自带的 PDF 阅读器插不进去，只能自己做一个。
+                      </blockquote>
+                      <footer>
+                        <span>pdf-support.md</span><span class="tag">PDF</span>
+                      </footer>
+                    </article>
+                    <article class="hcard">
+                      <div class="kind">摘录</div>
+                      <blockquote>
+                        低摩擦地采集，结构清楚地查看，偶尔再翻出来看看。
+                      </blockquote>
+                      <footer><span>future-plan</span></footer>
+                    </article>
+                    <article class="hcard">
+                      <div class="kind">划线</div>
+                      <blockquote>标注只进库，不保存 PDF 文件本身。</blockquote>
+                      <footer><span>阅读的方法.pdf · 第 3 页</span></footer>
+                    </article>
+                    <article class="hcard">
+                      <div class="kind">批注</div>
+                      <p class="note">
+                        打开原文应该回到同一页、同一条，而不是另排一版。
+                      </p>
+                      <footer><span>本机</span></footer>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" id="scene-popup">
+            <div class="popup">
+              <header>
+                MyZ
+                <div class="icons">
+                  <span class="icon-btn"
+                    ><svg class="i" aria-hidden="true">
+                      <use href="#i-file" /></svg
+                  ></span>
+                  <span class="icon-btn"
+                    ><svg class="i" aria-hidden="true">
+                      <use href="#i-settings" /></svg
+                  ></span>
+                </div>
+              </header>
+              <div class="search" style="margin: 0 0 8px; width: 100%">
+                <svg class="i" aria-hidden="true"><use href="#i-search" /></svg
+                >本页记录
+              </div>
+              <div class="hit" style="font-family: var(--read)">
+                <i
+                  style="
+                    background: var(--mark-1);
+                    display: block;
+                    border-radius: 2px;
+                  "
+                ></i>
+                <div>
+                  <p>只能自己做一个 PDF 阅读器。</p>
+                  <small>划线 · 今天</small>
+                </div>
+              </div>
+              <div class="hit" style="font-family: var(--read)">
+                <i
+                  style="
+                    background: var(--mark-5);
+                    display: block;
+                    border-radius: 2px;
+                  "
+                ></i>
+                <div>
+                  <p>标注只进库，不保存文件本身。</p>
+                  <small>摘录 · 第 3 页</small>
+                </div>
+              </div>
+              <div class="hit" style="font-family: var(--read)">
+                <i
+                  style="
+                    background: var(--mark-3);
+                    display: block;
+                    border-radius: 2px;
+                  "
+                ></i>
+                <div>
+                  <p>Kami 纸 · 设计系统</p>
+                  <small>来源 · 本页</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" id="scene-capture">
+            <div class="webpage">
+              <div class="site">example.com/article</div>
+              <h3>为什么必须自建 PDF 阅读器</h3>
+              <p>
+                Chrome 把 PDF
+                交给内置的插件处理，内容脚本进不去那一层，所以扩展只能自己打开一个阅读页面。
+              </p>
+              <p>
+                在普通网页上，划线<mark class="inherit"
+                  >必须跟着原文自己的字体走</mark
+                >。我们改的是痕迹，不是排版。
+              </p>
+              <div class="float-bar">
+                <button type="button" title="划线">
+                  <svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-highlighter" />
+                  </svg>
+                </button>
+                <button type="button" title="摘录">
+                  <svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-clip" />
+                  </svg>
+                </button>
+                <button type="button" title="截取">
+                  <svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-crop" />
+                  </svg>
+                </button>
+                <button type="button" title="搜索">
+                  <svg class="i i-lg" aria-hidden="true">
+                    <use href="#i-search" />
+                  </svg>
+                </button>
+              </div>
+              <div class="modal">
+                <div class="modal-kind">划线</div>
+                <div class="preview">必须跟着原文自己的字体走</div>
+                <div class="swatches" style="margin-bottom: 8px">
+                  <span class="sw on" style="background: var(--mark-1)"></span>
+                  <span class="sw" style="background: var(--mark-2)"></span>
+                  <span class="sw" style="background: var(--mark-3)"></span>
+                  <span class="sw" style="background: var(--mark-4)"></span>
+                  <span class="sw" style="background: var(--mark-5)"></span>
+                </div>
+                <input placeholder="写批注" value="痕迹叠在原件上。" />
+                <div
+                  style="
+                    display: flex;
+                    gap: 8px;
+                    justify-content: flex-end;
+                    margin-top: 10px;
+                  "
+                >
+                  <button class="btn btn-ghost" type="button">取消</button>
+                  <button class="btn btn-primary" type="button">保存</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" id="scene-pdf">
+            <div class="pdf">
+              <div class="pdf-bar">
+                <button type="button">
+                  <svg class="i" aria-hidden="true">
+                    <use href="#i-chevron-left" />
+                  </svg>
+                </button>
+                <button type="button">
+                  <svg class="i" aria-hidden="true">
+                    <use href="#i-chevron-right" />
+                  </svg>
+                </button>
+                <span class="count">3 / 24</span>
+                <span class="title">阅读的方法.pdf</span>
+                <button type="button">
+                  <svg class="i" aria-hidden="true"><use href="#i-menu" /></svg>
+                </button>
+                <button type="button">
+                  <svg class="i" aria-hidden="true">
+                    <use href="#i-minus" />
+                  </svg>
+                </button>
+                <button type="button">100%</button>
+                <button type="button">
+                  <svg class="i" aria-hidden="true"><use href="#i-plus" /></svg>
+                </button>
+                <button type="button">
+                  <svg class="i" aria-hidden="true">
+                    <use href="#i-download" /></svg
+                  >打开
+                </button>
+              </div>
+              <div class="pdf-body">
+                <aside class="pdf-col">
+                  <h4>目录</h4>
+                  <div class="pdf-item">封面</div>
+                  <div class="pdf-item on">2. 原页与叠加</div>
+                  <div class="pdf-item">3. 摘录进库</div>
+                  <h4 style="margin-top: 14px">标注</h4>
+                  <div class="pdf-item on">
+                    第 3 页 原页不重排<small>划线</small>
+                  </div>
+                  <div class="pdf-item">
+                    第 5 页 标注只进库<small>摘录</small>
+                  </div>
+                </aside>
+                <div class="pdf-stage">
+                  <div class="pdf-page" title="pdf.js 画出的原页">
+                    <div class="running">
+                      <span>Chapter 2</span><span>Reading without reflow</span>
+                    </div>
+                    <h3>2.1 Fixed-layout pages</h3>
+                    <div class="quad"></div>
+                    <div class="cols">
+                      <p>
+                        A PDF page is a canvas. Columns, figures, footnotes and
+                        page numbers stay where the author put them.
+                        Highlighting is a rectangle in page space, not a new
+                        paragraph in our type system.
+                      </p>
+                      <p>
+                        Zoom changes the scale of the whole page. It does not
+                        change line breaks. A later EPUB reader may reflow; this
+                        one must not.
+                      </p>
+                    </div>
+                    <div class="pg">3</div>
+                  </div>
+                </div>
+                <aside class="pdf-col pdf-insp">
+                  <h4>划线 · 第 3 页</h4>
+                  <blockquote>
+                    A PDF page is a canvas. Columns, figures…
+                  </blockquote>
+                  <div class="swatches" style="margin: 8px 0">
+                    <span
+                      class="sw on"
+                      style="background: var(--mark-1)"
+                    ></span>
+                    <span class="sw" style="background: var(--mark-4)"></span>
+                  </div>
+                  <textarea placeholder="写批注">
+打开原文必须回到这一页，而不是另排一版。</textarea>
+                  <button
+                    class="btn btn-primary"
+                    type="button"
+                    style="width: 100%; margin-top: 8px"
+                  >
+                    保存
+                  </button>
+                </aside>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel" id="scene-owned">
+            <div class="reader">
+              <article>
+                <div class="meta">
+                  专注阅读 · 来自网页 · 按我们的阅读设置显示
+                </div>
+                <h3>低摩擦地采集，结构清楚地查看</h3>
+                <p>
+                  这段文字已经离开原来的页面，存在我们的记录里。字号、行距、浅色深色都可以交给阅读设置——因为我们保存的是文字，不是
+                  PDF 画出来的页面。
+                </p>
+                <p>
+                  专注阅读处理的是 HTML
+                  文章，可以藏掉干扰、放大文字。但不要把这种能力接到 PDF
+                  原页上。
+                </p>
+              </article>
+            </div>
+          </div>
+
+          <div class="panel" id="scene-epub">
+            <div class="reader">
+              <div>
+                <div class="tools">
+                  <span>字体 系统 / 宋体</span>
+                  <span>字号 18</span>
+                  <span>行距 1.8</span>
+                  <span>栏宽 宽</span>
+                  <span>浅色 / 深色 / 米色</span>
+                </div>
+                <article>
+                  <div class="meta">EPUB · 还没开始做 · 预留位置</div>
+                  <h3>能不能重排，是格式决定的</h3>
+                  <p>
+                    EPUB 天生可以重排，所以才配有字体和边距设置。PDF
+                    继续走「原页加缩放加坐标标注」这条路。两种阅读界面可以共用外框组件，但排版引擎不能共用。
+                  </p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <div>
+          这是一份草稿，用来对齐方向和讨论取舍，不是已经落地的规范，随时可能改。
+        </div>
+        <div>MyZ Annotator · 2026.09 · 图标来自 Lucide（MIT）</div>
+      </footer>
+    </main>
+
+    <script>
+      const root = document.documentElement;
+      const light = document.getElementById("theme-light");
+      const dark = document.getElementById("theme-dark");
+      const tokenLabels = document.querySelectorAll("[data-token]");
+      const contrastTable = document.getElementById("contrast-table");
+
+      const toRgb = (value) => {
+        const raw = value.trim();
+        if (raw.startsWith("#")) {
+          const h = raw.slice(1);
+          const full =
+            h.length === 3
+              ? h
+                  .split("")
+                  .map((c) => c + c)
+                  .join("")
+              : h;
+          return [0, 2, 4].map((i) => parseInt(full.substr(i, 2), 16));
+        }
+        const parts = raw.match(/[\d.]+/g);
+        return parts ? parts.slice(0, 3).map(Number) : null;
+      };
+      const relativeLuminance = (value) => {
+        const rgb = toRgb(value);
+        if (!rgb) return 0;
+        const channels = rgb
+          .map((n) => n / 255)
+          .map((c) =>
+            c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4),
+          );
+        return (
+          0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+        );
+      };
+      const contrast = (a, b) => {
+        const l1 = relativeLuminance(a);
+        const l2 = relativeLuminance(b);
+        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      };
+
+      const hex = (value) => {
+        const parts = value.match(/[\d.]+/g);
+        if (!parts || parts.length < 3) return value;
+        const toHex = (n) => Number(n).toString(16).padStart(2, "0");
+        return (
+          "#" +
+          [parts[0], parts[1], parts[2]]
+            .map((n) => toHex(Math.round(n)))
+            .join("")
+        );
+      };
+
+      const paintTokens = () => {
+        const styles = getComputedStyle(root);
+        tokenLabels.forEach((el) => {
+          el.textContent = hex(
+            styles.getPropertyValue("--" + el.dataset.token).trim(),
+          );
+        });
+      };
+
+      const setTheme = (name) => {
+        root.setAttribute("data-theme", name);
+        light.classList.toggle("is-on", name === "light");
+        dark.classList.toggle("is-on", name === "dark");
+        localStorage.setItem("myz-ds-theme", name);
+        paintTokens();
+      };
+      const schemeLabel = document.getElementById("scheme-label");
+      const schemeItems = [
+        ...document.querySelectorAll("#scheme-menu .menu-item"),
+      ];
+      const SCHEME_NAMES = {
+        paper: "米纸",
+        slate: "冷灰",
+        celadon: "青瓷",
+        ochre: "赭石",
+      };
+      const setScheme = (name) => {
+        root.setAttribute("data-scheme", name);
+        schemeLabel.textContent = SCHEME_NAMES[name] || name;
+        schemeItems.forEach((item) =>
+          item.classList.toggle("is-on", item.dataset.scheme === name),
+        );
+        localStorage.setItem("myz-ds-scheme", name);
+        paintTokens();
+        contrasts();
+      };
+
+      const CJK_HREF = {
+        sc: "https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap",
+        tc: "https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700&display=swap",
+        hk: "https://fonts.googleapis.com/css2?family=Noto+Serif+HK:wght@400;500;600;700&display=swap",
+        jp: "https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&display=swap",
+        kr: "https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;600;700&display=swap",
+      };
+      const loadedCjk = new Set(["sc"]);
+      const loadCjk = (name) => {
+        if (!CJK_HREF[name] || loadedCjk.has(name)) return;
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = CJK_HREF[name];
+        document.head.appendChild(link);
+        loadedCjk.add(name);
+      };
+
+      setScheme(localStorage.getItem("myz-ds-scheme") || "paper");
+      setTheme(localStorage.getItem("myz-ds-theme") || "light");
+      light.addEventListener("click", () => setTheme("light"));
+      dark.addEventListener("click", () => setTheme("dark"));
+
+      const schemeTrigger = document.getElementById("scheme-trigger");
+      const schemeMenu = document.getElementById("scheme-menu");
+      const closeSchemeMenu = () => {
+        schemeMenu.classList.remove("is-open");
+        schemeTrigger.setAttribute("aria-expanded", "false");
+      };
+      schemeTrigger.addEventListener("click", () => {
+        const open = schemeMenu.classList.toggle("is-open");
+        schemeTrigger.setAttribute("aria-expanded", String(open));
+      });
+      schemeItems.forEach((item) =>
+        item.addEventListener("click", () => {
+          setScheme(item.dataset.scheme);
+          closeSchemeMenu();
+          schemeTrigger.focus();
+        }),
+      );
+      document.addEventListener("click", (event) => {
+        if (!document.getElementById("scheme-picker").contains(event.target)) {
+          closeSchemeMenu();
+        }
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeSchemeMenu();
+      });
+
+      document.querySelectorAll("#scene-tabs .chip").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          document
+            .querySelectorAll("#scene-tabs .chip")
+            .forEach((t) => t.classList.remove("is-on"));
+          tab.classList.add("is-on");
+          document
+            .querySelectorAll(".panel")
+            .forEach((p) => p.classList.remove("is-on"));
+          document
+            .getElementById("scene-" + tab.dataset.scene)
+            .classList.add("is-on");
+        });
+      });
+
+      const slug = (text) =>
+        text
+          .trim()
+          .toLowerCase()
+          .replace(/[^\w\u4e00-\u9fa5]+/g, "-")
+          .replace(/^-|-$/g, "");
+      const toc = document.getElementById("toc");
+      const tocList = document.getElementById("toc-list");
+      const tocToggle = document.getElementById("toc-toggle");
+      const sections = [...document.querySelectorAll(".sec[id]")];
+
+      if (toc && tocList) {
+        tocList.innerHTML = sections
+          .map((sec) => {
+            const label = sec.dataset.label || sec.id;
+            const subHeads = [...sec.querySelectorAll(".spec > h3")];
+            const subs = subHeads
+              .map((h) => {
+                if (!h.id) h.id = `${sec.id}-${slug(h.textContent)}`;
+                return `<li><a href="#${h.id}" data-target="${h.id}">${h.textContent.trim()}</a></li>`;
+              })
+              .join("");
+            const nested = subs ? `<ol>${subs}</ol>` : "";
+            return `<li data-section="${sec.id}"><a href="#${sec.id}" data-target="${sec.id}">${label}</a>${nested}</li>`;
+          })
+          .join("");
+
+        const links = [...tocList.querySelectorAll("a")];
+        const sectionItems = [...tocList.querySelectorAll("li[data-section]")];
+        const setActive = (id) => {
+          links.forEach((a) =>
+            a.classList.toggle("on", a.dataset.target === id),
+          );
+          const active = links.find((a) => a.dataset.target === id);
+          const openItem = active && active.closest("li[data-section]");
+          sectionItems.forEach((li) =>
+            li.classList.toggle("is-open", li === openItem),
+          );
+        };
+        links.forEach((a) =>
+          a.addEventListener("click", () => setActive(a.dataset.target)),
+        );
+        if ("IntersectionObserver" in window) {
+          const io = new IntersectionObserver(
+            (entries) => {
+              const visible = entries
+                .filter((e) => e.isIntersecting)
+                .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+              if (visible[0]) setActive(visible[0].target.id);
+            },
+            { rootMargin: "-45% 0px -45% 0px", threshold: [0, 0.25, 0.5, 1] },
+          );
+          sections.forEach((sec) => io.observe(sec));
+        }
+
+        const applyCollapsed = (collapsed) => {
+          toc.classList.toggle("is-collapsed", collapsed);
+          tocToggle.setAttribute("aria-expanded", String(!collapsed));
+          tocToggle.setAttribute(
+            "aria-label",
+            collapsed ? "展开目录" : "收起目录",
+          );
+          localStorage.setItem("myz-ds-toc", collapsed ? "1" : "0");
+        };
+        const stored = localStorage.getItem("myz-ds-toc");
+        const roomForExpanded = window.matchMedia(
+          "(min-width: 1440px)",
+        ).matches;
+        applyCollapsed(stored ? stored === "1" : !roomForExpanded);
+        tocToggle.addEventListener("click", () =>
+          applyCollapsed(!toc.classList.contains("is-collapsed")),
+        );
+      }
+
+      function contrasts() {
+        if (!contrastTable) return;
+        const schemes = [
+          ["paper", "米纸"],
+          ["slate", "冷灰"],
+          ["celadon", "青瓷"],
+          ["ochre", "赭石"],
+        ];
+        const currentScheme = root.getAttribute("data-scheme");
+        const currentTheme = root.getAttribute("data-theme");
+        const rows = [];
+        for (const [scheme, label] of schemes) {
+          for (const theme of ["light", "dark"]) {
+            root.setAttribute("data-scheme", scheme);
+            root.setAttribute("data-theme", theme);
+            const cs = getComputedStyle(root);
+            const get = (n) => cs.getPropertyValue("--" + n).trim();
+            const pairs = [
+              [get("text"), get("bg")],
+              [get("muted"), get("bg")],
+              [get("accent-text"), get("bg")],
+              [get("well-text"), get("well")],
+              [get("on-accent"), get("accent")],
+            ];
+            const cells = pairs
+              .map(([fg, bg]) => {
+                const v = contrast(fg, bg);
+                const cls = v >= 4.5 ? "" : ' style="color:var(--error)"';
+                return `<td${cls}>${v.toFixed(2)}</td>`;
+              })
+              .join("");
+            rows.push(
+              `<tr><td>${label} · ${theme === "light" ? "浅色" : "深色"}</td>${cells}</tr>`,
+            );
+          }
+        }
+        root.setAttribute("data-scheme", currentScheme);
+        root.setAttribute("data-theme", currentTheme);
+        contrastTable.innerHTML = rows.join("");
+      }
+      contrasts();
+
+      const samples = document.getElementById("lang-samples");
+      if (samples) {
+        const loadSamples = () =>
+          samples
+            .querySelectorAll("figure[data-lang]")
+            .forEach((f) => loadCjk(f.dataset.lang));
+        if ("IntersectionObserver" in window) {
+          const io = new IntersectionObserver(
+            (entries) => {
+              if (entries.some((e) => e.isIntersecting)) {
+                loadSamples();
+                io.disconnect();
+              }
+            },
+            { rootMargin: "200px" },
+          );
+          io.observe(samples);
+        } else {
+          loadSamples();
+        }
+      }
+    </script>
+  </body>
+</html>
