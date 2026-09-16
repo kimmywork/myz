@@ -67,6 +67,7 @@ export default defineConfig([
       "**/*.config.js",
       "**/*.config.mjs",
       "scripts/**/*.mjs",
+      "tests/**/*.mjs",
     ],
     languageOptions: {
       globals: {
