@@ -150,6 +150,44 @@ export async function getPageSize(
 }
 
 /**
+ * Aligns each text-layer span with the rendered ink.
+ *
+ * pdf.js derives `--scale-x` from a canvas measurement of the text, assuming
+ * canvas and DOM metrics match. When they don't (generic fallback fonts,
+ * justified runs, non-embedded fonts) the transparent text layer ends up wider
+ * than the glyphs, so native selection and highlight rectangles spill into the
+ * right margin. Recompute the scale from the actual DOM box so the span width
+ * equals the PDF run width (`item.width * scale`).
+ */
+function syncTextLayerWidths(
+  textLayer: { textDivs: HTMLElement[] },
+  items: Array<{ str?: string; width?: number }>,
+  scale: number,
+): void {
+  const textItems = items.filter((item) => item.str !== undefined);
+  const divs = textLayer.textDivs;
+  for (let i = 0; i < textItems.length && i < divs.length; i += 1) {
+    const el = divs[i];
+    const item = textItems[i];
+    // Items pdf.js chose not to scale (e.g. single glyphs) have no inline var.
+    if (
+      !el.textContent ||
+      !item.width ||
+      !el.style.getPropertyValue("--scale-x")
+    ) {
+      continue;
+    }
+    const current =
+      Number.parseFloat(getComputedStyle(el).getPropertyValue("--scale-x")) ||
+      1;
+    const base = el.getBoundingClientRect().width / current;
+    if (base > 0) {
+      el.style.setProperty("--scale-x", String((item.width * scale) / base));
+    }
+  }
+}
+
+/**
  * Renders a single PDF page into the given placeholder element
  * (canvas + text layer + overlay layer).
  *
@@ -199,6 +237,12 @@ export async function renderPageInto(
 
   pageEl.replaceChildren(canvas, textLayerEl, overlayEl);
   await textTask;
+  await document.fonts?.ready;
+  syncTextLayerWidths(
+    textLayer,
+    textContent.items as Array<{ str?: string; width?: number }>,
+    viewport.scale,
+  );
 
   return { width: viewport.width, height: viewport.height };
 }

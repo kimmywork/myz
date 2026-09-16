@@ -119,6 +119,55 @@ test("pdf_underline_decorates_only_the_selected_text", async () => {
   await page.close();
 });
 
+test("pdf_text_layer_width_matches_rendered_ink", async () => {
+  const { page, errors } = await openReader(mixedUrl());
+  await waitReady(page);
+
+  const result = await page.evaluate(() => {
+    const pageEl = document.querySelector(
+      '.pdf-page[data-page="1"]',
+    ) as HTMLElement;
+    const span = Array.from(pageEl.querySelectorAll(".textLayer span")).find(
+      (el) => (el.textContent || "").startsWith("Modern interfaces"),
+    ) as HTMLElement;
+    const pageRect = pageEl.getBoundingClientRect();
+    const spanRect = span.getBoundingClientRect();
+    const canvas = pageEl.querySelector("canvas") as HTMLCanvasElement;
+    const scale = canvas.width / pageEl.clientWidth;
+    const ctx = canvas.getContext("2d")!;
+    const y0 = Math.max(0, Math.floor((spanRect.top - pageRect.top) * scale));
+    const y1 = Math.min(
+      canvas.height,
+      Math.ceil((spanRect.bottom - pageRect.top) * scale),
+    );
+    const data = ctx.getImageData(0, y0, canvas.width, y1 - y0).data;
+    const width = canvas.width;
+    const isInk = (x: number, y: number) => {
+      const i = (y * width + x) * 4;
+      return data[i] + data[i + 1] + data[i + 2] < 540;
+    };
+    let inkX = 0;
+    for (let x = width - 1; x >= 0 && inkX === 0; x -= 1) {
+      for (let y = 0; y < y1 - y0; y += 1) {
+        if (isInk(x, y)) {
+          inkX = x;
+          break;
+        }
+      }
+    }
+    return {
+      spanRight: spanRect.right - pageRect.left,
+      inkRight: inkX / scale,
+      spanWidth: spanRect.width,
+    };
+  });
+
+  console.log("INK", JSON.stringify(result));
+  expect(Math.abs(result.spanRight - result.inkRight)).toBeLessThan(12);
+  expect(errors, errors.join("\n")).toHaveLength(0);
+  await page.close();
+});
+
 test("pdf_paint_overlay_matches_selection_extent", async () => {
   const { page, errors } = await openReader(mixedUrl());
   await waitReady(page);

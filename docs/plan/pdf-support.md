@@ -189,6 +189,13 @@ MyZ 已完成"网页采集 → 查看/展示"的闭环。下一步的真实高�
 **验证**：`vue-tsc`、`npm run build`、eslint 通过；`npx playwright test tests/pdf` 18 passed / 1 skipped。
 **截图证据**：`pdf-sidebar-search.png`。
 
+### INC-10 修正文本层宽度：选中/高亮不再溢出到右侧空白
+**状态**：已完成。`tests/pdf/pdf-decoration.spec.ts` 新增 ink 对齐用例。
+**问题**：长段落（尤其两端对齐、非嵌入字体）选中时，选区与高亮在文字右侧多出一截空白；浏览器自带阅读器无此问题。
+**根因**：pdf.js v6 textLayer 依据 canvas `measureText` 与 PDF 文本 run 宽度自动计算 `--scale-x`，前提是 canvas 与 DOM 字体度量一致。当字体回退为通用族（如 `sans-serif`）、或与 DOM 度量不一致时，透明文本层会被拉伸得比实际字形更宽，选区/高亮矩形随之溢出。
+**修复**：`renderPageInto` 在文本层渲染完成（并等待 `document.fonts.ready`）后，用 DOM 实测宽度重算 `--scale-x`，使每个 span 宽度严格等于 `item.width * scale`（即 PDF 文本 run 的墨迹宽度）。仅处理 pdf.js 已设过 `--scale-x` 的 span。
+**验证**：真实 58 页论文第 4 页，段落 span 宽度由 711.9px → 680.8px（= item.width×1.5），右边界回到文本列右边距；合成 fixture 的 ink 对齐误差由 48px 降至 <1px；`npx playwright test tests/pdf` 21 passed / 1 skipped。
+
 ---
 
 ## 执行顺序理由

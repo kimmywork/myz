@@ -29,6 +29,7 @@ const html = `<!doctype html>
 <body>
   <h1>Mixed Script PDF</h1>
   <p id="latin">The quick brown fox jumps over the lazy dog near the riverbank while another quick brown fox quietly watches from the shadows.</p>
+  <p id="sans" class="sans">Modern interfaces increasingly rely on clean sans-serif typography for dense paragraphs of explanatory text that must remain readable.</p>
   <p id="greek">Greek letters αβγδεζηθικλμνξοπρστυφχψω appear in the middle of an otherwise ordinary English sentence about geometry.</p>
   <p id="math" class="math">Equations like ∑ √(x² + y²) ≤ ∞ and α ≈ β ≠ γ are common throughout the surrounding text.</p>
   <p id="cjk" class="cjk">中文测试：这是一个包含简体中文、标点符号与英文 mixed 的段落，用来验证选区与高亮的对齐情况。</p>
