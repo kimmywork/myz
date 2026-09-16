@@ -78,7 +78,18 @@ export default defineComponent({
           <p class="reader-status">加载中…</p>
         ) : null}
         {status.value === "error" ? (
-          <p class="reader-status reader-status--error">{error.value}</p>
+          <div class="reader-status reader-status--error">
+            <span>{error.value}</span>
+            {store.pendingOpen ? (
+              <button
+                type="button"
+                class="reader-status__retry"
+                onClick={() => void store.retryPendingOpen()}
+              >
+                重新授权并打开
+              </button>
+            ) : null}
+          </div>
         ) : null}
 
         {status.value === "landing" ? <PdfLanding /> : null}

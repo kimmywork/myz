@@ -150,6 +150,27 @@ body {
 .reader-status--error {
   color: #fda4af;
   border-color: #7f1d1d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  max-width: 360px;
+}
+
+.reader-status__retry {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid #7f1d1d;
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecdd3;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.reader-status__retry:hover {
+  border-color: #fda4af;
+  color: #fff;
 }
 
 .reader-busy {

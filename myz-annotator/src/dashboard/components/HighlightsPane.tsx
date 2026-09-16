@@ -76,7 +76,7 @@ export default defineComponent({
           void highlightsStore.downgradeHighlight(record.id);
           break;
         case "openPdf":
-          openPdfRecordInReader(record);
+          void openPdfRecordInReader(record);
           break;
       }
     }

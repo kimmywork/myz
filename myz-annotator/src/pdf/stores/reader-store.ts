@@ -155,6 +155,8 @@ export const useReaderStore = defineStore("pdf-reader", () => {
     openRecent: documentApi.openRecent,
     openWeb: documentApi.openWeb,
     openBytes: documentApi.openBytes,
+    pendingOpen: documentApi.pendingOpen,
+    retryPendingOpen: documentApi.retryPendingOpen,
     attachStage,
     detachStage,
     init,

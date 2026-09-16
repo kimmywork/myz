@@ -35,20 +35,71 @@ export function supportsFileSystemAccess(): boolean {
   );
 }
 
+/**
+ * Raised when a stored local-file handle needs a permission re-grant that
+ * requires transient user activation (which a freshly program-opened tab does
+ * not have).
+ */
+export function localPdfPermissionError(): Error {
+  const err = new Error("需要重新授权访问该本地文件，请点击「重新授权并打开」");
+  err.name = "LocalPdfPermissionError";
+  return err;
+}
+
+export function isPermissionError(err: unknown): boolean {
+  return err instanceof Error && err.name === "LocalPdfPermissionError";
+}
+
 async function readHandle(
   handle: PermissionCapableHandle,
 ): Promise<ArrayBuffer> {
   if (handle.queryPermission) {
     const current = await handle.queryPermission({ mode: "read" });
-    if (current !== "granted" && handle.requestPermission) {
-      const next = await handle.requestPermission({ mode: "read" });
-      if (next !== "granted") {
-        throw new Error("未获得读取该文件的权限");
+    if (current !== "granted") {
+      if (!handle.requestPermission) {
+        throw localPdfPermissionError();
+      }
+      try {
+        const next = await handle.requestPermission({ mode: "read" });
+        if (next !== "granted") {
+          throw localPdfPermissionError();
+        }
+      } catch (err) {
+        // Browsers reject requestPermission without user activation; surface a
+        // recoverable error instead of the raw DOMException.
+        throw isPermissionError(err) ? err : localPdfPermissionError();
       }
     }
   }
   const file = await handle.getFile();
   return file.arrayBuffer();
+}
+
+/**
+ * Requests read permission for a stored local PDF while the caller still has
+ * user activation (e.g. a click in the dashboard), so the reader tab can read
+ * the handle without prompting. Returns whether permission is granted.
+ */
+export async function ensureLocalPdfPermission(
+  fingerprint: string,
+): Promise<boolean> {
+  const handle = await getFileHandle<PermissionCapableHandle>(fingerprint);
+  if (!handle?.queryPermission) {
+    return false;
+  }
+  try {
+    const current = await handle.queryPermission({ mode: "read" });
+    if (current === "granted") {
+      return true;
+    }
+    if (!handle.requestPermission) {
+      return false;
+    }
+    const next = await handle.requestPermission({ mode: "read" });
+    return next === "granted";
+  } catch {
+    return false;
+  }
 }
 
 export function titleFromPdfUrl(url: string): string {

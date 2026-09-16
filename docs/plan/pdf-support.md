@@ -196,6 +196,14 @@ MyZ 已完成"网页采集 → 查看/展示"的闭环。下一步的真实高�
 **修复**：`renderPageInto` 在文本层渲染完成（并等待 `document.fonts.ready`）后，用 DOM 实测宽度重算 `--scale-x`，使每个 span 宽度严格等于 `item.width * scale`（即 PDF 文本 run 的墨迹宽度）。仅处理 pdf.js 已设过 `--scale-x` 的 span。
 **验证**：真实 58 页论文第 4 页，段落 span 宽度由 711.9px → 680.8px（= item.width×1.5），右边界回到文本列右边距；合成 fixture 的 ink 对齐误差由 48px 降至 <1px；`npx playwright test tests/pdf` 21 passed / 1 skipped。
 
+### INC-11 修正 Dashboard 跳转本地 PDF 的授权失败
+**状态**：已完成。
+**问题**：从 Dashboard 打开本地 PDF 时，阅读器（新标签）在 `restoreLocalPdf` 中调用 `FileSystemHandle.requestPermission` 抛 `User activation is required to request permissions`。新标签无用户激活，`requestPermission` 被拒绝。
+**修复**：
+- 申请授权前移：`openPdfRecordInReader` 改为 async，在 Dashboard 的点击回调中先 `ensureLocalPdfPermission(fingerprint)`（此时有用户激活），再 `chrome.tabs.create`；阅读器随后读取句柄时权限已授予。
+- 阅读器兜底：`readHandle` 将缺少激活导致的 `requestPermission` 失败转换为可恢复的 `LocalPdfPermissionError`；`usePdfDocument` 捕获后在错误态提供「重新授权并打开」按钮（点击即恢复激活）重试。
+**验证**：`vue-tsc`、`npm run build`、eslint 通过；`npx playwright test tests/pdf` 21 passed / 1 skipped（含 Dashboard 跳转用例）。
+
 ---
 
 ## 执行顺序理由

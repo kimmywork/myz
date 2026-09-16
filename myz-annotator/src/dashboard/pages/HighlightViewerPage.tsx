@@ -381,7 +381,7 @@ export default defineComponent({
                           class="rounded-full border border-amber-300 px-2 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:text-amber-200 dark:hover:bg-amber-500/10"
                           onClick={(event: Event) => {
                             event.stopPropagation();
-                            openPdfRecordInReader(item);
+                            void openPdfRecordInReader(item);
                           }}
                         >
                           在阅读器中打开

@@ -1,5 +1,6 @@
 import { sendMessage } from "@myz/shared/messaging";
 import { SOURCE_TYPES } from "@myz/shared/types";
+import { ref as createRef } from "vue";
 import { fingerprintPdf } from "../fingerprint.js";
 import {
   loadPdfFromBytes,
@@ -7,6 +8,7 @@ import {
   type PdfDocument,
 } from "../pdf-document.js";
 import {
+  isPermissionError,
   pickLocalPdf,
   restoreLocalPdf,
   sourceKeyOf,
@@ -28,6 +30,9 @@ export interface DocumentDeps {
 /** Opening documents (web / local / recents) and bootstrapping from the URL. */
 export function usePdfDocument(state: ReaderState, deps: DocumentDeps) {
   let initialized = false;
+  // Set when a local open fails only because it needs re-authorization; lets
+  // the UI offer a button that retries with user activation.
+  const pendingOpen = createRef<PdfProgress | null>(null);
 
   function setError(message: string) {
     state.error.value = message;
@@ -52,6 +57,7 @@ export function usePdfDocument(state: ReaderState, deps: DocumentDeps) {
 
   async function loadDocument(nextDoc: PdfDocument, ref: PdfSourceRef) {
     deps.engine.setDocument(nextDoc, ref);
+    pendingOpen.value = null;
     state.pages.value = nextDoc.numPages;
     state.label.value = ref.title;
     state.activeId.value = null;
@@ -128,6 +134,14 @@ export function usePdfDocument(state: ReaderState, deps: DocumentDeps) {
         const nextDoc = await loadPdfFromBytes(restored.bytes);
         await loadDocument(nextDoc, restored.ref);
       } catch (err) {
+        if (isPermissionError(err)) {
+          // No user activation in this tab: keep the entry so the UI can offer
+          // a retry button (clicking it restores activation).
+          pendingOpen.value = entry;
+          state.error.value = (err as Error).message;
+          state.status.value = "error";
+          return;
+        }
         setError((err as Error)?.message || "无法打开本地 PDF");
       }
       return;
@@ -135,6 +149,16 @@ export function usePdfDocument(state: ReaderState, deps: DocumentDeps) {
     if (entry.url) {
       await openWeb(entry.url);
     }
+  }
+
+  /** Retries the last local open from a user gesture (grants activation). */
+  async function retryPendingOpen() {
+    const entry = pendingOpen.value;
+    if (!entry) {
+      return;
+    }
+    pendingOpen.value = null;
+    await openRecent(entry);
   }
 
   async function refreshRecents() {
@@ -185,11 +209,13 @@ export function usePdfDocument(state: ReaderState, deps: DocumentDeps) {
   }
 
   return {
+    pendingOpen,
     loadDocument,
     openWeb,
     openBytes,
     openLocal,
     openRecent,
+    retryPendingOpen,
     refreshRecents,
     init,
   };
