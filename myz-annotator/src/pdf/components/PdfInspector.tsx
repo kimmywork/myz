@@ -1,0 +1,115 @@
+import { DEFAULT_COLORS, RECORD_KINDS } from "@myz/shared/types";
+import { storeToRefs } from "pinia";
+import { defineComponent } from "vue";
+import { useReaderStore } from "../stores/reader-store.js";
+
+export default defineComponent({
+  name: "PdfInspector",
+  setup() {
+    const store = useReaderStore();
+    const { activeRecord, noteDraft, tagsDraft, dirty } = storeToRefs(store);
+    const styleOptions = store.styleOptions;
+
+    return () =>
+      activeRecord.value ? (
+        <aside class="reader-inspector">
+          <header class="reader-inspector__head">
+            <span>
+              {activeRecord.value.kind === RECORD_KINDS.CLIP
+                ? "保存文字"
+                : "划线标注"}
+              {activeRecord.value.pdfLocator
+                ? ` · 第 ${activeRecord.value.pdfLocator.pageNumber} 页`
+                : ""}
+            </span>
+            <button
+              type="button"
+              aria-label="关闭"
+              onClick={() => (store.activeId = null)}
+            >
+              ×
+            </button>
+          </header>
+          <blockquote class="reader-inspector__quote">
+            {activeRecord.value.text}
+          </blockquote>
+          {activeRecord.value.kind === RECORD_KINDS.HIGHLIGHT ? (
+            <div class="reader-inspector__row">
+              <span class="reader-inspector__label">样式</span>
+              {styleOptions.map((option) => (
+                <button
+                  type="button"
+                  class={
+                    "reader-inspector__chip" +
+                    (activeRecord.value?.style === option.style
+                      ? " is-active"
+                      : "")
+                  }
+                  key={option.style}
+                  onClick={() => store.patchActive({ style: option.style })}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {activeRecord.value.kind === RECORD_KINDS.HIGHLIGHT ? (
+            <div class="reader-inspector__row">
+              <span class="reader-inspector__label">颜色</span>
+              {DEFAULT_COLORS.map((color) => (
+                <button
+                  type="button"
+                  key={color}
+                  class={
+                    "reader-inspector__swatch" +
+                    (activeRecord.value?.color === color ? " is-active" : "")
+                  }
+                  style={{ background: color }}
+                  aria-label={`颜色 ${color}`}
+                  onClick={() => store.patchActive({ color })}
+                />
+              ))}
+            </div>
+          ) : null}
+          <textarea
+            class="reader-inspector__note"
+            placeholder="添加批注…"
+            value={noteDraft.value}
+            onInput={(event: Event) => {
+              store.noteDraft = (event.target as HTMLTextAreaElement).value;
+              store.dirty = true;
+            }}
+            onBlur={store.commitActive}
+          />
+          <input
+            class="reader-inspector__tags"
+            placeholder="标签（逗号分隔）"
+            value={tagsDraft.value}
+            onInput={(event: Event) => {
+              store.tagsDraft = (event.target as HTMLInputElement).value;
+              store.dirty = true;
+            }}
+            onBlur={store.commitActive}
+          />
+          <div class="reader-inspector__actions">
+            <span class="reader-inspector__status">{store.savedLabel()}</span>
+            <button
+              type="button"
+              class="reader-inspector__save"
+              disabled={!dirty.value}
+              onClick={store.commitActive}
+            >
+              保存
+            </button>
+            <button
+              type="button"
+              class="reader-inspector__delete"
+              onClick={store.deleteActive}
+            >
+              删除
+            </button>
+          </div>
+        </aside>
+      ) : null;
+  },
+});

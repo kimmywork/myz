@@ -14,6 +14,7 @@ MyZ 已完成"网页采集 → 查看/展示"的闭环。下一步的真实高�
 - 文本摘录 + 批注 + 标签 + 复用现有三种划线样式。
 - 页内高亮还原。
 - 阅读进度记忆。
+- 阅读器内导航侧栏（PDF 目录 + 标注列表）。
 - 标注只入库、不入档（不保存 PDF 本体）。
 - 还原依据：本地 PDF 用文件指纹（大小 + 首尾采样）生成合成键，网页 PDF 用 URL。
 - Dashboard 以"PDF 来源 + 页码"聚合展示，点击跳阅读器对应页。
@@ -164,6 +165,29 @@ MyZ 已完成"网页采集 → 查看/展示"的闭环。下一步的真实高�
 **实现说明**：`SyncRecordPayloadSchemaV1.data` 为 `z.unknown()`，`serializeRecordPayload`/`deserializeRecordPayload` 走 `stableStringify` + deflate，`applyRecordPayload` 以 `{...record, updatedAt}` 原样落库 → 新字段无损。阅读器按合成键 `myz-pdf:<指纹>` 查询标注，指纹由文件内容（大小+首尾采样）决定，与句柄无关。
 **验证**：单测 `tests/unit/background/sync/records.test.ts` 2 passed（web/pdf 记录往返）；e2e `pdf_local_annotation_restores_by_fingerprint`：设备 A 用文件字节创建标注 → 设备 B（无句柄）打开同一文件字节 → 指纹一致并还原标注。
 **完成标准**：同步后他端可用同一文件还原标注。
+
+### INC-8 阅读器导航侧栏（目录 + 标注）
+**状态**：已完成。`tests/pdf/pdf-sidebar.spec.ts` 3 passed。
+**产出**：阅读器左侧浮层侧栏（可折叠，开关与 tab 记忆于 `localStorage`）。「目录」tab 读取 PDF outline 渲染树形 TOC（展开/折叠、当前章节高亮）；「标注」tab 把高亮/保存文字按页分组列出，支持按类型过滤，点击后精确滚动到标注位置并激活。
+**实现说明**：
+- 目录解析在 `src/pdf/pdf-document.ts` 新增 `loadOutline`：`getOutline` → 目标解析（显式 dest 数组直接取首元素页 ref；命名 dest 经 `getDestination`）→ `getPageIndex` 转 1-based 页码；无法解析的节点保留标题但不可点击。
+- 侧栏为**浮层**（`position: fixed`，沿用 Inspector 的深色卡片风格），不挤压正文，窄窗口同样适用。
+- 标注导航复用已加载的 `annotations`，点击时 `goToPage` 后按首个归一化 rect 的 y 计算偏移，使标注落在视口上三分之一处并设为 active。
+**测试**：新增 fixture `tests/fixtures/myz-pdf-outline.pdf`（3 页 + 3 条含嵌套的目录）；e2e 覆盖目录解析/跳转/当前项高亮、标注分组/过滤/精确滚动、无目录空态。
+**截图证据**：`pdf-sidebar-outline.png`、`pdf-sidebar-highlights.png`。
+
+### INC-9 阅读器状态抽离（Pinia）与子组件拆分 + 标注搜索
+**状态**：已完成。`tests/pdf/pdf-sidebar.spec.ts` 4 passed（新增搜索用例）。
+**背景**：`PdfReaderApp.tsx` 膨胀到 1300+ 行，状态、pdf.js 引擎、DOM 操作与 UI 混在一起。
+**产出**：
+- 状态与引擎抽到 Pinia：`src/pdf/stores/state.ts`（纯状态切片 `createReaderState`）、`src/pdf/stores/reader-store.ts`（163 行组合根，仅暴露状态/选择器/动作）、`src/pdf/stores/pinia.ts`（PDF 入口独立实例，与 content/dashboard 一样各宿主一份）。
+- 引擎与业务拆为 `src/pdf/composables/`：`usePdfEngine`（pdf.js 渲染/懒加载/滚动/缩放/进度持久化，持有非响应式句柄）、`usePdfAnnotations`（标注 CRUD、选区、Inspector 草稿、分组/搜索选择器）、`usePdfOutline`（目录加载/展开/跳转）、`usePdfDocument`（打开网页/本地/最近、`init`）。
+- `PdfReaderApp.tsx` 缩减为 88 行的壳：只做组合 + `window.__MYZ_PDF__` 测试后门。UI 拆为 `src/pdf/components/`：`PdfToolbar`、`PdfStage`、`PdfSidebar`、`PdfOutlinePanel`、`PdfHighlightsPanel`、`PdfInspector`、`PdfSelectionToolbar`、`PdfLanding`。
+- 标签列表新增搜索框（`highlightQuery`），按文本/批注/标签大小写不敏感过滤；空态区分“无标注 / 无匹配 / 无符合筛选”。
+- 保持所有既有 `reader-*` / `pdf-*` class 与 `__MYZ_PDF__` 方法不变（新增 `setHighlightQuery`），既有 e2e 无需改动。
+**复用说明**：content-script 的 `Toolbar.tsx`/`Inspector.tsx` 外壳可复用，但其 store 深度耦合 `apply-highlight`/`highlight-state`/`html`/`image` 与 `window.getSelection()`；PDF 阅读器用独立 store 更干净，本期不强行复用（后续如需统一，应先抽出与宿主无关的 UI 壳）。
+**验证**：`vue-tsc`、`npm run build`、eslint 通过；`npx playwright test tests/pdf` 18 passed / 1 skipped。
+**截图证据**：`pdf-sidebar-search.png`。
 
 ---
 

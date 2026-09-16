@@ -7,6 +7,7 @@ This repo is a multi‑module suite (extension + libraries). Keep changes scoped
   - `src/background/` service worker logic (no DOM).
   - `src/content/` content scripts + page UI.
   - `src/popup/`, `src/dashboard/` UI surfaces.
+  - `src/pdf/` self-built pdf.js reader page: thin shell `PdfReaderApp.tsx` + `components/` (presentational) + `stores/` (Pinia state slice + composition root `reader-store.ts`) + `composables/` (`usePdfEngine` rendering/scroll/zoom, `usePdfAnnotations`, `usePdfOutline`, `usePdfDocument`) + non-reactive helpers (`annotations`, `pdf-document`, `source`, `storage`, `fingerprint`, `detect`).
 - `packages/shared/` (`@myz/shared`) — environment-agnostic shared utilities, schemas, types, messaging, theme, icons, and highlight helpers shared across hosts (extension/desktop); referenced via `@myz/shared/*`.
 - `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/legal/plan/research).
 - `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).

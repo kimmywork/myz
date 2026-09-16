@@ -15,6 +15,94 @@ export interface PageSize {
   height: number;
 }
 
+/**
+ * A single entry of the PDF outline (table of contents). `pageNumber` is the
+ * 1-based resolved page, or null when the destination cannot be resolved
+ * (named destination missing, malformed outline, label-only node).
+ */
+export interface PdfOutlineEntry {
+  id: string;
+  title: string;
+  pageNumber: number | null;
+  depth: number;
+  children: PdfOutlineEntry[];
+}
+
+interface RawOutlineNode {
+  title?: string;
+  dest?: string | unknown[] | null;
+  items?: RawOutlineNode[];
+}
+
+function resolveOutlinePage(
+  doc: PdfDocument,
+  dest: RawOutlineNode["dest"],
+): Promise<number | null> {
+  if (!dest) {
+    return Promise.resolve(null);
+  }
+  return (async () => {
+    try {
+      // Named destinations must be resolved; explicit dest arrays are already
+      // `[pageRef, ...]` (pdf.js v6 `getDestination` only accepts names).
+      const explicit =
+        typeof dest === "string"
+          ? ((await doc.getDestination(dest)) as unknown[] | null)
+          : dest;
+      if (!explicit || explicit.length === 0) {
+        return null;
+      }
+      const ref = explicit[0];
+      if (typeof ref === "number") {
+        return ref + 1;
+      }
+      const index = await doc.getPageIndex(ref as { num: number; gen: number });
+      return index >= 0 ? index + 1 : null;
+    } catch {
+      return null;
+    }
+  })();
+}
+
+/**
+ * Reads the document outline and resolves every destination to a page number.
+ * Returns an empty array for PDFs without an outline.
+ */
+export async function loadOutline(
+  doc: PdfDocument,
+): Promise<PdfOutlineEntry[]> {
+  let raw: RawOutlineNode[] | null;
+  try {
+    raw = (await doc.getOutline()) as RawOutlineNode[] | null;
+  } catch (err) {
+    console.warn("Failed to read PDF outline", err);
+    return [];
+  }
+  if (!raw || raw.length === 0) {
+    return [];
+  }
+  let counter = 0;
+  const mapLevel = (
+    items: RawOutlineNode[],
+    depth: number,
+  ): Promise<PdfOutlineEntry[]> =>
+    Promise.all(
+      items.map(async (item) => {
+        const children = item.items?.length
+          ? await mapLevel(item.items, depth + 1)
+          : [];
+        return {
+          id: `outline-${counter++}`,
+          title: (item.title || "").trim() || "(无标题)",
+          pageNumber: await resolveOutlinePage(doc, item.dest),
+          depth,
+          children,
+        };
+      }),
+    );
+  return mapLevel(raw, 0);
+}
+
 export const PDFJS_VERSION = pdfjsLib.version;
 
 /**
