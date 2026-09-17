@@ -1,19 +1,25 @@
 @config "../../tailwind.config.ts";
 @import "tailwindcss";
+@import "@myz/shared/theme/tailwind.css";
+@reference "@myz/shared/theme/tailwind.css";
 @plugin "@tailwindcss/typography";
 
 @layer base {
+  /* §4.1 图标：Lucide 只描边，线宽 1.75 */
+  .lucide {
+    stroke-width: 1.75;
+  }
+
   :root {
-    font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont,
-      "Segoe UI", sans-serif;
+    font-family: var(--myz-sans);
   }
 
   body {
-    @apply min-h-screen bg-slate-50 text-slate-900;
+    @apply min-h-screen bg-bg text-text;
   }
 
   body.dark {
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-bg text-text;
   }
 
   input[type="date"]::-webkit-calendar-picker-indicator {
@@ -33,29 +39,55 @@
   }
 }
 
+@layer base {
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
 @layer components {
+  /* §4.16 长文阅读：衬线、五档字号、行距/字距/栏宽都用 Token */
+  .read-body {
+    font-family: var(--myz-read);
+    font-size: var(--myz-read-size-3);
+    line-height: var(--myz-read-leading);
+    letter-spacing: var(--myz-read-tracking);
+    max-width: var(--myz-read-measure);
+  }
+
+  /* §4.4 按钮：36 常规高度、13/600、control 底、强调色聚焦圈 */
   .btn {
-    @apply inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-400 hover:text-indigo-600 disabled:opacity-60 dark:border-white/10 dark:bg-slate-800/80 dark:text-white;
+    @apply inline-flex h-9 items-center justify-center gap-2 rounded-control border border-control-border bg-control-bg px-3 text-label font-semibold text-text transition hover:border-accent hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:pointer-events-none disabled:opacity-45;
   }
 
   .btn-primary {
-    @apply border-transparent bg-indigo-600 text-white hover:bg-indigo-500 dark:bg-indigo-500;
+    @apply border-transparent bg-accent text-on-accent hover:border-transparent hover:bg-accent-hover hover:text-on-accent;
   }
 
   .btn-secondary {
-    @apply border-slate-200 bg-transparent text-slate-600 hover:border-slate-400 dark:border-white/30 dark:text-slate-200;
+    @apply border-control-border bg-transparent text-muted hover:border-accent hover:text-accent-text;
+  }
+
+  .btn-danger {
+    @apply border-transparent bg-transparent text-error hover:border-transparent hover:text-error;
   }
 
   .btn-small {
-    @apply rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-400 dark:border-white/20 dark:text-slate-200;
+    @apply h-8 rounded-pill px-3 text-caption;
   }
 
   .btn-link {
-    @apply text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200;
+    @apply h-auto border-transparent bg-transparent p-0 text-accent-text hover:text-accent-hover;
   }
 
   .field {
-    @apply flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300;
+    @apply flex flex-col gap-2 text-compact text-muted dark:text-muted;
   }
 
   .field
@@ -66,7 +98,7 @@
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   .settings__group select,
   .settings__group textarea {
-    @apply rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200/60 dark:border-white/15 dark:bg-slate-950/40 dark:text-slate-100 dark:placeholder:text-slate-500;
+    @apply rounded-control border border-line bg-surface px-3 py-2 text-compact text-text placeholder:text-muted transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-line dark:bg-surface-2 dark:text-text dark:placeholder:text-muted;
   }
 
   .field input:disabled,
@@ -75,19 +107,19 @@
   .settings__group input:disabled,
   .settings__group select:disabled,
   .settings__group textarea:disabled {
-    @apply border-slate-200 bg-slate-100 text-slate-400 dark:border-white/5 dark:bg-slate-900/40 dark:text-slate-500;
+    @apply border-line bg-surface-2 text-muted dark:border-line dark:bg-surface dark:text-muted;
   }
 
   .toggle {
-    @apply flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200;
+    @apply flex items-center gap-2 text-compact text-text dark:text-text;
   }
 
   .settings__header {
-    @apply flex flex-col gap-2 border-b border-slate-200 pb-4 text-slate-900 dark:border-white/5 dark:text-white;
+    @apply flex flex-col gap-2 border-b border-line pb-4 text-text dark:border-line dark:text-text;
   }
 
   .settings__subtitle {
-    @apply text-sm text-slate-500 dark:text-slate-400;
+    @apply text-compact text-muted dark:text-muted;
   }
 
   .settings__content {
@@ -95,23 +127,23 @@
   }
 
   .settings__group {
-    @apply space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/60;
+    @apply space-y-4 rounded-panel border border-line bg-surface p-5  dark:border-line dark:bg-surface;
   }
 
   .settings__group-header {
-    @apply flex items-center justify-between text-slate-900 dark:text-white;
+    @apply flex items-center justify-between text-text dark:text-text;
   }
 
   .settings__group-actions {
-    @apply flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400;
+    @apply flex items-center gap-2 text-caption text-muted dark:text-muted;
   }
 
   .help-text {
-    @apply text-xs text-slate-500 dark:text-slate-400;
+    @apply text-caption text-muted dark:text-muted;
   }
 
   .settings__group-meta {
-    @apply text-xs text-slate-500 dark:text-slate-400;
+    @apply text-caption text-muted dark:text-muted;
   }
 
   .settings__fields {
@@ -123,27 +155,27 @@
   }
 
   .settings__actions {
-    @apply flex flex-wrap gap-3 border-t border-slate-200 pt-3 dark:border-white/5;
+    @apply flex flex-wrap gap-3 border-t border-line pt-3 dark:border-line;
   }
 
   .settings__hint {
-    @apply text-xs text-slate-500 dark:text-slate-400;
+    @apply text-caption text-muted dark:text-muted;
   }
 
   .settings__empty {
-    @apply rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-400;
+    @apply rounded-control border border-dashed border-line bg-bg p-6 text-center text-compact text-muted dark:border-line dark:bg-surface dark:text-muted;
   }
 
   .status-line {
-    @apply text-xs text-slate-500 dark:text-slate-400;
+    @apply text-caption text-muted dark:text-muted;
   }
 
   .status-line--error {
-    @apply text-rose-500;
+    @apply text-error;
   }
 
   .status-line--success {
-    @apply text-emerald-500;
+    @apply text-success;
   }
 
   .settings__list {
@@ -151,7 +183,7 @@
   }
 
   .settings__list-item {
-    @apply rounded-2xl border border-slate-200 bg-white/90 p-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-200;
+    @apply rounded-control border border-line bg-surface/90 p-3 text-compact text-text dark:border-line dark:bg-surface dark:text-text;
   }
 
   .settings__list-row {
@@ -159,51 +191,51 @@
   }
 
   .settings__list-meta {
-    @apply flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400;
+    @apply flex flex-wrap items-center gap-3 text-caption text-muted dark:text-muted;
   }
 
   .settings__list-title {
-    @apply font-semibold text-slate-900 dark:text-white;
+    @apply font-semibold text-text dark:text-text;
   }
 
   .settings__list-url {
-    @apply truncate text-xs text-slate-500 dark:text-slate-400;
+    @apply truncate text-caption text-muted dark:text-muted;
   }
 
   .settings__pill {
-    @apply rounded-full border border-slate-200 px-2 py-0.5 text-[11px] uppercase tracking-wide text-slate-500 dark:border-white/10 dark:text-slate-300;
+    @apply rounded-full border border-line px-2 py-0.5 text-tag uppercase tracking-wide text-muted dark:border-line dark:text-muted;
   }
 
   .settings__pill--accent {
-    @apply border-indigo-400 text-indigo-500 dark:text-indigo-300;
+    @apply border-accent text-accent-text dark:text-accent-text;
   }
 
   .settings__pill--error {
-    @apply border-rose-400 text-rose-500 dark:text-rose-300;
+    @apply border-error text-error dark:text-error;
   }
 
   .settings__pill--success {
-    @apply border-emerald-400 text-emerald-500 dark:text-emerald-300;
+    @apply border-success text-success dark:text-success;
   }
 
   .settings__pill--info {
-    @apply border-sky-400 text-sky-500 dark:text-sky-300;
+    @apply border-info text-info dark:text-info;
   }
 
   .settings__list-status {
-    @apply rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase;
+    @apply rounded-full px-2 py-0.5 text-tag font-semibold uppercase;
   }
 
   .settings__list-status--danger {
-    @apply bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-200;
+    @apply bg-error-bg text-error dark:bg-error/20 dark:text-error;
   }
 
   .settings__list-status--success {
-    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200;
+    @apply bg-success-bg text-success dark:bg-success/20 dark:text-success;
   }
 
   .settings__list-status--info {
-    @apply bg-slate-100 text-slate-600 dark:bg-slate-500/20 dark:text-slate-200;
+    @apply bg-surface-2 text-muted dark:bg-surface-2 dark:text-text;
   }
 
   .is-disabled {

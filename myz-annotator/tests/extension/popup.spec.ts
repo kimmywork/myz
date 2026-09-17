@@ -75,7 +75,7 @@ test("popup_shows_saved_highlights_and_copy", async () => {
     text: "clipboard test snippet",
     html: "<p>clipboard test snippet</p>",
     note: "note",
-    tags: [],
+    tags: ["阅读", "排版"],
     hostname: new URL(canonical).hostname,
     kind: "clip",
   };
@@ -102,6 +102,13 @@ test("popup_shows_saved_highlights_and_copy", async () => {
   // Reload popup so it fetches highlights for the active tab
   await popup.reload();
   await popup.waitForSelector(".highlight-item", { timeout: 5000 });
+
+  // Tags render as chips per the design system (§4.5).
+  const tagChips = await popup.$$eval(
+    ".highlight-item__tags > span",
+    (els) => els.map((el) => (el.textContent || "").trim()),
+  );
+  expect(tagChips).toEqual(["阅读", "排版"]);
 
   // Click the copy button on first highlight and verify clipboard
   const copyBtn = await popup.$(

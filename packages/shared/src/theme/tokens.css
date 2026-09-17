@@ -1,0 +1,347 @@
+/*
+ * MyZ design tokens — the single source of truth for all hosts.
+ *
+ * Pure CSS custom properties: no preflight, no utilities, no selectors that
+ * restyle elements. Safe to import from Tailwind hosts, hand-written content
+ * styles, and Shadow DOM roots.
+ *
+ * Every name is prefixed with `--myz-` because content styles are injected
+ * into pages we do not own; unprefixed `--text`/`--line` would collide with
+ * host-page variables.
+ *
+ * Visual reference and full rationale: docs/research/design-system/.
+ * Drift check: `npm run check:design-tokens`.
+ */
+
+/* ── 通用：与配色方案无关 ─────────────────────────────────────────── */
+:root,
+:host {
+  /* 字体 */
+  --myz-sans:
+    system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+    sans-serif;
+  --myz-cjk: "Noto Serif SC";
+  --myz-read: Newsreader, var(--myz-cjk), serif;
+  --myz-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* 划线五色：属于记录数据，不随方案与深浅色变化 */
+  --myz-mark-1: #b58900;
+  --myz-mark-2: #ef476f;
+  --myz-mark-3: #9f7aea;
+  --myz-mark-4: #38bdf8;
+  --myz-mark-5: #34d399;
+  --myz-mark-alpha: 42%;
+  --myz-mark-radius: 3px;
+  --myz-mark-underline: 2px;
+  --myz-mark-wavy: 1.5px;
+
+  /* 阅读字号五档 */
+  --myz-read-size-1: 15px;
+  --myz-read-size-2: 16px;
+  --myz-read-size-3: 18px;
+  --myz-read-size-4: 20px;
+  --myz-read-size-5: 22px;
+  --myz-read-leading: 1.8;
+  --myz-read-tracking: 0.01em;
+  --myz-read-measure: 38em;
+  --myz-read-gutter: 24px;
+
+  /* 浮在任意网页上的采集条与提示：固定深色，不跟随主题 */
+  --myz-overlay: #141413;
+  --myz-overlay-text: #f5f4ed;
+  --myz-overlay-hover: #30302e;
+
+  /* 圆角 */
+  --myz-r-xs: 4px;
+  --myz-r-sm: 6px;
+  --myz-r: 8px;
+  --myz-r-lg: 12px;
+  --myz-r-pill: 999px;
+
+  /* 密度 */
+  --myz-hit-compact: 32px;
+  --myz-hit-regular: 36px;
+  --myz-hit-touch: 44px;
+
+  /* 动效 */
+  --myz-motion-fast: 120ms;
+  --myz-motion-med: 180ms;
+  --myz-motion-panel: 240ms;
+  --myz-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ── 配色方案：米纸（默认）────────────────────────────────────────── */
+:root,
+:host,
+[data-scheme="paper"] {
+  --myz-bg: #f5f4ed;
+  --myz-surface: #faf9f5;
+  --myz-surface-2: #eceae0;
+  --myz-text: #141413;
+  --myz-muted: #6b6a64;
+  --myz-line: #ddd9cc;
+  --myz-accent: #1b365d;
+  --myz-accent-hover: #152a4a;
+  --myz-accent-text: #1b365d;
+  --myz-on-accent: #faf9f5;
+  --myz-tag-bg: #e4ecf5;
+  --myz-tag-fg: #1b365d;
+  --myz-shadow: 0 14px 36px rgba(20, 20, 19, 0.12);
+  --myz-control-bg: #ffffff;
+  --myz-control-border: #ccc6b4;
+  --myz-skeleton: #e3e0d4;
+  --myz-well: #e4e1d6;
+  --myz-well-chrome: #f0eee6;
+  --myz-well-border: #d6d1c2;
+  --myz-well-text: #141413;
+  --myz-well-muted: #65645e;
+  --myz-well-control-bg: #ffffff;
+  --myz-well-control-border: #ccc6b4;
+}
+
+/* 深浅色默认（米纸深色）。方案深色规则特异性更高，会覆盖本块。
+   只认根级 `.dark`：子树里的 `.dark` 不能覆盖祖先已生效的配色方案。 */
+[data-theme="dark"],
+:root.dark,
+:host(.dark) {
+  --myz-bg: #141413;
+  --myz-surface: #1c1c1a;
+  --myz-surface-2: #262624;
+  --myz-text: #f5f4ed;
+  --myz-muted: #a8a59c;
+  --myz-line: #3a3a36;
+  --myz-accent: #3d6692;
+  --myz-accent-hover: #4a7aab;
+  --myz-accent-text: #9eb6d4;
+  --myz-on-accent: #faf9f5;
+  --myz-tag-bg: #243044;
+  --myz-tag-fg: #9eb6d4;
+  --myz-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --myz-control-bg: #2a2a27;
+  --myz-control-border: #4a4a44;
+  --myz-skeleton: #333330;
+  --myz-well: #0f0f0e;
+  --myz-well-chrome: #1c1c1a;
+  --myz-well-border: #3a3a36;
+  --myz-well-text: #f5f4ed;
+  --myz-well-muted: #8e8c83;
+  --myz-well-control-bg: #262624;
+  --myz-well-control-border: #4a4a44;
+}
+
+/* ── 配色方案：冷灰 ───────────────────────────────────────────────── */
+[data-scheme="slate"] {
+  --myz-bg: #f8fafc;
+  --myz-surface: #ffffff;
+  --myz-surface-2: #f1f5f9;
+  --myz-text: #0f172a;
+  --myz-muted: #64748b;
+  --myz-line: #e2e8f0;
+  --myz-accent: #4f46e5;
+  --myz-accent-hover: #4338ca;
+  --myz-accent-text: #4f46e5;
+  --myz-on-accent: #ffffff;
+  --myz-tag-bg: #eef2ff;
+  --myz-tag-fg: #4f46e5;
+  --myz-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  --myz-control-bg: #ffffff;
+  --myz-control-border: #c3cedb;
+  --myz-skeleton: #e2e8f0;
+  --myz-well: #eef2f7;
+  --myz-well-chrome: #f8fafc;
+  --myz-well-border: #dbe3ec;
+  --myz-well-text: #0f172a;
+  --myz-well-muted: #5e6e82;
+  --myz-well-control-bg: #ffffff;
+  --myz-well-control-border: #c3cedb;
+}
+[data-scheme="slate"][data-theme="dark"] {
+  --myz-bg: #0f172a;
+  --myz-surface: #1e293b;
+  --myz-surface-2: #0b1220;
+  --myz-text: #f1f5f9;
+  --myz-muted: #94a3b8;
+  --myz-line: #334155;
+  --myz-accent: #5f62ea;
+  --myz-accent-hover: #818cf8;
+  --myz-accent-text: #a5b4fc;
+  --myz-on-accent: #ffffff;
+  --myz-tag-bg: rgba(99, 102, 241, 0.2);
+  --myz-tag-fg: #c7d2fe;
+  --myz-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  --myz-control-bg: #26344a;
+  --myz-control-border: #47576e;
+  --myz-skeleton: #334155;
+  --myz-well: #0b1220;
+  --myz-well-chrome: #1e293b;
+  --myz-well-border: #334155;
+  --myz-well-text: #e2e8f0;
+  --myz-well-muted: #94a3b8;
+  --myz-well-control-bg: #26344a;
+  --myz-well-control-border: #46566f;
+}
+
+/* ── 配色方案：青瓷 ───────────────────────────────────────────────── */
+[data-scheme="celadon"] {
+  --myz-bg: #f2f4ee;
+  --myz-surface: #f8faf4;
+  --myz-surface-2: #e6ebe0;
+  --myz-text: #16201a;
+  --myz-muted: #5f6b60;
+  --myz-line: #d4dacd;
+  --myz-accent: #2f5d4a;
+  --myz-accent-hover: #244a3a;
+  --myz-accent-text: #2f5d4a;
+  --myz-on-accent: #f8faf4;
+  --myz-tag-bg: #e0ece3;
+  --myz-tag-fg: #2f5d4a;
+  --myz-shadow: 0 14px 36px rgba(18, 30, 22, 0.12);
+  --myz-control-bg: #ffffff;
+  --myz-control-border: #ccd4c4;
+  --myz-skeleton: #dfe5d7;
+  --myz-well: #e2e8db;
+  --myz-well-chrome: #eef1e8;
+  --myz-well-border: #ccd4c4;
+  --myz-well-text: #16201a;
+  --myz-well-muted: #5d695e;
+  --myz-well-control-bg: #ffffff;
+  --myz-well-control-border: #ccd4c4;
+}
+[data-scheme="celadon"][data-theme="dark"] {
+  --myz-bg: #101512;
+  --myz-surface: #171d19;
+  --myz-surface-2: #202821;
+  --myz-text: #eef2ea;
+  --myz-muted: #9aa79b;
+  --myz-line: #334036;
+  --myz-accent: #6fa88c;
+  --myz-accent-hover: #86bba0;
+  --myz-accent-text: #9dc9b2;
+  --myz-on-accent: #101512;
+  --myz-tag-bg: #22322a;
+  --myz-tag-fg: #9dc9b2;
+  --myz-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --myz-control-bg: #253026;
+  --myz-control-border: #495a4d;
+  --myz-skeleton: #2b352c;
+  --myz-well: #0c110e;
+  --myz-well-chrome: #171d19;
+  --myz-well-border: #334036;
+  --myz-well-text: #eef2ea;
+  --myz-well-muted: #9aa79b;
+  --myz-well-control-bg: #253026;
+  --myz-well-control-border: #495a4d;
+}
+
+/* ── 配色方案：赭石 ───────────────────────────────────────────────── */
+[data-scheme="ochre"] {
+  --myz-bg: #f6f0e6;
+  --myz-surface: #fbf6ee;
+  --myz-surface-2: #ece2d2;
+  --myz-text: #231a12;
+  --myz-muted: #6f6152;
+  --myz-line: #ddd0bb;
+  --myz-accent: #8a4b24;
+  --myz-accent-hover: #6f3b1a;
+  --myz-accent-text: #8a4b24;
+  --myz-on-accent: #fbf6ee;
+  --myz-tag-bg: #f0e0cf;
+  --myz-tag-fg: #8a4b24;
+  --myz-shadow: 0 14px 36px rgba(35, 26, 18, 0.14);
+  --myz-control-bg: #fffaf3;
+  --myz-control-border: #d8c9b2;
+  --myz-skeleton: #e8ddca;
+  --myz-well: #ece2d2;
+  --myz-well-chrome: #f4ecdf;
+  --myz-well-border: #d8c9b2;
+  --myz-well-text: #231a12;
+  --myz-well-muted: #6f6152;
+  --myz-well-control-bg: #fffaf3;
+  --myz-well-control-border: #d8c9b2;
+}
+[data-scheme="ochre"][data-theme="dark"] {
+  --myz-bg: #17130f;
+  --myz-surface: #1f1a14;
+  --myz-surface-2: #292219;
+  --myz-text: #f3ece0;
+  --myz-muted: #ab9d89;
+  --myz-line: #3d3428;
+  --myz-accent: #c98a5a;
+  --myz-accent-hover: #d69c6f;
+  --myz-accent-text: #e0b088;
+  --myz-on-accent: #17130f;
+  --myz-tag-bg: #33271a;
+  --myz-tag-fg: #e0b088;
+  --myz-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  --myz-control-bg: #2b2419;
+  --myz-control-border: #554733;
+  --myz-skeleton: #362d21;
+  --myz-well: #0f0c09;
+  --myz-well-chrome: #1f1a14;
+  --myz-well-border: #3d3428;
+  --myz-well-text: #f3ece0;
+  --myz-well-muted: #ab9d89;
+  --myz-well-control-bg: #2b2419;
+  --myz-well-control-border: #4a3d2e;
+}
+
+/* ── 语义色：只跟深浅色，不跟配色方案 ─────────────────────────────── */
+:root,
+:host {
+  --myz-warn: #8a5a00;
+  --myz-warn-bg: #f6ecd3;
+  --myz-warn-border: #e6d3a3;
+  --myz-error: #b53333;
+  --myz-error-bg: #f7e3e3;
+  --myz-error-border: #e6bfbf;
+  --myz-success: #2f6f56;
+  --myz-success-bg: #e0efe8;
+  --myz-success-border: #bcdccf;
+  --myz-info: #2b5f8a;
+  --myz-info-bg: #e1ecf5;
+  --myz-info-border: #c0d6e8;
+  --myz-clip: #2b766c;
+  --myz-clip-bg: #dcefec;
+  --myz-clip-border: #b8ded7;
+}
+[data-theme="dark"],
+:root.dark,
+:host(.dark) {
+  --myz-warn: #e0b352;
+  --myz-warn-bg: #2e2614;
+  --myz-warn-border: #4a3d20;
+  --myz-error: #e08a8a;
+  --myz-error-bg: #331c1c;
+  --myz-error-border: #533030;
+  --myz-success: #7fc4a6;
+  --myz-success-bg: #16291f;
+  --myz-success-border: #2a4436;
+  --myz-info: #8fb8d8;
+  --myz-info-bg: #16232e;
+  --myz-info-border: #2a3d4d;
+  --myz-clip: #4fb3a3;
+  --myz-clip-bg: #12302c;
+  --myz-clip-border: #245049;
+}
+
+/* ── 中文衬线按语言切换 ───────────────────────────────────────────── */
+[data-cjk="tc"] {
+  --myz-cjk: "Noto Serif TC";
+  --myz-sans:
+    system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+}
+[data-cjk="hk"] {
+  --myz-cjk: "Noto Serif HK";
+  --myz-sans:
+    system-ui, -apple-system, "PingFang HK", "Noto Sans HK", sans-serif;
+}
+[data-cjk="jp"] {
+  --myz-cjk: "Noto Serif JP";
+  --myz-sans:
+    system-ui, -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
+}
+[data-cjk="kr"] {
+  --myz-cjk: "Noto Serif KR";
+  --myz-sans:
+    system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}

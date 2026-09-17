@@ -114,7 +114,7 @@ async function selectAndAnnotate(
   await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
     timeout: 5000,
   });
-  await page.click('.myz-annotator-toolbar button[aria-label="添加标注"]');
+  await page.click('.myz-annotator-toolbar button[aria-label="划线"]');
 
   // Wait for modal, optionally fill note, then save
   await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {

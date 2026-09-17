@@ -74,31 +74,31 @@ describe("badge", () => {
     it("should return default title for no items", () => {
       expect(
         buildActionTitle({ total: 0, highlightCount: 0, savedCount: 0 }),
-      ).toBe("MyZ 智能助理 · 暂无条目");
+      ).toBe("MyZ · 暂无条目");
     });
 
     it("should return title with total only if no details", () => {
       expect(
         buildActionTitle({ total: 5, highlightCount: 0, savedCount: 0 }),
-      ).toBe("MyZ 智能助理 · 共 5 条");
+      ).toBe("MyZ · 共 5 条");
     });
 
     it("should include highlight count", () => {
       expect(
         buildActionTitle({ total: 5, highlightCount: 5, savedCount: 0 }),
-      ).toBe("MyZ 智能助理 · 共 5 条（高亮 5）");
+      ).toBe("MyZ · 共 5 条（划线 5）");
     });
 
     it("should include saved count", () => {
       expect(
         buildActionTitle({ total: 3, highlightCount: 0, savedCount: 3 }),
-      ).toBe("MyZ 智能助理 · 共 3 条（保存 3）");
+      ).toBe("MyZ · 共 3 条（摘录 3）");
     });
 
     it("should include both counts", () => {
       expect(
         buildActionTitle({ total: 8, highlightCount: 5, savedCount: 3 }),
-      ).toBe("MyZ 智能助理 · 共 8 条（高亮 5 · 保存 3）");
+      ).toBe("MyZ · 共 8 条（划线 5 · 摘录 3）");
     });
   });
 });

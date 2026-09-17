@@ -8,21 +8,21 @@ export default defineComponent({
     return () => (
       <section
         id="settings-view"
-        class="rounded-3xl border border-slate-200 bg-white/95 p-5 shadow-2xl transition dark:border-white/10 dark:bg-slate-900/60"
+        class="rounded-panel border border-line bg-surface/95 p-5 shadow-float transition dark:border-line dark:bg-surface"
         aria-labelledby="settings-title"
       >
-        <header class="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/5">
+        <header class="flex flex-col gap-2 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-line">
           <div>
             <h2
               id="settings-title"
-              class="text-xl font-semibold text-slate-900 dark:text-white"
+              class="text-heading font-semibold text-text"
             >
               设置
             </h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400">配置选项</p>
+            <p class="text-compact text-muted">配置选项</p>
           </div>
           <RouterLink class="btn-link" to="/highlights">
-            返回标注
+            返回文库
           </RouterLink>
         </header>
 

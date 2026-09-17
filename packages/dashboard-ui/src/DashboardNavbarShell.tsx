@@ -1,3 +1,4 @@
+import { ChevronDown, X } from "@lucide/vue"
 import { computed, defineComponent, onBeforeUnmount, onMounted, ref } from "vue"
 import type { PropType, VNodeChild } from "vue"
 import { RouterLink } from "vue-router"
@@ -13,7 +14,7 @@ export default defineComponent({
   props: {
     title: {
       type: String,
-      default: "MyZ 智能助理",
+      default: "MyZ",
     },
     tabs: {
       type: Array as PropType<DashboardNavbarTab[]>,
@@ -177,8 +178,8 @@ export default defineComponent({
     })
 
     return () => (
-      <nav class="flex flex-wrap items-center gap-4 rounded-3xl border border-slate-200 bg-white/80 px-6 py-4 text-slate-900 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/70 dark:text-white">
-        <div class="text-lg font-semibold">{props.title}</div>
+      <nav class="flex flex-wrap items-center gap-4 rounded-panel border border-line bg-surface/80 px-6 py-4 text-text  backdrop-blur dark:border-line dark:bg-surface dark:text-text">
+        <div class="text-title font-semibold">{props.title}</div>
         <div class="flex flex-1 flex-wrap items-center gap-2">
           {props.tabs.map((tab) => {
             const active = props.activeKey === tab.key
@@ -187,10 +188,10 @@ export default defineComponent({
                 key={tab.key}
                 to={tab.to}
                 class={[
-                  "rounded-full px-4 py-1.5 text-sm font-semibold transition",
+                  "rounded-full px-4 py-1.5 text-compact font-semibold transition",
                   active
-                    ? "bg-indigo-600 text-white shadow"
-                    : "text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white",
+                    ? "bg-accent text-on-accent "
+                    : "text-muted hover:text-text dark:text-muted dark:hover:text-text",
                 ].join(" ")}
                 aria-label={props.tabAriaLabelByKey[tab.key]}
                 aria-current={active ? "page" : undefined}
@@ -202,11 +203,11 @@ export default defineComponent({
         </div>
         {props.isHighlightsRoute ? (
           <div class="relative w-full max-w-md flex-1" ref={searchWrapperRef}>
-            <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200">
+            <div class="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 text-compact text-text  dark:border-line dark:bg-surface dark:text-text">
               <input
                 ref={searchInputRef}
                 type="search"
-                class="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                class="w-full bg-transparent text-compact outline-none placeholder:text-muted"
                 placeholder={props.searchPlaceholder}
                 value={props.quickSearch}
                 onInput={handleInput}
@@ -221,35 +222,35 @@ export default defineComponent({
               />
               <button
                 type="button"
-                class="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-white"
+                class="text-muted transition hover:text-accent-text"
                 aria-label="打开搜索建议"
                 onClick={toggleDropdown}
               >
-                ▼
+                <ChevronDown size={16} />
               </button>
               {props.quickSearch ? (
                 <button
                   type="button"
-                  class="text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-white"
+                  class="text-muted transition hover:text-accent-text"
                   aria-label="重置筛选"
                   onClick={handleReset}
                 >
-                  ×
+                  <X size={16} />
                 </button>
               ) : null}
             </div>
             {showSuggestions.value ? (
-              <div class="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 text-sm shadow-xl dark:border-white/10 dark:bg-slate-900/90">
+              <div class="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-y-auto rounded-panel border border-control-border bg-surface p-1 text-label shadow-float">
                 {suggestions.value.map((item) => (
                   <button
                     key={`${item.type}:${item.value}`}
                     type="button"
-                    class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-slate-700 transition hover:bg-indigo-50 dark:text-slate-200 dark:hover:bg-indigo-500/10"
+                    class="flex h-8 w-full items-center justify-between rounded-tag px-2.5 text-left text-text transition hover:bg-surface-2"
                     onMousedown={(event) => event.preventDefault()}
                     onClick={() => handleSuggestionSelect(item)}
                   >
                     <span class="truncate">{item.label}</span>
-                    <span class="ml-2 text-xs text-slate-400">
+                    <span class="ml-2 text-caption text-muted">
                       {item.type === "tag" ? "标签" : "网站"}
                     </span>
                   </button>

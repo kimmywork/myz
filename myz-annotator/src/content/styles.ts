@@ -1,4 +1,4 @@
-import contentStyles from "./styles/content.css?raw";
+import pageStyles from "./styles/page.css?inline";
 
 declare global {
   interface Window {
@@ -18,7 +18,7 @@ export function ensureContentStyles() {
   }
   const style = document.createElement("style");
   style.setAttribute("data-myz-annotator-style", "1");
-  style.textContent = contentStyles;
+  style.textContent = pageStyles;
   document.head.appendChild(style);
   window.contentStyleElement = style;
   return style;

@@ -58,7 +58,7 @@ export default defineComponent({
     })
 
     const sizeClass = computed(() =>
-      props.size === "sm" ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs",
+      props.size === "sm" ? "px-2.5 py-1 text-tag" : "px-3 py-1.5 text-caption",
     )
 
     function toggleMenu() {
@@ -74,8 +74,8 @@ export default defineComponent({
       const { class: className, ...restAttrs } = attrs
       const isSwitch = props.variant === "switch"
       const baseClass = isSwitch
-        ? "inline-flex items-center rounded-full border border-slate-300 bg-white/80 px-3 py-1.5 text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-white/20 dark:bg-slate-800/70 dark:text-slate-100"
-        : `inline-flex items-center gap-1.5 rounded-2xl border border-slate-300 text-slate-700 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-white/20 dark:text-slate-200 dark:hover:border-indigo-400 dark:hover:text-indigo-100 ${sizeClass.value}`
+        ? "inline-flex items-center rounded-pill border border-control-border bg-control-bg px-3 py-1.5 text-muted transition hover:border-accent hover:text-accent-text"
+        : `inline-flex items-center gap-1.5 rounded-pill border border-control-border text-text transition hover:border-accent hover:text-accent-text ${sizeClass.value}`
 
       const Icon = activeOption.value.Icon
       const pos = dropdownPosition.value
@@ -105,7 +105,7 @@ export default defineComponent({
             <Teleport to="body">
               <div
                 role="listbox"
-                class="fixed z-[9999] w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-sm shadow-xl dark:border-white/20 dark:bg-slate-900"
+                class="fixed z-[9999] w-36 overflow-hidden rounded-panel border border-control-border bg-surface py-1 shadow-float"
                 style={`top:${pos.top}px;left:${pos.left}px`}
               >
                 {OPTIONS.map((option) => {
@@ -119,13 +119,13 @@ export default defineComponent({
                       aria-selected={isActive}
                       onClick={() => choose(option)}
                       class={[
-                        "flex w-full items-center gap-2 px-3 py-2 text-left transition",
+                        "flex h-8 w-full items-center gap-2 rounded-tag px-2.5 text-left text-label transition",
                         isActive
-                          ? "text-indigo-600 dark:text-indigo-300"
-                          : "text-slate-700 hover:text-indigo-600 dark:text-slate-200 dark:hover:text-indigo-300",
+                          ? "bg-surface-2 text-accent-text"
+                          : "text-text hover:bg-surface-2",
                       ].join(" ")}
                     >
-                      <span class="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                      <span class="flex h-5 w-5 items-center justify-center rounded-full bg-surface-2">
                         <OptionIcon size={14} />
                       </span>
                       {option.label}

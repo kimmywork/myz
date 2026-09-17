@@ -26,13 +26,13 @@ export function getRecordKindLabel(record: MyZRecord) {
   const kind = getRecordKind(record);
   switch (kind) {
     case RECORD_KINDS.HIGHLIGHT:
-      return "划线标注";
+      return "划线";
     case RECORD_KINDS.CLIP:
-      return "保存文字";
+      return "摘录";
     case RECORD_KINDS.BOOKMARK:
-      return "网页书签";
+      return "来源";
     default:
-      return "标注";
+      return "划线";
   }
 }
 

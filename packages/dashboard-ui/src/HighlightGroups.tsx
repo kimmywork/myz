@@ -42,14 +42,14 @@ export default defineComponent({
     },
     emptyLabel: {
       type: String,
-      default: "没有符合条件的记录。",
+      default: "这里还没有记录",
     },
   },
   setup(props) {
     return () => {
       if (props.loading) {
         return (
-          <section class="rounded-3xl border border-slate-200 bg-white/80 p-8 text-center text-sm text-slate-500 dark:border-white/5 dark:bg-slate-900/40 dark:text-slate-400">
+          <section class="rounded-panel border border-line bg-surface/80 p-8 text-center text-compact text-muted dark:border-line dark:bg-surface dark:text-muted">
             {props.loadingLabel}
           </section>
         )
@@ -57,7 +57,7 @@ export default defineComponent({
 
       if (!props.groups.length) {
         return (
-          <section class="rounded-3xl border border-slate-200 bg-white/80 p-8 text-center text-sm text-slate-500 dark:border-white/5 dark:bg-slate-900/40 dark:text-slate-400">
+          <section class="rounded-panel border border-line bg-surface/80 p-8 text-center text-compact text-muted dark:border-line dark:bg-surface dark:text-muted">
             {props.emptyLabel}
           </section>
         )
@@ -68,9 +68,9 @@ export default defineComponent({
           {props.groups.map((group) => (
             <section
               key={group.date}
-              class="space-y-2 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-inner dark:border-white/5 dark:bg-slate-900/40"
+              class="space-y-2 rounded-panel border border-line bg-surface/90 p-4 shadow-inner dark:border-line dark:bg-surface"
             >
-              <h3 class="text-sm font-semibold text-slate-600 dark:text-slate-300">
+              <h3 class="text-compact font-semibold text-muted">
                 {group.date} · 共 {group.stats.total} 条{group.detailText || ""}
               </h3>
               <div

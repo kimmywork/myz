@@ -1,6 +1,12 @@
 import { isHighlightRecord, isClipRecord } from "@myz/shared/highlightUtils";
 import { sendMessage } from "@myz/shared/messaging";
-import { deserializeRange, unwrapNode } from "@myz/shared/serializer";
+import {
+  deserializeRange,
+  findRangeByNormalizedText,
+  resolvePartialPath,
+  serializeRangePaths,
+  unwrapNode,
+} from "@myz/shared/serializer";
 import { MyZRecord } from "@myz/shared/types";
 import { canonicalUrl, buildUrlAliases } from "@myz/shared/url";
 import {
@@ -54,6 +60,7 @@ export function isInHighlightCache(id: string) {
 export async function restoreHighlights() {
   const modalStore = useModalStore();
   const inspectorStore = useInspectorStore();
+  const notificationStore = useNotificationStore();
   try {
     ensureContentStyles();
     const currentUrl = window.location.href;
@@ -90,6 +97,7 @@ export async function restoreHighlights() {
     resetHighlightReapplyState();
 
     const records = Array.isArray(highlights) ? highlights : [];
+    let rebuiltCount = 0;
     records.forEach((record) => {
       const stored = storeRecord(record);
       if (!stored) {
@@ -98,7 +106,12 @@ export async function restoreHighlights() {
       // FIXME: modal
       modalStore.addModalKnownTags(stored.tags || []);
       if (isHighlightRecord(stored) && stored.range) {
-        const applied = applyHighlight(stored);
+        let applied = applyHighlight(stored);
+        if (!applied && rebuildHighlightRange(stored)) {
+          applied = true;
+          rebuiltCount += 1;
+          persistRebuiltRange(stored);
+        }
         if (applied) {
           unreachableHighlights.delete(stored.id);
           removeHighlightFromPending(stored.id);
@@ -110,6 +123,11 @@ export async function restoreHighlights() {
         removeHighlightFromPending(stored.id);
       }
     });
+    if (rebuiltCount > 0) {
+      notificationStore.notify({
+        message: `已按页面内容重建 ${rebuiltCount} 条划线位置。`,
+      });
+    }
     // Update badge/indicators for the (current) page after restore.
     updateHighlightIndicators();
   } catch (error) {
@@ -164,6 +182,20 @@ function resetHighlightReapplyState() {
   highlightReapplyState.pending.clear();
   highlightReapplyState.failureNotified = false;
   cleanupHighlightReapply();
+}
+
+/**
+ * Persist a range that was rebuilt from page text so later loads do not have
+ * to search again. Fire-and-forget: a failure only costs a repeat search.
+ */
+function persistRebuiltRange(record: MyZRecord) {
+  if (!record?.id || !record?.range) {
+    return;
+  }
+  sendMessage("myz:updateHighlightRange", {
+    id: record.id,
+    range: record.range,
+  }).catch(() => {});
 }
 
 export function removeHighlightFromPending(id: string) {
@@ -302,19 +334,31 @@ function attemptHighlightReapply() {
   }
   const pendingIds = Array.from(highlightReapplyState.pending);
   let appliedThisRound = 0;
+  let rebuiltThisRound = 0;
   pendingIds.forEach((id) => {
     const record = highlightCache.get(id);
     if (!record) {
       highlightReapplyState.pending.delete(id);
       return;
     }
-    const applied = applyHighlight(record);
+    let applied = applyHighlight(record);
+    if (!applied && rebuildHighlightRange(record)) {
+      applied = true;
+      rebuiltThisRound += 1;
+      persistRebuiltRange(record);
+    }
     if (applied) {
       highlightReapplyState.pending.delete(id);
       unreachableHighlights.delete(id);
       appliedThisRound += 1;
     }
   });
+
+  if (rebuiltThisRound > 0) {
+    notificationStore.notify({
+      message: `已按页面内容重建 ${rebuiltThisRound} 条划线位置。`,
+    });
+  }
 
   if (!highlightReapplyState.pending.size) {
     cleanupHighlightReapply();
@@ -341,18 +385,63 @@ function attemptHighlightReapply() {
     cleanupHighlightReapply();
     if (!highlightReapplyState.failureNotified && remaining > 0) {
       highlightReapplyState.failureNotified = true;
-      console.warn("MyZ 智能助理: failed to reapply highlights", {
+      // Distinguish "the stored path no longer resolves" (the page DOM
+      // changed) from an apply-time error, so the warning is actionable.
+      const stalePaths = failedIds.filter((id) => {
+        const record = highlightCache.get(id);
+        if (!record?.range) return true;
+        try {
+          return deserializeRange(record.range) === null;
+        } catch {
+          return true;
+        }
+      }).length;
+      console.warn("MyZ: failed to reapply highlights", {
         remaining,
+        stalePaths,
+        ids: failedIds.slice(0, 30),
       });
       const message =
         remaining === 1
-          ? "部分标注无法定位，可能因为页面内容已改变。"
-          : `有 ${remaining} 条标注无法定位，可能因为页面内容已改变。`;
+          ? "部分划线无法定位，可能因为页面内容已改变。"
+          : `有 ${remaining} 条记录无法定位，可能因为页面内容已改变。`;
       notificationStore.notify({
         message: message,
       });
     }
   }
+}
+
+/**
+ * When a stored range no longer resolves, try to relocate the record by its
+ * text and rewrite `record.range`. Returns true when it relocated and applied.
+ */
+export function rebuildHighlightRange(record: MyZRecord): boolean {
+  if (!record?.text) {
+    return false;
+  }
+  // Prefer the deepest still-valid ancestor of the stored path so the text
+  // search stays close to where the highlight used to be.
+  let range: Range | null = null;
+  const startPath = record.range?.start?.path;
+  if (startPath?.length) {
+    const partial = resolvePartialPath(startPath);
+    if (partial && partial !== document.body && partial.isConnected) {
+      range = findRangeByNormalizedText(partial, record.text);
+    }
+  }
+  if (!range) {
+    range = findRangeByNormalizedText(document.body, record.text);
+  }
+  if (!range || range.collapsed) {
+    return false;
+  }
+  const serialized = serializeRangePaths(range);
+  if (!serialized) {
+    return false;
+  }
+  record.range = serialized;
+  return applyHighlight(record);
 }
 
 export function applyHighlight(record: MyZRecord) {

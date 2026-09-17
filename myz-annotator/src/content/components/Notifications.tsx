@@ -6,14 +6,15 @@ function buildToastStyle(visible: boolean): HTMLAttributes["style"] {
   return {
     maxWidth: "280px",
     padding: "12px 14px",
-    borderRadius: "12px",
-    background: "rgba(15, 23, 42, 0.95)",
-    color: "#f8fafc",
+    borderRadius: "var(--myz-r)",
+    background: "var(--myz-overlay)",
+    color: "var(--myz-overlay-text)",
     fontSize: "13px",
-    boxShadow: "0 18px 32px rgba(15, 23, 42, 0.4)",
+    boxShadow: "var(--myz-shadow)",
     opacity: visible ? "1" : "0",
     transform: visible ? "translateY(0)" : "translateY(-6px)",
-    transition: "opacity 0.25s ease, transform 0.25s ease",
+    transition:
+      "opacity var(--myz-motion-med) var(--myz-ease-out), transform var(--myz-motion-med) var(--myz-ease-out)",
     pointerEvents: "auto",
   };
 }

@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronRight } from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { defineComponent, type VNode } from "vue";
 import type { PdfOutlineEntry } from "../pdf-document.js";
@@ -32,7 +33,11 @@ export default defineComponent({
                   aria-label={expanded ? "折叠" : "展开"}
                   onClick={() => store.toggleOutline(entry.id)}
                 >
-                  {expanded ? "▾" : "▸"}
+                  {expanded ? (
+                    <ChevronDown size={12} aria-hidden="true" />
+                  ) : (
+                    <ChevronRight size={12} aria-hidden="true" />
+                  )}
                 </button>
               ) : (
                 <span class="reader-outline__toggle reader-outline__toggle--leaf" />

@@ -1,6 +1,11 @@
-import { HIGHLIGHT_STYLE_OPTIONS, HIGHLIGHT_STYLES } from "@myz/shared/types";
+import {
+  DEFAULT_COLORS,
+  HIGHLIGHT_STYLE_OPTIONS,
+  HIGHLIGHT_STYLES,
+} from "@myz/shared/types";
+import { sendMessage } from "@myz/shared/messaging";
 import { defineStore } from "pinia";
-import { watch } from "vue";
+import { ref, watch } from "vue";
 import { countPageAnnotations } from "../annotations.js";
 import { usePdfAnnotations } from "../composables/usePdfAnnotations.js";
 import { usePdfDocument } from "../composables/usePdfDocument.js";
@@ -89,6 +94,29 @@ export const useReaderStore = defineStore("pdf-reader", () => {
     }
   }
 
+  const colorPalette = ref<string[]>([...DEFAULT_COLORS]);
+
+  async function loadColorPalette() {
+    try {
+      const settings = await sendMessage<
+        undefined,
+        { colorPalette?: unknown }
+      >("myz:getSettings");
+      const palette = settings?.colorPalette;
+      if (Array.isArray(palette) && palette.length) {
+        const normalized = palette.filter(
+          (color): color is string =>
+            typeof color === "string" && Boolean(color.trim()),
+        );
+        if (normalized.length) {
+          colorPalette.value = normalized;
+        }
+      }
+    } catch {
+      // Keep the bundled default palette when settings are unavailable.
+    }
+  }
+
   function attachStage(el: HTMLElement | null) {
     engine.attachStage(el);
     annotations.attachStage(el);
@@ -101,6 +129,7 @@ export const useReaderStore = defineStore("pdf-reader", () => {
 
   async function init() {
     loadSidebarPrefs();
+    void loadColorPalette();
     await documentApi.init();
   }
 
@@ -132,6 +161,7 @@ export const useReaderStore = defineStore("pdf-reader", () => {
   return {
     ...state,
     styleOptions: STYLE_OPTIONS,
+    colorPalette,
     activeRecord: annotations.activeRecord,
     highlightCounts: annotations.highlightCounts,
     highlightGroups: annotations.highlightGroups,

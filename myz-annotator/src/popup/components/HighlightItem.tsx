@@ -4,7 +4,7 @@ import {
   getRecordPlainText,
   normalizeWhitespace,
 } from "@myz/shared/highlightUtils";
-import { IconWarning } from "@myz/shared/icons";
+import { IconHash, IconWarning } from "@myz/shared/icons";
 import { renderMarkdown } from "@myz/shared/markdownRenderer";
 import { CONTENT_TYPES, resolveRecordContentType } from "@myz/shared/types";
 
@@ -12,7 +12,7 @@ import { MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared/types";
 import { defineComponent, computed } from "vue";
 import { getRecordKindLabel } from "@/dashboard/utils/records.js";
 
-const CLIP_COLOR = "rgba(45, 212, 191, 0.5)";
+const CLIP_COLOR = "var(--myz-clip)";
 
 export default defineComponent({
   name: "HighlightItem",
@@ -38,26 +38,20 @@ export default defineComponent({
       background:
         kind.value === RECORD_KINDS.CLIP || kind.value === RECORD_KINDS.BOOKMARK
           ? CLIP_COLOR
-          : props.record.color || "#ffe58f",
+          : props.record.color || "var(--myz-mark-1)",
     }));
 
     const containerClass = computed(() => {
       const base = [
         "highlight-item",
-        "grid grid-cols-[4px_1fr] gap-3 rounded-2xl border p-4 text-sm shadow-sm transition overflow-x-auto",
+        "grid grid-cols-[3px_1fr] gap-3 rounded-control border p-4 text-compact  transition overflow-x-auto",
       ];
       if (props.record.unreachable) {
-        base.push(
-          "border-rose-200/70 bg-rose-50/80 dark:border-rose-500/40 dark:bg-rose-500/10",
-        );
+        base.push("border-error/40 bg-error-bg");
       } else if (kind.value === RECORD_KINDS.CLIP) {
-        base.push(
-          "border-teal-200/70 bg-teal-50/70 dark:border-teal-400/40 dark:bg-teal-500/10",
-        );
+        base.push("border-clip/40 bg-clip-bg");
       } else {
-        base.push(
-          "border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-900/60",
-        );
+        base.push("border-line bg-surface/90");
       }
       return base.join(" ");
     });
@@ -82,7 +76,7 @@ export default defineComponent({
     return () => (
       <article class={containerClass.value} data-id={props.record.id}>
         <div
-          class="highlight-item__color rounded-full"
+          class="highlight-item__color rounded-[4px]"
           aria-hidden="true"
           style={{ background: colorStyle.value.background }}
         ></div>
@@ -90,31 +84,31 @@ export default defineComponent({
           <div class="highlight-item__header flex flex-wrap items-center gap-2">
             <span
               class={[
-                "highlight-item__badge inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
+                "highlight-item__badge inline-flex items-center rounded-full px-2.5 py-1 text-tag font-semibold uppercase tracking-wide",
                 kind.value === RECORD_KINDS.CLIP
-                  ? "bg-teal-500 text-white"
-                  : "bg-amber-200 text-amber-900 dark:bg-amber-400/30 dark:text-amber-100",
+                  ? "bg-clip-bg text-clip"
+                  : "bg-tag-bg text-tag-fg",
               ].join(" ")}
             >
               {badgeLabel.value}
             </span>
             {props.record.unreachable ? (
-              <span class="highlight-item__status inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-600 dark:bg-rose-500/20 dark:text-rose-200">
+              <span class="highlight-item__status inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-tag font-medium text-error dark:bg-error/20 dark:text-error">
                 <span class="highlight-item__status-icon" aria-hidden="true">
                   <IconWarning size={12} aria-hidden="true" />
                 </span>
-                <span class="highlight-item__status-text">标注无法定位</span>
+                <span class="highlight-item__status-text">划线找不到原文</span>
               </span>
             ) : null}
           </div>
           {quote.value.isHtml ? (
             <div
-              class="highlight-item__quote text-sm text-slate-700 dark:text-slate-100 prose prose-sm dark:prose-invert"
+              class="highlight-item__quote text-compact text-text prose prose-sm dark:prose-invert"
               innerHTML={quote.value.html}
             />
           ) : (
             <p
-              class="highlight-item__quote text-sm text-slate-700 dark:text-slate-100"
+              class="highlight-item__quote text-compact text-text"
               title={quote.value.html}
             >
               {quote.value.html}
@@ -122,44 +116,57 @@ export default defineComponent({
           )}
           {noteText.value ? (
             <p
-              class="highlight-item__note text-sm text-amber-600 dark:text-amber-300"
+              class="highlight-item__note text-compact text-warn"
               title={normalizeWhitespace(props.record.note ?? "")}
             >
               {noteText.value}
             </p>
           ) : null}
-          <p class="highlight-item__meta text-xs text-slate-500 dark:text-slate-400">
+          <p class="highlight-item__meta text-caption text-muted">
             {buildMeta(props.record)}
           </p>
-          <div class="highlight-item__actions mt-1 flex flex-wrap gap-3 text-xs font-semibold">
+          {props.record.tags?.length ? (
+            <div class="highlight-item__tags flex flex-wrap gap-2">
+              {props.record.tags.map((tag) => (
+                <span
+                  key={tag}
+                  class="inline-flex h-[22px] items-center gap-1 rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
+                >
+                  <IconHash size={12} aria-hidden="true" />
+                  <span>{tag}</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div class="highlight-item__actions mt-1 flex flex-wrap gap-3 text-caption font-semibold">
             {kind.value === RECORD_KINDS.HIGHLIGHT ? (
               <button
-                class="btn-link text-indigo-600 hover:underline dark:text-indigo-300"
+                class="btn-link text-accent-text hover:underline dark:text-accent-text"
                 data-action="focus"
                 onClick={handleAction("focus")}
               >
-                定位
+                打开原文
               </button>
             ) : null}
             {props.record.unreachable &&
             kind.value === RECORD_KINDS.HIGHLIGHT ? (
               <button
-                class="btn-link btn-link--muted text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white"
+                class="btn-link btn-link--muted text-muted hover:text-text dark:text-muted dark:hover:text-text"
                 data-action="downgrade"
                 onClick={handleAction("downgrade")}
               >
-                降级为保存
+                降级为摘录
               </button>
             ) : null}
             <button
-              class="btn-link text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white"
+              class="btn-link text-muted hover:text-text dark:text-muted dark:hover:text-text"
               data-action="copy"
               onClick={handleAction("copy")}
             >
               复制
             </button>
             <button
-              class="btn-link btn-link--danger text-rose-500 hover:text-rose-700 dark:text-rose-300 dark:hover:text-rose-200"
+              class="btn-link btn-link--danger text-error hover:text-error dark:text-error"
               data-action="delete"
               onClick={handleAction("delete")}
             >

@@ -29,9 +29,15 @@ async function launchExtension(extensionPath: string, options = {}) {
     `--load-extension=${extensionPath}`,
   ];
 
+  // Optional HTTP proxy for sites that require it (e.g. `MYZ_PROXY=http://127.0.0.1:7890`).
+  const proxyServer =
+    process.env.MYZ_PROXY || process.env.PLAYWRIGHT_PROXY || "";
+  const proxy = proxyServer ? { server: proxyServer } : undefined;
+
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     args,
+    proxy,
     viewport: { width: 1280, height: 800 },
   });
 

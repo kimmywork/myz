@@ -18,8 +18,7 @@ export default defineComponent({
   },
   setup(props, { slots }) {
     const shellClasses = computed(() => [
-      "app-shell min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100",
-      props.theme === "dark" ? "dark" : "",
+      "app-shell min-h-screen bg-bg text-text transition-colors",
     ])
 
     return () => (

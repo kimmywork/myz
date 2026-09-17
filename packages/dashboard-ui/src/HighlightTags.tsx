@@ -34,7 +34,7 @@ export default defineComponent({
   setup(props) {
     return () => {
       const wrapperClass = [
-        "flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400",
+        "flex flex-wrap gap-x-3 gap-y-1 text-caption text-muted",
         props.class,
       ]
         .filter(Boolean)
@@ -49,7 +49,7 @@ export default defineComponent({
             ? props.visibleTags.map((tag) => (
                 <span
                   key={tag}
-                  class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-700 dark:border-white/10 dark:text-slate-100"
+                  class="inline-flex h-[22px] items-center gap-1 rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
                 >
                   <Hash size={12} />
                   <span innerHTML={props.formatInline(tag)} />
@@ -59,7 +59,7 @@ export default defineComponent({
           {props.hiddenTagsCount > 0 ? (
             <button
               type="button"
-              class="rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:text-slate-700 dark:border-white/10 dark:text-slate-400 dark:hover:text-white"
+              class="inline-flex h-[22px] items-center rounded-tag border border-line px-2 text-tag font-semibold text-muted transition hover:text-text"
               onClick={props.onToggleShowAll}
             >
               +{props.hiddenTagsCount}

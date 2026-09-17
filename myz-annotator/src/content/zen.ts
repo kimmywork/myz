@@ -213,9 +213,13 @@ export async function captureZenTargetFull() {
 function buildZenCss(): string {
   // Pure CSS approach: hide everything except the marked target, its descendants,
   // and explicitly marked ancestors. Avoid :has() for broader compatibility.
+  //
+  // §4.16 专注阅读: read serif + read tiers. These values mirror the shared
+  // read tokens; the host page cannot receive `:root` variables without
+  // polluting it, so they are inlined here (see gap.md).
   return `
 html.myz-zen-enabled, html.myz-zen-enabled body {
-  background: #f8fafc !important;
+  background: #f5f4ed !important;
 }
 /* Hide all elements except target, its descendants, and marked ancestors */
 html.myz-zen-enabled body *:not(.myz-zen-target-keep):not(.myz-zen-target-keep *):not(.myz-zen-ancestor-keep) {
@@ -235,11 +239,12 @@ html.myz-zen-enabled .myz-zen-ancestor-keep {
 
 html.myz-zen-enabled .myz-zen-target-keep {
   display: block !important;
-  color: #0f172a !important;
+  font-family: Newsreader, "Noto Serif SC", "Noto Serif TC", serif !important;
+  color: #141413 !important;
   line-height: 1.8 !important;
   font-size: 18px !important;
-  /* Default to 80% width and center on larger screens */
-  width: 80% !important;
+  letter-spacing: 0.01em !important;
+  max-width: 38em !important;
   margin: 0 auto !important;
   padding: 24px !important;
 }
@@ -248,13 +253,33 @@ html.myz-zen-enabled .myz-zen-target-keep img, html.myz-zen-enabled .myz-zen-tar
   height: auto !important;
 }
 html.myz-zen-enabled .myz-zen-target-keep a {
-  color: #2563eb !important;
-  text-decoration: none !important;
+  color: #1b365d !important;
+  text-decoration: underline !important;
+  text-decoration-color: color-mix(in srgb, #1b365d 40%, transparent) !important;
 }
-html.myz-zen-enabled .myz-zen-target-keep pre, html.myz-zen-enabled .myz-zen-target-keep code {
-  background: #f1f5f9 !important;
+html.myz-zen-enabled .myz-zen-target-keep code {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace !important;
+  background: #eceae0 !important;
   border-radius: 6px !important;
-  padding: 0.25em 0.45em !important;
+  padding: 0.15em 0.4em !important;
+  font-size: 0.9em !important;
+}
+/* Block code: full-width surface, and no inline pill on the nested <code>. */
+html.myz-zen-enabled .myz-zen-target-keep pre {
+  display: block !important;
+  width: auto !important;
+  background: #eceae0 !important;
+  border-radius: 8px !important;
+  padding: 12px 14px !important;
+  overflow-x: auto !important;
+  white-space: pre !important;
+}
+html.myz-zen-enabled .myz-zen-target-keep pre code {
+  display: inline !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  font-size: 0.9em !important;
 }
 /* On small screens, let the target take full width */
 @media (max-width: 768px) {

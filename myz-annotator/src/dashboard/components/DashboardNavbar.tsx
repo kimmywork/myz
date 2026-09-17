@@ -19,7 +19,7 @@ export default defineComponent({
     > = [
       {
         key: "highlights",
-        label: "标注列表",
+        label: "文库",
         to: "/highlights",
         isActive: (path: string) => path.startsWith("/highlights"),
       },

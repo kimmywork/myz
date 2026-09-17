@@ -18,315 +18,315 @@
     <style>
       :root {
         /* 尺寸与字体（和配色无关，所有方案共用） */
-        --r-xs: 4px;
-        --r-sm: 6px;
-        --r: 8px;
-        --r-lg: 12px;
-        --r-pill: 999px;
-        --sans:
+        --myz-r-xs: 4px;
+        --myz-r-sm: 6px;
+        --myz-r: 8px;
+        --myz-r-lg: 12px;
+        --myz-r-pill: 999px;
+        --myz-sans:
           system-ui, -apple-system, "Segoe UI", "PingFang SC",
           "Hiragino Sans GB", sans-serif;
-        --cjk: "Noto Serif SC";
-        --read: Newsreader, var(--cjk), serif;
-        --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+        --myz-cjk: "Noto Serif SC";
+        --myz-read: Newsreader, var(--myz-cjk), serif;
+        --myz-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
         /* 高亮五色是记录数据，不随配色方案变 */
-        --mark-1: #b58900;
-        --mark-2: #ef476f;
-        --mark-3: #9f7aea;
-        --mark-4: #38bdf8;
-        --mark-5: #34d399;
+        --myz-mark-1: #b58900;
+        --myz-mark-2: #ef476f;
+        --myz-mark-3: #9f7aea;
+        --myz-mark-4: #38bdf8;
+        --myz-mark-5: #34d399;
 
         /* 阅读设置，全部可调 */
-        --read-size-1: 15px;
-        --read-size-2: 16px;
-        --read-size-3: 18px;
-        --read-size-4: 20px;
-        --read-size-5: 22px;
-        --read-leading: 1.8;
-        --read-tracking: 0.01em;
-        --read-measure: 38em;
-        --read-gutter: 24px;
+        --myz-read-size-1: 15px;
+        --myz-read-size-2: 16px;
+        --myz-read-size-3: 18px;
+        --myz-read-size-4: 20px;
+        --myz-read-size-5: 22px;
+        --myz-read-leading: 1.8;
+        --myz-read-tracking: 0.01em;
+        --myz-read-measure: 38em;
+        --myz-read-gutter: 24px;
 
         /* 浮在任意网页上的采集条和提示 */
-        --overlay: #141413;
-        --overlay-text: #f5f4ed;
-        --overlay-hover: #30302e;
+        --myz-overlay: #141413;
+        --myz-overlay-text: #f5f4ed;
+        --myz-overlay-hover: #30302e;
 
         --top-bar-height: 61px;
-        --hit-compact: 32px;
-        --hit-regular: 36px;
-        --hit-touch: 44px;
-        --motion-fast: 120ms;
-        --motion-med: 180ms;
-        --motion-panel: 240ms;
-        --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --myz-hit-compact: 32px;
+        --myz-hit-regular: 36px;
+        --myz-hit-touch: 44px;
+        --myz-motion-fast: 120ms;
+        --myz-motion-med: 180ms;
+        --myz-motion-panel: 240ms;
+        --myz-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
       }
 
       /* ── 配色方案：米纸（默认）──────────────── */
       :root,
       html[data-scheme="paper"] {
-        --bg: #f5f4ed;
-        --surface: #faf9f5;
-        --surface-2: #eceae0;
-        --text: #141413;
-        --muted: #6b6a64;
-        --line: #ddd9cc;
-        --accent: #1b365d;
-        --accent-hover: #152a4a;
-        --accent-text: #1b365d;
-        --on-accent: #faf9f5;
-        --tag-bg: #e4ecf5;
-        --tag-fg: #1b365d;
-        --shadow: 0 14px 36px rgba(20, 20, 19, 0.12);
-        --control-bg: #ffffff;
-        --control-border: #ccc6b4;
-        --skeleton: #e3e0d4;
-        --well: #e4e1d6;
-        --well-chrome: #f0eee6;
-        --well-border: #d6d1c2;
-        --well-text: #141413;
-        --well-muted: #65645e;
-        --well-control-bg: #ffffff;
-        --well-control-border: #ccc6b4;
+        --myz-bg: #f5f4ed;
+        --myz-surface: #faf9f5;
+        --myz-surface-2: #eceae0;
+        --myz-text: #141413;
+        --myz-muted: #6b6a64;
+        --myz-line: #ddd9cc;
+        --myz-accent: #1b365d;
+        --myz-accent-hover: #152a4a;
+        --myz-accent-text: #1b365d;
+        --myz-on-accent: #faf9f5;
+        --myz-tag-bg: #e4ecf5;
+        --myz-tag-fg: #1b365d;
+        --myz-shadow: 0 14px 36px rgba(20, 20, 19, 0.12);
+        --myz-control-bg: #ffffff;
+        --myz-control-border: #ccc6b4;
+        --myz-skeleton: #e3e0d4;
+        --myz-well: #e4e1d6;
+        --myz-well-chrome: #f0eee6;
+        --myz-well-border: #d6d1c2;
+        --myz-well-text: #141413;
+        --myz-well-muted: #65645e;
+        --myz-well-control-bg: #ffffff;
+        --myz-well-control-border: #ccc6b4;
       }
       html[data-scheme="paper"][data-theme="dark"] {
-        --bg: #141413;
-        --surface: #1c1c1a;
-        --surface-2: #262624;
-        --text: #f5f4ed;
-        --muted: #a8a59c;
-        --line: #3a3a36;
-        --accent: #3d6692;
-        --accent-hover: #4a7aab;
-        --accent-text: #9eb6d4;
-        --on-accent: #faf9f5;
-        --tag-bg: #243044;
-        --tag-fg: #9eb6d4;
-        --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-        --control-bg: #2a2a27;
-        --control-border: #4a4a44;
-        --skeleton: #333330;
-        --well: #0f0f0e;
-        --well-chrome: #1c1c1a;
-        --well-border: #3a3a36;
-        --well-text: #f5f4ed;
-        --well-muted: #8e8c83;
-        --well-control-bg: #262624;
-        --well-control-border: #4a4a44;
+        --myz-bg: #141413;
+        --myz-surface: #1c1c1a;
+        --myz-surface-2: #262624;
+        --myz-text: #f5f4ed;
+        --myz-muted: #a8a59c;
+        --myz-line: #3a3a36;
+        --myz-accent: #3d6692;
+        --myz-accent-hover: #4a7aab;
+        --myz-accent-text: #9eb6d4;
+        --myz-on-accent: #faf9f5;
+        --myz-tag-bg: #243044;
+        --myz-tag-fg: #9eb6d4;
+        --myz-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        --myz-control-bg: #2a2a27;
+        --myz-control-border: #4a4a44;
+        --myz-skeleton: #333330;
+        --myz-well: #0f0f0e;
+        --myz-well-chrome: #1c1c1a;
+        --myz-well-border: #3a3a36;
+        --myz-well-text: #f5f4ed;
+        --myz-well-muted: #8e8c83;
+        --myz-well-control-bg: #262624;
+        --myz-well-control-border: #4a4a44;
       }
 
       /* ── 配色方案：冷灰 ────────────────────── */
       html[data-scheme="slate"] {
-        --bg: #f8fafc;
-        --surface: #ffffff;
-        --surface-2: #f1f5f9;
-        --text: #0f172a;
-        --muted: #64748b;
-        --line: #e2e8f0;
-        --accent: #4f46e5;
-        --accent-hover: #4338ca;
-        --accent-text: #4f46e5;
-        --on-accent: #ffffff;
-        --tag-bg: #eef2ff;
-        --tag-fg: #4f46e5;
-        --shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-        --control-bg: #ffffff;
-        --control-border: #c3cedb;
-        --skeleton: #e2e8f0;
-        --well: #eef2f7;
-        --well-chrome: #f8fafc;
-        --well-border: #dbe3ec;
-        --well-text: #0f172a;
-        --well-muted: #5e6e82;
-        --well-control-bg: #ffffff;
-        --well-control-border: #c3cedb;
+        --myz-bg: #f8fafc;
+        --myz-surface: #ffffff;
+        --myz-surface-2: #f1f5f9;
+        --myz-text: #0f172a;
+        --myz-muted: #64748b;
+        --myz-line: #e2e8f0;
+        --myz-accent: #4f46e5;
+        --myz-accent-hover: #4338ca;
+        --myz-accent-text: #4f46e5;
+        --myz-on-accent: #ffffff;
+        --myz-tag-bg: #eef2ff;
+        --myz-tag-fg: #4f46e5;
+        --myz-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+        --myz-control-bg: #ffffff;
+        --myz-control-border: #c3cedb;
+        --myz-skeleton: #e2e8f0;
+        --myz-well: #eef2f7;
+        --myz-well-chrome: #f8fafc;
+        --myz-well-border: #dbe3ec;
+        --myz-well-text: #0f172a;
+        --myz-well-muted: #5e6e82;
+        --myz-well-control-bg: #ffffff;
+        --myz-well-control-border: #c3cedb;
       }
       html[data-scheme="slate"][data-theme="dark"] {
-        --bg: #0f172a;
-        --surface: #1e293b;
-        --surface-2: #0b1220;
-        --text: #f1f5f9;
-        --muted: #94a3b8;
-        --line: #334155;
-        --accent: #5f62ea;
-        --accent-hover: #818cf8;
-        --accent-text: #a5b4fc;
-        --on-accent: #ffffff;
-        --tag-bg: rgba(99, 102, 241, 0.2);
-        --tag-fg: #c7d2fe;
-        --shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
-        --control-bg: #26344a;
-        --control-border: #47576e;
-        --skeleton: #334155;
-        --well: #0b1220;
-        --well-chrome: #1e293b;
-        --well-border: #334155;
-        --well-text: #e2e8f0;
-        --well-muted: #94a3b8;
-        --well-control-bg: #26344a;
-        --well-control-border: #46566f;
+        --myz-bg: #0f172a;
+        --myz-surface: #1e293b;
+        --myz-surface-2: #0b1220;
+        --myz-text: #f1f5f9;
+        --myz-muted: #94a3b8;
+        --myz-line: #334155;
+        --myz-accent: #5f62ea;
+        --myz-accent-hover: #818cf8;
+        --myz-accent-text: #a5b4fc;
+        --myz-on-accent: #ffffff;
+        --myz-tag-bg: rgba(99, 102, 241, 0.2);
+        --myz-tag-fg: #c7d2fe;
+        --myz-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+        --myz-control-bg: #26344a;
+        --myz-control-border: #47576e;
+        --myz-skeleton: #334155;
+        --myz-well: #0b1220;
+        --myz-well-chrome: #1e293b;
+        --myz-well-border: #334155;
+        --myz-well-text: #e2e8f0;
+        --myz-well-muted: #94a3b8;
+        --myz-well-control-bg: #26344a;
+        --myz-well-control-border: #46566f;
       }
 
       /* ── 配色方案：青瓷 ────────────────────── */
       html[data-scheme="celadon"] {
-        --bg: #f2f4ee;
-        --surface: #f8faf4;
-        --surface-2: #e6ebe0;
-        --text: #16201a;
-        --muted: #5f6b60;
-        --line: #d4dacd;
-        --accent: #2f5d4a;
-        --accent-hover: #244a3a;
-        --accent-text: #2f5d4a;
-        --on-accent: #f8faf4;
-        --tag-bg: #e0ece3;
-        --tag-fg: #2f5d4a;
-        --shadow: 0 14px 36px rgba(18, 30, 22, 0.12);
-        --control-bg: #ffffff;
-        --control-border: #ccd4c4;
-        --skeleton: #dfe5d7;
-        --well: #e2e8db;
-        --well-chrome: #eef1e8;
-        --well-border: #ccd4c4;
-        --well-text: #16201a;
-        --well-muted: #5d695e;
-        --well-control-bg: #ffffff;
-        --well-control-border: #ccd4c4;
+        --myz-bg: #f2f4ee;
+        --myz-surface: #f8faf4;
+        --myz-surface-2: #e6ebe0;
+        --myz-text: #16201a;
+        --myz-muted: #5f6b60;
+        --myz-line: #d4dacd;
+        --myz-accent: #2f5d4a;
+        --myz-accent-hover: #244a3a;
+        --myz-accent-text: #2f5d4a;
+        --myz-on-accent: #f8faf4;
+        --myz-tag-bg: #e0ece3;
+        --myz-tag-fg: #2f5d4a;
+        --myz-shadow: 0 14px 36px rgba(18, 30, 22, 0.12);
+        --myz-control-bg: #ffffff;
+        --myz-control-border: #ccd4c4;
+        --myz-skeleton: #dfe5d7;
+        --myz-well: #e2e8db;
+        --myz-well-chrome: #eef1e8;
+        --myz-well-border: #ccd4c4;
+        --myz-well-text: #16201a;
+        --myz-well-muted: #5d695e;
+        --myz-well-control-bg: #ffffff;
+        --myz-well-control-border: #ccd4c4;
       }
       html[data-scheme="celadon"][data-theme="dark"] {
-        --bg: #101512;
-        --surface: #171d19;
-        --surface-2: #202821;
-        --text: #eef2ea;
-        --muted: #9aa79b;
-        --line: #334036;
-        --accent: #6fa88c;
-        --accent-hover: #86bba0;
-        --accent-text: #9dc9b2;
-        --on-accent: #101512;
-        --tag-bg: #22322a;
-        --tag-fg: #9dc9b2;
-        --shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-        --control-bg: #253026;
-        --control-border: #495a4d;
-        --skeleton: #2b352c;
-        --well: #0c110e;
-        --well-chrome: #171d19;
-        --well-border: #334036;
-        --well-text: #eef2ea;
-        --well-muted: #9aa79b;
-        --well-control-bg: #253026;
-        --well-control-border: #495a4d;
+        --myz-bg: #101512;
+        --myz-surface: #171d19;
+        --myz-surface-2: #202821;
+        --myz-text: #eef2ea;
+        --myz-muted: #9aa79b;
+        --myz-line: #334036;
+        --myz-accent: #6fa88c;
+        --myz-accent-hover: #86bba0;
+        --myz-accent-text: #9dc9b2;
+        --myz-on-accent: #101512;
+        --myz-tag-bg: #22322a;
+        --myz-tag-fg: #9dc9b2;
+        --myz-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        --myz-control-bg: #253026;
+        --myz-control-border: #495a4d;
+        --myz-skeleton: #2b352c;
+        --myz-well: #0c110e;
+        --myz-well-chrome: #171d19;
+        --myz-well-border: #334036;
+        --myz-well-text: #eef2ea;
+        --myz-well-muted: #9aa79b;
+        --myz-well-control-bg: #253026;
+        --myz-well-control-border: #495a4d;
       }
 
       /* ── 配色方案：赭石 ────────────────────── */
       html[data-scheme="ochre"] {
-        --bg: #f6f0e6;
-        --surface: #fbf6ee;
-        --surface-2: #ece2d2;
-        --text: #231a12;
-        --muted: #6f6152;
-        --line: #ddd0bb;
-        --accent: #8a4b24;
-        --accent-hover: #6f3b1a;
-        --accent-text: #8a4b24;
-        --on-accent: #fbf6ee;
-        --tag-bg: #f0e0cf;
-        --tag-fg: #8a4b24;
-        --shadow: 0 14px 36px rgba(35, 26, 18, 0.14);
-        --control-bg: #fffaf3;
-        --control-border: #d8c9b2;
-        --skeleton: #e8ddca;
-        --well: #ece2d2;
-        --well-chrome: #f4ecdf;
-        --well-border: #d8c9b2;
-        --well-text: #231a12;
-        --well-muted: #6f6152;
-        --well-control-bg: #fffaf3;
-        --well-control-border: #d8c9b2;
+        --myz-bg: #f6f0e6;
+        --myz-surface: #fbf6ee;
+        --myz-surface-2: #ece2d2;
+        --myz-text: #231a12;
+        --myz-muted: #6f6152;
+        --myz-line: #ddd0bb;
+        --myz-accent: #8a4b24;
+        --myz-accent-hover: #6f3b1a;
+        --myz-accent-text: #8a4b24;
+        --myz-on-accent: #fbf6ee;
+        --myz-tag-bg: #f0e0cf;
+        --myz-tag-fg: #8a4b24;
+        --myz-shadow: 0 14px 36px rgba(35, 26, 18, 0.14);
+        --myz-control-bg: #fffaf3;
+        --myz-control-border: #d8c9b2;
+        --myz-skeleton: #e8ddca;
+        --myz-well: #ece2d2;
+        --myz-well-chrome: #f4ecdf;
+        --myz-well-border: #d8c9b2;
+        --myz-well-text: #231a12;
+        --myz-well-muted: #6f6152;
+        --myz-well-control-bg: #fffaf3;
+        --myz-well-control-border: #d8c9b2;
       }
       html[data-scheme="ochre"][data-theme="dark"] {
-        --bg: #17130f;
-        --surface: #1f1a14;
-        --surface-2: #292219;
-        --text: #f3ece0;
-        --muted: #ab9d89;
-        --line: #3d3428;
-        --accent: #c98a5a;
-        --accent-hover: #d69c6f;
-        --accent-text: #e0b088;
-        --on-accent: #17130f;
-        --tag-bg: #33271a;
-        --tag-fg: #e0b088;
-        --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-        --control-bg: #2b2419;
-        --control-border: #554733;
-        --skeleton: #362d21;
-        --well: #0f0c09;
-        --well-chrome: #1f1a14;
-        --well-border: #3d3428;
-        --well-text: #f3ece0;
-        --well-muted: #ab9d89;
-        --well-control-bg: #2b2419;
-        --well-control-border: #4a3d2e;
+        --myz-bg: #17130f;
+        --myz-surface: #1f1a14;
+        --myz-surface-2: #292219;
+        --myz-text: #f3ece0;
+        --myz-muted: #ab9d89;
+        --myz-line: #3d3428;
+        --myz-accent: #c98a5a;
+        --myz-accent-hover: #d69c6f;
+        --myz-accent-text: #e0b088;
+        --myz-on-accent: #17130f;
+        --myz-tag-bg: #33271a;
+        --myz-tag-fg: #e0b088;
+        --myz-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+        --myz-control-bg: #2b2419;
+        --myz-control-border: #554733;
+        --myz-skeleton: #362d21;
+        --myz-well: #0f0c09;
+        --myz-well-chrome: #1f1a14;
+        --myz-well-border: #3d3428;
+        --myz-well-text: #f3ece0;
+        --myz-well-muted: #ab9d89;
+        --myz-well-control-bg: #2b2419;
+        --myz-well-control-border: #4a3d2e;
       }
 
       /* ── 语义色：跟深浅色走，不跟配色方案走 ── */
       :root {
-        --warn: #8a5a00;
-        --warn-bg: #f6ecd3;
-        --warn-border: #e6d3a3;
-        --error: #b53333;
-        --error-bg: #f7e3e3;
-        --error-border: #e6bfbf;
-        --success: #2f6f56;
-        --success-bg: #e0efe8;
-        --success-border: #bcdccf;
-        --info: #2b5f8a;
-        --info-bg: #e1ecf5;
-        --info-border: #c0d6e8;
-        --clip: #2b766c;
-        --clip-bg: #dcefec;
-        --clip-border: #b8ded7;
+        --myz-warn: #8a5a00;
+        --myz-warn-bg: #f6ecd3;
+        --myz-warn-border: #e6d3a3;
+        --myz-error: #b53333;
+        --myz-error-bg: #f7e3e3;
+        --myz-error-border: #e6bfbf;
+        --myz-success: #2f6f56;
+        --myz-success-bg: #e0efe8;
+        --myz-success-border: #bcdccf;
+        --myz-info: #2b5f8a;
+        --myz-info-bg: #e1ecf5;
+        --myz-info-border: #c0d6e8;
+        --myz-clip: #2b766c;
+        --myz-clip-bg: #dcefec;
+        --myz-clip-border: #b8ded7;
       }
       html[data-theme="dark"] {
-        --warn: #e0b352;
-        --warn-bg: #2e2614;
-        --warn-border: #4a3d20;
-        --error: #e08a8a;
-        --error-bg: #331c1c;
-        --error-border: #533030;
-        --success: #7fc4a6;
-        --success-bg: #16291f;
-        --success-border: #2a4436;
-        --info: #8fb8d8;
-        --info-bg: #16232e;
-        --info-border: #2a3d4d;
-        --clip: #4fb3a3;
-        --clip-bg: #12302c;
-        --clip-border: #245049;
+        --myz-warn: #e0b352;
+        --myz-warn-bg: #2e2614;
+        --myz-warn-border: #4a3d20;
+        --myz-error: #e08a8a;
+        --myz-error-bg: #331c1c;
+        --myz-error-border: #533030;
+        --myz-success: #7fc4a6;
+        --myz-success-bg: #16291f;
+        --myz-success-border: #2a4436;
+        --myz-info: #8fb8d8;
+        --myz-info-bg: #16232e;
+        --myz-info-border: #2a3d4d;
+        --myz-clip: #4fb3a3;
+        --myz-clip-bg: #12302c;
+        --myz-clip-border: #245049;
       }
 
       html[data-cjk="tc"] {
-        --cjk: "Noto Serif TC";
-        --sans:
+        --myz-cjk: "Noto Serif TC";
+        --myz-sans:
           system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei",
           sans-serif;
       }
       html[data-cjk="hk"] {
-        --cjk: "Noto Serif HK";
-        --sans:
+        --myz-cjk: "Noto Serif HK";
+        --myz-sans:
           system-ui, -apple-system, "PingFang HK", "Noto Sans HK", sans-serif;
       }
       html[data-cjk="jp"] {
-        --cjk: "Noto Serif JP";
-        --sans:
+        --myz-cjk: "Noto Serif JP";
+        --myz-sans:
           system-ui, -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
       }
       html[data-cjk="kr"] {
-        --cjk: "Noto Serif KR";
-        --sans:
+        --myz-cjk: "Noto Serif KR";
+        --myz-sans:
           system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR",
           sans-serif;
       }
@@ -339,9 +339,9 @@
         margin: 0;
       }
       body {
-        background: var(--bg);
-        color: var(--text);
-        font-family: var(--sans);
+        background: var(--myz-bg);
+        color: var(--myz-text);
+        font-family: var(--myz-sans);
         font-size: 15px;
         line-height: 1.6;
         transition:
@@ -349,7 +349,7 @@
           color 0.2s ease;
       }
       a {
-        color: var(--accent-text);
+        color: var(--myz-accent-text);
         text-decoration: none;
       }
       button,
@@ -358,7 +358,7 @@
         font: inherit;
       }
       code {
-        font-family: var(--mono);
+        font-family: var(--myz-mono);
         font-size: 0.86em;
       }
 
@@ -387,16 +387,16 @@
         gap: 16px;
         flex-wrap: nowrap;
         padding: 10px 20px;
-        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        background: color-mix(in srgb, var(--myz-bg) 88%, transparent);
         backdrop-filter: blur(12px);
-        border-bottom: 1px solid var(--line);
-        font-family: var(--sans);
+        border-bottom: 1px solid var(--myz-line);
+        font-family: var(--myz-sans);
       }
       .brand {
         font-weight: 650;
       }
       .brand span {
-        color: var(--muted);
+        color: var(--myz-muted);
         font-weight: 500;
         margin-left: 8px;
         font-size: 12px;
@@ -430,12 +430,12 @@
       .top nav a {
         display: inline-flex;
         align-items: center;
-        min-height: var(--hit-compact);
+        min-height: var(--myz-hit-compact);
         padding: 0 4px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .top nav a:hover {
-        color: var(--text);
+        color: var(--myz-text);
       }
       .top-actions {
         margin-left: auto;
@@ -448,9 +448,9 @@
         display: flex;
         gap: 4px;
         padding: 3px;
-        border: 1px solid var(--line);
+        border: 1px solid var(--myz-line);
         border-radius: 999px;
-        background: var(--surface);
+        background: var(--myz-surface);
       }
       .switch .chip {
         border: 0;
@@ -461,23 +461,23 @@
         align-items: center;
         gap: 5px;
         line-height: 1;
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
-        color: var(--text);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
+        color: var(--myz-text);
         border-radius: 999px;
         padding: 0 12px;
         font-size: 12px;
         cursor: pointer;
-        height: var(--hit-compact);
+        height: var(--myz-hit-compact);
       }
       .chip .i {
         width: 14px;
         height: 14px;
       }
       .chip.is-on {
-        background: var(--accent);
-        border-color: var(--accent);
-        color: var(--on-accent);
+        background: var(--myz-accent);
+        border-color: var(--myz-accent);
+        color: var(--myz-on-accent);
       }
       .scheme-picker {
         position: relative;
@@ -486,18 +486,18 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        height: var(--hit-compact);
+        height: var(--myz-hit-compact);
         padding: 0 10px;
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
-        border-radius: var(--r);
-        color: var(--text);
-        font-family: var(--sans);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
+        border-radius: var(--myz-r);
+        color: var(--myz-text);
+        font-family: var(--myz-sans);
         font-size: 12px;
         cursor: pointer;
       }
       .scheme-trigger .i {
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .scheme-trigger .chev {
         width: 12px;
@@ -505,7 +505,7 @@
         transform: rotate(90deg);
       }
       .scheme-trigger:focus-visible {
-        outline: 2px solid var(--accent);
+        outline: 2px solid var(--myz-accent);
         outline-offset: 2px;
       }
       .scheme-menu {
@@ -525,7 +525,7 @@
         width: 14px;
         height: 14px;
         visibility: hidden;
-        color: var(--accent-text);
+        color: var(--myz-accent-text);
       }
       .menu-item.is-on .check {
         visibility: visible;
@@ -544,17 +544,17 @@
         gap: 16px;
         align-items: baseline;
         padding: 12px 0;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--myz-line);
       }
       .type-scale .ts-name {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .type-scale .ts-spec {
-        font-family: var(--mono);
+        font-family: var(--myz-mono);
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       @media (max-width: 800px) {
         .type-scale .ts-row {
@@ -583,7 +583,7 @@
         line-height: 1.7;
       }
       .ts-table {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 14px;
         line-height: 1.5;
       }
@@ -591,26 +591,26 @@
         font-size: 13px;
         font-weight: 400;
         line-height: 1.55;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .ts-intro {
         font-size: 17px;
         font-weight: 400;
         line-height: 1.7;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .ts-aux {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
         font-weight: 500;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .ts-label {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
         font-weight: 600;
         letter-spacing: 0.04em;
-        color: var(--muted);
+        color: var(--myz-muted);
         text-transform: uppercase;
       }
 
@@ -621,44 +621,44 @@
         margin-top: 12px;
       }
       .read-sizes .rs {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         padding: 14px 16px;
       }
       .read-sizes .rs-head {
         display: flex;
         align-items: baseline;
         gap: 10px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
         margin-bottom: 6px;
       }
       .read-sizes .rs-head b {
-        color: var(--text);
+        color: var(--myz-text);
         font-size: 12px;
       }
       .read-sizes p {
         margin: 0;
-        font-family: var(--read);
-        line-height: var(--read-leading);
-        letter-spacing: var(--read-tracking);
+        font-family: var(--myz-read);
+        line-height: var(--myz-read-leading);
+        letter-spacing: var(--myz-read-tracking);
       }
       .read-sizes .rs-1 p {
-        font-size: var(--read-size-1);
+        font-size: var(--myz-read-size-1);
       }
       .read-sizes .rs-2 p {
-        font-size: var(--read-size-2);
+        font-size: var(--myz-read-size-2);
       }
       .read-sizes .rs-3 p {
-        font-size: var(--read-size-3);
+        font-size: var(--myz-read-size-3);
       }
       .read-sizes .rs-4 p {
-        font-size: var(--read-size-4);
+        font-size: var(--myz-read-size-4);
       }
       .read-sizes .rs-5 p {
-        font-size: var(--read-size-5);
+        font-size: var(--myz-read-size-5);
       }
 
       /* ── 语义色 ─────────────────────────── */
@@ -674,51 +674,51 @@
         }
       }
       .semantic .s {
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         overflow: hidden;
-        background: var(--surface);
+        background: var(--myz-surface);
       }
       .semantic .s .s-top {
         padding: 10px 12px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
         font-weight: 600;
       }
       .semantic .s .s-body {
         padding: 10px 12px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
       }
       .semantic .s code {
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .s-warn .s-top {
-        background: var(--warn-bg);
-        color: var(--warn);
+        background: var(--myz-warn-bg);
+        color: var(--myz-warn);
       }
       .s-error .s-top {
-        background: var(--error-bg);
-        color: var(--error);
+        background: var(--myz-error-bg);
+        color: var(--myz-error);
       }
       .s-success .s-top {
-        background: var(--success-bg);
-        color: var(--success);
+        background: var(--myz-success-bg);
+        color: var(--myz-success);
       }
       .s-info .s-top {
-        background: var(--info-bg);
-        color: var(--info);
+        background: var(--myz-info-bg);
+        color: var(--myz-info);
       }
 
       /* ── 下拉菜单 / 建议 ─────────────────── */
       .menu {
         width: 260px;
-        background: var(--surface);
-        border: 1px solid var(--control-border);
-        border-radius: var(--r-lg);
-        box-shadow: var(--shadow);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-control-border);
+        border-radius: var(--myz-r-lg);
+        box-shadow: var(--myz-shadow);
         padding: 6px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 13px;
       }
       .menu-group {
@@ -726,7 +726,7 @@
         font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.06em;
-        color: var(--muted);
+        color: var(--myz-muted);
         text-transform: uppercase;
       }
       .menu-item {
@@ -737,56 +737,56 @@
         padding: 7px 10px;
         border: 0;
         background: transparent;
-        border-radius: var(--r-sm);
-        color: var(--text);
+        border-radius: var(--myz-r-sm);
+        color: var(--myz-text);
         font: inherit;
         text-align: left;
         cursor: pointer;
       }
       .menu-item:hover,
       .menu-item.on {
-        background: var(--surface-2);
+        background: var(--myz-surface-2);
       }
       .menu-item.on {
-        color: var(--accent-text);
+        color: var(--myz-accent-text);
         font-weight: 600;
       }
       .menu-item .i {
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .menu-item .meta {
         margin-left: auto;
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .menu-sep {
         height: 1px;
-        background: var(--line);
+        background: var(--myz-line);
         margin: 6px 4px;
       }
       .menu-hint {
         padding: 8px 10px;
         font-size: 12px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
 
       .suggest {
         width: 340px;
-        background: var(--surface);
-        border: 1px solid var(--control-border);
-        border-radius: var(--r-lg);
-        box-shadow: var(--shadow);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-control-border);
+        border-radius: var(--myz-r-lg);
+        box-shadow: var(--myz-shadow);
         padding: 6px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
       }
       .suggest .sg-input {
         display: flex;
         align-items: center;
         gap: 6px;
         padding: 6px 8px;
-        border-radius: var(--r-sm);
-        background: var(--surface-2);
-        color: var(--muted);
+        border-radius: var(--myz-r-sm);
+        background: var(--myz-surface-2);
+        color: var(--myz-muted);
         font-size: 12px;
         margin-bottom: 4px;
       }
@@ -795,12 +795,12 @@
         align-items: center;
         gap: 8px;
         padding: 7px 10px;
-        border-radius: var(--r-sm);
+        border-radius: var(--myz-r-sm);
         font-size: 13px;
       }
       .suggest .sg-item:hover,
       .suggest .sg-item.on {
-        background: var(--surface-2);
+        background: var(--myz-surface-2);
       }
       .suggest .sg-item .tag {
         flex: none;
@@ -808,7 +808,7 @@
       .suggest .sg-item .kind {
         margin-left: auto;
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
 
       /* ── 版面 ───────────────────────────── */
@@ -816,16 +816,16 @@
         max-width: 980px;
         margin: 0 auto;
         padding: 40px 20px 96px;
-        font-family: var(--read);
+        font-family: var(--myz-read);
       }
       .hero {
         padding: 28px 0 8px;
         max-width: 44rem;
       }
       .kicker {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
-        color: var(--muted);
+        color: var(--myz-muted);
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
@@ -848,7 +848,7 @@
       .sec {
         margin-top: 56px;
         padding-top: 28px;
-        border-top: 1px solid var(--line);
+        border-top: 1px solid var(--myz-line);
       }
       /* 锚点跳转要给吸顶工具栏留出高度，否则标题会被压在栏下 */
       .sec,
@@ -857,7 +857,7 @@
       }
       .sec > p {
         max-width: 44rem;
-        color: var(--muted);
+        color: var(--myz-muted);
         margin: 8px 0;
       }
       .sec p,
@@ -865,11 +865,11 @@
         line-height: 1.7;
       }
       .num {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
         font-weight: 500;
         margin-right: 8px;
-        color: var(--muted);
+        color: var(--myz-muted);
         letter-spacing: 0.04em;
       }
       .hero-spec {
@@ -884,10 +884,10 @@
         gap: 2px;
       }
       .hero-spec dt {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
         letter-spacing: 0.04em;
-        color: var(--muted);
+        color: var(--myz-muted);
         text-transform: uppercase;
       }
       .hero-spec dd {
@@ -895,24 +895,24 @@
         font-size: 15px;
       }
       .lede {
-        color: var(--muted);
+        color: var(--myz-muted);
         font-size: 17px;
         line-height: 1.8;
       }
       .why {
         margin: 12px 0 32px;
         padding: 12px 16px;
-        background: var(--surface-2);
+        background: var(--myz-surface-2);
         border-radius: 8px;
         font-size: 14px;
         max-width: 44rem;
         line-height: 1.75;
       }
       .why b {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
         font-weight: 700;
-        color: var(--accent-text);
+        color: var(--myz-accent-text);
         letter-spacing: 0.06em;
         display: block;
         margin-bottom: 4px;
@@ -938,9 +938,9 @@
         }
       }
       .card {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         padding: 16px;
       }
       .card h3 {
@@ -949,7 +949,7 @@
       }
       .card p {
         margin: 0;
-        color: var(--muted);
+        color: var(--myz-muted);
         font-size: 14px;
       }
 
@@ -962,13 +962,13 @@
       td {
         text-align: left;
         padding: 10px 10px 10px 0;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid var(--myz-line);
         vertical-align: top;
       }
       th {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
-        color: var(--muted);
+        color: var(--myz-muted);
         font-weight: 600;
       }
       td:first-child {
@@ -983,8 +983,8 @@
       }
       .palette figure {
         margin: 0;
-        background: var(--surface);
-        border: 1px solid var(--line);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
         border-radius: 8px;
         overflow: hidden;
       }
@@ -994,13 +994,13 @@
       }
       .palette figcaption {
         padding: 8px 10px 10px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .palette strong {
         display: block;
-        color: var(--text);
+        color: var(--myz-text);
         font-size: 12px;
       }
       @media (max-width: 800px) {
@@ -1022,7 +1022,7 @@
         box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
       }
       .sw.on {
-        outline: 2px solid var(--text);
+        outline: 2px solid var(--myz-text);
         outline-offset: 2px;
       }
 
@@ -1032,45 +1032,45 @@
         align-items: center;
         gap: 6px;
         justify-content: center;
-        height: var(--hit-compact);
+        height: var(--myz-hit-compact);
         padding: 0 12px;
-        border-radius: var(--r);
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
-        color: var(--text);
-        font-family: var(--sans);
+        border-radius: var(--myz-r);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
+        color: var(--myz-text);
+        font-family: var(--myz-sans);
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
         transition:
-          background var(--motion-fast) ease,
-          border-color var(--motion-fast) ease;
+          background var(--myz-motion-fast) ease,
+          border-color var(--myz-motion-fast) ease;
       }
       .btn:hover {
         border-color: color-mix(
           in srgb,
-          var(--accent) 45%,
-          var(--control-border)
+          var(--myz-accent) 45%,
+          var(--myz-control-border)
         );
       }
       .btn-primary {
-        background: var(--accent);
-        border-color: var(--accent);
-        color: var(--on-accent);
+        background: var(--myz-accent);
+        border-color: var(--myz-accent);
+        color: var(--myz-on-accent);
       }
       .btn-primary:hover {
-        background: var(--accent-hover);
-        border-color: var(--accent-hover);
+        background: var(--myz-accent-hover);
+        border-color: var(--myz-accent-hover);
       }
       .btn-ghost {
         background: transparent;
       }
       .btn-danger {
-        color: var(--error);
+        color: var(--myz-error);
         background: transparent;
       }
       .btn-icon {
-        width: var(--hit-compact);
+        width: var(--myz-hit-compact);
         padding: 0;
       }
       .btn:disabled {
@@ -1078,7 +1078,7 @@
         cursor: not-allowed;
       }
       :focus-visible {
-        outline: 2px solid var(--accent);
+        outline: 2px solid var(--myz-accent);
         outline-offset: 2px;
       }
       .tag {
@@ -1088,9 +1088,9 @@
         height: 22px;
         padding: 0 8px;
         border-radius: 6px;
-        background: var(--tag-bg);
-        color: var(--tag-fg);
-        font-family: var(--sans);
+        background: var(--myz-tag-bg);
+        color: var(--myz-tag-fg);
+        font-family: var(--myz-sans);
         font-size: 11px;
         font-weight: 600;
       }
@@ -1138,11 +1138,11 @@
       /* ── 采集条两种变体 ─────────────────── */
       .capture-stage {
         position: relative;
-        border-radius: var(--r-lg);
+        border-radius: var(--myz-r-lg);
         padding: 18px 20px 58px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
-        border: 1px solid var(--line);
+        border: 1px solid var(--myz-line);
       }
       .capture-stage.page-light {
         background: #ffffff;
@@ -1159,22 +1159,22 @@
         display: inline-flex;
         gap: 4px;
         padding: 5px;
-        border-radius: var(--r-pill);
-        box-shadow: var(--shadow);
+        border-radius: var(--myz-r-pill);
+        box-shadow: var(--myz-shadow);
       }
       .capture-bar.dark {
-        background: var(--overlay);
-        color: var(--overlay-text);
+        background: var(--myz-overlay);
+        color: var(--myz-overlay-text);
         /* 深色投影负责在浅色页面上浮起，浅色描边负责在深色页面上勾出轮廓 */
         box-shadow:
           0 8px 24px rgba(0, 0, 0, 0.35),
           0 0 0 1px rgba(255, 255, 255, 0.16);
       }
       .capture-bar button {
-        width: var(--hit-compact);
-        height: var(--hit-compact);
+        width: var(--myz-hit-compact);
+        height: var(--myz-hit-compact);
         border: 0;
-        border-radius: var(--r-pill);
+        border-radius: var(--myz-r-pill);
         background: transparent;
         color: inherit;
         display: grid;
@@ -1182,41 +1182,41 @@
         cursor: pointer;
       }
       .capture-bar.dark button:hover {
-        background: var(--overlay-hover);
+        background: var(--myz-overlay-hover);
       }
       .icon-hit {
-        width: var(--hit-compact);
-        height: var(--hit-compact);
-        border-radius: var(--r);
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
+        width: var(--myz-hit-compact);
+        height: var(--myz-hit-compact);
+        border-radius: var(--myz-r);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
         display: grid;
         place-items: center;
-        color: var(--text);
+        color: var(--myz-text);
       }
       .field {
         display: flex;
         flex-direction: column;
         gap: 6px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
-        color: var(--muted);
+        color: var(--myz-muted);
         max-width: 320px;
       }
       .field-box {
-        font-family: var(--read);
+        font-family: var(--myz-read);
         font-size: 14px;
-        color: var(--text);
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
+        color: var(--myz-text);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
         border-radius: 8px;
-        height: var(--hit-regular);
+        height: var(--myz-hit-regular);
         padding: 0 10px;
         outline: none;
         width: 100%;
         transition:
-          border-color var(--motion-fast) ease,
-          box-shadow var(--motion-fast) ease;
+          border-color var(--myz-motion-fast) ease,
+          box-shadow var(--myz-motion-fast) ease;
       }
       textarea.field-box {
         height: auto;
@@ -1225,32 +1225,32 @@
         resize: vertical;
       }
       .field-box:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+        border-color: var(--myz-accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--myz-accent) 20%, transparent);
       }
       .field-box:disabled {
-        background: var(--surface-2);
-        color: var(--muted);
+        background: var(--myz-surface-2);
+        color: var(--myz-muted);
       }
 
       /* ── 布局示意 ───────────────────────── */
       .wire {
         display: grid;
         gap: 8px;
-        background: var(--surface-2);
-        border: 1px dashed var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface-2);
+        border: 1px dashed var(--myz-line);
+        border-radius: var(--myz-r-lg);
         padding: 8px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .wire b {
-        color: var(--text);
+        color: var(--myz-text);
         font-weight: 600;
       }
       .wire > div {
-        background: var(--surface);
+        background: var(--myz-surface);
         border-radius: 6px;
         padding: 10px;
       }
@@ -1288,15 +1288,15 @@
       }
       .lang-grid figure {
         margin: 0;
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         padding: 16px;
       }
       .lang-grid figcaption {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
         margin-bottom: 8px;
       }
       .lang-grid p {
@@ -1308,7 +1308,7 @@
         font-size: 22px;
         letter-spacing: 0.1em;
         margin-top: 10px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
 
       /* ── 场景演示 ───────────────────────── */
@@ -1319,9 +1319,9 @@
         margin: 16px 0;
       }
       .frame {
-        background: var(--surface-2);
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface-2);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         padding: 14px;
         overflow: auto;
       }
@@ -1333,27 +1333,27 @@
       }
 
       .dash {
-        background: var(--bg);
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-bg);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         min-width: 840px;
         overflow: hidden;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
       }
       .dash-nav {
         display: flex;
         align-items: center;
         gap: 12px;
         padding: 10px 14px;
-        background: var(--surface);
-        border-bottom: 1px solid var(--line);
+        background: var(--myz-surface);
+        border-bottom: 1px solid var(--myz-line);
       }
       .dash-nav .name {
         font-weight: 700;
       }
       .seg {
         display: flex;
-        background: var(--surface-2);
+        background: var(--myz-surface-2);
         border-radius: 999px;
         padding: 3px;
       }
@@ -1361,20 +1361,20 @@
         padding: 4px 10px;
         border-radius: 999px;
         font-size: 12px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .seg span.on {
-        background: var(--accent);
-        color: var(--on-accent);
+        background: var(--myz-accent);
+        color: var(--myz-on-accent);
       }
       .search {
         margin-left: auto;
         width: 220px;
-        height: var(--hit-compact);
+        height: var(--myz-hit-compact);
         border-radius: 8px;
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
-        color: var(--muted);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
+        color: var(--myz-muted);
         display: flex;
         align-items: center;
         gap: 6px;
@@ -1388,12 +1388,12 @@
       }
       .side {
         padding: 12px;
-        border-right: 1px solid var(--line);
+        border-right: 1px solid var(--myz-line);
       }
       .side h4 {
         margin: 0 0 8px;
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
         font-weight: 600;
       }
       .src {
@@ -1401,7 +1401,7 @@
         border-radius: 8px;
       }
       .src.on {
-        background: var(--surface);
+        background: var(--myz-surface);
       }
       .src b {
         display: block;
@@ -1409,7 +1409,7 @@
       }
       .src em {
         font-style: normal;
-        color: var(--muted);
+        color: var(--myz-muted);
         font-size: 11px;
       }
       .main {
@@ -1431,16 +1431,16 @@
       }
       .hcard {
         break-inside: avoid;
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         padding: 12px;
         margin-bottom: 10px;
       }
       .hcard .kind {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
-        color: var(--accent-text);
+        color: var(--myz-accent-text);
         font-weight: 700;
       }
       .hcard blockquote {
@@ -1449,7 +1449,7 @@
         line-height: 1.65;
       }
       .hcard .note {
-        color: var(--muted);
+        color: var(--myz-muted);
         font-size: 13px;
         margin: 8px 0;
       }
@@ -1458,19 +1458,19 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
 
       .popup {
         width: 320px;
-        background: var(--surface);
-        border: 1px solid var(--line);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
         border-radius: 12px;
         padding: 12px;
-        box-shadow: var(--shadow);
-        font-family: var(--sans);
+        box-shadow: var(--myz-shadow);
+        font-family: var(--myz-sans);
       }
       .popup header {
         display: flex;
@@ -1485,22 +1485,22 @@
         gap: 6px;
       }
       .icon-btn {
-        width: var(--hit-compact);
-        height: var(--hit-compact);
-        border-radius: var(--r);
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
+        width: var(--myz-hit-compact);
+        height: var(--myz-hit-compact);
+        border-radius: var(--myz-r);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
         display: grid;
         place-items: center;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .hit {
         display: grid;
         grid-template-columns: 3px 1fr;
         gap: 8px;
         padding: 8px 0;
-        border-bottom: 1px solid var(--line);
-        font-family: var(--read);
+        border-bottom: 1px solid var(--myz-line);
+        font-family: var(--myz-read);
       }
       .hit p {
         margin: 0;
@@ -1508,25 +1508,25 @@
         line-height: 1.5;
       }
       .hit small {
-        font-family: var(--sans);
-        color: var(--muted);
+        font-family: var(--myz-sans);
+        color: var(--myz-muted);
         font-size: 11px;
       }
 
       .webpage {
         background: #fff;
         color: #111;
-        border-radius: var(--r-lg);
+        border-radius: var(--myz-r-lg);
         padding: 24px 28px 76px;
         position: relative;
         min-height: 340px;
         font-family: Georgia, "Songti SC", serif;
       }
       html[data-theme="dark"] .webpage {
-        box-shadow: inset 0 0 0 1px var(--line);
+        box-shadow: inset 0 0 0 1px var(--myz-line);
       }
       .webpage .site {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
         color: #64748b;
       }
@@ -1542,17 +1542,17 @@
       mark.inherit {
         background: color-mix(
           in srgb,
-          var(--mark-1) var(--mark-alpha),
+          var(--myz-mark-1) var(--myz-mark-alpha),
           transparent
         );
         color: inherit;
         padding: 0 1px;
       }
       :root {
-        --mark-alpha: 42%;
-        --mark-underline: 2px;
-        --mark-wavy: 1.5px;
-        --mark-radius: 3px;
+        --myz-mark-alpha: 42%;
+        --myz-mark-underline: 2px;
+        --myz-mark-wavy: 1.5px;
+        --myz-mark-radius: 3px;
       }
       .mark-grid {
         display: grid;
@@ -1566,10 +1566,10 @@
         }
       }
       .mark-page {
-        border-radius: var(--r-lg);
+        border-radius: var(--myz-r-lg);
         padding: 14px 16px;
-        border: 1px solid var(--line);
-        font-family: var(--read);
+        border: 1px solid var(--myz-line);
+        font-family: var(--myz-read);
         font-size: 15px;
         line-height: 1.8;
       }
@@ -1585,7 +1585,7 @@
         color: #dedbd4;
       }
       .mark-page .mark-site {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 11px;
         opacity: 0.6;
       }
@@ -1615,10 +1615,10 @@
         bottom: -5px;
         width: 18px;
         height: 18px;
-        border-radius: var(--r-sm);
-        background: var(--surface);
-        border: 1px solid var(--control-border);
-        color: var(--muted);
+        border-radius: var(--myz-r-sm);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-control-border);
+        color: var(--myz-muted);
         display: grid;
         place-items: center;
       }
@@ -1629,19 +1629,19 @@
       mark.paint {
         background: color-mix(
           in srgb,
-          var(--c, var(--mark-1)) var(--mark-alpha),
+          var(--c, var(--myz-mark-1)) var(--myz-mark-alpha),
           transparent
         );
         color: inherit;
-        border-radius: var(--mark-radius);
+        border-radius: var(--myz-mark-radius);
         padding: 0 2px;
       }
       mark.under,
       mark.wavy {
         background: none;
         color: inherit;
-        text-decoration-color: var(--c, var(--mark-1));
-        text-decoration-thickness: var(--mark-underline);
+        text-decoration-color: var(--c, var(--myz-mark-1));
+        text-decoration-thickness: var(--myz-mark-underline);
         text-underline-offset: 0.12em;
         text-decoration-skip-ink: auto;
       }
@@ -1652,7 +1652,7 @@
       mark.wavy {
         text-decoration-line: underline;
         text-decoration-style: wavy;
-        text-decoration-thickness: var(--mark-wavy);
+        text-decoration-thickness: var(--myz-mark-wavy);
         text-underline-offset: 0.16em;
       }
       @media (prefers-reduced-motion: reduce) {
@@ -1673,9 +1673,9 @@
         gap: 4px;
         padding: 5px;
         border-radius: 999px;
-        background: var(--overlay);
-        color: var(--overlay-text);
-        box-shadow: var(--shadow);
+        background: var(--myz-overlay);
+        color: var(--myz-overlay-text);
+        box-shadow: var(--myz-shadow);
       }
       .float-bar button {
         width: 32px;
@@ -1683,46 +1683,46 @@
         border: 0;
         border-radius: 99px;
         background: transparent;
-        color: var(--overlay-text);
+        color: var(--myz-overlay-text);
         cursor: pointer;
         display: grid;
         place-items: center;
       }
       .float-bar button:hover {
-        background: var(--overlay-hover);
+        background: var(--myz-overlay-hover);
       }
       .modal {
         position: absolute;
         right: 16px;
         top: 48px;
         width: 264px;
-        background: var(--surface);
-        color: var(--text);
-        border: 1px solid var(--line);
+        background: var(--myz-surface);
+        color: var(--myz-text);
+        border: 1px solid var(--myz-line);
         border-radius: 12px;
         padding: 12px;
-        box-shadow: var(--shadow);
-        font-family: var(--sans);
+        box-shadow: var(--myz-shadow);
+        font-family: var(--myz-sans);
       }
       .modal .modal-kind {
         font-size: 11px;
-        color: var(--muted);
+        color: var(--myz-muted);
         font-weight: 700;
       }
       .modal .preview {
-        font-family: var(--read);
+        font-family: var(--myz-read);
         font-size: 13px;
         line-height: 1.6;
         margin: 8px 0 10px;
         padding: 8px 10px;
-        background: var(--surface-2);
+        background: var(--myz-surface-2);
         border-radius: 8px;
       }
       .modal input {
         width: 100%;
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
-        color: var(--text);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
+        color: var(--myz-text);
         border-radius: 8px;
         padding: 7px 8px;
       }
@@ -1731,28 +1731,28 @@
         display: grid;
         grid-template-rows: 44px 1fr;
         min-height: 520px;
-        background: var(--well);
-        color: var(--well-text);
-        border-radius: var(--r-lg);
+        background: var(--myz-well);
+        color: var(--myz-well-text);
+        border-radius: var(--myz-r-lg);
         overflow: hidden;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
       }
       .pdf-bar {
         display: flex;
         align-items: center;
         gap: 8px;
         padding: 0 10px;
-        background: var(--well-chrome);
-        border-bottom: 1px solid var(--well-border);
+        background: var(--myz-well-chrome);
+        border-bottom: 1px solid var(--myz-well-border);
         font-size: 12px;
       }
       .pdf-bar button {
-        height: var(--hit-compact);
+        height: var(--myz-hit-compact);
         padding: 0 8px;
-        border-radius: var(--r);
-        border: 1px solid var(--well-control-border);
-        background: var(--well-control-bg);
-        color: var(--well-text);
+        border-radius: var(--myz-r);
+        border: 1px solid var(--myz-well-control-border);
+        background: var(--myz-well-control-bg);
+        color: var(--myz-well-text);
         font-size: 12px;
         display: inline-flex;
         align-items: center;
@@ -1761,13 +1761,13 @@
       .pdf-bar .title {
         flex: 1;
         text-align: center;
-        color: var(--well-muted);
+        color: var(--myz-well-muted);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
       .pdf-bar .count {
-        color: var(--well-muted);
+        color: var(--myz-well-muted);
         min-width: 52px;
         text-align: center;
         font-variant-numeric: tabular-nums;
@@ -1778,35 +1778,35 @@
         min-height: 0;
       }
       .pdf-col {
-        background: var(--well-chrome);
+        background: var(--myz-well-chrome);
         padding: 10px;
         font-size: 12px;
         overflow: auto;
       }
       .pdf-col + .pdf-col,
       .pdf-stage {
-        border-left: 1px solid var(--well-border);
+        border-left: 1px solid var(--myz-well-border);
       }
       .pdf-col h4 {
         margin: 0 0 8px;
-        color: var(--well-muted);
+        color: var(--myz-well-muted);
         font-size: 11px;
         font-weight: 600;
       }
       .pdf-item {
         padding: 7px 8px;
         border-radius: 6px;
-        color: var(--well-text);
+        color: var(--myz-well-text);
       }
       .pdf-item.on {
-        background: var(--well-border);
+        background: var(--myz-well-border);
       }
       .pdf-item small {
         display: block;
-        color: var(--well-muted);
+        color: var(--myz-well-muted);
       }
       .pdf-stage {
-        background: var(--well);
+        background: var(--myz-well);
         display: flex;
         justify-content: center;
         padding: 20px 16px 32px;
@@ -1823,7 +1823,7 @@
         overflow: hidden;
       }
       .pdf-page .running {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 9px;
         color: #666;
         display: flex;
@@ -1857,30 +1857,30 @@
         top: 92px;
         width: 46%;
         height: 28px;
-        background: color-mix(in srgb, var(--mark-1) 38%, transparent);
+        background: color-mix(in srgb, var(--myz-mark-1) 38%, transparent);
       }
       .pdf-insp blockquote {
         margin: 8px 0;
-        color: var(--well-text);
+        color: var(--myz-well-text);
         font-size: 13px;
         line-height: 1.5;
-        font-family: var(--read);
+        font-family: var(--myz-read);
       }
       .pdf-insp textarea {
         width: 100%;
         height: 70px;
         border-radius: 8px;
-        border: 1px solid var(--well-control-border);
-        background: var(--well-control-bg);
-        color: var(--well-text);
+        border: 1px solid var(--myz-well-control-border);
+        background: var(--myz-well-control-bg);
+        color: var(--myz-well-text);
         padding: 8px;
         font-size: 12px;
-        font-family: var(--read);
+        font-family: var(--myz-read);
       }
 
       .reader {
-        background: var(--surface);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface);
+        border-radius: var(--myz-r-lg);
         padding: 28px 18px 40px;
         display: flex;
         justify-content: center;
@@ -1889,9 +1889,9 @@
         max-width: 38em;
       }
       .reader .meta {
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .reader h3 {
         font-size: 28px;
@@ -1908,12 +1908,12 @@
         justify-content: center;
         flex-wrap: wrap;
         margin-bottom: 16px;
-        font-family: var(--sans);
+        font-family: var(--myz-sans);
         font-size: 12px;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       .tools span {
-        border: 1px solid var(--line);
+        border: 1px solid var(--myz-line);
         border-radius: 6px;
         padding: 4px 8px;
       }
@@ -1924,12 +1924,12 @@
       }
       .phone-in .row {
         margin: 0 12px 8px;
-        background: var(--surface);
-        border: 1px solid var(--line);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
         border-radius: 10px;
         padding: 10px;
         font-size: 13px;
-        font-family: var(--read);
+        font-family: var(--myz-read);
         line-height: 1.5;
       }
       /* ── 状态示例 ───────────────────────── */
@@ -1950,14 +1950,14 @@
         place-content: center;
         gap: 8px;
         text-align: center;
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         padding: 16px;
       }
       .state .i {
         margin: 0 auto;
-        color: var(--muted);
+        color: var(--myz-muted);
         width: 22px;
         height: 22px;
       }
@@ -1966,18 +1966,18 @@
         font-size: 14px;
       }
       .state small {
-        font-family: var(--sans);
-        color: var(--muted);
+        font-family: var(--myz-sans);
+        color: var(--myz-muted);
         font-size: 12px;
       }
       .skeleton {
         height: 12px;
         border-radius: 6px;
-        background: var(--skeleton);
+        background: var(--myz-skeleton);
         background-image: linear-gradient(
           90deg,
           transparent,
-          color-mix(in srgb, var(--text) 8%, transparent),
+          color-mix(in srgb, var(--myz-text) 8%, transparent),
           transparent
         );
         background-size: 200% 100%;
@@ -2010,11 +2010,11 @@
         gap: 8px;
         padding: 8px 12px;
         border-radius: 8px;
-        background: var(--overlay);
-        color: var(--overlay-text);
-        font-family: var(--sans);
+        background: var(--myz-overlay);
+        color: var(--myz-overlay-text);
+        font-family: var(--myz-sans);
         font-size: 12px;
-        box-shadow: var(--shadow);
+        box-shadow: var(--myz-shadow);
       }
 
       .flow {
@@ -2029,7 +2029,7 @@
       .arrow {
         display: grid;
         place-items: center;
-        color: var(--muted);
+        color: var(--myz-muted);
       }
       @media (max-width: 800px) {
         .flow {
@@ -2053,13 +2053,13 @@
         flex-direction: column;
         flex-wrap: nowrap;
         gap: 0;
-        background: var(--surface);
-        border: 1px solid var(--control-border);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-control-border);
         border-radius: 12px;
-        box-shadow: var(--shadow);
-        font-family: var(--sans);
+        box-shadow: var(--myz-shadow);
+        font-family: var(--myz-sans);
         overflow: hidden;
-        transition: width var(--motion-med) var(--ease-out);
+        transition: width var(--myz-motion-med) var(--myz-ease-out);
       }
       .toc-head {
         display: flex;
@@ -2072,22 +2072,22 @@
         flex: 1;
         font-size: 11px;
         font-weight: 700;
-        color: var(--muted);
+        color: var(--myz-muted);
         letter-spacing: 0.06em;
       }
       .toc-toggle {
-        width: var(--hit-compact);
-        height: var(--hit-compact);
+        width: var(--myz-hit-compact);
+        height: var(--myz-hit-compact);
         border-radius: 8px;
-        border: 1px solid var(--control-border);
-        background: var(--control-bg);
-        color: var(--text);
+        border: 1px solid var(--myz-control-border);
+        background: var(--myz-control-bg);
+        color: var(--myz-text);
         display: grid;
         place-items: center;
         cursor: pointer;
       }
       .toc-toggle .i {
-        transition: transform var(--motion-med) var(--ease-out);
+        transition: transform var(--myz-motion-med) var(--myz-ease-out);
       }
       .toc-list {
         list-style: none;
@@ -2101,7 +2101,7 @@
         list-style: none;
         margin: 2px 0 6px 12px;
         padding: 0 0 0 8px;
-        border-left: 1px solid var(--line);
+        border-left: 1px solid var(--myz-line);
         display: none;
       }
       .toc-list li.is-open > ol {
@@ -2111,10 +2111,10 @@
         display: flex;
         gap: 6px;
         align-items: center;
-        min-height: var(--hit-compact);
+        min-height: var(--myz-hit-compact);
         padding: 4px 8px;
         border-radius: 6px;
-        color: var(--muted);
+        color: var(--myz-muted);
         font-size: 12px;
         line-height: 1.35;
       }
@@ -2123,17 +2123,17 @@
         padding: 4px 8px;
       }
       .toc-list a:hover {
-        background: var(--surface-2);
-        color: var(--text);
+        background: var(--myz-surface-2);
+        color: var(--myz-text);
       }
       .toc-list a.on {
-        background: var(--surface-2);
-        color: var(--accent-text);
+        background: var(--myz-surface-2);
+        color: var(--myz-accent-text);
         font-weight: 600;
       }
       .toc-list .n {
         font-size: 10px;
-        color: var(--muted);
+        color: var(--myz-muted);
         font-variant-numeric: tabular-nums;
         flex: none;
       }
@@ -2152,7 +2152,7 @@
         height: 42px;
         border: 0;
         background: transparent;
-        border-radius: var(--r);
+        border-radius: var(--myz-r);
       }
       .toc.is-collapsed .toc-toggle .i {
         transform: rotate(180deg);
@@ -2171,9 +2171,9 @@
       .masonry-demo .m {
         break-inside: avoid;
         margin: 0 0 10px;
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: var(--r-lg);
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
         padding: 12px;
         font-size: 13px;
         line-height: 1.6;
@@ -2195,9 +2195,9 @@
       footer.foot {
         margin-top: 64px;
         padding-top: 16px;
-        border-top: 1px solid var(--line);
-        font-family: var(--sans);
-        color: var(--muted);
+        border-top: 1px solid var(--myz-line);
+        font-family: var(--myz-sans);
+        color: var(--myz-muted);
         font-size: 12px;
         display: flex;
         justify-content: space-between;
@@ -2655,37 +2655,37 @@
         </div>
         <div class="palette" id="live-palette">
           <figure>
-            <i style="background: var(--bg)"></i>
+            <i style="background: var(--myz-bg)"></i>
             <figcaption>
               <strong>背景</strong><span data-token="bg"></span>
             </figcaption>
           </figure>
           <figure>
-            <i style="background: var(--surface)"></i>
+            <i style="background: var(--myz-surface)"></i>
             <figcaption>
               <strong>卡片</strong><span data-token="surface"></span>
             </figcaption>
           </figure>
           <figure>
-            <i style="background: var(--surface-2)"></i>
+            <i style="background: var(--myz-surface-2)"></i>
             <figcaption>
               <strong>浅底</strong><span data-token="surface-2"></span>
             </figcaption>
           </figure>
           <figure>
-            <i style="background: var(--text)"></i>
+            <i style="background: var(--myz-text)"></i>
             <figcaption>
               <strong>正文</strong><span data-token="text"></span>
             </figcaption>
           </figure>
           <figure>
-            <i style="background: var(--accent)"></i>
+            <i style="background: var(--myz-accent)"></i>
             <figcaption>
               <strong>强调色</strong><span data-token="accent"></span>
             </figcaption>
           </figure>
           <figure>
-            <i style="background: var(--well)"></i>
+            <i style="background: var(--myz-well)"></i>
             <figcaption>
               <strong>阅读底</strong><span data-token="well"></span>
             </figcaption>
@@ -2726,29 +2726,29 @@
                 <div class="mark-site">浅色网页</div>
                 <p>
                   阅读时留下痕迹，但
-                  <mark class="paint" style="--c: var(--mark-1)"
+                  <mark class="paint" style="--c: var(--myz-mark-1)"
                     >字本身必须还能读</mark
                   >，所以底色是
-                  <mark class="paint" style="--c: var(--mark-4)">半透明的</mark
+                  <mark class="paint" style="--c: var(--myz-mark-4)">半透明的</mark
                   >，不是一块实心色。
                 </p>
                 <p>
                   需要保留纸面时用
-                  <mark class="under" style="--c: var(--mark-3)">下划线</mark
+                  <mark class="under" style="--c: var(--myz-mark-3)">下划线</mark
                   >，存疑或存异用
-                  <mark class="wavy" style="--c: var(--mark-2)">波浪线</mark>。
+                  <mark class="wavy" style="--c: var(--myz-mark-2)">波浪线</mark>。
                 </p>
               </div>
               <div class="mark-page is-dark">
                 <div class="mark-site">深色网页</div>
                 <p>
                   同一套颜色和同一个透明度，叠在深色底上。
-                  <mark class="paint" style="--c: var(--mark-1)"
+                  <mark class="paint" style="--c: var(--myz-mark-1)"
                     >文字依然压得住底色</mark
                   >，不会因为变亮而糊掉。
                 </p>
                 <p>
-                  <mark class="under" style="--c: var(--mark-5)">下划线</mark
+                  <mark class="under" style="--c: var(--myz-mark-5)">下划线</mark
                   >在深色底上更倚赖颜色本身的亮度。
                 </p>
               </div>
@@ -2813,7 +2813,7 @@
             <div class="s-top">警告</div>
             <div class="s-body">
               用于可恢复的提示，例如「选区与已有划线重叠」。<br /><code
-                >--warn / --warn-bg</code
+                >--myz-warn / --myz-warn-bg</code
               >
             </div>
           </div>
@@ -2821,7 +2821,7 @@
             <div class="s-top">错误</div>
             <div class="s-body">
               用于失败，例如「没能打开这份文件」。<br /><code
-                >--error / --error-bg</code
+                >--myz-error / --myz-error-bg</code
               >
             </div>
           </div>
@@ -2829,7 +2829,7 @@
             <div class="s-top">成功</div>
             <div class="s-body">
               用于确认，例如「已保存」。<br /><code
-                >--success / --success-bg</code
+                >--myz-success / --myz-success-bg</code
               >
             </div>
           </div>
@@ -2837,7 +2837,7 @@
             <div class="s-top">提示</div>
             <div class="s-body">
               用于中性说明，例如「这条已改成摘录」。<br /><code
-                >--info / --info-bg</code
+                >--myz-info / --myz-info-bg</code
               >
             </div>
           </div>
@@ -2925,23 +2925,23 @@
               </thead>
               <tbody>
                 <tr>
-                  <td><code>--control-bg</code></td>
+                  <td><code>--myz-control-bg</code></td>
                   <td>按钮、输入框、下拉的底色，比所在卡片亮一档</td>
                 </tr>
                 <tr>
-                  <td><code>--control-border</code></td>
+                  <td><code>--myz-control-border</code></td>
                   <td>同一批控件的边框，比普通分隔线更明显</td>
                 </tr>
                 <tr>
-                  <td><code>--skeleton</code></td>
+                  <td><code>--myz-skeleton</code></td>
                   <td>加载占位条的颜色，四种主题下都保证看得清</td>
                 </tr>
                 <tr>
-                  <td><code>--well-control-bg</code></td>
+                  <td><code>--myz-well-control-bg</code></td>
                   <td>PDF 顶栏等阅读器外框里的控件底色</td>
                 </tr>
                 <tr>
-                  <td><code>--well-control-border</code></td>
+                  <td><code>--myz-well-control-border</code></td>
                   <td>阅读器外框里的控件边框</td>
                 </tr>
               </tbody>
@@ -2953,7 +2953,7 @@
       <section class="sec" id="type" data-label="字体与排版">
         <h2><span class="num">04 ·</span>字体与排版</h2>
         <p>
-          字体栈是 <code>Newsreader, var(--cjk), serif</code>。西文走
+          字体栈是 <code>Newsreader, var(--myz-cjk), serif</code>。西文走
           Newsreader，中日韩文字走 Noto Serif
           的地区版本，两者都是衬线，气质接近。中文只加载当前语言那一套，五套一起下会多出好几
           MB。
@@ -3072,9 +3072,9 @@
         </div>
         <p
           style="
-            font-family: var(--sans);
+            font-family: var(--myz-sans);
             font-size: 12px;
-            color: var(--muted);
+            color: var(--myz-muted);
             margin-top: 12px;
           "
         >
@@ -3092,10 +3092,10 @@
             style="
               margin: 0;
               padding: 12px 14px;
-              background: var(--surface);
-              border: 1px solid var(--line);
+              background: var(--myz-surface);
+              border: 1px solid var(--myz-line);
               border-radius: 10px;
-              font-family: var(--mono);
+              font-family: var(--myz-mono);
               font-size: 13px;
               line-height: 1.7;
               overflow: auto;
@@ -3256,31 +3256,31 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                 </thead>
                 <tbody>
                   <tr>
-                    <td><code>--read-size-1…5</code></td>
+                    <td><code>--myz-read-size-1…5</code></td>
                     <td>阅读字号五档</td>
                     <td>15 / 16 / 18 / 20 / 22</td>
                     <td>18（三档）</td>
                   </tr>
                   <tr>
-                    <td><code>--read-leading</code></td>
+                    <td><code>--myz-read-leading</code></td>
                     <td>行距</td>
                     <td>1.5 到 1.9</td>
                     <td>1.8</td>
                   </tr>
                   <tr>
-                    <td><code>--read-tracking</code></td>
+                    <td><code>--myz-read-tracking</code></td>
                     <td>字间距</td>
                     <td>0 到 0.04em</td>
                     <td>0.01em</td>
                   </tr>
                   <tr>
-                    <td><code>--read-measure</code></td>
+                    <td><code>--myz-read-measure</code></td>
                     <td>栏宽（每行最长）</td>
                     <td>32 到 42em</td>
                     <td>38em</td>
                   </tr>
                   <tr>
-                    <td><code>--read-gutter</code></td>
+                    <td><code>--myz-read-gutter</code></td>
                     <td>页边距</td>
                     <td>16 到 48</td>
                     <td>24</td>
@@ -3466,12 +3466,12 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                     place-items: center;
                     width: 64px;
                     height: 44px;
-                    background: var(--surface);
-                    border: 1px solid var(--line);
-                    border-radius: var(--r-xs);
-                    font-family: var(--sans);
+                    background: var(--myz-surface);
+                    border: 1px solid var(--myz-line);
+                    border-radius: var(--myz-r-xs);
+                    font-family: var(--myz-sans);
                     font-size: 11px;
-                    color: var(--muted);
+                    color: var(--myz-muted);
                   "
                   >4</span
                 >
@@ -3481,12 +3481,12 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                     place-items: center;
                     width: 64px;
                     height: 44px;
-                    background: var(--surface);
-                    border: 1px solid var(--line);
-                    border-radius: var(--r-sm);
-                    font-family: var(--sans);
+                    background: var(--myz-surface);
+                    border: 1px solid var(--myz-line);
+                    border-radius: var(--myz-r-sm);
+                    font-family: var(--myz-sans);
                     font-size: 11px;
-                    color: var(--muted);
+                    color: var(--myz-muted);
                   "
                   >6</span
                 >
@@ -3496,12 +3496,12 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                     place-items: center;
                     width: 64px;
                     height: 44px;
-                    background: var(--surface);
-                    border: 1px solid var(--line);
-                    border-radius: var(--r);
-                    font-family: var(--sans);
+                    background: var(--myz-surface);
+                    border: 1px solid var(--myz-line);
+                    border-radius: var(--myz-r);
+                    font-family: var(--myz-sans);
                     font-size: 11px;
-                    color: var(--muted);
+                    color: var(--myz-muted);
                   "
                   >8</span
                 >
@@ -3511,12 +3511,12 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                     place-items: center;
                     width: 64px;
                     height: 44px;
-                    background: var(--surface);
-                    border: 1px solid var(--line);
-                    border-radius: var(--r-lg);
-                    font-family: var(--sans);
+                    background: var(--myz-surface);
+                    border: 1px solid var(--myz-line);
+                    border-radius: var(--myz-r-lg);
+                    font-family: var(--myz-sans);
                     font-size: 11px;
-                    color: var(--muted);
+                    color: var(--myz-muted);
                   "
                   >12</span
                 >
@@ -3526,12 +3526,12 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                     place-items: center;
                     width: 96px;
                     height: 44px;
-                    background: var(--surface);
-                    border: 1px solid var(--line);
-                    border-radius: var(--r-pill);
-                    font-family: var(--sans);
+                    background: var(--myz-surface);
+                    border: 1px solid var(--myz-line);
+                    border-radius: var(--myz-r-pill);
+                    font-family: var(--myz-sans);
                     font-size: 11px;
-                    color: var(--muted);
+                    color: var(--myz-muted);
                   "
                   >胶囊</span
                 >
@@ -3552,23 +3552,23 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>4 <code>--r-xs</code></td>
+                    <td>4 <code>--myz-r-xs</code></td>
                     <td>色块、条形、行内小标记</td>
                   </tr>
                   <tr>
-                    <td>6 <code>--r-sm</code></td>
+                    <td>6 <code>--myz-r-sm</code></td>
                     <td>标签、下拉里的单个选项</td>
                   </tr>
                   <tr>
-                    <td>8 <code>--r</code></td>
+                    <td>8 <code>--myz-r</code></td>
                     <td>按钮、输入框、图标按钮——所有能点的小控件</td>
                   </tr>
                   <tr>
-                    <td>12 <code>--r-lg</code></td>
+                    <td>12 <code>--myz-r-lg</code></td>
                     <td>卡片、弹窗、下拉面板、目录浮层——所有装东西的面</td>
                   </tr>
                   <tr>
-                    <td>胶囊 <code>--r-pill</code></td>
+                    <td>胶囊 <code>--myz-r-pill</code></td>
                     <td>只给浮在页面上的工具条和分段选择，例如采集条、Tab</td>
                   </tr>
                 </tbody>
@@ -3628,9 +3628,9 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
           </div>
           <p
             style="
-              font-family: var(--sans);
+              font-family: var(--myz-sans);
               font-size: 12px;
-              color: var(--muted);
+              color: var(--myz-muted);
             "
           >
             用「行高」而不是固定 px
@@ -3827,9 +3827,9 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
               </div>
               <p
                 style="
-                  font-family: var(--sans);
+                  font-family: var(--myz-sans);
                   font-size: 12px;
-                  color: var(--muted);
+                  color: var(--myz-muted);
                   margin-top: 8px;
                 "
               >
@@ -3864,9 +3864,9 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
               </div>
               <p
                 style="
-                  font-family: var(--sans);
+                  font-family: var(--myz-sans);
                   font-size: 12px;
-                  color: var(--muted);
+                  color: var(--myz-muted);
                   margin-top: 8px;
                 "
               >
@@ -4232,7 +4232,7 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                   <div class="sg-item">
                     <span
                       class="tag"
-                      style="background: var(--surface-2); color: var(--muted)"
+                      style="background: var(--myz-surface-2); color: var(--myz-muted)"
                       >网站</span
                     >design.example.com<span class="kind">网站</span>
                   </div>
@@ -4340,9 +4340,9 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                 </span>
                 <span
                   style="
-                    font-family: var(--sans);
+                    font-family: var(--myz-sans);
                     font-size: 12px;
-                    color: var(--muted);
+                    color: var(--myz-muted);
                   "
                 >
                   选中的一圈描边，角上的小铅笔用来改色
@@ -4417,7 +4417,7 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
               <small>正在读取…</small>
             </div>
             <div class="state">
-              <svg class="i" aria-hidden="true" style="color: var(--error)">
+              <svg class="i" aria-hidden="true" style="color: var(--myz-error)">
                 <use href="#i-x" />
               </svg>
               <p>没能打开这份文件</p>
@@ -4458,7 +4458,7 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                     <td>加载</td>
                     <td>
                       用和内容同高的骨架条，颜色走
-                      <code>--skeleton</code>，深浅色都要看清
+                      <code>--myz-skeleton</code>，深浅色都要看清
                     </td>
                   </tr>
                   <tr>
@@ -4508,17 +4508,17 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
               </thead>
               <tbody>
                 <tr>
-                  <td><code>--motion-fast</code></td>
+                  <td><code>--myz-motion-fast</code></td>
                   <td>120ms</td>
                   <td>鼠标悬停变色、聚焦光圈、按钮反馈</td>
                 </tr>
                 <tr>
-                  <td><code>--motion-med</code></td>
+                  <td><code>--myz-motion-med</code></td>
                   <td>180ms，缓出</td>
                   <td>采集条和批注面板淡入、提示条</td>
                 </tr>
                 <tr>
-                  <td><code>--motion-panel</code></td>
+                  <td><code>--myz-motion-panel</code></td>
                   <td>240ms</td>
                   <td>侧栏、抽屉</td>
                 </tr>
@@ -4608,7 +4608,7 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
           <tbody id="contrast-table"></tbody>
         </table>
         <p
-          style="font-family: var(--sans); font-size: 12px; color: var(--muted)"
+          style="font-family: var(--myz-sans); font-size: 12px; color: var(--myz-muted)"
         >
           数值由本页直接读取当前 CSS 变量算出（WCAG
           相对亮度公式），改配色后刷新即可复核。
@@ -4662,8 +4662,8 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                 </aside>
                 <div class="main">
                   <header>
-                    <h3 style="font-family: var(--read)">全部记录</h3>
-                    <span style="color: var(--muted); font-size: 12px"
+                    <h3 style="font-family: var(--myz-read)">全部记录</h3>
+                    <span style="color: var(--myz-muted); font-size: 12px"
                       >按文中顺序</span
                     >
                   </header>
@@ -4721,10 +4721,10 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                 <svg class="i" aria-hidden="true"><use href="#i-search" /></svg
                 >本页记录
               </div>
-              <div class="hit" style="font-family: var(--read)">
+              <div class="hit" style="font-family: var(--myz-read)">
                 <i
                   style="
-                    background: var(--mark-1);
+                    background: var(--myz-mark-1);
                     display: block;
                     border-radius: 2px;
                   "
@@ -4734,10 +4734,10 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                   <small>划线 · 今天</small>
                 </div>
               </div>
-              <div class="hit" style="font-family: var(--read)">
+              <div class="hit" style="font-family: var(--myz-read)">
                 <i
                   style="
-                    background: var(--mark-5);
+                    background: var(--myz-mark-5);
                     display: block;
                     border-radius: 2px;
                   "
@@ -4747,10 +4747,10 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                   <small>摘录 · 第 3 页</small>
                 </div>
               </div>
-              <div class="hit" style="font-family: var(--read)">
+              <div class="hit" style="font-family: var(--myz-read)">
                 <i
                   style="
-                    background: var(--mark-3);
+                    background: var(--myz-mark-3);
                     display: block;
                     border-radius: 2px;
                   "
@@ -4802,11 +4802,11 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                 <div class="modal-kind">划线</div>
                 <div class="preview">必须跟着原文自己的字体走</div>
                 <div class="swatches" style="margin-bottom: 8px">
-                  <span class="sw on" style="background: var(--mark-1)"></span>
-                  <span class="sw" style="background: var(--mark-2)"></span>
-                  <span class="sw" style="background: var(--mark-3)"></span>
-                  <span class="sw" style="background: var(--mark-4)"></span>
-                  <span class="sw" style="background: var(--mark-5)"></span>
+                  <span class="sw on" style="background: var(--myz-mark-1)"></span>
+                  <span class="sw" style="background: var(--myz-mark-2)"></span>
+                  <span class="sw" style="background: var(--myz-mark-3)"></span>
+                  <span class="sw" style="background: var(--myz-mark-4)"></span>
+                  <span class="sw" style="background: var(--myz-mark-5)"></span>
                 </div>
                 <input placeholder="写批注" value="痕迹叠在原件上。" />
                 <div
@@ -4902,9 +4902,9 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                   <div class="swatches" style="margin: 8px 0">
                     <span
                       class="sw on"
-                      style="background: var(--mark-1)"
+                      style="background: var(--myz-mark-1)"
                     ></span>
-                    <span class="sw" style="background: var(--mark-4)"></span>
+                    <span class="sw" style="background: var(--myz-mark-4)"></span>
                   </div>
                   <textarea placeholder="写批注">
 打开原文必须回到这一页，而不是另排一版。</textarea>
@@ -5226,7 +5226,7 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
             const cells = pairs
               .map(([fg, bg]) => {
                 const v = contrast(fg, bg);
-                const cls = v >= 4.5 ? "" : ' style="color:var(--error)"';
+                const cls = v >= 4.5 ? "" : ' style="color:var(--myz-error)"';
                 return `<td${cls}>${v.toFixed(2)}</td>`;
               })
               .join("");

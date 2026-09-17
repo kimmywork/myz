@@ -42,10 +42,10 @@ export default defineComponent({
     )
 
     return () => (
-      <div class="flex items-center gap-1 border-t border-slate-200 pt-3 text-xs font-semibold dark:border-white/5">
+      <div class="flex items-center gap-1 border-t border-line pt-3 text-caption font-semibold dark:border-line">
         {externalHref.value ? (
           <a
-            class="rounded-md p-1.5 text-indigo-600 hover:text-indigo-500 dark:text-indigo-300 dark:hover:text-indigo-200"
+            class="rounded-tag p-1.5 text-accent-text hover:text-accent-text dark:text-accent-text dark:hover:text-accent-text"
             href={externalHref.value}
             target="_blank"
             rel="noopener"
@@ -56,7 +56,7 @@ export default defineComponent({
         ) : null}
         {isPdf.value ? (
           <button
-            class="rounded-md p-1.5 text-amber-600 hover:text-amber-500 dark:text-amber-300 dark:hover:text-amber-200"
+            class="rounded-tag p-1.5 text-warn hover:text-warn dark:text-warn dark:hover:text-warn"
             type="button"
             onClick={() => emitAction("openPdf")}
             title="在阅读器中打开"
@@ -65,15 +65,15 @@ export default defineComponent({
           </button>
         ) : null}
         <button
-          class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+          class="rounded-tag p-1.5 text-muted hover:text-text dark:text-muted dark:hover:text-text"
           type="button"
           onClick={() => emitAction("view")}
-          title="查看"
+          title="打开原文"
         >
           <Eye size={16} />
         </button>
         <button
-          class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+          class="rounded-tag p-1.5 text-muted hover:text-text dark:text-muted dark:hover:text-text"
           type="button"
           onClick={() => emitAction("edit")}
           title="编辑"
@@ -81,7 +81,7 @@ export default defineComponent({
           <FilePenLine size={16} />
         </button>
         <button
-          class="rounded-md p-1.5 text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+          class="rounded-tag p-1.5 text-muted hover:text-text dark:text-muted dark:hover:text-text"
           type="button"
           onClick={() => emitAction("copy")}
           title="复制"
@@ -90,7 +90,7 @@ export default defineComponent({
         </button>
         {props.kind === RECORD_KINDS.HIGHLIGHT ? (
           <button
-            class="rounded-md p-1.5 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            class="rounded-tag p-1.5 text-muted hover:text-text dark:text-muted dark:hover:text-text"
             type="button"
             onClick={() => emitAction("downgrade")}
             title="降级"
@@ -99,7 +99,7 @@ export default defineComponent({
           </button>
         ) : null}
         <button
-          class="rounded-md p-1.5 text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
+          class="rounded-tag p-1.5 text-error hover:text-error dark:text-error dark:hover:text-error"
           type="button"
           onClick={() => emitAction("delete")}
           title="删除"

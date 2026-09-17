@@ -1,3 +1,4 @@
+import { X } from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { defineComponent } from "vue";
 import { useReaderStore } from "../stores/reader-store.js";
@@ -35,7 +36,7 @@ export default defineComponent({
                 }
                 onClick={() => (store.sidebarTab = "highlights")}
               >
-                标注
+                划线
                 {highlightCounts.value.all
                   ? ` (${highlightCounts.value.all})`
                   : ""}
@@ -47,7 +48,7 @@ export default defineComponent({
               aria-label="关闭侧栏"
               onClick={() => (store.sidebarOpen = false)}
             >
-              ×
+              <X size={16} aria-hidden="true" />
             </button>
           </header>
           <div class="reader-sidebar__body">

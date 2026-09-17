@@ -20,10 +20,10 @@ export interface HighlightGroupSection {
 export function getKindLabel(kind: RECORD_KINDS) {
   switch (kind) {
     case RECORD_KINDS.CLIP:
-      return "保存文字"
+      return "摘录"
     case RECORD_KINDS.BOOKMARK:
-      return "网页书签"
+      return "来源"
     default:
-      return "划线标注"
+      return "划线"
   }
 }

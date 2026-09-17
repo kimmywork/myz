@@ -3,8 +3,8 @@ import { RouterLink, useRoute } from "vue-router";
 
 const groups = [
   {
-    title: "高亮设置",
-    items: [{ label: "标注偏好", to: "/settings/highlight/preferences" }],
+    title: "划线设置",
+    items: [{ label: "划线偏好", to: "/settings/highlight/preferences" }],
   },
   {
     title: "外观",
@@ -27,11 +27,11 @@ export default defineComponent({
     const isActive = (path: string, to: string) => path === to;
 
     return () => (
-      <aside class="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+      <aside class="rounded-panel border border-line bg-surface/80 p-4  dark:border-line dark:bg-surface">
         <div class="space-y-4">
           {groups.map((group) => (
             <div key={group.title} class="space-y-2">
-              <div class="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              <div class="text-caption font-semibold uppercase tracking-wide text-muted">
                 {group.title}
               </div>
               <div class="space-y-1">
@@ -42,10 +42,10 @@ export default defineComponent({
                       key={item.to}
                       to={item.to}
                       class={[
-                        "flex items-center justify-between rounded-2xl px-3 py-2 text-sm font-medium transition",
+                        "flex items-center justify-between rounded-control px-3 py-2 text-compact font-medium transition",
                         active
-                          ? "bg-indigo-600 text-white shadow"
-                          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/60",
+                          ? "bg-accent text-on-accent "
+                          : "text-muted hover:bg-surface-2 dark:text-muted dark:hover:bg-surface-2",
                       ].join(" ")}
                       aria-current={active ? "page" : undefined}
                     >

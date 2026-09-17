@@ -62,14 +62,26 @@ const CONTENT_STRATEGIES = [
   },
 ];
 
+/**
+ * The heuristic strategies below can be expensive on large pages (they touch
+ * every `div`/`section`/`article`). Cache the result for the page lifetime and
+ * recompute only if the cached node left the DOM.
+ */
+let cachedPrimaryElement: Element | null = null;
+
 export function findPrimaryContentElement() {
+  if (cachedPrimaryElement?.isConnected) {
+    return cachedPrimaryElement;
+  }
   for (const strategy of CONTENT_STRATEGIES) {
     const match = strategy();
     if (match) {
+      cachedPrimaryElement = match;
       return match;
     }
   }
-  return document.body;
+  cachedPrimaryElement = document.body;
+  return cachedPrimaryElement;
 }
 
 // Also export a simplified version

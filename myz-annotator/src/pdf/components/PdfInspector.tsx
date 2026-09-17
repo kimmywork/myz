@@ -1,4 +1,5 @@
-import { DEFAULT_COLORS, RECORD_KINDS } from "@myz/shared/types";
+import { Check, Trash2, X } from "@lucide/vue";
+import { RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
 import { defineComponent } from "vue";
 import { useReaderStore } from "../stores/reader-store.js";
@@ -7,7 +8,8 @@ export default defineComponent({
   name: "PdfInspector",
   setup() {
     const store = useReaderStore();
-    const { activeRecord, noteDraft, tagsDraft, dirty } = storeToRefs(store);
+    const { activeRecord, noteDraft, tagsDraft, dirty, colorPalette } =
+      storeToRefs(store);
     const styleOptions = store.styleOptions;
 
     return () =>
@@ -16,8 +18,8 @@ export default defineComponent({
           <header class="reader-inspector__head">
             <span>
               {activeRecord.value.kind === RECORD_KINDS.CLIP
-                ? "保存文字"
-                : "划线标注"}
+                ? "摘录"
+                : "划线"}
               {activeRecord.value.pdfLocator
                 ? ` · 第 ${activeRecord.value.pdfLocator.pageNumber} 页`
                 : ""}
@@ -27,7 +29,7 @@ export default defineComponent({
               aria-label="关闭"
               onClick={() => (store.activeId = null)}
             >
-              ×
+              <X size={16} aria-hidden="true" />
             </button>
           </header>
           <blockquote class="reader-inspector__quote">
@@ -56,7 +58,7 @@ export default defineComponent({
           {activeRecord.value.kind === RECORD_KINDS.HIGHLIGHT ? (
             <div class="reader-inspector__row">
               <span class="reader-inspector__label">颜色</span>
-              {DEFAULT_COLORS.map((color) => (
+              {colorPalette.value.map((color) => (
                 <button
                   type="button"
                   key={color}
@@ -99,6 +101,7 @@ export default defineComponent({
               disabled={!dirty.value}
               onClick={store.commitActive}
             >
+              <Check size={14} aria-hidden="true" />
               保存
             </button>
             <button
@@ -106,6 +109,7 @@ export default defineComponent({
               class="reader-inspector__delete"
               onClick={store.deleteActive}
             >
+              <Trash2 size={14} aria-hidden="true" />
               删除
             </button>
           </div>

@@ -1,7 +1,7 @@
 import {
-  IconCamera,
-  IconNotebook,
-  IconPencil,
+  IconClip,
+  IconCrop,
+  IconHighlightPaint,
   IconSearch,
 } from "@myz/shared/icons";
 import { defineComponent } from "vue";
@@ -42,17 +42,17 @@ export default defineComponent({
           left: `${store.toolbarPosition?.left ?? "0px"}`,
         }}
       >
-        <button type="button" aria-label="添加标注" onClick={handleAnnotate}>
-          <IconPencil size={18} aria-hidden="true" />
+        <button type="button" aria-label="划线" onClick={handleAnnotate}>
+          <IconHighlightPaint size={16} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="保存文字" onClick={handleClip}>
-          <IconNotebook size={18} aria-hidden="true" />
+        <button type="button" aria-label="摘录" onClick={handleClip}>
+          <IconClip size={16} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="截取选区截图" onClick={handleCapture}>
-          <IconCamera size={18} aria-hidden="true" />
+        <button type="button" aria-label="截取" onClick={handleCapture}>
+          <IconCrop size={16} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="搜索选中内容" onClick={handleSearch}>
-          <IconSearch size={18} aria-hidden="true" />
+        <button type="button" aria-label="搜索" onClick={handleSearch}>
+          <IconSearch size={16} aria-hidden="true" />
         </button>
       </div>
     );

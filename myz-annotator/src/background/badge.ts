@@ -46,16 +46,16 @@ export function buildActionTitle({
   highlightCount,
   savedCount,
 }: BadgeCount): string {
-  const base = "MyZ 智能助理";
+  const base = "MyZ";
   if (!total) {
     return `${base} · 暂无条目`;
   }
   const detailParts = [];
   if (highlightCount) {
-    detailParts.push(`高亮 ${highlightCount}`);
+    detailParts.push(`划线 ${highlightCount}`);
   }
   if (savedCount) {
-    detailParts.push(`保存 ${savedCount}`);
+    detailParts.push(`摘录 ${savedCount}`);
   }
   const detail = detailParts.length ? `（${detailParts.join(" · ")}）` : "";
   return `${base} · 共 ${total} 条${detail}`;

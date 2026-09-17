@@ -138,11 +138,11 @@ export default defineComponent({
         { type: "myz:scrollToHighlight", payload: { id } },
         (response) => {
           if (chrome.runtime.lastError) {
-            console.warn("无法定位标注", chrome.runtime.lastError.message);
+            console.warn("无法定位划线", chrome.runtime.lastError.message);
             return;
           }
           if (!response?.ok) {
-            console.warn("标注不存在", id);
+            console.warn("划线不存在", id);
           }
         },
       );
@@ -228,16 +228,16 @@ export default defineComponent({
 
     return () => (
       <div class="flex flex-col gap-4">
-        <header class="popup-header rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/60">
+        <header class="popup-header rounded-control border border-line bg-surface/90 p-4  dark:border-line dark:bg-surface">
           <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-2">
-              <h1 class="text-base font-semibold text-slate-900 dark:text-white">
-                MyZ 智能助理
+              <h1 class="text-title font-semibold text-text">
+                MyZ
               </h1>
               <ThemeToggle size="sm" />
             </div>
             <button
-              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
               aria-label="打开 PDF 阅读器"
               title="打开 PDF 阅读器"
               type="button"
@@ -246,7 +246,7 @@ export default defineComponent({
               <IconFileText size={20} aria-hidden="true" />
             </button>
             <button
-              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-200"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
               aria-label="打开 Dashboard"
               type="button"
               onClick={openDashboard}
@@ -254,30 +254,30 @@ export default defineComponent({
               <IconSettings size={20} aria-hidden="true" />
             </button>
           </div>
-          <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <p class="mt-2 text-caption text-muted">
             {pageMeta.value}
           </p>
         </header>
-        <section class="popup-controls rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
+        <section class="popup-controls rounded-control border border-line bg-surface/80 p-3 dark:bg-surface-2">
           <label class="sr-only" for="popup-search">
-            搜索标注
+            搜索划线
           </label>
           <input
             id="popup-search"
-            class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/40 dark:text-slate-100 dark:placeholder:text-slate-500"
+            class="w-full rounded-control border border-line bg-surface px-3 py-2 text-compact text-text placeholder:text-muted focus:border-accent focus:outline-none dark:border-line dark:bg-surface-2 dark:text-text dark:placeholder:text-muted"
             type="search"
-            placeholder="搜索当前页面的高亮、批注或保存的文字"
+            placeholder="搜索当前页面的划线、批注或摘录"
             value={query.value}
             onInput={handleSearch}
           />
         </section>
         <main class="highlight-list flex flex-col gap-3 overflow-y-auto pr-1">
           {loading.value ? (
-            <p class="empty-state text-center text-sm text-slate-500 dark:text-slate-400">
+            <p class="empty-state text-center text-compact text-muted">
               加载中…
             </p>
           ) : error.value ? (
-            <p class="empty-state text-center text-sm text-rose-500">
+            <p class="empty-state text-center text-compact text-error">
               加载失败：{error.value}
             </p>
           ) : filteredHighlights.value.length ? (
@@ -289,8 +289,8 @@ export default defineComponent({
               />
             ))
           ) : (
-            <div class="empty-state flex flex-col items-center gap-2 text-center text-sm text-slate-500 dark:text-slate-400">
-              <p>当前页面还没有标注或保存的文字。</p>
+            <div class="empty-state flex flex-col items-center gap-2 text-center text-compact text-muted">
+              <p>当前页面还没有划线、批注或摘录。</p>
             </div>
           )}
         </main>

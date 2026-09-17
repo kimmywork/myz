@@ -4,11 +4,11 @@ import { extractHostname } from "@myz/shared/url";
 
 export function buildMarkdownExport(highlights: MyZRecord[]): string {
   if (!highlights.length) {
-    return "# MyZ 智能助理 Export\n\n_No highlights available._";
+    return "# MyZ Export\n\n_No highlights available._";
   }
   const grouped = groupByDate(highlights);
   const lines = [];
-  lines.push("# MyZ 智能助理 Export");
+  lines.push("# MyZ Export");
   lines.push(`_Generated: ${new Date().toISOString()}_`);
   lines.push("");
 

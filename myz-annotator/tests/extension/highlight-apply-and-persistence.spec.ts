@@ -62,7 +62,7 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
   await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
     timeout: 5000,
   });
-  await page.click('.myz-annotator-toolbar button[aria-label="添加标注"]');
+  await page.click('.myz-annotator-toolbar button[aria-label="划线"]');
 
   // Wait for modal and click save
   await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
@@ -164,12 +164,12 @@ test("save_clip_via_toolbar_persists_to_dashboard", async () => {
     timeout: 5000,
   });
   await page.waitForSelector(
-    '.myz-annotator-toolbar button[aria-label="保存文字"]',
+    '.myz-annotator-toolbar button[aria-label="摘录"]',
     { timeout: 3000 },
   );
 
   // Click 保存文字, submit modal, then verify via dashboard that the clip exists
-  await page.click('.myz-annotator-toolbar button[aria-label="保存文字"]');
+  await page.click('.myz-annotator-toolbar button[aria-label="摘录"]');
   await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
     timeout: 5000,
   });

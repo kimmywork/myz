@@ -143,160 +143,166 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 | Token              | 值                                                                                    | 用途                               |
 | ------------------ | ------------------------------------------------------------------------------------- | ---------------------------------- |
-| `--sans`           | `system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif` | 界面字体                           |
-| `--read`           | `Newsreader, var(--cjk), serif`                                                       | 长文与摘录                         |
-| `--mono`           | `"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace`                         | 代码、页码、指纹                   |
-| `--cjk`            | `"Noto Serif SC"`（按语言替换，见 §3.5）                                              | 中文衬线                           |
-| `--overlay`        | `#141413`                                                                             | 采集条与提示条的底色（固定）       |
-| `--overlay-text`   | `#f5f4ed`                                                                             | 采集条文字                         |
-| `--overlay-hover`  | `#30302e`                                                                             | 采集条按钮悬停                     |
-| `--r-xs`           | `4px`                                                                                 | 色块、条形、行内标记               |
-| `--r-sm`           | `6px`                                                                                 | 标签、下拉选项                     |
-| `--r`              | `8px`                                                                                 | 按钮、输入框、图标按钮             |
-| `--r-lg`           | `12px`                                                                                | 卡片、弹窗、下拉面板、目录浮层     |
-| `--r-pill`         | `999px`                                                                               | 浮在页面上的工具条、分段选择       |
-| `--hit-compact`    | `32px`                                                                                | 紧凑高度（采集条、PDF 顶栏、弹窗） |
-| `--hit-regular`    | `36px`                                                                                | 常规高度（文库）                   |
-| `--hit-touch`      | `44px`                                                                                | 触控高度（手机）                   |
-| `--motion-fast`    | `120ms`                                                                               | 悬停、聚焦、按钮反馈               |
-| `--motion-med`     | `180ms`                                                                               | 采集条、批注面板淡入，提示条       |
-| `--motion-panel`   | `240ms`                                                                               | 侧栏、抽屉、目录收合               |
-| `--mark-alpha`     | `42%`                                                                                 | 涂色透明度                         |
-| `--mark-radius`    | `3px`                                                                                 | 涂色圆角                           |
-| `--mark-underline` | `2px`                                                                                 | 下划线粗细                         |
-| `--mark-wavy`      | `1.5px`                                                                               | 波浪线粗细                         |
-| `--read-size-1…5`  | `15 / 16 / 18 / 20 / 22px`                                                            | 阅读字号五档                       |
-| `--read-leading`   | `1.8`                                                                                 | 阅读行距                           |
-| `--read-tracking`  | `0.01em`                                                                              | 阅读字间距                         |
-| `--read-measure`   | `38em`                                                                                | 阅读栏宽                           |
-| `--read-gutter`    | `24px`                                                                                | 阅读区页边距                       |
+| `--myz-sans`           | `system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif` | 界面字体                           |
+| `--myz-read`           | `Newsreader, var(--myz-cjk), serif`                                                       | 长文与摘录                         |
+| `--myz-mono`           | `"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace`                         | 代码、页码、指纹                   |
+| `--myz-cjk`            | `"Noto Serif SC"`（按语言替换，见 §3.5）                                              | 中文衬线                           |
+| `--myz-overlay`        | `#141413`                                                                             | 采集条与提示条的底色（固定）       |
+| `--myz-overlay-text`   | `#f5f4ed`                                                                             | 采集条文字                         |
+| `--myz-overlay-hover`  | `#30302e`                                                                             | 采集条按钮悬停                     |
+| `--myz-r-xs`           | `4px`                                                                                 | 色块、条形、行内标记               |
+| `--myz-r-sm`           | `6px`                                                                                 | 标签、下拉选项                     |
+| `--myz-r`              | `8px`                                                                                 | 按钮、输入框、图标按钮             |
+| `--myz-r-lg`           | `12px`                                                                                | 卡片、弹窗、下拉面板、目录浮层     |
+| `--myz-r-pill`         | `999px`                                                                               | 浮在页面上的工具条、分段选择       |
+| `--myz-hit-compact`    | `32px`                                                                                | 紧凑高度（采集条、PDF 顶栏、弹窗） |
+| `--myz-hit-regular`    | `36px`                                                                                | 常规高度（文库）                   |
+| `--myz-hit-touch`      | `44px`                                                                                | 触控高度（手机）                   |
+| `--myz-motion-fast`    | `120ms`                                                                               | 悬停、聚焦、按钮反馈               |
+| `--myz-motion-med`     | `180ms`                                                                               | 采集条、批注面板淡入，提示条       |
+| `--myz-motion-panel`   | `240ms`                                                                               | 侧栏、抽屉、目录收合               |
+| `--myz-mark-alpha`     | `42%`                                                                                 | 涂色透明度                         |
+| `--myz-mark-radius`    | `3px`                                                                                 | 涂色圆角                           |
+| `--myz-mark-underline` | `2px`                                                                                 | 下划线粗细                         |
+| `--myz-mark-wavy`      | `1.5px`                                                                               | 波浪线粗细                         |
+| `--myz-read-size-1`    | `15px`                                                                                | 阅读字号第一档                     |
+| `--myz-read-size-2`    | `16px`                                                                                | 阅读字号第二档                     |
+| `--myz-read-size-3`    | `18px`                                                                                | 阅读字号第三档（默认）             |
+| `--myz-read-size-4`    | `20px`                                                                                | 阅读字号第四档                     |
+| `--myz-read-size-5`    | `22px`                                                                                | 阅读字号第五档                     |
+| `--myz-read-leading`   | `1.8`                                                                                 | 阅读行距                           |
+| `--myz-read-tracking`  | `0.01em`                                                                              | 阅读字间距                         |
+| `--myz-read-measure`   | `38em`                                                                                | 阅读栏宽                           |
+| `--myz-read-gutter`    | `24px`                                                                                | 阅读区页边距                       |
+| `--myz-ease-out`       | `cubic-bezier(0.2, 0.8, 0.2, 1)`                                                      | 面板与浮层缓出                     |
 
 #### paper 米纸
 
 | Token                   | light     | dark      |
 | ----------------------- | --------- | --------- |
-| `--bg`                  | `#f5f4ed` | `#141413` |
-| `--surface`             | `#faf9f5` | `#1c1c1a` |
-| `--surface-2`           | `#eceae0` | `#262624` |
-| `--text`                | `#141413` | `#f5f4ed` |
-| `--muted`               | `#6b6a64` | `#a8a59c` |
-| `--line`                | `#ddd9cc` | `#3a3a36` |
-| `--accent`              | `#1b365d` | `#3d6692` |
-| `--accent-hover`        | `#152a4a` | `#4a7aab` |
-| `--accent-text`         | `#1b365d` | `#9eb6d4` |
-| `--on-accent`           | `#faf9f5` | `#faf9f5` |
-| `--tag-bg`              | `#e4ecf5` | `#243044` |
-| `--tag-fg`              | `#1b365d` | `#9eb6d4` |
-| `--control-bg`          | `#ffffff` | `#2a2a27` |
-| `--control-border`      | `#ccc6b4` | `#4a4a44` |
-| `--skeleton`            | `#e3e0d4` | `#333330` |
-| `--well`                | `#e4e1d6` | `#0f0f0e` |
-| `--well-chrome`         | `#f0eee6` | `#1c1c1a` |
-| `--well-border`         | `#d6d1c2` | `#3a3a36` |
-| `--well-text`           | `#141413` | `#f5f4ed` |
-| `--well-muted`          | `#65645e` | `#8e8c83` |
-| `--well-control-bg`     | `#ffffff` | `#262624` |
-| `--well-control-border` | `#ccc6b4` | `#4a4a44` |
+| `--myz-bg`                  | `#f5f4ed` | `#141413` |
+| `--myz-surface`             | `#faf9f5` | `#1c1c1a` |
+| `--myz-surface-2`           | `#eceae0` | `#262624` |
+| `--myz-text`                | `#141413` | `#f5f4ed` |
+| `--myz-muted`               | `#6b6a64` | `#a8a59c` |
+| `--myz-line`                | `#ddd9cc` | `#3a3a36` |
+| `--myz-accent`              | `#1b365d` | `#3d6692` |
+| `--myz-accent-hover`        | `#152a4a` | `#4a7aab` |
+| `--myz-accent-text`         | `#1b365d` | `#9eb6d4` |
+| `--myz-on-accent`           | `#faf9f5` | `#faf9f5` |
+| `--myz-tag-bg`              | `#e4ecf5` | `#243044` |
+| `--myz-tag-fg`              | `#1b365d` | `#9eb6d4` |
+| `--myz-control-bg`          | `#ffffff` | `#2a2a27` |
+| `--myz-control-border`      | `#ccc6b4` | `#4a4a44` |
+| `--myz-skeleton`            | `#e3e0d4` | `#333330` |
+| `--myz-well`                | `#e4e1d6` | `#0f0f0e` |
+| `--myz-well-chrome`         | `#f0eee6` | `#1c1c1a` |
+| `--myz-well-border`         | `#d6d1c2` | `#3a3a36` |
+| `--myz-well-text`           | `#141413` | `#f5f4ed` |
+| `--myz-well-muted`          | `#65645e` | `#8e8c83` |
+| `--myz-well-control-bg`     | `#ffffff` | `#262624` |
+| `--myz-well-control-border` | `#ccc6b4` | `#4a4a44` |
 
 #### slate 冷灰
 
 | Token                   | light     | dark                      |
 | ----------------------- | --------- | ------------------------- |
-| `--bg`                  | `#f8fafc` | `#0f172a`                 |
-| `--surface`             | `#ffffff` | `#1e293b`                 |
-| `--surface-2`           | `#f1f5f9` | `#0b1220`                 |
-| `--text`                | `#0f172a` | `#f1f5f9`                 |
-| `--muted`               | `#64748b` | `#94a3b8`                 |
-| `--line`                | `#e2e8f0` | `#334155`                 |
-| `--accent`              | `#4f46e5` | `#5f62ea`                 |
-| `--accent-hover`        | `#4338ca` | `#818cf8`                 |
-| `--accent-text`         | `#4f46e5` | `#a5b4fc`                 |
-| `--on-accent`           | `#ffffff` | `#ffffff`                 |
-| `--tag-bg`              | `#eef2ff` | `rgba(99, 102, 241, 0.2)` |
-| `--tag-fg`              | `#4f46e5` | `#c7d2fe`                 |
-| `--control-bg`          | `#ffffff` | `#26344a`                 |
-| `--control-border`      | `#c3cedb` | `#47576e`                 |
-| `--skeleton`            | `#e2e8f0` | `#334155`                 |
-| `--well`                | `#eef2f7` | `#0b1220`                 |
-| `--well-chrome`         | `#f8fafc` | `#1e293b`                 |
-| `--well-border`         | `#dbe3ec` | `#334155`                 |
-| `--well-text`           | `#0f172a` | `#e2e8f0`                 |
-| `--well-muted`          | `#5e6e82` | `#94a3b8`                 |
-| `--well-control-bg`     | `#ffffff` | `#26344a`                 |
-| `--well-control-border` | `#c3cedb` | `#46566f`                 |
+| `--myz-bg`                  | `#f8fafc` | `#0f172a`                 |
+| `--myz-surface`             | `#ffffff` | `#1e293b`                 |
+| `--myz-surface-2`           | `#f1f5f9` | `#0b1220`                 |
+| `--myz-text`                | `#0f172a` | `#f1f5f9`                 |
+| `--myz-muted`               | `#64748b` | `#94a3b8`                 |
+| `--myz-line`                | `#e2e8f0` | `#334155`                 |
+| `--myz-accent`              | `#4f46e5` | `#5f62ea`                 |
+| `--myz-accent-hover`        | `#4338ca` | `#818cf8`                 |
+| `--myz-accent-text`         | `#4f46e5` | `#a5b4fc`                 |
+| `--myz-on-accent`           | `#ffffff` | `#ffffff`                 |
+| `--myz-tag-bg`              | `#eef2ff` | `rgba(99, 102, 241, 0.2)` |
+| `--myz-tag-fg`              | `#4f46e5` | `#c7d2fe`                 |
+| `--myz-control-bg`          | `#ffffff` | `#26344a`                 |
+| `--myz-control-border`      | `#c3cedb` | `#47576e`                 |
+| `--myz-skeleton`            | `#e2e8f0` | `#334155`                 |
+| `--myz-well`                | `#eef2f7` | `#0b1220`                 |
+| `--myz-well-chrome`         | `#f8fafc` | `#1e293b`                 |
+| `--myz-well-border`         | `#dbe3ec` | `#334155`                 |
+| `--myz-well-text`           | `#0f172a` | `#e2e8f0`                 |
+| `--myz-well-muted`          | `#5e6e82` | `#94a3b8`                 |
+| `--myz-well-control-bg`     | `#ffffff` | `#26344a`                 |
+| `--myz-well-control-border` | `#c3cedb` | `#46566f`                 |
 
 #### celadon 青瓷
 
 | Token                   | light     | dark      |
 | ----------------------- | --------- | --------- |
-| `--bg`                  | `#f2f4ee` | `#101512` |
-| `--surface`             | `#f8faf4` | `#171d19` |
-| `--surface-2`           | `#e6ebe0` | `#202821` |
-| `--text`                | `#16201a` | `#eef2ea` |
-| `--muted`               | `#5f6b60` | `#9aa79b` |
-| `--line`                | `#d4dacd` | `#334036` |
-| `--accent`              | `#2f5d4a` | `#6fa88c` |
-| `--accent-hover`        | `#244a3a` | `#86bba0` |
-| `--accent-text`         | `#2f5d4a` | `#9dc9b2` |
-| `--on-accent`           | `#f8faf4` | `#101512` |
-| `--tag-bg`              | `#e0ece3` | `#22322a` |
-| `--tag-fg`              | `#2f5d4a` | `#9dc9b2` |
-| `--control-bg`          | `#ffffff` | `#253026` |
-| `--control-border`      | `#ccd4c4` | `#495a4d` |
-| `--skeleton`            | `#dfe5d7` | `#2b352c` |
-| `--well`                | `#e2e8db` | `#0c110e` |
-| `--well-chrome`         | `#eef1e8` | `#171d19` |
-| `--well-border`         | `#ccd4c4` | `#334036` |
-| `--well-text`           | `#16201a` | `#eef2ea` |
-| `--well-muted`          | `#5d695e` | `#9aa79b` |
-| `--well-control-bg`     | `#ffffff` | `#253026` |
-| `--well-control-border` | `#ccd4c4` | `#495a4d` |
+| `--myz-bg`                  | `#f2f4ee` | `#101512` |
+| `--myz-surface`             | `#f8faf4` | `#171d19` |
+| `--myz-surface-2`           | `#e6ebe0` | `#202821` |
+| `--myz-text`                | `#16201a` | `#eef2ea` |
+| `--myz-muted`               | `#5f6b60` | `#9aa79b` |
+| `--myz-line`                | `#d4dacd` | `#334036` |
+| `--myz-accent`              | `#2f5d4a` | `#6fa88c` |
+| `--myz-accent-hover`        | `#244a3a` | `#86bba0` |
+| `--myz-accent-text`         | `#2f5d4a` | `#9dc9b2` |
+| `--myz-on-accent`           | `#f8faf4` | `#101512` |
+| `--myz-tag-bg`              | `#e0ece3` | `#22322a` |
+| `--myz-tag-fg`              | `#2f5d4a` | `#9dc9b2` |
+| `--myz-control-bg`          | `#ffffff` | `#253026` |
+| `--myz-control-border`      | `#ccd4c4` | `#495a4d` |
+| `--myz-skeleton`            | `#dfe5d7` | `#2b352c` |
+| `--myz-well`                | `#e2e8db` | `#0c110e` |
+| `--myz-well-chrome`         | `#eef1e8` | `#171d19` |
+| `--myz-well-border`         | `#ccd4c4` | `#334036` |
+| `--myz-well-text`           | `#16201a` | `#eef2ea` |
+| `--myz-well-muted`          | `#5d695e` | `#9aa79b` |
+| `--myz-well-control-bg`     | `#ffffff` | `#253026` |
+| `--myz-well-control-border` | `#ccd4c4` | `#495a4d` |
 
 #### ochre 赭石
 
 | Token                   | light     | dark      |
 | ----------------------- | --------- | --------- |
-| `--bg`                  | `#f6f0e6` | `#17130f` |
-| `--surface`             | `#fbf6ee` | `#1f1a14` |
-| `--surface-2`           | `#ece2d2` | `#292219` |
-| `--text`                | `#231a12` | `#f3ece0` |
-| `--muted`               | `#6f6152` | `#ab9d89` |
-| `--line`                | `#ddd0bb` | `#3d3428` |
-| `--accent`              | `#8a4b24` | `#c98a5a` |
-| `--accent-hover`        | `#6f3b1a` | `#d69c6f` |
-| `--accent-text`         | `#8a4b24` | `#e0b088` |
-| `--on-accent`           | `#fbf6ee` | `#17130f` |
-| `--tag-bg`              | `#f0e0cf` | `#33271a` |
-| `--tag-fg`              | `#8a4b24` | `#e0b088` |
-| `--control-bg`          | `#fffaf3` | `#2b2419` |
-| `--control-border`      | `#d8c9b2` | `#554733` |
-| `--skeleton`            | `#e8ddca` | `#362d21` |
-| `--well`                | `#ece2d2` | `#0f0c09` |
-| `--well-chrome`         | `#f4ecdf` | `#1f1a14` |
-| `--well-border`         | `#d8c9b2` | `#3d3428` |
-| `--well-text`           | `#231a12` | `#f3ece0` |
-| `--well-muted`          | `#6f6152` | `#ab9d89` |
-| `--well-control-bg`     | `#fffaf3` | `#2b2419` |
-| `--well-control-border` | `#d8c9b2` | `#4a3d2e` |
+| `--myz-bg`                  | `#f6f0e6` | `#17130f` |
+| `--myz-surface`             | `#fbf6ee` | `#1f1a14` |
+| `--myz-surface-2`           | `#ece2d2` | `#292219` |
+| `--myz-text`                | `#231a12` | `#f3ece0` |
+| `--myz-muted`               | `#6f6152` | `#ab9d89` |
+| `--myz-line`                | `#ddd0bb` | `#3d3428` |
+| `--myz-accent`              | `#8a4b24` | `#c98a5a` |
+| `--myz-accent-hover`        | `#6f3b1a` | `#d69c6f` |
+| `--myz-accent-text`         | `#8a4b24` | `#e0b088` |
+| `--myz-on-accent`           | `#fbf6ee` | `#17130f` |
+| `--myz-tag-bg`              | `#f0e0cf` | `#33271a` |
+| `--myz-tag-fg`              | `#8a4b24` | `#e0b088` |
+| `--myz-control-bg`          | `#fffaf3` | `#2b2419` |
+| `--myz-control-border`      | `#d8c9b2` | `#554733` |
+| `--myz-skeleton`            | `#e8ddca` | `#362d21` |
+| `--myz-well`                | `#ece2d2` | `#0f0c09` |
+| `--myz-well-chrome`         | `#f4ecdf` | `#1f1a14` |
+| `--myz-well-border`         | `#d8c9b2` | `#3d3428` |
+| `--myz-well-text`           | `#231a12` | `#f3ece0` |
+| `--myz-well-muted`          | `#6f6152` | `#ab9d89` |
+| `--myz-well-control-bg`     | `#fffaf3` | `#2b2419` |
+| `--myz-well-control-border` | `#d8c9b2` | `#4a3d2e` |
 
 #### Token 语义
 
 | Token                                                           | 含义                                                         |
 | --------------------------------------------------------------- | ------------------------------------------------------------ |
-| `--bg`                                                          | 页面底                                                       |
-| `--surface`                                                     | 卡片、面板、弹窗底                                           |
-| `--surface-2`                                                   | 更浅一级的底，用于嵌套面板、悬停                             |
-| `--text` / `--muted`                                            | 正文 / 次要文字                                              |
-| `--line`                                                        | 分隔线、装饰性边框                                           |
-| `--accent` / `--accent-hover` / `--accent-text` / `--on-accent` | 强调色（按钮填充）/ 悬停 / 当文字用的强调色 / 强调色上的文字 |
-| `--tag-bg` / `--tag-fg`                                         | 标签底色 / 标签文字                                          |
-| `--control-bg` / `--control-border`                             | 控件底色与边框，比所在容器抬高一档                           |
-| `--skeleton`                                                    | 加载占位                                                     |
-| `--well` / `--well-chrome` / `--well-border`                    | 阅读器页面外的底 / 顶栏与侧栏 / 边框                         |
-| `--well-text` / `--well-muted`                                  | 阅读器外框正文 / 次要文字                                    |
-| `--well-control-bg` / `--well-control-border`                   | 阅读器外框里的控件                                           |
+| `--myz-bg`                                                          | 页面底                                                       |
+| `--myz-surface`                                                     | 卡片、面板、弹窗底                                           |
+| `--myz-surface-2`                                                   | 更浅一级的底，用于嵌套面板、悬停                             |
+| `--myz-text` / `--myz-muted`                                            | 正文 / 次要文字                                              |
+| `--myz-line`                                                        | 分隔线、装饰性边框                                           |
+| `--myz-accent` / `--myz-accent-hover` / `--myz-accent-text` / `--myz-on-accent` | 强调色（按钮填充）/ 悬停 / 当文字用的强调色 / 强调色上的文字 |
+| `--myz-tag-bg` / `--myz-tag-fg`                                         | 标签底色 / 标签文字                                          |
+| `--myz-control-bg` / `--myz-control-border`                             | 控件底色与边框，比所在容器抬高一档                           |
+| `--myz-skeleton`                                                    | 加载占位                                                     |
+| `--myz-well` / `--myz-well-chrome` / `--myz-well-border`                    | 阅读器页面外的底 / 顶栏与侧栏 / 边框                         |
+| `--myz-well-text` / `--myz-well-muted`                                  | 阅读器外框正文 / 次要文字                                    |
+| `--myz-well-control-bg` / `--myz-well-control-border`                   | 阅读器外框里的控件                                           |
+| `--myz-shadow`                                                      | 浮层的投影，按方案与深浅色各一套（见 §3.7）                  |
 
-**深色下怎么分层**：浅色模式里按钮靠一条边框就能与卡片分开；深色模式改用"抬高底色"——控件底色比所在容器亮一档，再加一条更清楚的边框。`--control-bg` 与 `--control-border` 就是为此存在，浅色深色各一套。
+**深色下怎么分层**：浅色模式里按钮靠一条边框就能与卡片分开；深色模式改用"抬高底色"——控件底色比所在容器亮一档，再加一条更清楚的边框。`--myz-control-bg` 与 `--myz-control-border` 就是为此存在，浅色深色各一套。
 
 ### 3.3 语义色
 
@@ -304,11 +310,11 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 | 语义 | Token                                             | light                             | dark                              | 用法                                 |
 | ---- | ------------------------------------------------- | --------------------------------- | --------------------------------- | ------------------------------------ |
-| 警告 | `--warn` / `--warn-bg` / `--warn-border`          | `#8a5a00` / `#f6ecd3` / `#e6d3a3` | `#e0b352` / `#2e2614` / `#4a3d20` | 可恢复的提示，如"选区与已有划线重叠" |
-| 错误 | `--error` / `--error-bg` / `--error-border`       | `#b53333` / `#f7e3e3` / `#e6bfbf` | `#e08a8a` / `#331c1c` / `#533030` | 失败，如"没能打开这份文件"           |
-| 成功 | `--success` / `--success-bg` / `--success-border` | `#2f6f56` / `#e0efe8` / `#bcdccf` | `#7fc4a6` / `#16291f` / `#2a4436` | 确认，如"已保存"                     |
-| 提示 | `--info` / `--info-bg` / `--info-border`          | `#2b5f8a` / `#e1ecf5` / `#c0d6e8` | `#8fb8d8` / `#16232e` / `#2a3d4d` | 中性说明，如"这条已改成摘录"         |
-| 摘录 | `--clip` / `--clip-bg` / `--clip-border`          | `#2b766c` / `#dcefec` / `#b8ded7` | `#4fb3a3` / `#12302c` / `#245049` | 摘录类型的标记                       |
+| 警告 | `--myz-warn` / `--myz-warn-bg` / `--myz-warn-border`          | `#8a5a00` / `#f6ecd3` / `#e6d3a3` | `#e0b352` / `#2e2614` / `#4a3d20` | 可恢复的提示，如"选区与已有划线重叠" |
+| 错误 | `--myz-error` / `--myz-error-bg` / `--myz-error-border`       | `#b53333` / `#f7e3e3` / `#e6bfbf` | `#e08a8a` / `#331c1c` / `#533030` | 失败，如"没能打开这份文件"           |
+| 成功 | `--myz-success` / `--myz-success-bg` / `--myz-success-border` | `#2f6f56` / `#e0efe8` / `#bcdccf` | `#7fc4a6` / `#16291f` / `#2a4436` | 确认，如"已保存"                     |
+| 提示 | `--myz-info` / `--myz-info-bg` / `--myz-info-border`          | `#2b5f8a` / `#e1ecf5` / `#c0d6e8` | `#8fb8d8` / `#16232e` / `#2a3d4d` | 中性说明，如"这条已改成摘录"         |
+| 摘录 | `--myz-clip` / `--myz-clip-bg` / `--myz-clip-border`          | `#2b766c` / `#dcefec` / `#b8ded7` | `#4fb3a3` / `#12302c` / `#245049` | 摘录类型的标记                       |
 
 **对比度（实测，WCAG 相对亮度）**：文字色落在自身底色、以及落在四种方案的页面底色上，最低值如下，全部 ≥ 4.5:1。
 
@@ -326,11 +332,11 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 | Token      | 值        | 名称         |
 | ---------- | --------- | ------------ |
-| `--mark-1` | `#b58900` | 琥珀（默认） |
-| `--mark-2` | `#ef476f` | 珊瑚         |
-| `--mark-3` | `#9f7aea` | 紫           |
-| `--mark-4` | `#38bdf8` | 天蓝         |
-| `--mark-5` | `#34d399` | 青绿         |
+| `--myz-mark-1` | `#b58900` | 琥珀（默认） |
+| `--myz-mark-2` | `#ef476f` | 珊瑚         |
+| `--myz-mark-3` | `#9f7aea` | 紫           |
+| `--myz-mark-4` | `#38bdf8` | 天蓝         |
+| `--myz-mark-5` | `#34d399` | 青绿         |
 
 **三种样式怎么画**
 
@@ -354,13 +360,13 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 **字体栈**
 
-- 界面：`--sans`（系统无衬线）
-- 长文：`--read` = `Newsreader, var(--cjk), serif`
-- 等宽：`--mono` = JetBrains Mono
+- 界面：`--myz-sans`（系统无衬线）
+- 长文：`--myz-read` = `Newsreader, var(--myz-cjk), serif`
+- 等宽：`--myz-mono` = JetBrains Mono
 
 **中文按语言选地区版本**，只加载当前语言那一套。
 
-| 界面语言        | `--cjk`       | 说明                  |
+| 界面语言        | `--myz-cjk`       | 说明                  |
 | --------------- | ------------- | --------------------- |
 | `zh-CN` `zh-SG` | Noto Serif SC | 简体，默认            |
 | `zh-TW`         | Noto Serif TC | 台湾正体              |
@@ -375,15 +381,15 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 | 层级            | 字号 / 字重 / 行高 | 字体 | 颜色                         |
 | --------------- | ------------------ | ---- | ---------------------------- |
-| 页面大标题      | 32 / 600 / 1.2     | 长文 | `--text`                     |
-| 区块标题        | 24 / 600 / 1.25    | 长文 | `--text`                     |
-| 小节标题        | 17 / 600 / 1.35    | 长文 | `--text`                     |
-| 导语            | 17 / 400 / 1.7     | 长文 | `--muted`                    |
-| 正文            | 15 / 400 / 1.7     | 长文 | `--text`                     |
-| 表格 / 紧凑正文 | 14 / 400 / 1.5     | 界面 | `--text`                     |
-| 说明文字        | 13 / 400 / 1.55    | 界面 | `--muted`                    |
-| 编号 / 辅助     | 12 / 500 / 1.4     | 界面 | `--muted`                    |
-| 标签 / 小标题   | 11 / 600 / 1.4     | 界面 | `--muted` 或 `--accent-text` |
+| 页面大标题      | 32 / 600 / 1.2     | 长文 | `--myz-text`                     |
+| 区块标题        | 24 / 600 / 1.25    | 长文 | `--myz-text`                     |
+| 小节标题        | 17 / 600 / 1.35    | 长文 | `--myz-text`                     |
+| 导语            | 17 / 400 / 1.7     | 长文 | `--myz-muted`                    |
+| 正文            | 15 / 400 / 1.7     | 长文 | `--myz-text`                     |
+| 表格 / 紧凑正文 | 14 / 400 / 1.5     | 界面 | `--myz-text`                     |
+| 说明文字        | 13 / 400 / 1.55    | 界面 | `--myz-muted`                    |
+| 编号 / 辅助     | 12 / 500 / 1.4     | 界面 | `--myz-muted`                    |
+| 标签 / 小标题   | 11 / 600 / 1.4     | 界面 | `--myz-muted` 或 `--myz-accent-text` |
 
 **阅读字号五档**：15 / 16 / **18（默认）** / 20 / 22。
 
@@ -393,7 +399,7 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 - 间距基准 4px。
 - 页面边距：桌面 40，窄屏 16。
-- 阅读栏最宽 38em（对应 `--read-measure`）。
+- 阅读栏最宽 38em（对应 `--myz-read-measure`）。
 - 侧栏 240–280；PDF 目录 200；批注面板 240。
 - 窗口窄于 900px 收成单栏，侧栏改为抽屉。
 
@@ -405,17 +411,17 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 | 圆角 | Token      | 用在哪                                         |
 | ---- | ---------- | ---------------------------------------------- |
-| 4    | `--r-xs`   | 色块、条形、行内小标记                         |
-| 6    | `--r-sm`   | 标签、下拉选项                                 |
-| 8    | `--r`      | 按钮、输入框、图标按钮——所有能点的小控件       |
-| 12   | `--r-lg`   | 卡片、弹窗、下拉面板、目录浮层——所有装东西的面 |
-| 胶囊 | `--r-pill` | 只给浮在页面上的工具条和分段选择               |
+| 4    | `--myz-r-xs`   | 色块、条形、行内小标记                         |
+| 6    | `--myz-r-sm`   | 标签、下拉选项                                 |
+| 8    | `--myz-r`      | 按钮、输入框、图标按钮——所有能点的小控件       |
+| 12   | `--myz-r-lg`   | 卡片、弹窗、下拉面板、目录浮层——所有装东西的面 |
+| 胶囊 | `--myz-r-pill` | 只给浮在页面上的工具条和分段选择               |
 
 判断法：控件比容器小一档。容器 12，里面的按钮 8；按钮 8，里面的标签 6。胶囊只用于工具条。
 
 **深度**：默认平面。阴影只给真正浮起的层（采集条、批注面板、弹窗、下拉、目录）。深色模式靠"抬高底色 + 更清楚的边框"分层，不靠加重阴影。
 
-`--shadow` 按方案与深浅色各一套：
+`--myz-shadow` 按方案与深浅色各一套：
 
 | 方案    | light                                | dark                              |
 | ------- | ------------------------------------ | --------------------------------- |
@@ -430,9 +436,9 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 | Token            | 时长        | 用在哪                       |
 | ---------------- | ----------- | ---------------------------- |
-| `--motion-fast`  | 120ms       | 悬停变色、聚焦光圈、按钮反馈 |
-| `--motion-med`   | 180ms，缓出 | 采集条与批注面板淡入、提示条 |
-| `--motion-panel` | 240ms       | 侧栏、抽屉、目录收合         |
+| `--myz-motion-fast`  | 120ms       | 悬停变色、聚焦光圈、按钮反馈 |
+| `--myz-motion-med`   | 180ms，缓出 | 采集条与批注面板淡入、提示条 |
+| `--myz-motion-panel` | 240ms       | 侧栏、抽屉、目录收合         |
 | —                | 不动        | 正文与 PDF 页面内容          |
 
 - 跳到某条划线时，用该条自己的颜色闪一下，约 1 秒。
@@ -453,7 +459,7 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 ## 4. 组件
 
-组件按"原子 → 布局/复杂 → 交互"排列。密度由 `--hit-*` 决定：紧凑 32 / 常规 36 / 触控 44。
+组件按"原子 → 布局/复杂 → 交互"排列。密度由 `--myz-hit-*` 决定：紧凑 32 / 常规 36 / 触控 44。
 
 ### 4.1 图标
 
@@ -463,7 +469,7 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 ### 4.2 圆角
 
-见 §3.7。所有取值从 `--r-*` 取。
+见 §3.7。所有取值从 `--myz-r-*` 取。
 
 ### 4.3 卡片
 
@@ -471,10 +477,10 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 | 属性       | 做法                                                           |
 | ---------- | -------------------------------------------------------------- |
-| 外观       | `--surface` 底，1px `--line` 边框，圆角 `--r-lg`，内边距 12–16 |
-| 类型标签   | 界面字体 11，`--accent-text`                                   |
+| 外观       | `--myz-surface` 底，1px `--myz-line` 边框，圆角 `--myz-r-lg`，内边距 12–16 |
+| 类型标签   | 界面字体 11，`--myz-accent-text`                                   |
 | 引用与批注 | 长文字体 14–16，行高 1.55–1.6                                  |
-| 来源行     | 界面字体 11，`--muted`                                         |
+| 来源行     | 界面字体 11，`--myz-muted`                                         |
 | 正文限高   | `max-height: 20lh`，超出后卡片内部滚动                         |
 
 `20lh` 用行高作单位：换方案或调阅读字号时上限跟着字体缩放，不会出现小字卡片很高、大字卡片装不下的情况。
@@ -485,9 +491,9 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 | -------- | ------------------------------------------------- |
 | 高度     | 32 / 36 / 44，左右内边距 12                       |
 | 文字     | 界面字体 13，字重 600                             |
-| 底色     | `--control-bg`，边框 `--control-border`           |
-| 主按钮   | 实心 `--accent`，文字 `--on-accent`；一屏只有一个 |
-| 危险操作 | 文字色 `--error`，不用实心红                      |
+| 底色     | `--myz-control-bg`，边框 `--myz-control-border`           |
+| 主按钮   | 实心 `--myz-accent`，文字 `--myz-on-accent`；一屏只有一个 |
+| 危险操作 | 文字色 `--myz-error`，不用实心红                      |
 | 聚焦     | 强调色 2px 外圈，偏移 2                           |
 | 禁用     | 整体透明度 45%，文字颜色不变                      |
 
@@ -496,7 +502,7 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 | 属性       | 做法                                          |
 | ---------- | --------------------------------------------- |
 | 尺寸与文字 | 高 22，界面字体 11，字重 600                  |
-| 颜色       | `--tag-bg` / `--tag-fg`，实色，不用半透明叠加 |
+| 颜色       | `--myz-tag-bg` / `--myz-tag-fg`，实色，不用半透明叠加 |
 | 输入       | 回车生成一个标签，不解析逗号字符串            |
 
 标签只是标记，不是集合。颜色留给划线色板。
@@ -505,11 +511,11 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 
 | 属性 | 做法                                       |
 | ---- | ------------------------------------------ |
-| 高度 | 单行 36（紧凑 32），圆角 `--r`             |
+| 高度 | 单行 36（紧凑 32），圆角 `--myz-r`             |
 | 字体 | 搜索与设置用界面字体；批注用长文衬线       |
-| 标签 | 界面字体 12，`--muted`，距输入框 6         |
-| 聚焦 | 边框变 `--accent`，外加 3px 20% 强调色光圈 |
-| 禁用 | `--surface-2` 底，文字仍清晰               |
+| 标签 | 界面字体 12，`--myz-muted`，距输入框 6         |
+| 聚焦 | 边框变 `--myz-accent`，外加 3px 20% 强调色光圈 |
+| 禁用 | `--myz-surface-2` 底，文字仍清晰               |
 
 ### 4.7 采集条
 
@@ -518,8 +524,8 @@ MyZ Annotator 是一个本地优先的标注与阅读工具：用户在网页和
 | 属性        | 做法                                            |
 | ----------- | ----------------------------------------------- |
 | 形态        | 胶囊，图标 32，间距 4，跟随选区，层级最高       |
-| 底色        | 固定 `--overlay`（`#141413`），不跟方案与深浅色 |
-| 文字 / 图标 | `--overlay-text`                                |
+| 底色        | 固定 `--myz-overlay`（`#141413`），不跟方案与深浅色 |
+| 文字 / 图标 | `--myz-overlay-text`                                |
 | 边界        | 深色投影 + 1px 浅色描边（见下）                 |
 | 高度        | 紧凑                                            |
 | 动作        | 划线、摘录、截取、搜索                          |
@@ -538,7 +544,7 @@ box-shadow:
 
 | 属性     | 做法                                                            |
 | -------- | --------------------------------------------------------------- |
-| 采集批注 | 宽 280–320，`--surface` 底，圆角 `--r-lg`，带阴影；不用全屏遮罩 |
+| 采集批注 | 宽 280–320，`--myz-surface` 底，圆角 `--myz-r-lg`，带阴影；不用全屏遮罩 |
 | 长文阅读 | 走查看器页面，不用大模态                                        |
 | 关闭     | Esc 关闭；点外侧只关不会丢数据的                                |
 | 聚焦     | 打开时落到第一个输入框，关闭后回到触发按钮                      |
@@ -563,7 +569,7 @@ box-shadow:
 | 问题     | 做法                                                       |
 | -------- | ---------------------------------------------------------- |
 | 从属关系 | 子项缩进 12–16，字号小一档或颜色更淡，不画引导线           |
-| 分组     | 组标题用 10 号大写字加 `--muted`；组之间一条细线，不用空行 |
+| 分组     | 组标题用 10 号大写字加 `--myz-muted`；组之间一条细线，不用空行 |
 | 层叠深度 | 最多两层（组 → 项）。需要第三层时改为跳到单独面板          |
 | 重点     | 当前项用"浅底 + 强调色文字"，不用实心填充；次要信息靠右    |
 | 可折叠   | 折叠箭头放最左，点标题整行展开；展开状态记在本地           |
@@ -590,8 +596,8 @@ PDF 阅读器和长文查看器共用。
 
 | 属性   | 做法                                                                   |
 | ------ | ---------------------------------------------------------------------- |
-| 面板   | `--surface` 底，圆角 `--r-lg`，边框 `--control-border`，阴影与弹窗同源 |
-| 选项   | 高 32，圆角 `--r-sm`，左右内边距 10                                    |
+| 面板   | `--myz-surface` 底，圆角 `--myz-r-lg`，边框 `--myz-control-border`，阴影与弹窗同源 |
+| 选项   | 高 32，圆角 `--myz-r-sm`，左右内边距 10                                    |
 | 当前项 | 浅底加重，左侧可能出现对勾；不用纯色填充                               |
 | 分组   | 组标题 10 号大写字；组之间一条细线                                     |
 | 长列表 | 最高约 224，超出后滚动                                                 |
@@ -618,7 +624,7 @@ PDF 阅读器和长文查看器共用。
 | 属性     | 做法                                          |
 | -------- | --------------------------------------------- |
 | 色块     | 直径 32，间距 8，居中                         |
-| 选中态   | 外圈一圈 `--text` 的环，不用对勾              |
+| 选中态   | 外圈一圈 `--myz-text` 的环，不用对勾              |
 | 改色入口 | 每个色块角上一支小铅笔，点开系统取色器        |
 | 默认色   | 单独一行显示当前默认值的色块与色号            |
 | 恢复默认 | 一个按钮复位全部五个颜色                      |
@@ -631,11 +637,11 @@ PDF 阅读器和长文查看器共用。
 | 情况        | 做法                                                    |
 | ----------- | ------------------------------------------------------- |
 | 空          | 一个图标 + 一句状态 + 一句下一步，不写"无数据"          |
-| 加载        | 与内容同高的骨架条，颜色走 `--skeleton`；可加很淡的微光 |
+| 加载        | 与内容同高的骨架条，颜色走 `--myz-skeleton`；可加很淡的微光 |
 | 出错        | 错误色图标，说明可能原因，给一个重试或替代动作          |
 | 成功 / 提示 | 提示条贴近操作位置，几秒后自动消失                      |
 
-提示条底色用 `--overlay`，同一件事只用一个地方来说。
+提示条底色用 `--myz-overlay`，同一件事只用一个地方来说。
 
 ### 4.16 专注阅读和重排
 
@@ -643,12 +649,12 @@ PDF 阅读器和长文查看器共用。
 
 | 属性   | 做法                             |
 | ------ | -------------------------------- |
-| 字体   | `--read`                         |
-| 字号   | `--read-size-1…5`，默认第三档 18 |
-| 行距   | `--read-leading`，默认 1.8       |
-| 字间距 | `--read-tracking`，默认 0.01em   |
-| 栏宽   | `--read-measure`，默认 38em      |
-| 页边距 | `--read-gutter`，默认 24         |
+| 字体   | `--myz-read`                         |
+| 字号   | `--myz-read-size-1…5`，默认第三档 18 |
+| 行距   | `--myz-read-leading`，默认 1.8       |
+| 字间距 | `--myz-read-tracking`，默认 0.01em   |
+| 栏宽   | `--myz-read-measure`，默认 38em      |
+| 页边距 | `--myz-read-gutter`，默认 24         |
 | 纸色   | 跟随方案与深浅色                 |
 | 外框   | 只留退出与排版控件               |
 
@@ -687,7 +693,7 @@ PDF 阅读器和长文查看器共用。
 | 专注阅读     | 单栏长文，只留退出与排版控件                                      |
 | EPUB（未做） | 复用阅读设置，另用重排引擎                                        |
 
-**PDF 顶栏**：吸顶铺满，跟随方案与深浅色，高度 44（含边框），使用 `--well-*` 一组 Token。
+**PDF 顶栏**：吸顶铺满，跟随方案与深浅色，高度 44（含边框），使用 `--myz-well-*` 一组 Token。
 
 ---
 

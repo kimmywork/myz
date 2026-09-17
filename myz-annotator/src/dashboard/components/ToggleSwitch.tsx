@@ -27,15 +27,15 @@ export default defineComponent({
           class={[
             "relative inline-flex h-6 w-11 items-center rounded-full border transition",
             props.checked
-              ? "border-indigo-600 bg-indigo-600"
-              : "border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700",
+              ? "border-accent bg-accent"
+              : "border-line bg-surface-2 dark:border-line dark:bg-surface-2",
             props.disabled ? "opacity-60" : "",
           ].join(" ")}
           aria-hidden="true"
         >
           <span
             class={[
-              "inline-block h-4 w-4 rounded-full bg-white shadow transition",
+              "inline-block h-4 w-4 rounded-full bg-surface  transition",
               props.checked ? "translate-x-5" : "translate-x-1",
             ].join(" ")}
           ></span>

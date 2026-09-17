@@ -1,6 +1,8 @@
 import { sendMessage } from "@myz/shared/messaging";
 import {
+  COLOR_SCHEMES,
   DEFAULT_COLOR,
+  DEFAULT_COLOR_SCHEME,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLES,
 } from "@myz/shared/types";
@@ -16,6 +18,7 @@ import {
 export const useSettingsStore = defineStore("settings", () => {
   const settings: Settings = reactive({
     dashboardView: "cards",
+    colorScheme: DEFAULT_COLOR_SCHEME,
     colorPalette: ["#b58900", "#ef476f", "#9f7aea", "#38bdf8", "#34d399"],
     lastUsedColor: DEFAULT_COLOR,
     lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
@@ -47,6 +50,11 @@ export const useSettingsStore = defineStore("settings", () => {
       }
       Object.assign(settings, {
         dashboardView: result.dashboardView || settings.dashboardView,
+        colorScheme: Object.values(COLOR_SCHEMES).includes(
+          result.colorScheme as COLOR_SCHEMES,
+        )
+          ? result.colorScheme
+          : settings.colorScheme,
         colorPalette: Array.isArray(result.colorPalette)
           ? result.colorPalette.filter((c) => typeof c === "string" && c.trim())
           : settings.colorPalette,

@@ -8,7 +8,7 @@ import {
 
 const FILTERS: { value: HighlightFilter; label: string }[] = [
   { value: "all", label: "全部" },
-  { value: "highlight", label: "高亮" },
+  { value: "highlight", label: "划线" },
   { value: "clip", label: "文字" },
 ];
 
@@ -31,12 +31,12 @@ export default defineComponent({
 
     const emptyLabel = computed(() => {
       if (!highlightCounts.value.all) {
-        return "还没有标注，选中文字即可创建";
+        return "还没有划线，选中文字即可创建";
       }
       if (highlightQuery.value.trim()) {
-        return "没有匹配的标注";
+        return "没有匹配的划线";
       }
-      return "没有符合筛选的标注";
+      return "没有符合筛选的划线";
     });
 
     return () => [
@@ -63,8 +63,8 @@ export default defineComponent({
         key="search"
         type="search"
         class="reader-hl__search"
-        placeholder="搜索标注、批注、标签…"
-        aria-label="搜索标注"
+        placeholder="搜索划线、批注、标签…"
+        aria-label="搜索划线"
         value={highlightQuery.value}
         onInput={(event: Event) => {
           store.highlightQuery = (event.target as HTMLInputElement).value;
@@ -106,12 +106,16 @@ export default defineComponent({
                         </span>
                         {record.note ? (
                           <span class="reader-hl__note">
-                            📝 {excerpt(record.note, 48)}
+                            批注：{excerpt(record.note, 48)}
                           </span>
                         ) : null}
                         {record.tags?.length ? (
                           <span class="reader-hl__tags">
-                            {record.tags.join(" · ")}
+                            {record.tags.map((tag) => (
+                              <span class="reader-hl__tag" key={tag}>
+                                {tag}
+                              </span>
+                            ))}
                           </span>
                         ) : null}
                       </span>

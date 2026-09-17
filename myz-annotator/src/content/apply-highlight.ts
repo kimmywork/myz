@@ -125,13 +125,16 @@ export function decorateHighlightElement(
   element.dataset.highlightStyle = style;
   element.style.setProperty("--myz-highlight-color", color);
 
-  // Inline fallbacks so highlights remain visible even if the stylesheet is removed.
+  // Inline fallbacks so highlights remain visible even if the stylesheet is
+  // removed. Paint stays translucent (§3.4) and underline/wavy use the token
+  // thicknesses, matching `page.css`.
   element.style.backgroundColor = "transparent";
   element.style.textDecoration = "";
   element.style.textDecorationColor = "";
   element.style.textDecorationThickness = "";
   if (style === HIGHLIGHT_STYLES.PAINT) {
-    element.style.backgroundColor = color;
+    // 42% alpha as an 8-digit hex (broad CSSOM support, no color-mix needed).
+    element.style.backgroundColor = `${color}6b`;
   } else if (style === HIGHLIGHT_STYLES.UNDERLINE) {
     element.style.textDecoration = "underline";
     element.style.textDecorationColor = color;
@@ -139,7 +142,7 @@ export function decorateHighlightElement(
   } else if (style === HIGHLIGHT_STYLES.WAVY) {
     element.style.textDecoration = "underline wavy";
     element.style.textDecorationColor = color;
-    element.style.textDecorationThickness = "2px";
+    element.style.textDecorationThickness = "1.5px";
   }
 }
 

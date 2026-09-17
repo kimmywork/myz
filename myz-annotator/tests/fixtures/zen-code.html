@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Zen code fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+      #nav,
+      #ftr {
+        padding: 12px;
+        background: #eee;
+      }
+      article {
+        padding: 24px;
+      }
+      pre {
+        margin: 12px 0;
+        padding: 12px;
+        background: #ffffff;
+        border: 1px solid #ddd;
+        overflow-x: auto;
+      }
+      code {
+        font-family: ui-monospace, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="nav">site nav</div>
+    <article id="art">
+      <h1>Install</h1>
+      <h2>1. Server</h2>
+      <pre><code>npm install -g @parkinglot/server
+plt serve</code></pre>
+      <p>Run <code>plt serve</code> to print the pair token.</p>
+      <pre><code>parkinglot-server listening on http://127.0.0.1:8787
+extension websocket: ws://127.0.0.1:8787/ws
+pair token: 0123abcd…</code></pre>
+      <p>The token is persisted in <code>~/.parkinglot/token</code>.</p>
+    </article>
+    <div id="ftr">site footer</div>
+  </body>
+</html>

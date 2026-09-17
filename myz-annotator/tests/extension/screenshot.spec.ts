@@ -51,14 +51,14 @@ test("capture_selection_creates_download", async () => {
     timeout: 5000,
   });
   await page.waitForSelector(
-    '.myz-annotator-toolbar button[aria-label="截取选区截图"]',
+    '.myz-annotator-toolbar button[aria-label="截取"]',
     { timeout: 3000 },
   );
 
   // Click the capture button and wait for Playwright's download event
   const [download] = await Promise.all([
     page.waitForEvent("download", { timeout: 10000 }),
-    page.click('.myz-annotator-toolbar button[aria-label="截取选区截图"]'),
+    page.click('.myz-annotator-toolbar button[aria-label="截取"]'),
   ]);
 
   // Ensure Playwright captured a download; suggestedFilename should be present

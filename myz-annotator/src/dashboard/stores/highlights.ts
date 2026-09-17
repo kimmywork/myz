@@ -218,7 +218,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
     }
     const records = appendImportedTag(parsed);
     if (!records.length) {
-      const message = "文件中未找到有效的标注数据";
+      const message = "文件中未找到有效的记录数据";
       setTimedImportStatus(message, "error");
       throw new Error(message);
     }
@@ -248,7 +248,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
     }
     const summary = parts.length
       ? `（${parts.join(" · ")}）`
-      : "无可导入的标注";
+      : "无可导入的记录";
     setTimedImportStatus(
       `导入完成：${summary}`,
       inserted || replaced ? "success" : "info",

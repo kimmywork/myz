@@ -175,7 +175,7 @@ export default defineComponent({
             仅密文存储到 S3。请先保存 S3 配置，再设置同步密钥。
           </p>
 
-          <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 p-3 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-300">
+          <div class="flex items-center justify-between rounded-control border border-line bg-surface/90 p-3 text-compact text-muted dark:border-line dark:bg-surface-2 dark:text-muted">
             <span>启用同步</span>
             <ToggleSwitch
               checked={enabled.value}
@@ -186,7 +186,7 @@ export default defineComponent({
             />
           </div>
 
-          <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-950/40">
+          <div class="grid gap-3 rounded-control border border-line bg-surface/90 p-4 dark:border-line dark:bg-surface-2">
             <label class="field">
               <span>S3 Endpoint</span>
               <input
@@ -267,7 +267,7 @@ export default defineComponent({
             </label>
           </div>
 
-          <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-white/10 dark:bg-slate-950/40">
+          <div class="grid gap-3 rounded-control border border-line bg-surface/90 p-4 dark:border-line dark:bg-surface-2">
             <label class="field">
               <span>同步密钥</span>
               <input
@@ -279,16 +279,16 @@ export default defineComponent({
                 }
               />
             </label>
-            <div class="text-xs text-slate-500 dark:text-slate-400">
+            <div class="text-caption text-muted">
               当前 KeyId：{keyId.value || "未设置"}
             </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400">
+            <div class="text-caption text-muted">
               上次同步：{lastSyncAt.value || "未同步"}
             </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400">
+            <div class="text-caption text-muted">
               Manifest 版本：{lastManifestVersion.value || 0}
             </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400">
+            <div class="text-caption text-muted">
               密钥更新时间：{keyUpdatedAt.value || "-"}
             </div>
           </div>

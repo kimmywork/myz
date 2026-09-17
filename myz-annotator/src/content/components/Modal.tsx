@@ -63,7 +63,7 @@ function mergeKnownTags(
 
 const titleText = (option: ModalOpenOptions) => {
   if (option.kind === RECORD_KINDS.CLIP) {
-    return option.mode === "edit" ? "编辑保存内容" : "保存摘录";
+    return option.mode === "edit" ? "编辑摘录内容" : "保存摘录";
   }
   return option.mode === "edit" ? "编辑批注" : "添加批注";
 };
@@ -278,7 +278,7 @@ export default defineComponent({
             <div class="myz-annotator-field__label-row">
               <label>标签</label>
               <span class="myz-annotator-field__hint">
-                输入后按回车或逗号确认 · Backspace 回删
+                输入后按回车确认 · Backspace 回删
               </span>
             </div>
             <TagInput
@@ -301,7 +301,7 @@ export default defineComponent({
           {store.isHighlight() ? (
             <div class="myz-annotator-field">
               <div class="myz-annotator-field__label-row">
-                <label>高亮颜色</label>
+                <label>划线颜色</label>
                 <span class="myz-annotator-field__hint">
                   点击选择 · 调整色块可自定义
                 </span>

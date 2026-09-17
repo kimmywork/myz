@@ -39,7 +39,7 @@ export default defineComponent({
   setup(props) {
     const sidebarClasses = computed(() => {
       const classes = [
-        "w-full max-w-xs rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-xl dark:border-white/10 dark:bg-slate-900/60",
+        "w-full max-w-xs rounded-panel border border-line bg-surface/90 p-4 shadow-float dark:border-line dark:bg-surface",
       ]
       if (props.fixedHeight) {
         classes.push("flex h-[calc(100vh-160px)] min-h-0 flex-col overflow-hidden")
@@ -55,16 +55,16 @@ export default defineComponent({
 
     return () => (
       <aside class={sidebarClasses.value}>
-        <header class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-white/10">
+        <header class="flex items-center justify-between border-b border-line pb-3 dark:border-line">
           <div>
-            <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">
+            <h3 class="text-compact font-semibold text-text">
               页面列表
             </h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400">按最近添加排序</p>
+            <p class="text-caption text-muted">按最近添加排序</p>
           </div>
           <button
             type="button"
-            class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:text-slate-700 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+            class="rounded-full border border-line px-3 py-1 text-caption text-muted hover:text-text dark:border-line dark:text-muted dark:hover:text-text"
             onClick={() => props.onToggle?.()}
           >
             收起
@@ -75,10 +75,10 @@ export default defineComponent({
           <button
             type="button"
             class={[
-              "w-full rounded-2xl border px-3 py-2 text-left text-sm transition",
+              "w-full rounded-control border px-3 py-2 text-left text-compact transition",
               props.activePageUrl
-                ? "border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 dark:border-white/10 dark:text-slate-300 dark:hover:text-indigo-200"
-                : "border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-400/40 dark:bg-indigo-500/10 dark:text-indigo-200",
+                ? "border-line text-muted hover:border-accent hover:text-accent-text dark:border-line dark:text-muted dark:hover:text-accent-text"
+                : "border-accent bg-accent/10 text-accent-text dark:border-accent/40 dark:bg-accent/10 dark:text-accent-text",
             ].join(" ")}
             onClick={() => props.onClear?.()}
           >
@@ -95,25 +95,25 @@ export default defineComponent({
                     key={group.url}
                     type="button"
                     class={[
-                      "w-full rounded-2xl border px-3 py-3 text-left transition",
+                      "w-full rounded-control border px-3 py-3 text-left transition",
                       isActive
-                        ? "border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-400/40 dark:bg-indigo-500/10 dark:text-indigo-200"
-                        : "border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 dark:border-white/10 dark:text-slate-300 dark:hover:text-indigo-200",
+                        ? "border-accent bg-accent/10 text-accent-text dark:border-accent/40 dark:bg-accent/10 dark:text-accent-text"
+                        : "border-line text-muted hover:border-accent hover:text-accent-text dark:border-line dark:text-muted dark:hover:text-accent-text",
                     ].join(" ")}
                     onClick={() => props.onSelect?.(group.url)}
                   >
                     <div class="flex items-center justify-between gap-3">
-                      <span class="line-clamp-2 text-sm font-semibold" title={title}>
+                      <span class="line-clamp-2 text-compact font-semibold" title={title}>
                         {title}
                       </span>
-                      <span class="rounded-full border border-slate-200 px-2 py-0.5 text-xs text-slate-500 dark:border-white/10 dark:text-slate-300">
+                      <span class="rounded-full border border-line px-2 py-0.5 text-caption text-muted dark:border-line dark:text-muted">
                         {group.count}
                       </span>
                     </div>
-                    <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                    <p class="mt-1 text-caption text-muted">
                       {group.hostname || group.url}
                     </p>
-                    <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                    <p class="mt-1 text-caption text-muted">
                       最近添加：{props.formatDateTime(group.latestAt)}
                     </p>
                   </button>
@@ -121,7 +121,7 @@ export default defineComponent({
               })}
             </div>
           ) : (
-            <p class="text-xs text-slate-400 dark:text-slate-500">{props.emptyLabel}</p>
+            <p class="text-caption text-muted">{props.emptyLabel}</p>
           )}
         </div>
       </aside>

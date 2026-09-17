@@ -1,0 +1,754 @@
+/*
+ * Shadow-DOM overlay styles.
+ *
+ * Mounted into the shadow root created by `createShadowHost()`. It owns the
+ * capture toolbar, annotation modal, inspector, tag input, colour palette and
+ * toasts, plus the highlight rules (the modal previews a highlight inside the
+ * shadow tree). Tokens come from the shared source-of-truth stylesheet.
+ */
+
+@import "@myz/shared/theme/tokens.css";
+@import "./page.css";
+
+.myz-hidden {
+  display: none !important;
+}
+
+/* ── 采集条 §4.7：固定深色胶囊，不跟随主题 ───────────────────────── */
+.myz-annotator-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -150%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--myz-r-pill);
+  background: var(--myz-overlay);
+  color: var(--myz-overlay-text);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.16);
+  z-index: 2147483647;
+}
+
+.myz-annotator-toolbar button {
+  appearance: none;
+  background: transparent;
+  color: var(--myz-overlay-text);
+  border: none;
+  width: var(--myz-hit-compact);
+  height: var(--myz-hit-compact);
+  border-radius: var(--myz-r-pill);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--myz-motion-fast) ease;
+}
+
+.myz-annotator-toolbar button svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.myz-annotator-toolbar button:hover {
+  background: var(--myz-overlay-hover);
+}
+
+.myz-annotator-toolbar button:active {
+  transform: scale(0.96);
+}
+
+.myz-annotator-toolbar button:focus-visible {
+  outline: 2px solid var(--myz-overlay-text);
+  outline-offset: 2px;
+}
+
+/* ── 弹窗外壳 §4.8 ───────────────────────────────────────────────── */
+.myz-annotator-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  z-index: 2147483646;
+}
+
+.myz-annotator-modal__body {
+  width: min(320px, calc(100vw - 32px));
+  background: var(--myz-surface);
+  color: var(--myz-text);
+  border: 1px solid var(--myz-line);
+  border-radius: var(--myz-r-lg);
+  padding: 20px 24px 24px;
+  box-shadow: var(--myz-shadow);
+  font-family: var(--myz-sans);
+}
+
+.myz-annotator-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.myz-annotator-modal__header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.myz-annotator-modal__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--myz-hit-compact);
+  height: var(--myz-hit-compact);
+  background: transparent;
+  border: none;
+  color: var(--myz-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.myz-annotator-modal__close:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 2px;
+}
+
+.myz-annotator-modal__close:hover {
+  color: var(--myz-text);
+}
+
+.myz-annotator-preview {
+  background: var(--myz-surface-2);
+  border-radius: var(--myz-r);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-family: var(--myz-read);
+  font-size: var(--myz-read-size-2);
+  line-height: 1.6;
+  color: var(--myz-text);
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* ── 表单 §4.6 ───────────────────────────────────────────────────── */
+.myz-annotator-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.myz-annotator-field label {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--myz-muted);
+}
+
+.myz-annotator-field textarea,
+.myz-annotator-field input {
+  background: var(--myz-control-bg);
+  border: 1px solid var(--myz-control-border);
+  border-radius: var(--myz-r);
+  padding: 8px 12px;
+  color: var(--myz-text);
+  font-size: 14px;
+  resize: vertical;
+  transition:
+    border-color var(--myz-motion-fast) ease,
+    box-shadow var(--myz-motion-fast) ease;
+}
+
+.myz-annotator-field textarea {
+  font-family: var(--myz-read);
+}
+
+.myz-annotator-field textarea:focus-visible,
+.myz-annotator-field input:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 0;
+  border-color: var(--myz-accent);
+}
+
+.myz-annotator-field__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.myz-annotator-field__hint {
+  font-size: 11px;
+  color: var(--myz-muted);
+  text-transform: none;
+}
+
+/* ── 样式选择 §4.5 ───────────────────────────────────────────────── */
+.myz-style-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.myz-style-picker__option {
+  appearance: none;
+  border: 1px solid var(--myz-control-border);
+  border-radius: var(--myz-r-pill);
+  padding: 6px 12px;
+  background: var(--myz-control-bg);
+  color: var(--myz-text);
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
+  transition:
+    background var(--myz-motion-fast) ease,
+    border-color var(--myz-motion-fast) ease;
+}
+
+.myz-style-picker__option.is-active {
+  background: var(--myz-tag-bg);
+  border-color: var(--myz-accent);
+  color: var(--myz-tag-fg);
+}
+
+.myz-style-picker__option:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.myz-style-picker__option:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 2px;
+}
+
+.myz-style-picker__icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.myz-style-picker__label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── 调色盘 §4.14 ────────────────────────────────────────────────── */
+.myz-color-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.myz-color-swatch-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.myz-color-swatch {
+  width: var(--myz-hit-compact);
+  height: var(--myz-hit-compact);
+  border-radius: var(--myz-r-pill);
+  border: 2px solid transparent;
+  background: var(--myz-swatch-color, #fde68a);
+  cursor: pointer;
+  transition:
+    transform var(--myz-motion-fast) ease,
+    border-color var(--myz-motion-fast) ease,
+    box-shadow var(--myz-motion-fast) ease;
+}
+
+.myz-color-swatch.is-active {
+  border-color: var(--myz-text);
+  transform: translateY(-2px);
+  box-shadow: var(--myz-shadow);
+}
+
+.myz-color-swatch:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 2px;
+}
+
+.myz-color-edit {
+  background: var(--myz-surface-2);
+  border: none;
+  border-radius: var(--myz-r-pill);
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--myz-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  line-height: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.myz-color-edit:hover {
+  background: var(--myz-line);
+}
+
+.myz-color-edit svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.myz-color-editor {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* ── 操作区 §4.4 ─────────────────────────────────────────────────── */
+.myz-annotator-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.myz-annotator-actions button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--myz-r);
+  padding: 0 12px;
+  height: var(--myz-hit-compact);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--myz-motion-fast) ease,
+    color var(--myz-motion-fast) ease;
+}
+
+.myz-btn-primary {
+  background: var(--myz-accent);
+  color: var(--myz-on-accent);
+}
+
+.myz-btn-primary:hover {
+  background: var(--myz-accent-hover);
+}
+
+.myz-btn-secondary {
+  background: var(--myz-control-bg);
+  border-color: var(--myz-control-border);
+  color: var(--myz-text);
+}
+
+.myz-btn-secondary:hover {
+  border-color: var(--myz-accent);
+  color: var(--myz-accent-text);
+}
+
+.myz-btn-danger {
+  background: transparent;
+  color: var(--myz-error);
+}
+
+.myz-btn-danger:hover {
+  color: var(--myz-error);
+}
+
+/* ── Inspector：高亮后的编辑浮层，跟随主题 ───────────────────────── */
+.myz-inspector {
+  position: fixed;
+  top: 50%;
+  right: 24px;
+  transform: translateY(-50%);
+  z-index: 2147483645;
+  width: 280px;
+  max-height: calc(100vh - 80px);
+  background: var(--myz-surface);
+  color: var(--myz-text);
+  border: 1px solid var(--myz-line);
+  border-radius: var(--myz-r-lg);
+  box-shadow: var(--myz-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Compact variant (click an existing highlight, no note): a fixed-dark bar
+   like the capture toolbar, independent of the theme. The full panel below
+   keeps following the theme. */
+.myz-inspector--toolbar {
+  width: fit-content;
+  min-width: 0;
+  max-width: none;
+  border-radius: var(--myz-r-pill);
+  background: var(--myz-overlay);
+  color: var(--myz-overlay-text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--myz-overlay-text);
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn--edit {
+  background: var(--myz-accent);
+  border-color: var(--myz-accent);
+  color: var(--myz-on-accent);
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn--edit:hover {
+  background: var(--myz-accent-hover);
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn--delete {
+  background: transparent;
+  color: var(--myz-error);
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn--close {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--myz-overlay-text);
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn--close:hover {
+  background: var(--myz-overlay-hover);
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn:focus-visible {
+  outline: 2px solid var(--myz-overlay-text);
+  outline-offset: 2px;
+}
+
+.myz-inspector__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--myz-line);
+}
+
+.myz-inspector__title {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.myz-inspector__close {
+  background: transparent;
+  border: none;
+  color: var(--myz-muted);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.myz-inspector__close:hover {
+  color: var(--myz-text);
+}
+
+.myz-inspector__body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.myz-inspector__info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.myz-inspector__style {
+  width: var(--myz-hit-compact);
+  height: var(--myz-hit-compact);
+  border-radius: var(--myz-r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--myz-surface-2);
+  border: 2px solid var(--myz-control-border);
+  color: var(--myz-text);
+  transition:
+    background var(--myz-motion-fast) var(--myz-ease-out),
+    border-color var(--myz-motion-fast) var(--myz-ease-out),
+    color var(--myz-motion-fast) var(--myz-ease-out);
+}
+
+.myz-inspector__style-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.myz-inspector__style[data-style="paint"] {
+  background: var(--myz-highlight-color, var(--myz-tag-bg));
+  color: var(--myz-text);
+  border-color: var(--myz-text);
+}
+
+.myz-inspector__style[data-style="underline"],
+.myz-inspector__style[data-style="wavy"] {
+  background: transparent;
+  color: var(--myz-highlight-color, var(--myz-text));
+  border-color: var(--myz-highlight-color, var(--myz-control-border));
+}
+
+.myz-inspector__style[data-style="wavy"] {
+  border-style: dashed;
+}
+
+.myz-inspector__meta {
+  font-size: 12px;
+  color: var(--myz-muted);
+}
+
+.myz-inspector__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.myz-inspector__quote {
+  margin: 0;
+  background: var(--myz-surface-2);
+  border-left: 3px solid var(--myz-highlight-color, var(--myz-accent));
+  padding: 12px 14px;
+  border-radius: var(--myz-r);
+  font-family: var(--myz-read);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--myz-text);
+  white-space: pre-wrap;
+}
+
+.myz-inspector__note {
+  background: var(--myz-surface-2);
+  border-radius: var(--myz-r);
+  padding: 10px 12px;
+  line-height: 1.6;
+  color: var(--myz-muted);
+  white-space: pre-wrap;
+}
+
+.myz-inspector__actions {
+  padding: 10px 12px 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--myz-line);
+}
+
+.myz-inspector--toolbar .myz-inspector__actions {
+  padding: 6px 8px;
+  justify-content: center;
+  border-top: none;
+}
+
+.myz-inspector__icon-btn {
+  appearance: none;
+  border: 1px solid var(--myz-control-border);
+  background: transparent;
+  color: var(--myz-text);
+  border-radius: var(--myz-r);
+  width: var(--myz-hit-compact);
+  height: var(--myz-hit-compact);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background var(--myz-motion-fast) var(--myz-ease-out),
+    color var(--myz-motion-fast) var(--myz-ease-out);
+}
+
+.myz-inspector__icon-btn svg {
+  display: block;
+}
+
+.myz-inspector__icon-btn:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 2px;
+}
+
+.myz-inspector__icon-btn--edit {
+  background: var(--myz-accent);
+  border-color: var(--myz-accent);
+  color: var(--myz-on-accent);
+}
+
+.myz-inspector__icon-btn--edit:hover {
+  background: var(--myz-accent-hover);
+}
+
+.myz-inspector__icon-btn--delete {
+  background: transparent;
+  color: var(--myz-error);
+}
+
+.myz-inspector__icon-btn--delete:hover {
+  color: var(--myz-error);
+}
+
+.myz-inspector__icon-btn--close {
+  background: var(--myz-control-bg);
+  color: var(--myz-text);
+}
+
+.myz-inspector__icon-btn--close:hover {
+  border-color: var(--myz-accent);
+  color: var(--myz-accent-text);
+}
+
+/* ── 提示条 §4.15：固定深色 ──────────────────────────────────────── */
+.myz-toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  z-index: 2147483646;
+  pointer-events: none;
+}
+
+.myz-toast {
+  max-width: 280px;
+  padding: 12px 14px;
+  border-radius: var(--myz-r);
+  background: var(--myz-overlay);
+  color: var(--myz-overlay-text);
+  font-size: 13px;
+  box-shadow: var(--myz-shadow);
+  pointer-events: auto;
+}
+
+/* §3.9 尊重减少动态效果 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── 标签输入 §4.5（内容层 Modal 使用）───────────────────────────── */
+.myz-tag-input {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: var(--myz-hit-regular);
+  padding: 4px 8px;
+  border-radius: var(--myz-r);
+  border: 1px solid var(--myz-control-border);
+  background: var(--myz-control-bg);
+  cursor: text;
+  position: relative;
+}
+
+.myz-tag-input.is-focused {
+  border-color: var(--myz-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--myz-accent) 20%, transparent);
+}
+
+.myz-tag-input__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--myz-r-sm);
+  background: var(--myz-tag-bg);
+  color: var(--myz-tag-fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.myz-tag-input__remove {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+}
+
+.myz-tag-input__input {
+  flex: 1;
+  min-width: 90px;
+  background: transparent;
+  border: none;
+  color: var(--myz-text);
+  font-size: 13px;
+  padding: 4px;
+  outline: none;
+}
+
+.myz-tag-input__input::placeholder {
+  color: var(--myz-muted);
+}
+
+.myz-tag-input__list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 4px;
+  background: var(--myz-surface);
+  border: 1px solid var(--myz-control-border);
+  border-radius: var(--myz-r-lg);
+  box-shadow: var(--myz-shadow);
+  max-height: 224px;
+  overflow-y: auto;
+  z-index: 2147483600;
+}
+
+.myz-tag-input__option {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--myz-r-sm);
+  font-size: 13px;
+  color: var(--myz-text);
+  cursor: pointer;
+}
+
+.myz-tag-input__option:hover,
+.myz-tag-input__option.is-active {
+  background: var(--myz-surface-2);
+}

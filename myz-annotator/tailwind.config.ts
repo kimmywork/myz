@@ -8,6 +8,7 @@ export default {
     "./src/**/*.{mjs,css}",
     "./index.html",
     "../packages/dashboard-ui/src/**/*.{js,jsx,ts,tsx,vue}",
+    "../packages/shared/src/components/**/*.{ts,tsx}",
   ],
   plugins: [typography()],
 } satisfies Config;

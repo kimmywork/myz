@@ -151,10 +151,10 @@ export const useUIStore = defineStore("ui", () => {
       const stats = computeRecordStats(visibleHighlights.value);
       const detail = [];
       if (stats.highlightCount) {
-        detail.push(`高亮 ${stats.highlightCount}`);
+        detail.push(`划线 ${stats.highlightCount}`);
       }
       if (stats.savedCount) {
-        detail.push(`保存 ${stats.savedCount}`);
+        detail.push(`摘录 ${stats.savedCount}`);
       }
       return [
         {
@@ -170,10 +170,10 @@ export const useUIStore = defineStore("ui", () => {
         const stats = computeRecordStats(items);
         const detail = [];
         if (stats.highlightCount) {
-          detail.push(`高亮 ${stats.highlightCount}`);
+          detail.push(`划线 ${stats.highlightCount}`);
         }
         if (stats.savedCount) {
-          detail.push(`保存 ${stats.savedCount}`);
+          detail.push(`摘录 ${stats.savedCount}`);
         }
         return {
           date,
@@ -192,10 +192,10 @@ export const useUIStore = defineStore("ui", () => {
     );
     const parts = [];
     if (stats.highlightCount) {
-      parts.push(`高亮 ${stats.highlightCount}`);
+      parts.push(`划线 ${stats.highlightCount}`);
     }
     if (stats.savedCount) {
-      parts.push(`保存 ${stats.savedCount}`);
+      parts.push(`摘录 ${stats.savedCount}`);
     }
     const detail = parts.length ? `（${parts.join(" · ")}）` : "";
     return `共 ${stats.total} 条记录${detail} · 涉及 ${sites.size} 个站点`;

@@ -11,3 +11,6 @@ tsconfig.tsbuildinfo
 test-results
 
 playwright-report/
+
+# Generated appearance review artifacts
+tests/screenshots/out/

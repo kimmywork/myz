@@ -75,10 +75,10 @@ test("soft_newlines_preserved_for_pre_wrap_selection", async () => {
     timeout: 5000,
   });
   await page.waitForSelector(
-    '.myz-annotator-toolbar button[aria-label="保存文字"]',
+    '.myz-annotator-toolbar button[aria-label="摘录"]',
     { timeout: 3000 },
   );
-  await page.click('.myz-annotator-toolbar button[aria-label="保存文字"]');
+  await page.click('.myz-annotator-toolbar button[aria-label="摘录"]');
   await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
     timeout: 5000,
   });

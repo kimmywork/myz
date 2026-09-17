@@ -31,7 +31,7 @@ interface InspectorRecord {
 
 const DEFAULT_RECORD: InspectorRecord = {
   id: null,
-  title: "标注详情",
+  title: "划线详情",
   metaParts: [],
   tags: [],
   html: "",

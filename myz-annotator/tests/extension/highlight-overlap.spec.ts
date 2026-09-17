@@ -56,7 +56,7 @@ async function selectAndAnnotateRange(page: Page, selector: string) {
   await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
     timeout: 10000,
   });
-  await page.click('.myz-annotator-toolbar button[aria-label="添加标注"]');
+  await page.click('.myz-annotator-toolbar button[aria-label="划线"]');
   await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
     timeout: 5000,
   });
@@ -101,7 +101,7 @@ test("prevent overlapping highlights and notify user", async () => {
   await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
     timeout: 5000,
   });
-  await page.click('.myz-annotator-toolbar button[aria-label="添加标注"]');
+  await page.click('.myz-annotator-toolbar button[aria-label="划线"]');
 
   // Expect a notification toast to appear indicating failure
   const toast = await page

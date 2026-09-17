@@ -1,4 +1,4 @@
-import { HIGHLIGHT_STYLES } from "@myz/shared/types";
+import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import type { Settings } from "./settings.js";
 
 export const STORAGE_KEY = "myz::highlights";
@@ -8,6 +8,7 @@ export const DEFAULT_STATE = {
   order: [],
 };
 export const DEFAULT_SETTINGS: Settings = {
+  colorScheme: COLOR_SCHEMES.PAPER,
   colorPalette: [
     // amber / warm highlight
     "#b58900",

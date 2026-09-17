@@ -106,8 +106,8 @@ export default defineComponent({
       <section class="settings__group">
         <div class="settings__group-header">
           <div>
-            <h3>标注偏好</h3>
-            <p class="settings__hint">设置高亮调色盘与默认样式</p>
+            <h3>划线偏好</h3>
+            <p class="settings__hint">设置划线调色盘与默认样式</p>
           </div>
           <button
             type="button"
@@ -120,7 +120,7 @@ export default defineComponent({
 
         <div class="settings__fields">
           <div class="settings__fields--compact">
-            <p class="text-sm font-medium text-slate-900 dark:text-white">
+            <p class="text-compact font-medium text-text">
               调色盘
             </p>
             <div class="grid gap-3 sm:grid-cols-2">
@@ -130,7 +130,7 @@ export default defineComponent({
                   <div class="flex items-center gap-2">
                     <input
                       type="color"
-                      class="h-9 w-12 rounded-xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-slate-900"
+                      class="h-9 w-12 rounded-control border border-line bg-surface p-1 dark:border-line dark:bg-surface"
                       value={color}
                       onInput={(event: InputEvent) =>
                         updatePaletteColor(
@@ -157,11 +157,11 @@ export default defineComponent({
           </div>
 
           <div class="settings__fields--compact">
-            <p class="text-sm font-medium text-slate-900 dark:text-white">
+            <p class="text-compact font-medium text-text">
               默认样式
             </p>
             <div
-              class="inline-flex rounded-full border border-slate-200 bg-white p-1 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200"
+              class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"
               role="group"
               aria-label="默认样式"
             >
@@ -172,8 +172,8 @@ export default defineComponent({
                   class={[
                     "rounded-full px-4 py-1.5 transition",
                     defaultStyle.value === value
-                      ? "bg-indigo-600 text-white shadow"
-                      : "text-slate-500 dark:text-slate-300",
+                      ? "bg-accent text-on-accent "
+                      : "text-muted dark:text-muted",
                   ].join(" ")}
                   onClick={() => (defaultStyle.value = value)}
                 >
@@ -184,7 +184,7 @@ export default defineComponent({
           </div>
 
           <div class="settings__fields--compact">
-            <p class="text-sm font-medium text-slate-900 dark:text-white">
+            <p class="text-compact font-medium text-text">
               默认颜色
             </p>
             <div class="flex flex-wrap items-center gap-2">
@@ -193,17 +193,17 @@ export default defineComponent({
                   key={color}
                   type="button"
                   class={[
-                    "h-9 w-9 rounded-full border border-slate-200 transition",
+                    "h-9 w-9 rounded-full border border-line transition",
                     defaultColor.value === color
-                      ? "ring-2 ring-indigo-500"
-                      : "hover:ring-2 hover:ring-indigo-300",
+                      ? "ring-2 ring-accent"
+                      : "hover:ring-2 hover:ring-accent/40",
                   ].join(" ")}
                   style={{ backgroundColor: color }}
                   aria-label={`选择默认颜色 ${color}`}
                   onClick={() => (defaultColor.value = color)}
                 />
               ))}
-              <span class="text-xs text-slate-500 dark:text-slate-400">
+              <span class="text-caption text-muted">
                 当前：{defaultColor.value}
               </span>
             </div>
@@ -219,13 +219,13 @@ export default defineComponent({
               保存设置
             </button>
             {isDirty.value ? (
-              <span class="text-xs text-amber-600">未保存</span>
+              <span class="text-caption text-warn">未保存</span>
             ) : null}
             {saveNotice.value ? (
-              <span class="text-xs text-emerald-600">{saveNotice.value}</span>
+              <span class="text-caption text-success">{saveNotice.value}</span>
             ) : null}
             {status.value ? (
-              <span class="text-xs text-slate-500">{status.value}</span>
+              <span class="text-caption text-muted">{status.value}</span>
             ) : null}
           </div>
         </div>

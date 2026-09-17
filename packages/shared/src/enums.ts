@@ -33,6 +33,52 @@ export enum HIGHLIGHT_STYLES {
   WAVY = "wavy",
 }
 
+/** Product chrome color schemes. Orthogonal to light/dark mode. */
+export enum COLOR_SCHEMES {
+  PAPER = "paper",
+  SLATE = "slate",
+  CELADON = "celadon",
+  OCHRE = "ochre",
+}
+
+export const DEFAULT_COLOR_SCHEME: COLOR_SCHEMES = COLOR_SCHEMES.PAPER
+
+export interface ColorSchemeOption {
+  value: COLOR_SCHEMES
+  label: string
+  description: string
+  /** Representative light-mode hexes for a preview swatch. */
+  swatch: { bg: string; surface: string; accent: string }
+}
+
+export const COLOR_SCHEME_OPTIONS: ColorSchemeOption[] = [
+  {
+    value: COLOR_SCHEMES.PAPER,
+    label: "米纸",
+    description: "暖米 + 油墨蓝，长时间阅读不刺眼",
+    swatch: { bg: "#f5f4ed", surface: "#faf9f5", accent: "#1b365d" },
+  },
+  {
+    value: COLOR_SCHEMES.SLATE,
+    label: "冷灰",
+    description: "中性冷灰 + 靛蓝，接近系统默认观感",
+    swatch: { bg: "#f8fafc", surface: "#ffffff", accent: "#4f46e5" },
+  },
+  {
+    value: COLOR_SCHEMES.CELADON,
+    label: "青瓷",
+    description: "极浅青绿 + 深绿",
+    swatch: { bg: "#f2f4ee", surface: "#f8faf4", accent: "#2f5d4a" },
+  },
+  {
+    value: COLOR_SCHEMES.OCHRE,
+    label: "赭石",
+    description: "暖沙 + 铁锈红，更旧的纸感",
+    swatch: { bg: "#f6f0e6", surface: "#fbf6ee", accent: "#8a4b24" },
+  },
+]
+
+
 export enum CONTENT_TYPES {
   HTML = "text/html",
   MARKDOWN = "text/markdown",
@@ -49,7 +95,7 @@ export const HIGHLIGHT_STYLE_OPTIONS: Record<
   HIGHLIGHT_STYLES,
   HighlightStyleOption
 > = {
-  [HIGHLIGHT_STYLES.PAINT]: { icon: "paint", label: "高亮" },
+  [HIGHLIGHT_STYLES.PAINT]: { icon: "paint", label: "涂色" },
   [HIGHLIGHT_STYLES.UNDERLINE]: { icon: "underline", label: "下划线" },
   [HIGHLIGHT_STYLES.WAVY]: { icon: "wavy", label: "波浪线" },
 }

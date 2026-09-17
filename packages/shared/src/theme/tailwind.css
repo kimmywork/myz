@@ -1,0 +1,136 @@
+/*
+ * Tailwind mapping for the MyZ design tokens.
+ *
+ * Import this after `@import "tailwindcss"` from a Tailwind host entry:
+ *
+ *   @import "tailwindcss";
+ *   @import "@myz/shared/theme/tailwind.css";
+ *
+ * Only new keys are defined here. Tailwind's own theme keys
+ * (`--radius-xs…4xl`, `--text-xs…9xl`, `--font-sans/serif/mono`,
+ * `--shadow-2xs…2xl`, …) are deliberately left untouched: overriding them
+ * would silently move existing utility usages. `npm run check:tailwind-keys`
+ * enforces this.
+ *
+ * `@theme inline` makes utilities reference `var(--myz-*)` at the point of
+ * use, so a theme or scheme scoped to any subtree (not just `:root`) applies
+ * to the utilities inside it.
+ */
+
+@import "./tokens.css";
+
+@custom-variant dark (&:where([data-theme="dark"], .dark));
+
+@theme inline {
+  /* 表面与文字 */
+  --color-bg: var(--myz-bg);
+  --color-surface: var(--myz-surface);
+  --color-surface-2: var(--myz-surface-2);
+  --color-text: var(--myz-text);
+  --color-muted: var(--myz-muted);
+  --color-line: var(--myz-line);
+
+  /* 强调色 */
+  --color-accent: var(--myz-accent);
+  --color-accent-hover: var(--myz-accent-hover);
+  --color-accent-text: var(--myz-accent-text);
+  --color-on-accent: var(--myz-on-accent);
+
+  /* 控件、标签、骨架 */
+  --color-control-bg: var(--myz-control-bg);
+  --color-control-border: var(--myz-control-border);
+  --color-tag-bg: var(--myz-tag-bg);
+  --color-tag-fg: var(--myz-tag-fg);
+  --color-skeleton: var(--myz-skeleton);
+
+  /* 阅读器外框 */
+  --color-well: var(--myz-well);
+  --color-well-chrome: var(--myz-well-chrome);
+  --color-well-border: var(--myz-well-border);
+  --color-well-text: var(--myz-well-text);
+  --color-well-muted: var(--myz-well-muted);
+  --color-well-control-bg: var(--myz-well-control-bg);
+  --color-well-control-border: var(--myz-well-control-border);
+
+  /* 语义色 */
+  --color-warn: var(--myz-warn);
+  --color-warn-bg: var(--myz-warn-bg);
+  --color-warn-border: var(--myz-warn-border);
+  --color-error: var(--myz-error);
+  --color-error-bg: var(--myz-error-bg);
+  --color-error-border: var(--myz-error-border);
+  --color-success: var(--myz-success);
+  --color-success-bg: var(--myz-success-bg);
+  --color-success-border: var(--myz-success-border);
+  --color-info: var(--myz-info);
+  --color-info-bg: var(--myz-info-bg);
+  --color-info-border: var(--myz-info-border);
+  --color-clip: var(--myz-clip);
+  --color-clip-bg: var(--myz-clip-bg);
+  --color-clip-border: var(--myz-clip-border);
+
+  /* 划线五色（记录数据，不随方案变化） */
+  --color-mark-1: var(--myz-mark-1);
+  --color-mark-2: var(--myz-mark-2);
+  --color-mark-3: var(--myz-mark-3);
+  --color-mark-4: var(--myz-mark-4);
+  --color-mark-5: var(--myz-mark-5);
+
+  /* 采集条固定深色 */
+  --color-overlay: var(--myz-overlay);
+  --color-overlay-text: var(--myz-overlay-text);
+  --color-overlay-hover: var(--myz-overlay-hover);
+
+  /* 字体 */
+  --font-ui: var(--myz-sans);
+  --font-read: var(--myz-read);
+  --font-code: var(--myz-mono);
+
+  /* 圆角：全部是新键 */
+  --radius-chip: var(--myz-r-xs);
+  --radius-tag: var(--myz-r-sm);
+  --radius-control: var(--myz-r);
+  --radius-panel: var(--myz-r-lg);
+  --radius-pill: var(--myz-r-pill);
+
+  /* 字号：九级，全部是新键 */
+  --text-display: 32px;
+  --text-display--line-height: 1.2;
+  --text-display--font-weight: 600;
+  --text-heading: 24px;
+  --text-heading--line-height: 1.25;
+  --text-heading--font-weight: 600;
+  --text-title: 17px;
+  --text-title--line-height: 1.35;
+  --text-title--font-weight: 600;
+  --text-lede: 17px;
+  --text-lede--line-height: 1.7;
+  --text-body: 15px;
+  --text-body--line-height: 1.7;
+  --text-compact: 14px;
+  --text-compact--line-height: 1.5;
+  --text-label: 13px;
+  --text-label--line-height: 1.55;
+  --text-caption: 12px;
+  --text-caption--line-height: 1.4;
+  --text-caption--font-weight: 500;
+  --text-tag: 11px;
+  --text-tag--line-height: 1.4;
+  --text-tag--font-weight: 600;
+
+  /* 阴影 */
+  --shadow-float: var(--myz-shadow);
+
+  /* 动效 */
+  --ease-panel: var(--myz-ease-out);
+}
+
+/*
+ * The subtree-scope probe asserts these contract utilities resolve against
+ * `var(--myz-*)`. Keep them emitted even before a host uses them.
+ */
+@source inline("bg-surface");
+@source inline("text-muted");
+@source inline("bg-control-bg");
+@source inline("text-accent");
+@source inline("border-line");

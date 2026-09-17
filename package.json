@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "jscpd": "jscpd",
-    "jscpd:check": "jscpd --threshold 0"
+    "jscpd:check": "jscpd --threshold 0",
+    "check:design-tokens": "node scripts/design-system/check-tokens.mjs",
+    "check:tailwind-keys": "node scripts/design-system/check-tailwind-keys.mjs"
   },
   "workspaces": [
     "myz-annotator",

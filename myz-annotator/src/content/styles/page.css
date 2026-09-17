@@ -1,0 +1,126 @@
+/*
+ * Page-level highlight marks.
+ *
+ * Injected into the host page's <head> by `ensureContentStyles()`. This file
+ * must never declare a custom property and must stay low-specificity: it lives
+ * next to markup we do not own. All colors come from the inline
+ * `--myz-highlight-color` set per mark, so it does not depend on our tokens
+ * being present on the host page.
+ */
+
+.myz-highlight {
+  cursor: pointer;
+  padding: 0;
+  border-radius: 0;
+  transition:
+    box-shadow 0.2s ease,
+    text-decoration-color 0.2s ease;
+  text-decoration: none;
+}
+
+.myz-highlight--paint {
+  background-color: color-mix(
+    in srgb,
+    var(--myz-highlight-color) var(--myz-mark-alpha, 42%),
+    transparent
+  );
+  border-radius: var(--myz-mark-radius, 3px);
+  padding: 0 2px;
+}
+
+.myz-highlight--paint:hover {
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--myz-highlight-color) 35%, transparent);
+}
+
+.myz-highlight--underline,
+.myz-highlight--wavy {
+  background: transparent;
+  padding: 0;
+  font-weight: inherit;
+  line-height: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--myz-highlight-color);
+  text-decoration-skip-ink: auto;
+  text-underline-offset: 0.12em;
+}
+
+.myz-highlight--underline {
+  text-decoration-style: solid;
+  text-decoration-thickness: var(--myz-mark-underline, 2px);
+}
+
+.myz-highlight--wavy {
+  text-decoration-style: wavy;
+  text-decoration-thickness: var(--myz-mark-wavy, 1.5px);
+  text-underline-offset: 0.16em;
+}
+
+.myz-highlight--underline:hover,
+.myz-highlight--wavy:hover {
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--myz-highlight-color) 80%,
+    transparent
+  );
+}
+
+.myz-highlight--flash {
+  position: relative;
+  animation: myz-highlight-pulse 1.1s ease-out;
+  box-shadow: 0 0 0 0
+    color-mix(in srgb, var(--myz-highlight-color) 35%, transparent);
+}
+
+.myz-highlight--flash::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 4px;
+  background: color-mix(
+    in srgb,
+    var(--myz-highlight-color) 18%,
+    transparent
+  );
+  opacity: 0;
+  pointer-events: none;
+  animation: myz-highlight-halo 1.1s ease-out;
+}
+
+.myz-highlight-preview {
+  cursor: default;
+  pointer-events: none;
+}
+
+@keyframes myz-highlight-pulse {
+  0% {
+    box-shadow: 0 0 0 0
+      color-mix(in srgb, var(--myz-highlight-color) 70%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 8px
+      color-mix(in srgb, var(--myz-highlight-color) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+
+@keyframes myz-highlight-halo {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .myz-highlight--flash,
+  .myz-highlight--flash::after {
+    animation-duration: 0.12s;
+  }
+}

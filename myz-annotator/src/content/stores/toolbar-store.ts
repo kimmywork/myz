@@ -176,7 +176,7 @@ export const useToolbarStore = defineStore("toolbar", () => {
         try {
           if (liveRange.intersectsNode(el)) {
             notificationStore.notify({
-              message: "选区与已有标注重叠，无法创建新的标注。",
+              message: "选区与已有划线重叠，无法创建新的划线。",
             });
             hide();
             return;

@@ -198,7 +198,7 @@ export default defineComponent({
 
     function handleKeydown(event: KeyboardEvent) {
       event.stopPropagation()
-      if (event.key === "Enter" || event.key === ",") {
+      if (event.key === "Enter") {
         event.preventDefault()
         commitInput()
         return
@@ -359,11 +359,11 @@ export default defineComponent({
             .filter(Boolean)
             .join(" ")
         : [
-            "relative flex w-full flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition",
+            "relative flex w-full flex-wrap items-center gap-2 rounded-control border px-3 py-2 text-compact transition",
             props.disabled ? "cursor-not-allowed opacity-60" : "cursor-text",
             isFocused.value
-              ? "border-indigo-400 bg-white shadow-lg dark:bg-slate-950/60"
-              : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950/60",
+              ? "border-accent bg-surface shadow-float dark:bg-surface-2"
+              : "border-line bg-surface dark:border-line dark:bg-surface-2",
           ].join(" ")
 
       return (
@@ -378,7 +378,7 @@ export default defineComponent({
                 class={
                   useContentVariant
                     ? "myz-tag-input__chip"
-                    : "inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-100"
+                    : "inline-flex h-[22px] items-center gap-2 rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
                 }
                 key={tag}
                 data-role="tag-chip"
@@ -390,7 +390,7 @@ export default defineComponent({
                     class={
                       useContentVariant
                         ? "myz-tag-input__remove"
-                        : "tag-input__remove text-slate-500 hover:text-rose-500 dark:text-slate-200 dark:hover:text-rose-400"
+                        : "tag-input__remove text-muted hover:text-error dark:text-text dark:hover:text-error"
                     }
                     onClick={() => removeTag(tag)}
                     aria-label={`移除标签 ${tag}`}
@@ -407,7 +407,7 @@ export default defineComponent({
                 class={
                   useContentVariant
                     ? "myz-tag-input__input"
-                    : "min-w-20 flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none dark:text-white dark:placeholder:text-slate-500"
+                    : "min-w-20 flex-1 bg-transparent text-compact text-text placeholder:text-muted focus:outline-none dark:text-text dark:placeholder:text-muted"
                 }
                 type="text"
                 value={inputValue.value}
@@ -427,7 +427,7 @@ export default defineComponent({
               class={
                 useContentVariant
                   ? "myz-tag-input__list"
-                  : "absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95"
+                  : "absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-panel border border-control-border bg-surface p-1 shadow-float"
               }
               role="listbox"
               data-role="tag-options"
@@ -444,9 +444,9 @@ export default defineComponent({
                           .filter(Boolean)
                           .join(" ")
                       : [
-                          "cursor-pointer rounded-xl px-3 py-2 text-sm text-slate-700 transition hover:bg-indigo-50 dark:text-slate-200 dark:hover:bg-indigo-500/30",
+                          "flex h-8 cursor-pointer items-center rounded-tag px-2.5 text-label text-text transition hover:bg-surface-2",
                           activeIndex.value === index
-                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-white"
+                            ? "bg-surface-2 text-accent-text"
                             : "",
                         ].join(" ")
                   }

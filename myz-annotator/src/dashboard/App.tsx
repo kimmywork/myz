@@ -1,4 +1,5 @@
 import { DashboardAppShell } from "@myz/dashboard-ui";
+import "@myz/shared/colorScheme";
 import { useThemePreference } from "@myz/shared/theme";
 import { defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { RouterView } from "vue-router";

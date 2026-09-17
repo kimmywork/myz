@@ -37,13 +37,13 @@ describe("records", () => {
     it("should return correct labels", () => {
       expect(
         getRecordKindLabel({ kind: RECORD_KINDS.HIGHLIGHT } as MyZRecord),
-      ).toBe("划线标注");
+      ).toBe("划线");
       expect(getRecordKindLabel({ kind: RECORD_KINDS.CLIP } as MyZRecord)).toBe(
-        "保存文字",
+        "摘录",
       );
       expect(
         getRecordKindLabel({ kind: RECORD_KINDS.BOOKMARK } as MyZRecord),
-      ).toBe("网页书签");
+      ).toBe("来源");
     });
   });
 

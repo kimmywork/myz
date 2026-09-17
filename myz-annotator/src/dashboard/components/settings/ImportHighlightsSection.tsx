@@ -36,7 +36,7 @@ export default defineComponent({
     return () => (
       <section class="settings__group">
         <div class="settings__group-header">
-          <h3>导入标注</h3>
+          <h3>导入记录</h3>
         </div>
         <div class="settings__fields">
           <p class="settings__hint">

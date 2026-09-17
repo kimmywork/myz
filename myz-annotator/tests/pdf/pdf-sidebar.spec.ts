@@ -242,7 +242,7 @@ test("pdf_sidebar_highlights_search_filters", async () => {
   await search.fill("不存在的关键词");
   await expect(page.locator(".reader-hl__item")).toHaveCount(0);
   await expect(page.locator(".reader-sidebar__hint")).toContainText(
-    "没有匹配的标注",
+    "没有匹配的划线",
   );
 
   await search.fill("");

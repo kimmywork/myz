@@ -24,7 +24,7 @@ export function describeHighlightStyle(style: HIGHLIGHT_STYLES): string {
   if (normalized === HIGHLIGHT_STYLES.WAVY) {
     return "波浪线"
   }
-  return "高亮"
+  return "涂色"
 }
 
 export function normalizeRecord(

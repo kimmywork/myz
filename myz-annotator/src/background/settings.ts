@@ -1,4 +1,4 @@
-import { HIGHLIGHT_STYLES } from "@myz/shared/types";
+import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { type SettingsSchemaVersion } from "@myz/shared/versioning";
 import type { SyncS3Settings, SyncSettings } from "@myz/sync-core/settings";
 
@@ -6,6 +6,7 @@ export type { SyncS3Settings, SyncSettings };
 
 export interface Settings {
   dashboardView: "cards" | "list";
+  colorScheme: COLOR_SCHEMES;
   colorPalette: string[];
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;

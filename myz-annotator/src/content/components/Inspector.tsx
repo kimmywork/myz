@@ -111,7 +111,7 @@ export default defineComponent({
           <button
             type="button"
             class="myz-inspector__icon-btn myz-inspector__icon-btn--edit"
-            aria-label="编辑标注"
+            aria-label="编辑划线"
             onClick={() => {
               store.edit();
               store.hide();
@@ -122,7 +122,7 @@ export default defineComponent({
           <button
             type="button"
             class="myz-inspector__icon-btn myz-inspector__icon-btn--delete"
-            aria-label="删除标注"
+            aria-label="删除划线"
             onClick={() => store.deleteRecord()}
           >
             <IconTrash size={18} aria-hidden="true" />

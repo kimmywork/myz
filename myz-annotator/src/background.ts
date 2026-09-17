@@ -18,7 +18,7 @@ async function ensureContextMenus() {
     }
     chrome.contextMenus.create({
       id: "myz-zen-mode",
-      title: "禅定模式 (仅显示文章)",
+      title: "专注阅读 (仅显示文章)",
       contexts: ["page", "selection"],
     });
     // Add capture as image when in zen mode
@@ -88,34 +88,27 @@ chrome.contextMenus.onClicked.addListener(
 async function refreshZenMenuForTab(tabId: number) {
   if (!tabId) return;
   try {
-    try {
-      await chrome.contextMenus.update("myz-zen-mode", {
-        title: "禅定模式 (仅显示文章)",
-        visible: false,
-      });
-      await chrome.contextMenus.update("myz-zen-capture", { visible: false });
-    } catch {}
-    const canResp = await chrome.tabs.sendMessage(tabId, {
-      type: "myz:canEnterZenMode",
-    });
+    // `myz:getZenModeState` is a cheap class check. Keep the zen item visible
+    // by default so the context menu never has to wait for a content-script
+    // round-trip (or a DOM scan) before it can render.
     const stateResp = await chrome.tabs.sendMessage(tabId, {
       type: "myz:getZenModeState",
     });
-    const canEnter = Boolean(canResp?.data?.canEnter);
     const enabled = Boolean(stateResp?.data?.enabled);
-    const title = enabled ? "退出禅定模式" : "禅定模式 (仅显示文章)";
     try {
       await chrome.contextMenus.update("myz-zen-mode", {
-        title,
-        visible: canEnter || enabled,
+        title: enabled ? "退出专注阅读" : "专注阅读 (仅显示文章)",
+        visible: true,
       });
       await chrome.contextMenus.update("myz-zen-capture", { visible: enabled });
     } catch {}
   } catch (e) {
+    // Content script unavailable (e.g. chrome:// pages): keep the item visible
+    // with the default title instead of hiding it.
     try {
       await chrome.contextMenus.update("myz-zen-mode", {
-        title: "禅定模式 (仅显示文章)",
-        visible: false,
+        title: "专注阅读 (仅显示文章)",
+        visible: true,
       });
       await chrome.contextMenus.update("myz-zen-capture", { visible: false });
     } catch {}

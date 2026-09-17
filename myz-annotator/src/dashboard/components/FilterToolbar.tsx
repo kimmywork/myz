@@ -23,17 +23,17 @@ export default defineComponent({
 
     return () => (
       <section
-        class="rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/70"
+        class="rounded-panel border border-line bg-surface/80 p-5  dark:border-line dark:bg-surface"
         aria-label="筛选工具"
       >
         <div class="flex flex-col gap-6">
           <div class="grid gap-4 lg:grid-cols-3">
-            <label class="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <label class="flex flex-col gap-2 text-compact text-muted">
               <span>关键词</span>
               <input
                 type="search"
                 placeholder="搜索文本、批注或标签"
-                class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100 dark:placeholder:text-slate-500"
+                class="rounded-control border border-line bg-surface px-3 py-2 text-compact text-text placeholder:text-muted focus:border-accent focus:outline-none dark:border-line dark:bg-surface-2 dark:text-text dark:placeholder:text-muted"
                 value={uiStore.filters.search}
                 onInput={(event: InputEvent) =>
                   uiStore.setFilter(
@@ -43,11 +43,11 @@ export default defineComponent({
                 }
               />
             </label>
-            <label class="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <label class="flex flex-col gap-2 text-compact text-muted">
               <span>网站</span>
               <select
                 data-testid="site-filter"
-                class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950/60 dark:text-white"
+                class="rounded-control border border-line bg-surface px-3 py-2 text-compact text-text focus:border-accent focus:outline-none dark:border-line dark:bg-surface-2 dark:text-text"
                 value={uiStore.filters.site}
                 onChange={(event: Event) =>
                   uiStore.setFilter(
@@ -64,12 +64,12 @@ export default defineComponent({
                 ))}
               </select>
             </label>
-            <label class="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <label class="flex flex-col gap-2 text-compact text-muted">
               <span>标签</span>
               <TagInput
                 modelValue={uiStore.filters.tags}
                 options={highlightsStore.availableTags}
-                placeholder="输入后按回车或逗号确认"
+                placeholder="输入后按回车确认"
                 allowNew={false}
                 onUpdate:modelValue={(value) =>
                   uiStore.setFilter("tags", value)
@@ -78,13 +78,13 @@ export default defineComponent({
             </label>
           </div>
           <div class="grid gap-4 lg:grid-cols-3">
-            <label class="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <label class="flex flex-col gap-2 text-compact text-muted">
               <span>开始日期</span>
-              <div class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950/60">
+              <div class="flex items-center gap-2 rounded-control border border-line bg-surface px-3 py-2 dark:border-line dark:bg-surface-2">
                 <input
                   ref={fromRef}
                   type="date"
-                  class="w-full appearance-none bg-transparent text-sm text-slate-800 outline-none dark:text-white"
+                  class="w-full appearance-none bg-transparent text-compact text-text outline-none dark:text-text"
                   value={uiStore.filters.from}
                   onInput={(event: InputEvent) =>
                     uiStore.setFilter(
@@ -95,7 +95,7 @@ export default defineComponent({
                 />
                 <button
                   type="button"
-                  class="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-300 dark:hover:text-indigo-300"
+                  class="rounded-full border border-line p-2 text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-muted dark:hover:text-accent-text"
                   aria-label="打开开始日期选择器"
                   onClick={() => handlePicker(fromRef)}
                 >
@@ -103,13 +103,13 @@ export default defineComponent({
                 </button>
               </div>
             </label>
-            <label class="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <label class="flex flex-col gap-2 text-compact text-muted">
               <span>结束日期</span>
-              <div class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950/60">
+              <div class="flex items-center gap-2 rounded-control border border-line bg-surface px-3 py-2 dark:border-line dark:bg-surface-2">
                 <input
                   ref={toRef}
                   type="date"
-                  class="w-full appearance-none bg-transparent text-sm text-slate-800 outline-none dark:text-white"
+                  class="w-full appearance-none bg-transparent text-compact text-text outline-none dark:text-text"
                   value={uiStore.filters.to}
                   onInput={(event: InputEvent) =>
                     uiStore.setFilter(
@@ -120,7 +120,7 @@ export default defineComponent({
                 />
                 <button
                   type="button"
-                  class="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-300 dark:hover:text-indigo-300"
+                  class="rounded-full border border-line p-2 text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-muted dark:hover:text-accent-text"
                   aria-label="打开结束日期选择器"
                   onClick={() => handlePicker(toRef)}
                 >
@@ -131,7 +131,7 @@ export default defineComponent({
             <div class="flex flex-col justify-end">
               <button
                 type="button"
-                class="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-200"
+                class="rounded-control border border-line px-4 py-2 text-compact font-semibold text-text transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
                 onClick={uiStore.resetFilters}
               >
                 重置筛选

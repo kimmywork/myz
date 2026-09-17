@@ -18,22 +18,22 @@ export function initializeZenMessageHandlers() {
     const notificationStore = useNotificationStore();
     if (!hasArticleElement()) {
       notificationStore.notify({
-        message: "未检测到 article 元素，无法进入禅定模式",
+        message: "未检测到 article 元素，无法进入专注阅读",
       });
       throw new Error("No article element found");
     }
     const state = toggleZenMode();
     if (state === "on") {
       notificationStore.notify({
-        message: "已进入禅定模式",
+        message: "已进入专注阅读",
       });
     } else if (state === "off") {
       notificationStore.notify({
-        message: "已退出禅定模式",
+        message: "已退出专注阅读",
       });
     } else {
       notificationStore.notify({
-        message: "切换禅定模式失败",
+        message: "切换专注阅读失败",
       });
     }
 

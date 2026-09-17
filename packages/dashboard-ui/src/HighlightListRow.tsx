@@ -18,34 +18,34 @@ export default defineComponent({
 
     const containerClasses = computed(() =>
       [
-        "flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-3 text-sm text-slate-800 shadow-sm dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-100",
-        isClip.value ? "border-teal-200 dark:border-cyan-500/30" : "",
+        "flex flex-col gap-3 rounded-control border border-line bg-surface/90 p-3 text-compact text-text",
+        isClip.value ? "border-clip/40" : "",
       ].join(" "),
     )
 
     return () => (
       <div class={containerClasses.value}>
-        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+        <div class="flex flex-wrap items-center gap-3 text-caption text-muted">
           <span
             class={[
-              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+              "inline-flex items-center gap-1.5 rounded-tag px-2 py-0.5 text-tag font-semibold uppercase tracking-wide",
               isClip.value
-                ? "bg-teal-500 text-white"
-                : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+                ? "bg-clip-bg text-clip"
+                : "bg-tag-bg text-tag-fg",
             ].join(" ")}
           >
             <KindIcon size={12} />
           </span>
           <span
-            class="max-w-[120px] truncate font-semibold text-slate-600 dark:text-slate-200"
+            class="max-w-[120px] truncate font-semibold text-muted dark:text-text"
             title={sourceTitle.value}
             innerHTML={props.formatInline!(sourceLabel.value)}
           ></span>
-          <span class="text-slate-400 dark:text-slate-500">
+          <span class="text-muted dark:text-muted">
             {props.formatDateTime!(props.record!.createdAt)}
           </span>
           {pageLabel.value ? (
-            <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
+            <span class="rounded-full bg-warn-bg px-1.5 py-0.5 text-tag font-semibold text-warn dark:bg-warn/20 dark:text-warn">
               {pageLabel.value}
             </span>
           ) : null}
@@ -65,17 +65,17 @@ export default defineComponent({
             {props.record!.note ? (
               <div class="grid gap-4 md:grid-cols-2">
                 <div
-                  class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm  dark:border-white/5 dark:bg-slate-900/70 prose dark:prose-invert prose-sm max-w-none"
+                  class="max-h-[20lh] overflow-y-auto rounded-control border border-line bg-bg p-3 font-read text-compact dark:border-line dark:bg-surface prose dark:prose-invert prose-sm max-w-none"
                   innerHTML={props.renderHighlight!(props.record!)}
                 ></div>
                 <div
-                  class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600  dark:border-white/5 dark:bg-slate-900/70 dark:text-slate-200 prose dark:prose-invert prose-sm max-w-none"
+                  class="max-h-[20lh] overflow-y-auto rounded-control border border-line bg-bg p-3 font-read text-compact text-muted dark:border-line dark:bg-surface prose dark:prose-invert prose-sm max-w-none"
                   innerHTML={props.formatNote!(props.record!.note)}
                 ></div>
               </div>
             ) : (
               <div
-                class="max-h-[20lh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm  dark:border-white/5 dark:bg-slate-900/70 prose dark:prose-invert prose-sm max-w-none"
+                class="max-h-[20lh] overflow-y-auto rounded-control border border-line bg-bg p-3 font-read text-compact dark:border-line dark:bg-surface prose dark:prose-invert prose-sm max-w-none"
                 innerHTML={props.renderHighlight!(props.record!)}
               ></div>
             )}

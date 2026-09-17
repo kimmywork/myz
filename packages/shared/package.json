@@ -17,6 +17,9 @@
     "./serializer": "./src/serializer.ts",
     "./url": "./src/url.ts",
     "./theme": "./src/theme.ts",
+    "./theme/tokens.css": "./src/theme/tokens.css",
+    "./theme/tailwind.css": "./src/theme/tailwind.css",
+    "./colorScheme": "./src/colorScheme.ts",
     "./recordRegistry": "./src/recordRegistry.ts",
     "./messageRegistry": "./src/messageRegistry.ts",
     "./components/ThemeToggle": "./src/components/ThemeToggle.tsx"

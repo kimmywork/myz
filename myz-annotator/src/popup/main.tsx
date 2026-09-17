@@ -1,4 +1,5 @@
 import { createApp } from "vue";
+import "@myz/shared/colorScheme";
 import App from "./App.jsx";
 import "./styles.css";
 

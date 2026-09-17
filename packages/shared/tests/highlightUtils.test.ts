@@ -37,7 +37,7 @@ describe("highlightUtils", () => {
     it("should return correct description", () => {
       expect(describeHighlightStyle(HIGHLIGHT_STYLES.UNDERLINE)).toBe("下划线");
       expect(describeHighlightStyle(HIGHLIGHT_STYLES.WAVY)).toBe("波浪线");
-      expect(describeHighlightStyle(HIGHLIGHT_STYLES.PAINT)).toBe("高亮");
+      expect(describeHighlightStyle(HIGHLIGHT_STYLES.PAINT)).toBe("涂色");
     });
   });
 

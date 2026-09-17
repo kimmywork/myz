@@ -196,6 +196,26 @@ export function initializeHighlightMessageHandlers() {
   );
 
   registerMessageHandler(
+    "myz:updateHighlightRange",
+    async (payload: { id?: string; range?: MyZRecord["range"] }) => {
+      if (!payload?.id || !payload.range) {
+        throw new Error("Missing highlight id or range");
+      }
+      const existing = await getHighlight(payload.id);
+      if (!existing) {
+        throw new Error("Highlight not found");
+      }
+      const updated = ensureRecordSchemaVersion({
+        ...existing,
+        range: payload.range,
+        updatedAt: new Date().toISOString(),
+      }) as MyZRecord;
+      await saveHighlight(updated);
+      return updated;
+    },
+  );
+
+  registerMessageHandler(
     "myz:removeHighlight",
     async (payload: { id?: string }) => {
       if (!payload?.id) {
@@ -432,7 +452,7 @@ export function initializeHighlightMessageHandlers() {
       });
 
       if (!additions.size && !replacements.size && skipped === 0) {
-        throw new Error("没有符合要求的标注");
+        throw new Error("没有符合要求的记录");
       }
 
       const savePromises: Promise<void>[] = [];

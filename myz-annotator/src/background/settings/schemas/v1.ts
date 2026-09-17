@@ -1,4 +1,4 @@
-import { HIGHLIGHT_STYLES } from "@myz/shared/types";
+import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { SETTINGS_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { z } from "zod";
 
@@ -21,6 +21,7 @@ const SyncSettingsSchema = z.object({
 
 export const SettingsSchemaV1 = z.object({
   dashboardView: z.enum(["cards", "list"]),
+  colorScheme: z.nativeEnum(COLOR_SCHEMES),
   colorPalette: z.array(z.string()),
   lastUsedStyle: z.nativeEnum(HIGHLIGHT_STYLES),
   lastUsedColor: z.string(),

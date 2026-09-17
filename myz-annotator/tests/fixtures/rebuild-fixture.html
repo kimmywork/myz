@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Rebuild fixture</title>
+  </head>
+  <body>
+    <article id="art">
+      <h1>Rebuild fixture</h1>
+      <p id="para-1">
+        The quick brown fox jumps over the lazy dog, and the sentence stays
+        stable so a highlight can be relocated by its text after the page
+        structure changes underneath it.
+      </p>
+      <p id="para-2">
+        A second paragraph gives the text search more than one candidate so the
+        uniqueness check is meaningful.
+      </p>
+    </article>
+    <script>
+      // When loaded with #mutate, insert a same-name sibling before the article
+      // so the stored element path (article index 0) no longer resolves.
+      if (location.hash === "#mutate") {
+        const extra = document.createElement("article");
+        extra.id = "extra";
+        extra.textContent = "Injected article that shifts sibling indices.";
+        document.body.insertBefore(extra, document.getElementById("art"));
+      }
+    </script>
+  </body>
+</html>
