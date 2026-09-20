@@ -1,5 +1,5 @@
-import { RECORD_KINDS } from "@myz/shared/types";
 import { Highlighter, Paperclip, X } from "@lucide/vue";
+import { RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
 import { defineComponent } from "vue";
 import { useReaderStore } from "../stores/reader-store.js";

@@ -39,7 +39,7 @@ export default defineComponent({
   setup(props) {
     const sidebarClasses = computed(() => {
       const classes = [
-        "w-full max-w-xs rounded-panel border border-line bg-surface/90 p-4 shadow-float dark:border-line dark:bg-surface",
+        "w-full max-w-[264px] rounded-panel border border-line bg-surface p-4 dark:border-line dark:bg-surface",
       ]
       if (props.fixedHeight) {
         classes.push("flex h-[calc(100vh-160px)] min-h-0 flex-col overflow-hidden")
@@ -64,7 +64,7 @@ export default defineComponent({
           </div>
           <button
             type="button"
-            class="rounded-full border border-line px-3 py-1 text-caption text-muted hover:text-text dark:border-line dark:text-muted dark:hover:text-text"
+            class="inline-flex h-8 items-center rounded-control border border-line px-3 text-caption text-muted transition hover:border-accent hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg dark:border-line dark:text-muted dark:hover:text-accent-text"
             onClick={() => props.onToggle?.()}
           >
             收起
@@ -78,7 +78,7 @@ export default defineComponent({
               "w-full rounded-control border px-3 py-2 text-left text-compact transition",
               props.activePageUrl
                 ? "border-line text-muted hover:border-accent hover:text-accent-text dark:border-line dark:text-muted dark:hover:text-accent-text"
-                : "border-accent bg-accent/10 text-accent-text dark:border-accent/40 dark:bg-accent/10 dark:text-accent-text",
+                : "border-line bg-surface-2 text-accent-text dark:border-line dark:bg-surface-2 dark:text-accent-text",
             ].join(" ")}
             onClick={() => props.onClear?.()}
           >
@@ -97,7 +97,7 @@ export default defineComponent({
                     class={[
                       "w-full rounded-control border px-3 py-3 text-left transition",
                       isActive
-                        ? "border-accent bg-accent/10 text-accent-text dark:border-accent/40 dark:bg-accent/10 dark:text-accent-text"
+                        ? "border-line bg-surface-2 text-accent-text dark:border-line dark:bg-surface-2 dark:text-accent-text"
                         : "border-line text-muted hover:border-accent hover:text-accent-text dark:border-line dark:text-muted dark:hover:text-accent-text",
                     ].join(" ")}
                     onClick={() => props.onSelect?.(group.url)}

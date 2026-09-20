@@ -1,3 +1,4 @@
+import { StatePanel, TagInput } from "@myz/dashboard-ui";
 import {
   computed,
   defineComponent,
@@ -15,6 +16,7 @@ import {
   groupRecordsByPage,
   sortRecordsForPage,
 } from "@/dashboard/utils/records.js";
+import { openEpubRecordInReader } from "@/epub/open.js";
 import { openPdfRecordInReader } from "@/pdf/open.js";
 
 export default defineComponent({
@@ -31,6 +33,64 @@ export default defineComponent({
     const record = computed(() =>
       highlightsStore.highlights.find((item) => item.id === recordId.value),
     );
+
+    const editing = ref(false);
+    const noteDraft = ref("");
+    const tagsDraft = ref<string[]>([]);
+    const saving = ref(false);
+    const availableTags = computed(() => highlightsStore.availableTags);
+
+    function startEditing() {
+      const current = record.value;
+      if (!current) {
+        return;
+      }
+      noteDraft.value = current.note || "";
+      tagsDraft.value = Array.isArray(current.tags) ? [...current.tags] : [];
+      editing.value = true;
+    }
+
+    function stopEditing() {
+      editing.value = false;
+      if (route.query.edit) {
+        router.replace(`/highlights/${recordId.value}`);
+      }
+    }
+
+    async function saveEditing() {
+      const current = record.value;
+      if (!current || saving.value) {
+        return;
+      }
+      saving.value = true;
+      try {
+        await uiStore.updateRecord(current.id, {
+          note: noteDraft.value.trim(),
+          tags: [...tagsDraft.value],
+        });
+        stopEditing();
+      } finally {
+        saving.value = false;
+      }
+    }
+
+    watch(
+      () => route.query.edit,
+      () => {
+        if (route.query.edit === "1") {
+          startEditing();
+        } else {
+          editing.value = false;
+        }
+      },
+      { immediate: true },
+    );
+
+    watch(record, (current) => {
+      if (current && route.query.edit === "1") {
+        startEditing();
+      }
+    });
 
     const pageGroups = computed(() =>
       groupRecordsByPage(highlightsStore.highlights),
@@ -217,36 +277,26 @@ export default defineComponent({
 
     return () => {
       if (highlightsStore.loadingHighlights) {
-        return (
-          <section class="rounded-panel border border-line bg-surface/90 p-6 text-text shadow-float dark:border-line dark:bg-surface dark:text-text">
-            正在加载…
-          </section>
-        );
+        return <StatePanel kind="loading" title="正在加载…" />;
       }
 
       if (!record.value) {
         return (
-          <section class="rounded-panel border border-line bg-surface/90 p-6 text-text shadow-float dark:border-line dark:bg-surface dark:text-text">
-            <h2 class="text-heading font-semibold">未找到这条记录</h2>
-            <p class="mt-2 text-compact text-muted">
-              这条记录可能已被删除或尚未同步。
-            </p>
-            <button
-              type="button"
-              class="mt-4 rounded-full border border-line px-4 py-2 text-compact font-semibold text-muted hover:text-text dark:border-line dark:text-muted"
-              onClick={() => router.push("/highlights")}
-            >
-              返回列表
-            </button>
-          </section>
+          <StatePanel
+            kind="error"
+            title="未找到这条记录"
+            hint="这条记录可能已被删除或尚未同步"
+            actionLabel="返回列表"
+            onAction={() => router.push("/highlights")}
+          />
         );
       }
 
       const pageUrl = record.value.sourceUrl || record.value.url || "";
 
       return (
-        <section class="rounded-panel border border-line bg-surface/90 p-6 text-text shadow-float dark:border-line dark:bg-surface dark:text-text">
-          <header class="flex flex-col gap-4 border-b border-line pb-4 dark:border-line lg:flex-row lg:items-center lg:justify-between">
+        <section class="rounded-panel border border-line bg-surface p-6 text-text dark:border-line dark:bg-surface dark:text-text">
+          <header class="flex flex-col gap-4 border-b border-line pb-4 dark:border-line min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between">
             <div class="space-y-2">
               <button
                 type="button"
@@ -278,6 +328,13 @@ export default defineComponent({
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onClick={() => (editing.value ? stopEditing() : startEditing())}
+              >
+                {editing.value ? "取消编辑" : "编辑"}
+              </button>
               <div
                 class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"
                 role="group"
@@ -311,7 +368,7 @@ export default defineComponent({
               <div class="inline-flex items-center gap-2">
                 <button
                   type="button"
-                  class="rounded-full border border-line px-3 py-1.5 text-caption text-muted hover:text-text disabled:opacity-40 dark:border-line dark:text-muted"
+                  class="rounded-full border border-line px-3 py-1.5 text-caption text-muted hover:text-text disabled:opacity-45 dark:border-line dark:text-muted"
                   disabled={!previousPage.value}
                   onClick={goToPreviousPage}
                 >
@@ -319,7 +376,7 @@ export default defineComponent({
                 </button>
                 <button
                   type="button"
-                  class="rounded-full border border-line px-3 py-1.5 text-caption text-muted hover:text-text disabled:opacity-40 dark:border-line dark:text-muted"
+                  class="rounded-full border border-line px-3 py-1.5 text-caption text-muted hover:text-text disabled:opacity-45 dark:border-line dark:text-muted"
                   disabled={!nextPage.value}
                   onClick={goToNextPage}
                 >
@@ -328,6 +385,52 @@ export default defineComponent({
               </div>
             </div>
           </header>
+
+          {editing.value ? (
+            <div class="mt-4 rounded-control border border-line bg-bg p-4 dark:border-line dark:bg-surface">
+              <label class="field">
+                <span>批注</span>
+                <textarea
+                  value={noteDraft.value}
+                  rows="4"
+                  onInput={(event: Event) => {
+                    noteDraft.value = (
+                      event.target as HTMLTextAreaElement
+                    ).value;
+                  }}
+                />
+              </label>
+              <div class="mt-3">
+                <TagInput
+                  modelValue={tagsDraft.value}
+                  options={availableTags.value}
+                  placeholder="添加标签"
+                  allowNew={true}
+                  onUpdate:modelValue={(value: string[]) => {
+                    tagsDraft.value = Array.isArray(value) ? value : [];
+                  }}
+                />
+              </div>
+              <div class="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={saving.value}
+                  onClick={() => stopEditing()}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  disabled={saving.value}
+                  onClick={() => void saveEditing()}
+                >
+                  {saving.value ? "保存中…" : "保存"}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div
             ref={scrollRef}
@@ -345,11 +448,9 @@ export default defineComponent({
                   class={[
                     "cursor-pointer rounded-control border p-4 transition",
                     isActive
-                      ? "border-accent bg-accent/10 "
+                      ? "border-line bg-surface-2 text-accent-text "
                       : "border-line bg-surface hover:border-accent dark:border-line dark:bg-surface-2",
-                    index % 2 === 0
-                      ? "dark:bg-bg"
-                      : "dark:bg-bg",
+                    index % 2 === 0 ? "dark:bg-bg" : "dark:bg-bg",
                   ].join(" ")}
                   onClick={() => navigateToRecord(item.id)}
                 >
@@ -374,14 +475,22 @@ export default defineComponent({
                         <span class="rounded-full bg-warn-bg px-2 py-0.5 text-tag font-semibold text-warn dark:bg-warn/20 dark:text-warn">
                           第 {item.pdfLocator.pageNumber} 页
                         </span>
+                      ) : item.epubLocator ? (
+                        <span class="rounded-full bg-warn-bg px-2 py-0.5 text-tag font-semibold text-warn dark:bg-warn/20 dark:text-warn">
+                          第 {item.epubLocator.spineIndex + 1} 章
+                        </span>
                       ) : null}
-                      {item.pdfLocator ? (
+                      {item.pdfLocator || item.epubLocator ? (
                         <button
                           type="button"
                           class="rounded-full border border-warn px-2 py-0.5 text-tag font-semibold text-warn hover:bg-warn-bg dark:border-warn/30 dark:text-warn dark:hover:bg-warn/10"
                           onClick={(event: Event) => {
                             event.stopPropagation();
-                            void openPdfRecordInReader(item);
+                            if (item.epubLocator) {
+                              void openEpubRecordInReader(item);
+                            } else {
+                              void openPdfRecordInReader(item);
+                            }
                           }}
                         >
                           在阅读器中打开
@@ -395,17 +504,13 @@ export default defineComponent({
                     {hasContent ? (
                       <div innerHTML={uiStore.renderHighlight(item)}></div>
                     ) : (
-                      <p class="text-caption text-muted">
-                        无可展示内容
-                      </p>
+                      <p class="text-caption text-muted">这里还没有内容</p>
                     )}
                   </div>
 
                   {hasNote ? (
                     <div class="mt-4 rounded-control border border-line bg-bg px-3 py-2 text-caption text-muted dark:border-line dark:bg-surface dark:text-muted">
-                      <div class="font-semibold text-muted">
-                        批注
-                      </div>
+                      <div class="font-semibold text-muted">批注</div>
                       <div
                         class="read-body mt-1 text-text"
                         innerHTML={uiStore.formatNote(item.note || "")}

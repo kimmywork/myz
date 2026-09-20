@@ -1,3 +1,4 @@
+import { detectCjkRegion, type CjkRegion } from "@myz/shared/cjk";
 import { findPrimaryContentElement } from "./content-extraction.js";
 import { waitForNextPaint } from "./html.js";
 import {
@@ -5,6 +6,7 @@ import {
   cropToCanvas,
   downloadImage,
 } from "./image.js";
+import { getThemeRoot } from "./theme-root.js";
 
 declare global {
   interface Window {
@@ -31,13 +33,14 @@ export function enableZenMode(): boolean {
   const article = findPrimaryContentElement() as HTMLElement;
   if (!article) return false;
   const styleId = "myz-zen-style";
-  let style = document.getElementById(styleId);
+  let style = document.getElementById(styleId) as HTMLStyleElement | null;
   if (!style) {
     style = document.createElement("style");
     style.id = styleId;
-    style.textContent = buildZenCss();
     document.head.appendChild(style);
   }
+  // Rebuild on every entry so a theme/scheme change is picked up.
+  style.textContent = buildZenCss();
   // Mark the target; do NOT move DOM nodes to preserve highlight ranges
   article.classList.add("myz-zen-target-keep");
   // Mark ancestors so CSS can keep them visible without :has()
@@ -210,16 +213,48 @@ export async function captureZenTargetFull() {
   }
 }
 
+const CJK_SERIF_FAMILY: Record<CjkRegion, string> = {
+  sc: "Noto Serif SC",
+  tc: "Noto Serif TC",
+  hk: "Noto Serif HK",
+  jp: "Noto Serif JP",
+  kr: "Noto Serif KR",
+};
+
+function readToken(name: string, fallback: string): string {
+  const root = getThemeRoot();
+  if (!root || typeof getComputedStyle !== "function") {
+    return fallback;
+  }
+  const value = getComputedStyle(root).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+/**
+ * §4.16 纸色跟随配色方案与深浅色。The host page cannot receive `:root`
+ * variables without polluting it, so the resolved values are inlined. They are
+ * read from the shadow mount point, which already carries the active theme.
+ */
+function readZenPalette() {
+  return {
+    bg: readToken("--myz-bg", "#f5f4ed"),
+    text: readToken("--myz-text", "#141413"),
+    accent: readToken("--myz-accent-text", "#1b365d"),
+    surface2: readToken("--myz-surface-2", "#eceae0"),
+  };
+}
+
 function buildZenCss(): string {
   // Pure CSS approach: hide everything except the marked target, its descendants,
   // and explicitly marked ancestors. Avoid :has() for broader compatibility.
   //
-  // §4.16 专注阅读: read serif + read tiers. These values mirror the shared
-  // read tokens; the host page cannot receive `:root` variables without
-  // polluting it, so they are inlined here (see gap.md).
+  // §4.16 专注阅读: read serif + read tiers. The host page cannot receive
+  // `:root` variables without polluting it, so the resolved scheme values are
+  // inlined here.
+  const palette = readZenPalette();
   return `
 html.myz-zen-enabled, html.myz-zen-enabled body {
-  background: #f5f4ed !important;
+  background: ${palette.bg} !important;
 }
 /* Hide all elements except target, its descendants, and marked ancestors */
 html.myz-zen-enabled body *:not(.myz-zen-target-keep):not(.myz-zen-target-keep *):not(.myz-zen-ancestor-keep) {
@@ -239,8 +274,8 @@ html.myz-zen-enabled .myz-zen-ancestor-keep {
 
 html.myz-zen-enabled .myz-zen-target-keep {
   display: block !important;
-  font-family: Newsreader, "Noto Serif SC", "Noto Serif TC", serif !important;
-  color: #141413 !important;
+  font-family: Newsreader, "${CJK_SERIF_FAMILY[detectCjkRegion()]}", serif !important;
+  color: ${palette.text} !important;
   line-height: 1.8 !important;
   font-size: 18px !important;
   letter-spacing: 0.01em !important;
@@ -253,13 +288,13 @@ html.myz-zen-enabled .myz-zen-target-keep img, html.myz-zen-enabled .myz-zen-tar
   height: auto !important;
 }
 html.myz-zen-enabled .myz-zen-target-keep a {
-  color: #1b365d !important;
+  color: ${palette.accent} !important;
   text-decoration: underline !important;
-  text-decoration-color: color-mix(in srgb, #1b365d 40%, transparent) !important;
+  text-decoration-color: color-mix(in srgb, ${palette.accent} 40%, transparent) !important;
 }
 html.myz-zen-enabled .myz-zen-target-keep code {
   font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace !important;
-  background: #eceae0 !important;
+  background: ${palette.surface2} !important;
   border-radius: 6px !important;
   padding: 0.15em 0.4em !important;
   font-size: 0.9em !important;
@@ -268,7 +303,7 @@ html.myz-zen-enabled .myz-zen-target-keep code {
 html.myz-zen-enabled .myz-zen-target-keep pre {
   display: block !important;
   width: auto !important;
-  background: #eceae0 !important;
+  background: ${palette.surface2} !important;
   border-radius: 8px !important;
   padding: 12px 14px !important;
   overflow-x: auto !important;

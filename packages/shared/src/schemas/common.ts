@@ -42,6 +42,19 @@ export const PdfLocatorSchema = z.object({
   rects: z.array(PdfRectSchema).optional(),
 })
 
+/**
+ * Locates a spot inside an EPUB. Reflow has no page numbers, so the anchor is
+ * the spine document plus a text quote; `progression` (0–1) is a coarse
+ * fallback for when the quote cannot be found.
+ */
+export const EpubLocatorSchema = z.object({
+  spineIndex: z.coerce.number().int().min(0),
+  progression: z.coerce.number().min(0).max(1).optional(),
+  textQuote: z.string().optional(),
+  textPrefix: z.string().optional(),
+  textSuffix: z.string().optional(),
+})
+
 export const HighlightStyleSchema = z.preprocess((val) => {
   if (!val) return DEFAULT_HIGHLIGHT_STYLE
   const s = String(val).toLowerCase()
@@ -53,4 +66,5 @@ export const HighlightStyleSchema = z.preprocess((val) => {
 
 export type PdfRect = z.infer<typeof PdfRectSchema>
 export type PdfLocator = z.infer<typeof PdfLocatorSchema>
+export type EpubLocator = z.infer<typeof EpubLocatorSchema>
 

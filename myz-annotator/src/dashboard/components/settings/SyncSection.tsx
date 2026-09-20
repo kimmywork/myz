@@ -1,3 +1,4 @@
+import { SettingsRow } from "@myz/dashboard-ui";
 import { sendMessage } from "@myz/shared/messaging";
 import { defineComponent, onMounted, ref, watchEffect } from "vue";
 import { useSettingsStore } from "../../stores/settings.js";
@@ -175,8 +176,12 @@ export default defineComponent({
             仅密文存储到 S3。请先保存 S3 配置，再设置同步密钥。
           </p>
 
-          <div class="flex items-center justify-between rounded-control border border-line bg-surface/90 p-3 text-compact text-muted dark:border-line dark:bg-surface-2 dark:text-muted">
-            <span>启用同步</span>
+          <SettingsRow
+            label="启用同步"
+            hint="开启后按下面的配置加密上传"
+            controlWidth="auto"
+            class="rounded-control border border-line bg-surface p-3 dark:border-line dark:bg-surface-2"
+          >
             <ToggleSwitch
               checked={enabled.value}
               ariaLabel="启用同步"
@@ -184,11 +189,10 @@ export default defineComponent({
                 (enabled.value = (event.target as HTMLInputElement).checked)
               }
             />
-          </div>
+          </SettingsRow>
 
-          <div class="grid gap-3 rounded-control border border-line bg-surface/90 p-4 dark:border-line dark:bg-surface-2">
-            <label class="field">
-              <span>S3 Endpoint</span>
+          <div class="grid gap-4 rounded-control border border-line bg-surface p-4 dark:border-line dark:bg-surface-2">
+            <SettingsRow label="S3 Endpoint">
               <input
                 type="url"
                 placeholder="https://s3.example.com"
@@ -197,9 +201,8 @@ export default defineComponent({
                   (endpoint.value = (event.target as HTMLInputElement).value)
                 }
               />
-            </label>
-            <label class="field">
-              <span>Region</span>
+            </SettingsRow>
+            <SettingsRow label="Region">
               <input
                 type="text"
                 placeholder="us-east-1"
@@ -208,9 +211,8 @@ export default defineComponent({
                   (region.value = (event.target as HTMLInputElement).value)
                 }
               />
-            </label>
-            <label class="field">
-              <span>Bucket</span>
+            </SettingsRow>
+            <SettingsRow label="Bucket">
               <input
                 type="text"
                 placeholder="myz-sync"
@@ -219,9 +221,8 @@ export default defineComponent({
                   (bucket.value = (event.target as HTMLInputElement).value)
                 }
               />
-            </label>
-            <label class="field">
-              <span>Access Key ID</span>
+            </SettingsRow>
+            <SettingsRow label="Access Key ID">
               <input
                 type="text"
                 value={accessKeyId.value}
@@ -229,9 +230,8 @@ export default defineComponent({
                   (accessKeyId.value = (event.target as HTMLInputElement).value)
                 }
               />
-            </label>
-            <label class="field">
-              <span>Secret Access Key</span>
+            </SettingsRow>
+            <SettingsRow label="Secret Access Key">
               <input
                 type="password"
                 value={secretAccessKey.value}
@@ -241,9 +241,8 @@ export default defineComponent({
                   ).value)
                 }
               />
-            </label>
-            <label class="field">
-              <span>Session Token (可选)</span>
+            </SettingsRow>
+            <SettingsRow label="Session Token" hint="可选">
               <input
                 type="text"
                 value={sessionToken.value}
@@ -253,9 +252,8 @@ export default defineComponent({
                   ).value)
                 }
               />
-            </label>
-            <label class="field">
-              <span>Prefix (可选)</span>
+            </SettingsRow>
+            <SettingsRow label="Prefix" hint="可选">
               <input
                 type="text"
                 placeholder="myz-sync"
@@ -264,12 +262,11 @@ export default defineComponent({
                   (prefix.value = (event.target as HTMLInputElement).value)
                 }
               />
-            </label>
+            </SettingsRow>
           </div>
 
-          <div class="grid gap-3 rounded-control border border-line bg-surface/90 p-4 dark:border-line dark:bg-surface-2">
-            <label class="field">
-              <span>同步密钥</span>
+          <div class="grid gap-4 rounded-control border border-line bg-surface p-4 dark:border-line dark:bg-surface-2">
+            <SettingsRow label="同步密钥">
               <input
                 type="password"
                 placeholder="仅保留在本地"
@@ -278,19 +275,27 @@ export default defineComponent({
                   (syncSecret.value = (event.target as HTMLInputElement).value)
                 }
               />
-            </label>
-            <div class="text-caption text-muted">
-              当前 KeyId：{keyId.value || "未设置"}
-            </div>
-            <div class="text-caption text-muted">
-              上次同步：{lastSyncAt.value || "未同步"}
-            </div>
-            <div class="text-caption text-muted">
-              Manifest 版本：{lastManifestVersion.value || 0}
-            </div>
-            <div class="text-caption text-muted">
-              密钥更新时间：{keyUpdatedAt.value || "-"}
-            </div>
+            </SettingsRow>
+            <SettingsRow label="当前 KeyId" controlWidth="auto">
+              <span class="text-caption text-muted">
+                {keyId.value || "未设置"}
+              </span>
+            </SettingsRow>
+            <SettingsRow label="上次同步" controlWidth="auto">
+              <span class="text-caption text-muted">
+                {lastSyncAt.value || "未同步"}
+              </span>
+            </SettingsRow>
+            <SettingsRow label="同步版本" controlWidth="auto">
+              <span class="text-caption text-muted">
+                {lastManifestVersion.value || 0}
+              </span>
+            </SettingsRow>
+            <SettingsRow label="密钥更新时间" controlWidth="auto">
+              <span class="text-caption text-muted">
+                {keyUpdatedAt.value || "-"}
+              </span>
+            </SettingsRow>
           </div>
 
           <div class="settings__actions">

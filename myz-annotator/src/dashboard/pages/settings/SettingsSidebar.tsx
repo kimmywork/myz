@@ -27,11 +27,11 @@ export default defineComponent({
     const isActive = (path: string, to: string) => path === to;
 
     return () => (
-      <aside class="rounded-panel border border-line bg-surface/80 p-4  dark:border-line dark:bg-surface">
+      <aside class="rounded-panel border border-line bg-surface p-4 dark:border-line dark:bg-surface">
         <div class="space-y-4">
           {groups.map((group) => (
             <div key={group.title} class="space-y-2">
-              <div class="text-caption font-semibold uppercase tracking-wide text-muted">
+              <div class="text-tag font-semibold uppercase tracking-wide text-muted">
                 {group.title}
               </div>
               <div class="space-y-1">
@@ -44,7 +44,7 @@ export default defineComponent({
                       class={[
                         "flex items-center justify-between rounded-control px-3 py-2 text-compact font-medium transition",
                         active
-                          ? "bg-accent text-on-accent "
+                          ? "bg-surface-2 text-accent-text "
                           : "text-muted hover:bg-surface-2 dark:text-muted dark:hover:bg-surface-2",
                       ].join(" ")}
                       aria-current={active ? "page" : undefined}

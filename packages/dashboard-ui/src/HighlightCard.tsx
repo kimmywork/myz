@@ -21,7 +21,7 @@ export default defineComponent({
 
     const cardClasses = computed(() => {
       const classes = [
-        "flex h-full flex-col rounded-panel border border-line bg-surface/95 p-4 text-compact text-text shadow-float transition dark:border-line dark:bg-surface-2 dark:text-text",
+        "flex h-full flex-col rounded-panel border border-line bg-surface p-4 text-compact text-text transition dark:border-line dark:bg-surface",
       ]
       if (isClip.value) {
         classes.push("border-clip/40")
@@ -102,7 +102,7 @@ export default defineComponent({
             showAllTags.value = !showAllTags.value
           }}
           formatInline={props.formatInline!}
-          emptyLabel="无标签"
+          emptyLabel="还没有标签"
         />
 
         <div class="mt-4">

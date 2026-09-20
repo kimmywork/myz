@@ -1,3 +1,4 @@
+import { ChevronDown } from "@lucide/vue"
 import { computed, defineComponent, onBeforeUnmount, onMounted, ref } from "vue"
 import type { PropType } from "vue"
 
@@ -37,7 +38,7 @@ export default defineComponent({
 
     const panelClasses = computed(() => {
       const classes = [
-        "rounded-panel border border-line bg-surface/90 p-5 shadow-float transition dark:border-line dark:bg-surface",
+        "rounded-panel border border-line bg-surface p-5 transition dark:border-line dark:bg-surface",
       ]
       if (props.stickyLayout) {
         classes.push("flex h-[calc(100vh-160px)] min-h-0 flex-col overflow-hidden")
@@ -76,7 +77,7 @@ export default defineComponent({
 
     return () => (
       <section class={panelClasses.value} aria-labelledby="highlights-title">
-        <header class="flex flex-col gap-4 border-b border-line pb-4 lg:flex-row lg:items-center lg:justify-between dark:border-line">
+        <header class="flex flex-col gap-4 border-b border-line pb-4 min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between dark:border-line">
           <div class="min-w-0 space-y-1">
             <h2 class="text-heading font-semibold text-text" id="highlights-title">
               全部记录
@@ -111,7 +112,7 @@ export default defineComponent({
               <button
                 type="button"
                 class={[
-                  "rounded-full px-4 py-1.5 transition",
+                  "h-8 rounded-full px-4 transition",
                   props.view === "cards"
                     ? "bg-accent text-on-accent "
                     : "text-muted dark:text-muted",
@@ -123,7 +124,7 @@ export default defineComponent({
               <button
                 type="button"
                 class={[
-                  "rounded-full px-4 py-1.5 transition",
+                  "h-8 rounded-full px-4 transition",
                   props.view === "list"
                     ? "bg-accent text-on-accent "
                     : "text-muted dark:text-muted",
@@ -143,7 +144,7 @@ export default defineComponent({
                 <button
                   type="button"
                   class={[
-                    "rounded-full px-4 py-1.5 transition",
+                    "h-8 rounded-full px-4 transition",
                     props.pageSortMode === "time"
                       ? "bg-accent text-on-accent "
                       : "text-muted dark:text-muted",
@@ -155,7 +156,7 @@ export default defineComponent({
                 <button
                   type="button"
                   class={[
-                    "rounded-full px-4 py-1.5 transition",
+                    "h-8 rounded-full px-4 transition",
                     props.pageSortMode === "range"
                       ? "bg-accent text-on-accent "
                       : "text-muted dark:text-muted",
@@ -169,7 +170,7 @@ export default defineComponent({
 
             <button
               type="button"
-              class="inline-flex items-center rounded-full border border-line px-4 py-1.5 text-compact font-semibold text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
+              class="inline-flex h-8 items-center rounded-control border border-line px-3 text-compact font-semibold text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
               onClick={() => props.onTogglePageSidebar?.()}
             >
               {props.pageSidebarOpen ? "收起页面" : "页面筛选"}
@@ -177,7 +178,7 @@ export default defineComponent({
             <div class="relative" ref={exportMenuRef}>
               <button
                 type="button"
-                class="inline-flex items-center rounded-full border border-line px-4 py-1.5 text-compact font-semibold text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
+                class="inline-flex h-8 items-center gap-1 rounded-control border border-line px-3 text-compact font-semibold text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
                 aria-haspopup="menu"
                 aria-expanded={exportMenuOpen.value ? "true" : "false"}
                 onClick={(event) => {
@@ -186,20 +187,20 @@ export default defineComponent({
                 }}
               >
                 导出
-                <span class="ml-1 text-caption text-muted">▼</span>
+                <ChevronDown size={14} aria-hidden="true" />
               </button>
               {exportMenuOpen.value ? (
-                <div class="absolute right-0 z-20 mt-2 w-44 rounded-control border border-line bg-surface py-1 text-compact shadow-float dark:border-line dark:bg-surface">
+                <div class="absolute right-0 z-20 mt-2 w-44 rounded-panel border border-control-border bg-surface p-1 text-compact shadow-float dark:border-control-border dark:bg-surface">
                   <button
                     type="button"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-text transition hover:bg-accent/10 dark:text-text dark:hover:bg-accent/10"
+                    class="flex h-8 w-full items-center justify-between rounded-tag px-2.5 text-left text-label text-text transition hover:bg-surface-2 dark:text-text dark:hover:bg-surface-2"
                     onClick={() => handleExport("json")}
                   >
                     导出 JSON
                   </button>
                   <button
                     type="button"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-text transition hover:bg-accent/10 dark:text-text dark:hover:bg-accent/10"
+                    class="flex h-8 w-full items-center justify-between rounded-tag px-2.5 text-left text-label text-text transition hover:bg-surface-2 dark:text-text dark:hover:bg-surface-2"
                     onClick={() => handleExport("markdown")}
                   >
                     导出 Markdown

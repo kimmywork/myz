@@ -92,28 +92,38 @@ async function selectAndAnnotate(
     ? page.locator(locator, { hasText: text }).first()
     : page.locator(locator).first();
   await el.waitFor({ timeout: 5000 });
-  await el.scrollIntoViewIfNeeded({ timeout: 5000 });
-  const box = await el.boundingBox();
-  if (!box) throw new Error(`Could not determine box for ${locator}`);
-  // Drag across the element
-  await page.mouse.move(box.x + 6, box.y + 6);
-  await page.mouse.down();
-  await page.mouse.move(
-    box.x + Math.max(10, box.width - 6),
-    box.y + Math.max(10, box.height - 6),
-  );
-  await page.mouse.up();
-  await page.waitForTimeout(300); // wait a bit for selection to register
+
+  // Select and wait for the toolbar; a stray click can occasionally clear the
+  // selection, so retry a few times instead of flaking.
+  let toolbarReady = false;
+  for (let attempt = 0; attempt < 3 && !toolbarReady; attempt += 1) {
+    await el.scrollIntoViewIfNeeded({ timeout: 5000 });
+    const box = await el.boundingBox();
+    if (!box) throw new Error(`Could not determine box for ${locator}`);
+    await page.mouse.move(box.x + 6, box.y + 6);
+    await page.mouse.down();
+    await page.mouse.move(
+      box.x + Math.max(10, box.width - 6),
+      box.y + Math.max(10, box.height - 6),
+    );
+    await page.mouse.up();
+    toolbarReady = await page
+      .waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
+        timeout: 3000,
+      })
+      .then(() => true)
+      .catch(() => false);
+  }
+  if (!toolbarReady) {
+    throw new Error(`highlight toolbar did not appear for ${locator}`);
+  }
+
   // capture selected text so caller can assert highlight content
   const selected = await page.evaluate(() => {
     const s = window.getSelection();
     return s ? s.toString().trim() : "";
   });
 
-  // Wait for toolbar
-  await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
-    timeout: 5000,
-  });
   await page.click('.myz-annotator-toolbar button[aria-label="划线"]');
 
   // Wait for modal, optionally fill note, then save
@@ -220,8 +230,8 @@ test("highlight_and_comment_on_complex_fixture", async () => {
     timeout: 5000,
   });
   const noteText = await page.$eval(
-    ".myz-inspector__note",
-    (el) => el.textContent || "",
+    ".myz-inspector__note-input",
+    (el) => (el as HTMLTextAreaElement).value || "",
   );
   expect(noteText).toContain("edited by test");
 });

@@ -188,7 +188,7 @@ test("pdf_sidebar_highlights_navigate_to_precise_position", async () => {
   await page.evaluate(() =>
     (window as any).__MYZ_PDF__.createAnnotation("clip"),
   );
-  await page.locator(".reader-hl__filter", { hasText: "文字" }).click();
+  await page.locator(".reader-hl__filter", { hasText: "摘录" }).click();
   const sidebar = await page.evaluate(() =>
     (window as any).__MYZ_PDF__.getSidebarState(),
   );
@@ -241,7 +241,7 @@ test("pdf_sidebar_highlights_search_filters", async () => {
 
   await search.fill("不存在的关键词");
   await expect(page.locator(".reader-hl__item")).toHaveCount(0);
-  await expect(page.locator(".reader-sidebar__hint")).toContainText(
+  await expect(page.locator(".reader-state__title")).toContainText(
     "没有匹配的划线",
   );
 
@@ -263,7 +263,7 @@ test("pdf_sidebar_shows_empty_outline_state", async () => {
   await page.waitForFunction(
     () => (window as any).__MYZ_PDF__.getOutlineState().status === "ready",
   );
-  await expect(page.locator(".reader-sidebar__hint")).toContainText(
+  await expect(page.locator(".reader-state__title")).toContainText(
     "该 PDF 没有目录",
   );
   expect(errors, errors.join("\n")).toHaveLength(0);

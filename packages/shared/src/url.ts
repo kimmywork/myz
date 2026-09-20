@@ -1,4 +1,4 @@
-import { PDF_SOURCE_URL_PREFIX } from "./enums"
+import { EPUB_SOURCE_URL_PREFIX, PDF_SOURCE_URL_PREFIX } from "./enums"
 
 /**
  * Builds the synthetic source url used to identify a local PDF by its
@@ -17,6 +17,26 @@ export function isPdfSourceUrl(url: unknown): boolean {
 export function pdfFingerprintFromSourceUrl(url: unknown): string | null {
   return isPdfSourceUrl(url)
     ? (url as string).slice(PDF_SOURCE_URL_PREFIX.length)
+    : null
+}
+
+/**
+ * Builds the synthetic source url used to identify a local EPUB by its
+ * content fingerprint. Mirrors the local-PDF scheme so the url index,
+ * grouping and viewer keep working unchanged.
+ */
+export function buildEpubSourceUrl(fingerprint: string): string {
+  return `${EPUB_SOURCE_URL_PREFIX}${fingerprint}`
+}
+
+export function isEpubSourceUrl(url: unknown): boolean {
+  return typeof url === "string" && url.startsWith(EPUB_SOURCE_URL_PREFIX)
+}
+
+/** Extracts the fingerprint from a synthetic local EPUB source url. */
+export function epubFingerprintFromSourceUrl(url: unknown): string | null {
+  return isEpubSourceUrl(url)
+    ? (url as string).slice(EPUB_SOURCE_URL_PREFIX.length)
     : null
 }
 

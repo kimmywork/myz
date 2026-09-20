@@ -163,7 +163,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
   await dash.waitForSelector(`article[data-id]`, { timeout: 5000 });
   const clipSelector = clipId ? `article[data-id="${clipId}"]` : "article.card";
 
-  // Click the 编辑 button inside the card to open modal in edit mode
+  // Click the 编辑 button inside the card to open the viewer in edit mode
   await dash.evaluate((sel) => {
     const card = document.querySelector(sel);
     if (!card) throw new Error("card not found");
@@ -173,18 +173,23 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     edit.click();
   }, clipSelector);
 
-  // Wait for modal and edit note
-  await dash.waitForSelector("#record-modal", { timeout: 5000 });
-  await dash.fill('[data-testid="modal-note-input"]', "edited note via test");
-  await dash.click('[data-testid="modal-save-button"]');
-  // Wait for modal to close
-  await dash.waitForSelector("#record-modal", {
+  // The viewer opens with an inline editor (§4.8); edit the note and save
+  await dash.waitForSelector(".field textarea", { timeout: 5000 });
+  await dash.fill(".field textarea", "edited note via test");
+  await dash.evaluate(() => {
+    const save = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "保存",
+    );
+    if (!save) throw new Error("save button not found");
+    save.click();
+  });
+  await dash.waitForSelector(".field textarea", {
     state: "detached",
     timeout: 5000,
   });
 
-  // Reload and assert note updated in card
-  await dash.reload();
+  // Back to the library and assert the note updated in the card
+  await dash.goto(`${dashboardUrl}#/highlights`);
   await dash.waitForSelector(clipSelector, { timeout: 5000 });
   const noteText = await dash.evaluate((sel) => {
     const card = document.querySelector(sel);
@@ -297,7 +302,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
   });
 });
 
-test("modal_tag_and_color_edit_checks", async () => {
+test("viewer_tag_edit_checks", async () => {
   const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
   const dash = await context.newPage();
   await dash.goto(dashboardUrl);
@@ -340,7 +345,7 @@ test("modal_tag_and_color_edit_checks", async () => {
   await dash.waitForSelector(`article[data-id]`, { timeout: 5000 });
   const selector = recId ? `article[data-id="${recId}"]` : "article.card";
 
-  // Open modal in edit mode via 编辑 button
+  // Open the viewer in edit mode via the 编辑 button
   await dash.evaluate((sel) => {
     const card = document.querySelector(sel);
     if (!card) throw new Error("card not found");
@@ -350,37 +355,32 @@ test("modal_tag_and_color_edit_checks", async () => {
     edit.click();
   }, selector);
 
-  await dash.waitForSelector("#record-modal", { timeout: 5000 });
+  await dash.waitForSelector(".field textarea", { timeout: 5000 });
 
-  // Add a new tag via TagInput inside modal
-  const tagInputSel = '#record-modal [data-testid="tag-input-field"]';
+  // Add a new tag via the shared TagInput inside the viewer editor
+  const tagInputSel = '[data-testid="tag-input-field"]';
   await dash.waitForSelector(tagInputSel, { timeout: 3000 });
   await dash.focus(tagInputSel);
   await dash.type(tagInputSel, "from-test");
   // commit with Enter
   await dash.keyboard.press("Enter");
 
-  // Verify the new tag chip appears inside the modal
+  // Verify the new tag chip appears
   const hasChip = await dash.$eval(
-    "#record-modal [data-role='tag-chip']",
+    '[data-role="tag-chip"]',
     (el) => !!el && el.textContent && el.textContent.trim().length > 0,
   );
   expect(hasChip).toBeTruthy();
 
-  // Change color via color input
-  const colorInputSel = '#record-modal [data-testid="modal-color-input"]';
-  await dash.waitForSelector(colorInputSel, { timeout: 3000 });
-  // Use evaluate to set value and dispatch input event to ensure reactivity
-  await dash.evaluate((sel) => {
-    const input = document.querySelector(sel);
-    if (!input) throw new Error("color input not found");
-    (input as HTMLInputElement).value = "#ff0000";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  }, colorInputSel);
-
-  // Save modal
-  await dash.click('[data-testid="modal-save-button"]');
-  await dash.waitForSelector("#record-modal", {
+  // Save
+  await dash.evaluate(() => {
+    const save = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "保存",
+    );
+    if (!save) throw new Error("save button not found");
+    save.click();
+  });
+  await dash.waitForSelector(".field textarea", {
     state: "detached",
     timeout: 5000,
   });
@@ -408,7 +408,8 @@ test("modal_tag_and_color_edit_checks", async () => {
     : null;
   expect(found).toBeTruthy();
   expect(found.tags && found.tags.includes("from-test")).toBeTruthy();
-  expect(found.color).toBe("#ff0000");
+  // The viewer edits note and tags; colour is unchanged.
+  expect(found.color).toBe("#00ff00");
 });
 
 test("import_by_file_via_settings", async () => {
@@ -481,10 +482,7 @@ test("import_through_settings_ui_uploads_real_files", async () => {
   await dash.setInputFiles('input[type="file"]', jsonFile);
 
   // Overwrite strategy keeps repeat runs idempotent.
-  await dash.selectOption(
-    'label:has(span:text-is("冲突处理")) select',
-    "overwrite",
-  );
+  await dash.selectOption('[data-testid="import-strategy"]', "overwrite");
 
   await dash.click('button:has-text("开始导入")');
 
@@ -700,4 +698,53 @@ test("infinite_scroll_loads_more", async () => {
   );
   const afterCount = await dash.$$eval("article[data-id]", (els) => els.length);
   expect(afterCount).toBeGreaterThan(initialCount);
+});
+
+test("epub_record_shows_chapter_and_open_action", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+
+  const id = `epub-${Date.now()}`;
+  const source = `myz-epub:demo-${Date.now()}`;
+  const saved = await dash.evaluate<{ ok: boolean; data?: { id?: string } }>(
+    async (payload) => {
+      return await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { type: "myz:saveHighlight", payload },
+          (resp) => {
+            if (chrome.runtime.lastError)
+              return reject(new Error(chrome.runtime.lastError.message));
+            resolve(resp);
+          },
+        );
+      });
+    },
+    {
+      id,
+      url: source,
+      sourceUrl: source,
+      title: "示例 EPUB",
+      text: "epub snippet",
+      html: "<p>epub snippet</p>",
+      note: "",
+      tags: [],
+      hostname: "",
+      kind: "highlight",
+      color: "#b58900",
+      style: "paint",
+      epubLocator: { spineIndex: 2, progression: 0, textQuote: "epub snippet" },
+    },
+  );
+  expect(saved?.ok).toBeTruthy();
+
+  // Reload so the store picks up the freshly seeded record (a hash change
+  // would not remount the panel).
+  await dash.reload();
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+  const card = dash.locator(`article[data-id="${id}"]`);
+  await expect(card).toBeVisible({ timeout: 8000 });
+  await expect(card).toContainText("第 3 章");
+  await expect(card.locator('button[title="在阅读器中打开"]')).toHaveCount(1);
 });

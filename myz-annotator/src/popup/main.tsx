@@ -1,7 +1,10 @@
+import { ensureCjkFonts } from "@myz/shared/fonts";
 import { createApp } from "vue";
 import "@myz/shared/colorScheme";
 import App from "./App.jsx";
 import "./styles.css";
+
+ensureCjkFonts();
 
 const mountApp = () => {
   const container = document.getElementById("app");

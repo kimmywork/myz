@@ -1,9 +1,9 @@
+import { sendMessage } from "@myz/shared/messaging";
 import {
   DEFAULT_COLORS,
   HIGHLIGHT_STYLE_OPTIONS,
   HIGHLIGHT_STYLES,
 } from "@myz/shared/types";
-import { sendMessage } from "@myz/shared/messaging";
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import { countPageAnnotations } from "../annotations.js";
@@ -57,7 +57,7 @@ export const useReaderStore = defineStore("pdf-reader", () => {
   watch(state.activeId, () => {
     const record = annotations.activeRecord.value;
     state.noteDraft.value = record?.note || "";
-    state.tagsDraft.value = (record?.tags || []).join(", ");
+    state.tagsDraft.value = [...(record?.tags || [])];
     state.dirty.value = false;
     state.savedAt.value = null;
   });
@@ -98,10 +98,9 @@ export const useReaderStore = defineStore("pdf-reader", () => {
 
   async function loadColorPalette() {
     try {
-      const settings = await sendMessage<
-        undefined,
-        { colorPalette?: unknown }
-      >("myz:getSettings");
+      const settings = await sendMessage<undefined, { colorPalette?: unknown }>(
+        "myz:getSettings",
+      );
       const palette = settings?.colorPalette;
       if (Array.isArray(palette) && palette.length) {
         const normalized = palette.filter(

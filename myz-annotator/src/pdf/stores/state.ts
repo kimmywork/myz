@@ -35,7 +35,7 @@ export interface ReaderState {
   selection: Ref<PdfSelection | null>;
   selectionPos: Ref<{ top: number; left: number }>;
   noteDraft: Ref<string>;
-  tagsDraft: Ref<string>;
+  tagsDraft: Ref<string[]>;
   dirty: Ref<boolean>;
   savedAt: Ref<number | null>;
   lastStyle: Ref<HIGHLIGHT_STYLES>;
@@ -64,7 +64,7 @@ export function createReaderState(): ReaderState {
     selection: ref<PdfSelection | null>(null),
     selectionPos: ref({ top: 0, left: 0 }),
     noteDraft: ref(""),
-    tagsDraft: ref(""),
+    tagsDraft: ref<string[]>([]),
     dirty: ref(false),
     savedAt: ref<number | null>(null),
     lastStyle: ref<HIGHLIGHT_STYLES>(HIGHLIGHT_STYLES.PAINT),

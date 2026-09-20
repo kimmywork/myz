@@ -192,6 +192,129 @@ INC-1 先解决「一套名字、一个真源」，并在命名阶段消除宿�
 - `inline` 的差别在使用处引用：非 inline 是 `var(--color-surface)`，inline 是 `var(--myz-surface)`。只有子树作用域才需要后者。
 - 同时确认 `@import "tailwindcss"` 会带上 preflight（`@layer base`），对应风险 6。
 
+---
+
+# 第二轮：对齐 v0.2 规范
+
+> 状态（2026-09-20）：INC-8..16 已实现并合入；另追加了共享阅读器 chrome（`src/reader/reader-chrome.css`）与共享高亮绘制（`@myz/shared/highlightRange`）、设置表单行布局（§4.23）。剩余可选项：PDF/EPUB 的工具栏/落地页进一步合并、`ReaderStage` 抽象。
+
+第一轮（INC-1..7）建立了 Token 真源与四处宿主迁移。随后完成了 `design-system.md` v0.2 修订（补齐设置、内容层批注、列表/侧栏、弹窗、PDF 组件与跨切映射，见 §7）。本轮把实现对齐到 v0.2，闭合 `gap.md` 的 B 类差异与新增规范。
+
+## 本轮差距盘点（已核实，带路径）
+
+| 元素 | 规范 | 现状（证据） | 增量 |
+| ---- | ---- | ------------ | ---- |
+| 非浮层阴影 | §3.7 只允许浮层投影 | `HighlightCard.tsx:24` `shadow-float`；`HighlightGroups.tsx:71` `shadow-inner`；`HighlightsPaneShell.tsx:40`、`PageSidebar.tsx:42`、`SettingsLayout.tsx:11` `shadow-float` | INC-8 |
+| 当前项 / 选中态 | §4.10 列表项浅底+强调色文字 | `SettingsSidebar.tsx:47` `bg-accent text-on-accent`；`PageSidebar.tsx:81` 用 `bg-accent/10` 无 accent-text | INC-8/10/11 |
+| 禁用 | §4.4 45% | `ToggleSwitch.tsx:32`、`RecordModal.tsx:232` `opacity-60`；`HighlightViewerPage.tsx:314` `opacity-40` | INC-8 |
+| 命中区 | §3.9 ≥32 | 卡片操作 `p-1.5`(≈28)、标签 `+N` h22、`RecordModal` 关闭、PDF 关闭/折叠 <32 | INC-8 |
+| 聚焦圈 | §3.9/§4.4 | 多处 `:focus-visible` 缺失（列表动作、PDF 控件） | INC-8 |
+| 动效 | §3.8 用 Token | 大量裸 `transition`；PDF 缺 reduced-motion | INC-8/14 |
+| 文案 | §5 | `HighlightViewerPage.tsx:399` 无可展示内容；`HighlightCard.tsx:105` 无标签；`RecordModal.tsx:141/178` 无批注/无标签；`SyncSection.tsx:289` Manifest 版本；`PdfHighlightsPanel.tsx:12` 「文字」 | INC-8 |
+| 状态组件 | §4.15 | `HighlightGroups` 加载/空是纯文本；Popup/PDF 同样 | INC-9 |
+| 瀑布流/分组 | §4.9/§4.10 间距 12、组标题 10 大写 | `HighlightGroups.tsx:74` `text-compact`、`:79` `gap-2`(8) | INC-10 |
+| 导出菜单 | §4.12 | `HighlightsPaneShell.tsx:189` `▼`、`:192` `rounded-control` | INC-10 |
+| 设置字段/调色盘 | §4.6/§4.14 | `.field` gap 8 / 14 号；调色盘是方块+文本框 | INC-11 |
+| Popup 头部/搜索 | §4.21/§4.6 | `App.tsx:240` `h-10 w-10 rounded-full`；搜索仅边框变色 | INC-12 |
+| 内容层 Inspector | §4.18 280 可就地编辑 | 现为只读 note + 三图标；点开弹窗编辑 | INC-13 |
+| 内容层弹窗 | §4.8 关闭用 Lucide、聚焦 3px | `Modal.tsx` 关闭 `×` 字符、字段 label 大写、聚焦 2px | INC-13 |
+| 设置锁定宽度 | §4.8 采集编辑弹窗 320 | `Modal.tsx` `min(320px,…)` 已符；仅补规范落点 | INC-13 |
+| PDF 顶栏/侧栏 | §4.22 顶栏 44、侧栏 240 | `pdf-viewer.css:47` 顶栏 padding 10（≈52）；`:529` 侧栏 280 | INC-14 |
+| PDF 标注面板 | §4.22 | `PdfHighlightsPanel.tsx:12` 「文字」、搜索/筛选高度不足、行用 `surface-2` | INC-14 |
+| PDF 原页/选中 | §4.22 | `pdf-viewer.css:127/535` 写死阴影；`:141` 选中 `rgba(56,189,248,.4)` | INC-14 |
+| 专注阅读主题 | §4.16 跟随方案与深浅色 | `zen.ts` 写死 `#f5f4ed/#141413` | INC-15 |
+| RecordModal | §4.8 并入查看器 | `RecordModal.tsx` `max-w-5xl` + 遮罩仍在 | INC-16 |
+
+## 范围
+
+**做**：闭合上表；把 v0.2 新增规范落到实现；保持 `reader-*` / `pdf-*` class 与 `window.__MYZ_PDF__` 兼容。
+
+**不做**：不改 PDF 渲染与锚点逻辑、不改 E2EE 协议、不做主题编辑器、不重排信息架构、不做专注阅读字号控件（功能后期整体重做）。
+
+## 风险
+
+1. **e2e 依赖 class 与截图**：PDF 的 `reader-*`/`pdf-*` 与 `window.__MYZ_PDF__` 必须兼容；外观改动会移动截图基线，需按 `docs/plan/pdf-support.md` 的视觉验证约定更新。
+2. **`jscpd` 阈值**：抽公共 class（列表行、状态组件、侧栏）可能触发重复，每增量跑 `npm run jscpd`。
+3. **状态组件跨宿主**：空/加载/错在 dashboard、popup、PDF 三处出现，先抽共享再铺开，避免三份实现。
+4. **阴影移除影响层级**：去掉非浮层阴影后要确认深色下分组/卡片的边界仍清楚（靠 `--myz-line` 与抬高低色）。
+5. **内容层不可污染宿主页**：任何新样式仍只进 Shadow；`page.css` 不得声明变量（第一轮约束延续）。
+
+## 增量
+
+### INC-8 跨切：阴影、选中态、交互态、动效、文案、断点
+**产出**：规范 §3.7/§3.8/§3.9/§4.10/§5 的实现对齐。
+**前置**：无。
+**动作**：
+- 移除 `HighlightCard`/`HighlightGroups`/`HighlightsPaneShell`/`PageSidebar`/`SettingsLayout`/`HighlightViewerPage` 的非浮层阴影；浮层（下拉、弹窗、Inspector、采集条、浮动目录、toast）保留。
+- 选中态：列表/导航/侧栏统一 `--myz-surface-2` 底 + `--myz-accent-text` 文字；分段控件与分页保留实心强调色（§4.10）。
+- 交互态：所有可点元素补 `:focus-visible` 强调色 2px 偏移 2；禁用统一 `.45`；图标动作/标签 `+N`/关闭按钮用 padding 或 `::before` 把命中区扩到 32。
+- 动效：被 §3.8 点名的组件（采集条/浮层/侧栏/抽屉/提示条/PDF 面板）显式用 motion Token；其余裸 `transition` 保留 Tailwind 默认 150ms（≈fast）——`--default-transition-duration` 是 Tailwind 默认键，按「不覆盖默认键」规则不能改；补 PDF `prefers-reduced-motion`。
+- 文案按 §5：`无可展示内容→这里还没有内容`、`无标签→还没有标签`、`无批注→还没有批注`、`Manifest 版本→同步版本`、PDF「文字」→「摘录」。
+- 断点：单栏/抽屉断点从 `lg`(1024) 改 900。
+**验证**：`npm run build`、`npm run lint`、`npm run test:playwright`；聚焦圈/命中区的 computed 断言；四方案×深浅截图。
+**完成标准**：非浮层零阴影；禁用/聚焦/命中区全站一致；文案表命中。
+
+### INC-9 状态组件统一（§4.15）
+**产出**：共享的空 / 骨架 / 出错 / 提示条组件（dashboard-ui 与内容层各一版，PDF 复用其 class）。
+**前置**：无。
+**动作**：按 §4.15 实现骨架条（`--myz-skeleton`、错落宽度、reduced-motion 停微光）、空状态（图标 + 状态 + 下一步）、错误重试（次要按钮）、toast（`--myz-overlay`、3–4s、最多 3 条、贴近操作）。
+**验证**：`HighlightGroups`、Popup 列表、`PdfOutlinePanel`、`PdfHighlightsPanel` 四处接入；单测 + 截图。
+**完成标准**：四处加载/空/错都有形，不再是纯文本。
+
+### INC-10 文库与记录列表（§4.3/§4.9/§4.10/§4.12/§4.19/§4.20）
+**前置**：INC-8。
+**动作**：瀑布流列/行间距改 12；分组头 10 大写 + 组间细线；卡片来源行 11、正文行高 1.55–1.6、类型 chip 用 `--myz-tag-*`；新增列表视图行 §4.20；视图/排序用分段控件 §4.19；来源侧栏宽 264、去阴影、当前项按 §4.10；导出按钮 `--myz-r` + `ChevronDown` + 菜单 §4.12；页面筛选 chip；标签 `+N` 命中区。
+**验证**：`test:playwright` + 截图；`jscpd`。
+**完成标准**：文库内无 Tailwind 调色板硬编码与第二套选中态。
+
+### INC-11 设置页（§4.17/§4.6/§4.14）
+**前置**：INC-8。
+**动作**：分组卡去阴影、标题 17/600 + 说明 12；字段 label 12 / 距 6（改 `.field`）；下拉/日期/文件统一 §4.6；开关聚焦圈；侧栏分组标题 10 大写、当前项浅底+accent-text、宽 240；调色盘按 §4.14 重做（圆 32、间距 8、居中、铅笔角标、默认色单独一行、可读色名、恢复默认）；配色方案卡保留；保存反馈用行内状态。
+**验证**：`test:playwright`（settings 相关）+ 截图。
+**完成标准**：设置页与记录卡同一套 Token 与交互态。
+
+### INC-12 Popup（§4.21/§4.6/§4.3/§4.15）
+**前置**：INC-8/9。
+**动作**：头部卡 `rounded-panel` 实色；图标按钮 32/`rounded-control`；搜索 3px 20% 聚焦光圈；类型徽标用 tag/clip token；批注文字改长文衬线 + `--myz-text`；来源行 11；加载/错误/空接 INC-9。
+**验证**：`test:playwright` + popup 截图。
+**完成标准**：Popup 与 Dashboard 观感一致。
+
+### INC-13 内容层浮层（§4.18/§4.8/§4.5/§4.14/§4.7）
+**前置**：INC-8。
+**动作**：完整 Inspector 按 §4.18（280、可就地编辑批注与标签、窄屏抽屉、引用/批注用长文衬线 14、批注正文色）；紧凑三按钮条保留固定深色并补聚焦；样式选择器用 tag-bg+accent 边；`Modal.tsx` 关闭换 Lucide `X`、字段 label 去大写、聚焦 3px、宽度对齐 320；TagInput 紧凑 32、当前项 accent-text；调色盘按 §4.14；采集条补 180ms 淡入并去掉 `scale`；toast 位置与堆叠按 §4.15。
+**验证**：内容层 e2e（采集/划线/批注/禅定）+ 浅色/深色网页截图。
+**完成标准**：浮层跟随主题、固定深色只在采集条与紧凑条。
+
+### INC-14 PDF 阅读器（§4.22）
+**前置**：INC-8/9。
+**动作**：顶栏 44；侧栏 240、分页签用分段控件 + accent-text；目录两层/字号归九级/当前态/加载空错；标注面板「摘录」、筛选命中区 32、搜索 32+聚焦、行底 `--myz-well-control-bg`、标签 20、空态图标；保存/删除按 §4.4；标签用共享 `TagInput`；调色盘含可读色名；样式 chip 当前态 accent-text；原页阴影用 `--myz-shadow`、选中底色用 `--myz-mark-4` 40%、clip 70% 虚线；标记圆角 3/下划线 2/波浪 1.5；跳转闪烁与面板动效；reduced-motion。
+**验证**：`npm run build`、`npx playwright test tests/pdf` 全绿；8 组外观截图；采集条浅/深 PDF 截图。
+**完成标准**：PDF 页与其余宿主共用 Token；界面无字符图标。
+
+### INC-15 专注阅读跟随主题（§4.16）
+**前置**：INC-8。
+**动作**：`zen.ts` 纸色/文字/链接改用按方案与深浅色的值（仍内联，不污染宿主页）；字体族按地区（已完成）。
+**说明**：字号/行距/栏宽控件本轮不做。
+**验证**：浅色/深色 × 四方案的 zen 截图。
+**完成标准**：专注阅读纸色随主题，不再是写死浅色。
+
+### INC-16 RecordModal 并入查看器（§4.8）
+**前置**：INC-10。
+**动作**：把 `RecordModal` 的编辑能力并入 `HighlightViewerPage`（编辑批注与标签、跳上/下一条），移除 `max-w-5xl` 大对话框；确需就地提示时用 §4.15。
+**验证**：查看器 e2e；删除 `RecordModal` 相关断言。
+**完成标准**：记录阅读与编辑都走查看器页面。
+
+## 执行顺序理由
+
+INC-8 是全局底座，先做避免每页重复改。INC-9 状态组件跨三宿主，早抽出。INC-10/11/12 是三个 Tailwind 宿主，从覆盖最好的 Dashboard 起。INC-13 与 Tailwind 线无关，可与 10/11/12 并行（注意不冲突同一文件）。INC-14 体量最大且 e2e 最重，放在宿主经验之后。INC-15/16 是收尾的行为对齐。
+
+## 本轮验证约定
+
+- 每增量至少：`npm run build`、`npm run lint`、相关单测；涉及 UI 的加 `test:playwright` / `npx playwright test tests/pdf`。
+- 稳定画面用 `toHaveScreenshot` 建基线；不稳定画面存产物人工核对（沿用 `docs/plan/pdf-support.md`）。
+- 合并前跑 `npm run check:design-tokens`、`npm run check:tailwind-keys`、`npm run jscpd`。
+- 外观矩阵：四方案 × 深浅共 8 组，重点宿主各截一组。
+
 ## 关联文档
 
 - `docs/research/design-system/design-system.md` — 设计系统规范（Token、组件、规则）。

@@ -1,4 +1,4 @@
-import { TagInput } from "@myz/dashboard-ui";
+import { SelectInput, TagInput } from "@myz/dashboard-ui";
 import { IconCalendar } from "@myz/shared/icons";
 import { defineComponent, ref, Ref } from "vue";
 import { useHighlightsStore } from "../stores/highlights.js";
@@ -45,24 +45,18 @@ export default defineComponent({
             </label>
             <label class="flex flex-col gap-2 text-compact text-muted">
               <span>网站</span>
-              <select
-                data-testid="site-filter"
-                class="rounded-control border border-line bg-surface px-3 py-2 text-compact text-text focus:border-accent focus:outline-none dark:border-line dark:bg-surface-2 dark:text-text"
-                value={uiStore.filters.site}
-                onChange={(event: Event) =>
-                  uiStore.setFilter(
-                    "site",
-                    (event.target as HTMLSelectElement).value,
-                  )
-                }
-              >
-                <option value="">全部网站</option>
-                {highlightsStore.availableSites.map((site: string) => (
-                  <option key={site} value={site}>
-                    {site}
-                  </option>
-                ))}
-              </select>
+              <SelectInput
+                testId="site-filter"
+                modelValue={uiStore.filters.site}
+                options={[
+                  { value: "", label: "全部网站" },
+                  ...highlightsStore.availableSites.map((site: string) => ({
+                    value: site,
+                    label: site,
+                  })),
+                ]}
+                onChange={(value) => uiStore.setFilter("site", value)}
+              />
             </label>
             <label class="flex flex-col gap-2 text-compact text-muted">
               <span>标签</span>

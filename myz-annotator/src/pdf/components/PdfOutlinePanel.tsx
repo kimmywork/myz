@@ -1,4 +1,9 @@
-import { ChevronDown, ChevronRight } from "@lucide/vue";
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  TriangleAlert,
+} from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { defineComponent, type VNode } from "vue";
 import type { PdfOutlineEntry } from "../pdf-document.js";
@@ -11,9 +16,10 @@ export default defineComponent({
     const { outline, outlineStatus, outlineCount, currentOutlineId } =
       storeToRefs(store);
 
-    function renderItems(items: PdfOutlineEntry[]): VNode[] {
+    function renderItems(items: PdfOutlineEntry[], level = 0): VNode[] {
       return items.map((entry) => {
-        const hasChildren = entry.children.length > 0;
+        // §4.10 目录最多两层：只有顶层可展开，子项不再递归
+        const canExpand = level === 0 && entry.children.length > 0;
         const expanded = store.expandedOutline.has(entry.id);
         const isCurrent = entry.id === currentOutlineId.value;
         return (
@@ -24,9 +30,9 @@ export default defineComponent({
                 (isCurrent ? " is-current" : "") +
                 (entry.pageNumber ? "" : " is-disabled")
               }
-              style={{ paddingLeft: `${6 + entry.depth * 14}px` }}
+              style={{ paddingLeft: `${6 + Math.min(entry.depth, 1) * 14}px` }}
             >
-              {hasChildren ? (
+              {canExpand ? (
                 <button
                   type="button"
                   class="reader-outline__toggle"
@@ -55,9 +61,9 @@ export default defineComponent({
                 ) : null}
               </button>
             </div>
-            {hasChildren && expanded ? (
+            {canExpand && expanded ? (
               <ul class="reader-outline__children">
-                {renderItems(entry.children)}
+                {renderItems(entry.children, level + 1)}
               </ul>
             ) : null}
           </li>
@@ -67,13 +73,32 @@ export default defineComponent({
 
     return () => {
       if (outlineStatus.value === "loading") {
-        return <p class="reader-sidebar__hint">目录加载中…</p>;
+        return (
+          <div class="reader-state">
+            <div style="width: 100%">
+              <div class="reader-skeleton reader-skeleton--w1" />
+              <div class="reader-skeleton reader-skeleton--w2" />
+            </div>
+            <span>目录加载中…</span>
+          </div>
+        );
       }
       if (outlineStatus.value === "error") {
-        return <p class="reader-sidebar__hint">目录读取失败</p>;
+        return (
+          <div class="reader-state reader-state--error">
+            <TriangleAlert size={20} aria-hidden="true" />
+            <span class="reader-state__title">目录读取失败</span>
+            <span>重新打开这份 PDF 试试</span>
+          </div>
+        );
       }
       if (!outlineCount.value) {
-        return <p class="reader-sidebar__hint">该 PDF 没有目录</p>;
+        return (
+          <div class="reader-state">
+            <BookOpen size={20} aria-hidden="true" />
+            <span class="reader-state__title">该 PDF 没有目录</span>
+          </div>
+        );
       }
       return <ul class="reader-outline">{renderItems(outline.value)}</ul>;
     };

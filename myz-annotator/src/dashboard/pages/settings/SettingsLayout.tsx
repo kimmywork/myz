@@ -8,7 +8,7 @@ export default defineComponent({
     return () => (
       <section
         id="settings-view"
-        class="rounded-panel border border-line bg-surface/95 p-5 shadow-float transition dark:border-line dark:bg-surface"
+        class="rounded-panel border border-line bg-surface p-5 transition dark:border-line dark:bg-surface"
         aria-labelledby="settings-title"
       >
         <header class="flex flex-col gap-2 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-line">
@@ -26,8 +26,8 @@ export default defineComponent({
           </RouterLink>
         </header>
 
-        <div class="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start">
-          <div class="w-full lg:w-60 lg:shrink-0">
+        <div class="mt-4 flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start">
+          <div class="w-full min-[900px]:w-60 min-[900px]:shrink-0">
             <SettingsSidebar />
           </div>
           <div class="min-w-0 flex-1">

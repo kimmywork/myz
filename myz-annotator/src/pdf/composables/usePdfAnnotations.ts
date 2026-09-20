@@ -266,9 +266,9 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
       return;
     }
     const tags = state.tagsDraft.value
-      .split(/[,，]/)
-      .map((tag) => tag.trim())
-      .filter(Boolean);
+      .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+      .filter(Boolean)
+      .filter((tag, index, list) => list.indexOf(tag) === index);
     const sameTags =
       (record.tags || []).length === tags.length &&
       (record.tags || []).every((tag, index) => tag === tags[index]);
@@ -322,6 +322,16 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     state.activeId.value = record.id;
     state.selection.value = null;
     redrawOverlays();
+
+    const marker = stage.querySelector<HTMLElement>(
+      `.pdf-annotation[data-id="${record.id}"]`,
+    );
+    if (marker) {
+      marker.classList.remove("is-flash");
+      void marker.offsetWidth;
+      marker.classList.add("is-flash");
+      window.setTimeout(() => marker.classList.remove("is-flash"), 1200);
+    }
   }
 
   function selectTextForTest(target: string, pageNumber = 1): boolean {

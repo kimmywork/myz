@@ -8,7 +8,9 @@ This repo is a multi‑module suite (extension + libraries). Keep changes scoped
   - `src/content/` content scripts + page UI.
   - `src/popup/`, `src/dashboard/` UI surfaces.
   - `src/pdf/` self-built pdf.js reader page: thin shell `PdfReaderApp.tsx` + `components/` (presentational) + `stores/` (Pinia state slice + composition root `reader-store.ts`) + `composables/` (`usePdfEngine` rendering/scroll/zoom, `usePdfAnnotations`, `usePdfOutline`, `usePdfDocument`) + non-reactive helpers (`annotations`, `pdf-document`, `source`, `storage`, `fingerprint`, `detect`).
-- `packages/shared/` (`@myz/shared`) — environment-agnostic shared utilities, schemas, types, messaging, theme, icons, and highlight helpers shared across hosts (extension/desktop); referenced via `@myz/shared/*`.
+  - `src/epub/` self-built EPUB reader page (reflow): shell `EpubReaderApp.tsx` + `EpubHighlightPanel.tsx` + `stores/reader-store.ts` + non-reactive helpers (`parse` container/OPF/nav/NCX, `render` iframe + read typography, `highlights` painting, `source`, `storage`, `open`, `fingerprint`). Reflow has no pages, so anchors are spine + text quote, not coordinates.
+  - `src/reader/` styles shared by the PDF and EPUB readers (`reader-chrome.css`: toolbar, sidebar/outline, highlight list, states, selection toolbar, inspector) so both hosts render the same chrome.
+- `packages/shared/` (`@myz/shared`) — environment-agnostic shared utilities, schemas, types, messaging, theme, icons, and highlight helpers shared across hosts (extension/desktop); referenced via `@myz/shared/*`. Notable: `highlightRange` (document-agnostic range wrapping used by both the web content script and the EPUB reader), `serializer` (range anchoring), `cjk`/`fonts` (language → Noto Serif), `theme/tokens.css` + `theme/tailwind.css`.
 - `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/legal/plan/research).
 - `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).
   - `workflow/video-pipeline/skills/screen-recording-narrator/scripts/` — command/script templates for the video pipeline.

@@ -42,8 +42,31 @@ function copyPdfjsAssets() {
   };
 }
 
+/**
+ * @fontsource ships both woff2 and a legacy woff fallback for every CJK face.
+ * Every target browser (Chrome 110+, Firefox 110+) supports woff2, so the
+ * legacy files are pure payload. Strip them before Vite collects assets.
+ */
+function dropLegacyWoff() {
+  return {
+    name: "myz-drop-legacy-woff",
+    enforce: "pre",
+    transform(code, id) {
+      if (!id.includes("@fontsource/") || !id.endsWith(".css")) {
+        return null;
+      }
+      const next = code.replace(
+        /,\s*url\([^)]+\.woff\)\s*format\((['"])woff\1\)/g,
+        "",
+      );
+      return next === code ? null : next;
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    dropLegacyWoff(),
     tailwindcss(),
     vue(),
     vueJsx(),
@@ -77,6 +100,7 @@ export default defineConfig({
         dashboard: resolve(rootDir, "src/dashboard/index.html"),
         "pdf-viewer": resolve(rootDir, "src/pdf/pdf-viewer.html"),
         "pdf-spike": resolve(rootDir, "src/pdf/spike.html"),
+        "epub-viewer": resolve(rootDir, "src/epub/epub-viewer.html"),
       },
     },
   },

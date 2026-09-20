@@ -1,25 +1,39 @@
 import { Check, Trash2, X } from "@lucide/vue";
-import { RECORD_KINDS } from "@myz/shared/types";
+import { TagInput } from "@myz/dashboard-ui";
+import { colorName, RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
-import { defineComponent } from "vue";
+import { computed, defineComponent } from "vue";
 import { useReaderStore } from "../stores/reader-store.js";
 
 export default defineComponent({
   name: "PdfInspector",
   setup() {
     const store = useReaderStore();
-    const { activeRecord, noteDraft, tagsDraft, dirty, colorPalette } =
-      storeToRefs(store);
+    const {
+      activeRecord,
+      noteDraft,
+      tagsDraft,
+      dirty,
+      colorPalette,
+      annotations,
+    } = storeToRefs(store);
     const styleOptions = store.styleOptions;
+    const tagOptions = computed(() =>
+      Array.from(
+        new Set(
+          annotations.value.flatMap((record) =>
+            Array.isArray(record.tags) ? record.tags : [],
+          ),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    );
 
     return () =>
       activeRecord.value ? (
         <aside class="reader-inspector">
           <header class="reader-inspector__head">
             <span>
-              {activeRecord.value.kind === RECORD_KINDS.CLIP
-                ? "摘录"
-                : "划线"}
+              {activeRecord.value.kind === RECORD_KINDS.CLIP ? "摘录" : "划线"}
               {activeRecord.value.pdfLocator
                 ? ` · 第 ${activeRecord.value.pdfLocator.pageNumber} 页`
                 : ""}
@@ -67,7 +81,8 @@ export default defineComponent({
                     (activeRecord.value?.color === color ? " is-active" : "")
                   }
                   style={{ background: color }}
-                  aria-label={`颜色 ${color}`}
+                  aria-label={`选择${colorName(color)}色`}
+                  title={colorName(color)}
                   onClick={() => store.patchActive({ color })}
                 />
               ))}
@@ -83,15 +98,16 @@ export default defineComponent({
             }}
             onBlur={store.commitActive}
           />
-          <input
-            class="reader-inspector__tags"
-            placeholder="标签（逗号分隔）"
-            value={tagsDraft.value}
-            onInput={(event: Event) => {
-              store.tagsDraft = (event.target as HTMLInputElement).value;
+          <TagInput
+            variant="well"
+            modelValue={tagsDraft.value}
+            options={tagOptions.value}
+            placeholder="添加标签"
+            allowNew={true}
+            onUpdate:modelValue={(value: string[]) => {
+              store.tagsDraft = Array.isArray(value) ? value : [];
               store.dirty = true;
             }}
-            onBlur={store.commitActive}
           />
           <div class="reader-inspector__actions">
             <span class="reader-inspector__status">{store.savedLabel()}</span>

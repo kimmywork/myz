@@ -10,14 +10,14 @@ export default defineComponent({
     const uiStore = useUIStore();
     const layoutClasses = () =>
       [
-        "flex flex-col gap-6 lg:flex-row",
-        uiStore.pageSidebarOpen ? "lg:items-stretch" : "",
+        "flex flex-col gap-6 min-[900px]:flex-row",
+        uiStore.pageSidebarOpen ? "min-[900px]:items-stretch" : "",
       ].join(" ");
     return () => (
       <>
         <div class={layoutClasses()}>
           {uiStore.pageSidebarOpen ? (
-            <div class="lg:w-72 lg:flex-shrink-0">
+            <div class="min-[900px]:w-[264px] min-[900px]:flex-shrink-0">
               <PageSidebar
                 groups={uiStore.pageGroups}
                 activePageUrl={uiStore.pageFilter}

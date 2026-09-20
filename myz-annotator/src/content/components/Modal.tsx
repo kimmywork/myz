@@ -1,7 +1,12 @@
 import type { LucideIcon } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
-import { IconPencil, highlightStyleIconMap } from "@myz/shared/icons";
 import {
+  IconClose,
+  IconPencil,
+  highlightStyleIconMap,
+} from "@myz/shared/icons";
+import {
+  colorName,
   RECORD_KINDS,
   HIGHLIGHT_STYLE_OPTIONS,
   HIGHLIGHT_STYLES,
@@ -197,9 +202,10 @@ export default defineComponent({
             <button
               type="button"
               class="myz-annotator-modal__close"
+              aria-label="关闭"
               onClick={handleCancel}
             >
-              &times;
+              <IconClose size={18} aria-hidden="true" />
             </button>
           </div>
 
@@ -323,14 +329,15 @@ export default defineComponent({
                         style={{ "--myz-swatch-color": color }}
                         data-index={index}
                         role="radio"
-                        aria-label={`选择颜色 ${color}`}
+                        aria-label={`选择${colorName(color)}色`}
+                        title={colorName(color)}
                         aria-pressed={isActive ? "true" : "false"}
                         onClick={() => handleSelectColor(index)}
                       />
                       <label
                         class="myz-color-edit"
-                        aria-label={`编辑颜色 ${color}`}
-                        title={`编辑颜色 ${color}`}
+                        aria-label={`编辑${colorName(color)}色`}
+                        title={`编辑${colorName(color)}色`}
                       >
                         <IconPencil size={12} aria-hidden="true" />
                         <input

@@ -1,9 +1,29 @@
 # Workstate
 
-- Focus: 设计系统落地，第一轮 INC-1..7 已完成；第二轮（全量 review 后的正确性与组件对齐）进行中
+- Focus: EPUB 阅读与高亮（计划 `docs/plan/epub-support.md`）；E1 已落地，下一增量 E2 解析
 - Wave 1 done: Token 真源、配色方案设置、Tailwind 映射、Dashboard/Popup/内容层/PDF 迁移
-- Wave 2 applied: 划线渲染修正、编辑浮层固定深色、采集条图标/文案、弹窗收窄、TagInput 补样式并去逗号、标签 chip 统一、字体 `--myz-sans`/`--myz-read`、提示条 Token、reduced-motion、§5 文案统一（涂色/下划线/波浪线等）、zen 排版
-- Evidence: build、token/key 检查、jscpd 0.79%、annotator 单测 121、shared 单测 58、extension+pdf e2e 51、外观截图矩阵
-- Pending (gap.md §15): 调色盘/建议/下拉/瀑布流/空加载错等组件重设计；文库/弹窗/PDF 三栏等场景重设计；focus/hit/disabled/motion 统一；Modal Esc+焦点；PDF TagInput；zen 跟随主题
-- Next: 等用户 review gap.md §15，确认优先级后继续下一轮
-- References: `docs/plan/apply-design-system.md`, `docs/research/design-system/{design-system.md,gap.md}`
+- Wave 2 applied: 划线渲染修正、编辑浮层固定深色、采集条图标/文案、弹窗收窄、TagInput 补样式并去逗号、标签 chip 统一、字体 `--myz-sans`/`--myz-read`、提示条 Token、reduced-motion、§5 文案统一、zen 排版
+- Spec v0.2: 新增 §4.17 设置、§4.18 内容层批注、§4.19 分段、§4.20 列表/侧栏/导出、§4.21 弹窗、§4.22 PDF；宽度冲突已消解（浮层 280 / PDF 停靠 240 / 顶栏 44）；选中态、标签 token、固定深色范围、投影白名单、字号与动效映射、200% 缩放已定稿；新增 `--myz-highlight-color`
+- CJK 字体：SC/TC/HK/JP/KR 均本地打包，按 UI 语言动态加载（400/600）；dashboard/popup/PDF 入口接入，内容层与 zen 按地区设字体族。dist 52MB / zip ~36MB（体积来自字体）
+- Pending (implementation follow-up): 去非浮层阴影、focus-visible/hit(≥32)/disabled(45%) 统一、调色盘按 §4.14 重做、搜索建议键盘与左类型标签、瀑布流 12 间距、空/加载/错组件、Modal 收窄 + Lucide X、PDF 顶栏 44/侧栏 240/筛选文案「摘录」、PDF TagInput、zen 跟随主题
+- INC-8 done (+ INC-10/11/12 中与之重叠的部分): 去非浮层阴影、选中态、focus 基线、禁用 45%、命中区 32、§5 文案、900 断点、采集条/Inspector 淡入
+- INC-9 done: 共享 `StatePanel`（空/加载/错）+ PDF `reader-state`，接入 dashboard/popup/viewer/PDF 目录与标注；PDF 与 popup 补 reduced-motion
+- INC-11 done: 共享 `ColorPalette` + `colorName`，设置页调色盘重做；内容层/PDF 调色盘对齐（外圈环、角上铅笔、可读色名）
+- INC-13..16 done: Inspector 就地编辑；Modal 收尾；PDF 全面对齐（44/240/面板/原页/动效/reduced-motion）；zen 跟随方案与深浅色；RecordModal 删除、编辑移入查看器；TagInput 增 `well` 变体
+- Second wave complete: 第二轮 INC-8..16 全部落地
+- Settings forms pass: 新增 §4.23 表单与字段；共享 `SelectInput`/`SettingsRow`；设置各页改为「左标签 + 右控件」，导入/同步/偏好/外观统一；TagInput 增 `well` 变体；PDF focus 规则归 layer
+- EPUB E1 done: 本地文件来源 + 指纹/句柄存储 + `epub-viewer` 入口 + 最小元数据解析 + 打开管线；`SOURCE_TYPES.EPUB`、`myz-epub:` 前缀、`epubLocator` schema；`src/reader/local-file.ts` 抽取
+- EPUB E3 done: 重排阅读 UI（同源 iframe + 资源 blob 改写 + 阅读排版；目录侧栏、上/下一章、进度持久化、主题变化重渲染）
+- EPUB E4 done: serializer 跨文档泛化 + 高亮图层（选区工具条 划线/摘录、`range` + `epubLocator` 持久化、路径+文本回退还原、点击删除）
+- EPUB E5 done: 文库整合（章节徽标 + 在阅读器中打开）、EPUB Inspector（批注/标签/样式/色板）、目录锚点跳转、§6/展示页更新
+- EPUB complete: `docs/plan/epub-support.md` E1–E5 全部落地
+- EPUB fixes (real-book): SVG 封面 href、Newsreader 字体解析、TOC fragment、书内链接、浮条消失、侧栏「标注」tab
+- EPUB fixes 2: TOC 当前项只高亮精确目标、整章涂色按文本段拆分、EPUB 用 `well` TagInput
+- Reader merge: 抽出 `src/reader/reader-chrome.css`，PDF/EPUB 共用侧栏/目录/标注/Inspector/选区工具条 chrome
+- Highlight paint shared: 抽出 `@myz/shared/highlightRange`，网页端与 EPUB 共用「按文本节点拆分」的包裹逻辑；EPUB 选区工具条改 Lucide 图标
+- EPUB review fixes: 读取用户调色盘/lastUsed 偏好、主题切换保持阅读位置、单章进度、清 pendingFragment、标签建议
+- EPUB TOC: 目录随滚动高亮当前节；默认折叠、仅展开当前路径；目录搜索
+- EPUB cover: 强制 body 布局/字体 + 居中媒体，修 PG `body.x-ebookmaker-coverpage{margin:0}` 盖过的问题；用 Gutenberg 真书加整章高亮压力 e2e
+- Evidence: build、eslint、annotator 131 / shared 75 单测、extension+PDF 62 e2e、token 检查
+- Evidence: build、eslint、annotator 124 / shared 72 单测、extension 34 e2e、pdf 22 e2e、token 检查
+- References: `docs/plan/epub-support.md`, `docs/plan/apply-design-system.md`, `docs/research/design-system/{design-system.md,index.html,gap.md}`

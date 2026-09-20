@@ -5,6 +5,12 @@
 @plugin "@tailwindcss/typography";
 
 @layer base {
+  /* §3.9 聚焦：默认给一个强调色外圈；组件自带 ring 的用 `focus-visible:outline-none` 覆盖 */
+  :where(button, a, [role="button"], [tabindex], summary, input, select, textarea):focus-visible {
+    outline: 2px solid var(--myz-accent);
+    outline-offset: 2px;
+  }
+
   /* §4.1 图标：Lucide 只描边，线宽 1.75 */
   .lucide {
     stroke-width: 1.75;
@@ -87,7 +93,7 @@
   }
 
   .field {
-    @apply flex flex-col gap-2 text-compact text-muted dark:text-muted;
+    @apply flex flex-col gap-1.5 text-caption text-muted dark:text-muted;
   }
 
   .field
@@ -98,7 +104,7 @@
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   .settings__group select,
   .settings__group textarea {
-    @apply rounded-control border border-line bg-surface px-3 py-2 text-compact text-text placeholder:text-muted transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 dark:border-line dark:bg-surface-2 dark:text-text dark:placeholder:text-muted;
+    @apply w-full rounded-control border border-line bg-surface px-3 py-2 text-compact text-text placeholder:text-muted transition focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-accent/20 dark:border-line dark:bg-surface-2 dark:text-text dark:placeholder:text-muted;
   }
 
   .field input:disabled,
@@ -132,6 +138,14 @@
 
   .settings__group-header {
     @apply flex items-center justify-between text-text dark:text-text;
+  }
+
+  .settings__group-header h3 {
+    @apply text-title font-semibold text-text dark:text-text;
+  }
+
+  .settings__group-header p {
+    @apply text-caption text-muted dark:text-muted;
   }
 
   .settings__group-actions {
@@ -183,7 +197,7 @@
   }
 
   .settings__list-item {
-    @apply rounded-control border border-line bg-surface/90 p-3 text-compact text-text dark:border-line dark:bg-surface dark:text-text;
+    @apply rounded-control border border-line bg-surface p-3 text-compact text-text dark:border-line dark:bg-surface dark:text-text;
   }
 
   .settings__list-row {
@@ -239,6 +253,6 @@
   }
 
   .is-disabled {
-    @apply pointer-events-none opacity-60;
+    @apply pointer-events-none opacity-45;
   }
 }

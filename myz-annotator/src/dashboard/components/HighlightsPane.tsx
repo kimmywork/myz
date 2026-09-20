@@ -5,9 +5,11 @@ import {
 } from "@myz/dashboard-ui";
 import type { MyZRecord } from "@myz/shared/types";
 import { computed, defineComponent, nextTick, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
+import { openEpubRecordInReader } from "@/epub/open.js";
 import { openPdfRecordInReader } from "@/pdf/open.js";
 
 export default defineComponent({
@@ -15,6 +17,7 @@ export default defineComponent({
   setup() {
     const highlightsStore = useHighlightsStore();
     const uiStore = useUIStore();
+    const router = useRouter();
     const stickyLayout = computed(() => Boolean(uiStore.pageSidebarOpen));
 
     const { sentinelRef, stop, restart } = useInfiniteScroll({
@@ -67,16 +70,22 @@ export default defineComponent({
           void highlightsStore.deleteHighlight(record.id);
           break;
         case "view":
-          uiStore.openModal(record.id, "view");
+          router.push(`/highlights/${record.id}`);
           break;
         case "edit":
-          uiStore.openModal(record.id, "edit");
+          router.push({
+            path: `/highlights/${record.id}`,
+            query: { edit: "1" },
+          });
           break;
         case "downgrade":
           void highlightsStore.downgradeHighlight(record.id);
           break;
         case "openPdf":
           void openPdfRecordInReader(record);
+          break;
+        case "openEpub":
+          void openEpubRecordInReader(record);
           break;
       }
     }

@@ -104,8 +104,9 @@ export function sameNodeType(a: Node, b: Node | null) {
 
 export function buildPath(node: Node): PathSegment[] {
   const path: PathSegment[] = []
+  const rootDocument = node.ownerDocument ?? document
   let current = node
-  while (current && current !== document) {
+  while (current && current !== rootDocument) {
     const parent = current.parentNode
     if (!parent) break
     const { child: _, logical: directLogical } = getDirectChildAndLogical(
@@ -124,9 +125,12 @@ export function buildPath(node: Node): PathSegment[] {
   return path
 }
 
-function resolvePath(path: PathSegment[]): Node | null {
+function resolvePath(
+  path: PathSegment[],
+  rootDocument: Document = document,
+): Node | null {
   // Normalize root to an element to start iteration
-  let current: Node = document
+  let current: Node = rootDocument
   if (Array.isArray(path) && path.length && current && current.nodeName) {
     const firstName = path[0] && path[0].name
     if (
@@ -155,7 +159,8 @@ function resolvePath(path: PathSegment[]): Node | null {
 
 export function getDescendantTextNodes(el: Node): Text[] {
   const out: Text[] = []
-  const it = document.createNodeIterator(el, NodeFilter.SHOW_TEXT, {
+  const ownerDocument = el.ownerDocument ?? document
+  const it = ownerDocument.createNodeIterator(el, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (isNodeFromMyz(node)) return NodeFilter.FILTER_REJECT
       if (!node.textContent) return NodeFilter.FILTER_REJECT
@@ -329,7 +334,8 @@ export function serializeRange(
     // them so we compute paths against the original DOM. Afterwards we
     // reapply existing highlights from cache. This avoids path indexing
     // shifts caused by wrapper elements.
-    const existing = Array.from(document.querySelectorAll(".myz-highlight"))
+    const ownerDocument = range.startContainer.ownerDocument ?? document
+    const existing = Array.from(ownerDocument.querySelectorAll(".myz-highlight"))
     const ids: string[] = existing
       .map((n) => (n as HTMLElement).dataset?.highlightId)
       .filter(Boolean) as string[]
@@ -416,7 +422,8 @@ interface NormalizedTextIndex {
 function buildNormalizedTextIndex(root: Node): NormalizedTextIndex {
   const chars: string[] = []
   const positions: { node: Text; offset: number }[] = []
-  const iterator = document.createNodeIterator(root, NodeFilter.SHOW_TEXT, {
+  const ownerDocument = root.ownerDocument ?? document
+  const iterator = ownerDocument.createNodeIterator(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (isNodeFromMyz(node)) return NodeFilter.FILTER_REJECT
       return NodeFilter.FILTER_ACCEPT
@@ -467,6 +474,7 @@ function rangeFromNormalizedIndex(
   index: NormalizedTextIndex,
   startIndex: number,
   endIndex: number,
+  ownerDocument: Document = document,
 ): Range | null {
   const rawStart = index.rawIndexMap[startIndex]
   const rawEnd = index.rawIndexMap[endIndex]
@@ -479,7 +487,7 @@ function rangeFromNormalizedIndex(
     return null
   }
   try {
-    const range = document.createRange()
+    const range = ownerDocument.createRange()
     range.setStart(startPosition.node, startPosition.offset)
     range.setEnd(endPosition.node, endPosition.offset + 1)
     return range
@@ -519,12 +527,18 @@ export function findRangeByNormalizedText(
   if (needle.length < 4) {
     return null
   }
+  const ownerDocument = root.ownerDocument ?? document
   const index = buildNormalizedTextIndex(root)
   const { haystack } = index
 
   const exact = haystack.indexOf(needle)
   if (exact !== -1 && countOccurrences(haystack, needle) === 1) {
-    return rangeFromNormalizedIndex(index, exact, exact + needle.length - 1)
+    return rangeFromNormalizedIndex(
+      index,
+      exact,
+      exact + needle.length - 1,
+      ownerDocument,
+    )
   }
 
   const maxLength = Math.min(needle.length, 160)
@@ -540,7 +554,12 @@ export function findRangeByNormalizedText(
       const found = haystack.indexOf(anchor)
       if (found === -1) continue
       if (countOccurrences(haystack, anchor) !== 1) continue
-      return rangeFromNormalizedIndex(index, found, found + length - 1)
+      return rangeFromNormalizedIndex(
+        index,
+        found,
+        found + length - 1,
+        ownerDocument,
+      )
     }
   }
   return null
@@ -551,8 +570,11 @@ export function findRangeByNormalizedText(
  * deepest resolved node. Used to narrow a text search to the record's original
  * region when the full path is stale.
  */
-export function resolvePartialPath(path: PathSegment[]): Node | null {
-  let current: Node = document
+export function resolvePartialPath(
+  path: PathSegment[],
+  rootDocument: Document = document,
+): Node | null {
+  let current: Node = rootDocument
   if (Array.isArray(path) && path.length && current.nodeName) {
     const firstName = path[0] && path[0].name
     if (
@@ -562,7 +584,7 @@ export function resolvePartialPath(path: PathSegment[]): Node | null {
       path = path.slice(1)
     }
   }
-  let deepest: Node | null = document.body
+  let deepest: Node | null = rootDocument.body ?? rootDocument
   for (const segment of path) {
     const logicalList = getLogicalChildNodes(current)
     const pairs = logicalList.filter((entry) => {
@@ -594,11 +616,14 @@ export interface SerializedRange {
   }
 }
 
-export function deserializeRange(serialized?: SerializedRange) {
+export function deserializeRange(
+  serialized?: SerializedRange,
+  rootDocument: Document = document,
+) {
   if (!serialized?.start || !serialized?.end) {
     return null
   }
-  const range = document.createRange()
+  const range = rootDocument.createRange()
   // Prefer the new element+charOffset format. Fall back to the old
   // node+offset format for backward compatibility.
   try {
@@ -606,14 +631,14 @@ export function deserializeRange(serialized?: SerializedRange) {
     let startNode = null
     let startOffset = 0
     if (serialized.start && typeof serialized.start.charOffset === "number") {
-      const el = resolvePath(serialized.start.path) as Element | null
+      const el = resolvePath(serialized.start.path, rootDocument) as Element | null
       if (!el) return null
       const resolved = nodeForCharOffset(el, serialized.start.charOffset)
       if (!resolved) return null
       startNode = resolved.node
       startOffset = resolved.offset
     } else {
-      startNode = resolvePath(serialized.start.path)
+      startNode = resolvePath(serialized.start.path, rootDocument)
       if (!startNode) return null
       startOffset = clampOffset(startNode, serialized.start.offset!)
     }
@@ -622,14 +647,14 @@ export function deserializeRange(serialized?: SerializedRange) {
     let endNode = null
     let endOffset = 0
     if (serialized.end && typeof serialized.end.charOffset === "number") {
-      const el = resolvePath(serialized.end.path)
+      const el = resolvePath(serialized.end.path, rootDocument)
       if (!el) return null
       const resolved = nodeForCharOffset(el, serialized.end.charOffset)
       if (!resolved) return null
       endNode = resolved.node
       endOffset = resolved.offset
     } else {
-      endNode = resolvePath(serialized.end.path)
+      endNode = resolvePath(serialized.end.path, rootDocument)
       if (!endNode) return null
       endOffset = clampOffset(endNode, serialized.end.offset!)
     }

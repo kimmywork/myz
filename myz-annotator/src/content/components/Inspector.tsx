@@ -1,3 +1,4 @@
+import { TagInput } from "@myz/dashboard-ui";
 import { IconClose, IconEdit, IconTrash } from "@myz/shared/icons";
 import { storeToRefs } from "pinia";
 import {
@@ -10,12 +11,15 @@ import {
   watch,
 } from "vue";
 import { useInspectorStore } from "@/content/stores/inspector-store.js";
+import { useModalStore } from "@/content/stores/modal-store.js";
 
 export default defineComponent({
   name: "MyZInspector",
   setup() {
     const store = useInspectorStore();
-    const { visible, record, inspectorAnchor } = storeToRefs(store);
+    const modalStore = useModalStore();
+    const { visible, record, inspectorAnchor, noteDraft, tagsDraft, dirty } =
+      storeToRefs(store);
     const inspectorRef = ref<HTMLElement | null>(null);
     const inspectorHeight = ref(0);
     const inspectorFontSize = ref(16);
@@ -103,15 +107,50 @@ export default defineComponent({
       >
         {hasNote.value ? (
           <div class="myz-inspector__body">
-            <div class="myz-inspector__note">{noteText.value}</div>
+            <blockquote class="myz-inspector__quote">
+              {record.value.text}
+            </blockquote>
+            <label class="myz-annotator-field myz-inspector__note-field">
+              <span class="myz-inspector__label">批注</span>
+              <textarea
+                class="myz-inspector__note-input"
+                rows="3"
+                value={noteDraft.value}
+                onInput={(event: Event) => {
+                  store.noteDraft = (event.target as HTMLTextAreaElement).value;
+                }}
+              />
+            </label>
+            <div class="myz-inspector__tags">
+              <TagInput
+                modelValue={tagsDraft.value}
+                options={modalStore.knownTags}
+                placeholder="添加标签"
+                allowNew={true}
+                variant="content"
+                onUpdate:modelValue={(value: string[]) => {
+                  store.tagsDraft = Array.isArray(value) ? value : [];
+                }}
+              />
+            </div>
           </div>
         ) : null}
 
         <div class="myz-inspector__actions">
+          {hasNote.value ? (
+            <button
+              type="button"
+              class="myz-inspector__save"
+              disabled={!dirty.value}
+              onClick={() => void store.save()}
+            >
+              保存
+            </button>
+          ) : null}
           <button
             type="button"
             class="myz-inspector__icon-btn myz-inspector__icon-btn--edit"
-            aria-label="编辑划线"
+            aria-label="编辑划线与样式"
             onClick={() => {
               store.edit();
               store.hide();

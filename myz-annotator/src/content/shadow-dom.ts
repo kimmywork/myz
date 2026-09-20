@@ -1,3 +1,4 @@
+import { applyCjkRegion, detectCjkRegion } from "@myz/shared/cjk";
 import shadowStyles from "./styles/shadow.css?inline";
 
 const THEME_KEY = "myz:theme";
@@ -52,15 +53,16 @@ function watchTheme(target: HTMLElement): void {
       return;
     }
     if (changes[SETTINGS_KEY]) {
-      target.dataset.scheme = resolveScheme(
-        changes[SETTINGS_KEY].newValue,
-      );
+      target.dataset.scheme = resolveScheme(changes[SETTINGS_KEY].newValue);
     }
     if (changes[THEME_KEY]) {
       target.dataset.theme = resolveTheme(changes[THEME_KEY].newValue);
     }
   });
-  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function"
+  ) {
     window
       .matchMedia("(prefers-color-scheme: light)")
       .addEventListener("change", () => applyThemeAttributes(target));
@@ -77,6 +79,7 @@ export function createShadowHost(tag = "div", styles = shadowStyles) {
   const mountPoint = document.createElement("div");
   mountPoint.setAttribute("data-myz-mount", "1");
   applyThemeAttributes(mountPoint);
+  applyCjkRegion(mountPoint, detectCjkRegion());
   watchTheme(mountPoint);
   shadow.appendChild(mountPoint);
   document.documentElement.appendChild(host);

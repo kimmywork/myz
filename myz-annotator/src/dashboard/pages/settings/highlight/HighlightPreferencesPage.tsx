@@ -1,9 +1,11 @@
+import { ColorPalette, SettingsRow } from "@myz/dashboard-ui";
 import {
   normalizeColor,
   normalizeHighlightStyle,
   normalizePalette,
 } from "@myz/shared/highlightUtils";
 import {
+  colorName,
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
   HIGHLIGHT_STYLE_OPTIONS,
@@ -119,47 +121,24 @@ export default defineComponent({
         </div>
 
         <div class="settings__fields">
-          <div class="settings__fields--compact">
-            <p class="text-compact font-medium text-text">
-              调色盘
+          <SettingsRow label="调色盘" hint="点色块选默认色，点铅笔改色" stacked>
+            <ColorPalette
+              colors={palette.value}
+              activeColor={defaultColor.value}
+              disabled={isSaving.value}
+              onSelect={(color) => (defaultColor.value = color)}
+              onUpdate={(index, value) => updatePaletteColor(index, value)}
+            />
+            <p class="mt-2 flex items-center gap-2 text-caption text-muted">
+              <span
+                class="inline-block h-4 w-4 rounded-full border border-line"
+                style={{ backgroundColor: defaultColor.value }}
+              />
+              默认色：{colorName(defaultColor.value)} · {defaultColor.value}
             </p>
-            <div class="grid gap-3 sm:grid-cols-2">
-              {palette.value.map((color, index) => (
-                <label key={`${color}-${index}`} class="field">
-                  <span>颜色 {index + 1}</span>
-                  <div class="flex items-center gap-2">
-                    <input
-                      type="color"
-                      class="h-9 w-12 rounded-control border border-line bg-surface p-1 dark:border-line dark:bg-surface"
-                      value={color}
-                      onInput={(event: InputEvent) =>
-                        updatePaletteColor(
-                          index,
-                          (event.target as HTMLInputElement).value,
-                        )
-                      }
-                    />
-                    <input
-                      type="text"
-                      class="flex-1"
-                      value={color}
-                      onInput={(event: InputEvent) =>
-                        updatePaletteColor(
-                          index,
-                          (event.target as HTMLInputElement).value,
-                        )
-                      }
-                    />
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
+          </SettingsRow>
 
-          <div class="settings__fields--compact">
-            <p class="text-compact font-medium text-text">
-              默认样式
-            </p>
+          <SettingsRow label="默认样式" controlWidth="auto">
             <div
               class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"
               role="group"
@@ -170,7 +149,7 @@ export default defineComponent({
                   key={value}
                   type="button"
                   class={[
-                    "rounded-full px-4 py-1.5 transition",
+                    "h-8 rounded-full px-4 transition",
                     defaultStyle.value === value
                       ? "bg-accent text-on-accent "
                       : "text-muted dark:text-muted",
@@ -181,33 +160,7 @@ export default defineComponent({
                 </button>
               ))}
             </div>
-          </div>
-
-          <div class="settings__fields--compact">
-            <p class="text-compact font-medium text-text">
-              默认颜色
-            </p>
-            <div class="flex flex-wrap items-center gap-2">
-              {palette.value.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  class={[
-                    "h-9 w-9 rounded-full border border-line transition",
-                    defaultColor.value === color
-                      ? "ring-2 ring-accent"
-                      : "hover:ring-2 hover:ring-accent/40",
-                  ].join(" ")}
-                  style={{ backgroundColor: color }}
-                  aria-label={`选择默认颜色 ${color}`}
-                  onClick={() => (defaultColor.value = color)}
-                />
-              ))}
-              <span class="text-caption text-muted">
-                当前：{defaultColor.value}
-              </span>
-            </div>
-          </div>
+          </SettingsRow>
 
           <div class="settings__actions">
             <button

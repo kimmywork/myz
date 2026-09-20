@@ -1,41 +1,24 @@
-import { Moon, Monitor, Sun } from "@lucide/vue";
+import { SettingsRow } from "@myz/dashboard-ui";
 import { useColorScheme } from "@myz/shared/colorScheme";
+import ThemeToggle from "@myz/shared/components/ThemeToggle";
 import { useThemePreference } from "@myz/shared/theme";
-import { computed, defineComponent, ref } from "vue";
-
-const THEME_OPTIONS = [
-  { value: "light", label: "亮色", Icon: Sun },
-  { value: "dark", label: "暗色", Icon: Moon },
-  { value: "auto", label: "跟随系统", Icon: Monitor },
-] as const;
-
-type ThemeMode = (typeof THEME_OPTIONS)[number]["value"];
+import { computed, defineComponent } from "vue";
 
 export default defineComponent({
   name: "SettingsAppearancePage",
   setup() {
-    const { mode, setTheme, ready } = useThemePreference();
+    const { mode, ready } = useThemePreference();
     const { scheme, options, setScheme, ready: schemeReady } = useColorScheme();
-    const selected = computed({
-      get: () => mode.value,
-      set: (next: ThemeMode) => setTheme(next),
+
+    const themeCaption = computed(() => {
+      if (!ready.value) {
+        return "正在读取主题设置…";
+      }
+      if (mode.value === "auto") {
+        return "当前跟随系统";
+      }
+      return mode.value === "light" ? "当前为亮色模式" : "当前为暗色模式";
     });
-    const menuOpen = ref(false);
-
-    const activeOption = computed(
-      () =>
-        THEME_OPTIONS.find((option) => option.value === mode.value) ??
-        THEME_OPTIONS[2],
-    );
-
-    function toggleMenu() {
-      menuOpen.value = !menuOpen.value;
-    }
-
-    function choose(option: (typeof THEME_OPTIONS)[number]) {
-      selected.value = option.value;
-      menuOpen.value = false;
-    }
 
     return () => (
       <div class="space-y-6">
@@ -46,51 +29,13 @@ export default defineComponent({
               选择界面主题，或跟随操作系统的外观设置。
             </p>
           </div>
-          <div class="flex items-center gap-3">
-            <div class="relative">
-              <button
-                type="button"
-                onClick={toggleMenu}
-                class="inline-flex items-center gap-2 rounded-pill border border-line bg-control-bg px-3 py-2 text-compact font-medium text-text transition hover:border-accent hover:text-accent-text"
-              >
-                <span class="flex h-6 w-6 items-center justify-center rounded-full bg-surface-2 text-text">
-                  <activeOption.value.Icon size={14} />
-                </span>
-                {ready.value ? activeOption.value.label : "加载中…"}
-              </button>
-              {menuOpen.value ? (
-                <div class="absolute left-0 top-full z-10 mt-2 w-48 overflow-hidden rounded-panel border border-control-border bg-surface py-1 shadow-float">
-                  {THEME_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => choose(option)}
-                      class={[
-                        "flex h-8 w-full items-center gap-2 rounded-tag px-2.5 text-label transition",
-                        option.value === mode.value
-                          ? "bg-surface-2 text-accent-text"
-                          : "text-text hover:bg-surface-2",
-                      ].join(" ")}
-                    >
-                      <span class="flex h-6 w-6 items-center justify-center rounded-full bg-surface-2">
-                        <option.Icon size={14} />
-                      </span>
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <span class="text-caption text-muted">
-              {ready.value
-                ? mode.value === "auto"
-                  ? "当前跟随系统"
-                  : mode.value === "light"
-                    ? "当前为亮色模式"
-                    : "当前为暗色模式"
-                : "正在读取主题设置…"}
-            </span>
-          </div>
+          <SettingsRow
+            label="主题"
+            hint={themeCaption.value}
+            controlWidth="auto"
+          >
+            <ThemeToggle variant="switch" aria-label="切换主题" />
+          </SettingsRow>
         </div>
 
         <div class="space-y-3 border-t border-line pt-5">

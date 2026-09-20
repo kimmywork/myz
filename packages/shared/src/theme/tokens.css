@@ -30,6 +30,9 @@
   --myz-mark-3: #9f7aea;
   --myz-mark-4: #38bdf8;
   --myz-mark-5: #34d399;
+  /* Per-mark channel: set inline on a mark/annotation to its own record color.
+     The default only guarantees a sane fallback when it is missing. */
+  --myz-highlight-color: var(--myz-mark-1);
   --myz-mark-alpha: 42%;
   --myz-mark-radius: 3px;
   --myz-mark-underline: 2px;

@@ -14,7 +14,7 @@ export interface TagInputProps {
   placeholder?: string
   allowNew?: boolean
   disabled?: boolean
-  variant?: "dashboard" | "content"
+  variant?: "dashboard" | "content" | "well"
 }
 
 export default defineComponent({
@@ -350,6 +350,9 @@ export default defineComponent({
 
     return () => {
       const useContentVariant = props.variant === "content"
+      const useWellVariant = props.variant === "well"
+      const chipClass =
+        "inline-flex h-[22px] items-center gap-2 rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
       const containerClasses = useContentVariant
         ? [
             "myz-tag-input",
@@ -358,13 +361,21 @@ export default defineComponent({
           ]
             .filter(Boolean)
             .join(" ")
-        : [
-            "relative flex w-full flex-wrap items-center gap-2 rounded-control border px-3 py-2 text-compact transition",
-            props.disabled ? "cursor-not-allowed opacity-60" : "cursor-text",
-            isFocused.value
-              ? "border-accent bg-surface shadow-float dark:bg-surface-2"
-              : "border-line bg-surface dark:border-line dark:bg-surface-2",
-          ].join(" ")
+        : useWellVariant
+          ? [
+              "relative flex w-full flex-wrap items-center gap-2 rounded-control border px-3 py-2 text-compact transition",
+              props.disabled ? "cursor-not-allowed opacity-45" : "cursor-text",
+              isFocused.value
+                ? "border-accent ring-[3px] ring-accent/20"
+                : "border-well-border bg-well-control-bg",
+            ].join(" ")
+          : [
+              "relative flex w-full flex-wrap items-center gap-2 rounded-control border px-3 py-2 text-compact transition",
+              props.disabled ? "cursor-not-allowed opacity-45" : "cursor-text",
+              isFocused.value
+                ? "border-accent bg-surface ring-[3px] ring-accent/20 dark:bg-surface-2"
+                : "border-line bg-surface dark:border-line dark:bg-surface-2",
+            ].join(" ")
 
       return (
         <div class="relative w-full">
@@ -375,11 +386,7 @@ export default defineComponent({
           >
             {internalValue.value.map((tag) => (
               <span
-                class={
-                  useContentVariant
-                    ? "myz-tag-input__chip"
-                    : "inline-flex h-[22px] items-center gap-2 rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
-                }
+                class={useContentVariant ? "myz-tag-input__chip" : chipClass}
                 key={tag}
                 data-role="tag-chip"
               >
@@ -390,7 +397,9 @@ export default defineComponent({
                     class={
                       useContentVariant
                         ? "myz-tag-input__remove"
-                        : "tag-input__remove text-muted hover:text-error dark:text-text dark:hover:text-error"
+                        : useWellVariant
+                          ? "tag-input__remove appearance-none rounded-tag border-0 bg-transparent p-0 leading-none text-well-muted hover:text-well-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-well-chrome"
+                          : "tag-input__remove rounded-tag text-muted hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg dark:text-text dark:hover:text-error"
                     }
                     onClick={() => removeTag(tag)}
                     aria-label={`移除标签 ${tag}`}
@@ -407,7 +416,9 @@ export default defineComponent({
                 class={
                   useContentVariant
                     ? "myz-tag-input__input"
-                    : "min-w-20 flex-1 bg-transparent text-compact text-text placeholder:text-muted focus:outline-none dark:text-text dark:placeholder:text-muted"
+                    : useWellVariant
+                      ? "min-w-20 flex-1 appearance-none border-0 bg-transparent p-0 text-compact text-well-text placeholder:text-well-muted focus:outline-none"
+                      : "min-w-20 flex-1 bg-transparent text-compact text-text placeholder:text-muted focus:outline-none dark:text-text dark:placeholder:text-muted"
                 }
                 type="text"
                 value={inputValue.value}
@@ -427,7 +438,9 @@ export default defineComponent({
               class={
                 useContentVariant
                   ? "myz-tag-input__list"
-                  : "absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-panel border border-control-border bg-surface p-1 shadow-float"
+                  : useWellVariant
+                    ? "absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-panel border border-well-control-border bg-well-chrome p-1 shadow-float"
+                    : "absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-panel border border-control-border bg-surface p-1 shadow-float"
               }
               role="listbox"
               data-role="tag-options"
@@ -443,12 +456,19 @@ export default defineComponent({
                         ]
                           .filter(Boolean)
                           .join(" ")
-                      : [
-                          "flex h-8 cursor-pointer items-center rounded-tag px-2.5 text-label text-text transition hover:bg-surface-2",
-                          activeIndex.value === index
-                            ? "bg-surface-2 text-accent-text"
-                            : "",
-                        ].join(" ")
+                      : useWellVariant
+                        ? [
+                            "flex h-8 cursor-pointer items-center rounded-tag px-2.5 text-label text-well-text transition hover:bg-well-control-bg",
+                            activeIndex.value === index
+                              ? "bg-well-control-bg text-accent-text"
+                              : "",
+                          ].join(" ")
+                        : [
+                            "flex h-8 cursor-pointer items-center rounded-tag px-2.5 text-label text-text transition hover:bg-surface-2",
+                            activeIndex.value === index
+                              ? "bg-surface-2 text-accent-text"
+                              : "",
+                          ].join(" ")
                   }
                   role="option"
                   aria-selected={activeIndex.value === index ? "true" : "false"}

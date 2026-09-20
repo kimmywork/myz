@@ -1,6 +1,15 @@
 import { SOURCE_TYPES } from "@myz/shared/types";
 import { buildPdfSourceUrl } from "@myz/shared/url";
-import { fingerprintPdf } from "./fingerprint";
+import {
+  ensureReadPermission,
+  fingerprintBytes,
+  isPermissionError as isLocalFilePermissionError,
+  localFilePermissionError,
+  readHandle,
+  supportsFileSystemAccess as supportsLocalFileSystemAccess,
+  type FilePicker,
+  type PermissionCapableHandle,
+} from "../reader/local-file.js";
 import { getFileHandle, putFileHandle } from "./storage";
 
 export type PdfSourceRef =
@@ -15,64 +24,16 @@ export function sourceTypeOf(ref: PdfSourceRef): SOURCE_TYPES {
   return ref.kind === "web" ? SOURCE_TYPES.WEB : SOURCE_TYPES.PDF;
 }
 
-interface PermissionCapableHandle {
-  name?: string;
-  queryPermission?(desc: {
-    mode: "read" | "readwrite";
-  }): Promise<"granted" | "denied" | "prompt">;
-  requestPermission?(desc: {
-    mode: "read" | "readwrite";
-  }): Promise<"granted" | "denied" | "prompt">;
-  getFile(): Promise<File>;
-}
-
-type FilePicker = (options: unknown) => Promise<PermissionCapableHandle[]>;
-
 export function supportsFileSystemAccess(): boolean {
-  return (
-    typeof (window as unknown as { showOpenFilePicker?: unknown })
-      .showOpenFilePicker === "function"
-  );
+  return supportsLocalFileSystemAccess();
 }
 
-/**
- * Raised when a stored local-file handle needs a permission re-grant that
- * requires transient user activation (which a freshly program-opened tab does
- * not have).
- */
 export function localPdfPermissionError(): Error {
-  const err = new Error("需要重新授权访问该本地文件，请点击「重新授权并打开」");
-  err.name = "LocalPdfPermissionError";
-  return err;
+  return localFilePermissionError();
 }
 
 export function isPermissionError(err: unknown): boolean {
-  return err instanceof Error && err.name === "LocalPdfPermissionError";
-}
-
-async function readHandle(
-  handle: PermissionCapableHandle,
-): Promise<ArrayBuffer> {
-  if (handle.queryPermission) {
-    const current = await handle.queryPermission({ mode: "read" });
-    if (current !== "granted") {
-      if (!handle.requestPermission) {
-        throw localPdfPermissionError();
-      }
-      try {
-        const next = await handle.requestPermission({ mode: "read" });
-        if (next !== "granted") {
-          throw localPdfPermissionError();
-        }
-      } catch (err) {
-        // Browsers reject requestPermission without user activation; surface a
-        // recoverable error instead of the raw DOMException.
-        throw isPermissionError(err) ? err : localPdfPermissionError();
-      }
-    }
-  }
-  const file = await handle.getFile();
-  return file.arrayBuffer();
+  return isLocalFilePermissionError(err);
 }
 
 /**
@@ -84,22 +45,10 @@ export async function ensureLocalPdfPermission(
   fingerprint: string,
 ): Promise<boolean> {
   const handle = await getFileHandle<PermissionCapableHandle>(fingerprint);
-  if (!handle?.queryPermission) {
+  if (!handle) {
     return false;
   }
-  try {
-    const current = await handle.queryPermission({ mode: "read" });
-    if (current === "granted") {
-      return true;
-    }
-    if (!handle.requestPermission) {
-      return false;
-    }
-    const next = await handle.requestPermission({ mode: "read" });
-    return next === "granted";
-  } catch {
-    return false;
-  }
+  return ensureReadPermission(handle);
 }
 
 export function titleFromPdfUrl(url: string): string {
@@ -129,7 +78,7 @@ export async function pickLocalPdf(): Promise<{
     return null;
   }
   const bytes = await readHandle(handle);
-  const fingerprint = await fingerprintPdf(bytes);
+  const fingerprint = await fingerprintBytes(bytes);
   await putFileHandle(fingerprint.hash, handle);
   return {
     ref: {

@@ -30,16 +30,6 @@ export interface SearchFilters {
   to: string;
 }
 
-export interface ModalState {
-  recordId: string;
-  mode: "view" | "edit";
-  note: string;
-  tags: string[];
-  color: string;
-  status: string;
-  saving: boolean;
-}
-
 export const useUIStore = defineStore("ui", () => {
   const highlightsStore = useHighlightsStore();
 
@@ -55,16 +45,6 @@ export const useUIStore = defineStore("ui", () => {
     tags: [],
     from: "",
     to: "",
-  });
-
-  const modalState: ModalState = reactive({
-    recordId: "",
-    mode: "view",
-    note: "",
-    tags: [],
-    color: DEFAULT_COLOR,
-    status: "",
-    saving: false,
   });
 
   const searchNeedle = computed(() => filters.search.trim().toLowerCase());
@@ -344,74 +324,41 @@ export const useUIStore = defineStore("ui", () => {
     }
   }
 
-  function openModal(id: string, mode: "view" | "edit") {
+  /**
+   * Persist record edits made in the viewer (design-system §4.8: record
+   * reading and editing live on the viewer page, not in a large modal).
+   */
+  async function updateRecord(
+    id: string,
+    patch: { note?: string; tags?: string[]; color?: string },
+  ) {
     const record = highlightsStore.highlights.find((item) => item.id === id);
     if (!record) {
       return;
     }
-    modalState.recordId = record.id;
-    modalState.mode = mode;
-    modalState.note = record.note || "";
-    modalState.tags = Array.isArray(record.tags) ? [...record.tags] : [];
-    modalState.color = record.color || DEFAULT_COLOR;
-    modalState.status = "";
-  }
-
-  function closeModal() {
-    modalState.recordId = "";
-    modalState.mode = "view";
-    modalState.status = "";
-    modalState.saving = false;
-  }
-
-  async function saveModal() {
-    if (!modalState.recordId || modalState.saving) {
-      return;
-    }
-    const record = highlightsStore.highlights.find(
-      (item) => item.id === modalState.recordId,
-    );
-    if (!record) {
-      return;
-    }
     const kind = getRecordKind(record);
-    const note = modalState.note.trim();
-    const tags = [...modalState.tags];
-    modalState.saving = true;
-    modalState.status = "保存中…";
-    try {
-      const payload: Partial<MyZRecord> = {
-        id: modalState.recordId,
-        note,
-        tags,
-        kind,
-      };
-      if (kind === RECORD_KINDS.HIGHLIGHT) {
-        payload.color = modalState.color || DEFAULT_COLOR;
-      } else {
-        payload.color = undefined;
-        payload.range = undefined;
-      }
-      const updated = await sendMessage<Partial<MyZRecord>, MyZRecord>(
-        "myz:updateHighlight",
-        payload,
-      );
-      highlightsStore.applyUpdatedRecord(updated);
-      modalState.status = "保存成功";
-      setTimeout(() => {
-        closeModal();
-      }, 600);
-    } catch (error) {
-      modalState.status = `保存失败：${(error as Error).message}`;
-    } finally {
-      modalState.saving = false;
+    const payload: Partial<MyZRecord> = {
+      id,
+      kind,
+      note: patch.note ?? record.note ?? "",
+      tags: patch.tags ?? record.tags ?? [],
+    };
+    if (kind === RECORD_KINDS.HIGHLIGHT) {
+      payload.color = patch.color ?? record.color ?? DEFAULT_COLOR;
+    } else {
+      payload.color = undefined;
+      payload.range = undefined;
     }
+    const updated = await sendMessage<Partial<MyZRecord>, MyZRecord>(
+      "myz:updateHighlight",
+      payload,
+    );
+    highlightsStore.applyUpdatedRecord(updated);
   }
 
   return {
     view,
     filters,
-    modalState,
     pageSidebarOpen,
     pageFilter,
     pageSortMode,
@@ -432,9 +379,7 @@ export const useUIStore = defineStore("ui", () => {
     clearPageFilter,
     setPageSortMode,
     loadMore,
-    openModal,
-    closeModal,
-    saveModal,
+    updateRecord,
     renderHighlight: (record: MyZRecord) =>
       renderHighlightContent(record, searchTerms.value),
     formatNote: (value: string) => formatNote(value, searchTerms.value),

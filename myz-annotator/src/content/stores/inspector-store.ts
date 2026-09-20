@@ -10,7 +10,11 @@ import {
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { resolveHighlightColor } from "../apply-highlight.js";
-import { deleteHighlight, getFromHighlightCache } from "../highlight-state.js";
+import {
+  deleteHighlight,
+  getFromHighlightCache,
+  updateExistingHighlight,
+} from "../highlight-state.js";
 import { useModalStore } from "./modal-store.js";
 import { recordToMarkdown } from "@/dashboard/utils/records.js";
 
@@ -55,6 +59,13 @@ export const useInspectorStore = defineStore("inspector", () => {
     width: number;
     height: number;
   } | null>(null);
+  const noteDraft = ref("");
+  const tagsDraft = ref<string[]>([]);
+  const dirty = computed(
+    () =>
+      noteDraft.value !== record.value.note ||
+      JSON.stringify(tagsDraft.value) !== JSON.stringify(record.value.tags),
+  );
 
   function showRecord(rawRecord: Partial<MyZRecord>, position?: DOMRect) {
     const computedKind =
@@ -104,6 +115,8 @@ export const useInspectorStore = defineStore("inspector", () => {
       color: resolvedColor,
       kind: computedKind,
     };
+    noteDraft.value = record.value.note;
+    tagsDraft.value = [...record.value.tags];
     if (position) {
       inspectorAnchor.value = {
         top: position.top,
@@ -123,7 +136,27 @@ export const useInspectorStore = defineStore("inspector", () => {
     visible.value = false;
     inspectingId.value = null;
     record.value = { ...DEFAULT_RECORD };
+    noteDraft.value = "";
+    tagsDraft.value = [];
     inspectorAnchor.value = null;
+  }
+
+  /** Persist the in-place note / tag edits for the inspected record. */
+  async function save() {
+    const id = inspectingId.value;
+    if (!id) {
+      return;
+    }
+    const original = getFromHighlightCache(id);
+    if (!original) {
+      return;
+    }
+    await updateExistingHighlight({
+      id,
+      kind: getRecordKind(original),
+      note: noteDraft.value.trim(),
+      tags: [...tagsDraft.value],
+    });
   }
 
   function deleteRecord() {
@@ -184,9 +217,13 @@ export const useInspectorStore = defineStore("inspector", () => {
     deleteRecord,
     edit,
     copy,
+    save,
     visible: computed(() => visible.value),
     record: computed(() => record.value),
     inspectorAnchor: computed(() => inspectorAnchor.value),
     isInspecting,
+    noteDraft,
+    tagsDraft,
+    dirty,
   };
 });

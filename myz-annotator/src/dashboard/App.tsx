@@ -4,7 +4,6 @@ import { useThemePreference } from "@myz/shared/theme";
 import { defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { RouterView } from "vue-router";
 import DashboardNavbar from "./components/DashboardNavbar.jsx";
-import RecordModal from "./components/RecordModal.jsx";
 import { useHighlightsStore } from "./stores/highlights.js";
 import { useSettingsStore } from "./stores/settings.js";
 
@@ -40,7 +39,6 @@ export default defineComponent({
         {{
           navbar: () => <DashboardNavbar />,
           default: () => <RouterView />,
-          modal: () => <RecordModal />,
         }}
       </DashboardAppShell>
     );

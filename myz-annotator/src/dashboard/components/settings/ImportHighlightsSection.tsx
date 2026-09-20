@@ -1,3 +1,5 @@
+import { Paperclip } from "@lucide/vue";
+import { SelectInput, SettingsRow } from "@myz/dashboard-ui";
 import { defineComponent, Ref, ref } from "vue";
 import { useHighlightsStore } from "../../stores/highlights.js";
 import { ImportStrategy } from "@/background/import";
@@ -11,6 +13,7 @@ export default defineComponent({
     const importFileRef: Ref<HTMLInputElement | null> = ref(null);
     const importStrategy: Ref<ImportStrategy> = ref("skip");
     const importSource: Ref<ImportSource> = ref("auto");
+    const importFileName = ref("");
     const isImporting = ref(false);
 
     async function handleImport() {
@@ -26,6 +29,7 @@ export default defineComponent({
         if (fileInput) {
           fileInput.value = "";
         }
+        importFileName.value = "";
       } catch (error) {
         // status already surfaced by store
       } finally {
@@ -42,44 +46,57 @@ export default defineComponent({
           <p class="settings__hint">
             支持导入 MyZ JSON、RainDrop CSV、Weava CSV、Chrome 书签 HTML。
           </p>
-          <label class="field">
-            <span>导入文件</span>
-            <input
-              ref={importFileRef}
-              type="file"
-              accept="application/json,text/csv,text/html,.json,.csv,.html,.htm"
+          <SettingsRow label="导入文件" controlWidth="auto">
+            <span class="flex items-center gap-3">
+              <input
+                ref={importFileRef}
+                type="file"
+                class="peer sr-only"
+                accept="application/json,text/csv,text/html,.json,.csv,.html,.htm"
+                onChange={(event: Event) => {
+                  const input = event.target as HTMLInputElement;
+                  importFileName.value = input.files?.[0]?.name || "";
+                }}
+              />
+              <span class="inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-control border border-control-border bg-control-bg px-3 text-label font-semibold text-text transition peer-hover:border-accent peer-hover:text-accent-text peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-bg peer-disabled:opacity-45">
+                <Paperclip size={16} aria-hidden="true" />
+                选择文件
+              </span>
+              <span class="max-w-[180px] truncate text-caption text-muted">
+                {importFileName.value || "未选择文件"}
+              </span>
+            </span>
+          </SettingsRow>
+          <SettingsRow label="导入来源">
+            <SelectInput
+              testId="import-source"
+              modelValue={importSource.value}
+              options={[
+                { value: "auto", label: "自动识别（推荐）" },
+                { value: "myz-json", label: "MyZ JSON" },
+                { value: "raindrop-csv", label: "RainDrop CSV" },
+                { value: "weava-csv", label: "Weava CSV" },
+                { value: "chrome-bookmarks", label: "Chrome 书签 HTML" },
+              ]}
+              onChange={(value) => {
+                importSource.value = value as ImportSource;
+              }}
             />
-          </label>
-          <label class="field">
-            <span>导入来源</span>
-            <select
-              value={importSource.value}
-              onChange={(event: Event) =>
-                (importSource.value = (event.target as HTMLSelectElement)
-                  .value as ImportSource)
-              }
-            >
-              <option value="auto">自动识别（推荐）</option>
-              <option value="myz-json">MyZ JSON</option>
-              <option value="raindrop-csv">RainDrop CSV</option>
-              <option value="weava-csv">Weava CSV</option>
-              <option value="chrome-bookmarks">Chrome 书签 HTML</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>冲突处理</span>
-            <select
-              value={importStrategy.value}
-              onChange={(event: Event) =>
-                (importStrategy.value = (event.target as HTMLSelectElement)
-                  .value as ImportStrategy)
-              }
-            >
-              <option value="skip">遇到重复时跳过</option>
-              <option value="overwrite">遇到重复时覆盖</option>
-              <option value="latest">保留最近更新</option>
-            </select>
-          </label>
+          </SettingsRow>
+          <SettingsRow label="冲突处理">
+            <SelectInput
+              testId="import-strategy"
+              modelValue={importStrategy.value}
+              options={[
+                { value: "skip", label: "遇到重复时跳过" },
+                { value: "overwrite", label: "遇到重复时覆盖" },
+                { value: "latest", label: "保留最近更新" },
+              ]}
+              onChange={(value) => {
+                importStrategy.value = value as ImportStrategy;
+              }}
+            />
+          </SettingsRow>
           <div class="settings__actions">
             <button
               class="btn"

@@ -8,6 +8,12 @@
       "skillPath": "drafting/skills/challenge/SKILL.md",
       "computedHash": "7571cde2342116a6c35e508f4df9292c81133118048dab27a8cac81213a5a50e"
     },
+    "design-system": {
+      "source": "kimmywork/skills",
+      "sourceType": "github",
+      "skillPath": "drafting/skills/design-system/SKILL.md",
+      "computedHash": "a6b3394cf30361461e13f3084e4968b1b832c40a35b4b32b3652dd37b747fdd8"
+    },
     "distillation": {
       "source": "git@github.com:kimmywork/skills",
       "sourceUrl": "git@github.com:kimmywork/skills",

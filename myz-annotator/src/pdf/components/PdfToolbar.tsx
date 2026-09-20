@@ -1,4 +1,11 @@
-import { ChevronLeft, ChevronRight, FolderOpen, Menu, Minus, Plus } from "@lucide/vue";
+import {
+  ChevronLeft,
+  ChevronRight,
+  FolderOpen,
+  Menu,
+  Minus,
+  Plus,
+} from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { defineComponent } from "vue";
 import { useReaderStore } from "../stores/reader-store.js";

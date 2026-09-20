@@ -3,6 +3,7 @@ workflow/video-pipeline/output/
 
 # local reference documents (not part of the project)
 /*.pdf
+/*.epub
 
 node_modules
 

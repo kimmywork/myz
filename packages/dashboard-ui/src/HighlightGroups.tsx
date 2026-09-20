@@ -3,6 +3,7 @@ import { defineComponent } from "vue"
 import type { PropType } from "vue"
 import HighlightCard from "./HighlightCard"
 import HighlightListRow from "./HighlightListRow"
+import StatePanel from "./StatePanel"
 import type { HighlightGroupSection, HighlightItemAction } from "./highlightMeta"
 
 export default defineComponent({
@@ -49,17 +50,22 @@ export default defineComponent({
     return () => {
       if (props.loading) {
         return (
-          <section class="rounded-panel border border-line bg-surface/80 p-8 text-center text-compact text-muted dark:border-line dark:bg-surface dark:text-muted">
-            {props.loadingLabel}
-          </section>
+          <StatePanel
+            kind="loading"
+            title={props.loadingLabel}
+            class="dark:border-line dark:bg-surface dark:text-muted"
+          />
         )
       }
 
       if (!props.groups.length) {
         return (
-          <section class="rounded-panel border border-line bg-surface/80 p-8 text-center text-compact text-muted dark:border-line dark:bg-surface dark:text-muted">
-            {props.emptyLabel}
-          </section>
+          <StatePanel
+            kind="empty"
+            title={props.emptyLabel}
+            hint="在网页上选中文字就能划线"
+            class="dark:border-line dark:bg-surface"
+          />
         )
       }
 
@@ -68,16 +74,16 @@ export default defineComponent({
           {props.groups.map((group) => (
             <section
               key={group.date}
-              class="space-y-2 rounded-panel border border-line bg-surface/90 p-4 shadow-inner dark:border-line dark:bg-surface"
+              class="space-y-3 rounded-panel border border-line bg-surface p-4 dark:border-line dark:bg-surface"
             >
-              <h3 class="text-compact font-semibold text-muted">
+              <h3 class="text-tag font-semibold uppercase tracking-wide text-muted">
                 {group.date} · 共 {group.stats.total} 条{group.detailText || ""}
               </h3>
               <div
                 class={[
                   props.view === "cards"
-                    ? "space-y-2 columns-1 gap-2 sm:columns-2 xl:columns-3"
-                    : "space-y-2",
+                    ? "space-y-3 columns-1 gap-3 sm:columns-2 xl:columns-3"
+                    : "space-y-3",
                 ].join(" ")}
               >
                 {group.items.map((item) =>

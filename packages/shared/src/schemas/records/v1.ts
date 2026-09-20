@@ -5,6 +5,7 @@ import {
   SerializedRangeSchema,
   HighlightStyleSchema,
   PdfLocatorSchema,
+  EpubLocatorSchema,
 } from "../common"
 
 export const RecordSchemaVersionV1 = RECORD_SCHEMA_VERSION
@@ -16,6 +17,7 @@ export const MyZRecordSchemaV1 = z
     kind: z.nativeEnum(RECORD_KINDS),
     sourceType: z.nativeEnum(SOURCE_TYPES).optional(),
     pdfLocator: PdfLocatorSchema.optional(),
+    epubLocator: EpubLocatorSchema.optional(),
     text: z.string(),
     html: z.string().optional(),
     contentType: z.nativeEnum(CONTENT_TYPES).optional(),

@@ -1,0 +1,211 @@
+@config "../../tailwind.config.ts";
+/* EPUB imports theme/utilities manually (no preflight), same as the PDF page.
+   The reader chrome (toolbar buttons, sidebar, outline, highlight list,
+   selection toolbar, inspector, states) is shared with the PDF reader. */
+@layer theme, base, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@myz/shared/theme/tailwind.css";
+@import "../reader/reader-chrome.css";
+@reference "@myz/shared/theme/tailwind.css";
+
+:root {
+  color-scheme: light dark;
+  font-family: var(--myz-sans);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--myz-well);
+  color: var(--myz-well-text);
+}
+
+#app {
+  height: 100%;
+}
+
+@layer base {
+  :where(button, a, [role="button"], [tabindex], input, select, textarea):focus-visible {
+    outline: 2px solid var(--myz-accent);
+    outline-offset: 2px;
+  }
+}
+
+.epub-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.epub-landing {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 40px 16px;
+  text-align: center;
+}
+
+.epub-landing h1 {
+  font-family: var(--myz-read);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.epub-landing p {
+  color: var(--myz-well-muted);
+  font-size: 13px;
+}
+
+.epub-toc-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.epub-status {
+  margin: 24px auto;
+  color: var(--myz-well-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.epub-status--error {
+  color: var(--myz-error);
+}
+
+.epub-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--myz-hit-compact);
+  padding: 0 12px;
+  border-radius: var(--myz-r);
+  border: 1px solid var(--myz-well-border);
+  background: var(--myz-well-control-bg);
+  color: var(--myz-well-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.epub-btn:hover {
+  border-color: var(--myz-accent);
+}
+
+.epub-recents {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.epub-recents button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.epub-recents__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epub-recents__meta {
+  color: var(--myz-well-muted);
+  flex-shrink: 0;
+}
+
+.epub-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--myz-well-chrome);
+  border-bottom: 1px solid var(--myz-well-border);
+}
+
+.epub-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.epub-toolbar__title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--myz-well-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epub-pager {
+  font-family: var(--myz-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--myz-well-muted);
+  min-width: 48px;
+  text-align: center;
+}
+
+.epub-icon-btn {
+  width: var(--myz-hit-compact);
+  height: var(--myz-hit-compact);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--myz-well-border);
+  border-radius: var(--myz-r);
+  background: var(--myz-well-control-bg);
+  color: var(--myz-well-text);
+  cursor: pointer;
+}
+
+.epub-icon-btn:hover {
+  border-color: var(--myz-accent);
+}
+
+.epub-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.epub-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--myz-well);
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.epub-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--myz-well);
+}

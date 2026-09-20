@@ -7,6 +7,7 @@ export type HighlightItemAction =
   | "delete"
   | "downgrade"
   | "openPdf"
+  | "openEpub"
 
 export interface HighlightGroupSection {
   date: string

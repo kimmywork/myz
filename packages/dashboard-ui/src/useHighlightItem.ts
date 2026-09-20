@@ -69,9 +69,17 @@ export function useHighlightItem(props: HighlightItemProps) {
   const sourceTitle = computed(() => record().hostname || record().url || "")
 
   const isPdf = computed(() => Boolean(record().pdfLocator))
+  const isEpub = computed(() => Boolean(record().epubLocator))
   const pageLabel = computed(() => {
     const pageNumber = record().pdfLocator?.pageNumber
-    return pageNumber ? `第 ${pageNumber} 页` : ""
+    if (pageNumber) {
+      return `第 ${pageNumber} 页`
+    }
+    const book = record().epubLocator
+    if (book) {
+      return `第 ${book.spineIndex + 1} 章`
+    }
+    return ""
   })
 
   return {
@@ -84,6 +92,7 @@ export function useHighlightItem(props: HighlightItemProps) {
     sourceTitle,
     isPdf,
     pageLabel,
+    isEpub,
     isClip: computed(() => kind.value === RECORD_KINDS.CLIP),
     isHighlight: computed(() => kind.value === RECORD_KINDS.HIGHLIGHT),
   }

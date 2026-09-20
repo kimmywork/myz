@@ -1,5 +1,8 @@
+import {
+  wrapRangeAcrossNodes as wrapAcross,
+  wrapSimpleRange as wrapSimple,
+} from "@myz/shared/highlightRange";
 import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
-import { isNodeFromMyz } from "@myz/shared/serializer";
 import { MyZRecord, HIGHLIGHT_STYLES, DEFAULT_COLORS } from "@myz/shared/types";
 
 function createHighlightElement(record: MyZRecord) {
@@ -10,100 +13,11 @@ function createHighlightElement(record: MyZRecord) {
 }
 
 export function wrapSimpleRange(range: Range, record: MyZRecord) {
-  const fragment = range.cloneContents();
-  if (!fragment || !fragment.childNodes.length) {
-    return false;
-  }
-  const highlight = createHighlightElement(record);
-  highlight.appendChild(fragment);
-  range.deleteContents();
-  range.insertNode(highlight);
-  return true;
+  return wrapSimple(range, () => createHighlightElement(record));
 }
 
 export function wrapRangeAcrossNodes(range: Range, record: MyZRecord) {
-  const textNodes = collectTextNodes(range);
-  if (!textNodes.length) {
-    return false;
-  }
-  let applied = false;
-  textNodes.forEach((node) => {
-    const didWrap = wrapTextNodeSegment(node, range, record);
-    applied = didWrap || applied;
-  });
-  return applied;
-}
-
-function collectTextNodes(range: Range): Text[] {
-  const nodes: Text[] = [];
-  const iterator = document.createNodeIterator(
-    range.commonAncestorContainer,
-    NodeFilter.SHOW_TEXT,
-    {
-      acceptNode(node) {
-        // Ignore nodes that belong to the extension UI or highlights
-        if (isNodeFromMyz(node)) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        if (!range.intersectsNode(node)) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        if (!node.textContent || !node.textContent.trim()) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        return NodeFilter.FILTER_ACCEPT;
-      },
-    },
-  );
-  let current;
-  while ((current = iterator.nextNode() as Text | null)) {
-    nodes.push(current);
-  }
-  return nodes;
-}
-
-function wrapTextNodeSegment(node: Text, range: Range, record: MyZRecord) {
-  const offsets = computeSegmentOffsets(node, range);
-  if (!offsets || offsets.end <= offsets.start) {
-    return false;
-  }
-  let target = node;
-  const length = node.textContent.length;
-  if (offsets.end < length) target.splitText(offsets.end);
-  if (offsets.start > 0) target = target.splitText(offsets.start);
-  if (!target || !target.textContent.trim()) return false;
-  const parent = target.parentNode;
-  if (!parent) return false;
-  const highlight = createHighlightElement(record);
-  parent.insertBefore(highlight, target);
-  highlight.appendChild(target);
-  return true;
-}
-
-function computeSegmentOffsets(node: Text, range: Range) {
-  const length = node.textContent.length;
-  let start = 0;
-  let end = length;
-
-  if (node === range.startContainer) {
-    start = range.startOffset;
-  }
-  if (node === range.endContainer) {
-    end = range.endOffset;
-  }
-
-  const startPosition = range.startContainer.compareDocumentPosition(node);
-  if (startPosition & Node.DOCUMENT_POSITION_FOLLOWING) {
-    start = 0;
-  }
-  const endPosition = range.endContainer.compareDocumentPosition(node);
-  if (endPosition & Node.DOCUMENT_POSITION_PRECEDING) {
-    end = length;
-  }
-
-  start = Math.max(0, Math.min(start, length));
-  end = Math.max(start, Math.min(end, length));
-  return { start, end };
+  return wrapAcross(range, () => createHighlightElement(record));
 }
 
 export function decorateHighlightElement(

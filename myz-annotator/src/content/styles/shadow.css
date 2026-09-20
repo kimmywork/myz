@@ -14,6 +14,12 @@
   display: none !important;
 }
 
+/* §3.9 聚焦：默认强调色外圈；固定深色组件与组件级规则会覆盖 */
+:where(button, a, [role="button"], [tabindex], summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 2px;
+}
+
 /* ── 采集条 §4.7：固定深色胶囊，不跟随主题 ───────────────────────── */
 .myz-annotator-toolbar {
   position: absolute;
@@ -31,6 +37,16 @@
     0 8px 24px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.16);
   z-index: 2147483647;
+  animation: myz-fade-in var(--myz-motion-med) var(--myz-ease-out);
+}
+
+@keyframes myz-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .myz-annotator-toolbar button {
@@ -56,10 +72,6 @@
 
 .myz-annotator-toolbar button:hover {
   background: var(--myz-overlay-hover);
-}
-
-.myz-annotator-toolbar button:active {
-  transform: scale(0.96);
 }
 
 .myz-annotator-toolbar button:focus-visible {
@@ -148,8 +160,6 @@
 
 .myz-annotator-field label {
   font-size: 12px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--myz-muted);
 }
 
@@ -173,9 +183,9 @@
 
 .myz-annotator-field textarea:focus-visible,
 .myz-annotator-field input:focus-visible {
-  outline: 2px solid var(--myz-accent);
-  outline-offset: 0;
+  outline: none;
   border-color: var(--myz-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--myz-accent) 20%, transparent);
 }
 
 .myz-annotator-field__label-row {
@@ -247,14 +257,14 @@
 .myz-color-palette {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
 
 .myz-color-swatch-wrapper {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   position: relative;
 }
 
@@ -262,19 +272,16 @@
   width: var(--myz-hit-compact);
   height: var(--myz-hit-compact);
   border-radius: var(--myz-r-pill);
-  border: 2px solid transparent;
+  border: 1px solid var(--myz-control-border);
   background: var(--myz-swatch-color, #fde68a);
   cursor: pointer;
-  transition:
-    transform var(--myz-motion-fast) ease,
-    border-color var(--myz-motion-fast) ease,
-    box-shadow var(--myz-motion-fast) ease;
+  transition: outline-color var(--myz-motion-fast) ease;
 }
 
 .myz-color-swatch.is-active {
-  border-color: var(--myz-text);
-  transform: translateY(-2px);
-  box-shadow: var(--myz-shadow);
+  border-color: transparent;
+  outline: 2px solid var(--myz-text);
+  outline-offset: 2px;
 }
 
 .myz-color-swatch:focus-visible {
@@ -282,30 +289,36 @@
   outline-offset: 2px;
 }
 
+/* §4.14 改色入口：色块角上的一支小铅笔，点开系统取色器 */
 .myz-color-edit {
-  background: var(--myz-surface-2);
-  border: none;
-  border-radius: var(--myz-r-pill);
-  padding: 2px 8px;
-  font-size: 11px;
-  color: var(--myz-text);
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--myz-r-sm);
+  background: var(--myz-surface);
+  border: 1px solid var(--myz-control-border);
+  color: var(--myz-muted);
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  line-height: 1;
-  position: relative;
+  padding: 0;
   overflow: hidden;
 }
 
 .myz-color-edit:hover {
-  background: var(--myz-line);
+  color: var(--myz-text);
+}
+
+.myz-color-edit:focus-within {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 2px;
 }
 
 .myz-color-edit svg {
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
   display: block;
 }
 
@@ -389,6 +402,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: myz-fade-in var(--myz-motion-med) var(--myz-ease-out);
 }
 
 /* Compact variant (click an existing highlight, no note): a fixed-dark bar
@@ -558,6 +572,59 @@
   line-height: 1.6;
   color: var(--myz-muted);
   white-space: pre-wrap;
+}
+
+.myz-inspector__note-field {
+  margin: 0;
+}
+
+.myz-inspector__label {
+  font-size: 12px;
+  color: var(--myz-muted);
+}
+
+.myz-inspector__note-input {
+  width: 100%;
+  min-height: 64px;
+  border: 1px solid var(--myz-control-border);
+  background: var(--myz-control-bg);
+  color: var(--myz-text);
+  border-radius: var(--myz-r);
+  padding: 8px 10px;
+  font-family: var(--myz-read);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.myz-inspector__note-input:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 0;
+  border-color: var(--myz-accent);
+}
+
+.myz-inspector__save {
+  appearance: none;
+  margin-right: auto;
+  height: var(--myz-hit-compact);
+  padding: 0 12px;
+  border-radius: var(--myz-r);
+  border: 1px solid var(--myz-accent);
+  background: var(--myz-accent);
+  color: var(--myz-on-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.myz-inspector__save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.myz-inspector__save:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 2px;
 }
 
 .myz-inspector__actions {
@@ -751,4 +818,8 @@
 .myz-tag-input__option:hover,
 .myz-tag-input__option.is-active {
   background: var(--myz-surface-2);
+}
+
+.myz-tag-input__option.is-active {
+  color: var(--myz-accent-text);
 }

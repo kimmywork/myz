@@ -1,3 +1,4 @@
+import { Highlighter } from "@lucide/vue";
 import { DEFAULT_COLOR, RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
 import { computed, defineComponent } from "vue";
@@ -9,7 +10,7 @@ import {
 const FILTERS: { value: HighlightFilter; label: string }[] = [
   { value: "all", label: "全部" },
   { value: "highlight", label: "划线" },
-  { value: "clip", label: "文字" },
+  { value: "clip", label: "摘录" },
 ];
 
 function excerpt(text: string, max = 72): string {
@@ -71,9 +72,10 @@ export default defineComponent({
         }}
       />,
       !highlightGroups.value.length ? (
-        <p class="reader-sidebar__hint" key="empty">
-          {emptyLabel.value}
-        </p>
+        <div class="reader-state" key="empty">
+          <Highlighter size={20} aria-hidden="true" />
+          <span class="reader-state__title">{emptyLabel.value}</span>
+        </div>
       ) : (
         <div class="reader-hl__groups" key="groups">
           {highlightGroups.value.map((group) => (

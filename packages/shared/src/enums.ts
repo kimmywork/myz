@@ -7,10 +7,14 @@ export enum RECORD_KINDS {
 export enum SOURCE_TYPES {
   WEB = "web",
   PDF = "pdf",
+  EPUB = "epub",
 }
 
 /** Prefix for synthetic source urls that identify a local PDF by fingerprint. */
 export const PDF_SOURCE_URL_PREFIX = "myz-pdf:"
+
+/** Prefix for synthetic source urls that identify a local EPUB by fingerprint. */
+export const EPUB_SOURCE_URL_PREFIX = "myz-epub:"
 
 export const DEFAULT_COLOR = "#b58900"
 
@@ -26,6 +30,23 @@ export const DEFAULT_COLORS = [
   // teal / mint
   "#34d399",
 ]
+
+/** Readable names for the default five pens, keyed by lowercase hex. */
+export const DEFAULT_COLOR_NAMES: Record<string, string> = {
+  "#b58900": "琥珀",
+  "#ef476f": "珊瑚",
+  "#9f7aea": "紫",
+  "#38bdf8": "天蓝",
+  "#34d399": "青绿",
+}
+
+/** Human-readable name for a highlight colour; falls back to the hex itself. */
+export function colorName(color: string): string {
+  if (typeof color !== "string") {
+    return ""
+  }
+  return DEFAULT_COLOR_NAMES[color.trim().toLowerCase()] ?? color.trim()
+}
 
 export enum HIGHLIGHT_STYLES {
   PAINT = "paint",

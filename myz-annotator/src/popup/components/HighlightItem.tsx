@@ -84,7 +84,7 @@ export default defineComponent({
           <div class="highlight-item__header flex flex-wrap items-center gap-2">
             <span
               class={[
-                "highlight-item__badge inline-flex items-center rounded-full px-2.5 py-1 text-tag font-semibold uppercase tracking-wide",
+                "highlight-item__badge inline-flex h-[22px] items-center rounded-tag px-2 text-tag font-semibold uppercase tracking-wide",
                 kind.value === RECORD_KINDS.CLIP
                   ? "bg-clip-bg text-clip"
                   : "bg-tag-bg text-tag-fg",
@@ -93,7 +93,7 @@ export default defineComponent({
               {badgeLabel.value}
             </span>
             {props.record.unreachable ? (
-              <span class="highlight-item__status inline-flex items-center gap-1 rounded-full bg-error-bg px-2 py-0.5 text-tag font-medium text-error dark:bg-error/20 dark:text-error">
+              <span class="highlight-item__status inline-flex h-[22px] items-center gap-1 rounded-full bg-error-bg px-2 text-tag font-semibold text-error dark:bg-error/20 dark:text-error">
                 <span class="highlight-item__status-icon" aria-hidden="true">
                   <IconWarning size={12} aria-hidden="true" />
                 </span>
@@ -103,12 +103,12 @@ export default defineComponent({
           </div>
           {quote.value.isHtml ? (
             <div
-              class="highlight-item__quote text-compact text-text prose prose-sm dark:prose-invert"
+              class="highlight-item__quote font-read text-compact text-text prose prose-sm dark:prose-invert"
               innerHTML={quote.value.html}
             />
           ) : (
             <p
-              class="highlight-item__quote text-compact text-text"
+              class="highlight-item__quote font-read text-compact text-text"
               title={quote.value.html}
             >
               {quote.value.html}
@@ -116,13 +116,13 @@ export default defineComponent({
           )}
           {noteText.value ? (
             <p
-              class="highlight-item__note text-compact text-warn"
+              class="highlight-item__note font-read text-compact text-text"
               title={normalizeWhitespace(props.record.note ?? "")}
             >
               {noteText.value}
             </p>
           ) : null}
-          <p class="highlight-item__meta text-caption text-muted">
+          <p class="highlight-item__meta text-tag text-muted">
             {buildMeta(props.record)}
           </p>
           {props.record.tags?.length ? (

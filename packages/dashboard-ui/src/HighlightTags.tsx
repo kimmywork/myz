@@ -59,7 +59,7 @@ export default defineComponent({
           {props.hiddenTagsCount > 0 ? (
             <button
               type="button"
-              class="inline-flex h-[22px] items-center rounded-tag border border-line px-2 text-tag font-semibold text-muted transition hover:text-text"
+              class="relative inline-flex h-[22px] items-center rounded-tag border border-line px-2 text-tag font-semibold text-muted transition hover:text-text before:absolute before:-inset-1.5 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
               onClick={props.onToggleShowAll}
             >
               +{props.hiddenTagsCount}

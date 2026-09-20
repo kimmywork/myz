@@ -94,7 +94,9 @@ test("shadow host defines the shared tokens", async () => {
 function readOverlay() {
   return page.evaluate(() => {
     const hp = document.querySelector("[data-myz-host='1']");
-    const mp = hp?.shadowRoot?.querySelector("[data-myz-mount]") as HTMLElement | null;
+    const mp = hp?.shadowRoot?.querySelector(
+      "[data-myz-mount]",
+    ) as HTMLElement | null;
     const toolbar = hp?.shadowRoot?.querySelector(
       ".myz-annotator-toolbar",
     ) as HTMLElement | null;
@@ -136,7 +138,9 @@ test("overlay follows theme and scheme while the capture bar stays dark", async 
   await page.waitForFunction(
     () => {
       const hp = document.querySelector("[data-myz-host='1']");
-      const mp = hp?.shadowRoot?.querySelector("[data-myz-mount]") as HTMLElement | null;
+      const mp = hp?.shadowRoot?.querySelector(
+        "[data-myz-mount]",
+      ) as HTMLElement | null;
       return (
         mp &&
         getComputedStyle(mp).getPropertyValue("--myz-surface").trim() ===
@@ -232,7 +236,27 @@ test("zen_mode_code_block_keeps_a_full_width_surface", async () => {
     };
   });
 
-  expect(code.preBackground).toBe("rgb(236, 234, 224)");
+  // §4.16: zen paper follows the active scheme and mode, so the expected
+  // surface is read from the shadow mount point rather than hardcoded.
+  const expectedSurface = await page.evaluate(() => {
+    const host = document.querySelector(
+      "[data-myz-host]",
+    ) as HTMLElement | null;
+    const mount = host?.shadowRoot?.querySelector(
+      "[data-myz-mount]",
+    ) as HTMLElement | null;
+    if (!mount) return "";
+    const probe = document.createElement("span");
+    probe.style.background = getComputedStyle(mount)
+      .getPropertyValue("--myz-surface-2")
+      .trim();
+    document.body.appendChild(probe);
+    const rgb = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return rgb;
+  });
+  expect(expectedSurface).not.toBe("");
+  expect(code.preBackground).toBe(expectedSurface);
   expect(code.codeBackground).toBe("rgba(0, 0, 0, 0)");
   expect(code.preWidth).toBeGreaterThan(code.articleWidth * 0.8);
   expect(code.codeFont.toLowerCase()).toContain("mono");
@@ -265,7 +289,10 @@ test("clicked-highlight_toolbar_is_fixed_dark_while_the_panel_follows_theme", as
   await page.waitForSelector(".myz-highlight", { timeout: 5000 });
 
   // Click the highlight: the compact 3-button bar must be fixed dark.
-  await page.locator(".myz-highlight").first().click();
+  // Scope to the page highlight: `.myz-highlight` alone also matches the
+  // (hidden) preview inside the shadow overlay, because CSS locators pierce
+  // open shadow roots.
+  await page.locator("#para-1 .myz-highlight").first().click();
   await page.waitForSelector(".myz-inspector--toolbar:not(.myz-hidden)", {
     timeout: 5000,
   });
