@@ -9,6 +9,7 @@
 
 @import "@myz/shared/theme/tokens.css";
 @import "./page.css";
+@import "../../reader/translation-popover.css";
 
 .myz-hidden {
   display: none !important;
@@ -77,6 +78,15 @@
 .myz-annotator-toolbar button:focus-visible {
   outline: 2px solid var(--myz-overlay-text);
   outline-offset: 2px;
+}
+
+/* 翻译浮层在内容层：压在最上层，盖住采集条 */
+.translation-popover__scrim {
+  z-index: 2147483646;
+}
+
+.translation-popover {
+  z-index: 2147483647;
 }
 
 /* ── 弹窗外壳 §4.8 ───────────────────────────────────────────────── */

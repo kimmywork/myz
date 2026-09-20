@@ -1,11 +1,4 @@
-import {
-  ChevronDown,
-  ChevronRight,
-  Highlighter,
-  Menu,
-  Paperclip,
-  X,
-} from "@lucide/vue";
+import { ChevronDown, ChevronRight, Menu, X } from "@lucide/vue";
 import { findRangeByNormalizedText } from "@myz/shared/serializer";
 import {
   DEFAULT_COLORS,
@@ -21,6 +14,7 @@ import type { EpubTocEntry } from "./parse.js";
 import { useEpubReaderStore } from "./stores/reader-store.js";
 import { openLibrary } from "@/reader/open-library.js";
 import ReaderLanding from "@/reader/ReaderLanding.js";
+import ReaderSelectionTools from "@/reader/ReaderSelectionTools.js";
 
 /**
  * EPUB reader shell (EPUB plan E3): toolbar, a same-origin iframe that renders
@@ -43,7 +37,11 @@ export default defineComponent({
       recents,
     } = storeToRefs(store);
     const iframeRef = ref<HTMLIFrameElement | null>(null);
-    const selectionToolbar = ref<{ top: number; left: number } | null>(null);
+    const selectionToolbar = ref<{
+      top: number;
+      left: number;
+      bottom: number;
+    } | null>(null);
     const activeId = ref<string | null>(null);
     const expandedKeys = ref<Set<string>>(new Set());
     const tocQuery = ref("");
@@ -143,11 +141,12 @@ export default defineComponent({
     function framePoint(
       frame: HTMLIFrameElement,
       rect: DOMRect,
-    ): { top: number; left: number } {
+    ): { top: number; left: number; bottom: number } {
       const frameRect = frame.getBoundingClientRect();
       return {
         top: frameRect.top + rect.top,
         left: frameRect.left + rect.left + rect.width / 2,
+        bottom: frameRect.top + rect.bottom,
       };
     }
 
@@ -709,38 +708,15 @@ export default defineComponent({
         ) : null}
 
         {selectionToolbar.value ? (
-          <div
-            class="selection-toolbar"
-            style={{
-              top: `${selectionToolbar.value.top}px`,
-              left: `${selectionToolbar.value.left}px`,
-            }}
-          >
-            <button
-              type="button"
-              aria-label="划线"
-              title="划线"
-              onClick={() => void createFromSelection(RECORD_KINDS.HIGHLIGHT)}
-            >
-              <Highlighter size={16} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              aria-label="摘录"
-              title="摘录"
-              onClick={() => void createFromSelection(RECORD_KINDS.CLIP)}
-            >
-              <Paperclip size={16} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              aria-label="取消"
-              title="取消"
-              onClick={clearSelection}
-            >
-              <X size={16} aria-hidden="true" />
-            </button>
-          </div>
+          <ReaderSelectionTools
+            top={selectionToolbar.value.top}
+            left={selectionToolbar.value.left}
+            bottom={selectionToolbar.value.bottom}
+            text={pendingRange?.toString().trim() || ""}
+            onHighlight={() => void createFromSelection(RECORD_KINDS.HIGHLIGHT)}
+            onClip={() => void createFromSelection(RECORD_KINDS.CLIP)}
+            onClose={clearSelection}
+          />
         ) : null}
 
         {activeId.value ? (

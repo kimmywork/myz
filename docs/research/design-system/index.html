@@ -2618,6 +2618,14 @@
         <path d="m3 12 9 5 9-5" />
         <path d="m3 17 9 5 9-5" />
       </symbol>
+      <symbol id="i-languages" viewBox="0 0 24 24">
+        <path d="m5 8 6 6" />
+        <path d="m4 14 6-6 2-3" />
+        <path d="M2 5h12" />
+        <path d="M7 2h1" />
+        <path d="m22 22-5-10-5 10" />
+        <path d="M14 18h6" />
+      </symbol>
     </svg>
 
     <div class="top">
@@ -4218,6 +4226,146 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                   <tr>
                     <td>焦点</td>
                     <td>打开时自动落到第一个输入框，关闭后回到触发它的按钮</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="spec">
+          <h3>翻译浮层</h3>
+          <p>
+            阅读器里选中文字后点采集条上的「翻译」，译文在选区附近浮出。端上模型完成，内容不出设备；译文可复制。PDF 与 EPUB 共用同一个组件。
+          </p>
+          <div class="split">
+            <div class="main">
+              <div
+                class="capture-stage page-light"
+                style="display: flex; justify-content: center; padding: 32px 16px"
+              >
+                <div
+                  style="
+                    width: 320px;
+                    max-width: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    padding: 12px;
+                    background: var(--myz-well-chrome);
+                    color: var(--myz-well-text);
+                    border: 1px solid var(--myz-well-border);
+                    border-radius: var(--myz-r-lg);
+                    box-shadow: var(--myz-shadow);
+                  "
+                >
+                  <div
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 8px;
+                      font-family: var(--myz-sans);
+                    "
+                  >
+                    <svg class="i" aria-hidden="true" style="width: 16px; height: 16px">
+                      <use href="#i-languages" />
+                    </svg>
+                    <strong style="font-size: 13px">翻译</strong>
+                    <span style="flex: 1; font-size: 12px; color: var(--myz-well-muted)"
+                      >英语 → 中文</span
+                    >
+                    <svg class="i" aria-hidden="true" style="width: 16px; height: 16px">
+                      <use href="#i-x" />
+                    </svg>
+                  </div>
+                  <p
+                    style="
+                      margin: 0;
+                      padding: 8px 10px;
+                      border-left: 3px solid var(--myz-accent);
+                      background: var(--myz-surface-2);
+                      border-radius: 8px;
+                      font-family: var(--myz-read);
+                      font-size: 14px;
+                      line-height: 1.6;
+                    "
+                  >
+                    Intuition is nothing but the outcome of earlier experiences.
+                  </p>
+                  <p
+                    style="
+                      margin: 0;
+                      font-family: var(--myz-read);
+                      font-size: 14px;
+                      line-height: 1.7;
+                    "
+                  >
+                    直觉不过是过往经验的产物。
+                  </p>
+                  <div style="display: flex; gap: 8px; font-family: var(--myz-sans)">
+                    <button
+                      type="button"
+                      style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        height: 32px;
+                        padding: 0 12px;
+                        border: 1px solid var(--myz-accent);
+                        background: var(--myz-accent);
+                        color: var(--myz-on-accent);
+                        font-size: 13px;
+                        font-weight: 600;
+                        border-radius: 8px;
+                      "
+                    >
+                      <svg class="i" aria-hidden="true" style="width: 14px; height: 14px">
+                        <use href="#i-copy" />
+                      </svg>
+                      复制
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p
+                style="
+                  font-family: var(--myz-sans);
+                  font-size: 12px;
+                  color: var(--myz-muted);
+                  margin-top: 8px;
+                "
+              >
+                译文就绪
+              </p>
+            </div>
+            <div class="side">
+              <table>
+                <thead>
+                  <tr>
+                    <th>属性</th>
+                    <th>做法</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>宽度</td>
+                    <td>320，圆角 12，带阴影；锚在选区下方居中</td>
+                  </tr>
+                  <tr>
+                    <td>内容</td>
+                    <td>语言对 + 原文引用 + 译文；只读，不写回记录</td>
+                  </tr>
+                  <tr>
+                    <td>状态</td>
+                    <td>识别中 / 下载语言包带进度 / 翻译中；出错给重试，进行中可取消</td>
+                  </tr>
+                  <tr>
+                    <td>关闭</td>
+                    <td>Esc、点外侧、关闭按钮；关闭后回到触发按钮</td>
+                  </tr>
+                  <tr>
+                    <td>缓存</td>
+                    <td>本机「源:目标:文本哈希」，不同步、不出设备</td>
                   </tr>
                 </tbody>
               </table>

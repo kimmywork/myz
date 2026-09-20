@@ -418,3 +418,64 @@ test("epub_highlight_inspector_edits_note", async () => {
   expect(errors).toHaveLength(0);
   await page.close();
 });
+
+test("epub_selection_translates_in_shared_popover", async () => {
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
+  await page.goto(viewerUrl());
+  await page.waitForFunction(() => Boolean((window as any).__MYZ_EPUB__));
+  await page.evaluate(
+    (url) => (window as any).__MYZ_EPUB__.openUrl(url),
+    `${serverUrl}/epub/sample.epub`,
+  );
+  await page.waitForFunction(
+    () => (window as any).__MYZ_EPUB__.getState().status === "ready",
+    undefined,
+    { timeout: 10000 },
+  );
+
+  await page.evaluate(() => {
+    (window as any).__MYZ_TRANSLATE_ENGINE__ = {
+      async availability() {
+        return "available";
+      },
+      async detect() {
+        return [{ detectedLanguage: "en", confidence: 0.9 }];
+      },
+      async ensureTranslator(
+        _source: string,
+        _target: string,
+        options?: { onProgress?: (value: number) => void },
+      ) {
+        options?.onProgress?.(1);
+      },
+      async translate(_source: string, _target: string, text: string) {
+        return `译：${text}`;
+      },
+      destroy() {},
+    };
+  });
+
+  await page.evaluate(() => {
+    const frame = document.querySelector(".epub-frame") as HTMLIFrameElement;
+    const doc = frame.contentDocument!;
+    const paragraph = doc.querySelector("p")!;
+    const range = doc.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = doc.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    paragraph.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  });
+
+  await expect(page.locator(".selection-toolbar")).toHaveCount(1);
+  await page.locator('.selection-toolbar button[title="翻译"]').click();
+  await expect(page.locator(".translation-popover__result")).toContainText(
+    "译：",
+  );
+  await page.screenshot({ path: "/tmp/epub-translation.png" });
+
+  expect(errors).toHaveLength(0);
+  await page.close();
+});

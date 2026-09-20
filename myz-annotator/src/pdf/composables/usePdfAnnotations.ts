@@ -132,8 +132,12 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     const rect = range?.getBoundingClientRect();
     state.selection.value = next;
     state.selectionPos.value = rect
-      ? { top: rect.top - 8, left: rect.left + rect.width / 2 }
-      : { top: 160, left: 240 };
+      ? {
+          top: rect.top - 8,
+          left: rect.left + rect.width / 2,
+          bottom: rect.bottom,
+        }
+      : { top: 160, left: 240, bottom: 200 };
   }
 
   function clearSelection() {

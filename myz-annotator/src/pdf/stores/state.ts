@@ -33,7 +33,7 @@ export interface ReaderState {
   annotations: Ref<MyZRecord[]>;
   activeId: Ref<string | null>;
   selection: Ref<PdfSelection | null>;
-  selectionPos: Ref<{ top: number; left: number }>;
+  selectionPos: Ref<{ top: number; left: number; bottom: number }>;
   noteDraft: Ref<string>;
   tagsDraft: Ref<string[]>;
   dirty: Ref<boolean>;
@@ -62,7 +62,7 @@ export function createReaderState(): ReaderState {
     annotations: ref<MyZRecord[]>([]),
     activeId: ref<string | null>(null),
     selection: ref<PdfSelection | null>(null),
-    selectionPos: ref({ top: 0, left: 0 }),
+    selectionPos: ref({ top: 0, left: 0, bottom: 0 }),
     noteDraft: ref(""),
     tagsDraft: ref<string[]>([]),
     dirty: ref(false),
