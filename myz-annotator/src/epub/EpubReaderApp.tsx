@@ -19,6 +19,8 @@ import EpubHighlightPanel from "./EpubHighlightPanel.js";
 import { currentSelection } from "./highlights.js";
 import type { EpubTocEntry } from "./parse.js";
 import { useEpubReaderStore } from "./stores/reader-store.js";
+import { openLibrary } from "@/reader/open-library.js";
+import ReaderLanding from "@/reader/ReaderLanding.js";
 
 /**
  * EPUB reader shell (EPUB plan E3): toolbar, a same-origin iframe that renders
@@ -188,13 +190,21 @@ export default defineComponent({
     }
 
     function handleHighlightClick(event: Event) {
-      const anchor = (event.target as Element | null)?.closest?.(
-        "a[data-epub-href]",
-      );
+      const anchor = (event.target as Element | null)?.closest?.("a[href]");
       if (anchor) {
-        event.preventDefault();
-        store.openInternalHref(anchor.getAttribute("data-epub-href") || "");
-        return;
+        const internalHref = anchor.getAttribute("data-epub-href");
+        const href = anchor.getAttribute("href") || "";
+        if (internalHref) {
+          event.preventDefault();
+          store.openInternalHref(internalHref);
+          return;
+        }
+        if (/^https?:/i.test(href)) {
+          // The sandboxed iframe must not navigate itself to an external site.
+          event.preventDefault();
+          chrome.tabs.create({ url: href });
+          return;
+        }
       }
       const target = (event.target as Element | null)?.closest?.(
         ".myz-highlight",
@@ -670,37 +680,26 @@ export default defineComponent({
         ) : null}
 
         {status.value === "landing" ? (
-          <section class="epub-landing">
-            <h1>MyZ EPUB 阅读器</h1>
-            <p>打开本地 EPUB，或从下方继续上次阅读。</p>
-            <button
-              class="epub-btn"
-              type="button"
-              onClick={() => void store.openLocal()}
-            >
-              打开本地 EPUB
-            </button>
-            {recents.value.length ? (
-              <ul class="epub-recents">
-                {recents.value.map((entry) => (
-                  <li key={entry.sourceKey}>
-                    <button
-                      class="epub-btn"
-                      type="button"
-                      onClick={() => void store.openRecent(entry)}
-                    >
-                      <span class="epub-recents__title">
-                        {entry.title || "未命名 EPUB"}
-                      </span>
-                      <span class="epub-recents__meta">
-                        第 {entry.spineIndex + 1} 章
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
+          <ReaderLanding
+            title="MyZ EPUB 阅读器"
+            subtitle="打开本地 EPUB，或从下方继续上次阅读。"
+            openLabel="打开本地 EPUB"
+            recents={recents.value.map((entry) => ({
+              key: entry.sourceKey,
+              title: entry.title || "未命名 EPUB",
+              meta: `第 ${entry.spineIndex + 1} 章`,
+            }))}
+            onOpen={() => void store.openLocal()}
+            onBack={openLibrary}
+            onOpenRecent={(key) => {
+              const entry = recents.value.find(
+                (item) => item.sourceKey === key,
+              );
+              if (entry) {
+                void store.openRecent(entry);
+              }
+            }}
+          />
         ) : null}
 
         {status.value === "loading" ? <p class="epub-status">加载中…</p> : null}

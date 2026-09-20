@@ -125,6 +125,11 @@ body {
   min-width: 48px;
 }
 
+/* Landing shows only the shared reader landing, not the (empty) stage. */
+.reader-app.is-landing .reader-stage {
+  display: none;
+}
+
 .reader-stage {
   flex: 1;
   min-height: 0;
@@ -157,44 +162,6 @@ body {
   background: color-mix(in srgb, var(--myz-mark-4) 40%, transparent);
 }
 
-.reader-status {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  padding: 10px 16px;
-  border-radius: 10px;
-  background: var(--myz-surface-2);
-  border: 1px solid var(--myz-well-border);
-  font-size: 14px;
-}
-
-.reader-status--error {
-  color: var(--myz-error);
-  border-color: var(--myz-error-border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  max-width: 360px;
-}
-
-.reader-status__retry {
-  padding: 5px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--myz-error-border);
-  background: var(--myz-error-bg);
-  color: var(--myz-error);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.reader-status__retry:hover {
-  border-color: var(--myz-error);
-  color: var(--myz-well-text);
-}
-
 .reader-busy {
   position: fixed;
   top: 56px;
@@ -212,57 +179,6 @@ body {
   to {
     transform: translateX(100%);
   }
-}
-
-.reader-landing {
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 40px 16px;
-  text-align: center;
-}
-
-.reader-landing h1 {
-  font-family: var(--myz-read);
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-
-.reader-landing p {
-  color: var(--myz-well-muted);
-  font-size: 13px;
-}
-
-.reader-landing__cta {
-  margin-top: 12px;
-}
-
-.reader-recents {
-  list-style: none;
-  margin: 24px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: left;
-}
-
-.reader-recents button {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.reader-recents__title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.reader-recents__meta {
-  color: var(--myz-well-muted);
-  flex-shrink: 0;
 }
 
 .pdf-annotation-group {

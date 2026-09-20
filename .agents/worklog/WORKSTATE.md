@@ -24,6 +24,9 @@
 - EPUB review fixes: 读取用户调色盘/lastUsed 偏好、主题切换保持阅读位置、单章进度、清 pendingFragment、标签建议
 - EPUB TOC: 目录随滚动高亮当前节；默认折叠、仅展开当前路径；目录搜索
 - EPUB cover: 强制 body 布局/字体 + 居中媒体，修 PG `body.x-ebookmaker-coverpage{margin:0}` 盖过的问题；用 Gutenberg 真书加整章高亮压力 e2e
+- Readers 空状态统一：PDF/EPUB 首屏都用共享 `ReaderLanding`（无工具栏、返回文库）；Dashboard 新增「阅读」页，合并两个本地进度库做最近文档快捷入口（仅本地）
+- e2e 默认 headless（`channel: chromium` 新 headless 支持扩展；`HEADED=1` 可切有头）
+- Pending commit: 上述 review 修复 + 落地页/阅读页 + headless 配置
 - Evidence: build、eslint、annotator 131 / shared 75 单测、extension+PDF 62 e2e、token 检查
 - Evidence: build、eslint、annotator 124 / shared 72 单测、extension 34 e2e、pdf 22 e2e、token 检查
 - References: `docs/plan/epub-support.md`, `docs/plan/apply-design-system.md`, `docs/research/design-system/{design-system.md,index.html,gap.md}`

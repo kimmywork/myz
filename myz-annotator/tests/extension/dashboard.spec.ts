@@ -700,6 +700,57 @@ test("infinite_scroll_loads_more", async () => {
   expect(afterCount).toBeGreaterThan(initialCount);
 });
 
+test("readers_page_lists_recent_local_documents", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+
+  // Seed a recent EPUB document into the reader progress store (same origin).
+  await dash.evaluate(async () => {
+    const open = new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("myz_epub_db", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("handles")) {
+          db.createObjectStore("handles");
+        }
+        if (!db.objectStoreNames.contains("progress")) {
+          db.createObjectStore("progress", { keyPath: "sourceKey" });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const db = await open;
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("progress", "readwrite");
+      tx.objectStore("progress").put({
+        sourceKey: "myz-epub:seed-fingerprint",
+        sourceType: "epub",
+        spineIndex: 2,
+        progression: 0.4,
+        title: "Seed EPUB",
+        fingerprint: "seed-fingerprint",
+        updatedAt: new Date().toISOString(),
+      });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  });
+
+  await dash.reload();
+  await dash.evaluate(() => {
+    window.location.hash = "#/readers";
+  });
+  await expect(dash.getByRole("heading", { name: "阅读" })).toBeVisible();
+  const item = dash.locator(".settings__list-item", { hasText: "Seed EPUB" });
+  await expect(item).toBeVisible();
+  await expect(item.getByText("第 3 章")).toBeVisible();
+  await expect(item.getByRole("button", { name: "继续阅读" })).toBeVisible();
+});
+
 test("epub_record_shows_chapter_and_open_action", async () => {
   const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
   const dash = await context.newPage();

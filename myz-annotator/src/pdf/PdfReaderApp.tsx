@@ -67,12 +67,18 @@ export default defineComponent({
       backdoor;
 
     return () => (
-      <div class="reader-app">
-        <PdfToolbar />
+      <div
+        class={"reader-app" + (status.value === "landing" ? " is-landing" : "")}
+      >
+        {status.value !== "landing" ? (
+          <>
+            <PdfToolbar />
+            <PdfSidebar />
+            <PdfSelectionToolbar />
+            <PdfInspector />
+          </>
+        ) : null}
         <PdfStage />
-        <PdfSidebar />
-        <PdfSelectionToolbar />
-        <PdfInspector />
 
         {status.value === "loading" ? (
           <p class="reader-status">加载中…</p>

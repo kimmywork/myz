@@ -399,12 +399,27 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
       // original DOM; we repaint from `records` afterwards.
       payload.range = serializeRange(range, new Map(), () => {}) ?? undefined;
     }
-    const saved = await sendMessage<Partial<MyZRecord>, MyZRecord>(
-      "myz:saveHighlight",
-      payload,
-    );
-    if (saved) {
-      records.value = [...records.value, saved];
+    try {
+      const saved = await sendMessage<Partial<MyZRecord>, MyZRecord>(
+        "myz:saveHighlight",
+        payload,
+      );
+      if (saved) {
+        records.value = [...records.value, saved];
+      }
+    } catch (error) {
+      console.warn("Failed to save EPUB highlight", error);
+    } finally {
+      // `serializeRange` unwrapped every existing mark before the round-trip;
+      // repaint from `records` so a failed save cannot leave the chapter bare.
+      const doc = range.startContainer.ownerDocument;
+      if (doc) {
+        applyHighlights(
+          doc,
+          records.value as EpubHighlightRecord[],
+          spineIndex.value,
+        );
+      }
     }
   }
 

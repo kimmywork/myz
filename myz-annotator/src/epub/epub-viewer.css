@@ -46,25 +46,6 @@ body {
   height: 100%;
 }
 
-.epub-landing {
-  max-width: 560px;
-  margin: 0 auto;
-  padding: 40px 16px;
-  text-align: center;
-}
-
-.epub-landing h1 {
-  font-family: var(--myz-read);
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-
-.epub-landing p {
-  color: var(--myz-well-muted);
-  font-size: 13px;
-}
-
 .epub-toc-pane {
   display: flex;
   flex-direction: column;
@@ -99,34 +80,6 @@ body {
 
 .epub-btn:hover {
   border-color: var(--myz-accent);
-}
-
-.epub-recents {
-  list-style: none;
-  margin: 24px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: left;
-}
-
-.epub-recents button {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.epub-recents__title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.epub-recents__meta {
-  color: var(--myz-well-muted);
-  flex-shrink: 0;
 }
 
 .epub-toolbar {

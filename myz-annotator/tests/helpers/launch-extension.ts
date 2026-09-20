@@ -34,8 +34,13 @@ async function launchExtension(extensionPath: string, options = {}) {
     process.env.MYZ_PROXY || process.env.PLAYWRIGHT_PROXY || "";
   const proxy = proxyServer ? { server: proxyServer } : undefined;
 
+  // Headless by default; `HEADED=1` opts into a visible browser for debugging.
+  // The default headless shell cannot load extensions, so headless runs use the
+  // full Chromium channel, whose new headless mode supports them.
+  const headless = process.env.HEADED !== "1";
   const context = await chromium.launchPersistentContext(userDataDir, {
-    headless: false,
+    headless,
+    channel: headless ? "chromium" : undefined,
     args,
     proxy,
     viewport: { width: 1280, height: 800 },

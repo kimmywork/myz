@@ -15,7 +15,10 @@ export default defineConfig({
     // },
     screenshot: process.env.CI ? "only-on-failure" : "off",
     baseURL: undefined,
-    headless: false, // extensions require headed mode
+    // Headless by default; `HEADED=1` opts into a visible browser for debugging.
+    // Extensions need the full Chromium channel under headless.
+    headless: process.env.HEADED !== "1",
+    channel: process.env.HEADED !== "1" ? "chromium" : undefined,
   },
   projects: [
     {

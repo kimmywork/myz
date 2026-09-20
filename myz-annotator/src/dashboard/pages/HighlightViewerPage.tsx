@@ -38,6 +38,7 @@ export default defineComponent({
     const noteDraft = ref("");
     const tagsDraft = ref<string[]>([]);
     const saving = ref(false);
+    const saveError = ref("");
     const availableTags = computed(() => highlightsStore.availableTags);
 
     function startEditing() {
@@ -63,12 +64,15 @@ export default defineComponent({
         return;
       }
       saving.value = true;
+      saveError.value = "";
       try {
         await uiStore.updateRecord(current.id, {
           note: noteDraft.value.trim(),
           tags: [...tagsDraft.value],
         });
         stopEditing();
+      } catch (error) {
+        saveError.value = `保存失败：${(error as Error).message}`;
       } finally {
         saving.value = false;
       }
@@ -411,7 +415,12 @@ export default defineComponent({
                   }}
                 />
               </div>
-              <div class="mt-3 flex justify-end gap-2">
+              <div class="mt-3 flex items-center justify-end gap-2">
+                {saveError.value ? (
+                  <span class="mr-auto text-caption text-error">
+                    {saveError.value}
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   class="btn"

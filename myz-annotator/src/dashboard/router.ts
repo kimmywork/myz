@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from "vue-router";
 import HighlightsPage from "./pages/HighlightsPage.jsx";
 import HighlightViewerPage from "./pages/HighlightViewerPage.jsx";
+import ReadersPage from "./pages/ReadersPage.jsx";
 import HighlightPreferencesPage from "./pages/settings/highlight/HighlightPreferencesPage.jsx";
 import SettingsAppearancePage from "./pages/settings/SettingsAppearancePage.jsx";
 import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx";
@@ -15,6 +16,7 @@ const routes = [
     name: "highlight-viewer",
     component: HighlightViewerPage,
   },
+  { path: "/readers", name: "readers", component: ReadersPage },
   {
     path: "/settings",
     component: SettingsLayout,

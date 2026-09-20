@@ -23,16 +23,25 @@ function dirOf(path: string): string {
   return index === -1 ? "" : path.slice(0, index);
 }
 
-function resolveRelative(baseDir: string, href: string): string {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith("//")) {
-    return href;
-  }
+function decodePath(href: string): string {
   const clean = href.split("#")[0].split("?")[0];
   try {
     return decodeURIComponent(clean);
   } catch {
     return clean;
   }
+}
+
+/**
+ * Resolves an in-zip asset path. A leading `/` means archive root, matching
+ * `parse.ts`'s `resolveHref`; everything else is relative to the document.
+ */
+export function resolveAssetPath(baseDir: string, href: string): string {
+  const decoded = decodePath(href);
+  if (decoded.startsWith("/")) {
+    return joinPath("", decoded);
+  }
+  return joinPath(baseDir, decoded);
 }
 
 function joinPath(baseDir: string, relative: string): string {
@@ -199,7 +208,7 @@ function rewriteCssUrls(
       if (/^(data:|blob:|https?:|\/\/)/i.test(value)) {
         return match;
       }
-      const resolved = joinPath(cssDir, resolveRelative(cssDir, value));
+      const resolved = resolveAssetPath(cssDir, value);
       const url = resourceUrl(book, resolved, cache);
       return url ? `url("${url}")` : match;
     },
@@ -214,7 +223,7 @@ function inlineStylesheets(
 ): void {
   doc.querySelectorAll('link[rel~="stylesheet"][href]').forEach((link) => {
     const href = link.getAttribute("href") || "";
-    const resolved = joinPath(baseDir, resolveRelative(baseDir, href));
+    const resolved = resolveAssetPath(baseDir, href);
     const bytes = book.files.get(resolved);
     if (!bytes) {
       link.remove();
@@ -244,10 +253,10 @@ export function buildSpineHtml(
   }
   const baseDir = dirOf(spineItem.href);
   const source = new TextDecoder().decode(bytes);
-  let doc: Document;
-  try {
-    doc = new DOMParser().parseFromString(source, "application/xhtml+xml");
-  } catch {
+  // XML parsing never throws: malformed XHTML yields a <parsererror> document
+  // instead, so check for it and fall back to HTML parsing.
+  let doc = new DOMParser().parseFromString(source, "application/xhtml+xml");
+  if (!doc.documentElement || doc.querySelector("parsererror")) {
     doc = new DOMParser().parseFromString(source, "text/html");
   }
   if (!doc.documentElement) {
@@ -261,7 +270,7 @@ export function buildSpineHtml(
     const attr = isSvgImage
       ? el.getAttribute("href") || el.getAttribute("xlink:href") || ""
       : el.getAttribute("src") || "";
-    const resolved = joinPath(baseDir, resolveRelative(baseDir, attr));
+    const resolved = resolveAssetPath(baseDir, attr);
     const url = resourceUrl(book, resolved, cache);
     if (!url) {
       return;

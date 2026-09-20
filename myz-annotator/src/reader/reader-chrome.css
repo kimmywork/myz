@@ -616,3 +616,117 @@
   font-size: 11px;
   color: var(--myz-well-muted);
 }
+
+/* ── 首屏落地页与状态：PDF / EPUB 共用 ───────────────────────────── */
+.reader-status {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--myz-surface-2);
+  border: 1px solid var(--myz-well-border);
+  font-size: 14px;
+}
+
+.reader-status--error {
+  color: var(--myz-error);
+  border-color: var(--myz-error-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  max-width: 360px;
+}
+
+.reader-status__retry {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--myz-error-border);
+  background: var(--myz-error-bg);
+  color: var(--myz-error);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.reader-status__retry:hover {
+  border-color: var(--myz-error);
+  color: var(--myz-well-text);
+}
+
+.reader-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--myz-hit-compact);
+  padding: 0 12px;
+  border-radius: var(--myz-r);
+  border: 1px solid var(--myz-well-border);
+  background: var(--myz-well-control-bg);
+  color: var(--myz-well-text);
+  font-family: var(--myz-sans);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.reader-btn:hover {
+  border-color: var(--myz-accent);
+}
+
+.reader-landing {
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 40px 16px;
+  text-align: center;
+}
+
+.reader-landing__top {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 24px;
+}
+
+.reader-landing h1 {
+  font-family: var(--myz-read);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.reader-landing p {
+  color: var(--myz-well-muted);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+.reader-recents {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.reader-recents button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reader-recents__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-recents__meta {
+  color: var(--myz-well-muted);
+  flex-shrink: 0;
+}
