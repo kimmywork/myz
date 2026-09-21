@@ -1,9 +1,11 @@
-import { X } from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { defineComponent } from "vue";
 import { useReaderStore } from "../stores/reader-store.js";
 import PdfHighlightsPanel from "./PdfHighlightsPanel.js";
 import PdfOutlinePanel from "./PdfOutlinePanel.js";
+import ReaderSidebar, {
+  type ReaderSidebarTab,
+} from "@/reader/ReaderSidebar.js";
 
 export default defineComponent({
   name: "PdfSidebar",
@@ -12,53 +14,30 @@ export default defineComponent({
     const { status, sidebarOpen, sidebarTab, outlineCount, highlightCounts } =
       storeToRefs(store);
 
-    return () =>
-      sidebarOpen.value && status.value === "ready" ? (
-        <aside class="reader-sidebar">
-          <header class="reader-sidebar__head">
-            <div class="reader-sidebar__tabs">
-              <button
-                type="button"
-                class={
-                  "reader-sidebar__tab" +
-                  (sidebarTab.value === "outline" ? " is-active" : "")
-                }
-                onClick={() => (store.sidebarTab = "outline")}
-              >
-                目录
-                {outlineCount.value ? ` (${outlineCount.value})` : ""}
-              </button>
-              <button
-                type="button"
-                class={
-                  "reader-sidebar__tab" +
-                  (sidebarTab.value === "highlights" ? " is-active" : "")
-                }
-                onClick={() => (store.sidebarTab = "highlights")}
-              >
-                划线
-                {highlightCounts.value.all
-                  ? ` (${highlightCounts.value.all})`
-                  : ""}
-              </button>
-            </div>
-            <button
-              type="button"
-              class="reader-sidebar__close"
-              aria-label="关闭侧栏"
-              onClick={() => (store.sidebarOpen = false)}
-            >
-              <X size={16} aria-hidden="true" />
-            </button>
-          </header>
-          <div class="reader-sidebar__body">
-            {sidebarTab.value === "outline" ? (
-              <PdfOutlinePanel />
-            ) : (
-              <PdfHighlightsPanel />
-            )}
-          </div>
-        </aside>
-      ) : null;
+    return () => {
+      if (!sidebarOpen.value || status.value !== "ready") {
+        return null;
+      }
+      const tabs: ReaderSidebarTab[] = [
+        { key: "outline", label: "目录", count: outlineCount.value },
+        { key: "highlights", label: "划线", count: highlightCounts.value.all },
+      ];
+      return (
+        <ReaderSidebar
+          tabs={tabs}
+          activeTab={sidebarTab.value}
+          onSelectTab={(key) => {
+            store.sidebarTab = key === "highlights" ? "highlights" : "outline";
+          }}
+          onClose={() => (store.sidebarOpen = false)}
+        >
+          {sidebarTab.value === "outline" ? (
+            <PdfOutlinePanel />
+          ) : (
+            <PdfHighlightsPanel />
+          )}
+        </ReaderSidebar>
+      );
+    };
   },
 });

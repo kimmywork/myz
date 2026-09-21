@@ -24,6 +24,7 @@ import {
   type EpubSourceRef,
 } from "../source.js";
 import { listProgress, saveProgress, type EpubProgress } from "../storage.js";
+import { findTocPath } from "../toc.js";
 
 type Status = "landing" | "loading" | "ready" | "error";
 
@@ -48,6 +49,8 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
   const pendingProgression = ref(0);
   const pendingFragment = ref("");
   const currentTocHref = ref("");
+  const expandedToc = ref<Set<string>>(new Set());
+  const tocQuery = ref("");
   const records = ref<MyZRecord[]>([]);
   const colorPalette = ref<string[]>([...DEFAULT_COLORS]);
   const lastColor = ref<string>(DEFAULT_COLORS[0]);
@@ -60,6 +63,15 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
   const author = computed(() => book.value?.metadata.author || "");
   const spineCount = computed(() => book.value?.spine.length || 0);
   const toc = computed(() => book.value?.toc || []);
+  const progressPercent = computed(() => {
+    if (spineCount.value <= 0) {
+      return 0;
+    }
+    return Math.round(
+      Math.min(1, (spineIndex.value + progression.value) / spineCount.value) *
+        100,
+    );
+  });
   const sourceKey = computed(() =>
     sourceRef.value ? buildEpubSourceUrl(sourceRef.value.fingerprint) : "",
   );
@@ -188,6 +200,8 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
       book.value = parsed;
       sourceRef.value = ref;
       pendingFragment.value = "";
+      expandedToc.value = new Set();
+      tocQuery.value = "";
       spineIndex.value = clamp(
         options.spineIndex ?? 0,
         0,
@@ -318,6 +332,27 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     if (index >= 0) {
       goToChapter(index, href.split("#")[1] || "");
     }
+  }
+
+  function toggleTocEntry(href: string) {
+    const next = new Set(expandedToc.value);
+    if (next.has(href)) {
+      next.delete(href);
+    } else {
+      next.add(href);
+    }
+    expandedToc.value = next;
+  }
+
+  /** Expands every ancestor of `href` so the current section is visible. */
+  function expandTocPath(href: string) {
+    const path = findTocPath(toc.value, href);
+    if (!path) {
+      return;
+    }
+    const next = new Set(expandedToc.value);
+    path.forEach((key) => next.add(key));
+    expandedToc.value = next;
   }
 
   /** Follows an in-content link to another spine document or an anchor. */
@@ -496,6 +531,7 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     author,
     spineIndex,
     spineCount,
+    progressPercent,
     toc,
     chapterHtml,
     sidebarOpen,
@@ -506,6 +542,8 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     pendingProgression,
     pendingFragment,
     currentTocHref,
+    expandedToc,
+    tocQuery,
     records,
     tagOptions,
     sourceKey,
@@ -519,6 +557,8 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     openBytes,
     goToChapter,
     openTocEntry,
+    toggleTocEntry,
+    expandTocPath,
     openInternalHref,
     setProgression,
     loadRecords,

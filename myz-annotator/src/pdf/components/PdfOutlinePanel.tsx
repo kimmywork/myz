@@ -1,13 +1,11 @@
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  TriangleAlert,
-} from "@lucide/vue";
+import { BookOpen, TriangleAlert } from "@lucide/vue";
 import { storeToRefs } from "pinia";
-import { defineComponent, type VNode } from "vue";
+import { defineComponent } from "vue";
 import type { PdfOutlineEntry } from "../pdf-document.js";
 import { useReaderStore } from "../stores/reader-store.js";
+import ReaderOutlineList, {
+  type ReaderOutlineItem,
+} from "@/reader/ReaderOutlineList.js";
 
 export default defineComponent({
   name: "PdfOutlinePanel",
@@ -16,58 +14,31 @@ export default defineComponent({
     const { outline, outlineStatus, outlineCount, currentOutlineId } =
       storeToRefs(store);
 
-    function renderItems(items: PdfOutlineEntry[], level = 0): VNode[] {
-      return items.map((entry) => {
+    function toItems(
+      entries: PdfOutlineEntry[],
+      level = 0,
+    ): ReaderOutlineItem[] {
+      return entries.map((entry) => {
         // §4.10 目录最多两层：只有顶层可展开，子项不再递归
         const canExpand = level === 0 && entry.children.length > 0;
         const expanded = store.expandedOutline.has(entry.id);
-        const isCurrent = entry.id === currentOutlineId.value;
-        return (
-          <li class="reader-outline__item" key={entry.id}>
-            <div
-              class={
-                "reader-outline__row" +
-                (isCurrent ? " is-current" : "") +
-                (entry.pageNumber ? "" : " is-disabled")
-              }
-              style={{ paddingLeft: `${6 + Math.min(entry.depth, 1) * 14}px` }}
-            >
-              {canExpand ? (
-                <button
-                  type="button"
-                  class="reader-outline__toggle"
-                  aria-label={expanded ? "折叠" : "展开"}
-                  onClick={() => store.toggleOutline(entry.id)}
-                >
-                  {expanded ? (
-                    <ChevronDown size={12} aria-hidden="true" />
-                  ) : (
-                    <ChevronRight size={12} aria-hidden="true" />
-                  )}
-                </button>
-              ) : (
-                <span class="reader-outline__toggle reader-outline__toggle--leaf" />
-              )}
-              <button
-                type="button"
-                class="reader-outline__title"
-                disabled={!entry.pageNumber}
-                title={entry.title}
-                onClick={() => void store.goToOutline(entry)}
-              >
-                <span class="reader-outline__label">{entry.title}</span>
-                {entry.pageNumber ? (
-                  <span class="reader-outline__page">{entry.pageNumber}</span>
-                ) : null}
-              </button>
-            </div>
-            {canExpand && expanded ? (
-              <ul class="reader-outline__children">
-                {renderItems(entry.children, level + 1)}
-              </ul>
-            ) : null}
-          </li>
-        );
+        return {
+          key: entry.id,
+          label: entry.title,
+          title: entry.title,
+          depth: Math.min(entry.depth, 1),
+          pageNumber: entry.pageNumber || null,
+          disabled: !entry.pageNumber,
+          current: entry.id === currentOutlineId.value,
+          expandable: canExpand,
+          expanded,
+          onToggle: () => store.toggleOutline(entry.id),
+          onSelect: () => void store.goToOutline(entry),
+          children:
+            canExpand && expanded
+              ? toItems(entry.children, level + 1)
+              : undefined,
+        };
       });
     }
 
@@ -100,7 +71,9 @@ export default defineComponent({
           </div>
         );
       }
-      return <ul class="reader-outline">{renderItems(outline.value)}</ul>;
+      return (
+        <ReaderOutlineList items={toItems(outline.value)} indentUnit={14} />
+      );
     };
   },
 });

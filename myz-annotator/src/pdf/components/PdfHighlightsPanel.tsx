@@ -1,22 +1,18 @@
 import { Highlighter } from "@lucide/vue";
-import { DEFAULT_COLOR, RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
 import { computed, defineComponent } from "vue";
 import {
   useReaderStore,
   type HighlightFilter,
 } from "../stores/reader-store.js";
+import ReaderHighlightRow from "@/reader/ReaderHighlightRow.js";
+import { excerpt } from "@/reader/text.js";
 
 const FILTERS: { value: HighlightFilter; label: string }[] = [
   { value: "all", label: "全部" },
   { value: "highlight", label: "划线" },
   { value: "clip", label: "摘录" },
 ];
-
-function excerpt(text: string, max = 72): string {
-  const collapsed = (text || "").replace(/\s+/g, " ").trim();
-  return collapsed.length > max ? `${collapsed.slice(0, max)}…` : collapsed;
-}
 
 export default defineComponent({
   name: "PdfHighlightsPanel",
@@ -84,44 +80,14 @@ export default defineComponent({
               <ul class="reader-hl__list">
                 {group.records.map((record) => (
                   <li key={record.id}>
-                    <button
-                      type="button"
-                      class={
-                        "reader-hl__item" +
-                        (record.id === activeId.value ? " is-active" : "")
-                      }
-                      onClick={() => void store.focusAnnotation(record)}
-                    >
-                      <span
-                        class="reader-hl__mark"
-                        data-kind={record.kind}
-                        style={{
-                          background:
-                            record.kind === RECORD_KINDS.CLIP
-                              ? "transparent"
-                              : record.color || DEFAULT_COLOR,
-                        }}
-                      />
-                      <span class="reader-hl__body">
-                        <span class="reader-hl__text">
-                          {excerpt(record.text)}
-                        </span>
-                        {record.note ? (
-                          <span class="reader-hl__note">
-                            批注：{excerpt(record.note, 48)}
-                          </span>
-                        ) : null}
-                        {record.tags?.length ? (
-                          <span class="reader-hl__tags">
-                            {record.tags.map((tag) => (
-                              <span class="reader-hl__tag" key={tag}>
-                                {tag}
-                              </span>
-                            ))}
-                          </span>
-                        ) : null}
-                      </span>
-                    </button>
+                    <ReaderHighlightRow
+                      record={record}
+                      active={record.id === activeId.value}
+                      text={excerpt(record.text)}
+                      note={record.note ? excerpt(record.note, 48) : ""}
+                      showTags
+                      onSelect={() => void store.focusAnnotation(record)}
+                    />
                   </li>
                 ))}
               </ul>

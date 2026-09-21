@@ -1,13 +1,14 @@
-import { ChevronDown, ChevronRight, Menu, X } from "@lucide/vue";
 import { findRangeByNormalizedText } from "@myz/shared/serializer";
 import {
-  DEFAULT_COLORS,
   HIGHLIGHT_STYLES,
   RECORD_KINDS,
   type MyZRecord,
 } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
-import { defineComponent, onMounted, ref, watch, type VNode } from "vue";
+import { defineComponent, onMounted, ref, watch } from "vue";
+import EpubSidebar from "./components/EpubSidebar.js";
+import EpubStage from "./components/EpubStage.js";
+import EpubToolbar from "./components/EpubToolbar.js";
 import EpubHighlightPanel from "./EpubHighlightPanel.js";
 import { currentSelection } from "./highlights.js";
 import type { EpubTocEntry } from "./parse.js";
@@ -17,25 +18,15 @@ import ReaderLanding from "@/reader/ReaderLanding.js";
 import ReaderSelectionTools from "@/reader/ReaderSelectionTools.js";
 
 /**
- * EPUB reader shell (EPUB plan E3): toolbar, a same-origin iframe that renders
- * one spine document with the read typography, and a TOC sidebar. Highlighting
- * arrives in E4.
+ * EPUB reader shell (EPUB plan E3): composes the toolbar, sidebar, stage,
+ * capture tools and inspector, and owns the iframe document lifecycle (frame
+ * events, scroll tracking, TOC-anchor highlighting, backdoor).
  */
 export default defineComponent({
   name: "EpubReaderApp",
   setup() {
     const store = useEpubReaderStore();
-    const {
-      status,
-      error,
-      title,
-      spineIndex,
-      spineCount,
-      toc,
-      chapterHtml,
-      sidebarOpen,
-      recents,
-    } = storeToRefs(store);
+    const { status, error, title, chapterHtml, recents } = storeToRefs(store);
     const iframeRef = ref<HTMLIFrameElement | null>(null);
     const selectionToolbar = ref<{
       top: number;
@@ -43,66 +34,11 @@ export default defineComponent({
       bottom: number;
     } | null>(null);
     const activeId = ref<string | null>(null);
-    const expandedKeys = ref<Set<string>>(new Set());
-    const tocQuery = ref("");
     let pendingRange: Range | null = null;
     let pendingFocusId: string | null = null;
     let chapterAnchors: { el: Element; href: string }[] = [];
     let attachedWindow: Window | null = null;
     let scrollHandler: (() => void) | null = null;
-
-    function findTocPath(
-      entries: EpubTocEntry[],
-      href: string,
-      ancestors: string[] = [],
-    ): string[] | null {
-      for (const entry of entries) {
-        const next = [...ancestors, entry.href];
-        if (entry.href === href) {
-          return next;
-        }
-        const found = findTocPath(entry.children, href, next);
-        if (found) {
-          return found;
-        }
-      }
-      return null;
-    }
-
-    function expandPathFor(href: string) {
-      const path = findTocPath(store.toc, href);
-      if (!path) {
-        return;
-      }
-      const next = new Set(expandedKeys.value);
-      path.forEach((key) => next.add(key));
-      expandedKeys.value = next;
-    }
-
-    /** Keeps entries that match the query or contain a matching descendant. */
-    function filterToc(entries: EpubTocEntry[], query: string): EpubTocEntry[] {
-      const result: EpubTocEntry[] = [];
-      for (const entry of entries) {
-        const children = filterToc(entry.children, query);
-        const self = `${entry.label} ${entry.href}`
-          .toLowerCase()
-          .includes(query);
-        if (self || children.length) {
-          result.push({ ...entry, children });
-        }
-      }
-      return result;
-    }
-
-    function toggleEntry(href: string) {
-      const next = new Set(expandedKeys.value);
-      if (next.has(href)) {
-        next.delete(href);
-      } else {
-        next.add(href);
-      }
-      expandedKeys.value = next;
-    }
 
     function collectChapterAnchors(doc: Document) {
       const chapterHref = store.book?.spine[store.spineIndex]?.href || "";
@@ -319,7 +255,7 @@ export default defineComponent({
         store.applyCurrentChapter(doc);
         collectChapterAnchors(doc);
         updateCurrentFromScroll();
-        expandPathFor(store.currentTocHref);
+        store.expandTocPath(store.currentTocHref);
         if (pendingFocusId) {
           const id = pendingFocusId;
           pendingFocusId = null;
@@ -327,76 +263,6 @@ export default defineComponent({
           scrollToHighlight(id);
         }
       }, 0);
-    }
-
-    function progressPercent(): number {
-      if (spineCount.value <= 0) {
-        return 0;
-      }
-      return Math.round(
-        Math.min(1, (spineIndex.value + store.progression) / spineCount.value) *
-          100,
-      );
-    }
-    function renderTocEntries(
-      entries: EpubTocEntry[],
-      state: { matched: boolean } = { matched: false },
-    ): VNode[] {
-      return entries.map((entry) => {
-        // Match the exact target (path + fragment) so a parent does not light
-        // up together with the child section that is actually active. Only the
-        // first match wins when several entries share a target.
-        const isCurrent = !state.matched && entry.href === store.currentTocHref;
-        if (isCurrent) {
-          state.matched = true;
-        }
-        const hasChildren = entry.children.length > 0;
-        const searching = tocQuery.value.trim().length > 0;
-        const expanded =
-          hasChildren && (searching || expandedKeys.value.has(entry.href));
-        return (
-          <li class="reader-outline__item" key={`${entry.href}:${entry.label}`}>
-            <div
-              class={"reader-outline__row" + (isCurrent ? " is-current" : "")}
-              style={{ paddingLeft: `${6 + entry.depth * 12}px` }}
-            >
-              {hasChildren ? (
-                <button
-                  type="button"
-                  class="reader-outline__toggle"
-                  aria-label={expanded ? "折叠" : "展开"}
-                  onClick={() => toggleEntry(entry.href)}
-                >
-                  {expanded ? (
-                    <ChevronDown size={12} aria-hidden="true" />
-                  ) : (
-                    <ChevronRight size={12} aria-hidden="true" />
-                  )}
-                </button>
-              ) : (
-                <span class="reader-outline__toggle reader-outline__toggle--leaf" />
-              )}
-              <button
-                type="button"
-                class="reader-outline__title"
-                onClick={() => {
-                  store.openTocEntry(entry.href);
-                  expandPathFor(entry.href);
-                }}
-              >
-                <span class="reader-outline__label">
-                  {entry.label || entry.href}
-                </span>
-              </button>
-            </div>
-            {expanded ? (
-              <ul class="reader-outline__children">
-                {renderTocEntries(entry.children, state)}
-              </ul>
-            ) : null}
-          </li>
-        );
-      });
     }
 
     watch(chapterHtml, () => {
@@ -418,7 +284,7 @@ export default defineComponent({
       () => store.currentTocHref,
       (href) => {
         if (href) {
-          expandPathFor(href);
+          store.expandTocPath(href);
         }
       },
     );
@@ -499,182 +365,20 @@ export default defineComponent({
 
     return () => (
       <div class="epub-app">
-        {status.value === "ready" ? (
-          <header class="epub-toolbar">
-            <button
-              type="button"
-              class="epub-icon-btn"
-              aria-label="切换目录"
-              title="目录"
-              onClick={() => (store.sidebarOpen = !store.sidebarOpen)}
-            >
-              <Menu size={16} aria-hidden="true" />
-            </button>
-            <div class="epub-toolbar__group">
-              <button
-                type="button"
-                class="epub-btn"
-                disabled={spineIndex.value <= 0}
-                onClick={() => store.goToChapter(spineIndex.value - 1)}
-              >
-                上一章
-              </button>
-              <span class="epub-pager">
-                {spineIndex.value + 1} / {spineCount.value}
-              </span>
-              <button
-                type="button"
-                class="epub-btn"
-                disabled={spineIndex.value >= spineCount.value - 1}
-                onClick={() => store.goToChapter(spineIndex.value + 1)}
-              >
-                下一章
-              </button>
-            </div>
-            <div class="epub-toolbar__title" title={title.value}>
-              {title.value}
-            </div>
-            <span class="epub-pager">{progressPercent()}%</span>
-            <button
-              type="button"
-              class="epub-btn"
-              onClick={() => void store.openLocal()}
-            >
-              打开本地 EPUB
-            </button>
-          </header>
-        ) : null}
+        {status.value === "ready" ? <EpubToolbar /> : null}
 
         {status.value === "ready" ? (
           <div class="epub-body">
-            {sidebarOpen.value ? (
-              <aside class="reader-sidebar">
-                <header class="reader-sidebar__head">
-                  <div
-                    class="reader-sidebar__tabs"
-                    role="group"
-                    aria-label="侧栏"
-                  >
-                    <button
-                      type="button"
-                      class={
-                        "reader-sidebar__tab" +
-                        (store.sidebarTab === "toc" ? " is-active" : "")
-                      }
-                      onClick={() => (store.sidebarTab = "toc")}
-                    >
-                      目录
-                    </button>
-                    <button
-                      type="button"
-                      class={
-                        "reader-sidebar__tab" +
-                        (store.sidebarTab === "annotations" ? " is-active" : "")
-                      }
-                      onClick={() => (store.sidebarTab = "annotations")}
-                    >
-                      标注
-                      {store.highlightList.length
-                        ? ` (${store.highlightList.length})`
-                        : ""}
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    class="epub-icon-btn"
-                    aria-label="关闭侧栏"
-                    onClick={() => (store.sidebarOpen = false)}
-                  >
-                    <X size={16} aria-hidden="true" />
-                  </button>
-                </header>
-                <div class="reader-sidebar__body">
-                  {store.sidebarTab === "toc" ? (
-                    toc.value.length ? (
-                      <div class="epub-toc-pane">
-                        <input
-                          class="reader-hl__search"
-                          type="search"
-                          placeholder="搜索目录…"
-                          aria-label="搜索目录"
-                          value={tocQuery.value}
-                          onInput={(event: Event) => {
-                            tocQuery.value = (
-                              event.target as HTMLInputElement
-                            ).value;
-                          }}
-                        />
-                        {(() => {
-                          const query = tocQuery.value.trim().toLowerCase();
-                          const list = query
-                            ? filterToc(toc.value, query)
-                            : toc.value;
-                          if (!list.length) {
-                            return (
-                              <p class="reader-sidebar__hint">没有匹配的目录</p>
-                            );
-                          }
-                          return (
-                            <ul class="reader-outline">
-                              {renderTocEntries(list)}
-                            </ul>
-                          );
-                        })()}
-                      </div>
-                    ) : (
-                      <p class="reader-sidebar__hint">这本 EPUB 没有目录</p>
-                    )
-                  ) : store.highlightList.length ? (
-                    <ul class="reader-hl__list">
-                      {store.highlightList.map((record) => (
-                        <li key={record.id}>
-                          <button
-                            type="button"
-                            class="reader-hl__item"
-                            onClick={() => focusRecord(record)}
-                          >
-                            <span
-                              class="reader-hl__mark"
-                              data-kind={record.kind}
-                              style={{
-                                background:
-                                  record.kind === RECORD_KINDS.CLIP
-                                    ? "transparent"
-                                    : record.color || DEFAULT_COLORS[0],
-                              }}
-                            />
-                            <span class="reader-hl__body">
-                              <span class="reader-hl__chapter">
-                                第 {(record.epubLocator?.spineIndex ?? 0) + 1}{" "}
-                                章
-                              </span>
-                              <span class="reader-hl__text">{record.text}</span>
-                              {record.note ? (
-                                <span class="reader-hl__note">
-                                  批注：{record.note}
-                                </span>
-                              ) : null}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p class="reader-sidebar__hint">这里还没有记录</p>
-                  )}
-                </div>
-              </aside>
-            ) : null}
-            <div class="epub-stage">
-              <iframe
-                ref={iframeRef}
-                class="epub-frame"
-                title={title.value || "EPUB"}
-                sandbox="allow-same-origin"
-                srcdoc={chapterHtml.value}
-                onLoad={handleFrameLoad}
-              />
-            </div>
+            <EpubSidebar
+              activeId={activeId.value}
+              onFocusRecord={focusRecord}
+            />
+            <EpubStage
+              title={title.value}
+              chapterHtml={chapterHtml.value}
+              onLoad={handleFrameLoad}
+              frameRef={iframeRef}
+            />
           </div>
         ) : null}
 

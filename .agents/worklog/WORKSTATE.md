@@ -2,6 +2,8 @@
 
 - Focus: EPUB 阅读与高亮（计划 `docs/plan/epub-support.md`）已完成；阅读器内翻译 T1–T5 已落地（计划 `docs/plan/reader-translation.md`）
 - Reader translation done: `src/reader/translate/`（端上 Translator + Language Detector，语言映射/分块/typed errors）；缓存，阅读器用 `myz_translate_db`、网页内容层用扩展 `chrome.storage.local`（content script 的 IndexedDB 属宿主页 origin，不可用）；共享 `TranslationPopover` + `translation-popover.css`，PDF / EPUB / 网页采集条三处均接入（网页按钮在截取与搜索之间）；目标语言固定中文（zh/zh-Hant），不做语言选择器；设计系统新增 §4.24
+- EPUB reader split: `EpubReaderApp` 现为壳，拆出 `components/`（EpubToolbar/EpubSidebar/EpubTocPanel/EpubHighlightsPanel/EpubStage）；TOC 展开/搜索状态与 `progressPercent` 进 store，纯函数进 `toc.ts`
+- Shared reader chrome: 新增 `ReaderSidebar`/`ReaderOutlineList`/`ReaderHighlightRow`/`text.ts`，PDF 与 EPUB 共用（PDF 侧栏/目录/标注已迁移）
 - Wave 1 done: Token 真源、配色方案设置、Tailwind 映射、Dashboard/Popup/内容层/PDF 迁移
 - Wave 2 applied: 划线渲染修正、编辑浮层固定深色、采集条图标/文案、弹窗收窄、TagInput 补样式并去逗号、标签 chip 统一、字体 `--myz-sans`/`--myz-read`、提示条 Token、reduced-motion、§5 文案统一、zen 排版
 - Spec v0.2: 新增 §4.17 设置、§4.18 内容层批注、§4.19 分段、§4.20 列表/侧栏/导出、§4.21 弹窗、§4.22 PDF；宽度冲突已消解（浮层 280 / PDF 停靠 240 / 顶栏 44）；选中态、标签 token、固定深色范围、投影白名单、字号与动效映射、200% 缩放已定稿；新增 `--myz-highlight-color`
