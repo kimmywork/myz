@@ -39,14 +39,33 @@ describe("groupIntoBlocks", () => {
   });
 
   it("starts a new block on a paragraph gap", () => {
-    // line height 16, gap 24 (> 1.25x height) -> new block
+    // line height 16, within-paragraph advance 28, paragraph gap 40
     const lines = groupIntoLines([
       span(10, 100, 200, 116),
-      span(10, 140, 150, 156),
+      span(10, 128, 190, 144),
+      span(10, 156, 180, 172),
+      span(10, 184, 170, 200),
+      span(10, 224, 150, 240),
     ]);
     const blocks = groupIntoBlocks(lines);
     expect(blocks).toHaveLength(2);
-    expect(blocks[0][0]).toHaveLength(1);
+    expect(blocks[0]).toHaveLength(4);
+    expect(blocks[1]).toHaveLength(1);
+  });
+
+  it("starts a new block on extra leading without an indent", () => {
+    // within-paragraph advance 28, paragraph advance 36 (only a little extra)
+    const lines = groupIntoLines([
+      span(10, 100, 200, 116),
+      span(10, 128, 190, 144),
+      span(10, 156, 180, 172),
+      span(10, 184, 170, 200),
+      span(10, 220, 150, 236),
+    ]);
+    const blocks = groupIntoBlocks(lines);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toHaveLength(4);
+    expect(blocks[1]).toHaveLength(1);
   });
 
   it("groups a heading line separately from the body", () => {

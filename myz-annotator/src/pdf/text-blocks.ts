@@ -99,22 +99,31 @@ function horizontallyAligned(a: MeasuredRect, b: MeasuredRect): boolean {
 interface Block<T> {
   lines: T[][];
   last: MeasuredRect;
+  lastTop: number;
   minLeft: number;
+  /** Estimated leading of this paragraph (line advance), from its first line. */
+  leading: number;
 }
 
 /**
  * Groups consecutive, horizontally-aligned lines into blocks (paragraphs).
  *
- * A new block starts when the vertical gap is larger than `gapRatio` times the
- * line height (space between paragraphs), when the line is indented past the
+ * A new block starts when the line advance is larger than the block's own
+ * leading (extra space between paragraphs), when the line is indented past the
  * block's left edge (first-line indent), or when the line height differs
- * noticeably (a heading after body text). This keeps continuous-leading
- * paragraphs — where the indent is the only signal — apart, and keeps separate
- * columns separate.
+ * noticeably (a heading after body text).
+ *
+ * The leading is estimated locally from each block's first line — the nearest
+ * line below it in the same column, capped at twice its height so a one-line
+ * paragraph (whose only "below" line is the next paragraph) is not mistaken for
+ * tight leading. A local estimate is what makes this work across a page with
+ * mixed font sizes and columns, where a single page-wide baseline would be
+ * pulled to the tightest or loosest region. Horizontal alignment keeps columns
+ * apart.
  */
 export function groupIntoBlocks<T extends Positioned>(
   lines: T[][],
-  gapRatio = 1.25,
+  advanceRatio = 1.25,
 ): T[][][] {
   const segments = lines.map((line) => ({
     line,
@@ -122,17 +131,43 @@ export function groupIntoBlocks<T extends Positioned>(
   }));
   segments.sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
 
-  const blocks: Block<T>[] = [];
-  for (const segment of segments) {
-    let target: Block<T> | null = null;
-    for (const block of blocks) {
-      const gap = segment.rect.top - block.last.bottom;
-      if (gap < -1) {
+  // Nearest line below each segment in the same column: the best local guess at
+  // that line's leading.
+  const nextAdvance = segments.map((a) => {
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const b of segments) {
+      if (b === a || !horizontallyAligned(a.rect, b.rect)) {
         continue;
       }
-      const threshold =
-        Math.max(block.last.height, segment.rect.height) * gapRatio;
-      if (gap > threshold || !horizontallyAligned(block.last, segment.rect)) {
+      const advance = b.rect.top - a.rect.top;
+      if (advance > 0 && advance < nearest) {
+        nearest = advance;
+      }
+    }
+    return nearest;
+  });
+
+  const blocks: Block<T>[] = [];
+  segments.forEach((segment, index) => {
+    const ownLeading =
+      nextAdvance[index] === Number.POSITIVE_INFINITY
+        ? segment.rect.height * 1.5
+        : nextAdvance[index];
+    let target: Block<T> | null = null;
+    for (const block of blocks) {
+      const advance = segment.rect.top - block.lastTop;
+      if (advance < -1) {
+        continue;
+      }
+      // The candidate's own leading refines a one-line block's estimate, whose
+      // only "line below" is really the next paragraph's gap.
+      const reference = Math.min(block.leading, ownLeading);
+      const lineHeight = Math.max(block.last.height, segment.rect.height);
+      if (
+        advance > reference * advanceRatio ||
+        advance > lineHeight * 1.8 ||
+        !horizontallyAligned(block.last, segment.rect)
+      ) {
         continue;
       }
       const indentThreshold = Math.max(6, block.last.height * 0.5);
@@ -150,15 +185,18 @@ export function groupIntoBlocks<T extends Positioned>(
     if (target) {
       target.lines.push(segment.line);
       target.last = segment.rect;
+      target.lastTop = segment.rect.top;
       target.minLeft = Math.min(target.minLeft, segment.rect.left);
     } else {
       blocks.push({
         lines: [segment.line],
         last: segment.rect,
+        lastTop: segment.rect.top,
         minLeft: segment.rect.left,
+        leading: ownLeading,
       });
     }
-  }
+  });
   return blocks.map((block) => block.lines);
 }
 

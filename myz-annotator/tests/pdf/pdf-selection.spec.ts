@@ -64,6 +64,10 @@ function openColumns(): Promise<Page> {
   return openPdf("myz-pdf-columns.pdf");
 }
 
+function openSpaced(): Promise<Page> {
+  return openPdf("myz-pdf-spaced.pdf");
+}
+
 async function pageSpans(page: Page): Promise<SpanRect[]> {
   return page.evaluate(() => {
     const pageEl = document.querySelector('.pdf-page[data-page="1"]')!;
@@ -229,5 +233,49 @@ test("pdf_drag_within_an_indented_paragraph_stays_in_it", async () => {
   expect(text).not.toContain("Evolution and Automation");
   expect(text).not.toContain("FIGURE 1.5");
   expect(nextParagraph.text.length).toBeGreaterThan(0);
+  await page.close();
+});
+
+test("pdf_triple_click_selects_paragraph_with_only_extra_leading", async () => {
+  const page = await openSpaced();
+  const spans = await pageSpans(page);
+  const line = findSpan(spans, "To record and upload");
+  await page.mouse.click(
+    (line.left + line.right) / 2,
+    (line.top + line.bottom) / 2,
+    { clickCount: 3 },
+  );
+
+  const text = await selection(page);
+  expect(text).toContain("To record and upload");
+  expect(text).toContain("Start Sampling");
+  // No indent and only a little extra leading: the previous paragraph, the
+  // heading and the caption must all stay out.
+  expect(text).not.toContain("First, download");
+  expect(text).not.toContain("mobile phone application");
+  expect(text).not.toContain("Figure 13-2");
+  await page.close();
+});
+
+test("pdf_drag_selects_one_paragraph_with_extra_leading", async () => {
+  const page = await openSpaced();
+  const spans = await pageSpans(page);
+  const first = findSpan(spans, "First, download");
+  const last = findSpan(spans, "Thingy:53 to your project");
+  const next = findSpan(spans, "To record and upload");
+
+  await page.mouse.move(first.left + 5, (first.top + first.bottom) / 2);
+  await page.mouse.down();
+  await page.mouse.move(last.right + 20, (last.top + last.bottom) / 2, {
+    steps: 12,
+  });
+  await page.mouse.up();
+
+  const text = await selection(page);
+  expect(text).toContain("First, download");
+  expect(text).toContain("Thingy:53 to your project");
+  expect(text).not.toContain("To record and upload");
+  expect(text).not.toContain("Figure 13-2");
+  expect(next.text.length).toBeGreaterThan(0);
   await page.close();
 });
