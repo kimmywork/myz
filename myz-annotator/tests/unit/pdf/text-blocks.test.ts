@@ -73,6 +73,30 @@ describe("groupIntoBlocks", () => {
     expect(blocks[0]).toHaveLength(2);
     expect(blocks[1]).toHaveLength(2);
   });
+
+  it("splits continuous-leading paragraphs on a first-line indent", () => {
+    const lines = groupIntoLines([
+      span(10, 100, 300, 116), // body line
+      span(10, 128, 290, 144), // body line, same paragraph
+      span(34, 156, 260, 172), // indented first line -> new paragraph
+      span(10, 184, 300, 200),
+    ]);
+    const blocks = groupIntoBlocks(lines);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toHaveLength(2);
+    expect(blocks[1]).toHaveLength(2);
+  });
+
+  it("splits a heading from the body on line-height change", () => {
+    const lines = groupIntoLines([
+      span(10, 100, 300, 116), // body
+      span(10, 124, 220, 148), // taller line -> its own block
+      span(10, 156, 300, 172),
+    ]);
+    const blocks = groupIntoBlocks(lines);
+    expect(blocks).toHaveLength(3);
+    expect(blocks[1]).toHaveLength(1);
+  });
 });
 
 describe("unionRect", () => {

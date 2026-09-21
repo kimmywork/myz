@@ -72,7 +72,12 @@ export function groupIntoLines<T extends Positioned>(
         Math.min(lineRect.height, itemHeight) * topToleranceRatio,
       );
       const sameRow = Math.abs(item.rect.top - lineRect.top) <= tolerance;
-      const gap = item.rect.left - lineRect.right;
+      const gap =
+        item.rect.left > lineRect.right
+          ? item.rect.left - lineRect.right
+          : lineRect.left > item.rect.right
+            ? lineRect.left - item.rect.right
+            : 0;
       const maxGap =
         Math.max(itemHeight, lineRect.height, 12) * horizontalGapRatio;
       if (sameRow && gap <= maxGap) {
@@ -91,11 +96,21 @@ function horizontallyAligned(a: MeasuredRect, b: MeasuredRect): boolean {
   return overlap > Math.min(a.width, b.width) * 0.5;
 }
 
+interface Block<T> {
+  lines: T[][];
+  last: MeasuredRect;
+  minLeft: number;
+}
+
 /**
- * Groups consecutive, horizontally-aligned lines into blocks (paragraphs). A
- * gap larger than `gapRatio` times the line height starts a new block; tighter
- * leading stays in the same paragraph. Requiring horizontal alignment keeps
- * separate columns in separate blocks.
+ * Groups consecutive, horizontally-aligned lines into blocks (paragraphs).
+ *
+ * A new block starts when the vertical gap is larger than `gapRatio` times the
+ * line height (space between paragraphs), when the line is indented past the
+ * block's left edge (first-line indent), or when the line height differs
+ * noticeably (a heading after body text). This keeps continuous-leading
+ * paragraphs — where the indent is the only signal — apart, and keeps separate
+ * columns separate.
  */
 export function groupIntoBlocks<T extends Positioned>(
   lines: T[][],
@@ -107,9 +122,9 @@ export function groupIntoBlocks<T extends Positioned>(
   }));
   segments.sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
 
-  const blocks: { lines: T[][]; last: MeasuredRect }[] = [];
+  const blocks: Block<T>[] = [];
   for (const segment of segments) {
-    let target: (typeof blocks)[number] | null = null;
+    let target: Block<T> | null = null;
     for (const block of blocks) {
       const gap = segment.rect.top - block.last.bottom;
       if (gap < -1) {
@@ -120,6 +135,14 @@ export function groupIntoBlocks<T extends Positioned>(
       if (gap > threshold || !horizontallyAligned(block.last, segment.rect)) {
         continue;
       }
+      const indentThreshold = Math.max(6, block.last.height * 0.5);
+      if (segment.rect.left - block.minLeft > indentThreshold) {
+        continue;
+      }
+      const heightDiff = Math.abs(segment.rect.height - block.last.height);
+      if (heightDiff > Math.max(block.last.height, segment.rect.height) * 0.3) {
+        continue;
+      }
       if (!target || block.last.bottom > target.last.bottom) {
         target = block;
       }
@@ -127,8 +150,13 @@ export function groupIntoBlocks<T extends Positioned>(
     if (target) {
       target.lines.push(segment.line);
       target.last = segment.rect;
+      target.minLeft = Math.min(target.minLeft, segment.rect.left);
     } else {
-      blocks.push({ lines: [segment.line], last: segment.rect });
+      blocks.push({
+        lines: [segment.line],
+        last: segment.rect,
+        minLeft: segment.rect.left,
+      });
     }
   }
   return blocks.map((block) => block.lines);

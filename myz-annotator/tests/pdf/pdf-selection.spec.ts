@@ -41,10 +41,10 @@ interface SpanRect {
   bottom: number;
 }
 
-async function openMixed(): Promise<Page> {
+async function openPdf(file: string): Promise<Page> {
   const page = await context.newPage();
   await page.goto(
-    `chrome-extension://${extensionId}/src/pdf/pdf-viewer.html?url=${encodeURIComponent(`${serverUrl}/myz-pdf-mixed.pdf`)}`,
+    `chrome-extension://${extensionId}/src/pdf/pdf-viewer.html?url=${encodeURIComponent(`${serverUrl}/${file}`)}`,
   );
   await page.waitForFunction(() => Boolean((window as any).__MYZ_PDF__));
   await page.waitForFunction(
@@ -54,6 +54,14 @@ async function openMixed(): Promise<Page> {
   );
   await page.waitForTimeout(600);
   return page;
+}
+
+function openMixed(): Promise<Page> {
+  return openPdf("myz-pdf-mixed.pdf");
+}
+
+function openColumns(): Promise<Page> {
+  return openPdf("myz-pdf-columns.pdf");
 }
 
 async function pageSpans(page: Page): Promise<SpanRect[]> {
@@ -160,5 +168,66 @@ test("pdf_triple_click_then_highlight_saves_whole_paragraph", async () => {
   expect(record.text).toContain("The quick brown fox");
   expect(record.text).toContain("watches from the shadows");
   expect(record.pdfLocator.rects.length).toBeGreaterThanOrEqual(2);
+  await page.close();
+});
+
+test("pdf_triple_click_selects_one_indented_paragraph", async () => {
+  const page = await openColumns();
+  const spans = await pageSpans(page);
+  const line = findSpan(spans, "Because metal type foundries");
+  await page.mouse.click(
+    (line.left + line.right) / 2,
+    (line.top + line.bottom) / 2,
+    { clickCount: 3 },
+  );
+
+  const text = await selection(page);
+  expect(text).toContain("Because metal type foundries");
+  expect(text).toContain("century.");
+  // The next (indented) paragraph and the side column must stay out.
+  expect(text).not.toContain("Vendors of typesetting");
+  expect(text).not.toContain("FIGURE 1.5");
+  expect(text).not.toContain("Master");
+  await page.close();
+});
+
+test("pdf_triple_click_on_side_caption_stays_in_caption", async () => {
+  const page = await openColumns();
+  const spans = await pageSpans(page);
+  const line = findSpan(spans, "These three samples");
+  await page.mouse.click(
+    (line.left + line.right) / 2,
+    (line.top + line.bottom) / 2,
+    { clickCount: 3 },
+  );
+
+  const text = await selection(page);
+  expect(text).toContain("These three samples");
+  expect(text).toContain("greatest width");
+  expect(text).not.toContain("Because metal type");
+  await page.close();
+});
+
+test("pdf_drag_within_an_indented_paragraph_stays_in_it", async () => {
+  const page = await openColumns();
+  const spans = await pageSpans(page);
+  const first = findSpan(spans, "The ink wasn't dry");
+  const last = findSpan(spans, "type blocks used to set type");
+  const nextParagraph = findSpan(spans, "For almost 400 years");
+
+  const startY = (first.top + first.bottom) / 2;
+  const endY = (last.top + last.bottom) / 2;
+  await page.mouse.move(first.left + 5, startY);
+  await page.mouse.down();
+  await page.mouse.move(last.right + 20, endY, { steps: 12 });
+  await page.mouse.up();
+
+  const text = await selection(page);
+  expect(text).toContain("The ink wasn't dry");
+  expect(text).toContain("type blocks used to set type");
+  expect(text).not.toContain("For almost 400 years");
+  expect(text).not.toContain("Evolution and Automation");
+  expect(text).not.toContain("FIGURE 1.5");
+  expect(nextParagraph.text.length).toBeGreaterThan(0);
   await page.close();
 });
