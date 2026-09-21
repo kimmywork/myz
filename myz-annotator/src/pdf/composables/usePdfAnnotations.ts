@@ -11,6 +11,11 @@ import {
 import type { PdfDocument } from "../pdf-document.js";
 import { sourceKeyOf, sourceTypeOf, type PdfSourceRef } from "../source.js";
 import type { ReaderState } from "../stores/state.js";
+import {
+  pageAtPoint,
+  selectBlockAtPoint,
+  selectByDrag,
+} from "../text-selection.js";
 
 export interface AnnotationsDeps {
   pageElements: () => HTMLElement[];
@@ -26,6 +31,7 @@ export interface AnnotationsDeps {
  */
 export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
   let boundStage: HTMLElement | null = null;
+  let dragStart: { x: number; y: number } | null = null;
 
   const activeRecord = computed(
     () =>
@@ -144,9 +150,50 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     state.selection.value = null;
   }
 
+  function handleMouseDown(event: MouseEvent) {
+    if (event.button !== 0) {
+      dragStart = null;
+      return;
+    }
+    if ((event.target as HTMLElement)?.closest(".pdf-annotation")) {
+      dragStart = null;
+      return;
+    }
+    dragStart = { x: event.clientX, y: event.clientY };
+  }
+
   function handleMouseUp(event: MouseEvent) {
     if ((event.target as HTMLElement)?.closest(".pdf-annotation")) {
       return;
+    }
+    const stage = deps.getStage();
+    const start = dragStart;
+    dragStart = null;
+    if (stage) {
+      const startPage = start ? pageAtPoint(stage, start.x, start.y) : null;
+      // Triple-click selects the whole block (paragraph) under the pointer.
+      if (event.detail === 3) {
+        const page =
+          pageAtPoint(stage, event.clientX, event.clientY) ?? startPage;
+        if (page && selectBlockAtPoint(page, event.clientX, event.clientY)) {
+          window.setTimeout(applyCurrentSelection, 0);
+          return;
+        }
+      } else if (event.detail === 1 && !event.shiftKey && start && startPage) {
+        // Snap a drag to the geometry-derived lines/blocks so overshooting a
+        // paragraph does not bleed into the next one.
+        const endPage = pageAtPoint(stage, event.clientX, event.clientY);
+        if (endPage === startPage) {
+          const snapped = selectByDrag(startPage, start, {
+            x: event.clientX,
+            y: event.clientY,
+          });
+          if (snapped) {
+            window.setTimeout(applyCurrentSelection, 0);
+            return;
+          }
+        }
+      }
     }
     window.setTimeout(applyCurrentSelection, 0);
   }
@@ -167,6 +214,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
       return;
     }
     boundStage = el;
+    el.addEventListener("mousedown", handleMouseDown);
     el.addEventListener("mouseup", handleMouseUp);
     el.addEventListener("click", handleClick);
   }
@@ -175,6 +223,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     if (!boundStage) {
       return;
     }
+    boundStage.removeEventListener("mousedown", handleMouseDown);
     boundStage.removeEventListener("mouseup", handleMouseUp);
     boundStage.removeEventListener("click", handleClick);
     boundStage = null;
