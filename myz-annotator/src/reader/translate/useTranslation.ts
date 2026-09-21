@@ -22,8 +22,11 @@ import type { TranslationEngine } from "./types.js";
 export type TranslationStatus = TranslationPhase | "idle" | "done" | "error";
 
 export interface TranslationPosition {
+  /** Selection top (viewport px), used to place the panel above if needed. */
   top: number;
   left: number;
+  /** Selection bottom (viewport px); the panel opens below it. */
+  bottom: number;
 }
 
 export interface UseTranslationOptions {
@@ -105,7 +108,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   const errorMessage = ref("");
   const copyError = ref("");
   const copied = ref(false);
-  const position = ref<TranslationPosition>({ top: 0, left: 0 });
+  const position = ref<TranslationPosition>({ top: 0, left: 0, bottom: 0 });
 
   const cache = options.cache ?? createIndexedDbTranslationCache();
   let controller: AbortController | null = null;

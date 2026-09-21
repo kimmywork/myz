@@ -30,7 +30,7 @@ export default defineComponent({
         return;
       }
       translation.openFor(props.text, {
-        position: { top: props.bottom + 12, left: props.left },
+        position: { top: props.top, left: props.left, bottom: props.bottom },
       });
     }
 
@@ -70,6 +70,7 @@ export default defineComponent({
             <TranslationPopover
               top={translation.position.value.top}
               left={translation.position.value.left}
+              bottom={translation.position.value.bottom}
               sourceText={translation.sourceText.value}
               sourceLanguage={translation.sourceLanguage.value}
               targetLanguage={translation.targetLanguage.value}

@@ -187,6 +187,25 @@ describe("translateText", () => {
     ).rejects.toMatchObject({ code: "activation" });
   });
 
+  it("keeps paragraph structure across blocks", async () => {
+    const translate = vi.fn(
+      async (_s: string, _t: string, text: string) => `[${text}]`,
+    );
+    const outcome = await translateText({
+      text: "First paragraph.\n\nSecond paragraph.",
+      targetLanguage: "zh",
+      engine: createEngine({ translate }),
+      hasher: async (text) => `h-${text}`,
+    });
+
+    expect(outcome.blocks).toHaveLength(2);
+    expect(outcome.blocks[0].translation).toBe("[First paragraph.]");
+    expect(outcome.blocks[1].translation).toBe("[Second paragraph.]");
+    expect(outcome.translation).toBe(
+      "[First paragraph.]\n\n[Second paragraph.]",
+    );
+  });
+
   it("is a TranslationError subclass with a message", async () => {
     const error = await translateText({
       text: "",

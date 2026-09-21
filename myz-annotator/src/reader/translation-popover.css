@@ -25,9 +25,10 @@
 
 .translation-popover {
   position: fixed;
-  transform: translate(-50%, 0);
-  width: 320px;
-  max-width: calc(100vw - 24px);
+  transform: translateX(-50%);
+  width: min(400px, calc(100vw - 32px));
+  max-height: min(60vh, 560px);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -41,10 +42,22 @@
   animation: myz-translate-fade var(--myz-motion-med) var(--myz-ease-out);
 }
 
+.translation-popover.is-dragging {
+  animation: none;
+  cursor: grabbing;
+}
+
 .translation-popover__head {
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.translation-popover.is-dragging .translation-popover__head {
+  cursor: grabbing;
 }
 
 .translation-popover__title {
@@ -79,10 +92,17 @@
   color: var(--myz-well-text);
 }
 
+.translation-popover__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .translation-popover__source {
   margin: 0;
-  max-height: 96px;
-  overflow: auto;
   padding: 8px 10px;
   border-left: 3px solid var(--myz-accent);
   background: var(--myz-surface-2);
@@ -91,6 +111,8 @@
   font-size: 14px;
   line-height: 1.6;
   color: var(--myz-well-text);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .translation-popover__status {
@@ -130,12 +152,11 @@
 
 .translation-popover__result {
   margin: 0;
-  max-height: 220px;
-  overflow: auto;
   font-family: var(--myz-read);
   font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
+  word-break: break-word;
   color: var(--myz-well-text);
 }
 

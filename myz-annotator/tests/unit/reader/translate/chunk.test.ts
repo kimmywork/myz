@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { splitIntoChunks } from "@/reader/translate/chunk.js";
+import { splitIntoBlocks, splitIntoChunks } from "@/reader/translate/chunk.js";
+
+describe("splitIntoBlocks", () => {
+  it("returns nothing for blank text", () => {
+    expect(splitIntoBlocks("\n  \n")).toEqual([]);
+  });
+
+  it("splits paragraphs on blank lines", () => {
+    expect(splitIntoBlocks("First paragraph.\n\nSecond paragraph.")).toEqual([
+      "First paragraph.",
+      "Second paragraph.",
+    ]);
+  });
+
+  it("collapses line wraps within a paragraph", () => {
+    expect(splitIntoBlocks("line one\nline two\nline three")).toEqual([
+      "line one line two line three",
+    ]);
+  });
+});
 
 describe("splitIntoChunks", () => {
   it("returns nothing for blank text", () => {

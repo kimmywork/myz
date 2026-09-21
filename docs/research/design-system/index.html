@@ -4246,7 +4246,7 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
               >
                 <div
                   style="
-                    width: 320px;
+                    width: min(400px, 100%);
                     max-width: 100%;
                     display: flex;
                     flex-direction: column;
@@ -4349,11 +4349,19 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                 <tbody>
                   <tr>
                     <td>宽度</td>
-                    <td>320，圆角 12，带阴影；锚在选区下方居中</td>
+                    <td>min(400px, 100vw - 32px)，圆角 12，带阴影；锚在选区下方，空间不足翻到上方</td>
+                  </tr>
+                  <tr>
+                    <td>高度</td>
+                    <td>最高 min(60vh, 560px)，长文在面板内滚动，不抢原文</td>
+                  </tr>
+                  <tr>
+                    <td>拖动</td>
+                    <td>按住头部拖动，始终限制在视口内</td>
                   </tr>
                   <tr>
                     <td>内容</td>
-                    <td>语言对 + 原文引用 + 译文；只读，不写回记录</td>
+                    <td>语言对 + 原文引用 + 译文，都保留段落结构；只读，不写回记录</td>
                   </tr>
                   <tr>
                     <td>状态</td>

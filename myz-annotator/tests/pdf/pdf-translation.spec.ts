@@ -215,3 +215,50 @@ test("pdf_translation_reports_unsupported_browser", async () => {
   expect(errors, errors.join("\n")).toHaveLength(0);
   await page.close();
 });
+
+test("pdf_translation_popover_is_draggable_and_stays_on_screen", async () => {
+  const { page, errors } = await openReader();
+  await installMockEngine(page);
+
+  await page.evaluate(() =>
+    (window as any).__MYZ_PDF__.selectText("Page One Alpha", 1),
+  );
+  await page.locator('.selection-toolbar button[title="翻译"]').click();
+  const popover = page.locator(".translation-popover");
+  await expect(popover).toBeVisible();
+
+  const before = await popover.boundingBox();
+  const header = await popover
+    .locator(".translation-popover__head")
+    .boundingBox();
+  if (!before || !header) throw new Error("missing popover geometry");
+
+  await page.mouse.move(
+    header.x + header.width / 2,
+    header.y + header.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    header.x + header.width / 2 + 120,
+    header.y + header.height / 2 + 70,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+
+  const after = await popover.boundingBox();
+  if (!after) throw new Error("missing popover geometry after drag");
+  expect(after.x).toBeGreaterThan(before.x + 40);
+  expect(after.y).toBeGreaterThan(before.y + 20);
+
+  const viewport = await page.evaluate(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  expect(after.y).toBeGreaterThanOrEqual(0);
+  expect(after.y + after.height).toBeLessThanOrEqual(viewport.height + 1);
+  expect(after.x).toBeGreaterThanOrEqual(0);
+  expect(after.x + after.width).toBeLessThanOrEqual(viewport.width + 1);
+
+  expect(errors, errors.join("\n")).toHaveLength(0);
+  await page.close();
+});

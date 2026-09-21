@@ -47,8 +47,9 @@ export default defineComponent({
       const rect = selection.getRangeAt(0).getBoundingClientRect();
       translation.openFor(text, {
         position: {
-          top: rect.bottom + 12,
+          top: rect.top,
           left: rect.left + rect.width / 2,
+          bottom: rect.bottom,
         },
       });
     };
@@ -91,6 +92,7 @@ export default defineComponent({
           <TranslationPopover
             top={translation.position.value.top}
             left={translation.position.value.left}
+            bottom={translation.position.value.bottom}
             sourceText={translation.sourceText.value}
             sourceLanguage={translation.sourceLanguage.value}
             targetLanguage={translation.targetLanguage.value}

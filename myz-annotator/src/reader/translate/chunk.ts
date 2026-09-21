@@ -9,6 +9,29 @@
 export const DEFAULT_CHUNK_LENGTH = 320;
 
 /**
+ * Splits text into paragraphs (blocks). A blank line separates paragraphs;
+ * single newlines inside a paragraph are line wraps, so they collapse to
+ * spaces and the translator receives prose rather than a column of fragments.
+ * The service translates each block on its own and rejoins them with a blank
+ * line, so the result keeps the source's paragraph structure.
+ */
+export function splitIntoBlocks(text: string): string[] {
+  const normalized = text.replace(/\r\n?/g, "\n").trim();
+  if (!normalized) {
+    return [];
+  }
+  return normalized
+    .split(/\n{2,}/)
+    .map((block) =>
+      block
+        .replace(/\n/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean);
+}
+
+/**
  * Sentence terminators for CJK and Latin scripts. A Latin period only ends a
  * sentence when followed by whitespace or the end of the string, so decimals
  * and abbreviations (e.g. "3.14") are not split mid-number.
