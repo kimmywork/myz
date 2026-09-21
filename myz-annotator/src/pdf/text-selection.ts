@@ -159,12 +159,52 @@ function lineContainsY(line: SpanItem[], y: number, tolerance = 2): boolean {
   return y >= rect.top - tolerance && y <= rect.bottom + tolerance;
 }
 
-/** Nearest line to `y`; ties resolve to the earlier (upper) line. */
-function nearestLineIndex(lines: SpanItem[][], y: number): number {
+function horizontalDistance(rect: TextRect, x: number): number {
+  if (x < rect.left) {
+    return rect.left - x;
+  }
+  if (x > rect.right) {
+    return x - rect.right;
+  }
+  return 0;
+}
+
+/** Line under the point, preferring one that also contains `x` (columns). */
+function lineAtPoint(
+  lines: SpanItem[][],
+  x: number,
+  y: number,
+): SpanItem[] | null {
+  const candidates = lines.filter((line) => lineContainsY(line, y));
+  if (!candidates.length) {
+    return null;
+  }
+  const containing = candidates.find((line) => {
+    const rect = lineRect(line);
+    return x >= rect.left - 2 && x <= rect.right + 2;
+  });
+  if (containing) {
+    return containing;
+  }
+  return candidates.reduce(
+    (best, line) => {
+      const distance = horizontalDistance(lineRect(line), x);
+      return distance < best.distance ? { line, distance } : best;
+    },
+    { line: candidates[0], distance: Number.POSITIVE_INFINITY },
+  ).line;
+}
+
+/**
+ * Nearest line to the point; vertical distance dominates but horizontal
+ * distance breaks ties so a point in one column does not resolve to another.
+ */
+function nearestLineIndex(lines: SpanItem[][], x: number, y: number): number {
   let best = 0;
   let bestDistance = Number.POSITIVE_INFINITY;
   lines.forEach((line, index) => {
-    const distance = verticalDistance(lineRect(line), y);
+    const rect = lineRect(line);
+    const distance = verticalDistance(rect, y) + horizontalDistance(rect, x);
     if (distance < bestDistance - 1e-6) {
       bestDistance = distance;
       best = index;
@@ -179,11 +219,11 @@ function resolveAnchor(
   x: number,
   y: number,
 ): TextPosition {
-  const containing = lines.find((line) => lineContainsY(line, y));
+  const containing = lineAtPoint(lines, x, y);
   if (containing) {
     return positionInLine(containing, x, y);
   }
-  const index = nearestLineIndex(lines, y);
+  const index = nearestLineIndex(lines, x, y);
   const line = lines[index];
   return y < lineRect(line).top ? startOfLine(line) : endOfLine(line);
 }
@@ -199,11 +239,11 @@ function resolveFocus(
   y: number,
   forward: boolean,
 ): TextPosition {
-  const containing = lines.find((line) => lineContainsY(line, y));
+  const containing = lineAtPoint(lines, x, y);
   if (containing) {
     return positionInLine(containing, x, y);
   }
-  const index = nearestLineIndex(lines, y);
+  const index = nearestLineIndex(lines, x, y);
   const line = lines[index];
   if (y < lineRect(line).top) {
     if (forward && index > 0) {
@@ -307,8 +347,7 @@ export function selectBlockAtPoint(
     return false;
   }
   const blocks = groupIntoBlocks(lines);
-  const index = nearestLineIndex(lines, y);
-  const line = lines[index];
+  const line = lineAtPoint(lines, x, y) ?? lines[nearestLineIndex(lines, x, y)];
   const block = blocks.find((candidate) => candidate.includes(line));
   if (!block) {
     return false;

@@ -50,11 +50,13 @@ export function unionRect(rects: TextRect[]): MeasuredRect {
 /**
  * Groups spans into visual lines: a span joins the current line when its top
  * is within a fraction of the line height (pdf.js runs on one line can differ
- * by a sub-pixel of baseline).
+ * by a sub-pixel of baseline). A large horizontal gap starts a new segment so
+ * side-by-side columns are not treated as one line.
  */
 export function groupIntoLines<T extends Positioned>(
   items: T[],
   topToleranceRatio = 0.6,
+  horizontalGapRatio = 1.5,
 ): T[][] {
   const sorted = [...items].sort(
     (a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left,
@@ -69,7 +71,11 @@ export function groupIntoLines<T extends Positioned>(
         1,
         Math.min(lineRect.height, itemHeight) * topToleranceRatio,
       );
-      if (Math.abs(item.rect.top - lineRect.top) <= tolerance) {
+      const sameRow = Math.abs(item.rect.top - lineRect.top) <= tolerance;
+      const gap = item.rect.left - lineRect.right;
+      const maxGap =
+        Math.max(itemHeight, lineRect.height, 12) * horizontalGapRatio;
+      if (sameRow && gap <= maxGap) {
         line.push(item);
         continue;
       }
@@ -79,38 +85,53 @@ export function groupIntoLines<T extends Positioned>(
   return lines;
 }
 
+/** True when two segments share enough horizontal range to be one column. */
+function horizontallyAligned(a: MeasuredRect, b: MeasuredRect): boolean {
+  const overlap = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+  return overlap > Math.min(a.width, b.width) * 0.5;
+}
+
 /**
- * Groups consecutive lines into blocks (paragraphs). A gap larger than
- * `gapRatio` times the line height starts a new block; tighter leading stays
- * in the same paragraph.
+ * Groups consecutive, horizontally-aligned lines into blocks (paragraphs). A
+ * gap larger than `gapRatio` times the line height starts a new block; tighter
+ * leading stays in the same paragraph. Requiring horizontal alignment keeps
+ * separate columns in separate blocks.
  */
 export function groupIntoBlocks<T extends Positioned>(
   lines: T[][],
   gapRatio = 1.25,
 ): T[][][] {
-  const blocks: T[][][] = [];
-  let current: T[][] = [];
-  let previous: MeasuredRect | null = null;
-  for (const line of lines) {
-    const rect = unionRect(line.map((entry) => entry.rect));
-    if (!previous) {
-      current = [line];
-    } else {
-      const gap = rect.top - previous.bottom;
-      const threshold = Math.max(previous.height, rect.height) * gapRatio;
-      if (gap > threshold) {
-        blocks.push(current);
-        current = [line];
-      } else {
-        current.push(line);
+  const segments = lines.map((line) => ({
+    line,
+    rect: unionRect(line.map((entry) => entry.rect)),
+  }));
+  segments.sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
+
+  const blocks: { lines: T[][]; last: MeasuredRect }[] = [];
+  for (const segment of segments) {
+    let target: (typeof blocks)[number] | null = null;
+    for (const block of blocks) {
+      const gap = segment.rect.top - block.last.bottom;
+      if (gap < -1) {
+        continue;
+      }
+      const threshold =
+        Math.max(block.last.height, segment.rect.height) * gapRatio;
+      if (gap > threshold || !horizontallyAligned(block.last, segment.rect)) {
+        continue;
+      }
+      if (!target || block.last.bottom > target.last.bottom) {
+        target = block;
       }
     }
-    previous = rect;
+    if (target) {
+      target.lines.push(segment.line);
+      target.last = segment.rect;
+    } else {
+      blocks.push({ lines: [segment.line], last: segment.rect });
+    }
   }
-  if (current.length) {
-    blocks.push(current);
-  }
-  return blocks;
+  return blocks.map((block) => block.lines);
 }
 
 /** Vertical distance from `y` to the rect (0 when inside). */

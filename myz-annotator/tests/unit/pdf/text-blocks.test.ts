@@ -60,6 +60,19 @@ describe("groupIntoBlocks", () => {
     expect(blocks[0]).toHaveLength(1);
     expect(blocks[1]).toHaveLength(2);
   });
+
+  it("keeps side-by-side columns in separate blocks", () => {
+    const lines = groupIntoLines([
+      span(10, 100, 300, 116),
+      span(400, 100, 690, 116),
+      span(10, 128, 280, 144),
+      span(400, 128, 680, 144),
+    ]);
+    const blocks = groupIntoBlocks(lines);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toHaveLength(2);
+    expect(blocks[1]).toHaveLength(2);
+  });
 });
 
 describe("unionRect", () => {
