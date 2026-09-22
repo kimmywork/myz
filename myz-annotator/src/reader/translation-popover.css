@@ -104,6 +104,9 @@
 .translation-popover__source {
   margin: 0;
   padding: 8px 10px;
+  max-height: calc(5 * 1.6em + 16px); /* five lines, then scroll */
+  overflow: auto;
+  overscroll-behavior: contain;
   border-left: 3px solid var(--myz-accent);
   background: var(--myz-surface-2);
   border-radius: var(--myz-r);
