@@ -1,3 +1,4 @@
+import { selectionBlocks } from "@myz/shared/selectionBlocks";
 import { findRangeByNormalizedText } from "@myz/shared/serializer";
 import {
   HIGHLIGHT_STYLES,
@@ -416,7 +417,7 @@ export default defineComponent({
             top={selectionToolbar.value.top}
             left={selectionToolbar.value.left}
             bottom={selectionToolbar.value.bottom}
-            text={pendingRange?.toString().trim() || ""}
+            blocks={pendingRange ? selectionBlocks(pendingRange) : []}
             onHighlight={() => void createFromSelection(RECORD_KINDS.HIGHLIGHT)}
             onClip={() => void createFromSelection(RECORD_KINDS.CLIP)}
             onClose={clearSelection}

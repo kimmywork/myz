@@ -1,4 +1,5 @@
 import type { MyZRecord } from "@myz/shared/types";
+import { selectionBlocksForRange } from "./text-selection.js";
 
 export interface PdfRect {
   x: number;
@@ -10,6 +11,8 @@ export interface PdfRect {
 export interface PdfSelection {
   pageNumber: number;
   text: string;
+  /** Paragraph blocks reconstructed from the geometry (for translation). */
+  blocks: string[];
   occurrenceIndex: number;
   rects: PdfRect[];
 }
@@ -281,9 +284,11 @@ export function extractSelection(stage: HTMLElement): PdfSelection | null {
   if (!rects.length) {
     return null;
   }
+  const blocks = selectionBlocksForRange(startPage, range);
   return {
     pageNumber: Number(startPage.dataset.page || 0),
     text,
+    blocks: blocks.length ? blocks : [text],
     occurrenceIndex,
     rects: mergeRects(rects),
   };

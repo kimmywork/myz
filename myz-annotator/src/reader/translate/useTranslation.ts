@@ -100,6 +100,7 @@ if (typeof window !== "undefined") {
 export function useTranslation(options: UseTranslationOptions = {}) {
   const open = ref(false);
   const sourceText = ref("");
+  const sourceBlocks = ref<string[]>([]);
   const sourceLanguage = ref("");
   const targetLanguage = ref("zh");
   const status = ref<TranslationStatus>("idle");
@@ -152,6 +153,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     try {
       const outcome = await translateText({
         text: sourceText.value,
+        blocks: sourceBlocks.value,
         targetLanguage: targetLanguage.value,
         engine,
         cache,
@@ -186,15 +188,18 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   }
 
   function openFor(
-    text: string,
+    blocks: string[],
     options: { position?: TranslationPosition; targetLanguage?: string } = {},
   ) {
-    const value = typeof text === "string" ? text.trim() : "";
-    if (!value) {
+    const value = (Array.isArray(blocks) ? blocks : [])
+      .map((block) => (typeof block === "string" ? block.trim() : ""))
+      .filter(Boolean);
+    if (!value.length) {
       return;
     }
     reset();
-    sourceText.value = value;
+    sourceBlocks.value = value;
+    sourceText.value = value.join("\n\n");
     if (options.position) {
       position.value = options.position;
     }
@@ -211,6 +216,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     open.value = false;
     reset();
     sourceText.value = "";
+    sourceBlocks.value = [];
   }
 
   function retry() {

@@ -17,7 +17,8 @@ export default defineComponent({
     top: { type: Number, required: true },
     left: { type: Number, required: true },
     bottom: { type: Number, required: true },
-    text: { type: String, required: true },
+    /** Selected text as paragraph blocks, so translation keeps the structure. */
+    blocks: { type: Array as PropType<string[]>, required: true },
     onHighlight: { type: Function as PropType<() => void>, required: true },
     onClip: { type: Function as PropType<() => void>, required: true },
     onClose: { type: Function as PropType<() => void>, required: true },
@@ -26,10 +27,10 @@ export default defineComponent({
     const translation = useTranslation();
 
     function translateSelection() {
-      if (!props.text.trim()) {
+      if (!props.blocks.length) {
         return;
       }
-      translation.openFor(props.text, {
+      translation.openFor(props.blocks, {
         position: { top: props.top, left: props.left, bottom: props.bottom },
       });
     }

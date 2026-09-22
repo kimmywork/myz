@@ -20,7 +20,7 @@ export default defineComponent({
           top={selectionPos.value.top}
           left={selectionPos.value.left}
           bottom={selectionPos.value.bottom}
-          text={selection.value.text}
+          blocks={selection.value.blocks}
           onHighlight={() => store.createAnnotation(RECORD_KINDS.HIGHLIGHT)}
           onClip={() => store.createAnnotation(RECORD_KINDS.CLIP)}
           onClose={store.clearSelection}

@@ -13,6 +13,7 @@
     "./schemas": "./src/schemas.ts",
     "./icons": "./src/icons.ts",
     "./highlightRange": "./src/highlightRange.ts",
+    "./selectionBlocks": "./src/selectionBlocks.ts",
     "./highlightUtils": "./src/highlightUtils.ts",
     "./messaging": "./src/messaging.ts",
     "./serializer": "./src/serializer.ts",

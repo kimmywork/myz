@@ -79,7 +79,10 @@ export interface TranslationOutcome {
 }
 
 export interface TranslateRequest {
-  text: string;
+  /** Plain text; ignored when `blocks` is provided. */
+  text?: string;
+  /** Paragraph blocks captured from the document, preserving structure. */
+  blocks?: string[];
   targetLanguage?: string;
   engine: TranslationEngine;
   cache?: TranslationCache | null;
@@ -143,8 +146,10 @@ async function detectSourceLanguage(
 export async function translateText(
   request: TranslateRequest,
 ): Promise<TranslationOutcome> {
-  const text = request.text.trim();
-  if (!text) {
+  const blocks = request.blocks?.length
+    ? request.blocks.map((block) => block.trim()).filter(Boolean)
+    : splitIntoBlocks((request.text ?? "").trim());
+  if (!blocks.length) {
     throw new TranslationError("failed", "没有可翻译的文字");
   }
   const signal = request.signal;
@@ -156,7 +161,10 @@ export async function translateText(
     totalChunks: 0,
   });
 
-  const sourceLanguage = await detectSourceLanguage(request, text);
+  const sourceLanguage = await detectSourceLanguage(
+    request,
+    blocks.join("\n\n"),
+  );
   const targetLanguage =
     normalizeLanguageTag(request.targetLanguage) || resolveTargetLanguage();
 
@@ -183,10 +191,6 @@ export async function translateText(
     );
   }
 
-  const blocks = splitIntoBlocks(text);
-  if (!blocks.length) {
-    throw new TranslationError("failed", "没有可翻译的文字");
-  }
   const blockChunks = blocks.map((block) =>
     splitIntoChunks(block, request.maxChunkLength ?? DEFAULT_CHUNK_LENGTH),
   );

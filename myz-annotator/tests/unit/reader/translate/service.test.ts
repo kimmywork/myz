@@ -206,6 +206,22 @@ describe("translateText", () => {
     );
   });
 
+  it("translates document-captured blocks one by one", async () => {
+    const translate = vi.fn(
+      async (_s: string, _t: string, text: string) => `[${text}]`,
+    );
+    const outcome = await translateText({
+      blocks: ["Heading", "Body one.", "Body two."],
+      targetLanguage: "zh",
+      engine: createEngine({ translate }),
+      hasher: async (text) => `h-${text}`,
+    });
+
+    expect(translate).toHaveBeenCalledTimes(3);
+    expect(outcome.blocks).toHaveLength(3);
+    expect(outcome.translation).toBe("[Heading]\n\n[Body one.]\n\n[Body two.]");
+  });
+
   it("is a TranslationError subclass with a message", async () => {
     const error = await translateText({
       text: "",

@@ -5,6 +5,7 @@ import {
   IconLanguages,
   IconSearch,
 } from "@myz/shared/icons";
+import { selectionBlocks } from "@myz/shared/selectionBlocks";
 import { defineComponent } from "vue";
 import { useToolbarStore } from "@/content/stores/toolbar-store.js";
 import { createChromeStorageTranslationCache } from "@/reader/translate/storage.js";
@@ -39,13 +40,18 @@ export default defineComponent({
     const handleTranslate = (event: Event) => {
       event.preventDefault();
       const selection = window.getSelection();
-      const text = selection?.toString().trim() || "";
-      if (!selection || !text || selection.rangeCount === 0) {
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
         store.hide();
         return;
       }
-      const rect = selection.getRangeAt(0).getBoundingClientRect();
-      translation.openFor(text, {
+      const range = selection.getRangeAt(0);
+      const blocks = selectionBlocks(range);
+      if (!blocks.length) {
+        store.hide();
+        return;
+      }
+      const rect = range.getBoundingClientRect();
+      translation.openFor(blocks, {
         position: {
           top: rect.top,
           left: rect.left + rect.width / 2,
