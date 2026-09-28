@@ -2,7 +2,6 @@ import { MyZRecordRegistry } from "@myz/shared/recordRegistry";
 import {
   RECORD_SCHEMA_VERSION,
   SETTINGS_SCHEMA_VERSION,
-  SYNC_PROTOCOL_VERSION,
 } from "@myz/shared/versioning";
 import { describe, it, expect } from "vitest";
 import { DEFAULT_SETTINGS } from "@/background/constants";
@@ -10,12 +9,6 @@ import {
   SettingsRegistry,
   SettingsBundleRegistry,
 } from "@/background/settings/registry";
-import {
-  SyncRecordPayloadRegistry,
-  SyncManifestRegistry,
-  SyncChunkEnvelopeRegistry,
-  SyncLockPayloadRegistry,
-} from "@/background/sync/registry";
 
 describe("schema registry mapping", () => {
   it("should map record schema by version", () => {
@@ -49,65 +42,5 @@ describe("schema registry mapping", () => {
       data: DEFAULT_SETTINGS,
     });
     expect(bundleResult.success).toBe(true);
-  });
-
-  it("should map sync schemas by version", () => {
-    expect(SyncRecordPayloadRegistry.latestVersion).toBe(SYNC_PROTOCOL_VERSION);
-    const payloadSchema =
-      SyncRecordPayloadRegistry.versions[SYNC_PROTOCOL_VERSION];
-    expect(payloadSchema).toBeDefined();
-    expect(
-      payloadSchema.safeParse({
-        protocolVersion: SYNC_PROTOCOL_VERSION,
-        recordId: "r1",
-        type: "highlight",
-        updatedAt: "2024-01-01T00:00:00.000Z",
-        data: {},
-      }).success,
-    ).toBe(true);
-
-    expect(SyncManifestRegistry.latestVersion).toBe(SYNC_PROTOCOL_VERSION);
-    const manifestSchema = SyncManifestRegistry.versions[SYNC_PROTOCOL_VERSION];
-    expect(manifestSchema).toBeDefined();
-    expect(
-      manifestSchema.safeParse({
-        protocolVersion: SYNC_PROTOCOL_VERSION,
-        version: 1,
-        createdAt: "2024-01-01T00:00:00.000Z",
-        clientId: "client-1",
-        baseVersion: 0,
-        epoch: 1,
-        recordsIndex: {},
-        chunksIndex: {},
-        chainHeads: {},
-      }).success,
-    ).toBe(true);
-
-    expect(SyncChunkEnvelopeRegistry.latestVersion).toBe(SYNC_PROTOCOL_VERSION);
-    const chunkSchema =
-      SyncChunkEnvelopeRegistry.versions[SYNC_PROTOCOL_VERSION];
-    expect(chunkSchema).toBeDefined();
-    expect(
-      chunkSchema.safeParse({
-        protocolVersion: SYNC_PROTOCOL_VERSION,
-        recordId: "r1",
-        updatedAt: "2024-01-01T00:00:00.000Z",
-        prevHash: "prev",
-        keyId: "key-1",
-        recordCipher: "cipher",
-        recordNonce: "nonce",
-      }).success,
-    ).toBe(true);
-
-    const lockSchema = SyncLockPayloadRegistry.versions[SYNC_PROTOCOL_VERSION];
-    expect(lockSchema).toBeDefined();
-    expect(
-      lockSchema.safeParse({
-        clientId: "client-1",
-        leaseExpiresAt: "2024-01-01T00:00:00.000Z",
-        issuedAt: "2024-01-01T00:00:00.000Z",
-        signature: "sig",
-      }).success,
-    ).toBe(true);
   });
 });

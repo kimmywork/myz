@@ -71,7 +71,7 @@ Use the same `file:` dependencies as above.
 ## Public API
 
 Current root entry exports:
-- `@myz/sync-core` -> `types` and schema `registry`
+- `@myz/sync-core` -> `types`, adapters, remote, keyset, settings
 
 Most operational helpers are available via subpath imports:
 - `@myz/sync-core/manifest`
@@ -83,25 +83,22 @@ Most operational helpers are available via subpath imports:
 - `@myz/sync-core/rotation`
 - `@myz/sync-core/settings`
 - `@myz/sync-core/schemas`
+- `@myz/sync-core/deviceKeys`, `account`, `roster`, `deviceEnrollment`, `pairing`
+- `@myz/sync-core/streamManifest`, `streamClient`, `streamMerge`, `accountSync`
 
 ## Quick Start
 
-### 1) Validate protocol payloads with registry
+### 1) Validate v2 protocol payloads
 
 ```ts
-import {
-  SyncRecordPayloadRegistry,
-  SyncManifestRegistry,
-} from "@myz/sync-core"
+import { ManifestDataSchemaV2, RosterSchemaV2 } from "@myz/sync-core/schemas"
 
-const recordPayloadSchema =
-  SyncRecordPayloadRegistry.versions[SyncRecordPayloadRegistry.latestVersion]
-const manifestSchema =
-  SyncManifestRegistry.versions[SyncManifestRegistry.latestVersion]
-
-const parsedRecordPayload = recordPayloadSchema.parse(inputRecordPayload)
-const parsedManifest = manifestSchema.parse(inputManifest)
+const parsedRoster = RosterSchemaV2.parse(inputRoster)
+const parsedManifest = ManifestDataSchemaV2.parse(inputManifest)
 ```
+
+The legacy per-version schema `registry` was removed (it was never wired to a
+read path); v2 uses the concrete schemas above.
 
 ### 2) Build encrypted chunks
 

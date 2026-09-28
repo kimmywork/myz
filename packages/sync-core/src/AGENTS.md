@@ -22,7 +22,6 @@ adapter interfaces, and object-store client logic.
 - adapters.ts: host boundaries for object stores, datasets, and sync state.
 - schemas/: zod schemas for sync payloads by protocol version (v1 legacy, v2
   device-bound).
-- registry.ts: protocol version registry for payload/manifest/chunk schemas.
 - lock.ts: lease acquisition/renewal (ownership-checked) and release.
 - gc.ts: archive policy and chunk cleanup.
 - keyset.ts: legacy (v1) secret-derived keyset.
