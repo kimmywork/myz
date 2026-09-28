@@ -25,12 +25,16 @@ export interface SyncPutOptions {
   ifNoneMatch?: string
 }
 
+export interface SyncDeleteOptions {
+  ifMatch?: string
+}
+
 export interface SyncObjectStore {
   listObjects(prefix: string): Promise<SyncObjectInfo[]>
   getObject(path: string): Promise<SyncGetObjectResult | null>
   headObject?(path: string): Promise<{ etag?: string } | null>
   putObject(path: string, body: Uint8Array, options?: SyncPutOptions): Promise<void>
-  deleteObject(path: string): Promise<void>
+  deleteObject(path: string, options?: SyncDeleteOptions): Promise<void>
 }
 
 export interface SyncRemoteKeyset {

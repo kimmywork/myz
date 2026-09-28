@@ -18,6 +18,10 @@ const KEYSET_VERSION = "v1";
 
 export type Keyset = SyncKeyset;
 
+function keysetAad(keyId: string, epoch: number): Uint8Array {
+  return utf8ToBytes(`myz:keyset:v1:${keyId}:${epoch}`);
+}
+
 interface KeysetPayload {
   version: string;
   publicKey: string;
@@ -48,6 +52,11 @@ async function ensureDeviceKey(): Promise<CryptoKey> {
   return key;
 }
 
+/** The local, non-extractable device key used to wrap keysets and credentials. */
+export async function getDeviceKey(): Promise<CryptoKey> {
+  return ensureDeviceKey();
+}
+
 export async function storeKeyset(keyset: Keyset): Promise<void> {
   const key = await ensureDeviceKey();
   const payload: KeysetPayload = {
@@ -62,7 +71,11 @@ export async function storeKeyset(keyset: Keyset): Promise<void> {
   const nonce = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: toArrayBuffer(nonce) },
+      {
+        name: "AES-GCM",
+        iv: toArrayBuffer(nonce),
+        additionalData: toArrayBuffer(keysetAad(keyset.keyId, keyset.epoch)),
+      },
       key,
       toArrayBuffer(encoded),
     ),
@@ -83,18 +96,36 @@ export async function loadKeyset(): Promise<Keyset | null> {
   const deviceKey = await ensureDeviceKey();
   const cipher = base64ToBytes(record.cipher);
   const nonce = base64ToBytes(record.nonce);
-  const plain = new Uint8Array(
-    await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: toArrayBuffer(nonce) },
-      deviceKey,
-      toArrayBuffer(cipher),
-    ),
-  );
+  let plain: Uint8Array;
+  let migratedFromLegacy = false;
+  try {
+    plain = new Uint8Array(
+      await crypto.subtle.decrypt(
+        {
+          name: "AES-GCM",
+          iv: toArrayBuffer(nonce),
+          additionalData: toArrayBuffer(keysetAad(record.keyId, record.epoch)),
+        },
+        deviceKey,
+        toArrayBuffer(cipher),
+      ),
+    );
+  } catch {
+    // Legacy keysets were sealed without AAD; open them and re-seal below.
+    plain = new Uint8Array(
+      await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: toArrayBuffer(nonce) },
+        deviceKey,
+        toArrayBuffer(cipher),
+      ),
+    );
+    migratedFromLegacy = true;
+  }
   const payload = JSON.parse(new TextDecoder().decode(plain)) as KeysetPayload;
   if (!payload || payload.version !== KEYSET_VERSION) {
     return null;
   }
-  return {
+  const keyset: Keyset = {
     keyId: record.keyId,
     publicKey: base64ToBytes(payload.publicKey),
     privateKey: base64ToBytes(payload.privateKey),
@@ -102,6 +133,14 @@ export async function loadKeyset(): Promise<Keyset | null> {
     createdAt: payload.createdAt,
     epoch: payload.epoch,
   };
+  if (migratedFromLegacy) {
+    try {
+      await storeKeyset(keyset);
+    } catch (error) {
+      console.warn("Failed to migrate keyset to AAD-bound format", error);
+    }
+  }
+  return keyset;
 }
 
 export async function clearKeyset(): Promise<void> {

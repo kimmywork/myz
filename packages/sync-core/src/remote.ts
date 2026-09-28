@@ -5,13 +5,25 @@ import type {
   SyncRemoteManifestSnapshot,
 } from "./adapters"
 import { decryptRecordPayload, decryptChunkEnvelope } from "./chunks"
-import { splitNoncePayload, bytesToUtf8, utf8ToBytes } from "./crypto"
+import {
+  sha256,
+  splitNoncePayload,
+  bytesToUtf8,
+  utf8ToBytes,
+} from "./crypto"
 import { decryptManifest, verifyManifest } from "./manifest"
 import type {
+  ChunkEnvelope,
+  ManifestChainHead,
+  ManifestChunkEntry,
   ManifestRecordEntry,
   SyncRecordPayload,
 } from "./types"
-import { decodeBinaryPayload } from "./utils"
+import {
+  bytesToHex,
+  decodeBinaryPayload,
+  stableStringify,
+} from "./utils"
 
 interface RemoteObjectPayload {
   body: Uint8Array
@@ -133,11 +145,17 @@ export async function fetchRemoteRecords(
   masterKey: Uint8Array,
   keyId: string,
   records: Map<string, ManifestRecordEntry>,
+  chunksIndex: Record<string, ManifestChunkEntry> = {},
+  chainHeads: Record<string, ManifestChainHead> = {},
 ): Promise<SyncRecordPayload[]> {
   const payloads: SyncRecordPayload[] = []
   for (const [recordId, entry] of records.entries()) {
     const chunkPayload = await store.getObject(`${keyId}/chunks/${entry.chunkId}.bin`)
     if (!chunkPayload) continue
+    const manifestChunk = chunksIndex[entry.chunkId]
+    if (manifestChunk) {
+      await verifyChunkIntegrity(chunkPayload.body, manifestChunk)
+    }
     const { nonce, ciphertext } = splitNoncePayload(chunkPayload.body, 12)
     const envelope = await decryptChunkEnvelope(
       masterKey,
@@ -147,7 +165,49 @@ export async function fetchRemoteRecords(
     )
     if (envelope.recordId !== recordId) continue
     const recordBytes = await decryptRecordPayload(masterKey, envelope)
-    payloads.push(decodeBinaryPayload(recordBytes) as SyncRecordPayload)
+    const payload = decodeBinaryPayload(recordBytes) as SyncRecordPayload
+    await verifyRecordBinding(recordId, entry, envelope, payload, chainHeads)
+    payloads.push(payload)
   }
   return payloads
+}
+
+async function verifyChunkIntegrity(
+  body: Uint8Array,
+  entry: ManifestChunkEntry,
+): Promise<void> {
+  const hash = bytesToHex(await sha256(body))
+  if (hash !== entry.hash || body.length !== entry.size) {
+    throw new Error("Chunk integrity check failed")
+  }
+}
+
+async function verifyRecordBinding(
+  recordId: string,
+  entry: ManifestRecordEntry,
+  envelope: ChunkEnvelope,
+  payload: SyncRecordPayload,
+  chainHeads: Record<string, ManifestChainHead>,
+): Promise<void> {
+  if (payload.recordId !== recordId) {
+    throw new Error("Record id mismatch")
+  }
+  if (envelope.updatedAt !== entry.updatedAt) {
+    throw new Error("Record updatedAt mismatch")
+  }
+  const hash = bytesToHex(
+    await sha256(utf8ToBytes(stableStringify(payload))),
+  )
+  if (hash !== entry.recordHash) {
+    throw new Error("Record hash mismatch")
+  }
+  const head = chainHeads[recordId]
+  if (head) {
+    if (head.recordHash !== entry.recordHash || head.updatedAt !== entry.updatedAt) {
+      throw new Error("Manifest chain head mismatch")
+    }
+    if (envelope.keyId !== head.keyId) {
+      throw new Error("Chunk key id mismatch")
+    }
+  }
 }

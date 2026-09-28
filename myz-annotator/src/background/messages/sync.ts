@@ -103,7 +103,7 @@ export function initializeSyncMessageHandlers() {
 
   registerMessageHandler(
     "myz:syncSetKey",
-    async (payload: { secret: string }) => {
+    async (payload: { secret: string; userGesture?: boolean }) => {
       if (!payload?.secret) {
         throw new Error("Missing secret");
       }

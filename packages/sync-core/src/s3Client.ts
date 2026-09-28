@@ -16,6 +16,10 @@ export interface S3PutOptions {
   ifNoneMatch?: string
 }
 
+export interface S3DeleteOptions {
+  ifMatch?: string
+}
+
 const EMPTY_HASH =
   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
@@ -29,7 +33,11 @@ export class S3Client {
   private prefix?: string
 
   constructor(config: SyncS3Settings) {
-    this.endpoint = config.endpoint.replace(/\/$/, "")
+    const endpoint = (config.endpoint || "").trim()
+    if (endpoint && !/^https:\/\//i.test(endpoint)) {
+      throw new Error("S3 endpoint must use HTTPS")
+    }
+    this.endpoint = endpoint.replace(/\/$/, "")
     this.region = config.region || "us-east-1"
     this.bucket = config.bucket
     this.accessKeyId = config.accessKeyId
@@ -118,9 +126,16 @@ export class S3Client {
     }
   }
 
-  async deleteObject(path: string): Promise<void> {
+  async deleteObject(
+    path: string,
+    options: S3DeleteOptions = {},
+  ): Promise<void> {
     const url = this.buildUrl(path)
-    const response = await this.fetchSigned("DELETE", url)
+    const headers: Record<string, string> = {}
+    if (options.ifMatch) {
+      headers["if-match"] = options.ifMatch
+    }
+    const response = await this.fetchSigned("DELETE", url, undefined, headers)
     if (!response.ok && response.status !== 404) {
       throw new Error(`S3 delete failed: ${response.status}`)
     }

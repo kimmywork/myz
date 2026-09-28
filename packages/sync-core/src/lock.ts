@@ -12,7 +12,7 @@ import {
 import type { LockPayload } from "./types"
 import { decodeBinaryPayload, encodeBinaryPayload } from "./utils"
 
-const DEFAULT_LEASE_MS = 30_000
+export const DEFAULT_LEASE_MS = 30_000
 
 export interface LockResult {
   acquired: boolean
@@ -33,12 +33,14 @@ export async function acquireLock(options: {
   let etag: string | undefined
   if (existing) {
     etag = existing.etag
-    const isValid = await isLockValid(
+    const decoded = await decodeLock(
       existing.body,
       options.masterKey,
       options.publicKey,
     )
-    if (isValid) {
+    const held =
+      decoded && Date.parse(decoded.leaseExpiresAt) > Date.now()
+    if (held) {
       return { acquired: false }
     }
   }
@@ -55,11 +57,76 @@ export async function acquireLock(options: {
   return { acquired: true, leaseExpiresAt: payload.leaseExpiresAt }
 }
 
+/**
+ * Extend the lease of a lock this client already owns. Returns
+ * `{ acquired: false }` when the lock is gone, expired, tampered with, or
+ * now held by another client (ownership is proven by the `clientId`).
+ */
+export async function renewLock(options: {
+  client: SyncObjectStore
+  lockPath: string
+  masterKey: Uint8Array
+  privateKey: Uint8Array
+  publicKey: Uint8Array
+  clientId: string
+  leaseMs?: number
+}): Promise<LockResult> {
+  const leaseMs = options.leaseMs || DEFAULT_LEASE_MS
+  const existing = await options.client.getObject(options.lockPath)
+  if (!existing) return { acquired: false }
+  const decoded = await decodeLock(
+    existing.body,
+    options.masterKey,
+    options.publicKey,
+  )
+  if (!decoded || decoded.clientId !== options.clientId) {
+    return { acquired: false }
+  }
+  const payload = await buildLockPayload(
+    options.clientId,
+    options.privateKey,
+    leaseMs,
+  )
+  const encrypted = await encryptLockPayload(payload, options.masterKey)
+  try {
+    await options.client.putObject(options.lockPath, encrypted, {
+      ifMatch: existing.etag,
+    })
+  } catch {
+    return { acquired: false }
+  }
+  return { acquired: true, leaseExpiresAt: payload.leaseExpiresAt }
+}
+
+/**
+ * Release the lock only when this client still owns it. If the lease expired
+ * and another client acquired the lock in the meantime, the release is a no-op
+ * instead of deleting someone else's lock.
+ */
 export async function releaseLock(options: {
   client: SyncObjectStore
   lockPath: string
+  masterKey: Uint8Array
+  publicKey: Uint8Array
+  clientId: string
 }): Promise<void> {
-  await options.client.deleteObject(options.lockPath)
+  const existing = await options.client.getObject(options.lockPath)
+  if (!existing) return
+  const decoded = await decodeLock(
+    existing.body,
+    options.masterKey,
+    options.publicKey,
+  )
+  if (!decoded || decoded.clientId !== options.clientId) {
+    return
+  }
+  try {
+    await options.client.deleteObject(options.lockPath, {
+      ifMatch: existing.etag,
+    })
+  } catch {
+    // The lock changed between read and delete; leave it to its new owner.
+  }
 }
 
 async function buildLockPayload(
@@ -93,11 +160,11 @@ async function encryptLockPayload(
   return packNoncePayload(nonce, ciphertext)
 }
 
-async function isLockValid(
+async function decodeLock(
   payload: Uint8Array,
   masterKey: Uint8Array,
   publicKey: Uint8Array,
-): Promise<boolean> {
+): Promise<LockPayload | null> {
   try {
     const { nonce, ciphertext } = splitNoncePayload(payload, 12)
     const key = await hkdfSha256(masterKey, utf8ToBytes("lock"), 32)
@@ -113,10 +180,9 @@ async function isLockValid(
     }
     const verifyBytes = encodeBinaryPayload(payloadToVerify)
     const digest = await sha256(verifyBytes)
-    const validSig = ed25519.verify(signature, digest, publicKey)
-    const notExpired = Date.parse(decoded.leaseExpiresAt) > Date.now()
-    return validSig && notExpired
+    if (!ed25519.verify(signature, digest, publicKey)) return null
+    return decoded
   } catch {
-    return false
+    return null
   }
 }

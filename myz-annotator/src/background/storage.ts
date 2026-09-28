@@ -2,9 +2,13 @@ import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
 import { MyZRecord, ensureRecordSchemaVersion } from "@myz/shared/types";
 import { isRecord, type UnknownRecord } from "@myz/shared/typeUtils";
 import { SETTINGS_SCHEMA_VERSION } from "@myz/shared/versioning";
-import { normalizeSyncSettings } from "@myz/sync-core/settings";
+import {
+  normalizeSyncSettings,
+  type SyncS3Settings,
+} from "@myz/sync-core/settings";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 import type { Settings, SettingsBundle } from "./settings.js";
+import { openS3Credentials, sealS3Credentials } from "./sync/credentials.js";
 
 const DB_NAME = "myz_db";
 const DB_VERSION = 1;
@@ -110,6 +114,21 @@ function normalizeSettings<T extends Settings>(settings: T): T {
   return settings;
 }
 
+async function openStoredSync(
+  rawSync: unknown,
+): Promise<Settings["sync"] | null> {
+  if (!isRecord(rawSync)) return null;
+  const s3 = isRecord(rawSync.s3) ? rawSync.s3 : null;
+  if (!s3) return rawSync as unknown as Settings["sync"];
+  const opened = await openS3Credentials(s3 as unknown as SyncS3Settings);
+  return { ...(rawSync as unknown as Settings["sync"]), s3: opened };
+}
+
+async function sealSettingsCredentials(settings: Settings): Promise<Settings> {
+  const sealedS3 = await sealS3Credentials(settings.sync.s3);
+  return { ...settings, sync: { ...settings.sync, s3: sealedS3 } };
+}
+
 export async function saveHighlight(record: MyZRecord) {
   const db = await getDB();
   const normalized = ensureRecordSchemaVersion(record);
@@ -172,7 +191,12 @@ export async function readSettings(): Promise<Settings> {
     [SETTINGS_KEY]?: SettingsBundle | Partial<Settings>;
   };
   const raw = unwrapStoredSettings(stored) || {};
-  const merged = normalizeSettings({ ...DEFAULT_SETTINGS, ...raw });
+  const openedSync = await openStoredSync((raw as Partial<Settings>).sync);
+  const merged = normalizeSettings({
+    ...DEFAULT_SETTINGS,
+    ...raw,
+    ...(openedSync ? { sync: openedSync } : {}),
+  });
   merged.lastUsedStyle = normalizeHighlightStyle(merged.lastUsedStyle);
   return merged;
 }
@@ -183,7 +207,7 @@ export async function writeSettings(
   const current = await readSettings();
   const updated = normalizeSettings({ ...current, ...patch });
   updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
-  const bundle = wrapSettingsBundle(updated);
+  const bundle = wrapSettingsBundle(await sealSettingsCredentials(updated));
   await chrome.storage.local.set({ [SETTINGS_KEY]: bundle });
   return updated;
 }

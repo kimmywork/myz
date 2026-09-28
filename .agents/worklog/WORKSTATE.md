@@ -1,6 +1,16 @@
 # Workstate
 
-- Focus: EPUB 阅读与高亮（计划 `docs/plan/epub-support.md`）已完成；阅读器内翻译 T1–T5 已落地（计划 `docs/plan/reader-translation.md`）
+- Focus: 按三份已审核计划实施（顺序：安全 QW1–QW5 → 安全密钥模型 KM1–KM7 → sync 子流 I1–I8 → Inbox D1–D6）。阶段 A 完成并验证；阶段 B 已完成基础（KM1 schema/design、KM2 设备密钥+落盘、KM3/KM4 roster crypto 核心、KM6 KDF、KM7 抗回滚）。下一步：KM3 传输（QR/S3 设备邮箱）+ KM4 把 D/roster 接入 syncEngine + KM5 clean break 切换。
+- E2EE hardening progress (2026-09-28): 阶段 A 完成——QW1 消息授权、QW2 锁续租+所有权释放、QW3 凭证加密+keyset AAD、QW4 强制 HTTPS、QW5 chunk/record/chain 完整性。阶段 B 基础——v2 协议 schema、deviceKeys/roster/dataKey/kdf/highWater、app deviceKeyring；测试：annotator 209、shared 79、sync-core 34，e2e 47 passed/1 skipped，build green，jscpd 1.29%
+- E2EE remaining (2026-09-28): KM3 配对传输（同机 QR+SAS、异地 S3 devices/index.bin+requests/）、KM4 syncEngine 接线（C=D 派生、按设备验签 manifest）、KM5 clean-break 账号切换+一次性旧远端挽救、KM7 轮换清理旧 keyId/epoch；阶段 C（I1–I8）与阶段 D（D1–D6）未开始。I1 已随 QW2 完成续租+所有权部分
+- Inbox 代码实验已移除；设计系统 v0.4 已改为采集处理队列规范与 showcase，待审核设计仍保留。Inbox Flow 计划已按新决定重写：默认启用可关闭、状态走独立子流（`streams/inbox/`，非主流）、移除全部 enrichments 到 research、回顾只做清理提醒+每周回顾；新增配套 `docs/plan/e2ee-sync-evolution.md`（冻结主流、子流契约、分片打包 chunk、并发 IO、锁修复、回滚防护）；未开始 schema/UI coding
+- Inbox decisions (2026-09-28): Inbox 默认开启；工作流状态与正文物理隔离（子流，各自 LWW）；首版不依赖 AI/统计/分词，确定性 enrichments 方案与实验结论迁至 `docs/research/omni-inbox/inbox-enrichments.md`；审核通过后再动 schema/sync
+- Sync decisions (2026-09-28): 主流永久冻结 v1；新能力进不可见子流；子流 v1 必须含墓碑/opaque/版本协商/抗回滚；打包 chunk + 并发拉取列为必做；锁释放加所有权校验；registry 接线或删除
+- Security decisions (2026-09-28): 完成 E2EE 威胁建模与审计（T1–T14 逐条复核）；新增 `docs/plan/e2ee-security-hardening.md`：设备绑定（A 仅寻址/认证，数据密钥 D 被设备公钥包裹）、按设备签名、Argon2id/高熵、抗回滚、轮换清理旧 keyId、S3 凭证加密落盘、消息 sender 授权、锁续租、chunk/链完整性；明确“密钥模型需先于子流 v1 冻结”，并区分可先发布的 quick wins 与 break-change 的 KM 增量
+- Security decision follow-ups (2026-09-28): 已定——无 A-only 恢复（丢设备=丢数据）；不要求严格 FS（仅需 A 不能直接得到 D）；不做向前兼容，直接清理旧路径/旧 epoch；写权限撤销在纯 S3 下不可行（§5.10），待决是否引入最小身份/中继服务
+- Review fixes round 2 (2026-09-28): 三份计划已按 review 修复——统一总增量顺序（安全 QW→安全密钥模型→evolution 子流→inbox UI）；锁 I1 含续租；墓碑分片纳入签名 manifest 索引；`shardCount` 进 manifest + jump consistent hash；术语统一 `accountId`；T1 接受反驳（随机 `accountId` 消除口令 oracle）；T5 sender 校验改为按 `sender.tab`/`sender.url` 且含 `syncUpdateSettings`；inbox 明确本地 IndexedDB 持久化、状态动作写显式记录含 `kept`（handledAt）、删除不可撤销、关闭态 pending 可见、关联改逐边 `rel:`；clean break 删除“旧端并存”验收
+- 待决项推荐 (2026-09-28): 决胜规则以 spec 确定性规则为准（修正实现，保留 pending 不覆盖）；clean break 取消冻结主流、统一新格式；分片用 jump consistent hash；写撤销暂不引入后端（纯 S3+抗回滚+PCS，记为已接受限制）；执行一次性旧远端挽救；单设备损坏提供离线加密导出/导入
+- Completed: EPUB 阅读与高亮（计划 `docs/plan/epub-support.md`）；阅读器内翻译 T1–T5（计划 `docs/plan/reader-translation.md`）
 - Reader translation done: `src/reader/translate/`（端上 Translator + Language Detector，语言映射/分块/typed errors）；缓存，阅读器用 `myz_translate_db`、网页内容层用扩展 `chrome.storage.local`（content script 的 IndexedDB 属宿主页 origin，不可用）；共享 `TranslationPopover` + `translation-popover.css`，PDF / EPUB / 网页采集条三处均接入（网页按钮在截取与搜索之间）；目标语言固定中文（zh/zh-Hant），不做语言选择器；设计系统新增 §4.24
 - EPUB reader split: `EpubReaderApp` 现为壳，拆出 `components/`（EpubToolbar/EpubSidebar/EpubTocPanel/EpubHighlightsPanel/EpubStage）；TOC 展开/搜索状态与 `progressPercent` 进 store，纯函数进 `toc.ts`
 - Shared reader chrome: 新增 `ReaderSidebar`/`ReaderOutlineList`/`ReaderHighlightRow`/`text.ts`，PDF 与 EPUB 共用（PDF 侧栏/目录/标注已迁移）

@@ -16,7 +16,7 @@ import {
   sealPublicKey,
   verifySealedPublicKey,
 } from "./keyring";
-import { acquireLock, releaseLock } from "./lock";
+import { acquireLock, releaseLock, renewLock } from "./lock";
 import { encryptManifest, signManifest } from "./manifest";
 import {
   applyRecordPayload,
@@ -43,6 +43,8 @@ import { bytesToBase64, bytesToHex } from "./utils";
 
 const MANIFEST_KEEP_COUNT = 30;
 const LOCK_PATH = "lock/lease.bin";
+const LOCK_LEASE_MS = 30_000;
+const LOCK_RENEW_INTERVAL_MS = LOCK_LEASE_MS / 2;
 
 export interface SyncResult {
   ok: boolean;
@@ -134,6 +136,8 @@ export async function syncNow(): Promise<SyncResult> {
       return { ok: false, status: "locked" };
     }
 
+    const lockPath = `${keyId}/${LOCK_PATH}`;
+    const renewal = startLockRenewal(ctx, lockPath);
     try {
       const plan = await buildSyncPlan(ctx);
       await applyRemoteChanges(ctx, plan);
@@ -142,9 +146,13 @@ export async function syncNow(): Promise<SyncResult> {
       await notifyRemoteChanges(plan.remoteAppliedCount);
       return { ok: true, status: "synced" };
     } finally {
+      renewal.stop();
       await releaseLock({
         client: ctx.client,
-        lockPath: `${keyId}/${LOCK_PATH}`,
+        lockPath,
+        masterKey: ctx.keyset.masterKey,
+        publicKey: ctx.keyset.publicKey,
+        clientId: ctx.state.clientId,
       });
     }
   } catch (error) {
@@ -212,7 +220,31 @@ async function acquireSyncLock(ctx: SyncContext) {
     privateKey: ctx.keyset.privateKey,
     publicKey: ctx.keyset.publicKey,
     clientId: ctx.state.clientId,
+    leaseMs: LOCK_LEASE_MS,
   });
+}
+
+function startLockRenewal(ctx: SyncContext, lockPath: string) {
+  const interval = setInterval(() => {
+    void renewLock({
+      client: ctx.client,
+      lockPath,
+      masterKey: ctx.keyset.masterKey,
+      privateKey: ctx.keyset.privateKey,
+      publicKey: ctx.keyset.publicKey,
+      clientId: ctx.state.clientId,
+      leaseMs: LOCK_LEASE_MS,
+    })
+      .then((result) => {
+        if (!result.acquired) {
+          console.warn("Failed to renew sync lock; another client may hold it");
+        }
+      })
+      .catch((error) => {
+        console.warn("Failed to renew sync lock", error);
+      });
+  }, LOCK_RENEW_INTERVAL_MS);
+  return { stop: () => clearInterval(interval) };
 }
 
 interface SyncPlan {
@@ -308,6 +340,8 @@ async function buildSyncPlan(ctx: SyncContext): Promise<SyncPlan> {
     keyset.masterKey,
     keyId,
     chunksToFetch,
+    remoteChunksIndex,
+    remoteChainHeads,
   );
   const remoteAppliedCount = remotePayloads.length;
   for (const payload of remotePayloads) {

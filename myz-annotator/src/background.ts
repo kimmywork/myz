@@ -5,6 +5,7 @@ import { initializeHighlightMessageHandlers } from "./background/messages/highli
 import { initializeSearchMessageHandlers } from "./background/messages/search.js";
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
+import { authorizeMessage } from "./background/messages/trustedSender.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
 import { resolvePdfTargetUrl } from "./pdf/detect.js";
 
@@ -161,6 +162,12 @@ chrome.runtime.onMessage.addListener(
             const { type: _type, payload: _, ...rest } = message;
             return Object.keys(rest).length > 0 ? rest : undefined;
           })();
+    const authorization = authorizeMessage(message.type, payload, sender);
+    if (!authorization.ok) {
+      console.warn("Rejected privileged message", message.type);
+      sendResponse({ ok: false, error: authorization.error });
+      return true;
+    }
     try {
       handleMessage(message.type, payload, sender)
         .then((result) => sendResponse({ ok: true, data: result }))

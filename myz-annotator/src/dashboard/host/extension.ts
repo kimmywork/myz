@@ -203,13 +203,13 @@ async function setSyncSecret(
   secret: string,
 ): Promise<{ keyId: string; keyUpdatedAt: string }> {
   return sendMessage<
-    { secret: string },
+    { secret: string; userGesture: boolean },
     { keyId: string; keyUpdatedAt: string }
-  >("myz:syncSetKey", { secret });
+  >("myz:syncSetKey", { secret, userGesture: true });
 }
 
 async function clearSyncSecret(): Promise<void> {
-  await sendMessage("myz:syncClearKey");
+  await sendMessage("myz:syncClearKey", { userGesture: true });
 }
 
 async function runSync(_reason?: SyncRunReason): Promise<SyncRunResult> {

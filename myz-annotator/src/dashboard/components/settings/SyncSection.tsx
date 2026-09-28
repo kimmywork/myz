@@ -128,8 +128,16 @@ export default defineComponent({
       isBusy.value = true;
       setStatus("设置密钥中…", "info");
       try {
+        const confirmed = window.confirm(
+          "更改同步密钥会触发密钥轮换，旧密钥数据将无法继续解密。确定继续？",
+        );
+        if (!confirmed) {
+          setStatus("已取消", "info");
+          return;
+        }
         await sendMessage("myz:syncSetKey", {
           secret: syncSecret.value.trim(),
+          userGesture: true,
         });
         syncSecret.value = "";
         await refreshSyncStatus();
