@@ -2,6 +2,7 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
 import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
 import { handleMessage, hasHandler } from "./background/messages/handler.js";
 import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
+import { initializeInboxMessageHandlers } from "./background/messages/inbox.js";
 import { initializeSearchMessageHandlers } from "./background/messages/search.js";
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
@@ -136,6 +137,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
 initializeCaptureMessageHandlers();
 initializeHighlightMessageHandlers();
+initializeInboxMessageHandlers();
 initializeSearchMessageHandlers();
 initializeSettingsMessageHandlers();
 initializeSyncMessageHandlers();

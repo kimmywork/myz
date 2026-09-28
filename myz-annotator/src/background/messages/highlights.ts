@@ -17,6 +17,7 @@ import {
   applyTimestampFallback,
 } from "../import";
 import { buildMarkdownExport } from "../markdown";
+import { getInboxStatus, setInboxStatus } from "../inbox/actions";
 import {
   generateId,
   persistHighlightPreferences,
@@ -26,8 +27,10 @@ import {
   getHighlight,
   deleteHighlight,
   getAllHighlights,
+  readSettings,
 } from "../storage";
 import { recordHighlightDeletion } from "../sync/deletions";
+import { recordIdForHighlight } from "../sync/records";
 import { sendToContentScript } from "../utils/sendToContentScript";
 import { registerMessageHandler } from "./handler";
 
@@ -149,6 +152,15 @@ export function initializeHighlightMessageHandlers() {
           color: record.color,
           style: record.style,
         });
+      }
+
+      const settings = await readSettings();
+      if (settings.inboxEnabled !== false) {
+        const targetId = recordIdForHighlight(record.id);
+        const existing = await getInboxStatus(targetId);
+        if (!existing) {
+          await setInboxStatus(targetId, "pending");
+        }
       }
       return record;
     },

@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lastUsedColor: "#b58900",
   lastUsedStyle: HIGHLIGHT_STYLES.PAINT,
   dashboardView: "cards",
+  inboxEnabled: true,
   // E2EE sync
   sync: {
     enabled: false,

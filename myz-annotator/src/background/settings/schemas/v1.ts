@@ -26,6 +26,7 @@ export const SettingsSchemaV1 = z.object({
   lastUsedStyle: z.nativeEnum(HIGHLIGHT_STYLES),
   lastUsedColor: z.string(),
   sync: SyncSettingsSchema,
+  inboxEnabled: z.boolean().optional(),
 });
 
 export const SettingsBundleSchemaV1 = z.object({

@@ -7,6 +7,7 @@ import { S3Client } from "../s3Client";
 import { readSyncState, writeSyncState } from "../storage";
 import type { SyncResult } from "../syncEngine";
 import { createHighlightDataset } from "./datasets";
+import { createInboxDataset } from "./inboxDataset";
 import { createStreamStateStore } from "./stateStore";
 
 const LOCK_LEASE_MS = 30_000;
@@ -75,7 +76,7 @@ export async function syncAccountNow(): Promise<SyncResult> {
       account,
       device: pair,
       clientId,
-      datasets: [createHighlightDataset()],
+      datasets: [createHighlightDataset(), createInboxDataset()],
       stateStore: createStreamStateStore(),
     });
     await writeSyncState({

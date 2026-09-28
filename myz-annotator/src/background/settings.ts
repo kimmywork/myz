@@ -11,6 +11,8 @@ export interface Settings {
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;
   sync: SyncSettings;
+  /** Inbox is enabled by default; when false new captures go straight to kept. */
+  inboxEnabled?: boolean;
 }
 
 export interface SettingsBundle {

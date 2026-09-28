@@ -10,7 +10,13 @@ This folder contains the MV3 service worker background logic.
   - `settings.ts` — Settings read/write handlers.
   - `search.ts` — Search handlers (`chrome.search.query`).
   - `sync.ts` — E2EE sync message handlers.
+  - `inbox.ts` — Inbox workflow status/mark/relation handlers.
   - `handler.ts` — Central message router that delegates to the above modules.
+
+### Inbox (shared by background + UI)
+- `myz-annotator/src/background/inbox/actions.ts`
+  - Local `inbox_state` (IndexedDB) actions for `status:` / `mark:` / `rel:`
+    records; explicit `kept` writes `handledAt`.
 
 ## Folder Map
 

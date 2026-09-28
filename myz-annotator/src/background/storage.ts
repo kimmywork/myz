@@ -11,7 +11,7 @@ import type { Settings, SettingsBundle } from "./settings.js";
 import { openS3Credentials, sealS3Credentials } from "./sync/credentials.js";
 
 const DB_NAME = "myz_db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -43,6 +43,10 @@ function getDB(): Promise<IDBDatabase> {
         const store = db.createObjectStore("highlights", { keyPath: "id" });
         store.createIndex("url", "url", { unique: false });
         store.createIndex("createdAt", "createdAt", { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains("inbox_state")) {
+        db.createObjectStore("inbox_state", { keyPath: "recordId" });
       }
     };
   });
@@ -110,6 +114,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     : [];
 
   settings.sync = normalizeSyncSettings(settings.sync);
+  settings.inboxEnabled = settings.inboxEnabled !== false;
 
   return settings;
 }
@@ -249,4 +254,47 @@ export function generateUniqueImportId(usedIds: Set<string>) {
   }
   usedIds.add(candidate);
   return candidate;
+}
+
+export interface InboxStateRecord {
+  recordId: string;
+  kind: "status" | "mark" | "rel";
+  changedAt: string;
+  payload: unknown;
+}
+
+export async function readInboxState(
+  recordId: string,
+): Promise<InboxStateRecord | undefined> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("inbox_state", "readonly");
+    const request = tx.objectStore("inbox_state").get(recordId);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function putInboxState(record: InboxStateRecord): Promise<void> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("inbox_state", "readwrite");
+    const request = tx.objectStore("inbox_state").put(record);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function deleteInboxState(recordId: string): Promise<void> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("inbox_state", "readwrite");
+    const request = tx.objectStore("inbox_state").delete(recordId);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getAllInboxStates(): Promise<InboxStateRecord[]> {
+  return getAllFromStore<InboxStateRecord>("inbox_state");
 }
