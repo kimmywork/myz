@@ -39,6 +39,8 @@ adapter interfaces, and object-store client logic.
   (seal/open, high-water advance, reader-version gate, stream paths).
 - streamClient.ts: end-to-end single-stream pull/push (record packing, shard
   reuse on unchanged shards, tombstones, signed manifest commit, stream meta).
+- streamMerge.ts: deterministic LWW merge (updatedAt, tie by recordHash) with
+  explicit tombstones and pending-local retention.
 - deviceEnrollment.ts: S3 device mailbox (request/index publish+verify, roster
   publish/load, approve request).
 - pairing.ts: same-machine X25519 pairing offer/response and 6-digit SAS.
