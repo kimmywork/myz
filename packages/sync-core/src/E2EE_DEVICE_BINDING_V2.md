@@ -82,13 +82,22 @@ stream manifest (signed, per-device):
 
 ## 5. Status vs. remaining work
 
-Implemented and unit-tested in this increment: protocol schemas, device keys +
-ECIES/DK wrapping, random accountId/D + derivations, signed roster (create/add/
-revoke+rotate/verify/advance), local unlock KDF, anti-rollback helpers, and
-local device-key persistence.
+Implemented and unit-tested: protocol schemas, device keys + ECIES/DK
+wrapping, random accountId/D + derivations, signed roster (create/add/
+revoke+rotate/verify/advance), local unlock KDF, anti-rollback helpers, local
+device-key persistence, S3 device mailbox + same-machine pairing/SAS,
+account creation/open + per-device payload signing, jump-consistent sharding,
+packed record/tombstone shards with opaque preservation, encrypted per-device
+stream manifests, end-to-end stream pull/push, deterministic LWW merge,
+per-stream GC, bounded-concurrency IO, and the app integration (v2 engine
+delegated from `syncNow`, one-time legacy v1 rescue/bootstrap).
 
-Not yet implemented (still required by the plans): the pairing transports
-(same-machine QR SAS and the S3 device mailbox `devices/index.bin` +
-`requests/`), wiring `D`/roster into `syncEngine` (KM4), the clean-break
-account switch + one-time legacy rescue (KM5), and phases C (stream
-parametrization/sharding/GC) and D (Inbox state + UI).
+Rotation cleanup (KM7): revoking a device rotates to a new epoch `D'`, records
+are re-encrypted under the new stream key and written to the same shard paths,
+and per-stream GC removes shards no longer referenced by any kept manifest, so
+old-epoch ciphertext does not survive as an addressable object. There is no
+separate legacy-epoch dir to purge.
+
+Still open: a device-pairing UI over the pairing/roster primitives (roster
+paste works today), email/narrow-screen refinements for Inbox, and scheduled
+Inbox reminders.

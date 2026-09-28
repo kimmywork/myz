@@ -476,6 +476,46 @@ export default defineComponent({
                   快捷键：K 保留 · A 归档 · S 稍后 · D 删除 · M 标记 · Space
                   下一条
                 </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button
+                    class="btn"
+                    type="button"
+                    onClick={() => void runAction(focusItem.value, "keep")}
+                  >
+                    保留
+                  </button>
+                  <button
+                    class="btn"
+                    type="button"
+                    onClick={() => void runAction(focusItem.value, "archive")}
+                  >
+                    归档
+                  </button>
+                  <button
+                    class="btn"
+                    type="button"
+                    onClick={() => void runAction(focusItem.value, "snooze")}
+                  >
+                    稍后
+                  </button>
+                  <button
+                    class="btn"
+                    type="button"
+                    onClick={() => void runAction(focusItem.value, "mark")}
+                  >
+                    标记
+                  </button>
+                  <button
+                    class="btn"
+                    type="button"
+                    onClick={() => void runAction(focusItem.value, "delete")}
+                  >
+                    删除
+                  </button>
+                  <button class="btn" type="button" onClick={() => advance()}>
+                    下一条
+                  </button>
+                </div>
               </>
             ) : (
               <p class="text-caption text-muted">队列已清空</p>
