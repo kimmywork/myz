@@ -43,6 +43,7 @@ adapter interfaces, and object-store client logic.
   explicit tombstones and pending-local retention.
 - accountSync.ts: sync all account datasets (per-stream isolation) over the
   stream client with a pluggable dataset + per-stream state store.
+- concurrency.ts: bounded-concurrency map helper.
 - deviceEnrollment.ts: S3 device mailbox (request/index publish+verify, roster
   publish/load, approve request).
 - pairing.ts: same-machine X25519 pairing offer/response and 6-digit SAS.

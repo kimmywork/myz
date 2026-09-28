@@ -1,5 +1,6 @@
 import { SYNC_PROTOCOL_VERSION_V2 } from "@myz/shared/versioning"
 import type { SyncObjectStore } from "./adapters"
+import { mapConcurrent } from "./concurrency"
 import {
   aesGcmDecrypt,
   aesGcmEncrypt,
@@ -63,6 +64,8 @@ interface StreamMeta {
   streamVersion: number
   manifestVersion: number
 }
+
+const IO_CONCURRENCY = 6
 
 export interface StreamPullResult {
   manifest: StreamManifest | null
@@ -261,34 +264,53 @@ export async function pullStream(options: {
   const tombstones: Record<string, string> = {}
   const shardHashes: Record<string, string> = {}
 
+  const shardTargets: Array<[string, StreamShardEntry]> = []
   for (const [shardId, entry] of Object.entries(manifest.shards)) {
     shardHashes[shardId] = entry.hash
     if (options.knownShardHashes?.[shardId] === entry.hash) continue
-    const object = await options.store.getObject(
-      streamShardPath(options.accountId, options.streamId, Number(shardId)),
-    )
-    if (!object) throw new Error(`Missing stream shard ${shardId}`)
-    await verifyShardBody(object.body, entry)
+    shardTargets.push([shardId, entry])
+  }
+  const shardBodies = await mapConcurrent(
+    shardTargets,
+    IO_CONCURRENCY,
+    async ([shardId, entry]) => {
+      const object = await options.store.getObject(
+        streamShardPath(options.accountId, options.streamId, Number(shardId)),
+      )
+      if (!object) throw new Error(`Missing stream shard ${shardId}`)
+      await verifyShardBody(object.body, entry)
+      return { shardId, body: object.body }
+    },
+  )
+  for (const { shardId, body } of shardBodies) {
     const value = await openShard<{
       records: Record<string, StreamPackedRecord>
-    }>(options.streamKey, "records", Number(shardId), object.body)
+    }>(options.streamKey, "records", Number(shardId), body)
     for (const packed of Object.values(value.records)) {
       const record = await openStreamRecord(options.streamKey, packed)
       records.set(record.recordId, record)
     }
   }
 
-  for (const [shardId, entry] of Object.entries(manifest.tombstoneShards)) {
-    const object = await options.store.getObject(
-      streamTombstonePath(options.accountId, options.streamId, Number(shardId)),
-    )
-    if (!object) throw new Error(`Missing tombstone shard ${shardId}`)
-    await verifyShardBody(object.body, entry)
+  const tombstoneTargets = Object.entries(manifest.tombstoneShards)
+  const tombstoneBodies = await mapConcurrent(
+    tombstoneTargets,
+    IO_CONCURRENCY,
+    async ([shardId, entry]) => {
+      const object = await options.store.getObject(
+        streamTombstonePath(options.accountId, options.streamId, Number(shardId)),
+      )
+      if (!object) throw new Error(`Missing tombstone shard ${shardId}`)
+      await verifyShardBody(object.body, entry)
+      return { shardId, body: object.body }
+    },
+  )
+  for (const { shardId, body } of tombstoneBodies) {
     const value = await openShard<{ tombstones: Record<string, string> }>(
       options.streamKey,
       "tombstones",
       Number(shardId),
-      object.body,
+      body,
     )
     Object.assign(tombstones, value.tombstones)
   }
@@ -476,11 +498,11 @@ export async function commitStreamPush(options: {
     streamKey: options.streamKey,
     device: options.device,
   })
-  for (const upload of built.uploads) {
-    await options.store.putObject(upload.path, upload.body, {
+  await mapConcurrent(built.uploads, IO_CONCURRENCY, (upload) =>
+    options.store.putObject(upload.path, upload.body, {
       metadata: { "updated-at": manifest.createdAt },
-    })
-  }
+    }),
+  )
   await options.store.putObject(
     streamManifestPath(options.accountId, options.streamId, manifest.version),
     payload,
