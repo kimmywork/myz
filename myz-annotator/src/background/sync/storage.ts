@@ -88,6 +88,14 @@ export interface KeysetRecord {
   nonce: string;
 }
 
+export interface DeviceKeyPairRecord {
+  id: "deviceKeyPair";
+  signPub: string;
+  agreePub: string;
+  nonce: string;
+  cipher: string;
+}
+
 export interface SyncStateRecord {
   id: "state";
   clientId: string;
@@ -128,6 +136,20 @@ export async function writeKeysetRecord(record: KeysetRecord): Promise<void> {
 
 export async function clearKeysetRecord(): Promise<void> {
   await deleteRecord("keys", "active");
+}
+
+export async function readDeviceKeyPair(): Promise<DeviceKeyPairRecord | null> {
+  return getRecord<DeviceKeyPairRecord>("keys", "deviceKeyPair");
+}
+
+export async function writeDeviceKeyPair(
+  record: DeviceKeyPairRecord,
+): Promise<void> {
+  return putRecord("keys", record);
+}
+
+export async function clearDeviceKeyPair(): Promise<void> {
+  await deleteRecord("keys", "deviceKeyPair");
 }
 
 export async function readSyncState(): Promise<SyncStateRecord | null> {

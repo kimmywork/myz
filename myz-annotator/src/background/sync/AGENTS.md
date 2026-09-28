@@ -5,11 +5,14 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
 
 ## Responsibilities
 
-- storage.ts: IndexedDB persistence for sync state/keysets.
+- storage.ts: IndexedDB persistence for sync state/keysets/device key pair.
 - scheduler.ts: chrome.alarms-driven scheduling.
 - records.ts / deletions.ts: local record/deletion wiring.
 - syncEngine.ts: orchestration + notifications (browser-only).
-- keyring.ts: key persistence built on storage.
+- keyring.ts: keyset persistence (AAD-bound) built on storage.
+- credentials.ts: at-rest encryption of S3 `secretAccessKey`/`sessionToken`.
+- deviceKeyring.ts: loads/creates the local Ed25519+X25519 device identity,
+  private keys wrapped by the non-extractable device key (v2 protocol).
 
 ## References
 

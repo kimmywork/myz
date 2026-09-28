@@ -13,16 +13,25 @@ adapter interfaces, and object-store client logic.
 
 ## Module Boundaries (Core)
 
-- crypto.ts: WebCrypto helpers (HKDF, AES-GCM, HMAC, SHA-256).
-- s3Client.ts: REST calls (GET/PUT/HEAD/LIST/DELETE) with signing.
+- crypto.ts: WebCrypto helpers (HKDF, AES-GCM, HMAC, SHA-256, PBKDF2).
+- s3Client.ts: REST calls (GET/PUT/HEAD/LIST/DELETE) with signing; HTTPS-only.
 - manifest.ts: manifest build/parse, signature verify.
 - chunks.ts: chunk pack/unpack, chunkId derivation, encrypt/decrypt.
-- remote.ts: shared remote repository helpers for version/manifest/chunk reads.
+- remote.ts: shared remote repository helpers for version/manifest/chunk reads
+  (includes chunk/record/chain integrity verification).
 - adapters.ts: host boundaries for object stores, datasets, and sync state.
-- schemas/: zod schemas for sync payloads by protocol version.
+- schemas/: zod schemas for sync payloads by protocol version (v1 legacy, v2
+  device-bound).
 - registry.ts: protocol version registry for payload/manifest/chunk schemas.
-- lock.ts: lease acquisition/renewal/release.
+- lock.ts: lease acquisition/renewal (ownership-checked) and release.
 - gc.ts: archive policy and chunk cleanup.
+- keyset.ts: legacy (v1) secret-derived keyset.
+- deviceKeys.ts: Ed25519+X25519 device keys, ECIES wrap of D, DK wrap of keys.
+- dataKey.ts: random accountId/D, master + per-stream key derivation.
+- roster.ts: signed device roster (genesis/add/revoke+rotate/verify/advance).
+- kdf.ts: local unlock KDF (PBKDF2 >= 600k).
+- highWater.ts: monotonic anti-rollback marks.
+- E2EE_DEVICE_BINDING_V2.md: the v2 device-binding model.
 
 ## Browser Adapters (in myz-annotator)
 
