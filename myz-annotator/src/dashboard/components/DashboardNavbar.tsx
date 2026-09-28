@@ -24,6 +24,12 @@ export default defineComponent({
         isActive: (path: string) => path.startsWith("/highlights"),
       },
       {
+        key: "inbox",
+        label: "Inbox",
+        to: "/inbox",
+        isActive: (path: string) => path.startsWith("/inbox"),
+      },
+      {
         key: "readers",
         label: "阅读",
         to: "/readers",

@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from "vue-router";
 import HighlightsPage from "./pages/HighlightsPage.jsx";
 import HighlightViewerPage from "./pages/HighlightViewerPage.jsx";
+import InboxPage from "./pages/InboxPage.jsx";
 import ReadersPage from "./pages/ReadersPage.jsx";
 import HighlightPreferencesPage from "./pages/settings/highlight/HighlightPreferencesPage.jsx";
 import SettingsAppearancePage from "./pages/settings/SettingsAppearancePage.jsx";
@@ -11,6 +12,7 @@ import SettingsSyncPage from "./pages/settings/SettingsSyncPage.jsx";
 const routes = [
   { path: "/", redirect: "/highlights" },
   { path: "/highlights", name: "highlights", component: HighlightsPage },
+  { path: "/inbox", name: "inbox", component: InboxPage },
   {
     path: "/highlights/:id",
     name: "highlight-viewer",
