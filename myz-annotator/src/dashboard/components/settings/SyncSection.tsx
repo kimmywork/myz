@@ -225,6 +225,31 @@ export default defineComponent({
       }
     }
 
+    async function handleBootstrap() {
+      if (isBusy.value) return;
+      if (
+        !window.confirm(
+          "将旧格式的云端数据一次性迁移到新的设备绑定账号，并清理旧密钥。确定继续？",
+        )
+      ) {
+        return;
+      }
+      isBusy.value = true;
+      setStatus("迁移中…", "info");
+      try {
+        const result = await sendMessage<
+          { rescue: boolean; userGesture: boolean },
+          { accountId: string; rescued: number }
+        >("myz:accountBootstrap", { rescue: true, userGesture: true });
+        await refreshSyncStatus();
+        setStatus(`账号已创建，迁移 ${result.rescued} 条旧记录`, "success");
+      } catch (error) {
+        setStatus(`迁移失败：${(error as Error).message}`, "error");
+      } finally {
+        isBusy.value = false;
+      }
+    }
+
     async function handleClearAccount() {
       if (isBusy.value) return;
       if (
@@ -433,6 +458,16 @@ export default defineComponent({
                   onClick={handleImportAccount}
                 >
                   导入账号
+                </button>
+              ) : null}
+              {!hasAccount.value ? (
+                <button
+                  class="btn"
+                  type="button"
+                  disabled={isBusy.value}
+                  onClick={handleBootstrap}
+                >
+                  迁移旧数据并创建账号
                 </button>
               ) : null}
               {hasAccount.value ? (

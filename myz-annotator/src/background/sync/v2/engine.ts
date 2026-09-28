@@ -2,6 +2,7 @@ import { syncAccountStreams } from "@myz/sync-core/accountSync";
 import { deriveStreamMasterKey } from "@myz/sync-core/dataKey";
 import { acquireLock, releaseLock, renewLock } from "@myz/sync-core/lock";
 import { gcStream } from "@myz/sync-core/streamGc";
+import { refreshInboxBadge } from "../../inbox/queue";
 import { readSettings } from "../../storage";
 import { loadLocalAccount } from "../accountKeyring";
 import { loadOrCreateDeviceKeys } from "../deviceKeyring";
@@ -97,6 +98,7 @@ export async function syncAccountNow(): Promise<SyncResult> {
         keepManifests: 30,
       });
     }
+    await refreshInboxBadge();
     await writeSyncState({
       id: "state",
       clientId,

@@ -354,6 +354,13 @@ export default defineComponent({
               ? ` · 最早积压 ${formatTime(queue.value.oldestPendingAt)}`
               : ""}
           </span>
+          {queue.value?.review ? (
+            <span class="text-caption text-muted">
+              回顾：超期稍后 {queue.value.review.overdueSnoozed} · 本周采集{" "}
+              {queue.value.review.capturedThisWeek} · 本周处理{" "}
+              {queue.value.review.handledThisWeek}
+            </span>
+          ) : null}
           <button
             class="btn"
             type="button"

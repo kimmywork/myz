@@ -14,6 +14,7 @@ import {
   readInboxState,
   type InboxStateRecord,
 } from "../storage";
+import { refreshInboxBadge } from "./queue";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -50,6 +51,7 @@ export async function setInboxStatus(
       handledAt: state.handledAt,
     },
   });
+  await refreshInboxBadge();
   return state;
 }
 
@@ -79,6 +81,7 @@ export async function setInboxMark(
     changedAt,
     payload: { marked },
   });
+  await refreshInboxBadge();
   return { targetId, marked, changedAt };
 }
 

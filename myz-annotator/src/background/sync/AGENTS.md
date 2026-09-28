@@ -20,6 +20,8 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
 - v2/stateStore.ts: per-stream sync state (streamVersion/shardHashes/tombstones).
 - v2/engine.ts: v2 sync orchestration (account streams + account-scoped lease);
   `syncEngine.syncNow` delegates here when an account exists, else legacy v1.
+- v2/bootstrap.ts: clean-break bootstrap (one-time legacy v1 rescue → create
+  v2 account → upload → purge legacy keyset/metadata).
 
 ## References
 

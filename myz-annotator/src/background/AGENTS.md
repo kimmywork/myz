@@ -17,6 +17,9 @@ This folder contains the MV3 service worker background logic.
 - `myz-annotator/src/background/inbox/actions.ts`
   - Local `inbox_state` (IndexedDB) actions for `status:` / `mark:` / `rel:`
     records; explicit `kept` writes `handledAt`.
+- `myz-annotator/src/background/inbox/queue.ts`
+  - Queue/review read model (`buildQueue`) and the pending badge
+    (`refreshInboxBadge`).
 
 ## Folder Map
 

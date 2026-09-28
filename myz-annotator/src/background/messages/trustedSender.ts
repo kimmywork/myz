@@ -9,6 +9,7 @@ const PRIVILEGED_MESSAGES = new Set<string>([
   "myz:accountCreate",
   "myz:accountImport",
   "myz:accountClear",
+  "myz:accountBootstrap",
 ]);
 
 const USER_GESTURE_MESSAGES = new Set<string>([
@@ -17,6 +18,7 @@ const USER_GESTURE_MESSAGES = new Set<string>([
   "myz:accountCreate",
   "myz:accountImport",
   "myz:accountClear",
+  "myz:accountBootstrap",
 ]);
 
 export function isPrivilegedMessage(type: string): boolean {

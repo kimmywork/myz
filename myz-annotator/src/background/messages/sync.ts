@@ -31,6 +31,7 @@ import {
   decodeBinaryPayload,
   encodeBinaryPayload,
 } from "../sync/utils";
+import { bootstrapV2Account } from "../sync/v2/bootstrap";
 import { registerMessageHandler } from "./handler";
 
 export interface SyncStatusMessageResult {
@@ -136,6 +137,14 @@ export function initializeSyncMessageHandlers() {
     await clearStreamStates();
     return { ok: true } satisfies SyncNowMessageResult;
   });
+
+  registerMessageHandler(
+    "myz:accountBootstrap",
+    async (payload: { rescue?: boolean; userGesture?: boolean }) => {
+      void payload;
+      return bootstrapV2Account({ rescue: payload?.rescue !== false });
+    },
+  );
 
   registerMessageHandler(
     "myz:syncUpdateSettings",
