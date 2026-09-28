@@ -6,6 +6,7 @@ import ReadersPage from "./pages/ReadersPage.jsx";
 import HighlightPreferencesPage from "./pages/settings/highlight/HighlightPreferencesPage.jsx";
 import SettingsAppearancePage from "./pages/settings/SettingsAppearancePage.jsx";
 import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx";
+import SettingsInboxPage from "./pages/settings/SettingsInboxPage.jsx";
 import SettingsLayout from "./pages/settings/SettingsLayout.jsx";
 import SettingsSyncPage from "./pages/settings/SettingsSyncPage.jsx";
 
@@ -38,6 +39,11 @@ const routes = [
         path: "import",
         name: "settings-import",
         component: SettingsImportPage,
+      },
+      {
+        path: "inbox",
+        name: "settings-inbox",
+        component: SettingsInboxPage,
       },
       {
         path: "sync",

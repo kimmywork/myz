@@ -15,6 +15,10 @@ const groups = [
     items: [{ label: "加密同步", to: "/settings/sync" }],
   },
   {
+    title: "采集",
+    items: [{ label: "Inbox", to: "/settings/inbox" }],
+  },
+  {
     title: "数据",
     items: [{ label: "导入", to: "/settings/import" }],
   },

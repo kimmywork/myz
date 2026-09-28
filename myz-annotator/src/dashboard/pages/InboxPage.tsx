@@ -138,6 +138,36 @@ export default defineComponent({
         label: "已稍后处理",
       });
     }
+
+    function snoozeTarget(bucket: "evening" | "tomorrow" | "week"): string {
+      const now = new Date();
+      const target = new Date(now);
+      if (bucket === "evening") {
+        target.setHours(20, 0, 0, 0);
+        if (target.getTime() <= now.getTime()) {
+          target.setTime(now.getTime() + 3 * 60 * 60 * 1000);
+        }
+      } else if (bucket === "tomorrow") {
+        target.setDate(target.getDate() + 1);
+        target.setHours(9, 0, 0, 0);
+      } else {
+        const day = target.getDay();
+        const delta = (5 - day + 7) % 7 || 5;
+        target.setDate(target.getDate() + delta);
+        target.setHours(18, 0, 0, 0);
+      }
+      return target.toISOString();
+    }
+
+    function snoozeBucket(
+      item: InboxQueueItem,
+      bucket: "evening" | "tomorrow" | "week",
+    ) {
+      return applyStatus(item, "snoozed", {
+        snoozedUntil: snoozeTarget(bucket),
+        label: "已稍后处理",
+      });
+    }
     async function toggleMark(item: InboxQueueItem) {
       await sendMessage("myz:inboxSetMark", {
         targetId: item.targetId,
@@ -282,6 +312,26 @@ export default defineComponent({
             <button class="btn" type="button" onClick={() => snooze(item)}>
               稍后 S
             </button>
+            <select
+              class="rounded-control border border-line bg-surface px-2 py-1 text-sm"
+              aria-label="稍后分桶"
+              onChange={(event: Event) => {
+                const value = (event.target as HTMLSelectElement).value;
+                if (
+                  value === "evening" ||
+                  value === "tomorrow" ||
+                  value === "week"
+                ) {
+                  void snoozeBucket(item, value);
+                  (event.target as HTMLSelectElement).value = "";
+                }
+              }}
+            >
+              <option value="">稍后分桶…</option>
+              <option value="evening">今天晚些</option>
+              <option value="tomorrow">明天</option>
+              <option value="week">本周</option>
+            </select>
             <button class="btn" type="button" onClick={() => toggleMark(item)}>
               标记 M
             </button>
