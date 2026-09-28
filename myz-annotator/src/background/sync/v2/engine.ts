@@ -1,5 +1,7 @@
 import { syncAccountStreams } from "@myz/sync-core/accountSync";
+import { deriveStreamMasterKey } from "@myz/sync-core/dataKey";
 import { acquireLock, releaseLock, renewLock } from "@myz/sync-core/lock";
+import { gcStream } from "@myz/sync-core/streamGc";
 import { readSettings } from "../../storage";
 import { loadLocalAccount } from "../accountKeyring";
 import { loadOrCreateDeviceKeys } from "../deviceKeyring";
@@ -71,14 +73,30 @@ export async function syncAccountNow(): Promise<SyncResult> {
   }, LOCK_LEASE_MS / 2);
 
   try {
+    const datasets = [createHighlightDataset(), createInboxDataset()];
     const result = await syncAccountStreams({
       store: client,
       account,
       device: pair,
       clientId,
-      datasets: [createHighlightDataset(), createInboxDataset()],
+      datasets,
       stateStore: createStreamStateStore(),
     });
+    for (const summary of result.streams) {
+      if (!summary.uploaded) continue;
+      const streamKey = await deriveStreamMasterKey(
+        account.masterKey,
+        summary.streamId,
+      );
+      await gcStream({
+        store: client,
+        accountId: account.accountId,
+        streamId: summary.streamId,
+        streamKey,
+        roster: account.roster,
+        keepManifests: 30,
+      });
+    }
     await writeSyncState({
       id: "state",
       clientId,
