@@ -30,6 +30,8 @@ adapter interfaces, and object-store client logic.
 - signing.ts: stable-stringify Ed25519 sign/verify for JSON objects.
 - dataKey.ts: random accountId/D, master + per-stream key derivation.
 - roster.ts: signed device roster (genesis/add/revoke+rotate/verify/advance).
+- account.ts: create/open a sync account (random accountId + D + roster) and
+  per-device payload sign/verify.
 - deviceEnrollment.ts: S3 device mailbox (request/index publish+verify, roster
   publish/load, approve request).
 - pairing.ts: same-machine X25519 pairing offer/response and 6-digit SAS.

@@ -96,6 +96,13 @@ export interface DeviceKeyPairRecord {
   cipher: string;
 }
 
+export interface AccountRecord {
+  id: "account";
+  accountId: string;
+  epoch: number;
+  roster: string;
+}
+
 export interface SyncStateRecord {
   id: "state";
   clientId: string;
@@ -150,6 +157,18 @@ export async function writeDeviceKeyPair(
 
 export async function clearDeviceKeyPair(): Promise<void> {
   await deleteRecord("keys", "deviceKeyPair");
+}
+
+export async function readAccountRecord(): Promise<AccountRecord | null> {
+  return getRecord<AccountRecord>("keys", "account");
+}
+
+export async function writeAccountRecord(record: AccountRecord): Promise<void> {
+  return putRecord("keys", record);
+}
+
+export async function clearAccountRecord(): Promise<void> {
+  await deleteRecord("keys", "account");
 }
 
 export async function readSyncState(): Promise<SyncStateRecord | null> {

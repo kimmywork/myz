@@ -2,7 +2,7 @@
 
 - Focus: 按三份已审核计划实施（顺序：安全 QW1–QW5 → 安全密钥模型 KM1–KM7 → sync 子流 I1–I8 → Inbox D1–D6）。阶段 A 完成并验证；阶段 B 已完成基础（KM1 schema/design、KM2 设备密钥+落盘、KM3/KM4 roster crypto 核心、KM6 KDF、KM7 抗回滚）。下一步：KM3 传输（QR/S3 设备邮箱）+ KM4 把 D/roster 接入 syncEngine + KM5 clean break 切换。
 - E2EE hardening progress (2026-09-28): 阶段 A 完成——QW1 消息授权、QW2 锁续租+所有权释放、QW3 凭证加密+keyset AAD、QW4 强制 HTTPS、QW5 chunk/record/chain 完整性。阶段 B 基础——v2 协议 schema、deviceKeys/roster/dataKey/kdf/highWater、app deviceKeyring；测试：annotator 209、shared 79、sync-core 34，e2e 47 passed/1 skipped，build green，jscpd 1.29%
-- E2EE remaining (2026-09-28): KM3 传输已完成 crypto 层（S3 设备邮箱 `deviceEnrollment.ts`、同机 `pairing.ts`+SAS）；剩余：KM4 接入 syncEngine（C=D 派生、按设备验签 manifest）、KM5 clean-break 账号切换+一次性旧远端挽救、KM7 轮换清理旧 keyId/epoch；阶段 C（I1–I8，I1 已完成）与阶段 D（D1–D6）未开始
+- E2EE remaining (2026-09-28): KM3 传输 crypto 层完成（`deviceEnrollment.ts`/`pairing.ts`）；KM4 账户核心完成（`account.ts`/app `accountKeyring.ts`）。剩余：KM4 接入 syncEngine（把现有 keyset 路径切到 account/D + 按设备验签 manifest，并落 v2 分片流）、KM5 clean-break 账号切换+一次性旧远端挽救、KM7 轮换清理旧 keyId/epoch；阶段 C（I2–I8）与 D（D1–D6）未开始（I1 完成）
 - Docs aligned (2026-09-28): 三份已审核计划状态改为「已审核通过」并新增「实施状态」段落，与提交 `c7e717a`（阶段 A）、`99aa400`（阶段 B 基础）一致；未改动任何已锁定决策
 - Inbox 代码实验已移除；设计系统 v0.4 已改为采集处理队列规范与 showcase，待审核设计仍保留。Inbox Flow 计划已按新决定重写：默认启用可关闭、状态走独立子流（`streams/inbox/`，非主流）、移除全部 enrichments 到 research、回顾只做清理提醒+每周回顾；新增配套 `docs/plan/e2ee-sync-evolution.md`（冻结主流、子流契约、分片打包 chunk、并发 IO、锁修复、回滚防护）；未开始 schema/UI coding
 - Inbox decisions (2026-09-28): Inbox 默认开启；工作流状态与正文物理隔离（子流，各自 LWW）；首版不依赖 AI/统计/分词，确定性 enrichments 方案与实验结论迁至 `docs/research/omni-inbox/inbox-enrichments.md`；审核通过后再动 schema/sync

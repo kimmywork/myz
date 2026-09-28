@@ -13,6 +13,8 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
 - credentials.ts: at-rest encryption of S3 `secretAccessKey`/`sessionToken`.
 - deviceKeyring.ts: loads/creates the local Ed25519+X25519 device identity,
   private keys wrapped by the non-extractable device key (v2 protocol).
+- accountKeyring.ts: creates/loads the v2 sync account (accountId + signed
+  roster) on top of the device identity.
 
 ## References
 
