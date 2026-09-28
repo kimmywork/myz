@@ -27,8 +27,12 @@ adapter interfaces, and object-store client logic.
 - gc.ts: archive policy and chunk cleanup.
 - keyset.ts: legacy (v1) secret-derived keyset.
 - deviceKeys.ts: Ed25519+X25519 device keys, ECIES wrap of D, DK wrap of keys.
+- signing.ts: stable-stringify Ed25519 sign/verify for JSON objects.
 - dataKey.ts: random accountId/D, master + per-stream key derivation.
 - roster.ts: signed device roster (genesis/add/revoke+rotate/verify/advance).
+- deviceEnrollment.ts: S3 device mailbox (request/index publish+verify, roster
+  publish/load, approve request).
+- pairing.ts: same-machine X25519 pairing offer/response and 6-digit SAS.
 - kdf.ts: local unlock KDF (PBKDF2 >= 600k).
 - highWater.ts: monotonic anti-rollback marks.
 - E2EE_DEVICE_BINDING_V2.md: the v2 device-binding model.

@@ -1,13 +1,12 @@
 import { SYNC_PROTOCOL_VERSION_V2 } from "@myz/shared/versioning"
-import { ed25519 } from "@noble/curves/ed25519"
-import { sha256, utf8ToBytes } from "./crypto"
 import {
   deviceIdFromSignPublicKey,
   unwrapDataKeyForDevice,
   wrapDataKeyForDevice,
   type DeviceKeyPair,
 } from "./deviceKeys"
-import { base64ToBytes, bytesToBase64, stableStringify } from "./utils"
+import { signStable, verifyStable } from "./signing"
+import { base64ToBytes, bytesToBase64 } from "./utils"
 
 export interface RosterDevice {
   deviceId: string
@@ -40,17 +39,15 @@ export interface Roster {
 
 type UnsignedRoster = Omit<Roster, "signature">
 
-async function signRoster(
-  unsigned: UnsignedRoster,
-  signPrivateKey: Uint8Array,
-): Promise<string> {
-  const digest = await sha256(utf8ToBytes(stableStringify(unsigned)))
-  return bytesToBase64(ed25519.sign(digest, signPrivateKey))
+/** The public half of a device, enough to add it to a roster and wrap D. */
+export interface DevicePublicKeys {
+  signPublicKey: Uint8Array
+  agreePublicKey: Uint8Array
 }
 
 function toDeviceEntry(
   deviceId: string,
-  pair: DeviceKeyPair,
+  pair: DevicePublicKeys,
   now: string,
   addedBy: string | null,
 ): RosterDevice {
@@ -91,7 +88,7 @@ export async function createGenesisRoster(options: {
   }
   return {
     ...unsigned,
-    signature: await signRoster(unsigned, options.device.signPrivateKey),
+    signature: await signStable(unsigned, options.device.signPrivateKey),
   }
 }
 
@@ -114,7 +111,7 @@ export async function addDeviceToRoster(options: {
   roster: Roster
   approver: DeviceKeyPair
   approverDeviceId: string
-  newDevice: DeviceKeyPair
+  newDevice: DevicePublicKeys
   dataKey: Uint8Array
   now?: string
 }): Promise<{ roster: Roster; newDeviceId: string }> {
@@ -147,7 +144,7 @@ export async function addDeviceToRoster(options: {
   return {
     roster: {
       ...unsigned,
-      signature: await signRoster(unsigned, options.approver.signPrivateKey),
+      signature: await signStable(unsigned, options.approver.signPrivateKey),
     },
     newDeviceId,
   }
@@ -193,7 +190,7 @@ export async function revokeDeviceAndRotate(options: {
   }
   return {
     ...unsigned,
-    signature: await signRoster(unsigned, options.approver.signPrivateKey),
+    signature: await signStable(unsigned, options.approver.signPrivateKey),
   }
 }
 
@@ -202,12 +199,9 @@ export async function verifyRoster(roster: Roster): Promise<boolean> {
     (device) => device.deviceId === roster.signedBy,
   )
   if (!signer || signer.revokedAt) return false
-  const digest = await sha256(
-    utf8ToBytes(stableStringify(withoutSignature(roster))),
-  )
-  return ed25519.verify(
-    base64ToBytes(roster.signature),
-    digest,
+  return verifyStable(
+    withoutSignature(roster),
+    roster.signature,
     base64ToBytes(signer.signPub),
   )
 }
