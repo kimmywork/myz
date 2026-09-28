@@ -5,12 +5,13 @@ import {
   generateDataKey,
 } from "../src/dataKey"
 import { deviceIdFromSignPublicKey, generateDeviceKeyPair } from "../src/deviceKeys"
-import { createGenesisRoster } from "../src/roster"
+import { addDeviceToRoster, createGenesisRoster } from "../src/roster"
 import {
   buildStreamPush,
   commitStreamPush,
   pullStream,
   streamShardPath,
+  syncStream,
   type StreamRecordInput,
 } from "../src/streamClient"
 import { InMemoryObjectStore } from "./helpers/inMemoryStore"
@@ -29,7 +30,7 @@ async function setup() {
   const masterKey = await deriveMasterKeyFromDataKey(dataKey)
   const streamKey = await deriveStreamMasterKey(masterKey, STREAM)
   const deviceId = await deviceIdFromSignPublicKey(device.signPublicKey)
-  return { device, deviceId, roster, streamKey, store: new InMemoryObjectStore() }
+  return { device, deviceId, roster, streamKey, store: new InMemoryObjectStore(), dataKey }
 }
 
 function record(
@@ -225,5 +226,105 @@ describe("v2 stream client", () => {
     await expect(
       pullStream({ store, streamKey, roster, accountId: ACCOUNT, streamId: STREAM }),
     ).rejects.toThrow(/integrity/i)
+  })
+
+  it("syncs two authorized devices to convergence with LWW and tombstones", async () => {
+    const { device: host, deviceId: hostId, roster, streamKey, store, dataKey } =
+      await setup()
+    const guest = generateDeviceKeyPair()
+    const guestId = await deviceIdFromSignPublicKey(guest.signPublicKey)
+    const { roster: sharedRoster } = await addDeviceToRoster({
+      roster,
+      approver: host,
+      approverDeviceId: hostId,
+      newDevice: guest,
+      dataKey,
+    })
+
+    const base = {
+      store,
+      streamKey,
+      roster: sharedRoster,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+      epoch: 1,
+    }
+    const recordA = record("status:h:1", "2026-01-01T00:00:00.000Z", { v: 1 })
+    const recordB = record("status:h:2", "2026-01-01T00:01:00.000Z", { v: 2 })
+
+    const first = await syncStream({
+      ...base,
+      device: host,
+      deviceId: hostId,
+      clientId: "A",
+      local: [recordA],
+      localTombstones: {},
+    })
+    expect(first.applied).toHaveLength(0)
+
+    const second = await syncStream({
+      ...base,
+      device: guest,
+      deviceId: guestId,
+      clientId: "B",
+      local: [recordB],
+      localTombstones: {},
+    })
+    expect(second.applied.map((entry) => entry.recordId)).toContain(
+      "status:h:1",
+    )
+
+    const third = await syncStream({
+      ...base,
+      device: host,
+      deviceId: hostId,
+      clientId: "A",
+      local: [recordA],
+      localTombstones: {},
+      seenStreamVersion: first.streamVersion,
+      knownShardHashes: first.shardHashes,
+    })
+    expect(third.uploaded).toBe(false)
+    expect(third.applied.map((entry) => entry.recordId)).toContain(
+      "status:h:2",
+    )
+
+    const conflict = await syncStream({
+      ...base,
+      device: guest,
+      deviceId: guestId,
+      clientId: "B",
+      local: [
+        record("status:h:1", "2026-01-05T00:00:00.000Z", { v: 99 }),
+        recordB,
+      ],
+      localTombstones: {},
+      seenStreamVersion: second.streamVersion,
+      knownShardHashes: second.shardHashes,
+    })
+    expect(conflict.manifest).not.toBeNull()
+    expect(conflict.applied).toHaveLength(0)
+
+    const deleted = await syncStream({
+      ...base,
+      device: host,
+      deviceId: hostId,
+      clientId: "A",
+      local: [recordA, recordB],
+      localTombstones: { "status:h:2": "2026-03-01T00:00:00.000Z" },
+      seenStreamVersion: third.streamVersion,
+      knownShardHashes: third.shardHashes,
+    })
+    expect(deleted.deleted).toContain("status:h:2")
+
+    const final = await pullStream({
+      store,
+      streamKey,
+      roster: sharedRoster,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+    })
+    expect(final.records.get("status:h:1")?.data).toEqual({ v: 99 })
+    expect(final.records.has("status:h:2")).toBe(false)
   })
 })

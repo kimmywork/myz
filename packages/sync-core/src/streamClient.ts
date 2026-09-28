@@ -28,6 +28,7 @@ import {
   type StreamManifest,
   type StreamShardEntry,
 } from "./streamManifest"
+import { mergeStreamRecords } from "./streamMerge"
 import {
   base32Encode,
   base64ToBytes,
@@ -96,7 +97,9 @@ export function streamMetaPath(accountId: string, streamId: string): string {
   return `${streamPrefix(accountId, streamId)}/meta/version.bin`
 }
 
-async function hashRecord(record: StreamRecordInput): Promise<string> {
+export async function hashStreamRecord(
+  record: StreamRecordInput,
+): Promise<string> {
   const json = stableStringify({
     recordId: record.recordId,
     updatedAt: record.updatedAt,
@@ -125,7 +128,7 @@ export async function packStreamRecord(
   return {
     recordId: record.recordId,
     updatedAt: record.updatedAt,
-    recordHash: await hashRecord(record),
+    recordHash: await hashStreamRecord(record),
     prevHash,
     keyId: base32Encode(await sha256(recordKey)),
     recordCipher: bytesToBase64(ciphertext),
@@ -154,7 +157,7 @@ export async function openStreamRecord(
     aad,
   )
   const record = decodeBinaryPayload(plain) as StreamRecordInput
-  const recordHash = await hashRecord(record)
+  const recordHash = await hashStreamRecord(record)
   if (recordHash !== packed.recordHash) {
     throw new Error("Stream record hash mismatch")
   }
@@ -322,7 +325,7 @@ export async function buildStreamPush(options: {
   const hashed = await Promise.all(
     options.records.map(async (record) => ({
       record,
-      recordHash: await hashRecord(record),
+      recordHash: await hashStreamRecord(record),
       shardId: recordShardId(record.recordId, shardCount),
     })),
   )
@@ -497,4 +500,107 @@ export async function commitStreamPush(options: {
     manifestVersion: manifest.version,
   })
   return manifest
+}
+
+export interface StreamSyncOutcome {
+  applied: StreamRemoteRecord[]
+  deleted: string[]
+  manifest: StreamManifest | null
+  tombstones: Record<string, string>
+  streamVersion: number
+  shardHashes: Record<string, string>
+  uploaded: boolean
+}
+
+/**
+ * One full stream sync: pull, deterministic merge, and push only when the
+ * local side introduced changes.
+ */
+export async function syncStream(options: {
+  store: SyncObjectStore
+  streamKey: Uint8Array
+  roster: Roster
+  device: DeviceKeyPair
+  deviceId: string
+  accountId: string
+  streamId: string
+  clientId: string
+  epoch: number
+  local: StreamRecordInput[]
+  localTombstones: Record<string, string>
+  seenStreamVersion?: number | null
+  knownShardHashes?: Record<string, string>
+  shardCount?: number
+}): Promise<StreamSyncOutcome> {
+  const pulled = await pullStream({
+    store: options.store,
+    streamKey: options.streamKey,
+    roster: options.roster,
+    accountId: options.accountId,
+    streamId: options.streamId,
+    seenStreamVersion: options.seenStreamVersion,
+    knownShardHashes: options.knownShardHashes,
+  })
+
+  const local = await Promise.all(
+    options.local.map(async (record) => ({
+      ...record,
+      recordHash: await hashStreamRecord(record),
+    })),
+  )
+  const merge = mergeStreamRecords({
+    local,
+    remote: pulled.records,
+    tombstones: { ...options.localTombstones, ...pulled.tombstones },
+  })
+
+  const remoteIndex = pulled.manifest?.recordsIndex ?? {}
+  const dirty =
+    merge.winners.some(
+      (winner) => remoteIndex[winner.recordId]?.recordHash !== winner.recordHash,
+    ) ||
+    merge.deleted.length > 0 ||
+    stableStringify(merge.tombstones) !== stableStringify(pulled.tombstones)
+
+  if (!dirty && pulled.manifest) {
+    return {
+      applied: merge.remoteWinners,
+      deleted: merge.deleted,
+      manifest: pulled.manifest,
+      tombstones: merge.tombstones,
+      streamVersion: pulled.manifest.streamVersion,
+      shardHashes: pulled.shardHashes,
+      uploaded: false,
+    }
+  }
+
+  const manifest = await commitStreamPush({
+    store: options.store,
+    streamKey: options.streamKey,
+    device: options.device,
+    deviceId: options.deviceId,
+    accountId: options.accountId,
+    streamId: options.streamId,
+    clientId: options.clientId,
+    epoch: options.epoch,
+    records: merge.winners,
+    tombstones: merge.tombstones,
+    baseManifest: pulled.manifest,
+    baseTombstones: pulled.tombstones,
+    shardCount: options.shardCount,
+  })
+
+  const shardHashes: Record<string, string> = {}
+  for (const [shardId, entry] of Object.entries(manifest.shards)) {
+    shardHashes[shardId] = entry.hash
+  }
+  return {
+    applied: merge.remoteWinners,
+    deleted: merge.deleted,
+    manifest,
+    tombstones: merge.tombstones,
+    streamVersion: manifest.streamVersion,
+    shardHashes,
+    uploaded: true,
+  }
 }

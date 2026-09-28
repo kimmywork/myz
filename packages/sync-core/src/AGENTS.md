@@ -38,7 +38,8 @@ adapter interfaces, and object-store client logic.
 - streamManifest.ts: v2 per-device-signed sharded stream manifest
   (seal/open, high-water advance, reader-version gate, stream paths).
 - streamClient.ts: end-to-end single-stream pull/push (record packing, shard
-  reuse on unchanged shards, tombstones, signed manifest commit, stream meta).
+  reuse on unchanged shards, tombstones, signed manifest commit, stream meta)
+  plus `syncStream` (pull + LWW merge + conditional push).
 - streamMerge.ts: deterministic LWW merge (updatedAt, tie by recordHash) with
   explicit tombstones and pending-local retention.
 - deviceEnrollment.ts: S3 device mailbox (request/index publish+verify, roster
