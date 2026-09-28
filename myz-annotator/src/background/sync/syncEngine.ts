@@ -7,6 +7,7 @@ import {
   writeRemoteVersion,
 } from "@myz/sync-core/remote";
 import { readSettings } from "../storage";
+import { loadLocalAccount } from "./accountKeyring";
 import { buildChunkForRecord } from "./chunks";
 import { packNoncePayload, sha256 } from "./crypto";
 import { runGc } from "./gc";
@@ -40,6 +41,7 @@ import {
 } from "./storage";
 import type { ManifestData, ManifestRecordEntry, SyncRecord } from "./types";
 import { bytesToBase64, bytesToHex } from "./utils";
+import { syncAccountNow } from "./v2/engine";
 
 const MANIFEST_KEEP_COUNT = 30;
 const LOCK_PATH = "lock/lease.bin";
@@ -48,7 +50,13 @@ const LOCK_RENEW_INTERVAL_MS = LOCK_LEASE_MS / 2;
 
 export interface SyncResult {
   ok: boolean;
-  status: "disabled" | "missing_key" | "locked" | "synced" | "error";
+  status:
+    | "disabled"
+    | "missing_key"
+    | "missing_account"
+    | "locked"
+    | "synced"
+    | "error";
   message?: string;
 }
 
@@ -71,6 +79,10 @@ export async function syncNow(): Promise<SyncResult> {
   const settings = await readSettings();
   if (!settings.sync?.enabled) {
     return { ok: true, status: "disabled" };
+  }
+  const account = await loadLocalAccount();
+  if (account) {
+    return syncAccountNow();
   }
   const s3 = settings.sync.s3;
   if (

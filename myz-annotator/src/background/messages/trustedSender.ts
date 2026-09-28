@@ -6,11 +6,17 @@ const PRIVILEGED_MESSAGES = new Set<string>([
   "myz:syncUpdateSettings",
   "myz:syncNow",
   "myz:syncTestConnection",
+  "myz:accountCreate",
+  "myz:accountImport",
+  "myz:accountClear",
 ]);
 
 const USER_GESTURE_MESSAGES = new Set<string>([
   "myz:syncSetKey",
   "myz:syncClearKey",
+  "myz:accountCreate",
+  "myz:accountImport",
+  "myz:accountClear",
 ]);
 
 export function isPrivilegedMessage(type: string): boolean {

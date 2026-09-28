@@ -1,5 +1,5 @@
 const DB_NAME = "myz_sync_db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -21,6 +21,9 @@ function getDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("record_state")) {
         db.createObjectStore("record_state", { keyPath: "recordId" });
+      }
+      if (!db.objectStoreNames.contains("stream_state")) {
+        db.createObjectStore("stream_state", { keyPath: "streamId" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -125,6 +128,13 @@ export interface RecordStateRecord {
   updatedAt: string;
 }
 
+export interface StreamStateRecord {
+  streamId: string;
+  streamVersion: number;
+  shardHashes: Record<string, string>;
+  tombstones: Record<string, string>;
+}
+
 export async function readDeviceKey(): Promise<DeviceKeyRecord | null> {
   return getRecord<DeviceKeyRecord>("keys", "deviceKey");
 }
@@ -220,5 +230,24 @@ export async function clearRecordStates(): Promise<void> {
   const records = await listRecordStates();
   await Promise.all(
     records.map((record) => deleteRecord("record_state", record.recordId)),
+  );
+}
+
+export async function readStreamState(
+  streamId: string,
+): Promise<StreamStateRecord | null> {
+  return getRecord<StreamStateRecord>("stream_state", streamId);
+}
+
+export async function writeStreamState(
+  record: StreamStateRecord,
+): Promise<void> {
+  return putRecord("stream_state", record);
+}
+
+export async function clearStreamStates(): Promise<void> {
+  const records = await getAllRecords<StreamStateRecord>("stream_state");
+  await Promise.all(
+    records.map((record) => deleteRecord("stream_state", record.streamId)),
   );
 }

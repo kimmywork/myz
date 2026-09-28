@@ -35,6 +35,11 @@ export default defineComponent({
     const keyUpdatedAt = ref<string | null>(null);
     const lastSyncAt = ref<string | null>(null);
     const lastManifestVersion = ref(0);
+    const hasAccount = ref(false);
+    const accountId = ref<string | null>(null);
+    const deviceId = ref<string | null>(null);
+    const accountEpoch = ref(0);
+    const accountRoster = ref("");
 
     watchEffect(() => {
       const sync = settingsStore.settings.sync;
@@ -74,6 +79,10 @@ export default defineComponent({
         keyUpdatedAt.value = result?.keyUpdatedAt || null;
         lastSyncAt.value = result?.lastSyncAt || null;
         lastManifestVersion.value = result?.lastManifestVersion || 0;
+        hasAccount.value = Boolean(result?.hasAccount);
+        accountId.value = result?.accountId || null;
+        deviceId.value = result?.deviceId || null;
+        accountEpoch.value = result?.epoch || 0;
       } catch (error) {
         setStatus(`读取同步状态失败：${(error as Error).message}`, "error");
       }
@@ -165,6 +174,74 @@ export default defineComponent({
         await refreshSyncStatus();
       } catch (error) {
         setStatus(`同步失败：${(error as Error).message}`, "error");
+      } finally {
+        isBusy.value = false;
+      }
+    }
+
+    async function handleCreateAccount() {
+      if (isBusy.value) return;
+      if (
+        !window.confirm(
+          "创建新的同步账号会使用本机数据建立新的加密账号。确定继续？",
+        )
+      ) {
+        return;
+      }
+      isBusy.value = true;
+      setStatus("创建账号中…", "info");
+      try {
+        const result = await sendMessage<
+          { userGesture: boolean },
+          { accountId: string; deviceId: string; epoch: number; roster: string }
+        >("myz:accountCreate", { userGesture: true });
+        accountRoster.value = result.roster;
+        await refreshSyncStatus();
+        setStatus("账号已创建，请复制配对串到其他设备", "success");
+      } catch (error) {
+        setStatus(`创建账号失败：${(error as Error).message}`, "error");
+      } finally {
+        isBusy.value = false;
+      }
+    }
+
+    async function handleImportAccount() {
+      if (isBusy.value) return;
+      const roster = window.prompt("粘贴其他设备提供的账号配对串");
+      if (!roster?.trim()) return;
+      isBusy.value = true;
+      setStatus("导入账号中…", "info");
+      try {
+        await sendMessage("myz:accountImport", {
+          roster: roster.trim(),
+          userGesture: true,
+        });
+        await refreshSyncStatus();
+        setStatus("账号已导入", "success");
+      } catch (error) {
+        setStatus(`导入失败：${(error as Error).message}`, "error");
+      } finally {
+        isBusy.value = false;
+      }
+    }
+
+    async function handleClearAccount() {
+      if (isBusy.value) return;
+      if (
+        !window.confirm(
+          "解除本机的同步账号？本机数据保留，但需要重新配对才能再同步。",
+        )
+      ) {
+        return;
+      }
+      isBusy.value = true;
+      try {
+        await sendMessage("myz:accountClear", { userGesture: true });
+        accountRoster.value = "";
+        await refreshSyncStatus();
+        setStatus("已解除同步账号", "success");
+      } catch (error) {
+        setStatus(`操作失败：${(error as Error).message}`, "error");
       } finally {
         isBusy.value = false;
       }
@@ -304,6 +381,71 @@ export default defineComponent({
                 {keyUpdatedAt.value || "-"}
               </span>
             </SettingsRow>
+          </div>
+
+          <div class="grid gap-4 rounded-control border border-line bg-surface p-4 dark:border-line dark:bg-surface-2">
+            <SettingsRow label="同步账号" controlWidth="auto">
+              <span class="text-caption text-muted">
+                {hasAccount.value ? "已建立" : "未建立"}
+              </span>
+            </SettingsRow>
+            {hasAccount.value ? (
+              <SettingsRow label="Account ID" controlWidth="auto">
+                <span class="text-caption text-muted break-all">
+                  {accountId.value}
+                </span>
+              </SettingsRow>
+            ) : null}
+            {hasAccount.value ? (
+              <SettingsRow label="Device ID" controlWidth="auto">
+                <span class="text-caption text-muted break-all">
+                  {deviceId.value}
+                </span>
+              </SettingsRow>
+            ) : null}
+            {accountRoster.value ? (
+              <div>
+                <label class="text-caption text-muted">配对串</label>
+                <textarea
+                  readonly
+                  rows={3}
+                  class="w-full rounded-control border border-line bg-surface p-2 text-caption"
+                  value={accountRoster.value}
+                />
+              </div>
+            ) : null}
+            <div class="settings__actions">
+              {!hasAccount.value ? (
+                <button
+                  class="btn"
+                  type="button"
+                  disabled={isBusy.value}
+                  onClick={handleCreateAccount}
+                >
+                  创建同步账号
+                </button>
+              ) : null}
+              {!hasAccount.value ? (
+                <button
+                  class="btn"
+                  type="button"
+                  disabled={isBusy.value}
+                  onClick={handleImportAccount}
+                >
+                  导入账号
+                </button>
+              ) : null}
+              {hasAccount.value ? (
+                <button
+                  class="btn"
+                  type="button"
+                  disabled={isBusy.value}
+                  onClick={handleClearAccount}
+                >
+                  解除账号
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div class="settings__actions">

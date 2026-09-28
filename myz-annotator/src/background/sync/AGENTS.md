@@ -15,6 +15,10 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
   private keys wrapped by the non-extractable device key (v2 protocol).
 - accountKeyring.ts: creates/loads the v2 sync account (accountId + signed
   roster) on top of the device identity.
+- v2/datasets.ts: `StreamDataset` adapters (highlight stream `h:<id>`).
+- v2/stateStore.ts: per-stream sync state (streamVersion/shardHashes/tombstones).
+- v2/engine.ts: v2 sync orchestration (account streams + account-scoped lease);
+  `syncEngine.syncNow` delegates here when an account exists, else legacy v1.
 
 ## References
 
