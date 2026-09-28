@@ -13,6 +13,8 @@ export interface Settings {
   sync: SyncSettings;
   /** Inbox is enabled by default; when false new captures go straight to kept. */
   inboxEnabled?: boolean;
+  /** Daily Inbox cleanup reminder; enabled by default. */
+  inboxReminderEnabled?: boolean;
 }
 
 export interface SettingsBundle {

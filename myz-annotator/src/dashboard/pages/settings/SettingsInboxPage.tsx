@@ -8,14 +8,21 @@ export default defineComponent({
   setup() {
     const store = useSettingsStore();
     const enabled = ref(true);
+    const reminderEnabled = ref(true);
 
     watchEffect(() => {
       enabled.value = store.settings.inboxEnabled !== false;
+      reminderEnabled.value = store.settings.inboxReminderEnabled !== false;
     });
 
     async function setEnabled(next: boolean) {
       enabled.value = next;
       await store.saveSettings({ inboxEnabled: next });
+    }
+
+    async function setReminderEnabled(next: boolean) {
+      reminderEnabled.value = next;
+      await store.saveSettings({ inboxReminderEnabled: next });
     }
 
     return () => (
@@ -39,6 +46,21 @@ export default defineComponent({
             ariaLabel="启用 Inbox"
             onChange={(event: Event) =>
               void setEnabled((event.target as HTMLInputElement).checked)
+            }
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="每日清理提醒"
+          hint="有待处理内容时每天提醒一次"
+          controlWidth="auto"
+        >
+          <ToggleSwitch
+            checked={reminderEnabled.value}
+            ariaLabel="每日清理提醒"
+            onChange={(event: Event) =>
+              void setReminderEnabled(
+                (event.target as HTMLInputElement).checked,
+              )
             }
           />
         </SettingsRow>

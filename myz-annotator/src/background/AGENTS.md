@@ -20,6 +20,8 @@ This folder contains the MV3 service worker background logic.
 - `myz-annotator/src/background/inbox/queue.ts`
   - Queue/review read model (`buildQueue`) and the pending badge
     (`refreshInboxBadge`).
+- `myz-annotator/src/background/inbox/reminder.ts`
+  - Daily Inbox cleanup reminder via `chrome.alarms` + notification.
 
 ## Folder Map
 

@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lastUsedStyle: HIGHLIGHT_STYLES.PAINT,
   dashboardView: "cards",
   inboxEnabled: true,
+  inboxReminderEnabled: true,
   // E2EE sync
   sync: {
     enabled: false,

@@ -1,3 +1,4 @@
+import { ensureInboxReminderAlarm } from "../inbox/reminder";
 import { Settings } from "../settings";
 import { readSettings, writeSettings } from "../storage";
 import { ensureSyncAlarm } from "../sync/scheduler";
@@ -15,6 +16,9 @@ export function initializeSettingsMessageHandlers() {
       const updated = await writeSettings(patch);
       if (patch.sync) {
         await ensureSyncAlarm();
+      }
+      if ("inboxEnabled" in patch || "inboxReminderEnabled" in patch) {
+        await ensureInboxReminderAlarm();
       }
       return updated;
     },

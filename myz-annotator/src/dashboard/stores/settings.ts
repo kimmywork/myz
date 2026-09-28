@@ -23,6 +23,7 @@ export const useSettingsStore = defineStore("settings", () => {
     lastUsedColor: DEFAULT_COLOR,
     lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
     inboxEnabled: true,
+    inboxReminderEnabled: true,
     sync: {
       enabled: false,
       s3: {
@@ -61,6 +62,7 @@ export const useSettingsStore = defineStore("settings", () => {
           : settings.colorPalette,
         sync: normalizeSyncSettings(result.sync),
         inboxEnabled: result.inboxEnabled !== false,
+        inboxReminderEnabled: result.inboxReminderEnabled !== false,
         lastUsedColor:
           typeof result.lastUsedColor === "string" &&
           result.lastUsedColor.trim()
