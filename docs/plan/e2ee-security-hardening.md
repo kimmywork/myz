@@ -1,6 +1,6 @@
 # E2EE 安全加固与设备绑定计划
 
-> 状态：**待审核，尚未实现**。允许 break change。
+> 状态：**已审核通过**（第二轮 review 修复见 §10）。正按总顺序实施；进度见文末「实施状态」。
 >
 > 配套文档：`docs/plan/e2ee-sync-evolution.md`（流化/可扩展/性能与协议演进）。本计划负责**安全模型**：设备绑定、密钥派生强化、抗回滚、轮换完整性、本地密钥与凭证保护、消息授权、锁正确性、完整性校验。
 >
@@ -231,3 +231,14 @@ manifest 由发布设备的 Ed25519 签名；接收方用 roster 中已授权设
    - 理由：在不违背“A 单独不解密”的前提下，给单设备用户一条恢复路径；是否启用由用户显式选择并知悉风险。
 
 4. **KDF 与高熵：** 本地解锁口令用 Argon2id；`accountId` 随机（§5.1）。
+
+## 12. 实施状态（2026-09-28）
+
+- **阶段 A（QW1–QW5）已完成**（commit `c7e717a`）：消息授权（含 `syncUpdateSettings` 与密钥变更用户手势）、锁续租+所有权释放、本地凭证加密+keyset AAD 迁移、强制 HTTPS、chunk/record/chain 完整性校验。证据：annotator 209 / shared 79 / sync-core 34 单测，extension e2e 47 passed / 1 skipped，build green。
+- **阶段 B（KM）进行中**：
+  - KM1 目标模型与 v2 协议（`SYNC_PROTOCOL_VERSION_V2 = "2.0.0"`，不复用旧版本）已完成，见 `packages/sync-core/src/E2EE_DEVICE_BINDING_V2.md` 与 `schemas/v2.ts`。
+  - KM2 设备密钥与本地 DK 包裹（`deviceKeys.ts`、`deviceKeyring.ts`）已完成。
+  - KM3/KM4 crypto 核心（`roster.ts`：签名 genesis / 加入 / 撤销+轮换 / 验签 / 单调推进；`dataKey.ts`）已完成；**KM3 传输层（同机 QR+SAS、异地 S3 设备邮箱）与 KM4 接入 syncEngine 未完成**。
+  - KM6（PBKDF2 ≥600k）、KM7 抗回滚原语（`highWater.ts`）已完成；KM7 轮换后清理旧 keyId/epoch 密文未完成。
+  - KM5 clean-break 账号切换与一次性旧远端挽救未开始。
+- 未完成项按原计划顺序推进，不在本文重开已定决策。
