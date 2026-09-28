@@ -32,6 +32,9 @@ adapter interfaces, and object-store client logic.
 - roster.ts: signed device roster (genesis/add/revoke+rotate/verify/advance).
 - account.ts: create/open a sync account (random accountId + D + roster) and
   per-device payload sign/verify.
+- jumpHash.ts: FNV-1a seeded jump consistent hash for shard mapping.
+- shards.ts: packed shard encrypt/open, record/tombstone grouping, opaque
+  preservation of unknown records.
 - deviceEnrollment.ts: S3 device mailbox (request/index publish+verify, roster
   publish/load, approve request).
 - pairing.ts: same-machine X25519 pairing offer/response and 6-digit SAS.
