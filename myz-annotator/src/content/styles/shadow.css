@@ -314,7 +314,15 @@
   place-items: center;
   cursor: pointer;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* Expand the 18px pencil to a >=32px hit target without changing the visual. */
+.myz-color-edit::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: inherit;
 }
 
 .myz-color-edit:hover {

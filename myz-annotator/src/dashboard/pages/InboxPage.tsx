@@ -1,4 +1,5 @@
 import { Archive, Clock, Inbox, Star, Tag, Trash2 } from "@lucide/vue";
+import { StatePanel } from "@myz/dashboard-ui";
 import { IconClose, IconSearch } from "@myz/shared/icons";
 import type { InboxStatus } from "@myz/shared/inbox";
 import { sendMessage } from "@myz/shared/messaging";
@@ -92,6 +93,8 @@ export default defineComponent({
     const status = ref("");
     const undo = ref<UndoState | null>(null);
     const tagQuery = ref("");
+    const loading = ref(true);
+    const loadError = ref("");
     const taggingId = ref<string | null>(null);
     const tagDraft = ref("");
     let undoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -170,6 +173,7 @@ export default defineComponent({
     const focusItem = computed(() => tabItems.value[focusIndex.value] ?? null);
 
     async function load() {
+      loading.value = true;
       try {
         const [next, tags] = await Promise.all([
           sendMessage<undefined, InboxQueueResult>("myz:inboxQueue"),
@@ -177,9 +181,12 @@ export default defineComponent({
         ]);
         queue.value = next;
         allTags.value = Array.isArray(tags) ? tags : [];
+        loadError.value = "";
         if (focusIndex.value >= tabItems.value.length) focusIndex.value = 0;
       } catch (error) {
-        status.value = `加载失败：${(error as Error).message}`;
+        loadError.value = (error as Error).message;
+      } finally {
+        loading.value = false;
       }
     }
 
@@ -537,14 +544,14 @@ export default defineComponent({
                       class="inline-flex items-center gap-1 rounded-tag border border-line px-1.5 py-0.5 text-tag text-muted"
                     >
                       {tag}
-                      <button
-                        type="button"
-                        class="text-muted hover:text-error"
-                        aria-label={`移除标签 ${tag}`}
-                        onClick={() => void removeTag(item, tag)}
-                      >
-                        <IconClose size={10} />
-                      </button>
+                    <button
+                      type="button"
+                      class="hit-expand text-muted hover:text-error"
+                      aria-label={`移除标签 ${tag}`}
+                      onClick={() => void removeTag(item, tag)}
+                    >
+                      <IconClose size={10} />
+                    </button>
                     </span>
                   ))}
                 </div>
@@ -861,7 +868,11 @@ export default defineComponent({
             ) : null}
 
             {undo.value ? (
-              <div class="flex items-center gap-2 text-caption">
+              <div
+                class="flex items-center gap-2 text-caption"
+                role="status"
+                aria-live="polite"
+              >
                 <span>{undo.value.label}</span>
                 <button
                   class="btn btn-small"
@@ -874,10 +885,24 @@ export default defineComponent({
             ) : null}
 
             {status.value ? (
-              <p class="text-caption text-muted">{status.value}</p>
+              <p class="text-caption text-muted" role="status" aria-live="polite">
+                {status.value}
+              </p>
             ) : null}
 
-            {focusMode.value ? (
+            {loading.value ? (
+              <StatePanel kind="loading" title="正在加载 Inbox…" />
+            ) : loadError.value ? (
+              <StatePanel
+                kind="error"
+                title="Inbox 加载失败"
+                hint={loadError.value}
+                actionLabel="重试"
+                onAction={() => void load()}
+              />
+            ) : null}
+
+            {loading.value || loadError.value ? null : focusMode.value ? (
               <div
                 data-testid="inbox-focus"
                 draggable={Boolean(focusItem.value)}

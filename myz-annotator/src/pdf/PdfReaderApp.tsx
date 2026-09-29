@@ -1,5 +1,5 @@
 import { storeToRefs } from "pinia";
-import { defineComponent, onMounted } from "vue";
+import { defineComponent, onBeforeUnmount, onMounted } from "vue";
 import PdfInspector from "./components/PdfInspector.js";
 import PdfLanding from "./components/PdfLanding.js";
 import PdfSelectionToolbar from "./components/PdfSelectionToolbar.js";
@@ -20,7 +20,40 @@ export default defineComponent({
 
     onMounted(() => {
       void store.init();
+      window.addEventListener("keydown", handleKeydown);
     });
+    onBeforeUnmount(() => {
+      window.removeEventListener("keydown", handleKeydown);
+    });
+
+    function handleKeydown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "Escape") {
+        if (store.activeId) {
+          store.activeId = null;
+        } else if (store.sidebarOpen) {
+          store.sidebarOpen = false;
+        }
+        return;
+      }
+      if (status.value === "landing" || status.value === "loading") return;
+      if (event.key === "ArrowRight" || event.key === "PageDown") {
+        event.preventDefault();
+        void store.goToPage(store.page + 1);
+      } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        void store.goToPage(store.page - 1);
+      }
+    }
 
     const backdoor = {
       openUrl: store.openWeb,

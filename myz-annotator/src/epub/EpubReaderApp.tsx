@@ -6,7 +6,7 @@ import {
   type MyZRecord,
 } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
-import { defineComponent, onMounted, ref, watch } from "vue";
+import { defineComponent, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import EpubSidebar from "./components/EpubSidebar.js";
 import EpubStage from "./components/EpubStage.js";
 import EpubToolbar from "./components/EpubToolbar.js";
@@ -290,8 +290,38 @@ export default defineComponent({
       },
     );
 
+    function handleKeydown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "Escape") {
+        if (activeId.value) {
+          activeId.value = null;
+        } else if (store.sidebarOpen) {
+          store.sidebarOpen = false;
+        }
+        return;
+      }
+      if (!store.book) return;
+      if (event.key === "ArrowRight" || event.key === "PageDown") {
+        event.preventDefault();
+        store.goToChapter(store.spineIndex + 1);
+      } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        event.preventDefault();
+        store.goToChapter(store.spineIndex - 1);
+      }
+    }
+
     onMounted(() => {
       store.init();
+      window.addEventListener("keydown", handleKeydown);
       const backdoor = {
         openUrl: (url: string, options?: { title?: string }) =>
           store.openUrl(url, options),
@@ -362,6 +392,10 @@ export default defineComponent({
       };
       (window as unknown as { __MYZ_EPUB__: typeof backdoor }).__MYZ_EPUB__ =
         backdoor;
+    });
+
+    onBeforeUnmount(() => {
+      window.removeEventListener("keydown", handleKeydown);
     });
 
     return () => (

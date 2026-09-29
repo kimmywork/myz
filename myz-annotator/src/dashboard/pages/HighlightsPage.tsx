@@ -1,6 +1,7 @@
 import { PageSidebar } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
 import HighlightsPane from "../components/HighlightsPane.jsx";
+import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
 import { formatDateTime } from "@/dashboard/utils/records.js";
 
@@ -8,6 +9,7 @@ export default defineComponent({
   name: "HighlightsPage",
   setup() {
     const uiStore = useUIStore();
+    const highlightsStore = useHighlightsStore();
     const layoutClasses = () =>
       [
         "flex flex-col gap-6 min-[900px]:flex-row",
@@ -15,6 +17,15 @@ export default defineComponent({
       ].join(" ");
     return () => (
       <>
+        {highlightsStore.operationStatus ? (
+          <p
+            class="mb-2 text-caption text-muted"
+            role="status"
+            aria-live="polite"
+          >
+            {highlightsStore.operationStatus}
+          </p>
+        ) : null}
         <div class={layoutClasses()}>
           {uiStore.pageSidebarOpen ? (
             <div class="min-[900px]:w-[264px] min-[900px]:flex-shrink-0">

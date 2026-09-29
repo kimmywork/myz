@@ -154,6 +154,13 @@ export default defineComponent({
       store.hide();
     }
 
+    function handleKeydown(event: KeyboardEvent) {
+      if (event.key === "Escape" && store.isVisible) {
+        event.stopPropagation();
+        store.hide();
+      }
+    }
+
     function handleDelete() {
       if (confirmDestructive(DELETE_CONFIRM)) {
         store.deleteRecord();
@@ -198,6 +205,10 @@ export default defineComponent({
       <div
         ref={containerRef}
         class={["myz-annotator-modal", store.isVisible ? "" : "myz-hidden"]}
+        role="dialog"
+        aria-modal="true"
+        aria-label="编辑标注"
+        onKeydown={handleKeydown}
       >
         <div class="myz-annotator-modal__body">
           <div class="myz-annotator-modal__header">

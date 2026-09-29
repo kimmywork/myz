@@ -55,6 +55,7 @@ export default defineComponent({
             target="_blank"
             rel="noopener"
             title={props.record.title || props.record.url}
+            aria-label="打开原页"
           >
             <ExternalLink size={16} />
           </a>
@@ -65,6 +66,7 @@ export default defineComponent({
             type="button"
             onClick={() => emitAction("openPdf")}
             title="在阅读器中打开"
+            aria-label="在阅读器中打开"
           >
             <BookOpen size={16} />
           </button>
@@ -75,6 +77,7 @@ export default defineComponent({
             type="button"
             onClick={() => emitAction("openEpub")}
             title="在阅读器中打开"
+            aria-label="在阅读器中打开"
           >
             <BookText size={16} />
           </button>
@@ -84,6 +87,7 @@ export default defineComponent({
           type="button"
           onClick={() => emitAction("view")}
           title="打开原文"
+          aria-label="打开原文"
         >
           <Eye size={16} />
         </button>
@@ -92,6 +96,7 @@ export default defineComponent({
           type="button"
           onClick={() => emitAction("edit")}
           title="编辑"
+          aria-label="编辑"
         >
           <FilePenLine size={16} />
         </button>
@@ -100,6 +105,7 @@ export default defineComponent({
           type="button"
           onClick={() => emitAction("copy")}
           title="复制"
+          aria-label="复制"
         >
           <Copy size={16} />
         </button>
@@ -109,6 +115,7 @@ export default defineComponent({
             type="button"
             onClick={() => emitAction("downgrade")}
             title="降级"
+            aria-label="降级"
           >
             <RefreshCw size={16} />
           </button>

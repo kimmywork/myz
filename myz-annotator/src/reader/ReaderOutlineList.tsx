@@ -48,6 +48,7 @@ export default defineComponent({
                 type="button"
                 class="reader-outline__toggle"
                 aria-label={item.expanded ? "折叠" : "展开"}
+                aria-expanded={item.expanded ? "true" : "false"}
                 onClick={item.onToggle}
               >
                 {item.expanded ? (
@@ -64,6 +65,7 @@ export default defineComponent({
               class="reader-outline__title"
               disabled={item.disabled}
               title={item.title}
+              aria-current={item.current ? "page" : undefined}
               onClick={item.onSelect}
             >
               <span class="reader-outline__label">{item.label}</span>

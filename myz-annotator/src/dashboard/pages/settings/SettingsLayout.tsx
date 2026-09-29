@@ -1,10 +1,12 @@
 import { defineComponent } from "vue";
 import { RouterLink, RouterView } from "vue-router";
+import { useSettingsStore } from "../../stores/settings.js";
 import SettingsSidebar from "./SettingsSidebar.jsx";
 
 export default defineComponent({
   name: "SettingsLayout",
   setup() {
+    const settingsStore = useSettingsStore();
     return () => (
       <section
         id="settings-view"
@@ -31,6 +33,15 @@ export default defineComponent({
             <SettingsSidebar />
           </div>
           <div class="min-w-0 flex-1">
+            {settingsStore.settingsStatus ? (
+              <p
+                class="mb-2 text-caption text-muted"
+                role="status"
+                aria-live="polite"
+              >
+                {settingsStore.settingsStatus}
+              </p>
+            ) : null}
             <RouterView />
           </div>
         </div>

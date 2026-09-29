@@ -269,7 +269,8 @@
 
 .reader-sidebar__tab {
   flex: 1;
-  height: 26px;
+  min-height: 32px;
+  height: 32px;
   border: 0;
   border-radius: var(--myz-r-pill);
   background: transparent;
@@ -644,6 +645,9 @@
 }
 
 .reader-status__retry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
   padding: 5px 12px;
   border-radius: 8px;
   border: 1px solid var(--myz-error-border);

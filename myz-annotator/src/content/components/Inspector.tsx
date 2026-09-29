@@ -105,6 +105,15 @@ export default defineComponent({
         ]}
         style={inspectorStyle.value}
         ref={inspectorRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="标注详情"
+        onKeydown={(event: KeyboardEvent) => {
+          if (event.key === "Escape" && visible.value) {
+            event.stopPropagation();
+            store.hide();
+          }
+        }}
       >
         {hasNote.value ? (
           <div class="myz-inspector__body">

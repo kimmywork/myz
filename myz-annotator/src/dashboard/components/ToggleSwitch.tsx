@@ -14,7 +14,7 @@ export default defineComponent({
   },
   setup(props) {
     return () => (
-      <label class="inline-flex items-center">
+      <label class="hit-expand inline-flex items-center">
         <input
           type="checkbox"
           class="peer sr-only"

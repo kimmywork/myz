@@ -84,6 +84,17 @@
     @apply border-transparent bg-transparent text-error hover:border-transparent hover:text-error;
   }
 
+  /* Expand a small visual control to a >=32px hit target without resizing it. */
+  .hit-expand {
+    position: relative;
+  }
+
+  .hit-expand::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+
   .btn-small {
     @apply h-8 rounded-pill px-3 text-caption;
   }
