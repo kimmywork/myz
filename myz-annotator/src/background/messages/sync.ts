@@ -32,6 +32,11 @@ import {
   encodeBinaryPayload,
 } from "../sync/utils";
 import { bootstrapV2Account } from "../sync/v2/bootstrap";
+import {
+  acceptPairingInvite,
+  approvePairing,
+  createPairingInvite,
+} from "../sync/v2/pairingSession";
 import { registerMessageHandler } from "./handler";
 
 export interface SyncStatusMessageResult {
@@ -143,6 +148,26 @@ export function initializeSyncMessageHandlers() {
     async (payload: { rescue?: boolean; userGesture?: boolean }) => {
       void payload;
       return bootstrapV2Account({ rescue: payload?.rescue !== false });
+    },
+  );
+
+  registerMessageHandler("myz:pairingInvite", async () => {
+    return createPairingInvite();
+  });
+
+  registerMessageHandler(
+    "myz:pairingAccept",
+    async (payload: { invite: string }) => {
+      if (!payload?.invite) throw new Error("Missing pairing invite");
+      return acceptPairingInvite(payload.invite);
+    },
+  );
+
+  registerMessageHandler(
+    "myz:pairingApprove",
+    async (payload: { response: string }) => {
+      if (!payload?.response) throw new Error("Missing pairing response");
+      return approvePairing(payload.response);
     },
   );
 

@@ -40,6 +40,13 @@ export default defineComponent({
     const deviceId = ref<string | null>(null);
     const accountEpoch = ref(0);
     const accountRoster = ref("");
+    const pairingInvite = ref("");
+    const pairingInviteInput = ref("");
+    const pairingResponseInput = ref("");
+    const pairingGuestResponse = ref("");
+    const pairingGuestSas = ref("");
+    const pairingHostSas = ref("");
+    const pairingRoster = ref("");
 
     watchEffect(() => {
       const sync = settingsStore.settings.sync;
@@ -220,6 +227,77 @@ export default defineComponent({
         setStatus("账号已导入", "success");
       } catch (error) {
         setStatus(`导入失败：${(error as Error).message}`, "error");
+      } finally {
+        isBusy.value = false;
+      }
+    }
+
+    async function handlePairingInvite() {
+      if (isBusy.value) return;
+      isBusy.value = true;
+      setStatus("生成邀请中…", "info");
+      try {
+        const result = await sendMessage<
+          { userGesture: boolean },
+          { offer: string }
+        >("myz:pairingInvite", { userGesture: true });
+        pairingInvite.value = result.offer;
+        setStatus("邀请已生成，请发送给新设备", "success");
+      } catch (error) {
+        setStatus(`生成失败：${(error as Error).message}`, "error");
+      } finally {
+        isBusy.value = false;
+      }
+    }
+
+    async function handleAcceptPairing() {
+      if (isBusy.value) return;
+      if (!pairingInviteInput.value.trim()) {
+        setStatus("请粘贴邀请串", "error");
+        return;
+      }
+      isBusy.value = true;
+      setStatus("生成响应中…", "info");
+      try {
+        const result = await sendMessage<
+          { invite: string; userGesture: boolean },
+          { response: string; sas: string }
+        >("myz:pairingAccept", {
+          invite: pairingInviteInput.value.trim(),
+          userGesture: true,
+        });
+        pairingGuestResponse.value = result.response;
+        pairingGuestSas.value = result.sas;
+        setStatus("已生成响应，请把响应发回主机并核对短码", "success");
+      } catch (error) {
+        setStatus(`接受失败：${(error as Error).message}`, "error");
+      } finally {
+        isBusy.value = false;
+      }
+    }
+
+    async function handleApprovePairing() {
+      if (isBusy.value) return;
+      if (!pairingResponseInput.value.trim()) {
+        setStatus("请粘贴响应串", "error");
+        return;
+      }
+      isBusy.value = true;
+      setStatus("批准中…", "info");
+      try {
+        const result = await sendMessage<
+          { response: string; userGesture: boolean },
+          { sas: string; roster: string }
+        >("myz:pairingApprove", {
+          response: pairingResponseInput.value.trim(),
+          userGesture: true,
+        });
+        pairingHostSas.value = result.sas;
+        pairingRoster.value = result.roster;
+        await refreshSyncStatus();
+        setStatus("设备已加入，请核对短码并把配对串发回新设备", "success");
+      } catch (error) {
+        setStatus(`批准失败：${(error as Error).message}`, "error");
       } finally {
         isBusy.value = false;
       }
@@ -479,6 +557,115 @@ export default defineComponent({
                 >
                   解除账号
                 </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div class="grid gap-3 rounded-control border border-line bg-surface p-4 dark:border-line dark:bg-surface-2">
+            <div class="text-caption text-muted">
+              设备配对（新格式：用一次性串在此设备与新设备间传递，并核对 6
+              位短码）
+            </div>
+            <div class="grid gap-2">
+              <div class="text-caption">
+                1. 已授权设备：生成邀请并发送给新设备
+              </div>
+              <button
+                class="btn"
+                type="button"
+                disabled={isBusy.value}
+                onClick={handlePairingInvite}
+              >
+                生成配对邀请
+              </button>
+              {pairingInvite.value ? (
+                <textarea
+                  readonly
+                  rows={2}
+                  class="w-full rounded-control border border-line bg-surface p-2 text-caption"
+                  value={pairingInvite.value}
+                />
+              ) : null}
+            </div>
+            <div class="grid gap-2">
+              <div class="text-caption">
+                2. 新设备：粘贴邀请，生成响应并核对短码
+              </div>
+              <textarea
+                rows={2}
+                placeholder="粘贴邀请串"
+                class="w-full rounded-control border border-line bg-surface p-2 text-caption"
+                value={pairingInviteInput.value}
+                onInput={(event: Event) =>
+                  (pairingInviteInput.value = (
+                    event.target as HTMLTextAreaElement
+                  ).value)
+                }
+              />
+              <button
+                class="btn"
+                type="button"
+                disabled={isBusy.value}
+                onClick={handleAcceptPairing}
+              >
+                接受配对邀请
+              </button>
+              {pairingGuestResponse.value ? (
+                <textarea
+                  readonly
+                  rows={2}
+                  class="w-full rounded-control border border-line bg-surface p-2 text-caption"
+                  value={pairingGuestResponse.value}
+                />
+              ) : null}
+              {pairingGuestSas.value ? (
+                <div class="text-caption">
+                  新设备短码：
+                  <span class="font-semibold">{pairingGuestSas.value}</span>
+                </div>
+              ) : null}
+            </div>
+            <div class="grid gap-2">
+              <div class="text-caption">
+                3. 已授权设备：粘贴响应并批准（短码须一致）
+              </div>
+              <textarea
+                rows={2}
+                placeholder="粘贴响应串"
+                class="w-full rounded-control border border-line bg-surface p-2 text-caption"
+                value={pairingResponseInput.value}
+                onInput={(event: Event) =>
+                  (pairingResponseInput.value = (
+                    event.target as HTMLTextAreaElement
+                  ).value)
+                }
+              />
+              <button
+                class="btn"
+                type="button"
+                disabled={isBusy.value}
+                onClick={handleApprovePairing}
+              >
+                批准并加入设备
+              </button>
+              {pairingHostSas.value ? (
+                <div class="text-caption">
+                  本机短码：
+                  <span class="font-semibold">{pairingHostSas.value}</span>
+                </div>
+              ) : null}
+              {pairingRoster.value ? (
+                <div class="grid gap-1">
+                  <div class="text-caption">
+                    配对串（短码一致后发回新设备，用「导入账号」粘贴）
+                  </div>
+                  <textarea
+                    readonly
+                    rows={2}
+                    class="w-full rounded-control border border-line bg-surface p-2 text-caption"
+                    value={pairingRoster.value}
+                  />
+                </div>
               ) : null}
             </div>
           </div>

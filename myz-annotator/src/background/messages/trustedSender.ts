@@ -10,6 +10,9 @@ const PRIVILEGED_MESSAGES = new Set<string>([
   "myz:accountImport",
   "myz:accountClear",
   "myz:accountBootstrap",
+  "myz:pairingInvite",
+  "myz:pairingAccept",
+  "myz:pairingApprove",
 ]);
 
 const USER_GESTURE_MESSAGES = new Set<string>([
@@ -19,6 +22,9 @@ const USER_GESTURE_MESSAGES = new Set<string>([
   "myz:accountImport",
   "myz:accountClear",
   "myz:accountBootstrap",
+  "myz:pairingInvite",
+  "myz:pairingAccept",
+  "myz:pairingApprove",
 ]);
 
 export function isPrivilegedMessage(type: string): boolean {

@@ -22,6 +22,8 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
   `syncEngine.syncNow` delegates here when an account exists, else legacy v1.
 - v2/bootstrap.ts: clean-break bootstrap (one-time legacy v1 rescue → create
   v2 account → upload → purge legacy keyset/metadata).
+- v2/pairingSession.ts: same-machine device pairing over transferable strings
+  (offer → response → approve) using the sync-core pairing/SAS + roster.
 
 ## References
 
