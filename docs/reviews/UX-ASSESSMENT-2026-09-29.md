@@ -157,3 +157,51 @@
 - 建议把 §3.2 中「打字不得触发动作」「Esc 退出专注」转为常规 e2e（修完之后），并补触摸/屏幕阅读器人工测试。
 - **独立性说明**：本报告未做真人可用性测试与独立专家复评；建议在 P0/P1 修复后安排一次 5–8 人的任务型可用性测试（专注处理、打标签、跨设备同步、读者标注）交叉验证。
 
+### 4.4 P0 / P1 修复状态（2026-09-29）
+
+**P0（已完成）** commit `214bd3a`
+- P0-1 专注模式键盘：`InboxPage.onKeydown` 排除输入元素/修饰键、Esc 退出；回归 e2e `inbox_focus_mode_ignores_typing_and_esc_exits`。
+- P0-2 破坏确认：新增 `@myz/shared/dialogs`，覆盖内容 Inspector/Modal、PDF/EPUB Inspector、文库卡片、Popup 删除与导入覆盖。
+- P0-3 打标签键盘/触摸入口：行内「标签」输入（datalist/回车/Esc/失焦）+ 专注模式 1–9 数字键；e2e `inbox_inline_tag_input_adds_tag_via_keyboard`。
+
+**P1（大部分已完成）** commit `ef89c85`
+- 已完成：`aria-live`（Inbox 撤销/状态、文库 `operationStatus`、设置 `settingsStatus`，后两者此前从不渲染）；`HighlightActions` 全图标 `aria-label`；outline `aria-current/aria-expanded`；命中区（`.hit-expand`、阅读器 tab 32、retry 32、调色盘铅笔扩张）；Inbox 加载/错误 `StatePanel`；内容 Modal/Inspector `role=dialog/aria-modal`+Esc；PDF/EPUB Esc 关闭 + 方向键/PageUp/Down 翻页/章。
+- **P1 遗留（明确延后）**：① 完整**焦点陷阱**与设置/主题菜单（ThemeToggle、导出菜单）键盘导航；② 阅读器**选区工具条的键盘/触摸**触发（现仅鼠标 `mouseup`）。二者并入下方 P2 的 Batch 2/3。
+
+**修复后复测（同一动态探测，`test-results/ux/observations.json`）**
+- 专注模式键盘冲突：`actionFiredWhileTyping=false`、`searchValueAfterA="a"`（字符正常输入）、`deleteConfirmWhileTyping=false` → **已修复**。
+- `escapeExitsFocusMode=true` → **已修复**。
+- `ariaLiveCount=1`（原 0）→ 已有 `aria-live` 区域。
+- `tagRemove` 视觉仍 10×10，但 `tagRemoveEffectiveHit=true`（视觉框外 4px 仍命中按钮）→ **命中区已扩张**（伪元素）。
+- `multiSelectDrag.taggedCount=2`、对比度（默认 paper 亮 4.50 / 暗 6.16）不变；**配色对比度收敛未做**（延后到 P2-5）。
+
+### 4.5 P2 投入/收益评估与建议顺序
+
+> 评级：Effort S(≤0.5d)/M(1–2d)/L(≥3d)；Benefit 低/中/高（用户可感知、风险降低、维护成本综合）；Risk 为回归风险。
+
+| # | P2 事项 | Effort | Benefit | Risk | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| P2-1 | 截断按 code point（代理对安全） | S | 中 | 低 | CJK/emoji 正确性，同名工具函数（`reader/text.ts`、`url.ts`、`useHighlightItem.ts`） |
+| P2-2 | `useInfiniteScroll` 选择器与根类名不匹配 | S | 低 | 低 | 消除脆弱兜底 |
+| P2-3 | Esc 一致性收尾（内容工具条/选区取消、Popup） | S | 低-中 | 低 | 阅读器/Modal 已完成 |
+| P2-4 | 状态可辨：snoozed/archived 不再同色 | S | 中 | 低 | 无障碍（非仅颜色）；Inbox pill |
+| P2-5 | 令牌收敛：动效 120ms、去半透明 surface、10px 令牌/规格 | S-M | 低-中 | 低-中 | 改断点为 900 有视觉回归风险 → 单独小步 |
+| P2-6 | 保存成功 Toast/反馈统一 | S-M | 中 | 低 | 复用现有 status-line + `aria-live` |
+| P2-7 | 内容采集工具条可发现性（首次提示/帮助） | S | 中 | 低 | 现在按下选区才出现、无说明 |
+| P2-8 | 焦点陷阱 + 菜单键盘（ThemeToggle/导出/搜索建议） | M | 中-高 | 低-中 | P1 遗留①；纯可达性 |
+| P2-9 | 阅读器选区键盘/触摸（selectionchange/keyup + Pointer Events） | M-L | 高 | 中 | P1 遗留②；触屏用户主要缺口 |
+| P2-10 | 标签分组（最近/本来源/全部）+ 上限/排序 | M | 中-高 | 低 | 规模大时明显 |
+| P2-11 | Inbox/阅读器标注列表窗口化 | M-L | 高（仅规模大时） | 中 | 需先有规模数据佐证 |
+| P2-12 | 高亮绘制统一（3→1）与 PDF 分段复用共享实现 | L | 中 | 高 | 核心链路，先补测试再重构 |
+
+**建议顺序（批次）**
+1. **Batch 0 快速打磨（S，低风险）**：P2-1、P2-2、P2-3、P2-4，以及 P2-5 的动效/半透明/10px 部分。
+2. **Batch 1 反馈闭环**：P2-6、P2-7。
+3. **Batch 2 可达性深度**：P2-8（焦点陷阱/菜单键盘）——把 P1 遗留① 补齐。
+4. **Batch 3 触摸/移动**：P2-9（阅读器选区 Pointer Events）与 Inbox 窄屏抽屉/滑动手势——把 P1 遗留② 补齐。
+5. **Batch 4 规模化**：P2-10、P2-11（**先采集真实库规模数据再决定是否投入窗口化**）。
+6. **Batch 5 重构**：P2-12（高亮绘制统一），仅在测试覆盖足够后立项。
+
+**判定**：P2 多为打磨与一致性，**不应阻塞**当前功能；建议先做 Batch 0/1（低成本、用户可感知），再视移动端优先级决定 Batch 2/3。窗口化（P2-11）与绘制统一（P2-12）投入最大，需数据/测试支撑后再排期。
+
+

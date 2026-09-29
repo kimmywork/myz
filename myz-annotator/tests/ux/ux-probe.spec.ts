@@ -166,7 +166,7 @@ test("ux dynamic probe", async () => {
     deleteConfirmWhileTyping: dialogs.some((message) =>
       message.includes("删除后不可撤销"),
     ),
-    note: "typing in the search box while focus mode is on triggers row actions",
+    note: "regression guard: typing in the search box must NOT trigger row actions",
   };
 
   // --- Probe 2: Escape does not exit focus mode ---
@@ -182,7 +182,10 @@ test("ux dynamic probe", async () => {
   );
 
   // --- Probe 4: hit targets ---
-  await dash.getByRole("button", { name: "退出专注" }).click();
+  const exitFocus = dash.getByRole("button", { name: "退出专注" });
+  if (await exitFocus.count()) {
+    await exitFocus.click();
+  }
   await dash.waitForTimeout(150);
   observations.hitTargets = {
     tagRemove: await boxSize(
@@ -193,6 +196,18 @@ test("ux dynamic probe", async () => {
     rowButton: await boxSize(dash, '[data-testid="inbox-row"] button'),
     navButton: await boxSize(dash, "aside nav button"),
   };
+  observations.tagRemoveEffectiveHit = await dash.evaluate(() => {
+    const button = document.querySelector(
+      '[data-testid="inbox-row"] [aria-label^="移除标签"]',
+    );
+    if (!button) return null;
+    const rect = button.getBoundingClientRect();
+    const element = document.elementFromPoint(
+      rect.left - 4,
+      rect.top + rect.height / 2,
+    );
+    return Boolean(element && element.closest('[aria-label^="移除标签"]'));
+  });
 
   // --- Probe 5: contrast of muted on surface-2 (light + dark) ---
   const lightMuted = await token(dash, "--myz-muted");
