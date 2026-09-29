@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
+import { initializeInboxReminder } from "./background/inbox/reminder.js";
 import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
 import { handleMessage, hasHandler } from "./background/messages/handler.js";
 import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
@@ -142,6 +143,7 @@ initializeSearchMessageHandlers();
 initializeSettingsMessageHandlers();
 initializeSyncMessageHandlers();
 initializeSyncScheduler();
+initializeInboxReminder();
 
 chrome.runtime.onMessage.addListener(
   (
