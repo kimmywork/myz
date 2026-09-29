@@ -1,5 +1,6 @@
 import { Check, Trash2, X } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
+import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import { colorName, RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
 import { computed, defineComponent } from "vue";
@@ -123,7 +124,9 @@ export default defineComponent({
             <button
               type="button"
               class="reader-inspector__delete"
-              onClick={store.deleteActive}
+              onClick={() => {
+                if (confirmDestructive(DELETE_CONFIRM)) store.deleteActive();
+              }}
             >
               <Trash2 size={14} aria-hidden="true" />
               删除

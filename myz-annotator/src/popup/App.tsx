@@ -1,6 +1,7 @@
 import { BookOpen } from "@lucide/vue";
 import { StatePanel } from "@myz/dashboard-ui";
 import ThemeToggle from "@myz/shared/components/ThemeToggle";
+import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import { normalizeWhitespace } from "@myz/shared/highlightUtils";
 import { IconFileText, IconSettings } from "@myz/shared/icons";
 
@@ -159,6 +160,7 @@ export default defineComponent({
     };
 
     const deleteHighlight = async (id: string) => {
+      if (!confirmDestructive(DELETE_CONFIRM)) return;
       try {
         await sendMessage("myz:removeHighlight", { id });
         highlights.value = highlights.value.filter((item) => item.id !== id);

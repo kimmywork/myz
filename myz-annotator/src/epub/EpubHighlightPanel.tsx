@@ -1,5 +1,6 @@
 import { X } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
+import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import {
   colorName,
   DEFAULT_COLORS,
@@ -181,7 +182,9 @@ export default defineComponent({
             <button
               type="button"
               class="reader-inspector__delete"
-              onClick={() => props.onDelete?.()}
+              onClick={() => {
+                if (confirmDestructive(DELETE_CONFIRM)) props.onDelete?.();
+              }}
             >
               删除
             </button>

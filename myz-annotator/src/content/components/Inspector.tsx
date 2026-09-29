@@ -1,4 +1,5 @@
 import { TagInput } from "@myz/dashboard-ui";
+import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import { IconClose, IconEdit, IconTrash } from "@myz/shared/icons";
 import { storeToRefs } from "pinia";
 import {
@@ -162,7 +163,9 @@ export default defineComponent({
             type="button"
             class="myz-inspector__icon-btn myz-inspector__icon-btn--delete"
             aria-label="删除划线"
-            onClick={() => store.deleteRecord()}
+            onClick={() => {
+              if (confirmDestructive(DELETE_CONFIRM)) store.deleteRecord();
+            }}
           >
             <IconTrash size={18} aria-hidden="true" />
           </button>

@@ -24,6 +24,9 @@ test.beforeAll(async () => {
   const extensionPath = path.join(__dirname, "..", "..", "dist");
   launched = await launchExtension(extensionPath);
   context = launched.context;
+  context.on("page", (page) =>
+    page.on("dialog", (dialog) => void dialog.accept()),
+  );
   extensionId = launched.extensionId;
   if (!extensionId) {
     throw new Error("Could not determine extension id (extensionId is null).");

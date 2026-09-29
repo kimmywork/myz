@@ -27,6 +27,7 @@ test.beforeAll(async () => {
   const launched = await launchExtension(extensionPath);
   context = launched.context;
   page = launched.page;
+  page.on("dialog", (dialog) => void dialog.accept());
   extensionId = launched.extensionId;
 });
 

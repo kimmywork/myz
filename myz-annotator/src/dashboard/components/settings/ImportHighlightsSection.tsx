@@ -1,5 +1,6 @@
 import { Paperclip } from "@lucide/vue";
 import { SelectInput, SettingsRow } from "@myz/dashboard-ui";
+import { confirmDestructive } from "@myz/shared/dialogs";
 import { defineComponent, Ref, ref } from "vue";
 import { useHighlightsStore } from "../../stores/highlights.js";
 import { ImportStrategy } from "@/background/import";
@@ -19,6 +20,12 @@ export default defineComponent({
     async function handleImport() {
       const fileInput = importFileRef.value;
       const file = fileInput?.files?.[0];
+      if (
+        importStrategy.value === "overwrite" &&
+        !confirmDestructive("覆盖策略会用导入内容替换已有重复记录，确定继续？")
+      ) {
+        return;
+      }
       isImporting.value = true;
       try {
         await store.importHighlightsFromFile(

@@ -92,6 +92,8 @@ export default defineComponent({
     const status = ref("");
     const undo = ref<UndoState | null>(null);
     const tagQuery = ref("");
+    const taggingId = ref<string | null>(null);
+    const tagDraft = ref("");
     let undoTimer: ReturnType<typeof setTimeout> | null = null;
     let dragTargetIds: string[] = [];
     let dragTagName: string | null = null;
@@ -294,6 +296,13 @@ export default defineComponent({
         : `已存在标签「${tag}」`;
     }
 
+    async function commitTagDraft(item: InboxQueueItem) {
+      const tag = tagDraft.value.trim();
+      taggingId.value = null;
+      tagDraft.value = "";
+      if (tag) await assignTagMany([item.targetId], tag);
+    }
+
     async function removeTag(item: InboxQueueItem, tag: string) {
       const next = (item.record.tags || []).filter((entry) => entry !== tag);
       await sendMessage("myz:updateHighlight", {
@@ -364,6 +373,21 @@ export default defineComponent({
 
     function onKeydown(event: KeyboardEvent) {
       if (!focusMode.value) return;
+      if (event.key === "Escape") {
+        focusMode.value = false;
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
       const item = focusItem.value;
       if (!item) return;
       const key = event.key.toLowerCase();
@@ -374,6 +398,14 @@ export default defineComponent({
       if (key === " ") {
         event.preventDefault();
         advance();
+        return;
+      }
+      if (/^[1-9]$/.test(key)) {
+        const tag = tagCounts.value[Number(key) - 1]?.tag;
+        if (tag) {
+          event.preventDefault();
+          void assignTagMany([item.targetId], tag);
+        }
         return;
       }
       if (map[key]) {
@@ -528,6 +560,42 @@ export default defineComponent({
             >
               <Star size={14} /> 标记
             </button>
+            <button
+              class="btn btn-small"
+              type="button"
+              aria-expanded={taggingId.value === item.targetId}
+              onClick={() => {
+                taggingId.value =
+                  taggingId.value === item.targetId ? null : item.targetId;
+                tagDraft.value = "";
+              }}
+            >
+              <Tag size={14} /> 标签
+            </button>
+            {taggingId.value === item.targetId ? (
+              <input
+                type="text"
+                list="inbox-tag-options"
+                aria-label="添加标签"
+                autofocus
+                class="h-8 rounded-control border border-line bg-surface px-2 text-caption text-text"
+                value={tagDraft.value}
+                placeholder="输入标签后回车"
+                onInput={(event: Event) =>
+                  (tagDraft.value = (event.target as HTMLInputElement).value)
+                }
+                onKeydown={(event: KeyboardEvent) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void commitTagDraft(item);
+                  } else if (event.key === "Escape") {
+                    taggingId.value = null;
+                    tagDraft.value = "";
+                  }
+                }}
+                onBlur={() => void commitTagDraft(item)}
+              />
+            ) : null}
             <button
               class="btn btn-small"
               type="button"
@@ -737,6 +805,11 @@ export default defineComponent({
                 />
               </div>
             </div>
+            <datalist id="inbox-tag-options">
+              {allTags.value.map((tag) => (
+                <option key={tag} value={tag} />
+              ))}
+            </datalist>
 
             {activeTag.value ? (
               <p class="text-caption text-muted">
@@ -839,7 +912,7 @@ export default defineComponent({
                     </div>
                     <p class="mt-3 text-caption text-muted">
                       快捷键：K 保留 · A 归档 · S 稍后 · D 删除 · M 标记 · Space
-                      下一条
+                      下一条 · 1–9 打标签 · Esc 退出
                     </p>
                     <div class="mt-3 flex flex-wrap gap-2">
                       <button

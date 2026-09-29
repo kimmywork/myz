@@ -105,6 +105,40 @@ test("inbox_triage_focus_mode_undo_and_delete", async () => {
   await expect(dash.getByText("队列已清空")).toBeVisible({ timeout: 10_000 });
 });
 
+test("inbox_focus_mode_ignores_typing_and_esc_exits", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  let dialogFired = false;
+  dash.on("dialog", (dialog) => {
+    dialogFired = true;
+    void dialog.dismiss();
+  });
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+
+  await saveClip(dash, "typing alpha");
+  await saveClip(dash, "typing beta");
+  await dash.goto(`${dashboardUrl}#/inbox`);
+  await dash.reload();
+  await dash.waitForSelector('[data-testid="inbox-row"]', { timeout: 5000 });
+
+  await dash.getByRole("button", { name: "专注处理" }).click();
+  await expect(dash.locator('[data-testid="inbox-focus"]')).toBeVisible();
+
+  const search = dash.getByPlaceholder("搜索原文、批注、标题、标签、来源");
+  await search.click();
+  await search.type("ad");
+  await expect(search).toHaveValue("ad");
+  expect(dialogFired).toBe(false);
+
+  await dash.keyboard.press("Escape");
+  await expect(dash.locator('[data-testid="inbox-focus"]')).toBeHidden();
+
+  // Clearing the query, both clips are still in the queue (no action fired).
+  await search.fill("");
+  await expect(dash.locator('[data-testid="inbox-row"]')).toHaveCount(2);
+});
+
 test("inbox_drag_record_onto_tag_assigns_tag", async () => {
   const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
   const dash = await context.newPage();
@@ -217,4 +251,39 @@ test("inbox_multi_select_drag_tags_all_selected", async () => {
       records.find((record) => (record.text || "").includes(text))?.tags,
     ).toContain("work");
   }
+});
+
+test("inbox_inline_tag_input_adds_tag_via_keyboard", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+
+  await saveClip(dash, "keyboard tag me");
+  await dash.goto(`${dashboardUrl}#/inbox`);
+  await dash.reload();
+  await dash.waitForSelector('[data-testid="inbox-row"]', { timeout: 5000 });
+
+  const row = dash.locator('[data-testid="inbox-row"]', {
+    hasText: "keyboard tag me",
+  });
+  await row.getByRole("button", { name: "标签" }).click();
+  await row.getByLabel("添加标签").fill("keyboard-tag");
+  await row.getByLabel("添加标签").press("Enter");
+
+  const records = await dash.evaluate<
+    Array<{ text?: string; tags?: string[] }>
+  >(
+    async () =>
+      new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { type: "myz:getAllHighlights", payload: undefined },
+          (resp) => resolve(resp?.data ?? []),
+        );
+      }),
+  );
+  expect(
+    records.find((record) => (record.text || "").includes("keyboard tag me"))
+      ?.tags,
+  ).toContain("keyboard-tag");
 });

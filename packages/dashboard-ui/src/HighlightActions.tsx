@@ -9,6 +9,7 @@ import {
   Trash2,
 } from "@lucide/vue"
 import type { MyZRecord } from "@myz/shared"
+import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs"
 import { RECORD_KINDS } from "@myz/shared"
 import { isEpubSourceUrl, isPdfSourceUrl } from "@myz/shared/url"
 import type { PropType } from "vue"
@@ -115,8 +116,11 @@ export default defineComponent({
         <button
           class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-error hover:text-error dark:text-error dark:hover:text-error"
           type="button"
-          onClick={() => emitAction("delete")}
+          onClick={() => {
+            if (confirmDestructive(DELETE_CONFIRM)) emitAction("delete");
+          }}
           title="删除"
+          aria-label="删除"
         >
           <Trash2 size={16} />
         </button>

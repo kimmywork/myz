@@ -1,5 +1,6 @@
 import type { LucideIcon } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
+import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import {
   IconClose,
   IconPencil,
@@ -154,7 +155,9 @@ export default defineComponent({
     }
 
     function handleDelete() {
-      store.deleteRecord();
+      if (confirmDestructive(DELETE_CONFIRM)) {
+        store.deleteRecord();
+      }
     }
 
     function handleSelectColor(index: number) {

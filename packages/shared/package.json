@@ -15,6 +15,7 @@
     "./highlightRange": "./src/highlightRange.ts",
     "./selectionBlocks": "./src/selectionBlocks.ts",
     "./highlightUtils": "./src/highlightUtils.ts",
+    "./dialogs": "./src/dialogs.ts",
     "./inbox": "./src/inbox.ts",
     "./messaging": "./src/messaging.ts",
     "./serializer": "./src/serializer.ts",
