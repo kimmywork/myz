@@ -1,5 +1,5 @@
 import { Archive, Clock, Inbox, Star, Tag, Trash2 } from "@lucide/vue";
-import { IconSearch } from "@myz/shared/icons";
+import { IconClose, IconSearch } from "@myz/shared/icons";
 import type { InboxStatus } from "@myz/shared/inbox";
 import { sendMessage } from "@myz/shared/messaging";
 import type { MyZRecord } from "@myz/shared/types";
@@ -91,8 +91,10 @@ export default defineComponent({
     const sidebarOpen = ref(false);
     const status = ref("");
     const undo = ref<UndoState | null>(null);
+    const tagQuery = ref("");
     let undoTimer: ReturnType<typeof setTimeout> | null = null;
-    let dragTargetId: string | null = null;
+    let dragTargetIds: string[] = [];
+    let dragTagName: string | null = null;
 
     const tabItems = computed<InboxQueueItem[]>(() => {
       if (!queue.value) return [];
@@ -139,6 +141,15 @@ export default defineComponent({
       return Array.from(tags)
         .sort((a, b) => a.localeCompare(b))
         .map((tag) => ({ tag, count: counts.get(tag) || 0 }));
+    });
+
+    const visibleTags = computed(() => {
+      const needle = tagQuery.value.trim().toLowerCase();
+      return needle
+        ? tagCounts.value.filter((entry) =>
+            entry.tag.toLowerCase().includes(needle),
+          )
+        : tagCounts.value;
     });
 
     const workingSet = computed(() => {
@@ -262,30 +273,72 @@ export default defineComponent({
       status.value = "已删除";
     }
 
-    async function assignTag(targetId: string, tag: string) {
-      const item = workingSet.value.find(
-        (entry) => entry.targetId === targetId,
-      );
-      if (!item) return;
-      const current = item.record.tags || [];
-      if (current.includes(tag)) {
-        status.value = `已有标签「${tag}」`;
-        return;
+    async function assignTagMany(targetIds: string[], tag: string) {
+      let applied = 0;
+      for (const targetId of targetIds) {
+        const item = workingSet.value.find(
+          (entry) => entry.targetId === targetId,
+        );
+        if (!item) continue;
+        const current = item.record.tags || [];
+        if (current.includes(tag)) continue;
+        await sendMessage("myz:updateHighlight", {
+          id: item.record.id,
+          tags: [...current, tag],
+        });
+        applied += 1;
       }
+      await load();
+      status.value = applied
+        ? `已为 ${applied} 条加上标签「${tag}」`
+        : `已存在标签「${tag}」`;
+    }
+
+    async function removeTag(item: InboxQueueItem, tag: string) {
+      const next = (item.record.tags || []).filter((entry) => entry !== tag);
       await sendMessage("myz:updateHighlight", {
         id: item.record.id,
-        tags: [...current, tag],
+        tags: next,
       });
       await load();
-      status.value = `已加上标签「${tag}」`;
+      status.value = `已移除标签「${tag}」`;
+    }
+
+    function startRecordDrag(item: InboxQueueItem, event: DragEvent) {
+      dragTagName = null;
+      dragTargetIds =
+        selected.value.size > 0 && selected.value.has(item.targetId)
+          ? Array.from(selected.value)
+          : [item.targetId];
+      event.dataTransfer?.setData("text/plain", dragTargetIds.join(","));
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+    }
+
+    function startTagDrag(tag: string, event: DragEvent) {
+      dragTagName = tag;
+      dragTargetIds = [];
+      event.dataTransfer?.setData("text/plain", `tag:${tag}`);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+    }
+
+    function endDrag() {
+      dragTargetIds = [];
+      dragTagName = null;
     }
 
     function onDropOnTag(event: DragEvent, tag: string) {
       event.preventDefault();
-      const targetId =
-        event.dataTransfer?.getData("text/plain") || dragTargetId;
-      if (targetId) void assignTag(targetId, tag);
-      dragTargetId = null;
+      if (dragTagName) return;
+      void assignTagMany(dragTargetIds, tag);
+      endDrag();
+    }
+
+    function onDropOnRecord(event: DragEvent, item: InboxQueueItem) {
+      event.preventDefault();
+      if (dragTagName) {
+        void assignTagMany([item.targetId], dragTagName);
+      }
+      endDrag();
     }
 
     function advance() {
@@ -404,11 +457,10 @@ export default defineComponent({
         <article
           data-testid="inbox-row"
           draggable
-          onDragstart={(event: DragEvent) => {
-            dragTargetId = item.targetId;
-            event.dataTransfer?.setData("text/plain", item.targetId);
-            if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
-          }}
+          onDragstart={(event: DragEvent) => startRecordDrag(item, event)}
+          onDragend={endDrag}
+          onDragover={(event: DragEvent) => event.preventDefault()}
+          onDrop={(event: DragEvent) => onDropOnRecord(event, item)}
           class="rounded-panel border border-line bg-surface p-3 dark:border-line dark:bg-surface"
         >
           <div class="flex items-start gap-3">
@@ -445,6 +497,26 @@ export default defineComponent({
                 {" · "}
                 {formatTime(item.record.createdAt)}
               </div>
+              {item.record.tags && item.record.tags.length > 0 ? (
+                <div class="mt-1 flex flex-wrap items-center gap-1">
+                  {item.record.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      class="inline-flex items-center gap-1 rounded-tag border border-line px-1.5 py-0.5 text-tag text-muted"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        class="text-muted hover:text-error"
+                        aria-label={`移除标签 ${tag}`}
+                        onClick={() => void removeTag(item, tag)}
+                      >
+                        <IconClose size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
           <div class="mt-2 flex flex-wrap items-center gap-2">
@@ -549,18 +621,36 @@ export default defineComponent({
             <div class="mb-2 flex items-center gap-1 text-tag font-semibold uppercase tracking-wide text-muted">
               <Tag size={12} /> 标签
             </div>
-            <p class="mb-2 text-caption text-muted">把记录拖到标签即可归类</p>
+            <p class="mb-2 text-caption text-muted">
+              把记录拖到标签，或把标签拖到记录上
+            </p>
+            <input
+              type="search"
+              placeholder="筛选标签"
+              value={tagQuery.value}
+              onInput={(event: Event) =>
+                (tagQuery.value = (event.target as HTMLInputElement).value)
+              }
+              class="mb-2 h-8 w-full rounded-control border border-line bg-surface px-2 text-caption text-text"
+            />
             <div class="flex flex-wrap gap-1">
-              {tagCounts.value.length === 0 ? (
-                <span class="text-caption text-muted">暂无标签</span>
+              {visibleTags.value.length === 0 ? (
+                <span class="text-caption text-muted">
+                  {tagCounts.value.length === 0 ? "暂无标签" : "没有匹配标签"}
+                </span>
               ) : (
-                tagCounts.value.map(({ tag, count }) => {
+                visibleTags.value.map(({ tag, count }) => {
                   const active = activeTag.value === tag;
                   return (
                     <button
                       key={tag}
                       type="button"
                       data-testid="inbox-tag"
+                      draggable
+                      onDragstart={(event: DragEvent) =>
+                        startTagDrag(tag, event)
+                      }
+                      onDragend={endDrag}
                       onClick={() => {
                         activeTag.value = active ? null : tag;
                         sidebarOpen.value = false;
@@ -717,6 +807,15 @@ export default defineComponent({
             {focusMode.value ? (
               <div
                 data-testid="inbox-focus"
+                draggable={Boolean(focusItem.value)}
+                onDragstart={(event: DragEvent) => {
+                  if (focusItem.value) startRecordDrag(focusItem.value, event);
+                }}
+                onDragend={endDrag}
+                onDragover={(event: DragEvent) => event.preventDefault()}
+                onDrop={(event: DragEvent) => {
+                  if (focusItem.value) onDropOnRecord(event, focusItem.value);
+                }}
                 class="rounded-panel border border-line bg-surface p-4"
               >
                 {focusItem.value ? (

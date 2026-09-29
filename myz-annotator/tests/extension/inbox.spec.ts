@@ -143,3 +143,78 @@ test("inbox_drag_record_onto_tag_assigns_tag", async () => {
   );
   expect(untagged?.tags).toContain("work");
 });
+
+async function allHighlights(
+  dash: Awaited<ReturnType<BrowserContext["newPage"]>>,
+): Promise<Array<{ text?: string; tags?: string[] }>> {
+  return dash.evaluate(
+    async () =>
+      new Promise<Array<{ text?: string; tags?: string[] }>>((resolve) => {
+        chrome.runtime.sendMessage(
+          { type: "myz:getAllHighlights", payload: undefined },
+          (resp) => resolve(resp?.data ?? []),
+        );
+      }),
+  );
+}
+
+test("inbox_tag_can_be_dragged_onto_a_record", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+
+  await saveClip(dash, "tag source", ["work"]);
+  await saveClip(dash, "drop target");
+  await dash.goto(`${dashboardUrl}#/inbox`);
+  await dash.reload();
+  await dash.waitForSelector('[data-testid="inbox-row"]', { timeout: 5000 });
+
+  const workTag = dash.locator('[data-testid="inbox-tag"]', {
+    hasText: "work",
+  });
+  const targetRow = dash.locator('[data-testid="inbox-row"]', {
+    hasText: "drop target",
+  });
+  await workTag.dragTo(targetRow);
+
+  const records = await allHighlights(dash);
+  expect(
+    records.find((record) => (record.text || "").includes("drop target"))?.tags,
+  ).toContain("work");
+});
+
+test("inbox_multi_select_drag_tags_all_selected", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+
+  await saveClip(dash, "seed tag holder", ["work"]);
+  await saveClip(dash, "multi one");
+  await saveClip(dash, "multi two");
+  await dash.goto(`${dashboardUrl}#/inbox`);
+  await dash.reload();
+  await dash.waitForSelector('[data-testid="inbox-row"]', { timeout: 5000 });
+
+  for (const text of ["multi one", "multi two"]) {
+    await dash
+      .locator('[data-testid="inbox-row"]', { hasText: text })
+      .getByRole("checkbox")
+      .check();
+  }
+
+  const workTag = dash.locator('[data-testid="inbox-tag"]', {
+    hasText: "work",
+  });
+  await dash
+    .locator('[data-testid="inbox-row"]', { hasText: "multi one" })
+    .dragTo(workTag);
+
+  const records = await allHighlights(dash);
+  for (const text of ["multi one", "multi two"]) {
+    expect(
+      records.find((record) => (record.text || "").includes(text))?.tags,
+    ).toContain("work");
+  }
+});
