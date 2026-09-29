@@ -1,5 +1,5 @@
 import { Monitor, Moon, Sun } from "@lucide/vue"
-import { computed, defineComponent, ref, Teleport } from "vue"
+import { computed, defineComponent, nextTick, ref, Teleport } from "vue"
 import { useThemePreference } from "../theme"
 
 const OPTIONS = [
@@ -41,6 +41,7 @@ export default defineComponent({
     const { mode, effectiveTheme, setTheme, ready } = useThemePreference()
     const menuOpen = ref(false)
     const triggerRef = ref<HTMLElement | null>(null)
+    const menuRef = ref<HTMLElement | null>(null)
 
     const activeOption = computed(() =>
       getEffectiveOption(mode.value, effectiveTheme.value),
@@ -63,6 +64,62 @@ export default defineComponent({
 
     function toggleMenu() {
       menuOpen.value = !menuOpen.value
+    }
+
+    function optionButtons(): HTMLElement[] {
+      if (!menuRef.value) return []
+      return Array.from(
+        menuRef.value.querySelectorAll<HTMLElement>("[role=option]"),
+      )
+    }
+
+    async function openMenu() {
+      menuOpen.value = true
+      await nextTick()
+      const buttons = optionButtons()
+      const active = menuRef.value?.querySelector<HTMLElement>(
+        `[data-value="${mode.value}"]`,
+      )
+      ;(active ?? buttons[0])?.focus()
+    }
+
+    function onTriggerKeydown(event: KeyboardEvent) {
+      if (
+        event.key === "ArrowDown" ||
+        event.key === "ArrowUp" ||
+        event.key === "Enter" ||
+        event.key === " "
+      ) {
+        event.preventDefault()
+        void openMenu()
+      }
+    }
+
+    function onMenuKeydown(event: KeyboardEvent) {
+      const buttons = optionButtons()
+      if (!buttons.length) return
+      const current = buttons.indexOf(
+        document.activeElement as HTMLElement,
+      )
+      if (event.key === "Escape") {
+        event.preventDefault()
+        menuOpen.value = false
+        triggerRef.value?.focus()
+        return
+      }
+      if (event.key === "Tab") {
+        menuOpen.value = false
+        return
+      }
+      let next = current
+      if (event.key === "ArrowDown") next = (current + 1) % buttons.length
+      else if (event.key === "ArrowUp")
+        next = (current - 1 + buttons.length) % buttons.length
+      else if (event.key === "Home") next = 0
+      else if (event.key === "End") next = buttons.length - 1
+      else return
+      event.preventDefault()
+      buttons[next]?.focus()
     }
 
     function choose(option: (typeof OPTIONS)[number]) {
@@ -91,6 +148,7 @@ export default defineComponent({
             aria-expanded={menuOpen.value}
             aria-label={props.label || "切换主题"}
             onClick={toggleMenu}
+            onKeydown={onTriggerKeydown}
           >
             <span class="flex items-center gap-2">
               <span class="flex h-4 w-4 items-center justify-center">
@@ -105,6 +163,8 @@ export default defineComponent({
             <Teleport to="body">
               <div
                 role="listbox"
+                ref={menuRef}
+                onKeydown={onMenuKeydown}
                 class="fixed z-[9999] w-36 overflow-hidden rounded-panel border border-control-border bg-surface py-1 shadow-float"
                 style={`top:${pos.top}px;left:${pos.left}px`}
               >
@@ -116,6 +176,7 @@ export default defineComponent({
                       key={option.value}
                       type="button"
                       role="option"
+                      data-value={option.value}
                       aria-selected={isActive}
                       onClick={() => choose(option)}
                       class={[
