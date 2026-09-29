@@ -4,3 +4,4 @@
 - `legal/` contains some legal documents of this suite, including term of services and privacy policy etc.
 - `plan/` contains feature/refactor plans; implemented plans are archived under `plan/implemented/`.
 - `research/` are some feature discovery documents including competitive products research and theory validation.
+- `reviews/` are assessment/verification reports (e.g. UX assessments) for improvement.
