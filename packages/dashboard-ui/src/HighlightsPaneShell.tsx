@@ -1,5 +1,12 @@
 import { ChevronDown } from "@lucide/vue"
-import { computed, defineComponent, onBeforeUnmount, onMounted, ref } from "vue"
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from "vue"
 import type { PropType } from "vue"
 
 export default defineComponent({
@@ -65,6 +72,52 @@ export default defineComponent({
     function handleExport(format: "json" | "markdown") {
       props.onExport?.(format)
       exportMenuOpen.value = false
+    }
+
+    const exportTriggerRef = ref<HTMLElement | null>(null)
+    const exportMenuListRef = ref<HTMLElement | null>(null)
+
+    async function openExportMenu() {
+      exportMenuOpen.value = true
+      await nextTick()
+      exportMenuListRef.value
+        ?.querySelector<HTMLElement>("button")
+        ?.focus()
+    }
+
+    function onExportTriggerKeydown(event: KeyboardEvent) {
+      if (
+        event.key === "ArrowDown" ||
+        event.key === "Enter" ||
+        event.key === " "
+      ) {
+        event.preventDefault()
+        void openExportMenu()
+      }
+    }
+
+    function onExportMenuKeydown(event: KeyboardEvent) {
+      const items = Array.from(
+        exportMenuListRef.value?.querySelectorAll<HTMLElement>("button") ?? [],
+      )
+      if (event.key === "Escape") {
+        event.preventDefault()
+        exportMenuOpen.value = false
+        exportTriggerRef.value?.focus()
+        return
+      }
+      if (event.key === "Tab" || !items.length) {
+        exportMenuOpen.value = false
+        return
+      }
+      const current = items.indexOf(document.activeElement as HTMLElement)
+      let next = current
+      if (event.key === "ArrowDown") next = (current + 1) % items.length
+      else if (event.key === "ArrowUp")
+        next = (current - 1 + items.length) % items.length
+      else return
+      event.preventDefault()
+      items[next]?.focus()
     }
 
     onMounted(() => {
@@ -178,9 +231,11 @@ export default defineComponent({
             <div class="relative" ref={exportMenuRef}>
               <button
                 type="button"
+                ref={exportTriggerRef}
                 class="inline-flex h-8 items-center gap-1 rounded-control border border-line px-3 text-compact font-semibold text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
                 aria-haspopup="menu"
                 aria-expanded={exportMenuOpen.value ? "true" : "false"}
+                onKeydown={onExportTriggerKeydown}
                 onClick={(event) => {
                   event.stopPropagation()
                   exportMenuOpen.value = !exportMenuOpen.value
@@ -190,7 +245,12 @@ export default defineComponent({
                 <ChevronDown size={14} aria-hidden="true" />
               </button>
               {exportMenuOpen.value ? (
-                <div class="absolute right-0 z-20 mt-2 w-44 rounded-panel border border-control-border bg-surface p-1 text-compact shadow-float dark:border-control-border dark:bg-surface">
+                <div
+                  role="menu"
+                  ref={exportMenuListRef}
+                  onKeydown={onExportMenuKeydown}
+                  class="absolute right-0 z-20 mt-2 w-44 rounded-panel border border-control-border bg-surface p-1 text-compact shadow-float dark:border-control-border dark:bg-surface"
+                >
                   <button
                     type="button"
                     class="flex h-8 w-full items-center justify-between rounded-tag px-2.5 text-left text-label text-text transition hover:bg-surface-2 dark:text-text dark:hover:bg-surface-2"

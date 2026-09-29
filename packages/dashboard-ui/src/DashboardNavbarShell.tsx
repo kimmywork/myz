@@ -1,5 +1,12 @@
 import { ChevronDown, X } from "@lucide/vue"
-import { computed, defineComponent, onBeforeUnmount, onMounted, ref } from "vue"
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from "vue"
 import type { PropType, VNodeChild } from "vue"
 import { RouterLink } from "vue-router"
 
@@ -169,6 +176,48 @@ export default defineComponent({
       closeDropdown()
     }
 
+    const suggestionListRef = ref<HTMLElement | null>(null)
+
+    function suggestionButtons(): HTMLElement[] {
+      return Array.from(
+        suggestionListRef.value?.querySelectorAll<HTMLElement>("button") ?? [],
+      )
+    }
+
+    function onSearchKeydown(event: KeyboardEvent) {
+      if (event.key === "ArrowDown") {
+        if (!suggestions.value.length) return
+        event.preventDefault()
+        dropdownOpen.value = true
+        void nextTick(() => suggestionButtons()[0]?.focus())
+      } else if (event.key === "Escape") {
+        closeDropdown()
+      }
+    }
+
+    function onSuggestionListKeydown(event: KeyboardEvent) {
+      const buttons = suggestionButtons()
+      if (!buttons.length) return
+      if (event.key === "Escape") {
+        event.preventDefault()
+        closeDropdown()
+        searchInputRef.value?.focus()
+        return
+      }
+      if (event.key === "Tab") {
+        closeDropdown()
+        return
+      }
+      const current = buttons.indexOf(document.activeElement as HTMLElement)
+      let next = current
+      if (event.key === "ArrowDown") next = (current + 1) % buttons.length
+      else if (event.key === "ArrowUp")
+        next = (current - 1 + buttons.length) % buttons.length
+      else return
+      event.preventDefault()
+      buttons[next]?.focus()
+    }
+
     onMounted(() => {
       document.addEventListener("click", handleDocumentClick)
     })
@@ -178,7 +227,7 @@ export default defineComponent({
     })
 
     return () => (
-      <nav class="flex flex-wrap items-center gap-4 rounded-panel border border-line bg-surface/80 px-6 py-4 text-text  backdrop-blur dark:border-line dark:bg-surface dark:text-text">
+      <nav class="flex flex-wrap items-center gap-4 rounded-panel border border-line bg-surface px-6 py-4 text-text dark:border-line dark:bg-surface dark:text-text">
         <div class="text-title font-semibold">{props.title}</div>
         <div class="flex flex-1 flex-wrap items-center gap-2">
           {props.tabs.map((tab) => {
@@ -211,6 +260,7 @@ export default defineComponent({
                 placeholder={props.searchPlaceholder}
                 value={props.quickSearch}
                 onInput={handleInput}
+                onKeydown={onSearchKeydown}
                 onFocus={() => {
                   inputFocused.value = true
                 }}
@@ -240,7 +290,11 @@ export default defineComponent({
               ) : null}
             </div>
             {showSuggestions.value ? (
-              <div class="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-y-auto rounded-panel border border-control-border bg-surface p-1 text-label shadow-float">
+              <div
+                ref={suggestionListRef}
+                onKeydown={onSuggestionListKeydown}
+                class="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-y-auto rounded-panel border border-control-border bg-surface p-1 text-label shadow-float"
+              >
                 {suggestions.value.map((item) => (
                   <button
                     key={`${item.type}:${item.value}`}
