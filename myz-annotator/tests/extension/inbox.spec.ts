@@ -41,6 +41,7 @@ test.afterAll(async () => {
 async function saveClip(
   page: Awaited<ReturnType<BrowserContext["newPage"]>>,
   text: string,
+  tags: string[] = [],
 ) {
   const canonical = `${serverUrl}/myz-test.html`;
   return page.evaluate<{ ok: boolean }>(
@@ -62,7 +63,7 @@ async function saveClip(
       text,
       html: `<p>${text}</p>`,
       note: "",
-      tags: [],
+      tags,
       hostname: new URL(canonical).hostname,
       kind: "clip",
     },
@@ -102,4 +103,43 @@ test("inbox_triage_focus_mode_undo_and_delete", async () => {
   await expect(dash.getByText("1 / 1")).toBeVisible({ timeout: 10_000 });
   await dash.keyboard.press("k");
   await expect(dash.getByText("队列已清空")).toBeVisible({ timeout: 10_000 });
+});
+
+test("inbox_drag_record_onto_tag_assigns_tag", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+
+  await saveClip(dash, "tagged item", ["work"]);
+  await saveClip(dash, "untagged item");
+
+  await dash.goto(`${dashboardUrl}#/inbox`);
+  await dash.reload();
+  await dash.waitForSelector('[data-testid="inbox-row"]', { timeout: 5000 });
+
+  const workTag = dash.locator('[data-testid="inbox-tag"]', {
+    hasText: "work",
+  });
+  await expect(workTag).toBeVisible();
+
+  await dash
+    .locator('[data-testid="inbox-row"]', { hasText: "untagged item" })
+    .dragTo(workTag);
+
+  const records = await dash.evaluate<
+    Array<{ text?: string; tags?: string[] }>
+  >(
+    async () =>
+      new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { type: "myz:getAllHighlights", payload: undefined },
+          (resp) => resolve(resp?.data ?? []),
+        );
+      }),
+  );
+  const untagged = records.find((record) =>
+    (record.text || "").includes("untagged item"),
+  );
+  expect(untagged?.tags).toContain("work");
 });

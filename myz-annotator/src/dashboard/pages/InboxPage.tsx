@@ -1,6 +1,15 @@
+import { Archive, Clock, Inbox, Star, Tag, Trash2 } from "@lucide/vue";
+import { IconSearch } from "@myz/shared/icons";
 import type { InboxStatus } from "@myz/shared/inbox";
 import { sendMessage } from "@myz/shared/messaging";
-import { computed, defineComponent, onMounted, onUnmounted, ref } from "vue";
+import type { MyZRecord } from "@myz/shared/types";
+import {
+  computed,
+  defineComponent,
+  onMounted,
+  onBeforeUnmount,
+  ref,
+} from "vue";
 import type {
   InboxQueueItem,
   InboxQueueResult,
@@ -16,6 +25,12 @@ interface UndoState {
   label: string;
 }
 
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: "pending", label: "待处理" },
+  { key: "snoozed", label: "稍后处理" },
+  { key: "marked", label: "已标记" },
+];
+
 function excerpt(value: string | undefined, length = 180): string {
   const text = (value || "").replace(/\s+/g, " ").trim();
   return text.length > length ? `${text.slice(0, length)}…` : text;
@@ -27,43 +42,129 @@ function formatTime(value: string | undefined): string {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
 }
 
+function hostOf(record: MyZRecord): string {
+  if (record.hostname) return record.hostname;
+  try {
+    return new URL(record.url || "").hostname;
+  } catch {
+    return "";
+  }
+}
+
+function kindLabel(record: MyZRecord): string {
+  if (record.kind === "bookmark") return "书签";
+  if (record.kind === "clip") return "摘录";
+  return "划线";
+}
+
+function snoozeTarget(bucket: "evening" | "tomorrow" | "week"): string {
+  const now = new Date();
+  const target = new Date(now);
+  if (bucket === "evening") {
+    target.setHours(20, 0, 0, 0);
+    if (target.getTime() <= now.getTime()) {
+      target.setTime(now.getTime() + 3 * 60 * 60 * 1000);
+    }
+  } else if (bucket === "tomorrow") {
+    target.setDate(target.getDate() + 1);
+    target.setHours(9, 0, 0, 0);
+  } else {
+    const day = target.getDay();
+    const delta = (5 - day + 7) % 7 || 5;
+    target.setDate(target.getDate() + delta);
+    target.setHours(18, 0, 0, 0);
+  }
+  return target.toISOString();
+}
+
 export default defineComponent({
   name: "InboxPage",
   setup() {
     const queue = ref<InboxQueueResult | null>(null);
+    const allTags = ref<string[]>([]);
     const activeTab = ref<Tab>("pending");
+    const activeTag = ref<string | null>(null);
     const query = ref("");
     const selected = ref<Set<string>>(new Set());
     const focusMode = ref(false);
     const focusIndex = ref(0);
+    const sidebarOpen = ref(false);
     const status = ref("");
     const undo = ref<UndoState | null>(null);
     let undoTimer: ReturnType<typeof setTimeout> | null = null;
+    let dragTargetId: string | null = null;
 
-    const items = computed<InboxQueueItem[]>(() => {
-      const source = queue.value ? queue.value[activeTab.value] : [];
+    const tabItems = computed<InboxQueueItem[]>(() => {
+      if (!queue.value) return [];
+      const source = queue.value[activeTab.value];
       const needle = query.value.trim().toLowerCase();
-      if (!needle) return source;
-      return source.filter((item) =>
-        [item.record.text, item.record.note, item.record.title, item.record.url]
+      return source.filter((item) => {
+        if (
+          activeTag.value &&
+          !(item.record.tags || []).includes(activeTag.value)
+        ) {
+          return false;
+        }
+        if (!needle) return true;
+        return [
+          item.record.text,
+          item.record.note,
+          item.record.title,
+          item.record.url,
+        ]
           .filter(Boolean)
-          .some((field) => String(field).toLowerCase().includes(needle)),
-      );
+          .some((field) => String(field).toLowerCase().includes(needle));
+      });
     });
 
-    const counts = computed(
-      () => queue.value?.counts ?? { pending: 0, snoozed: 0, marked: 0 },
-    );
-    const focusItem = computed(() => items.value[focusIndex.value] ?? null);
+    const tagCounts = computed<Array<{ tag: string; count: number }>>(() => {
+      const seen = new Map<string, InboxQueueItem>();
+      const source = queue.value;
+      if (source) {
+        for (const item of [
+          ...source.pending,
+          ...source.snoozed,
+          ...source.marked,
+        ]) {
+          seen.set(item.targetId, item);
+        }
+      }
+      const counts = new Map<string, number>();
+      for (const item of seen.values()) {
+        for (const tag of item.record.tags || []) {
+          counts.set(tag, (counts.get(tag) || 0) + 1);
+        }
+      }
+      const tags = new Set([...allTags.value, ...counts.keys()]);
+      return Array.from(tags)
+        .sort((a, b) => a.localeCompare(b))
+        .map((tag) => ({ tag, count: counts.get(tag) || 0 }));
+    });
+
+    const workingSet = computed(() => {
+      if (!queue.value) return [];
+      const seen = new Map<string, InboxQueueItem>();
+      for (const item of [
+        ...queue.value.pending,
+        ...queue.value.snoozed,
+        ...queue.value.marked,
+      ]) {
+        seen.set(item.targetId, item);
+      }
+      return Array.from(seen.values());
+    });
+
+    const focusItem = computed(() => tabItems.value[focusIndex.value] ?? null);
 
     async function load() {
       try {
-        queue.value = await sendMessage<undefined, InboxQueueResult>(
-          "myz:inboxQueue",
-        );
-        if (focusIndex.value >= items.value.length) {
-          focusIndex.value = 0;
-        }
+        const [next, tags] = await Promise.all([
+          sendMessage<undefined, InboxQueueResult>("myz:inboxQueue"),
+          sendMessage<undefined, string[]>("myz:getAllTags"),
+        ]);
+        queue.value = next;
+        allTags.value = Array.isArray(tags) ? tags : [];
+        if (focusIndex.value >= tabItems.value.length) focusIndex.value = 0;
       } catch (error) {
         status.value = `加载失败：${(error as Error).message}`;
       }
@@ -125,49 +226,26 @@ export default defineComponent({
       status.value = options.label;
     }
 
-    function keep(item: InboxQueueItem) {
-      return applyStatus(item, "kept", { label: "已保留" });
-    }
-    function archive(item: InboxQueueItem) {
-      return applyStatus(item, "archived", { label: "已归档" });
-    }
-    function snooze(item: InboxQueueItem) {
-      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      return applyStatus(item, "snoozed", {
-        snoozedUntil: tomorrow,
+    const keep = (item: InboxQueueItem) =>
+      applyStatus(item, "kept", { label: "已保留" });
+    const archive = (item: InboxQueueItem) =>
+      applyStatus(item, "archived", { label: "已归档" });
+    const snooze = (item: InboxQueueItem) =>
+      applyStatus(item, "snoozed", {
+        snoozedUntil: snoozeTarget("tomorrow"),
         label: "已稍后处理",
       });
-    }
 
-    function snoozeTarget(bucket: "evening" | "tomorrow" | "week"): string {
-      const now = new Date();
-      const target = new Date(now);
-      if (bucket === "evening") {
-        target.setHours(20, 0, 0, 0);
-        if (target.getTime() <= now.getTime()) {
-          target.setTime(now.getTime() + 3 * 60 * 60 * 1000);
-        }
-      } else if (bucket === "tomorrow") {
-        target.setDate(target.getDate() + 1);
-        target.setHours(9, 0, 0, 0);
-      } else {
-        const day = target.getDay();
-        const delta = (5 - day + 7) % 7 || 5;
-        target.setDate(target.getDate() + delta);
-        target.setHours(18, 0, 0, 0);
-      }
-      return target.toISOString();
-    }
-
-    function snoozeBucket(
+    async function snoozeBucket(
       item: InboxQueueItem,
       bucket: "evening" | "tomorrow" | "week",
     ) {
-      return applyStatus(item, "snoozed", {
+      await applyStatus(item, "snoozed", {
         snoozedUntil: snoozeTarget(bucket),
         label: "已稍后处理",
       });
     }
+
     async function toggleMark(item: InboxQueueItem) {
       await sendMessage("myz:inboxSetMark", {
         targetId: item.targetId,
@@ -175,6 +253,7 @@ export default defineComponent({
       });
       await load();
     }
+
     async function remove(item: InboxQueueItem) {
       if (!window.confirm("删除后不可撤销，确定删除？")) return;
       await sendMessage("myz:removeHighlight", { id: item.record.id });
@@ -183,11 +262,37 @@ export default defineComponent({
       status.value = "已删除";
     }
 
+    async function assignTag(targetId: string, tag: string) {
+      const item = workingSet.value.find(
+        (entry) => entry.targetId === targetId,
+      );
+      if (!item) return;
+      const current = item.record.tags || [];
+      if (current.includes(tag)) {
+        status.value = `已有标签「${tag}」`;
+        return;
+      }
+      await sendMessage("myz:updateHighlight", {
+        id: item.record.id,
+        tags: [...current, tag],
+      });
+      await load();
+      status.value = `已加上标签「${tag}」`;
+    }
+
+    function onDropOnTag(event: DragEvent, tag: string) {
+      event.preventDefault();
+      const targetId =
+        event.dataTransfer?.getData("text/plain") || dragTargetId;
+      if (targetId) void assignTag(targetId, tag);
+      dragTargetId = null;
+    }
+
     function advance() {
-      if (focusIndex.value < items.value.length) {
+      if (focusIndex.value < tabItems.value.length) {
         focusIndex.value = Math.min(
           focusIndex.value + 1,
-          Math.max(items.value.length - 1, 0),
+          Math.max(tabItems.value.length - 1, 0),
         );
       }
     }
@@ -212,13 +317,7 @@ export default defineComponent({
       const map: Record<
         string,
         "keep" | "archive" | "snooze" | "delete" | "mark"
-      > = {
-        k: "keep",
-        a: "archive",
-        s: "snooze",
-        d: "delete",
-        m: "mark",
-      };
+      > = { k: "keep", a: "archive", s: "snooze", d: "delete", m: "mark" };
       if (key === " ") {
         event.preventDefault();
         advance();
@@ -238,7 +337,7 @@ export default defineComponent({
     }
 
     async function batchStatus(next: InboxStatus, label: string) {
-      const chosen = items.value.filter((item) =>
+      const chosen = tabItems.value.filter((item) =>
         selected.value.has(item.targetId),
       );
       for (const item of chosen) {
@@ -253,7 +352,7 @@ export default defineComponent({
     }
 
     async function batchDelete() {
-      const chosen = items.value.filter((item) =>
+      const chosen = tabItems.value.filter((item) =>
         selected.value.has(item.targetId),
       );
       if (!chosen.length) return;
@@ -271,266 +370,445 @@ export default defineComponent({
       void load();
       window.addEventListener("keydown", onKeydown);
     });
-    onUnmounted(() => {
+    onBeforeUnmount(() => {
       window.removeEventListener("keydown", onKeydown);
       clearUndo();
     });
 
+    function renderPill(item: InboxQueueItem) {
+      if (item.state?.status === "snoozed" && item.state.snoozedUntil) {
+        return (
+          <span class="inline-flex items-center gap-1 rounded-tag bg-surface-2 px-2 py-0.5 text-tag text-muted">
+            <Clock size={12} />
+            稍后 · {formatTime(item.state.snoozedUntil)}
+          </span>
+        );
+      }
+      if (item.status === "pending") {
+        return (
+          <span class="inline-flex items-center gap-1 rounded-tag bg-info-bg px-2 py-0.5 text-tag text-info">
+            <Inbox size={12} />
+            待处理
+          </span>
+        );
+      }
+      return (
+        <span class="inline-flex items-center gap-1 rounded-tag bg-surface-2 px-2 py-0.5 text-tag text-muted">
+          {item.status === "archived" ? "已归档" : "已保留"}
+        </span>
+      );
+    }
+
     function renderRow(item: InboxQueueItem) {
       return (
-        <div
-          class="rounded-control border border-line bg-surface p-3 dark:border-line dark:bg-surface-2"
+        <article
           data-testid="inbox-row"
+          draggable
+          onDragstart={(event: DragEvent) => {
+            dragTargetId = item.targetId;
+            event.dataTransfer?.setData("text/plain", item.targetId);
+            if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy";
+          }}
+          class="rounded-panel border border-line bg-surface p-3 dark:border-line dark:bg-surface"
         >
           <div class="flex items-start gap-3">
             <input
               type="checkbox"
+              class="mt-1"
               checked={selected.value.has(item.targetId)}
               onChange={() => toggleSelect(item.targetId)}
               aria-label="选择"
             />
             <div class="min-w-0 flex-1">
-              <div class="text-caption text-muted">
-                {item.record.title || item.record.url || "未命名"}
-                {item.marked ? " · 已标记" : ""}
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded-tag border border-line px-1.5 py-0.5 text-tag text-muted">
+                  {kindLabel(item.record)}
+                </span>
+                {renderPill(item)}
+                {item.marked ? (
+                  <span class="inline-flex items-center gap-1 text-tag text-accent-text">
+                    <Star size={12} /> 已标记
+                  </span>
+                ) : null}
               </div>
-              <p class="mt-1 text-sm">
+              <p
+                class="mt-1 text-compact text-text"
+                style="font-family: var(--myz-read); line-height: 1.55"
+              >
                 {excerpt(item.record.text || item.record.note)}
               </p>
               <div class="mt-1 text-caption text-muted">
+                {item.record.title || hostOf(item.record)}
+                {item.record.title && hostOf(item.record)
+                  ? ` · ${hostOf(item.record)}`
+                  : ""}
+                {" · "}
                 {formatTime(item.record.createdAt)}
               </div>
             </div>
           </div>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <button class="btn" type="button" onClick={() => keep(item)}>
-              保留 K
-            </button>
-            <button class="btn" type="button" onClick={() => archive(item)}>
-              归档 A
-            </button>
-            <button class="btn" type="button" onClick={() => snooze(item)}>
-              稍后 S
-            </button>
-            <select
-              class="rounded-control border border-line bg-surface px-2 py-1 text-sm"
-              aria-label="稍后分桶"
-              onChange={(event: Event) => {
-                const value = (event.target as HTMLSelectElement).value;
-                if (
-                  value === "evening" ||
-                  value === "tomorrow" ||
-                  value === "week"
-                ) {
-                  void snoozeBucket(item, value);
-                  (event.target as HTMLSelectElement).value = "";
-                }
-              }}
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              class="btn btn-small"
+              type="button"
+              onClick={() => toggleMark(item)}
+              title="标记"
             >
-              <option value="">稍后分桶…</option>
-              <option value="evening">今天晚些</option>
-              <option value="tomorrow">明天</option>
-              <option value="week">本周</option>
-            </select>
-            <button class="btn" type="button" onClick={() => toggleMark(item)}>
-              标记 M
+              <Star size={14} /> 标记
             </button>
-            <button class="btn" type="button" onClick={() => remove(item)}>
-              删除 D
+            <button
+              class="btn btn-small"
+              type="button"
+              onClick={() => keep(item)}
+            >
+              保留
+            </button>
+            <div class="relative flex items-center">
+              <Clock
+                size={14}
+                class="pointer-events-none absolute left-2 text-muted"
+              />
+              <select
+                class="btn btn-small appearance-none pl-7"
+                aria-label="稍后"
+                value=""
+                onChange={(event: Event) => {
+                  const value = (event.target as HTMLSelectElement).value;
+                  if (
+                    value === "evening" ||
+                    value === "tomorrow" ||
+                    value === "week"
+                  ) {
+                    void snoozeBucket(item, value);
+                    (event.target as HTMLSelectElement).value = "";
+                  }
+                }}
+              >
+                <option value="">稍后</option>
+                <option value="evening">今天晚些</option>
+                <option value="tomorrow">明天</option>
+                <option value="week">本周</option>
+              </select>
+            </div>
+            <button
+              class="btn btn-small"
+              type="button"
+              onClick={() => archive(item)}
+            >
+              <Archive size={14} /> 归档
+            </button>
+            <button
+              class="btn btn-small btn-danger"
+              type="button"
+              onClick={() => remove(item)}
+            >
+              <Trash2 size={14} /> 删除
             </button>
           </div>
-        </div>
+        </article>
+      );
+    }
+
+    function renderSidebar() {
+      return (
+        <aside class="flex w-full flex-col gap-4 min-[900px]:w-60 min-[900px]:shrink-0">
+          <div class="rounded-panel border border-line bg-surface p-3 dark:border-line">
+            <div class="mb-2 text-tag font-semibold uppercase tracking-wide text-muted">
+              队列
+            </div>
+            <nav class="space-y-1">
+              {TABS.map((tab) => {
+                const active = activeTab.value === tab.key;
+                const count = queue.value?.counts[tab.key] ?? 0;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      activeTab.value = tab.key;
+                      selected.value = new Set();
+                      sidebarOpen.value = false;
+                    }}
+                    class={[
+                      "flex w-full items-center justify-between rounded-control px-3 py-2 text-compact font-medium transition",
+                      active
+                        ? "bg-surface-2 text-accent-text"
+                        : "text-muted hover:bg-surface-2",
+                    ].join(" ")}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    <span>{tab.label}</span>
+                    <span class="text-caption text-muted">{count}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div class="rounded-panel border border-line bg-surface p-3 dark:border-line">
+            <div class="mb-2 flex items-center gap-1 text-tag font-semibold uppercase tracking-wide text-muted">
+              <Tag size={12} /> 标签
+            </div>
+            <p class="mb-2 text-caption text-muted">把记录拖到标签即可归类</p>
+            <div class="flex flex-wrap gap-1">
+              {tagCounts.value.length === 0 ? (
+                <span class="text-caption text-muted">暂无标签</span>
+              ) : (
+                tagCounts.value.map(({ tag, count }) => {
+                  const active = activeTag.value === tag;
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      data-testid="inbox-tag"
+                      onClick={() => {
+                        activeTag.value = active ? null : tag;
+                        sidebarOpen.value = false;
+                      }}
+                      onDragover={(event: DragEvent) => event.preventDefault()}
+                      onDrop={(event: DragEvent) => onDropOnTag(event, tag)}
+                      class={[
+                        "rounded-tag border px-2 py-0.5 text-tag transition",
+                        active
+                          ? "border-accent bg-surface-2 text-accent-text"
+                          : "border-line text-muted hover:border-accent hover:text-accent-text",
+                      ].join(" ")}
+                    >
+                      {tag}
+                      {count ? ` ${count}` : ""}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </aside>
       );
     }
 
     return () => (
-      <section class="dashboard__page">
-        <header class="mb-4 flex flex-wrap items-center gap-3">
-          <h2 class="text-lg font-semibold">Inbox</h2>
-          <span class="text-caption text-muted">
-            待处理 {counts.value.pending} · 稍后 {counts.value.snoozed} · 已标记{" "}
-            {counts.value.marked}
-            {queue.value?.oldestPendingAt
-              ? ` · 最早积压 ${formatTime(queue.value.oldestPendingAt)}`
-              : ""}
-          </span>
-          {queue.value?.review ? (
-            <span class="text-caption text-muted">
-              回顾：超期稍后 {queue.value.review.overdueSnoozed} · 本周采集{" "}
-              {queue.value.review.capturedThisWeek} · 本周处理{" "}
-              {queue.value.review.handledThisWeek}
-            </span>
-          ) : null}
-          <button
-            class="btn"
-            type="button"
-            onClick={() => {
-              focusMode.value = !focusMode.value;
-              focusIndex.value = 0;
-            }}
-          >
-            {focusMode.value ? "退出专注" : "专注处理"}
-          </button>
-        </header>
-
-        <div class="mb-3 flex flex-wrap items-center gap-2">
-          {(["pending", "snoozed", "marked"] as Tab[]).map((tab) => (
+      <section class="space-y-4">
+        <header class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 class="text-heading font-semibold text-text">Inbox</h2>
+            <p class="text-caption text-muted">
+              待处理 {queue.value?.counts.pending ?? 0} 条
+              {queue.value?.oldestPendingAt
+                ? ` · 最早积压 ${formatTime(queue.value.oldestPendingAt)}`
+                : ""}
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
             <button
-              key={tab}
-              class={["btn", activeTab.value === tab ? "btn--active" : ""].join(
-                " ",
-              )}
+              class="btn min-[900px]:hidden"
+              type="button"
+              onClick={() => (sidebarOpen.value = !sidebarOpen.value)}
+            >
+              筛选 / 标签
+            </button>
+            <button
+              class="btn"
               type="button"
               onClick={() => {
-                activeTab.value = tab;
-                selected.value = new Set();
+                focusMode.value = !focusMode.value;
+                focusIndex.value = 0;
               }}
             >
-              {tab === "pending"
-                ? "待处理"
-                : tab === "snoozed"
-                  ? "稍后处理"
-                  : "已标记"}
-            </button>
-          ))}
-          <input
-            type="search"
-            placeholder="搜索原文、批注、标题、来源"
-            value={query.value}
-            onInput={(event: Event) =>
-              (query.value = (event.target as HTMLInputElement).value)
-            }
-            class="rounded-control border border-line bg-surface px-2 py-1 text-sm"
-          />
-        </div>
-
-        {selected.value.size > 0 ? (
-          <div class="mb-3 flex flex-wrap gap-2">
-            <span class="text-caption text-muted">
-              已选 {selected.value.size}
-            </span>
-            <button
-              class="btn"
-              type="button"
-              onClick={() => batchStatus("kept", "已保留")}
-            >
-              批量保留
-            </button>
-            <button
-              class="btn"
-              type="button"
-              onClick={() => batchStatus("archived", "已归档")}
-            >
-              批量归档
-            </button>
-            <button
-              class="btn"
-              type="button"
-              onClick={() => batchStatus("snoozed", "已稍后")}
-            >
-              批量稍后
-            </button>
-            <button
-              class="btn"
-              type="button"
-              onClick={() => void batchDelete()}
-            >
-              批量删除
+              {focusMode.value ? "退出专注" : "专注处理"}
             </button>
           </div>
-        ) : null}
+        </header>
 
-        {undo.value ? (
-          <div class="mb-3 flex items-center gap-2 text-caption">
-            <span>{undo.value.label}</span>
-            <button class="btn" type="button" onClick={() => void revertUndo()}>
-              撤销
-            </button>
-          </div>
-        ) : null}
-
-        {status.value ? (
-          <p class="mb-3 text-caption text-muted">{status.value}</p>
-        ) : null}
-
-        {focusMode.value ? (
+        <div class="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start">
           <div
-            data-testid="inbox-focus"
-            class="rounded-control border border-line p-4"
+            class={[
+              sidebarOpen.value ? "block" : "hidden",
+              "min-[900px]:block",
+            ].join(" ")}
           >
-            {focusItem.value ? (
-              <>
-                <div class="text-caption text-muted">
-                  {focusIndex.value + 1} / {items.value.length}
-                </div>
-                <p class="mt-2 text-base">
-                  {excerpt(
-                    focusItem.value.record.text || focusItem.value.record.note,
-                    400,
-                  )}
-                </p>
-                <div class="mt-1 text-caption text-muted">
-                  {focusItem.value.record.title || focusItem.value.record.url}
-                </div>
-                <p class="mt-3 text-caption text-muted">
-                  快捷键：K 保留 · A 归档 · S 稍后 · D 删除 · M 标记 · Space
-                  下一条
-                </p>
-                <div class="mt-3 flex flex-wrap gap-2">
-                  <button
-                    class="btn"
-                    type="button"
-                    onClick={() => void runAction(focusItem.value, "keep")}
-                  >
-                    保留
-                  </button>
-                  <button
-                    class="btn"
-                    type="button"
-                    onClick={() => void runAction(focusItem.value, "archive")}
-                  >
-                    归档
-                  </button>
-                  <button
-                    class="btn"
-                    type="button"
-                    onClick={() => void runAction(focusItem.value, "snooze")}
-                  >
-                    稍后
-                  </button>
-                  <button
-                    class="btn"
-                    type="button"
-                    onClick={() => void runAction(focusItem.value, "mark")}
-                  >
-                    标记
-                  </button>
-                  <button
-                    class="btn"
-                    type="button"
-                    onClick={() => void runAction(focusItem.value, "delete")}
-                  >
-                    删除
-                  </button>
-                  <button class="btn" type="button" onClick={() => advance()}>
-                    下一条
-                  </button>
-                </div>
-              </>
+            {renderSidebar()}
+          </div>
+
+          <div class="min-w-0 flex-1 space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="relative min-w-0 flex-1">
+                <IconSearch
+                  size={16}
+                  class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted"
+                />
+                <input
+                  type="search"
+                  placeholder="搜索原文、批注、标题、标签、来源"
+                  value={query.value}
+                  onInput={(event: Event) =>
+                    (query.value = (event.target as HTMLInputElement).value)
+                  }
+                  class="h-9 w-full rounded-control border border-line bg-surface pl-8 pr-3 text-compact text-text"
+                />
+              </div>
+            </div>
+
+            {activeTag.value ? (
+              <p class="text-caption text-muted">
+                已筛选标签「{activeTag.value}」·
+                <button
+                  class="btn-link"
+                  type="button"
+                  onClick={() => (activeTag.value = null)}
+                >
+                  清除
+                </button>
+              </p>
+            ) : null}
+
+            {selected.value.size > 0 ? (
+              <div class="flex flex-wrap gap-2 rounded-control border border-line bg-surface-2 p-2">
+                <span class="text-caption text-muted">
+                  已选 {selected.value.size}
+                </span>
+                <button
+                  class="btn btn-small"
+                  type="button"
+                  onClick={() => batchStatus("kept", "已保留")}
+                >
+                  批量保留
+                </button>
+                <button
+                  class="btn btn-small"
+                  type="button"
+                  onClick={() => batchStatus("archived", "已归档")}
+                >
+                  批量归档
+                </button>
+                <button
+                  class="btn btn-small"
+                  type="button"
+                  onClick={() => batchStatus("snoozed", "已稍后")}
+                >
+                  批量稍后
+                </button>
+                <button
+                  class="btn btn-small btn-danger"
+                  type="button"
+                  onClick={() => void batchDelete()}
+                >
+                  批量删除
+                </button>
+              </div>
+            ) : null}
+
+            {undo.value ? (
+              <div class="flex items-center gap-2 text-caption">
+                <span>{undo.value.label}</span>
+                <button
+                  class="btn btn-small"
+                  type="button"
+                  onClick={() => void revertUndo()}
+                >
+                  撤销
+                </button>
+              </div>
+            ) : null}
+
+            {status.value ? (
+              <p class="text-caption text-muted">{status.value}</p>
+            ) : null}
+
+            {focusMode.value ? (
+              <div
+                data-testid="inbox-focus"
+                class="rounded-panel border border-line bg-surface p-4"
+              >
+                {focusItem.value ? (
+                  <>
+                    <div class="text-caption text-muted">
+                      {focusIndex.value + 1} / {tabItems.value.length}
+                    </div>
+                    <p
+                      class="mt-2 text-base"
+                      style="font-family: var(--myz-read); line-height: 1.55"
+                    >
+                      {excerpt(
+                        focusItem.value.record.text ||
+                          focusItem.value.record.note,
+                        400,
+                      )}
+                    </p>
+                    <div class="mt-1 text-caption text-muted">
+                      {focusItem.value.record.title ||
+                        hostOf(focusItem.value.record)}
+                    </div>
+                    <p class="mt-3 text-caption text-muted">
+                      快捷键：K 保留 · A 归档 · S 稍后 · D 删除 · M 标记 · Space
+                      下一条
+                    </p>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                      <button
+                        class="btn btn-small"
+                        type="button"
+                        onClick={() => void runAction(focusItem.value!, "keep")}
+                      >
+                        保留
+                      </button>
+                      <button
+                        class="btn btn-small"
+                        type="button"
+                        onClick={() =>
+                          void runAction(focusItem.value!, "archive")
+                        }
+                      >
+                        归档
+                      </button>
+                      <button
+                        class="btn btn-small"
+                        type="button"
+                        onClick={() =>
+                          void runAction(focusItem.value!, "snooze")
+                        }
+                      >
+                        稍后
+                      </button>
+                      <button
+                        class="btn btn-small"
+                        type="button"
+                        onClick={() => void runAction(focusItem.value!, "mark")}
+                      >
+                        标记
+                      </button>
+                      <button
+                        class="btn btn-small btn-danger"
+                        type="button"
+                        onClick={() =>
+                          void runAction(focusItem.value!, "delete")
+                        }
+                      >
+                        删除
+                      </button>
+                      <button
+                        class="btn btn-small"
+                        type="button"
+                        onClick={() => advance()}
+                      >
+                        下一条
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p class="text-caption text-muted">队列已清空</p>
+                )}
+              </div>
             ) : (
-              <p class="text-caption text-muted">队列已清空</p>
+              <div class="grid gap-3">
+                {tabItems.value.map((item) => (
+                  <div key={item.targetId}>{renderRow(item)}</div>
+                ))}
+                {tabItems.value.length === 0 ? (
+                  <p class="text-caption text-muted">没有匹配的记录</p>
+                ) : null}
+              </div>
             )}
           </div>
-        ) : (
-          <div class="grid gap-3">
-            {items.value.map((item) => (
-              <div key={item.targetId}>{renderRow(item)}</div>
-            ))}
-            {items.value.length === 0 ? (
-              <p class="text-caption text-muted">没有匹配的记录</p>
-            ) : null}
-          </div>
-        )}
+        </div>
       </section>
     );
   },
