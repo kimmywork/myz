@@ -1,6 +1,7 @@
 import type { LucideIcon } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
 import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
+import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import {
   IconClose,
   IconPencil,
@@ -13,7 +14,7 @@ import {
   HIGHLIGHT_STYLES,
   HighlightStyleOption,
 } from "@myz/shared/types";
-import { defineComponent, ref, computed, watch, type Ref } from "vue";
+import { defineComponent, ref, computed, watch, nextTick, type Ref } from "vue";
 import {
   useModalStore,
   ModalOpenOptions,
@@ -96,6 +97,25 @@ export default defineComponent({
     const activeOptionIndex: Ref<number> = ref(-1);
     const containerRef: Ref<HTMLElement | null> = ref(null);
     const tagInputRef: Ref<HTMLElement | null> = ref(null);
+
+    let focusTrap: FocusTrap | null = null;
+    watch(
+      () => store.isVisible,
+      async (visible) => {
+        if (visible) {
+          await nextTick();
+          if (containerRef.value) {
+            focusTrap = createFocusTrap(containerRef.value, {
+              onEscape: () => store.hide(),
+            });
+            focusTrap.activate();
+          }
+        } else {
+          focusTrap?.deactivate();
+          focusTrap = null;
+        }
+      },
+    );
 
     const previewStyle = (options: ModalOpenOptions) => {
       if (options.kind !== RECORD_KINDS.HIGHLIGHT) {

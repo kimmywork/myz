@@ -1,9 +1,17 @@
 import { Check, Trash2, X } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
 import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
+import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import { colorName, RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
-import { computed, defineComponent } from "vue";
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  watch,
+} from "vue";
 import { useReaderStore } from "../stores/reader-store.js";
 
 export default defineComponent({
@@ -18,6 +26,29 @@ export default defineComponent({
       colorPalette,
       annotations,
     } = storeToRefs(store);
+    const inspectorRef = ref<HTMLElement | null>(null);
+    let focusTrap: FocusTrap | null = null;
+
+    watch(activeRecord, async (record) => {
+      if (record) {
+        await nextTick();
+        if (inspectorRef.value) {
+          focusTrap = createFocusTrap(inspectorRef.value, {
+            onEscape: () => (store.activeId = null),
+          });
+          focusTrap.activate();
+        }
+      } else {
+        focusTrap?.deactivate();
+        focusTrap = null;
+      }
+    });
+
+    onBeforeUnmount(() => {
+      focusTrap?.deactivate();
+      focusTrap = null;
+    });
+
     const styleOptions = store.styleOptions;
     const tagOptions = computed(() =>
       Array.from(
@@ -31,7 +62,7 @@ export default defineComponent({
 
     return () =>
       activeRecord.value ? (
-        <aside class="reader-inspector">
+        <aside class="reader-inspector" ref={inspectorRef}>
           <header class="reader-inspector__head">
             <span>
               {activeRecord.value.kind === RECORD_KINDS.CLIP ? "摘录" : "划线"}

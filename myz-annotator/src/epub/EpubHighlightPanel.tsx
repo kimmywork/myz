@@ -1,6 +1,7 @@
 import { X } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
 import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
+import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import {
   colorName,
   DEFAULT_COLORS,
@@ -9,7 +10,7 @@ import {
   RECORD_KINDS,
   type MyZRecord,
 } from "@myz/shared/types";
-import { defineComponent, ref, watch } from "vue";
+import { defineComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type { PropType } from "vue";
 
 interface HighlightPatch {
@@ -56,20 +57,36 @@ export default defineComponent({
     const tags = ref<string[]>([]);
     const color = ref<string>(DEFAULT_COLORS[0]);
     const style = ref<HIGHLIGHT_STYLES>(HIGHLIGHT_STYLES.PAINT);
+    const inspectorRef = ref<HTMLElement | null>(null);
+    let focusTrap: FocusTrap | null = null;
 
     watch(
       () => props.record,
-      (record) => {
+      async (record) => {
         if (!record) {
+          focusTrap?.deactivate();
+          focusTrap = null;
           return;
         }
         note.value = record.note || "";
         tags.value = Array.isArray(record.tags) ? [...record.tags] : [];
         color.value = record.color || DEFAULT_COLORS[0];
         style.value = record.style || HIGHLIGHT_STYLES.PAINT;
+        await nextTick();
+        if (inspectorRef.value) {
+          focusTrap = createFocusTrap(inspectorRef.value, {
+            onEscape: () => props.onClose?.(),
+          });
+          focusTrap.activate();
+        }
       },
       { immediate: true },
     );
+
+    onBeforeUnmount(() => {
+      focusTrap?.deactivate();
+      focusTrap = null;
+    });
 
     const styleOptions = Object.entries(HIGHLIGHT_STYLE_OPTIONS) as [
       HIGHLIGHT_STYLES,
@@ -83,7 +100,7 @@ export default defineComponent({
       }
       const isHighlight = record.kind === RECORD_KINDS.HIGHLIGHT;
       return (
-        <aside class="reader-inspector">
+        <aside class="reader-inspector" ref={inspectorRef}>
           <header class="reader-inspector__head">
             <span>
               {isHighlight ? "划线" : "摘录"}

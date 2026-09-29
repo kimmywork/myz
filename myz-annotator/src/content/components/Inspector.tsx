@@ -1,5 +1,6 @@
 import { TagInput } from "@myz/dashboard-ui";
 import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
+import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import { IconClose, IconEdit, IconTrash } from "@myz/shared/icons";
 import { storeToRefs } from "pinia";
 import {
@@ -25,6 +26,22 @@ export default defineComponent({
     const inspectorHeight = ref(0);
     const inspectorFontSize = ref(16);
     let resizeObserver: ResizeObserver | null = null;
+    let focusTrap: FocusTrap | null = null;
+
+    watch(visible, async (isVisible) => {
+      if (isVisible) {
+        await nextTick();
+        if (inspectorRef.value) {
+          focusTrap = createFocusTrap(inspectorRef.value, {
+            onEscape: () => store.hide(),
+          });
+          focusTrap.activate();
+        }
+      } else {
+        focusTrap?.deactivate();
+        focusTrap = null;
+      }
+    });
 
     const noteText = computed(() => {
       const value =
@@ -94,6 +111,8 @@ export default defineComponent({
     onBeforeUnmount(() => {
       resizeObserver?.disconnect();
       resizeObserver = null;
+      focusTrap?.deactivate();
+      focusTrap = null;
     });
 
     return () => (
