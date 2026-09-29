@@ -58,6 +58,8 @@ export default defineComponent({
               key={toast.id}
               class="myz-toast"
               style={buildToastStyle(toast.visible)}
+              role="status"
+              aria-live="polite"
             >
               {toast.message}
             </div>

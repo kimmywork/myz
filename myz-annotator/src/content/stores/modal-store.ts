@@ -26,6 +26,7 @@ import {
   updateExistingHighlight,
   updateHighlightIndicators,
 } from "../highlight-state";
+import { useNotificationStore } from "./notification-store";
 import { usePreferenceStore } from "./preference-store";
 import { useToolbarStore } from "./toolbar-store";
 import type {
@@ -203,6 +204,7 @@ export const useModalStore = defineStore("modal", () => {
     };
 
     const selection = window.getSelection();
+    let saved = false;
     try {
       if (kind === RECORD_KINDS.HIGHLIGHT) {
         if (!modalState.value.currentRange) {
@@ -260,9 +262,13 @@ export const useModalStore = defineStore("modal", () => {
           }
         }
       }
+      saved = true;
     } catch (error) {
       console.error("Failed to save highlight", error);
     } finally {
+      if (saved) {
+        useNotificationStore().notify({ message: "已保存", duration: 1600 });
+      }
       closeModal();
       selection?.removeAllRanges();
       // todo: toolbar
