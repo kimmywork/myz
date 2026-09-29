@@ -1,6 +1,7 @@
 import { mountApp } from "./app-state.js";
 import { restoreHighlights } from "./highlight-state.js";
 import { messageListener } from "./message-listener.js";
+import { useInspectorStore } from "./stores/inspector-store.js";
 import { useToolbarStore } from "./stores/toolbar-store.js";
 import { ensureContentStyles } from "./styles.js";
 
@@ -48,6 +49,11 @@ declare global {
       passive: true,
     });
     document.addEventListener("click", handleDocumentClick, true);
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      toolbarStore.hide();
+      useInspectorStore().hide();
+    });
     document.addEventListener("selectionchange", () => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) {

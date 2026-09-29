@@ -273,7 +273,7 @@ export default defineComponent({
           </div>
           <p class="mt-2 text-caption text-muted">{pageMeta.value}</p>
         </header>
-        <section class="popup-controls rounded-control border border-line bg-surface/80 p-3 dark:bg-surface-2">
+        <section class="popup-controls rounded-control border border-line bg-surface p-3 dark:bg-surface-2">
           <label class="sr-only" for="popup-search">
             搜索划线
           </label>

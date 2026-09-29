@@ -18,7 +18,7 @@ export default defineComponent({
 
     const containerClasses = computed(() =>
       [
-        "flex flex-col gap-3 rounded-control border border-line bg-surface/90 p-3 text-compact text-text",
+        "flex flex-col gap-3 rounded-control border border-line bg-surface p-3 text-compact text-text",
         isClip.value ? "border-clip/40" : "",
       ].join(" "),
     )

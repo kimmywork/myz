@@ -51,7 +51,7 @@ export default defineComponent({
       } else if (kind.value === RECORD_KINDS.CLIP) {
         base.push("border-clip/40 bg-clip-bg");
       } else {
-        base.push("border-line bg-surface/90");
+        base.push("border-line bg-surface");
       }
       return base.join(" ");
     });

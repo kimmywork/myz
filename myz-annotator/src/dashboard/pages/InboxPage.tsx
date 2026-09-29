@@ -486,7 +486,13 @@ export default defineComponent({
       }
       return (
         <span class="inline-flex items-center gap-1 rounded-tag bg-surface-2 px-2 py-0.5 text-tag text-muted">
-          {item.status === "archived" ? "已归档" : "已保留"}
+          {item.status === "archived" ? (
+            <>
+              <Archive size={12} /> 已归档
+            </>
+          ) : (
+            "已保留"
+          )}
         </span>
       );
     }

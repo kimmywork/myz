@@ -70,7 +70,10 @@ export default defineComponent({
       }
 
       return (
-        <section class="space-y-6" data-view={props.view}>
+        <section
+          class="highlight-groups space-y-6"
+          data-view={props.view}
+        >
           {props.groups.map((group) => (
             <section
               key={group.date}

@@ -70,6 +70,7 @@
   /* §4.4 按钮：36 常规高度、13/600、control 底、强调色聚焦圈 */
   .btn {
     @apply inline-flex h-9 items-center justify-center gap-2 rounded-control border border-control-border bg-control-bg px-3 text-label font-semibold text-text transition hover:border-accent hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:pointer-events-none disabled:opacity-45;
+    transition-duration: var(--myz-motion-fast);
   }
 
   .btn-primary {
@@ -116,6 +117,7 @@
   .settings__group select,
   .settings__group textarea {
     @apply w-full rounded-control border border-line bg-surface px-3 py-2 text-compact text-text placeholder:text-muted transition focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-accent/20 dark:border-line dark:bg-surface-2 dark:text-text dark:placeholder:text-muted;
+    transition-duration: var(--myz-motion-fast);
   }
 
   .field input:disabled,

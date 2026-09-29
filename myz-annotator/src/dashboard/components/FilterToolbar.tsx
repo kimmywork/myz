@@ -23,7 +23,7 @@ export default defineComponent({
 
     return () => (
       <section
-        class="rounded-panel border border-line bg-surface/80 p-5  dark:border-line dark:bg-surface"
+        class="rounded-panel border border-line bg-surface p-5 dark:border-line dark:bg-surface"
         aria-label="筛选工具"
       >
         <div class="flex flex-col gap-6">

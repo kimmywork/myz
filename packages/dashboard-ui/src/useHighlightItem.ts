@@ -64,7 +64,8 @@ export function useHighlightItem(props: HighlightItemProps) {
   const kindIcon = KIND_ICON[kind.value] || Highlighter
   const sourceLabel = computed(() => {
     const source = record().hostname || record().url || ""
-    return `${source.substring(0, 20)}${source.length > 20 ? "..." : ""}`
+    const points = Array.from(source)
+    return points.length > 20 ? `${points.slice(0, 20).join("")}...` : source
   })
   const sourceTitle = computed(() => record().hostname || record().url || "")
 

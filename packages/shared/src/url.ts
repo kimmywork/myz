@@ -156,5 +156,6 @@ export function truncateText(text: string, max = 36) {
   if (!text) {
     return ""
   }
-  return text.length > max ? `${text.slice(0, max)}…` : text
+  const points = Array.from(text)
+  return points.length > max ? `${points.slice(0, max).join("")}…` : text
 }

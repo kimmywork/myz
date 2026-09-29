@@ -17,4 +17,8 @@ describe("excerpt", () => {
   it("handles empty input", () => {
     expect(excerpt("")).toBe("");
   });
+
+  it("truncates by code point (does not split surrogate pairs)", () => {
+    expect(excerpt("😀😀😀", 2)).toBe("😀😀…");
+  });
 });

@@ -6,6 +6,7 @@ import {
   extractPdfUrlFromBrowserUrl,
   buildPdfSourceUrl,
   isPdfSourceUrl,
+  truncateText,
 } from "../src/url";
 
 describe("url", () => {
@@ -75,5 +76,19 @@ describe("url", () => {
       expect(isPdfSourceUrl(url)).toBe(true);
       expect(isPdfSourceUrl("https://example.com/a.pdf")).toBe(false);
     });
+  });
+});
+
+describe("truncateText", () => {
+  it("truncates by code point and appends an ellipsis", () => {
+    expect(truncateText("abcdef", 3)).toBe("abc…");
+  });
+
+  it("does not split surrogate pairs", () => {
+    expect(truncateText("😀😀😀", 2)).toBe("😀😀…");
+  });
+
+  it("returns short text unchanged", () => {
+    expect(truncateText("ok", 36)).toBe("ok");
   });
 });
