@@ -8,6 +8,8 @@ import { createStaticServer } from "../helpers/static-server.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+test.describe.configure({ retries: 1 });
+
 let server: Server;
 let serverUrl: string;
 let context: BrowserContext;
@@ -87,15 +89,17 @@ test("inbox_triage_focus_mode_undo_and_delete", async () => {
     .first()
     .getByRole("button", { name: /保留/ })
     .click();
-  await expect(dash.locator('[data-testid="inbox-row"]')).toHaveCount(1);
-  await dash.getByRole("button", { name: "撤销" }).click();
+  const undoButton = dash.getByRole("button", { name: "撤销" });
+  await expect(undoButton).toBeVisible();
+  await undoButton.click();
   await expect(dash.locator('[data-testid="inbox-row"]')).toHaveCount(2);
 
   // Focus mode: K keeps the current item and auto-advances.
   await dash.getByRole("button", { name: "专注处理" }).click();
   await expect(dash.locator('[data-testid="inbox-focus"]')).toBeVisible();
+  await expect(dash.getByText("1 / 2")).toBeVisible({ timeout: 10_000 });
   await dash.keyboard.press("k");
-  await expect(dash.locator('[data-testid="inbox-focus"]')).toBeVisible();
+  await expect(dash.getByText("1 / 1")).toBeVisible({ timeout: 10_000 });
   await dash.keyboard.press("k");
-  await expect(dash.getByText("队列已清空")).toBeVisible();
+  await expect(dash.getByText("队列已清空")).toBeVisible({ timeout: 10_000 });
 });

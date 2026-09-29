@@ -242,3 +242,8 @@ manifest 由发布设备的 Ed25519 签名；接收方用 roster 中已授权设
   - KM6（PBKDF2 ≥600k）、KM7 抗回滚原语（`highWater.ts`）已完成；KM7 轮换后清理旧 keyId/epoch 密文未完成。
   - KM5 clean-break 账号切换与一次性旧远端挽救未开始。
 - 未完成项按原计划顺序推进，不在本文重开已定决策。
+
+### 12.1 实施修正（有证据，不改变决策意图）
+
+- **QW1 sender 判定**：§5.6/§10 要求 `sender.tab === undefined`。e2e 证据（双 profile mock S3，见 `myz-annotator/tests/extension/sync-mock-s3.spec.ts`）表明：在**标签页中打开的扩展页面**（options/dashboard）同样带有 `sender.tab`，按 `tab === undefined` 会误拒受信页面，导致 `syncSetKey/accountBootstrap` 等正常操作失败。实现改为按 `sender.url` 以 `chrome-extension://<id>/` 开头判定（content script 的 `sender.url` 为宿主页 URL，仍被拒），并加回归测试；QW1 的验收（content script 被拒、扩展页面通过）据此满足。
+- **QW4 endpoint**：允许 loopback（`localhost`/`127.0.0.1`/`[::1]`）HTTP 以便本地 mock/开发；其余仍强制 HTTPS。

@@ -20,6 +20,22 @@ export interface S3DeleteOptions {
   ifMatch?: string
 }
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"])
+
+/**
+ * HTTPS is required for real endpoints; loopback HTTP is allowed so local
+ * development / tests can run a plain mock S3 without certificates.
+ */
+export function isAllowedEndpoint(endpoint: string): boolean {
+  if (/^https:\/\//i.test(endpoint)) return true
+  try {
+    const url = new URL(endpoint)
+    return url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
 const EMPTY_HASH =
   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
@@ -34,7 +50,7 @@ export class S3Client {
 
   constructor(config: SyncS3Settings) {
     const endpoint = (config.endpoint || "").trim()
-    if (endpoint && !/^https:\/\//i.test(endpoint)) {
+    if (endpoint && !isAllowedEndpoint(endpoint)) {
       throw new Error("S3 endpoint must use HTTPS")
     }
     this.endpoint = endpoint.replace(/\/$/, "")

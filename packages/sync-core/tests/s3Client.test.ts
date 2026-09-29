@@ -27,6 +27,21 @@ describe("S3Client endpoint policy", () => {
     ).not.toThrow()
   })
 
+  it("allows loopback http for local dev/tests only", () => {
+    expect(
+      () => new S3Client({ ...base, endpoint: "http://localhost:9000" }),
+    ).not.toThrow()
+    expect(
+      () => new S3Client({ ...base, endpoint: "http://127.0.0.1:9000" }),
+    ).not.toThrow()
+    expect(
+      () => new S3Client({ ...base, endpoint: "http://[::1]:9000" }),
+    ).not.toThrow()
+    expect(
+      () => new S3Client({ ...base, endpoint: "http://192.168.1.10:9000" }),
+    ).toThrow(/HTTPS/)
+  })
+
   it("allows an empty endpoint for unconfigured clients", () => {
     expect(() => new S3Client({ ...base, endpoint: "" })).not.toThrow()
   })

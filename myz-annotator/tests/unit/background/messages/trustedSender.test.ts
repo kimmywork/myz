@@ -65,6 +65,15 @@ describe("trusted sender authorization", () => {
     );
   });
 
+  it("accepts an extension page opened in a tab (sender.tab set)", () => {
+    const sender: chrome.runtime.MessageSender = {
+      tab: { id: 3 } as chrome.tabs.Tab,
+      url: `chrome-extension://${EXTENSION_ID}/src/dashboard/index.html`,
+    };
+    expect(isTrustedExtensionPage(sender)).toBe(true);
+    expect(authorizeMessage("myz:syncNow", {}, sender).ok).toBe(true);
+  });
+
   it("requires an explicit user gesture for key changes", () => {
     const sender = extensionPageSender();
     expect(authorizeMessage("myz:syncSetKey", {}, sender).ok).toBe(false);

@@ -16,8 +16,8 @@ import {
   buildRecordSignature,
   applyTimestampFallback,
 } from "../import";
-import { buildMarkdownExport } from "../markdown";
 import { getInboxStatus, setInboxStatus } from "../inbox/actions";
+import { buildMarkdownExport } from "../markdown";
 import {
   generateId,
   persistHighlightPreferences,
