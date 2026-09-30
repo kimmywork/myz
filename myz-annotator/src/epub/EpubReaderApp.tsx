@@ -251,6 +251,20 @@ export default defineComponent({
       win.addEventListener("scroll", scrollHandler, { passive: true });
 
       doc.addEventListener("mouseup", () => handleSelection(doc, frame));
+      doc.addEventListener("keyup", () => handleSelection(doc, frame));
+      doc.addEventListener("selectionchange", () => {
+        const selection = doc.getSelection();
+        if (
+          !selection ||
+          selection.isCollapsed ||
+          !selection.toString().trim()
+        ) {
+          selectionToolbar.value = null;
+          pendingRange = null;
+          return;
+        }
+        handleSelection(doc, frame);
+      });
       doc.addEventListener("click", (event) => handleHighlightClick(event));
       window.setTimeout(() => {
         store.applyCurrentChapter(doc);

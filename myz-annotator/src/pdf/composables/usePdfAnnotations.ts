@@ -209,6 +209,15 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     }
   }
 
+  function handleSelectionKeyup(event: KeyboardEvent) {
+    if (!event.shiftKey) return;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+      return;
+    }
+    window.setTimeout(applyCurrentSelection, 0);
+  }
+
   function attachStage(el: HTMLElement | null) {
     if (!el) {
       return;
@@ -217,6 +226,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     el.addEventListener("mousedown", handleMouseDown);
     el.addEventListener("mouseup", handleMouseUp);
     el.addEventListener("click", handleClick);
+    el.addEventListener("keyup", handleSelectionKeyup);
   }
 
   function detachStage() {
@@ -226,6 +236,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     boundStage.removeEventListener("mousedown", handleMouseDown);
     boundStage.removeEventListener("mouseup", handleMouseUp);
     boundStage.removeEventListener("click", handleClick);
+    boundStage.removeEventListener("keyup", handleSelectionKeyup);
     boundStage = null;
   }
 

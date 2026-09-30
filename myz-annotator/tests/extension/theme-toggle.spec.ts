@@ -67,11 +67,10 @@ test("popup_theme_toggle_reflects_effective_theme", async () => {
   const { popup, button } = await getPopupThemeButton();
   expect(button).toBeTruthy();
 
-  const label = await popup.$eval(
-    "button[aria-haspopup='listbox']",
-    (el) => el.textContent?.trim() || "",
-  );
-  expect(["亮色", "暗色", "跟随系统"]).toContain(label);
+  // The label is "加载中…" until the theme preference resolves; wait for it.
+  await expect(
+    popup.locator("button[aria-haspopup='listbox']"),
+  ).toContainText(/亮色|暗色|跟随系统/, { timeout: 5000 });
 });
 
 test("dashboard_theme_dropdown_changes_theme", async () => {
