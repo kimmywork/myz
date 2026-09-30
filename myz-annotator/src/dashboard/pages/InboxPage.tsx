@@ -10,6 +10,7 @@ import {
   onMounted,
   onBeforeUnmount,
   ref,
+  watch,
 } from "vue";
 import type {
   InboxQueueItem,
@@ -96,6 +97,10 @@ export default defineComponent({
     const loading = ref(true);
     const loadError = ref("");
     const showAllTags = ref(false);
+    const LIST_PAGE_SIZE = 40;
+    const visibleCount = ref(LIST_PAGE_SIZE);
+    const sentinelRef = ref<HTMLElement | null>(null);
+    let sentinelObserver: IntersectionObserver | null = null;
     const taggingId = ref<string | null>(null);
     const tagDraft = ref("");
     let undoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -179,6 +184,33 @@ export default defineComponent({
     });
 
     const focusItem = computed(() => tabItems.value[focusIndex.value] ?? null);
+
+    const visibleItems = computed(() =>
+      tabItems.value.slice(0, visibleCount.value),
+    );
+
+    watch([activeTab, activeTag, query], () => {
+      visibleCount.value = LIST_PAGE_SIZE;
+    });
+
+    function observeSentinel() {
+      sentinelObserver?.disconnect();
+      if (!sentinelRef.value) return;
+      sentinelObserver = new IntersectionObserver(
+        (entries) => {
+          if (
+            entries.some((entry) => entry.isIntersecting) &&
+            visibleCount.value < tabItems.value.length
+          ) {
+            visibleCount.value += LIST_PAGE_SIZE;
+          }
+        },
+        { rootMargin: "0px 0px 200px 0px" },
+      );
+      sentinelObserver.observe(sentinelRef.value);
+    }
+
+    watch(sentinelRef, () => observeSentinel());
 
     async function load() {
       loading.value = true;
@@ -469,9 +501,12 @@ export default defineComponent({
     onMounted(() => {
       void load();
       window.addEventListener("keydown", onKeydown);
+      observeSentinel();
     });
     onBeforeUnmount(() => {
       window.removeEventListener("keydown", onKeydown);
+      sentinelObserver?.disconnect();
+      sentinelObserver = null;
       clearUndo();
     });
 
@@ -1026,9 +1061,12 @@ export default defineComponent({
               </div>
             ) : (
               <div class="grid gap-3">
-                {tabItems.value.map((item) => (
+                {visibleItems.value.map((item) => (
                   <div key={item.targetId}>{renderRow(item)}</div>
                 ))}
+                {visibleCount.value < tabItems.value.length ? (
+                  <div ref={sentinelRef} class="h-1" aria-hidden="true" />
+                ) : null}
                 {tabItems.value.length === 0 ? (
                   <p class="text-caption text-muted">没有匹配的记录</p>
                 ) : null}
