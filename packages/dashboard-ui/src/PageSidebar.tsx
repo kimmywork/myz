@@ -1,5 +1,7 @@
-import { computed, defineComponent } from "vue"
+import { computed, defineComponent, ref } from "vue"
 import type { PropType } from "vue"
+
+const GROUP_DISPLAY_CAP = 30
 
 export interface PageSidebarGroup {
   url: string
@@ -53,6 +55,22 @@ export default defineComponent({
         .join(" "),
     )
 
+    const pageQuery = ref("")
+    const showAllPages = ref(false)
+
+    const visibleGroups = computed(() => {
+      const needle = pageQuery.value.trim().toLowerCase()
+      const filtered = needle
+        ? props.groups.filter((group) =>
+            [group.title, group.hostname, group.url]
+              .filter(Boolean)
+              .some((field) => String(field).toLowerCase().includes(needle)),
+          )
+        : props.groups
+      if (needle || showAllPages.value) return filtered
+      return filtered.slice(0, GROUP_DISPLAY_CAP)
+    })
+
     return () => (
       <aside class={sidebarClasses.value}>
         <header class="flex items-center justify-between border-b border-line pb-3 dark:border-line">
@@ -72,6 +90,15 @@ export default defineComponent({
         </header>
 
         <div class="mt-3 flex min-h-0 flex-col gap-2">
+          <input
+            type="search"
+            placeholder="筛选页面"
+            value={pageQuery.value}
+            onInput={(event: Event) =>
+              (pageQuery.value = (event.target as HTMLInputElement).value)
+            }
+            class="h-8 w-full rounded-control border border-line bg-surface px-2 text-caption text-text"
+          />
           <button
             type="button"
             class={[
@@ -87,7 +114,7 @@ export default defineComponent({
 
           {props.groups.length ? (
             <div class={groupsClasses.value}>
-              {props.groups.map((group) => {
+              {visibleGroups.value.map((group) => {
                 const title = group.title || group.hostname || group.url
                 const isActive = props.activePageUrl === group.url
                 return (
@@ -119,6 +146,18 @@ export default defineComponent({
                   </button>
                 )
               })}
+              {!pageQuery.value.trim() &&
+              props.groups.length > GROUP_DISPLAY_CAP ? (
+                <button
+                  type="button"
+                  class="w-full rounded-control border border-line px-3 py-2 text-caption text-muted transition hover:border-accent hover:text-accent-text dark:border-line"
+                  onClick={() => (showAllPages.value = !showAllPages.value)}
+                >
+                  {showAllPages.value
+                    ? "收起"
+                    : `显示全部 ${props.groups.length} 个页面`}
+                </button>
+              ) : null}
             </div>
           ) : (
             <p class="text-caption text-muted">{props.emptyLabel}</p>
