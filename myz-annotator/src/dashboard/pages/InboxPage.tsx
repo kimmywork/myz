@@ -95,6 +95,7 @@ export default defineComponent({
     const tagQuery = ref("");
     const loading = ref(true);
     const loadError = ref("");
+    const showAllTags = ref(false);
     const taggingId = ref<string | null>(null);
     const tagDraft = ref("");
     let undoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -144,17 +145,24 @@ export default defineComponent({
       }
       const tags = new Set([...allTags.value, ...counts.keys()]);
       return Array.from(tags)
-        .sort((a, b) => a.localeCompare(b))
+        .sort(
+          (a, b) =>
+            (counts.get(b) || 0) - (counts.get(a) || 0) || a.localeCompare(b),
+        )
         .map((tag) => ({ tag, count: counts.get(tag) || 0 }));
     });
 
+    const TAG_DISPLAY_CAP = 30;
     const visibleTags = computed(() => {
       const needle = tagQuery.value.trim().toLowerCase();
-      return needle
-        ? tagCounts.value.filter((entry) =>
-            entry.tag.toLowerCase().includes(needle),
-          )
-        : tagCounts.value;
+      if (needle) {
+        return tagCounts.value.filter((entry) =>
+          entry.tag.toLowerCase().includes(needle),
+        );
+      }
+      return showAllTags.value
+        ? tagCounts.value
+        : tagCounts.value.slice(0, TAG_DISPLAY_CAP);
     });
 
     const workingSet = computed(() => {
@@ -550,14 +558,14 @@ export default defineComponent({
                       class="inline-flex items-center gap-1 rounded-tag border border-line px-1.5 py-0.5 text-tag text-muted"
                     >
                       {tag}
-                    <button
-                      type="button"
-                      class="hit-expand text-muted hover:text-error"
-                      aria-label={`移除标签 ${tag}`}
-                      onClick={() => void removeTag(item, tag)}
-                    >
-                      <IconClose size={10} />
-                    </button>
+                      <button
+                        type="button"
+                        class="hit-expand text-muted hover:text-error"
+                        aria-label={`移除标签 ${tag}`}
+                        onClick={() => void removeTag(item, tag)}
+                      >
+                        <IconClose size={10} />
+                      </button>
                     </span>
                   ))}
                 </div>
@@ -752,6 +760,18 @@ export default defineComponent({
                 })
               )}
             </div>
+            {!tagQuery.value.trim() &&
+            tagCounts.value.length > TAG_DISPLAY_CAP ? (
+              <button
+                class="btn btn-small mt-2"
+                type="button"
+                onClick={() => (showAllTags.value = !showAllTags.value)}
+              >
+                {showAllTags.value
+                  ? "收起标签"
+                  : `显示全部 ${tagCounts.value.length} 个标签`}
+              </button>
+            ) : null}
           </div>
         </aside>
       );
@@ -891,7 +911,11 @@ export default defineComponent({
             ) : null}
 
             {status.value ? (
-              <p class="text-caption text-muted" role="status" aria-live="polite">
+              <p
+                class="text-caption text-muted"
+                role="status"
+                aria-live="polite"
+              >
                 {status.value}
               </p>
             ) : null}
