@@ -166,6 +166,12 @@ test("pdf_triple_click_then_highlight_saves_whole_paragraph", async () => {
   );
 
   await page.locator('.selection-toolbar button[title="划线"]').click();
+  // Saving is async (background message + IndexedDB); wait for the annotation.
+  await page.waitForFunction(
+    () => (window as any).__MYZ_PDF__.getAnnotations().length > 0,
+    undefined,
+    { timeout: 5000 },
+  );
   const record = await page.evaluate(
     () => (window as any).__MYZ_PDF__.getAnnotations()[0],
   );
