@@ -1,6 +1,6 @@
 import { Highlighter } from "@lucide/vue";
 import { storeToRefs } from "pinia";
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, ref, watch } from "vue";
 import {
   useReaderStore,
   type HighlightFilter,
@@ -14,6 +14,8 @@ const FILTERS: { value: HighlightFilter; label: string }[] = [
   { value: "clip", label: "摘录" },
 ];
 
+const PAGE_SIZE = 60;
+
 export default defineComponent({
   name: "PdfHighlightsPanel",
   setup() {
@@ -25,6 +27,29 @@ export default defineComponent({
       highlightQuery,
       activeId,
     } = storeToRefs(store);
+
+    const visibleCount = ref(PAGE_SIZE);
+    watch([highlightFilter, highlightQuery], () => {
+      visibleCount.value = PAGE_SIZE;
+    });
+
+    const totalRecords = computed(() =>
+      highlightGroups.value.reduce(
+        (sum, group) => sum + group.records.length,
+        0,
+      ),
+    );
+    const limitedGroups = computed(() => {
+      let remaining = visibleCount.value;
+      const groups: typeof highlightGroups.value = [];
+      for (const group of highlightGroups.value) {
+        if (remaining <= 0) break;
+        const records = group.records.slice(0, remaining);
+        remaining -= records.length;
+        groups.push({ ...group, records });
+      }
+      return groups;
+    });
 
     const emptyLabel = computed(() => {
       if (!highlightCounts.value.all) {
@@ -74,7 +99,7 @@ export default defineComponent({
         </div>
       ) : (
         <div class="reader-hl__groups" key="groups">
-          {highlightGroups.value.map((group) => (
+          {limitedGroups.value.map((group) => (
             <section class="reader-hl__group" key={group.pageNumber}>
               <h4 class="reader-hl__page">第 {group.pageNumber} 页</h4>
               <ul class="reader-hl__list">
@@ -93,6 +118,15 @@ export default defineComponent({
               </ul>
             </section>
           ))}
+          {visibleCount.value < totalRecords.value ? (
+            <button
+              type="button"
+              class="reader-hl__filter"
+              onClick={() => (visibleCount.value += PAGE_SIZE)}
+            >
+              显示更多（{visibleCount.value} / {totalRecords.value}）
+            </button>
+          ) : null}
         </div>
       ),
     ];
