@@ -6,6 +6,7 @@ import {
 } from "../src/dataKey"
 import { deviceIdFromSignPublicKey, generateDeviceKeyPair } from "../src/deviceKeys"
 import { addDeviceToRoster, createGenesisRoster } from "../src/roster"
+import { writeStreamAck } from "../src/streamAcks"
 import {
   buildStreamPush,
   commitStreamPush,
@@ -315,6 +316,7 @@ describe("v2 stream client", () => {
       seenStreamVersion: third.streamVersion,
       knownShardHashes: third.shardHashes,
       tombstoneRetentionMs: Number.MAX_SAFE_INTEGER,
+      tombstoneMinRetentionMs: Number.MAX_SAFE_INTEGER,
     })
     expect(deleted.deleted).toContain("status:h:2")
 
@@ -359,6 +361,7 @@ describe("v2 stream client", () => {
       local: [],
       localTombstones: { "status:h:1": "2026-02-01T00:00:00.000Z" },
       tombstoneRetentionMs: Number.MAX_SAFE_INTEGER,
+      tombstoneMinRetentionMs: Number.MAX_SAFE_INTEGER,
     })
     expect(outcome.deleted).toContain("status:h:1")
 
@@ -412,5 +415,64 @@ describe("v2 stream client", () => {
       streamId: STREAM,
     })
     expect(pulled.tombstones["status:h:8"]).toBeUndefined()
+  })
+
+  it("reclaims tombstones only after all authorized devices acknowledge", async () => {
+    const { device: host, roster, streamKey, store, dataKey } = await setup()
+    const hostId = await deviceIdFromSignPublicKey(host.signPublicKey)
+    const guest = generateDeviceKeyPair()
+    const guestId = await deviceIdFromSignPublicKey(guest.signPublicKey)
+    const { roster: sharedRoster } = await addDeviceToRoster({
+      roster,
+      approver: host,
+      approverDeviceId: hostId,
+      newDevice: guest,
+      dataKey,
+    })
+
+    const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+    await commitStreamPush({
+      store,
+      streamKey,
+      device: host,
+      deviceId: hostId,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+      clientId: "A",
+      epoch: 1,
+      records: [],
+      tombstones: { "status:h:9": old },
+    })
+
+    const base = {
+      store,
+      streamKey,
+      roster: sharedRoster,
+      device: host,
+      deviceId: hostId,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+      clientId: "A",
+      epoch: 1,
+      local: [] as StreamRecordInput[],
+      localTombstones: {},
+      tombstoneMinRetentionMs: 24 * 60 * 60 * 1000,
+      tombstoneRetentionMs: 90 * 24 * 60 * 60 * 1000,
+    }
+
+    // Guest has not acknowledged yet: keep the longer TTL, retain the tombstone.
+    const first = await syncStream(base)
+    expect(first.tombstones["status:h:9"]).toBeTruthy()
+
+    // Guest acknowledges the current version: reclaim after the short window.
+    await writeStreamAck(store, {
+      accountId: ACCOUNT,
+      streamId: STREAM,
+      device: guest,
+      deviceId: guestId,
+      streamVersion: first.streamVersion,
+    })
+    const second = await syncStream(base)
+    expect(second.tombstones["status:h:9"]).toBeUndefined()
   })
 })

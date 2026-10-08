@@ -19,6 +19,7 @@ import {
   openShard,
   recordShardId,
 } from "./shards"
+import { readStreamAcks, writeStreamAck } from "./streamAcks"
 import {
   assertStreamReadable,
   openStreamManifest,
@@ -69,6 +70,9 @@ const IO_CONCURRENCY = 6
 
 /** Tombstones older than this are dropped on the next push (TTL retention). */
 export const DEFAULT_TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
+
+/** Shorter retention used once every authorized device has acknowledged. */
+export const DEFAULT_TOMBSTONE_MIN_RETENTION_MS = 24 * 60 * 60 * 1000
 
 export interface StreamPullResult {
   manifest: StreamManifest | null
@@ -557,6 +561,7 @@ export async function syncStream(options: {
   knownShardHashes?: Record<string, string>
   shardCount?: number
   tombstoneRetentionMs?: number
+  tombstoneMinRetentionMs?: number
 }): Promise<StreamSyncOutcome> {
   const pulled = await pullStream({
     store: options.store,
@@ -574,8 +579,29 @@ export async function syncStream(options: {
       recordHash: await hashStreamRecord(record),
     })),
   )
-  const retentionMs =
-    options.tombstoneRetentionMs ?? DEFAULT_TOMBSTONE_RETENTION_MS
+
+  // Reclaim tombstones sooner only once every authorized device has applied the
+  // current version; otherwise keep the longer TTL.
+  const currentVersion = pulled.manifest?.streamVersion ?? 0
+  const authorized = options.roster.devices.filter((entry) => !entry.revokedAt)
+  let allAcked = currentVersion > 0 && authorized.length > 0
+  if (allAcked) {
+    const acks = await readStreamAcks(options.store, {
+      accountId: options.accountId,
+      streamId: options.streamId,
+      roster: options.roster,
+    })
+    for (const device of authorized) {
+      if (device.deviceId === options.deviceId) continue
+      if ((acks.get(device.deviceId) ?? -1) < currentVersion) {
+        allAcked = false
+        break
+      }
+    }
+  }
+  const retentionMs = allAcked
+    ? (options.tombstoneMinRetentionMs ?? DEFAULT_TOMBSTONE_MIN_RETENTION_MS)
+    : (options.tombstoneRetentionMs ?? DEFAULT_TOMBSTONE_RETENTION_MS)
   const cutoff = Date.now() - retentionMs
   const incomingTombstones = Object.fromEntries(
     Object.entries({
@@ -601,6 +627,13 @@ export async function syncStream(options: {
     stableStringify(merge.tombstones) !== stableStringify(pulled.tombstones)
 
   if (!dirty && pulled.manifest) {
+    await writeStreamAck(options.store, {
+      accountId: options.accountId,
+      streamId: options.streamId,
+      device: options.device,
+      deviceId: options.deviceId,
+      streamVersion: pulled.manifest.streamVersion,
+    })
     return {
       applied: merge.remoteWinners,
       deleted: merge.deleted,
@@ -632,6 +665,13 @@ export async function syncStream(options: {
   for (const [shardId, entry] of Object.entries(manifest.shards)) {
     shardHashes[shardId] = entry.hash
   }
+  await writeStreamAck(options.store, {
+    accountId: options.accountId,
+    streamId: options.streamId,
+    device: options.device,
+    deviceId: options.deviceId,
+    streamVersion: manifest.streamVersion,
+  })
   return {
     applied: merge.remoteWinners,
     deleted: merge.deleted,

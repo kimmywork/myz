@@ -229,10 +229,10 @@ tombstone shard 解密后:
 - 墓碑**单次同步负担很小**：只重写“记录分片 + 对应墓碑分片 + manifest”，manifest 索引 O(分片数)。
 - 但墓碑**会累积**：`streamGc.ts` 只剪旧 manifest/未引用分片，被保留 manifest 引用的墓碑分片不会清 → 无界增长。
 - 因此删除分两层：**删除意图 = 墓碑**（传播，必需）；**删除清理 = GC 的职责**。策略：
-  - **保留窗口（TTL，先落地）**：在 **push 合并阶段**丢弃超过窗口（默认 90 天）的墓碑，使新 manifest 不再携带；旧 manifest 随 `keepCount` 轮换后，墓碑分片变为未引用，由 `gcStream` 删除（无需重写签名 manifest）。
-  - **设备水位（增强）**：roster 记录每设备已见 `streamVersion`，仅当所有已授权设备越过该删除版本才回收（避免离线设备复活）。列为后续增强。
-  - **压实（compaction，后续）**：删除后稀疏的记录/墓碑分片按阈值重写或增长 `shardCount` 再平衡（jump hash 保证迁移 ~1/N）。列为后续。
-- 风险：仅 TTL、无水位时，离线超过窗口的设备可能复活已删记录（记为已接受，待水位增强）。
+  - **保留窗口（TTL）— 已实现**：在 **push 合并阶段**丢弃超过窗口（默认 90 天）的墓碑，使新 manifest 不再携带；旧 manifest 随 `keepCount` 轮换后，墓碑分片变为未引用，由 `gcStream` 删除（无需重写签名 manifest）。
+  - **设备水位 — 已实现**：每流每设备写**签名 ack**（`<prefix>/acks/<deviceId>.bin`，`streamAcks.ts`，不占 manifest/不 bump 版本）；当所有已授权设备 ack 的 `streamVersion >= 当前版本` 时，改用**最短保留窗口**（默认 24h）回收墓碑。`syncStream` 同步成功后写自身 ack。
+  - **压实（compaction）— 部分**：从分片删除记录后，空分片在重建 manifest 时自然消失（未引用即被 `gcStream` 回收）；**稀疏分片重写/增长 `shardCount` 再平衡**列为后续。
+- 风险：仅 TTL、无水位时，离线超过窗口的设备可能复活已删记录；现已有水位，默认路径不再有该风险（无 ack 的离线设备会阻止回收，安全优先）。
 
 ### 11.3 验收
 - 删除在两端传播；已删记录**不复活**。
