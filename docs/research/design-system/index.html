@@ -1471,6 +1471,232 @@
         font-size: 11px;
         color: var(--myz-muted);
       }
+      .inbox-demo {
+        background: var(--myz-bg);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
+        padding: 16px;
+        font-family: var(--myz-sans);
+      }
+      .inbox-head,
+      .inbox-toolbar,
+      .inbox-row-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .inbox-head h3 {
+        margin: 0;
+        font-family: var(--myz-read);
+        font-size: 24px;
+      }
+      .inbox-head p,
+      .inbox-count,
+      .inbox-meta,
+      .inbox-hint,
+      .inbox-oldest {
+        color: var(--myz-muted);
+        font-size: 13px;
+      }
+      .inbox-toolbar {
+        margin: 16px 0;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        border-bottom: 1px solid var(--myz-line);
+        padding-bottom: 12px;
+      }
+      .inbox-search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1 1 240px;
+        max-width: 360px;
+        min-height: var(--myz-hit-regular);
+        padding: 0 12px;
+        color: var(--myz-muted);
+        background: var(--myz-control-bg);
+        border: 1px solid var(--myz-control-border);
+        border-radius: var(--myz-r);
+        font-size: 13px;
+      }
+      .inbox-filters {
+        display: inline-flex;
+        gap: 3px;
+        padding: 3px;
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-pill);
+      }
+      .inbox-filters button {
+        min-height: var(--myz-hit-compact);
+        padding: 0 14px;
+        color: var(--myz-muted);
+        border: 0;
+        border-radius: var(--myz-r-pill);
+        background: transparent;
+        font: 600 12px var(--myz-sans);
+      }
+      .inbox-filters button.is-on {
+        color: var(--myz-on-accent);
+        background: var(--myz-accent);
+      }
+      .inbox-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .inbox-action {
+        min-height: var(--myz-hit-compact);
+        padding: 0 10px;
+        border: 1px solid var(--myz-control-border);
+        border-radius: var(--myz-r);
+        background: var(--myz-control-bg);
+        color: var(--myz-text);
+        font: 600 12px var(--myz-sans);
+      }
+      .inbox-action.primary {
+        border-color: transparent;
+        background: var(--myz-accent);
+        color: var(--myz-on-accent);
+      }
+      .inbox-queue {
+        display: grid;
+        gap: 8px;
+      }
+      .inbox-section,
+      .inbox-drawer,
+      .inbox-enrichment {
+        padding: 14px;
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r-lg);
+      }
+      .inbox-section h4,
+      .inbox-drawer h4,
+      .inbox-enrichment h4 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .inbox-row {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+        padding: 12px;
+        background: var(--myz-surface);
+        border: 1px solid var(--myz-line);
+        border-radius: var(--myz-r);
+        text-align: left;
+      }
+      .inbox-row.is-selected {
+        border-color: var(--myz-accent);
+        background: var(--myz-surface-2);
+      }
+      .inbox-row input {
+        margin-top: 4px;
+        accent-color: var(--myz-accent);
+      }
+      .inbox-row .inbox-kind {
+        margin-top: 1px;
+      }
+      .inbox-row blockquote {
+        margin: 0;
+        color: var(--myz-text);
+        font: 400 14px/1.55 var(--myz-read);
+      }
+      .inbox-row .inbox-actions {
+        justify-content: flex-end;
+      }
+      .inbox-row .inbox-actions button {
+        min-height: 32px;
+        padding: 0 8px;
+        border: 0;
+        background: transparent;
+        color: var(--myz-accent-text);
+        font: 600 12px var(--myz-sans);
+      }
+      .inbox-row .inbox-actions .danger {
+        color: var(--myz-error);
+      }
+      .inbox-kind,
+      .inbox-state,
+      .inbox-keyword {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 0 8px;
+        color: var(--myz-tag-fg);
+        background: var(--myz-tag-bg);
+        border-radius: var(--myz-r-sm);
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .inbox-state {
+        color: var(--myz-info);
+        background: var(--myz-info-bg);
+      }
+      .inbox-state.marked {
+        color: var(--myz-warn);
+        background: var(--myz-warn-bg);
+      }
+      .inbox-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 6px;
+        font-size: 12px;
+      }
+      .inbox-enrichment {
+        display: grid;
+        gap: 10px;
+        background: var(--myz-surface-2);
+      }
+      .inbox-enrichment p {
+        margin: 0;
+        color: var(--myz-muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .inbox-keywords {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .inbox-keyword {
+        font-weight: 500;
+      }
+      .inbox-drawer {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+        border-color: var(--myz-accent);
+      }
+      .inbox-drawer blockquote {
+        margin: 0;
+        padding-left: 10px;
+        border-left: 3px solid var(--myz-accent);
+        font: 400 14px/1.6 var(--myz-read);
+      }
+      .inbox-drawer .inbox-actions {
+        border-top: 1px solid var(--myz-line);
+        padding-top: 10px;
+      }
+      .inbox-hint {
+        margin: 12px 0 0;
+        line-height: 1.55;
+      }
+      @media (max-width: 760px) {
+        .inbox-row {
+          grid-template-columns: auto auto minmax(0, 1fr);
+        }
+        .inbox-row > .inbox-actions {
+          grid-column: 3;
+          justify-content: flex-start;
+        }
+      }
 
       .popup {
         width: 320px;
@@ -2629,7 +2855,7 @@
     </svg>
 
     <div class="top">
-      <div class="brand">MyZ<span>设计系统 · v0.2</span></div>
+      <div class="brand">MyZ<span>设计系统 · v0.4</span></div>
       <nav>
         <a href="#principles">原则</a>
         <a href="#color">色彩</a>
@@ -2775,8 +3001,7 @@
             <h3 style="margin-top: 0">产品是什么</h3>
             <p>
               一个本地的文本采集与阅读工具。把网页或 PDF
-              里值得留下的句子划线、摘录下来，加上自己的批注，之后能在文库或阅读器里重新找到、重新读。不做
-              AI，不联网也能用。
+              里值得留下的句子划线、摘录下来，加上自己的批注，之后能在文库、Inbox 或阅读器里重新找到、重新读。Inbox 负责处理新采集内容；采集、队列动作与文库不依赖 AI。
             </p>
             <h3>给谁用</h3>
             <p>
@@ -2900,8 +3125,7 @@
         </p>
         <div class="why" style="margin-top: 0">
           <b>Rationale</b
-          >「定位」「查看」「在阅读器中打开」其实是同一件事，却像三个功能。用词不稳定，按钮和空状态就没法复用。「智能助理」也和已经确定的「不做
-          AI」矛盾。
+          >「定位」「查看」「在阅读器中打开」其实是同一件事，却像三个功能。用词不稳定，按钮和空状态就没法复用。MyZ 也不应被包装成通用聊天助手；Inbox 的自动信息只作为处理线索，不替用户做决定。
         </div>
 
         <h3>动效只解释变化</h3>
@@ -3611,8 +3835,8 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
             <tr>
               <td>产品名</td>
               <td>MyZ</td>
-              <td>智能助理</td>
-              <td>已经确定不做 AI</td>
+              <td>通用智能助理</td>
+              <td>MyZ 聚焦采集与回看；Inbox 的本地线索不是聊天助手</td>
             </tr>
             <tr>
               <td>给选区上色</td>
@@ -5553,6 +5777,7 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
           <button class="chip is-on" type="button" data-scene="dash">
             文库
           </button>
+          <button class="chip" type="button" data-scene="inbox">Inbox</button>
           <button class="chip" type="button" data-scene="settings">
             设置
           </button>
@@ -5631,6 +5856,82 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="panel" id="scene-inbox">
+            <div class="inbox-demo">
+              <div class="inbox-head">
+                <div>
+                  <h3>Inbox</h3>
+                  <p>处理刚刚采集、还没有决定去向的内容</p>
+                </div>
+                <div>
+                  <strong class="inbox-count">待处理 6 条</strong>
+                  <span class="inbox-oldest"> · 最早 2 天前</span>
+                </div>
+              </div>
+              <div class="inbox-toolbar">
+                <div class="inbox-filters" role="group" aria-label="Inbox 队列状态">
+                  <button class="is-on" type="button" aria-pressed="true" data-inbox-view="pending">待处理</button>
+                  <button type="button" aria-pressed="false" data-inbox-view="snoozed">稍后处理</button>
+                  <button type="button" aria-pressed="false" data-inbox-view="marked">已标记</button>
+                </div>
+                <div class="inbox-search">
+                  <svg class="i" aria-hidden="true"><use href="#i-search" /></svg>
+                  <span>搜索记录、标签或关键词</span>
+                </div>
+                <div class="inbox-actions">
+                  <button class="inbox-action" type="button">批量操作</button>
+                  <button class="inbox-action primary" type="button">直接入文库</button>
+                </div>
+              </div>
+              <section class="inbox-section" aria-label="待处理记录">
+                <div class="inbox-row-head">
+                  <h4>待处理 · 按最近采集</h4>
+                  <span class="inbox-count">选择 0 条</span>
+                </div>
+                <div class="inbox-queue" style="margin-top: 10px">
+                  <div class="inbox-row is-selected">
+                    <input type="checkbox" checked aria-label="选择关于本地索引的摘录" />
+                    <span class="inbox-kind">摘录</span>
+                    <div>
+                      <div class="inbox-row-head">
+                        <span class="inbox-state">待处理</span>
+                        <span class="inbox-state marked">已标记</span>
+                      </div>
+                      <blockquote>本地化索引可以把高亮内容与页面来源关联起来。</blockquote>
+                      <div class="inbox-meta"><span>技术文章 · example.org</span><span>第 3 页</span><span>今天 10:42</span></div>
+                    </div>
+                    <div class="inbox-actions">
+                      <button type="button">保留</button><button type="button">稍后</button><button class="danger" type="button">删除</button>
+                    </div>
+                  </div>
+                  <div class="inbox-row">
+                    <input type="checkbox" aria-label="选择关于隐私同步的摘录" />
+                    <span class="inbox-kind">划线</span>
+                    <div>
+                      <div class="inbox-row-head"><span class="inbox-state">待处理</span></div>
+                      <blockquote>隐私设置需要明确说明哪些内容会被同步。</blockquote>
+                      <div class="inbox-meta"><span>产品文档 · example.net</span><span>昨天 16:05</span></div>
+                    </div>
+                    <div class="inbox-actions"><button type="button">保留</button><button type="button">归档</button><button class="danger" type="button">删除</button></div>
+                  </div>
+                </div>
+              </section>
+              <section class="inbox-enrichment" aria-label="自动线索">
+                <div class="inbox-row-head"><h4>自动线索 · 关于本地索引的摘录</h4><span class="inbox-state">本机分析</span></div>
+                <div class="inbox-keywords"><span class="inbox-keyword">本地索引</span><span class="inbox-keyword">高亮内容</span><span class="inbox-keyword">页面来源</span></div>
+                <p>代表句：本地化索引可以把高亮内容与页面来源关联起来。 · 同一页面已有 2 条记录</p>
+                <div class="inbox-actions"><button class="inbox-action" type="button">查看原文</button><button class="inbox-action" type="button">查看相似记录</button></div>
+              </section>
+              <aside class="inbox-drawer" aria-label="记录详情示例">
+                <div class="inbox-row-head"><h4>记录详情</h4><span class="inbox-state">待处理</span></div>
+                <blockquote>本地化索引可以把高亮内容与页面来源关联起来。</blockquote>
+                <div class="inbox-meta"><span>关键词来自原文</span><span>来源：example.org</span><span>第 3 页</span></div>
+                <div class="inbox-actions"><button class="inbox-action primary" type="button">保留入文库</button><button class="inbox-action" type="button">归档</button><button class="inbox-action" type="button">稍后处理</button><button class="inbox-action" type="button">打开文库记录</button></div>
+              </aside>
+              <p class="inbox-hint">保留后进入文库常规视图；归档仍可在文库的归档筛选、搜索和导出中找到。</p>
             </div>
           </div>
 
@@ -6134,6 +6435,17 @@ chrome.i18n.getUILanguage() → "zh-CN"</code></pre>
           document
             .getElementById("scene-" + tab.dataset.scene)
             .classList.add("is-on");
+        });
+      });
+
+      document.querySelectorAll("[data-inbox-view]").forEach((button) => {
+        button.addEventListener("click", () => {
+          document
+            .querySelectorAll("[data-inbox-view]")
+            .forEach((item) => {
+              item.classList.toggle("is-on", item === button);
+                item.setAttribute("aria-pressed", item === button ? "true" : "false");
+            });
         });
       });
 
