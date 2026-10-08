@@ -1,6 +1,7 @@
 # Workstate
 
-- Focus (2026-10-08): UX 修复告一段落并暂停。P0/P1 完成；P2 Batch 0–4 完成（Batch 4 用「分批+上限」）。未做且暂不继续：Batch 5（高亮绘制统一，重构、无功能影响）、E2EE 异地 S3 设备邮箱 UI、窄屏详情抽屉/滑动手势。已知限制与影响已写入 `docs/reviews/UX-ASSESSMENT-2026-09-29.md §5`。
+- Sync setup wizard plan (2026-10-08): 新增 `docs/plan/sync-setup-wizard.md`（独立全屏 `#/setup`，首次进入加密同步自动弹；三场景：加入/新建/授权新设备；邀请串带非敏感 S3 参数；迁移步骤始终显示且强制初始同步完成后才结束；设置页移除「设备配对」块）。待实现（I0–I6）。
+- Focus (2026-10-08): UX 修复告一段落。P0/P1 完成；P2 Batch 0–4 完成。文档已对齐/精简（删旧研究+showcase，保留设计规范与 v1 挽救代码）。同步设置 UI 已在账号存在时隐藏旧格式密钥/KeyId（`881ccd3`）。未做且暂不继续：Batch 5（高亮绘制统一）、E2EE 异地 S3 设备邮箱 UI、窄屏详情抽屉/滑动手势；新计划《Sync Setup Wizard》待实现。
 - UX remediation (2026-09-30): P0 完成；P1 完成（含焦点陷阱与菜单键盘）；P2 Batch 0（截断/选择器/Esc/状态/令牌）、Batch 1（保存 Toast）、Batch 2（焦点陷阱+菜单键盘）、Batch 3（阅读器选区键盘触摸）、Batch 4（标签/来源上限、阅读器与 Inbox 分批+无限滚动）完成；`tests/pdf` 三击测试竞态已修。未做：Batch 5、E2EE S3 邮箱 UI、窄屏滑动手势
 - E2EE hardening progress (2026-09-28): 阶段 A 完成——QW1 消息授权、QW2 锁续租+所有权释放、QW3 凭证加密+keyset AAD、QW4 强制 HTTPS、QW5 chunk/record/chain 完整性。阶段 B 基础——v2 协议 schema、deviceKeys/roster/dataKey/kdf/highWater、app deviceKeyring；测试：annotator 209、shared 79、sync-core 34，e2e 47 passed/1 skipped，build green，jscpd 1.29%
 - V&V (2026-09-28): 对 `c7e717a`..`ee67b65` 自审——条件通过；无正确性缺陷；F1（QW3 落盘集成测试）/F2（HEAD 重跑 e2e）/F3（sync-core typecheck）已关闭；F5（`fetchRemoteRecords` 完整性参数可默认空跳过）与 F4（QW1 额外纳入 syncTestConnection）待办/知悉。限制：自审、无独立评审与渗透测试、无 50k 规模基准
