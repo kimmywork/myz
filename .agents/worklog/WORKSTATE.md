@@ -1,6 +1,7 @@
 # Workstate
 
-- Focus: 按三份已审核计划实施（顺序：安全 QW1–QW5 → 安全密钥模型 KM1–KM7 → sync 子流 I1–I8 → Inbox D1–D6）。阶段 A 完成并验证；阶段 B 已完成基础（KM1 schema/design、KM2 设备密钥+落盘、KM3/KM4 roster crypto 核心、KM6 KDF、KM7 抗回滚）。下一步：KM3 传输（QR/S3 设备邮箱）+ KM4 把 D/roster 接入 syncEngine + KM5 clean break 切换。
+- Focus (2026-10-08): UX 修复告一段落并暂停。P0/P1 完成；P2 Batch 0–4 完成（Batch 4 用「分批+上限」）。未做且暂不继续：Batch 5（高亮绘制统一，重构、无功能影响）、E2EE 异地 S3 设备邮箱 UI、窄屏详情抽屉/滑动手势。已知限制与影响已写入 `docs/reviews/UX-ASSESSMENT-2026-09-29.md §5`。
+- UX remediation (2026-09-30): P0 完成；P1 完成（含焦点陷阱与菜单键盘）；P2 Batch 0（截断/选择器/Esc/状态/令牌）、Batch 1（保存 Toast）、Batch 2（焦点陷阱+菜单键盘）、Batch 3（阅读器选区键盘触摸）、Batch 4（标签/来源上限、阅读器与 Inbox 分批+无限滚动）完成；`tests/pdf` 三击测试竞态已修。未做：Batch 5、E2EE S3 邮箱 UI、窄屏滑动手势
 - E2EE hardening progress (2026-09-28): 阶段 A 完成——QW1 消息授权、QW2 锁续租+所有权释放、QW3 凭证加密+keyset AAD、QW4 强制 HTTPS、QW5 chunk/record/chain 完整性。阶段 B 基础——v2 协议 schema、deviceKeys/roster/dataKey/kdf/highWater、app deviceKeyring；测试：annotator 209、shared 79、sync-core 34，e2e 47 passed/1 skipped，build green，jscpd 1.29%
 - V&V (2026-09-28): 对 `c7e717a`..`ee67b65` 自审——条件通过；无正确性缺陷；F1（QW3 落盘集成测试）/F2（HEAD 重跑 e2e）/F3（sync-core typecheck）已关闭；F5（`fetchRemoteRecords` 完整性参数可默认空跳过）与 F4（QW1 额外纳入 syncTestConnection）待办/知悉。限制：自审、无独立评审与渗透测试、无 50k 规模基准
 - Inbox v0.5 (2026-09-29): 页面按设计系统重做并新增左侧栏（状态导航 + 标签，拖拽打标签、点击筛选，复用正文 tag）；状态 pill / 页头 / 行构成 / 稍后到期 / 危险文字删除对齐 §4.25；设计系统 §5.6/§4.25 与 inbox-flow §4.1/§4.4 已更新记录为 v0.5。注：design-system 的 index.html showcase 尚未同步侧栏。
