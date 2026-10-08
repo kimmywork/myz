@@ -67,6 +67,9 @@ interface StreamMeta {
 
 const IO_CONCURRENCY = 6
 
+/** Tombstones older than this are dropped on the next push (TTL retention). */
+export const DEFAULT_TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
+
 export interface StreamPullResult {
   manifest: StreamManifest | null
   records: Map<string, StreamRemoteRecord>
@@ -553,6 +556,7 @@ export async function syncStream(options: {
   seenStreamVersion?: number | null
   knownShardHashes?: Record<string, string>
   shardCount?: number
+  tombstoneRetentionMs?: number
 }): Promise<StreamSyncOutcome> {
   const pulled = await pullStream({
     store: options.store,
@@ -570,10 +574,22 @@ export async function syncStream(options: {
       recordHash: await hashStreamRecord(record),
     })),
   )
+  const retentionMs =
+    options.tombstoneRetentionMs ?? DEFAULT_TOMBSTONE_RETENTION_MS
+  const cutoff = Date.now() - retentionMs
+  const incomingTombstones = Object.fromEntries(
+    Object.entries({
+      ...options.localTombstones,
+      ...pulled.tombstones,
+    }).filter(([, deletedAt]) => {
+      const at = Date.parse(deletedAt)
+      return Number.isNaN(at) || at >= cutoff
+    }),
+  )
   const merge = mergeStreamRecords({
     local,
     remote: pulled.records,
-    tombstones: { ...options.localTombstones, ...pulled.tombstones },
+    tombstones: incomingTombstones,
   })
 
   const remoteIndex = pulled.manifest?.recordsIndex ?? {}

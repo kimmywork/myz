@@ -214,3 +214,28 @@ tombstone shard 解密后:
 - **I2–I8 完成**：流参数化与 `SyncDatasetAdapter` 接线（I2）、Inbox 子流（I3）、`jumpConsistentHash` 分片 + 打包 chunk（I4）、有界并发 IO（I5）、墓碑/opaque/`<=` 版本解析/`minReaderVersion`/`streamVersion` high-water（I6）、删除死 registry（I7）、按流 GC（I8）。核心见 `packages/sync-core/src/{streamClient,streamManifest,streamMerge,streamGc,shards,jumpHash,accountSync}.ts`。
 - **端到端**：双 profile mock S3 e2e（`tests/extension/sync-mock-s3.spec.ts`）。
 - 依赖：KM3 传输（同机配对已接 UI；S3 邮箱 crypto 已实现未接 UI）与 KM4 接线均已完成，见 `e2ee-security-hardening.md §12`。
+
+## 11. 删除传播与墓碑生命周期（2026-10-08 补充）
+
+背景：v2 契约要求**显式墓碑**、禁止“缺席即删除”（§3.3/§3.4）。但实现里**没有把本地删除写进子流墓碑**：`StreamDataset` 只有 `collect/apply/remove`，删除只从本地集合消失 → 对端拉取时“本地缺失 + 远端存在”判远端胜出 → **复活**，删除不传播；Inbox 的 `status:/mark:/rel:` 也从未墓碑化。
+
+### 11.1 删除传播（修复）
+- `StreamDataset` 增加可选 `collectTombstones(): Promise<Record<recordId, deletedAt>>` 与 `clearTombstones(ids)`；`syncAccountStreams` 将 `state.tombstones` 与本地待推墓碑合并后交给 `syncStream`，**推送成功后**清理本地待推项（失败不清理，避免丢删除）。
+- 高亮流：本地删除日志（现有 `deletions` store，`recordHighlightDeletion` 写入）作为待推墓碑（前缀 `h:`）。
+- Inbox 流：删除正文时同时墓碑化 `status:<target>`/`mark:<target>` 与触及该 target 的逐边 `rel:` 记录；`removeInboxRelation` 也写 `rel:` 墓碑。两流按前缀各清各的，顺序无关。
+- 远端删除应用（`dataset.remove`）**不**记本地墓碑（避免回传环）。
+
+### 11.2 墓碑生命周期（GC 的一部分）
+- 墓碑**单次同步负担很小**：只重写“记录分片 + 对应墓碑分片 + manifest”，manifest 索引 O(分片数)。
+- 但墓碑**会累积**：`streamGc.ts` 只剪旧 manifest/未引用分片，被保留 manifest 引用的墓碑分片不会清 → 无界增长。
+- 因此删除分两层：**删除意图 = 墓碑**（传播，必需）；**删除清理 = GC 的职责**。策略：
+  - **保留窗口（TTL，先落地）**：在 **push 合并阶段**丢弃超过窗口（默认 90 天）的墓碑，使新 manifest 不再携带；旧 manifest 随 `keepCount` 轮换后，墓碑分片变为未引用，由 `gcStream` 删除（无需重写签名 manifest）。
+  - **设备水位（增强）**：roster 记录每设备已见 `streamVersion`，仅当所有已授权设备越过该删除版本才回收（避免离线设备复活）。列为后续增强。
+  - **压实（compaction，后续）**：删除后稀疏的记录/墓碑分片按阈值重写或增长 `shardCount` 再平衡（jump hash 保证迁移 ~1/N）。列为后续。
+- 风险：仅 TTL、无水位时，离线超过窗口的设备可能复活已删记录（记为已接受，待水位增强）。
+
+### 11.3 验收
+- 删除在两端传播；已删记录**不复活**。
+- 删除正文时其 Inbox 状态记录同步消失；`rel:` 解除可传播。
+- 墓碑随保留窗口回收，不再无界增长。
+

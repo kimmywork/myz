@@ -314,6 +314,7 @@ describe("v2 stream client", () => {
       localTombstones: { "status:h:2": "2026-03-01T00:00:00.000Z" },
       seenStreamVersion: third.streamVersion,
       knownShardHashes: third.shardHashes,
+      tombstoneRetentionMs: Number.MAX_SAFE_INTEGER,
     })
     expect(deleted.deleted).toContain("status:h:2")
 
@@ -326,5 +327,90 @@ describe("v2 stream client", () => {
     })
     expect(final.records.get("status:h:1")?.data).toEqual({ v: 99 })
     expect(final.records.has("status:h:2")).toBe(false)
+  })
+
+  it("propagates a local tombstone and does not resurrect the record", async () => {
+    const { device, deviceId, roster, streamKey, store } = await setup()
+    await commitStreamPush({
+      store,
+      streamKey,
+      device,
+      deviceId,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+      clientId: "c1",
+      epoch: 1,
+      records: [
+        record("status:h:1", "2026-01-01T00:00:00.000Z", { v: 1 }),
+      ],
+      tombstones: {},
+    })
+
+    const outcome = await syncStream({
+      store,
+      streamKey,
+      roster,
+      device,
+      deviceId,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+      clientId: "c1",
+      epoch: 1,
+      local: [],
+      localTombstones: { "status:h:1": "2026-02-01T00:00:00.000Z" },
+      tombstoneRetentionMs: Number.MAX_SAFE_INTEGER,
+    })
+    expect(outcome.deleted).toContain("status:h:1")
+
+    const pulled = await pullStream({
+      store,
+      streamKey,
+      roster,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+    })
+    expect(pulled.records.has("status:h:1")).toBe(false)
+    expect(pulled.tombstones["status:h:1"]).toBeTruthy()
+  })
+
+  it("drops tombstones older than the retention window on push", async () => {
+    const { device, deviceId, roster, streamKey, store } = await setup()
+    await commitStreamPush({
+      store,
+      streamKey,
+      device,
+      deviceId,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+      clientId: "c1",
+      epoch: 1,
+      records: [record("status:h:9", "2026-01-01T00:00:00.000Z", {})],
+      tombstones: { "status:h:8": "2020-01-01T00:00:00.000Z" },
+    })
+
+    const outcome = await syncStream({
+      store,
+      streamKey,
+      roster,
+      device,
+      deviceId,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+      clientId: "c1",
+      epoch: 1,
+      local: [record("status:h:9", "2026-01-01T00:00:00.000Z", {})],
+      localTombstones: {},
+      tombstoneRetentionMs: 30 * 24 * 60 * 60 * 1000,
+    })
+    expect(outcome.tombstones["status:h:8"]).toBeUndefined()
+
+    const pulled = await pullStream({
+      store,
+      streamKey,
+      roster,
+      accountId: ACCOUNT,
+      streamId: STREAM,
+    })
+    expect(pulled.tombstones["status:h:8"]).toBeUndefined()
   })
 })

@@ -176,4 +176,67 @@ describe("account stream orchestration", () => {
       result.streams.find((stream) => stream.streamId === STREAM)?.error,
     ).toBeUndefined()
   })
+
+  it("propagates dataset tombstones to another device and clears pending deletions", async () => {
+    const { hostDevice, hostAccount, guestDevice, guestAccount } = await fixture()
+    const store = new InMemoryObjectStore()
+    const hostState = createStateStore()
+    const host = createDataset(STREAM)
+    host.records.set("h:1", {
+      recordId: "h:1",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      recordHash: "",
+      data: { v: 1 },
+    })
+    await syncAccountStreams({
+      store,
+      account: hostAccount,
+      device: hostDevice,
+      clientId: hostAccount.deviceId,
+      datasets: [host.dataset],
+      stateStore: hostState,
+    })
+
+    const guest = createDataset(STREAM)
+    const guestState = createStateStore()
+    await syncAccountStreams({
+      store,
+      account: guestAccount,
+      device: guestDevice,
+      clientId: guestAccount.deviceId,
+      datasets: [guest.dataset],
+      stateStore: guestState,
+    })
+    expect(guest.records.has("h:1")).toBe(true)
+
+    host.records.delete("h:1")
+    let cleared: string[] = []
+    const hostWithTombstones: StreamDataset = {
+      ...host.dataset,
+      collectTombstones: async () => ({ "h:1": new Date().toISOString() }),
+      clearTombstones: async (ids) => {
+        cleared = ids
+      },
+    }
+    await syncAccountStreams({
+      store,
+      account: hostAccount,
+      device: hostDevice,
+      clientId: hostAccount.deviceId,
+      datasets: [hostWithTombstones],
+      stateStore: hostState,
+    })
+    expect(cleared).toEqual(["h:1"])
+
+    const guestAfter = await syncAccountStreams({
+      store,
+      account: guestAccount,
+      device: guestDevice,
+      clientId: guestAccount.deviceId,
+      datasets: [guest.dataset],
+      stateStore: guestState,
+    })
+    expect(guest.records.has("h:1")).toBe(false)
+    expect(guestAfter.streams[0].deleted).toBe(1)
+  })
 })

@@ -13,6 +13,10 @@ export interface StreamDataset {
   collect(): Promise<StreamRecordInput[]>
   apply(record: StreamRemoteRecord): Promise<void>
   remove(recordId: string): Promise<void>
+  /** Pending local deletions to publish as tombstones (recordId -> deletedAt). */
+  collectTombstones?(): Promise<Record<string, string>>
+  /** Called after a successful stream sync to drop the pushed pending deletions. */
+  clearTombstones?(ids: string[]): Promise<void>
 }
 
 export interface StreamStateSnapshot {
@@ -54,6 +58,7 @@ export async function syncAccountStreams(options: {
   datasets: StreamDataset[]
   stateStore: StreamStateStore
   shardCount?: number
+  tombstoneRetentionMs?: number
 }): Promise<AccountSyncResult> {
   const streams: StreamSyncSummary[] = []
   let applied = 0
@@ -66,6 +71,9 @@ export async function syncAccountStreams(options: {
       )
       const state = await options.stateStore.getStreamState(dataset.streamId)
       const local = await dataset.collect()
+      const pendingTombstones = dataset.collectTombstones
+        ? await dataset.collectTombstones()
+        : {}
       const outcome = await syncStream({
         store: options.store,
         streamKey,
@@ -77,10 +85,14 @@ export async function syncAccountStreams(options: {
         clientId: options.clientId,
         epoch: options.account.epoch,
         local,
-        localTombstones: state?.tombstones ?? {},
+        localTombstones: {
+          ...(state?.tombstones ?? {}),
+          ...pendingTombstones,
+        },
         seenStreamVersion: state?.streamVersion ?? null,
         knownShardHashes: state?.shardHashes,
         shardCount: options.shardCount,
+        tombstoneRetentionMs: options.tombstoneRetentionMs,
       })
 
       for (const record of outcome.applied) {
@@ -94,6 +106,9 @@ export async function syncAccountStreams(options: {
         shardHashes: outcome.shardHashes,
         tombstones: outcome.tombstones,
       })
+      if (dataset.clearTombstones) {
+        await dataset.clearTombstones(Object.keys(pendingTombstones))
+      }
 
       applied += outcome.applied.length
       streams.push({
