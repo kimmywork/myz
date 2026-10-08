@@ -106,7 +106,6 @@
 
 ## 关联文档
 - `docs/plan/pdf-support.md` — P0 PDF 阅读与摘录增量计划。
-- `docs/research/omni-inbox/myz.md` — 知识管理/复习方向的早期研究。
-- `docs/plan/inbox-flow.md` — Inbox 智能发现层实验提案（重新设计，不沿用早期 omni-inbox 的知识生命周期/复习系统）。
+- `docs/plan/inbox-flow.md` — Inbox 采集处理队列（已实现，见 §11 实施状态）。
 - `docs/plan/bundled-annotation.md` — 网站预置注解方向（未纳入本阶段）。
 - `docs/plan/new-viewer.md` — 查看器与页面聚合（已实现）。

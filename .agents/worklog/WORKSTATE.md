@@ -48,4 +48,4 @@
 - Pending commit: 上述 review 修复 + 落地页/阅读页 + headless 配置
 - Evidence: build、eslint、annotator 131 / shared 75 单测、extension+PDF 62 e2e、token 检查
 - Evidence: build、eslint、annotator 124 / shared 72 单测、extension 34 e2e、pdf 22 e2e、token 检查
-- References: `docs/plan/epub-support.md`, `docs/plan/apply-design-system.md`, `docs/research/design-system/{design-system.md,index.html,gap.md}`
+- References: `docs/plan/epub-support.md`, `docs/plan/apply-design-system.md`, `docs/research/design-system/design-system.md`

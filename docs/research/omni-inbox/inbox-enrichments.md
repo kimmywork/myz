@@ -101,4 +101,3 @@ type InboxEnrichment = {
 ## 5. 参考
 
 - 旧计划：`docs/plan/inbox-flow.md` v0.2（已移除 §5 / §6）
-- 概念来源：`docs/research/omni-inbox/myz.md`

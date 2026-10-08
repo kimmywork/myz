@@ -2,7 +2,7 @@
 
 ## 背景与目标
 
-设计系统草案已成文，见 `docs/research/design-system/design-system.md`（规范）与 `index.html`（可视展示）。草案定义了四套配色方案、九级字号、五档阅读字号、语义色、圆角/尺寸/动效 Token，以及 16 个组件的规格。
+设计系统草案已成文，见 `docs/research/design-system/design-system.md`（规范）。草案定义了四套配色方案、九级字号、五档阅读字号、语义色、圆角/尺寸/动效 Token，以及 16 个组件的规格。
 
 实现层目前是三套并存的样式源：Dashboard/Popup 用 Tailwind utility 直接写 `slate`/`indigo`；内容脚本用自带的 `--myz-*` 变量与手写 CSS；PDF 阅读器（已完工）另有手写的 `pdf-viewer.css`，且用文字与字符当图标。同一动作在三处长得不一样。
 
@@ -70,7 +70,7 @@
 
 ## 假设
 
-- 展示页 `index.html` 的变量块可被解析，用于与 Token 文件做一致性校验。
+- Token 以 `packages/shared/src/theme/tokens.css` 为真源，与 `design-system.md` 保持一致。
 - 主题切换入口都走同一个 `useThemePreference`，不会出现两处状态。
 - 迁移期间允许外观变化（圆角、阴影、字号统一必然改变观感），以设计系统为准而非以现状为准。
 - Popup 与 Dashboard 共用同一套 Tailwind 配置，无需额外构建目标。
@@ -198,7 +198,7 @@ INC-1 先解决「一套名字、一个真源」，并在命名阶段消除宿�
 
 > 状态（2026-09-20）：INC-8..16 已实现并合入；另追加了共享阅读器 chrome（`src/reader/reader-chrome.css`）与共享高亮绘制（`@myz/shared/highlightRange`）、设置表单行布局（§4.23）。剩余可选项：PDF/EPUB 的工具栏/落地页进一步合并、`ReaderStage` 抽象。
 
-第一轮（INC-1..7）建立了 Token 真源与四处宿主迁移。随后完成了 `design-system.md` v0.2 修订（补齐设置、内容层批注、列表/侧栏、弹窗、PDF 组件与跨切映射，见 §7）。本轮把实现对齐到 v0.2，闭合 `gap.md` 的 B 类差异与新增规范。
+第一轮（INC-1..7）建立了 Token 真源与四处宿主迁移。随后完成了 `design-system.md` v0.2 修订（补齐设置、内容层批注、列表/侧栏、弹窗、PDF 组件与跨切映射，见 §7）。本轮把实现对齐到 v0.2，闭合差距盘点的 B 类差异与新增规范。
 
 ## 本轮差距盘点（已核实，带路径）
 
@@ -318,6 +318,5 @@ INC-8 是全局底座，先做避免每页重复改。INC-9 状态组件跨三�
 ## 关联文档
 
 - `docs/research/design-system/design-system.md` — 设计系统规范（Token、组件、规则）。
-- `docs/research/design-system/index.html` — 可视展示与实时对比度自检。
 - `docs/plan/pdf-support.md` — PDF 阅读器实现现状与视觉验证约定。
 - `docs/knowledges/schemas/settings/v1.md` — 设置 schema。
