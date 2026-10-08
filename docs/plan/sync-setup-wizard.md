@@ -171,8 +171,10 @@
     s3?: { endpoint: string; region: string; bucket: string; prefix?: string }  // 非敏感
   }
   ```
-- `myz-annotator/src/background/sync/v2/pairingSession.ts`：`createPairingInvite` 读取 `settings.sync.s3` 填入 `s3`（**仅非敏感项**）；`acceptPairingInvite` 返回时把该 `s3` 交给 UI 预填。
+- `myz-annotator/src/background/sync/v2/pairingSession.ts`：`createPairingInvite` 读取 `settings.sync.s3` 填入 `s3`（**仅非敏感项**）；`acceptPairingInvite` 需**改为返回 `{ response, sas, s3? }`**（现仅 `{response, sas}`），以便新设备预填 S3。
+- 邀请串是 `encodeBinaryPayload(offer)` 的**明文**（非加密），携带非敏感项无碍；`accountId` 本就体现在 S3 路径中。
 - 敏感项（accessKeyId/secretAccessKey/sessionToken）**永不入串**。
+- 备选（更干净）：不改 `PairingOffer`，而在 app 层做 **invite envelope** `{ offer, s3? }` 包裹——避免把 S3 传输元数据混进 crypto 配对载荷。见 §14 建议。
 
 ## 6. 首次弹出与入口
 - 新增本地设置 `syncSetupSeen?: boolean`（`myz-annotator/src/background/settings.ts` + schema/normalize）。
@@ -187,9 +189,12 @@
 - 无账号时：主按钮 **「设置同步」**（→ `#/setup`）。
 
 ## 8. 迁移与强制初始同步
-- 迁移（B2）始终显示；`bootstrapV2Account({ rescue: true })` 内：`pullLegacyRemote` → `applyRecordPayload` → 建账号 → `syncAccountNow` → 清理旧 keyset。
+- 迁移（B2）始终显示。**现状约束**：`bootstrapV2Account({ rescue:true })` 是**原子**的（`pullLegacyRemote → applyRecordPayload → createLocalAccount → syncAccountNow → clearKeyset/state/deletions`），且**忽略 `syncAccountNow` 的结果**、只返回 `{accountId, rescued}`。因此「分步显示 + 强制同步完成」需要以下之一：
+  - (a) 拆成独立 handler：`accountMigrateLegacy`（仅挽救）→ `accountCreate`（建账号）→ `myz:syncNow`（校验 `ok`）→ 收尾清理；或
+  - (b) 保留原子 `accountBootstrap`，但**改为返回同步状态**，向导以单步进度呈现，`ok!==true` 视为未完成。
+  - 推荐 (a)：步骤可控、可分别重试、能真正“强制同步完成”。
 - **强制同步完成**：向导在 B4/A5 调用 `myz:syncNow`（v2），`ok===true` 才允许“完成”；失败只提供“重试”（不可跳过）。
-- 无旧数据时迁移为显式“无需迁移”状态，仍计为完成。
+- 无旧数据时迁移为显式“无需迁移”状态（依据 `loadKeyset()` 是否存在），仍计为完成。
 
 ## 9. 边界与错误
 | 情况 | 处理 |
@@ -224,3 +229,46 @@
 - 同一 S3 但不同 prefix 的误配 → 迁移/同步会失败，向导需明确报错。
 - 强制同步在大库时耗时；需要进度反馈与可取消（取消后不得视为完成）。
 - 无 QR：跨设备需人工复制多段串；文案需足够清晰。
+
+## 13. 现状差异与需更新（2026-10-08 复核）
+
+- **需改代码**：`PairingOffer` 无 `s3` 字段；`acceptPairingInvite` 仅返回 `{response,sas}`（需加 `s3`）。
+- **需改/拆分**：`bootstrapV2Account` 原子且**忽略同步结果**，返回 `{accountId,rescued}`；向导的“分步 + 强制同步完成”需拆 handler 或改其返回（§8）。
+- **需新增**：settings `syncSetupSeen`；`#/setup` 路由 + 首次跳转。
+- **已一致，无需改**：账号存在时旧格式密钥/KeyId 隐藏（`881ccd3`，对应 §7）；`pairingSession` 邀请 TTL 10 分钟（`chrome.storage.local`）。
+- **无关**：删除/墓碑（I0–I4）不影响向导。
+- **注意**：`accountCreate`(=`createLocalAccount`) 不发布/不同步；`accountBootstrap` 要求 S3 已配置；`accountCreate/Import/Bootstrap` 需 `userGesture:true`（受信页面）。
+
+## 14. Challenge review（2026-10-08）
+
+**对象/决策**：向导三分支 + 复制粘贴配对 + 邀请带 S3 + 迁移始终显示 + 强制同步完成。
+
+**最强假设**
+- A1 用户能可靠地人工复制粘贴多段串（邀请/响应/配对串）且不混淆/不串台。
+- A2 人类会认真比对 6 位 SAS（安全实际依赖此）。
+- A3 新设备能正确获得 S3 配置与凭证（凭证不经邀请串传递）。
+- A4 “强制同步完成”不会把用户锁死（离线/大库/服务端不可用）。
+- A5 拆分的 bootstrap 不产生半完成状态。
+
+**弱点 / 失败模式**
+- **W1 多段复制易错**（顺序、过期、贴错设备），无 QR。缓解：每步标注“发到/来自哪台设备”，串带可识别前缀，粘贴即校验即时报错；邀请带 S3 已减少一次输入。
+- **W2 SAS 门禁是 UI-only**：恶意中继在用户误勾选时仍可通过；guest 从不接收 host 的 SAS，代码层无法校验一致。缓解：不默认勾选、强调人工核对；这是 SAS 固有限制。
+- **W3 半完成状态**：拆分后在“已建账号、未同步/未清理”中断 → 有账号但数据未上传/旧密钥未清。缓解：幂等可续跑（账号已存在则跳过创建；迁移可重跑；清理仅在成功后；进入向导按 `hasAccount` 续点）。
+- **W4 “强制同步”锁死**（最需决策）：S3 不可达或大库超时时用户无法结束，也无法“稍后”。与“强制完成”冲突。
+- **W5 迁移步骤对全新用户是噪音**：无 `loadKeyset()` 时仍要求输入旧密钥会困惑。缓解：只读说明 + 禁用输入。
+- **W6 邀请泄露非敏感 S3 指纹**（endpoint/bucket/prefix）+ 不同 prefix 误配静默写错位置。缓解：只读预填但可改；失败明确报错。
+- **W7 凭证获取**：invite 不含密钥，新设备须另行获取；来源不可信则有风险。缓解：文案“只向可信设备索取”。
+- **W8 时序/TTL**：主机等待响应 10 分钟，超时需重生成、guest 响应失效。
+- **W9 `accountImport` 无 SAS 回显**：guest 不能程序化确认短码一致，仅 UI 勾选。
+- **W10 无导出备份**（决策）与“无 A-only 恢复”张力：单设备丢失即丢数据，文案需显著。
+- **W11 一次性弹窗**：关闭后不再弹，需设置页入口（已有）。
+- **W12 权限/手势**：各步消息需带 `userGesture:true`。
+
+**未决决策（需确认）**
+1. W4：严格“强制同步完成”，还是允许“保存并稍后同步”（向导标记未完成）？
+2. §5：把 `s3` 放进 `PairingOffer`，还是用 app 层 **invite envelope** `{offer, s3?}`（关注点分离，推荐）？
+3. 无旧数据时迁移步骤：只读说明（推荐）还是隐藏旧密钥字段？
+
+**可接受风险**：SAS 依赖人工；无 QR 的多段复制；邀请泄露非敏感 S3 指纹；无导出备份。
+
+**建议：Revise（小改）后推进**——采用 invite envelope；拆分/幂等 bootstrap 并返回同步状态；明确离线策略（见决策 1）；无旧数据迁移只读；每步粘贴即校验并标注跨设备指向。
