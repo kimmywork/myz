@@ -126,7 +126,42 @@ function documentOptions() {
     standardFontDataUrl: `${base}standard_fonts/`,
     wasmUrl: `${base}wasm/`,
     iccUrl: `${base}iccs/`,
+    // Fetch pages as they are needed instead of downloading the entire file in
+    // the background. For remote (range-capable) PDFs this avoids pulling tens
+    // to hundreds of MB the user may never view; servers without range support
+    // transparently fall back to a full download inside pdf.js.
+    disableAutoFetch: true,
+    // Bound the canvas used to decode a single image so a huge scanned page is
+    // downscaled rather than allocating an unbounded bitmap. `maxImageSize`
+    // (in pixels) is deliberately left at its default: pdf.js *drops* images
+    // above it entirely, which would blank out large scans.
+    canvasMaxAreaInBytes: 64 * 1024 * 1024,
   };
+}
+
+/**
+ * Upper bound for the canvas backing-store scale. Retina/HiDPI displays can
+ * report a devicePixelRatio of 3+, which multiplies a scanned page's bitmap
+ * footprint ~9x with little visual benefit.
+ */
+const MAX_OUTPUT_SCALE = 2;
+
+/** Thrown when a page render is cancelled because its page left the viewport. */
+export class PdfRenderCancelled extends Error {
+  constructor() {
+    super("PDF page render cancelled");
+    this.name = "PdfRenderCancelled";
+  }
+}
+
+export function isPdfRenderCancelled(err: unknown): boolean {
+  return err instanceof PdfRenderCancelled;
+}
+
+/** A page render that can be cancelled before it finishes. */
+export interface PageRenderHandle {
+  promise: Promise<PageSize>;
+  cancel: () => void;
 }
 
 export async function loadPdfFromUrl(url: string): Promise<PdfDocument> {
@@ -191,58 +226,109 @@ function syncTextLayerWidths(
  * Renders a single PDF page into the given placeholder element
  * (canvas + text layer + overlay layer).
  *
+ * Returns a handle with a `cancel()` so callers can abandon work for pages
+ * that scrolled away or were torn down (zoom/rebuild). A cancelled render
+ * rejects with `PdfRenderCancelled`; all other errors are genuine failures.
+ *
  * Note: pdf.js v6 sizes the text layer from `--total-scale-factor`, not the
  * legacy `--scale-factor`; both are set for compatibility.
  */
-export async function renderPageInto(
+export function renderPageInto(
   pageEl: HTMLElement,
   doc: PdfDocument,
   pageNumber: number,
   scale = 1.5,
-): Promise<PageSize> {
-  const page = await doc.getPage(pageNumber);
-  const viewport = page.getViewport({ scale });
-  const outputScale = window.devicePixelRatio || 1;
+): PageRenderHandle {
+  let renderTask: { cancel: () => void; promise: Promise<void> } | null = null;
+  let textLayer: { cancel: () => void } | null = null;
+  let canceled = false;
 
-  pageEl.dataset.page = String(pageNumber);
-  pageEl.style.width = `${viewport.width}px`;
-  pageEl.style.height = `${viewport.height}px`;
-  pageEl.style.setProperty("--total-scale-factor", String(viewport.scale));
-  pageEl.style.setProperty("--scale-factor", String(viewport.scale));
+  const promise = (async (): Promise<PageSize> => {
+    try {
+      const page = await doc.getPage(pageNumber);
+      if (canceled) {
+        throw new PdfRenderCancelled();
+      }
+      const viewport = page.getViewport({ scale });
+      const outputScale = Math.min(
+        window.devicePixelRatio || 1,
+        MAX_OUTPUT_SCALE,
+      );
 
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.floor(viewport.width * outputScale);
-  canvas.height = Math.floor(viewport.height * outputScale);
-  canvas.style.width = `${viewport.width}px`;
-  canvas.style.height = `${viewport.height}px`;
-  await page.render({
-    canvas,
-    viewport,
-    transform:
-      outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
-  }).promise;
+      pageEl.dataset.page = String(pageNumber);
+      pageEl.style.width = `${viewport.width}px`;
+      pageEl.style.height = `${viewport.height}px`;
+      pageEl.style.setProperty("--total-scale-factor", String(viewport.scale));
+      pageEl.style.setProperty("--scale-factor", String(viewport.scale));
 
-  const textContent = await page.getTextContent();
-  const textLayerEl = document.createElement("div");
-  textLayerEl.className = "textLayer";
-  const textLayer = new pdfjsLib.TextLayer({
-    textContentSource: textContent,
-    container: textLayerEl,
-    viewport,
-  });
-  const textTask = textLayer.render();
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.floor(viewport.width * outputScale);
+      canvas.height = Math.floor(viewport.height * outputScale);
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
 
-  const overlayEl = document.createElement("div");
-  overlayEl.className = "pdf-overlayLayer";
+      renderTask = page.render({
+        canvas,
+        viewport,
+        transform:
+          outputScale !== 1
+            ? [outputScale, 0, 0, outputScale, 0, 0]
+            : undefined,
+      });
+      await renderTask.promise;
+      renderTask = null;
+      if (canceled) {
+        throw new PdfRenderCancelled();
+      }
 
-  pageEl.replaceChildren(canvas, textLayerEl, overlayEl);
-  await textTask;
-  await document.fonts?.ready;
-  syncTextLayerWidths(
-    textLayer,
-    textContent.items as Array<{ str?: string; width?: number }>,
-    viewport.scale,
-  );
+      const textContent = await page.getTextContent();
+      if (canceled) {
+        throw new PdfRenderCancelled();
+      }
+      const textLayerEl = document.createElement("div");
+      textLayerEl.className = "textLayer";
+      const layer = new pdfjsLib.TextLayer({
+        textContentSource: textContent,
+        container: textLayerEl,
+        viewport,
+      });
+      textLayer = layer;
+      const textTask = layer.render();
 
-  return { width: viewport.width, height: viewport.height };
+      const overlayEl = document.createElement("div");
+      overlayEl.className = "pdf-overlayLayer";
+
+      pageEl.replaceChildren(canvas, textLayerEl, overlayEl);
+      await textTask;
+      textLayer = null;
+      if (canceled) {
+        throw new PdfRenderCancelled();
+      }
+      await document.fonts?.ready;
+      syncTextLayerWidths(
+        layer,
+        textContent.items as Array<{ str?: string; width?: number }>,
+        viewport.scale,
+      );
+
+      return { width: viewport.width, height: viewport.height };
+    } catch (err) {
+      if (canceled) {
+        throw new PdfRenderCancelled();
+      }
+      throw err;
+    }
+  })();
+
+  return {
+    promise,
+    cancel() {
+      if (canceled) {
+        return;
+      }
+      canceled = true;
+      renderTask?.cancel();
+      textLayer?.cancel();
+    },
+  };
 }

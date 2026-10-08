@@ -16,8 +16,8 @@ import { buildEpubSourceUrl } from "@myz/shared/url";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { applyHighlights, type EpubHighlightRecord } from "../highlights.js";
-import { parseEpub, resolveHref, type EpubBook } from "../parse.js";
-import { buildSpineHtml, readReadTokens } from "../render.js";
+import { parseEpubAsync, resolveHref, type EpubBook } from "../parse.js";
+import { buildSpineHtml, readReadTokens, type ReadTokens } from "../render.js";
 import {
   pickLocalEpub,
   restoreLocalEpub,
@@ -57,6 +57,13 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
   const lastStyle = ref<HIGHLIGHT_STYLES>(DEFAULT_HIGHLIGHT_STYLE);
 
   const blobCache = new Map<string, string>();
+  // Built chapter HTML keyed by `spineIndex|tokenKey`; avoids re-parsing and
+  // re-sanitizing a chapter every time it is revisited or the theme toggles
+  // back to a previously rendered look.
+  const chapterCache = new Map<string, string>();
+  const MAX_CHAPTER_CACHE = 6;
+  let cachedTokensKey = "";
+  let cachedTokens: ReadTokens | null = null;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   const title = computed(() => book.value?.metadata.title || "");
@@ -99,6 +106,20 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
       URL.revokeObjectURL(url);
     }
     blobCache.clear();
+    chapterCache.clear();
+    cachedTokens = null;
+    cachedTokensKey = "";
+  }
+
+  /** Read tokens change with the theme, so cache them per theme/scheme. */
+  function currentTokens(): ReadTokens {
+    const key = `${effectiveTheme.value}|${scheme.value}`;
+    if (cachedTokens && cachedTokensKey === key) {
+      return cachedTokens;
+    }
+    cachedTokens = readReadTokens();
+    cachedTokensKey = key;
+    return cachedTokens;
   }
 
   function renderChapter() {
@@ -107,12 +128,27 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
       return;
     }
     spineIndex.value = clamp(spineIndex.value, 0, book.value.spine.length - 1);
-    chapterHtml.value = buildSpineHtml(
+    const tokens = currentTokens();
+    const cacheKey = `${spineIndex.value}|${cachedTokensKey}`;
+    const cached = chapterCache.get(cacheKey);
+    if (cached !== undefined) {
+      chapterHtml.value = cached;
+      return;
+    }
+    const html = buildSpineHtml(
       book.value,
       book.value.spine[spineIndex.value],
-      readReadTokens(),
+      tokens,
       blobCache,
     );
+    chapterCache.set(cacheKey, html);
+    if (chapterCache.size > MAX_CHAPTER_CACHE) {
+      const oldest = chapterCache.keys().next().value;
+      if (oldest !== undefined) {
+        chapterCache.delete(oldest);
+      }
+    }
+    chapterHtml.value = html;
   }
 
   /**
@@ -193,7 +229,7 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     status.value = "loading";
     try {
       revokeBlobs();
-      const parsed = parseEpub(bytes);
+      const parsed = await parseEpubAsync(bytes);
       if (!parsed.spine.length) {
         throw new Error("这本 EPUB 没有可阅读的章节");
       }

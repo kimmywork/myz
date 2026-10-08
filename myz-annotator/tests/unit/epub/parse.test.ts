@@ -1,9 +1,10 @@
-import { strToU8, zipSync } from "fflate";
+import { strToU8, unzipSync, zipSync } from "fflate";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   parseEpub,
+  parseEpubFromFiles,
   parseEpubMetadata,
   sanitizeEpubXhtml,
 } from "../../../src/epub/parse";
@@ -157,6 +158,46 @@ describe("parseEpub", () => {
     const meta = parseEpubMetadata(makeEpub());
     expect(meta.title).toBe("示例书");
     expect(meta.spineCount).toBe(2);
+  });
+});
+
+describe("parseEpubFromFiles", () => {
+  it("parses an already-decompressed archive and normalizes paths", () => {
+    // The worker decompresses the archive and hands back a flat map; this is
+    // the entry point the async/worker path (`parseEpubAsync`) uses.
+    const raw = unzipSync(
+      zipSync({
+        mimetype: strToU8("application/epub+zip"),
+        "./META-INF/container.xml": strToU8(CONTAINER),
+        "./OEBPS/content.opf": strToU8(OPF),
+        "./OEBPS/nav.xhtml": strToU8(NAV),
+        "./OEBPS/chapter1.xhtml": strToU8(CHAPTER_WITH_SCRIPT),
+        "./OEBPS/chapter2.xhtml": strToU8(
+          `<?xml version="1.0"?><html><body><p>two</p></body></html>`,
+        ),
+        "./OEBPS/styles/main.css": strToU8("body{}"),
+        "./OEBPS/images/cover.png": new Uint8Array([1, 2, 3, 4]),
+      }),
+    );
+    const book = parseEpubFromFiles(raw);
+    expect(book.metadata.title).toBe("示例书");
+    expect(book.spine.map((item) => item.href)).toEqual([
+      "OEBPS/chapter1.xhtml",
+      "OEBPS/chapter2.xhtml",
+    ]);
+    // `./` prefixes are collapsed so lookups match the manifest/spine hrefs.
+    expect(book.files.has("OEBPS/chapter1.xhtml")).toBe(true);
+    expect(book.files.has("./OEBPS/chapter1.xhtml")).toBe(false);
+  });
+
+  it("matches the synchronous parseEpub result", () => {
+    const bytes = makeEpub();
+    const sync = parseEpub(bytes);
+    const viaFiles = parseEpubFromFiles(unzipSync(new Uint8Array(bytes)));
+    expect(viaFiles.metadata).toEqual(sync.metadata);
+    expect(viaFiles.spine).toEqual(sync.spine);
+    expect(viaFiles.toc).toEqual(sync.toc);
+    expect(viaFiles.coverPath).toBe(sync.coverPath);
   });
 });
 

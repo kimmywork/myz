@@ -1,4 +1,5 @@
 import { strFromU8, unzipSync, type Unzipped } from "fflate";
+import UnzipWorker from "./unzip.worker?worker";
 
 /**
  * EPUB parsing (EPUB plan E2). Turns the archive into a stable model the
@@ -47,7 +48,7 @@ export interface EpubBook {
   spine: EpubSpineItem[];
   toc: EpubTocEntry[];
   coverPath: string | null;
-  files: Map<string, Uint8Array>;
+  files: Map<string, Uint8Array<ArrayBuffer>>;
 }
 
 function dirOf(path: string): string {
@@ -305,13 +306,17 @@ export function sanitizeEpubXhtml(doc: Document): Document {
   return doc;
 }
 
-/** Parses an EPUB archive into the reader model. */
-export function parseEpub(bytes: ArrayBuffer): EpubBook {
-  const raw: Unzipped = unzipSync(new Uint8Array(bytes));
-  const files = new Map<string, Uint8Array>();
+function toFileMap(raw: Unzipped): Map<string, Uint8Array<ArrayBuffer>> {
+  const files = new Map<string, Uint8Array<ArrayBuffer>>();
   for (const [name, data] of Object.entries(raw)) {
     files.set(normalizeZipPath(name), data);
   }
+  return files;
+}
+
+/** Parses an already-unzipped EPUB archive into the reader model. */
+export function parseEpubFromFiles(raw: Unzipped): EpubBook {
+  const files = toFileMap(raw);
 
   const opfPath = opfPathFromContainer(files);
   const opf = files.get(opfPath);
@@ -365,6 +370,59 @@ export function parseEpub(bytes: ArrayBuffer): EpubBook {
     coverPath: findCover(doc, manifest, opfDir),
     files,
   };
+}
+
+/** Parses an EPUB archive into the reader model (synchronous). */
+export function parseEpub(bytes: ArrayBuffer): EpubBook {
+  return parseEpubFromFiles(unzipSync(new Uint8Array(bytes)));
+}
+
+let unzipWorker: Worker | null = null;
+let unzipRequestId = 0;
+
+/**
+ * Decompresses the archive in a web worker (keeping the UI responsive for large
+ * books), then parses the result on the main thread. Prefer this over the
+ * synchronous `parseEpub` for user-initiated opens.
+ */
+export async function parseEpubAsync(bytes: ArrayBuffer): Promise<EpubBook> {
+  const raw = await unzipInWorker(bytes);
+  return parseEpubFromFiles(raw);
+}
+
+function unzipInWorker(bytes: ArrayBuffer): Promise<Unzipped> {
+  unzipWorker ??= new UnzipWorker();
+  const worker = unzipWorker;
+  const id = (unzipRequestId += 1);
+  return new Promise((resolve, reject) => {
+    const onMessage = (
+      event: MessageEvent<
+        | {
+            id: number;
+            ok: true;
+            files: Array<[string, Uint8Array<ArrayBuffer>]>;
+          }
+        | { id: number; ok: false; error: string }
+      >,
+    ) => {
+      if (event.data.id !== id) {
+        return;
+      }
+      worker.removeEventListener("message", onMessage);
+      if (event.data.ok) {
+        const raw: Unzipped = {};
+        for (const [name, data] of event.data.files) {
+          raw[name] = data;
+        }
+        resolve(raw);
+      } else {
+        reject(new Error(event.data.error || "解压失败"));
+      }
+    };
+    worker.addEventListener("message", onMessage);
+    // Transfer the source buffer so it is not copied into the worker.
+    worker.postMessage({ id, bytes }, [bytes]);
+  });
 }
 
 /**

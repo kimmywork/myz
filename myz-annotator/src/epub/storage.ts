@@ -15,8 +15,13 @@ export interface EpubProgress {
   updatedAt: string;
 }
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) {
+    return dbPromise;
+  }
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -27,9 +32,25 @@ function openDb(): Promise<IDBDatabase> {
         db.createObjectStore(PROGRESS_STORE, { keyPath: "sourceKey" });
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Drop the cached handle if the connection closes or another context
+      // needs to upgrade the schema, so the next call reopens it.
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
   });
+  return dbPromise;
 }
 
 async function withStore<T>(
@@ -38,16 +59,14 @@ async function withStore<T>(
   run: (store: IDBObjectStore) => IDBRequest,
 ): Promise<T> {
   const db = await openDb();
-  try {
-    return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(storeName, mode);
-      const request = run(tx.objectStore(storeName));
-      request.onsuccess = () => resolve(request.result as T);
-      request.onerror = () => reject(request.error);
-    });
-  } finally {
-    db.close();
-  }
+  // The connection is cached for the page lifetime; each call still uses its
+  // own transaction so writes remain atomic.
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(storeName, mode);
+    const request = run(tx.objectStore(storeName));
+    request.onsuccess = () => resolve(request.result as T);
+    request.onerror = () => reject(request.error);
+  });
 }
 
 export function putFileHandle(key: string, handle: unknown): Promise<void> {

@@ -244,6 +244,40 @@ test("reader_zoom_in_and_out_rebuilds_pages", async () => {
   await page.close();
 });
 
+test("reader_evicts_distant_pages_and_releases_canvas", async () => {
+  const pdfUrl = `${serverUrl}/myz-pdf-many.pdf`;
+  const { page, errors } = await openReader(
+    readerUrl(`?url=${encodeURIComponent(pdfUrl)}`),
+  );
+  await waitReady(page);
+
+  // The initial page is rendered eagerly.
+  await page.waitForFunction(() =>
+    Boolean(document.querySelector('.pdf-page[data-page="1"] canvas')),
+  );
+
+  // Jump far enough that page 1 falls outside the keep radius.
+  await page.evaluate(() => (window as any).__MYZ_PDF__.goToPage(10));
+  await page.waitForFunction(
+    () => (window as any).__MYZ_PDF__?.getState().page === 10,
+    undefined,
+    { timeout: 10000 },
+  );
+
+  await page.waitForFunction(() => {
+    const target = document.querySelector('.pdf-page[data-page="10"] canvas');
+    const evicted = document.querySelector('.pdf-page[data-page="1"] canvas');
+    return Boolean(target) && !evicted;
+  });
+
+  const current = await state(page);
+  expect(current.page).toBe(10);
+  // Resident pages stay bounded; page 1's bitmap was released.
+  expect(current.rendered).toBeLessThan(current.pages);
+  expect(errors, errors.join("\n")).toHaveLength(0);
+  await page.close();
+});
+
 test("reader_loads_local_bytes_via_backdoor", async () => {
   const { page, errors } = await openReader(readerUrl());
   const fixturePath = path.join(

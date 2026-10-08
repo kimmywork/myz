@@ -1,5 +1,6 @@
 # Workstate
 
+- Reader performance (2026-10-08): v0.6.4 发布（聚合 EPUB 阅读器/端上翻译/同步 v2/Inbox/UX 等未发布内容，见 CHANGELOG）。阅读器大文件性能修复：PDF 有界并发渲染队列 + 可取消 + LRU 位图回收 + range 按需拉取 + 画布/图片上限 + rAF 滚动；EPUB Worker 解压 + 章节缓存 + 去重复拷贝 + IndexedDB 连接复用。全部 e2e 绿（extension 54/1、pdf 37/1、epub 9、单测 229）。后续可选：PDF 缩放的局部/位图缓存、EPUB 按需条目解压与 blob 淘汰、PDF/EPUB 尺寸表。
 - Sync setup wizard plan (2026-10-08): 新增 `docs/plan/sync-setup-wizard.md`（独立全屏 `#/setup`，首次进入加密同步自动弹；三场景：加入/新建/授权新设备；邀请串带非敏感 S3 参数；迁移步骤始终显示且强制初始同步完成后才结束；设置页移除「设备配对」块）。待实现（I0–I6）。
 - Focus (2026-10-08): UX 修复告一段落。P0/P1 完成；P2 Batch 0–4 完成。文档已对齐/精简（删旧研究+showcase，保留设计规范与 v1 挽救代码）。同步设置 UI 已在账号存在时隐藏旧格式密钥/KeyId（`881ccd3`）。未做且暂不继续：Batch 5（高亮绘制统一）、E2EE 异地 S3 设备邮箱 UI、窄屏详情抽屉/滑动手势；新计划《Sync Setup Wizard》待实现。
 - UX remediation (2026-09-30): P0 完成；P1 完成（含焦点陷阱与菜单键盘）；P2 Batch 0（截断/选择器/Esc/状态/令牌）、Batch 1（保存 Toast）、Batch 2（焦点陷阱+菜单键盘）、Batch 3（阅读器选区键盘触摸）、Batch 4（标签/来源上限、阅读器与 Inbox 分批+无限滚动）完成；`tests/pdf` 三击测试竞态已修。未做：Batch 5、E2EE S3 邮箱 UI、窄屏滑动手势

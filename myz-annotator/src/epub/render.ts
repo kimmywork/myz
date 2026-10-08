@@ -97,12 +97,10 @@ export function resourceUrl(
   if (!bytes) {
     return null;
   }
-  const buffer = bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
+  // Blob copies the view's bytes directly; slicing to a standalone ArrayBuffer
+  // first would copy the resource twice.
   const url = URL.createObjectURL(
-    new Blob([buffer], { type: mediaTypeFor(book, path) }),
+    new Blob([bytes], { type: mediaTypeFor(book, path) }),
   );
   cache.set(path, url);
   return url;
