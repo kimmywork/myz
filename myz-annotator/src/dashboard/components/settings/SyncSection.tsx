@@ -361,7 +361,8 @@ export default defineComponent({
         </div>
         <div class="settings__fields">
           <p class="settings__hint">
-            仅密文存储到 S3。请先保存 S3 配置，再设置同步密钥。
+            仅密文存储到 S3。请先保存 S3
+            配置；新格式账号使用设备绑定，无需旧格式同步密钥。
           </p>
 
           <SettingsRow
@@ -430,7 +431,10 @@ export default defineComponent({
                 }
               />
             </SettingsRow>
-            <SettingsRow label="Session Token" hint="可选">
+            <SettingsRow
+              label="Session Token"
+              hint="可选：S3 临时凭证（STS）需要"
+            >
               <input
                 type="text"
                 value={sessionToken.value}
@@ -454,36 +458,51 @@ export default defineComponent({
           </div>
 
           <div class="grid gap-4 rounded-control border border-line bg-surface p-4 dark:border-line dark:bg-surface-2">
-            <SettingsRow label="同步密钥">
-              <input
-                type="password"
-                placeholder="仅保留在本地"
-                value={syncSecret.value}
-                onInput={(event: InputEvent) =>
-                  (syncSecret.value = (event.target as HTMLInputElement).value)
-                }
-              />
-            </SettingsRow>
-            <SettingsRow label="当前 KeyId" controlWidth="auto">
-              <span class="text-caption text-muted">
-                {keyId.value || "未设置"}
-              </span>
-            </SettingsRow>
+            <p class="text-caption text-muted">
+              {hasAccount.value
+                ? "已使用新格式设备绑定账号同步；旧格式密钥与 KeyId 不再需要。"
+                : "旧格式密钥：仅用于迁移旧数据；新格式账号使用设备绑定，无需此密钥。"}
+            </p>
+            {!hasAccount.value ? (
+              <SettingsRow label="同步密钥">
+                <input
+                  type="password"
+                  placeholder="仅保留在本地"
+                  value={syncSecret.value}
+                  onInput={(event: InputEvent) =>
+                    (syncSecret.value = (
+                      event.target as HTMLInputElement
+                    ).value)
+                  }
+                />
+              </SettingsRow>
+            ) : null}
+            {!hasAccount.value ? (
+              <SettingsRow label="当前 KeyId" controlWidth="auto">
+                <span class="text-caption text-muted">
+                  {keyId.value || "未设置"}
+                </span>
+              </SettingsRow>
+            ) : null}
             <SettingsRow label="上次同步" controlWidth="auto">
               <span class="text-caption text-muted">
                 {lastSyncAt.value || "未同步"}
               </span>
             </SettingsRow>
-            <SettingsRow label="同步版本" controlWidth="auto">
-              <span class="text-caption text-muted">
-                {lastManifestVersion.value || 0}
-              </span>
-            </SettingsRow>
-            <SettingsRow label="密钥更新时间" controlWidth="auto">
-              <span class="text-caption text-muted">
-                {keyUpdatedAt.value || "-"}
-              </span>
-            </SettingsRow>
+            {!hasAccount.value ? (
+              <SettingsRow label="同步版本" controlWidth="auto">
+                <span class="text-caption text-muted">
+                  {lastManifestVersion.value || 0}
+                </span>
+              </SettingsRow>
+            ) : null}
+            {!hasAccount.value ? (
+              <SettingsRow label="密钥更新时间" controlWidth="auto">
+                <span class="text-caption text-muted">
+                  {keyUpdatedAt.value || "-"}
+                </span>
+              </SettingsRow>
+            ) : null}
           </div>
 
           <div class="grid gap-4 rounded-control border border-line bg-surface p-4 dark:border-line dark:bg-surface-2">
@@ -687,14 +706,16 @@ export default defineComponent({
             >
               测试连接
             </button>
-            <button
-              class="btn"
-              type="button"
-              disabled={isBusy.value}
-              onClick={handleSetKey}
-            >
-              设置密钥
-            </button>
+            {!hasAccount.value ? (
+              <button
+                class="btn"
+                type="button"
+                disabled={isBusy.value}
+                onClick={handleSetKey}
+              >
+                设置密钥
+              </button>
+            ) : null}
             <button
               class="btn"
               type="button"

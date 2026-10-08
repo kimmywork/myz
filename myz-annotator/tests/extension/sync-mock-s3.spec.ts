@@ -93,6 +93,18 @@ test("syncs highlights and inbox between two profiles via a mock S3", async () =
     );
     expect(bootstrap.accountId).toMatch(/^acct_/);
 
+    // Once a v2 account exists, the legacy key controls are hidden.
+    await dashA.goto(`${dashUrl(deviceA.extensionId!)}#/settings/sync`);
+    await dashA.reload();
+    await expect(dashA.getByText("已使用新格式设备绑定账号同步")).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(dashA.getByRole("button", { name: "设置密钥" })).toHaveCount(
+      0,
+    );
+    await dashA.goto(dashUrl(deviceA.extensionId!));
+    await dashA.waitForSelector(".app-shell", { timeout: 10_000 });
+
     // Pair B into A's account across the two profiles (offer → response → approve).
     const invite = await send<{ offer: string }>(dashA, "myz:pairingInvite", {
       userGesture: true,
