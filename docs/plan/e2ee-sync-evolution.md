@@ -1,6 +1,6 @@
 # E2EE Sync 演进计划（流化、可演进、可扩展）
 
-> 状态：**已审核通过**（第二轮 review 修复见 §9）。正按总顺序实施；进度见文末「实施状态」。
+> 状态：**已审核通过并实施**（第二轮 review 修复见 §9）。完成情况见文末「实施状态」。
 >
 > 与 `docs/plan/inbox-flow.md` 配套：Inbox 的状态同步依赖本计划的子流（side stream）能力；本文同时纳入现有同步的确认优化项（打包 chunk、并发拉取、锁所有权、协议演进、回滚防护、死代码清理）。
 >
@@ -208,9 +208,9 @@ tombstone shard 解密后:
 - **回滚防护（推荐已定）**：新格式所有流强制单调 high-water；旧格式不再处理。
 - **写撤销与数据挽救**：见 `e2ee-security-hardening.md` §10/§11。
 
-## 10. 实施状态（2026-09-28）
+## 10. 实施状态（2026-10-08）
 
-- **I1（锁续租 + 所有权修复）已完成**（commit `c7e717a`）：`lock.ts` 新增 `renewLock`、所有权校验释放 + `If-Match`；`syncEngine` 同步中每 15s 续租。
-- **v2 格式基础已定义**（commit `99aa400`）：`schemas/v2.ts` 的分片 manifest 已含 `shardCount`/`streamVersion`/`minReaderVersion`/`features`/`tombstoneShards`；`highWater.ts` 提供单调抗回滚原语；`dataKey.ts` 提供 `C_stream = HKDF(D, "stream:<id>:master")` 派生。见 `e2ee-security-hardening.md` §12。
-- **I2–I8 未开始**：流参数化/接线 `SyncDatasetAdapter`、Inbox 子流端到端、分片+打包 chunk、并发/批量 IO、墓碑/opaque/版本协商全量、registry 处置、按流 GC/轮换。
-- 依赖：I2–I8 需先完成 `e2ee-security-hardening.md` 的 KM3 传输与 KM4 接线（按既定总顺序）。
+- **I1 完成**（`c7e717a`）：`lock.ts` 续租 + 所有权校验释放 + `If-Match`；`syncEngine` 每 15s 续租。
+- **I2–I8 完成**：流参数化与 `SyncDatasetAdapter` 接线（I2）、Inbox 子流（I3）、`jumpConsistentHash` 分片 + 打包 chunk（I4）、有界并发 IO（I5）、墓碑/opaque/`<=` 版本解析/`minReaderVersion`/`streamVersion` high-water（I6）、删除死 registry（I7）、按流 GC（I8）。核心见 `packages/sync-core/src/{streamClient,streamManifest,streamMerge,streamGc,shards,jumpHash,accountSync}.ts`。
+- **端到端**：双 profile mock S3 e2e（`tests/extension/sync-mock-s3.spec.ts`）。
+- 依赖：KM3 传输（同机配对已接 UI；S3 邮箱 crypto 已实现未接 UI）与 KM4 接线均已完成，见 `e2ee-security-hardening.md §12`。

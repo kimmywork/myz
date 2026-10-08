@@ -1,6 +1,6 @@
 # E2EE 安全加固与设备绑定计划
 
-> 状态：**已审核通过**（第二轮 review 修复见 §10）。正按总顺序实施；进度见文末「实施状态」。
+> 状态：**已审核通过并实施**（第二轮 review 修复见 §10）。完成情况见文末「实施状态」。
 >
 > 配套文档：`docs/plan/e2ee-sync-evolution.md`（流化/可扩展/性能与协议演进）。本计划负责**安全模型**：设备绑定、密钥派生强化、抗回滚、轮换完整性、本地密钥与凭证保护、消息授权、锁正确性、完整性校验。
 >
@@ -232,16 +232,14 @@ manifest 由发布设备的 Ed25519 签名；接收方用 roster 中已授权设
 
 4. **KDF 与高熵：** 本地解锁口令用 Argon2id；`accountId` 随机（§5.1）。
 
-## 12. 实施状态（2026-09-28）
+## 12. 实施状态（2026-10-08）
 
-- **阶段 A（QW1–QW5）已完成**（commit `c7e717a`）：消息授权（含 `syncUpdateSettings` 与密钥变更用户手势）、锁续租+所有权释放、本地凭证加密+keyset AAD 迁移、强制 HTTPS、chunk/record/chain 完整性校验。证据：annotator 209 / shared 79 / sync-core 34 单测，extension e2e 47 passed / 1 skipped，build green。
-- **阶段 B（KM）进行中**：
-  - KM1 目标模型与 v2 协议（`SYNC_PROTOCOL_VERSION_V2 = "2.0.0"`，不复用旧版本）已完成，见 `packages/sync-core/src/E2EE_DEVICE_BINDING_V2.md` 与 `schemas/v2.ts`。
-  - KM2 设备密钥与本地 DK 包裹（`deviceKeys.ts`、`deviceKeyring.ts`）已完成。
-  - KM3/KM4 crypto 核心（`roster.ts`：签名 genesis / 加入 / 撤销+轮换 / 验签 / 单调推进；`dataKey.ts`）已完成；**KM3 传输层（同机 QR+SAS、异地 S3 设备邮箱）与 KM4 接入 syncEngine 未完成**。
-  - KM6（PBKDF2 ≥600k）、KM7 抗回滚原语（`highWater.ts`）已完成；KM7 轮换后清理旧 keyId/epoch 密文未完成。
-  - KM5 clean-break 账号切换与一次性旧远端挽救未开始。
-- 未完成项按原计划顺序推进，不在本文重开已定决策。
+- **阶段 A（QW1–QW5）完成**（`c7e717a`）：消息授权（含 `syncUpdateSettings` 与密钥变更用户手势）、锁续租+所有权释放、本地凭证加密+keyset AAD 迁移、强制 HTTPS、chunk/record/chain 完整性校验。
+- **阶段 B（KM1–KM7）完成**：v2 协议（`SYNC_PROTOCOL_VERSION_V2 = "2.0.0"`）；设备密钥与本地 DK 包裹；roster（签名 genesis / 加入 / 撤销+轮换 / 验签 / 单调推进）；`deviceEnrollment`（S3 设备邮箱 crypto）与 `pairing`（同机 ECDH + SAS）；`account` 账户模型与按设备签名；PBKDF2 ≥600k；`highWater` 抗回滚；**KM5** clean-break 引导与一次性旧远端挽救（`v2/bootstrap.ts`）。
+  - **未接 UI**：异地 S3 设备邮箱（crypto 已实现并单测；当前同机配对可用，手动转串）。
+  - **KM7 轮换清理**：由「新 epoch 重加密覆盖同路径 + 按流 GC」实现，无独立旧 epoch 目录需清理。
+- **阶段 C/D 完成**：见 `e2ee-sync-evolution.md §10`、`inbox-flow.md §11`；端到端见双 profile mock S3 e2e（`tests/extension/sync-mock-s3.spec.ts`）。
+- 现网状态与已知限制见 `docs/reviews/UX-ASSESSMENT-2026-09-29.md §5`。
 
 ### 12.1 实施修正（有证据，不改变决策意图）
 

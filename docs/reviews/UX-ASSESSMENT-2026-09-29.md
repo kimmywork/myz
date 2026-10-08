@@ -166,7 +166,7 @@
 
 **P1（大部分已完成）** commit `ef89c85`
 - 已完成：`aria-live`（Inbox 撤销/状态、文库 `operationStatus`、设置 `settingsStatus`，后两者此前从不渲染）；`HighlightActions` 全图标 `aria-label`；outline `aria-current/aria-expanded`；命中区（`.hit-expand`、阅读器 tab 32、retry 32、调色盘铅笔扩张）；Inbox 加载/错误 `StatePanel`；内容 Modal/Inspector `role=dialog/aria-modal`+Esc；PDF/EPUB Esc 关闭 + 方向键/PageUp/Down 翻页/章。
-- **P1 遗留（明确延后）**：① 完整**焦点陷阱**与设置/主题菜单（ThemeToggle、导出菜单）键盘导航；② 阅读器**选区工具条的键盘/触摸**触发（现仅鼠标 `mouseup`）。二者并入下方 P2 的 Batch 2/3。
+- **P1 遗留（已完成）**：① 焦点陷阱与菜单键盘（Batch 2）；② 阅读器选区键盘/触摸（Batch 3）。详见 §5。
 
 **修复后复测（同一动态探测，`test-results/ux/observations.json`）**
 - 专注模式键盘冲突：`actionFiredWhileTyping=false`、`searchValueAfterA="a"`（字符正常输入）、`deleteConfirmWhileTyping=false` → **已修复**。
@@ -176,6 +176,8 @@
 - `multiSelectDrag.taggedCount=2`、对比度（默认 paper 亮 4.50 / 暗 6.16）不变；**配色对比度收敛未做**（延后到 P2-5）。
 
 ### 4.5 P2 投入/收益评估与建议顺序
+
+> 执行状态（2026-10-08）：Batch 0–4 已完成；Batch 5 与 E2EE 两项未做，影响见 §5。下表保留原始评估。
 
 > 评级：Effort S(≤0.5d)/M(1–2d)/L(≥3d)；Benefit 低/中/高（用户可感知、风险降低、维护成本综合）；Risk 为回归风险。
 
@@ -206,7 +208,7 @@
 
 ---
 
-## 5. 已知限制与影响（2026-09-30）
+## 5. 已知限制与影响（2026-10-08）
 
 ### 5.1 功能完成度
 - **已完成**：P0；P1（含原「P1 遗留」的焦点陷阱与主题/导出/搜索菜单键盘）；P2 Batch 0–4（Batch 4 采用「分批 + 上限」而非定高窗口化）。
