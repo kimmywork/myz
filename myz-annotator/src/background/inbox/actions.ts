@@ -14,6 +14,7 @@ import {
   readInboxState,
   type InboxStateRecord,
 } from "../storage";
+import { recordInboxDeletion } from "../sync/deletions";
 import { refreshInboxBadge } from "./queue";
 
 function nowIso(): string {
@@ -103,7 +104,9 @@ export async function removeInboxRelation(
   sourceId: string,
   targetId: string,
 ): Promise<void> {
-  await deleteInboxState(inboxRelationRecordId(sourceId, targetId));
+  const recordId = inboxRelationRecordId(sourceId, targetId);
+  await deleteInboxState(recordId);
+  await recordInboxDeletion(recordId);
 }
 
 export async function listInboxStates(): Promise<InboxStateRecord[]> {

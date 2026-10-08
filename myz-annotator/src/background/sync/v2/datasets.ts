@@ -6,6 +6,7 @@ import {
   saveHighlight,
 } from "../../storage";
 import { parseRecordId, recordIdForHighlight } from "../records";
+import { listDeletions, removeDeletion } from "../storage";
 
 /** The main highlight stream dataset (recordId `h:<id>`). */
 export function createHighlightDataset(): StreamDataset {
@@ -27,6 +28,21 @@ export function createHighlightDataset(): StreamDataset {
       const parsed = parseRecordId(recordId);
       if (parsed?.type === "highlight") {
         await deleteHighlight(parsed.id);
+      }
+    },
+    async collectTombstones() {
+      const deletions = await listDeletions();
+      const tombstones: Record<string, string> = {};
+      for (const deletion of deletions) {
+        if (deletion.recordId.startsWith("h:")) {
+          tombstones[deletion.recordId] = deletion.deletedAt;
+        }
+      }
+      return tombstones;
+    },
+    async clearTombstones(ids) {
+      for (const recordId of ids) {
+        await removeDeletion(recordId);
       }
     },
   };

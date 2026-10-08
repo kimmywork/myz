@@ -5,6 +5,7 @@ import {
   getAllInboxStates,
   putInboxState,
 } from "../../storage";
+import { listDeletions, removeDeletion } from "../storage";
 
 /**
  * Inbox workflow metadata stream (`status:` / `mark:` / `rel:` records).
@@ -35,6 +36,25 @@ export function createInboxDataset(): StreamDataset {
     },
     async remove(recordId) {
       await deleteInboxState(recordId);
+    },
+    async collectTombstones() {
+      const deletions = await listDeletions();
+      const tombstones: Record<string, string> = {};
+      for (const deletion of deletions) {
+        if (
+          deletion.recordId.startsWith("status:") ||
+          deletion.recordId.startsWith("mark:") ||
+          deletion.recordId.startsWith("rel:")
+        ) {
+          tombstones[deletion.recordId] = deletion.deletedAt;
+        }
+      }
+      return tombstones;
+    },
+    async clearTombstones(ids) {
+      for (const recordId of ids) {
+        await removeDeletion(recordId);
+      }
     },
   };
 }

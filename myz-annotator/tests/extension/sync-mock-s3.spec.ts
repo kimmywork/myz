@@ -33,8 +33,8 @@ async function send<T>(
   return typed.data as T;
 }
 
-async function saveClip(page: Page, text: string): Promise<void> {
-  await send(page, "myz:saveHighlight", {
+async function saveClip(page: Page, text: string): Promise<{ id: string }> {
+  return send<{ id: string }>(page, "myz:saveHighlight", {
     url: "https://example.com/article",
     sourceUrl: "https://example.com/article",
     title: `Clip ${text}`,
@@ -85,7 +85,7 @@ test("syncs highlights and inbox between two profiles via a mock S3", async () =
     });
 
     // A: create a clip, then bootstrap a brand-new v2 account (uploads it).
-    await saveClip(dashA, "cross-device clip");
+    const clip = await saveClip(dashA, "cross-device clip");
     const bootstrap = await send<{ accountId: string }>(
       dashA,
       "myz:accountBootstrap",
@@ -148,6 +148,27 @@ test("syncs highlights and inbox between two profiles via a mock S3", async () =
       "myz:inboxQueue",
     );
     expect(queue.counts.pending).toBeGreaterThanOrEqual(1);
+
+    // A deletes the highlight; the tombstone must propagate and B must remove
+    // both the highlight and its Inbox status.
+    await send(dashA, "myz:removeHighlight", { id: clip.id });
+    await send(dashA, "myz:syncNow");
+    await send(dashB, "myz:syncNow");
+
+    const afterDelete = await send<Array<{ text?: string }>>(
+      dashB,
+      "myz:getAllHighlights",
+    );
+    expect(
+      afterDelete.some((record) =>
+        (record.text || "").includes("cross-device clip"),
+      ),
+    ).toBe(false);
+    const queueAfter = await send<{ counts: { pending: number } }>(
+      dashB,
+      "myz:inboxQueue",
+    );
+    expect(queueAfter.counts.pending).toBe(0);
   } finally {
     await deviceA.context.close();
     await deviceB.context.close();
