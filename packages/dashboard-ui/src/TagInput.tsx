@@ -1,12 +1,14 @@
+import { defineComponent } from "vue"
 import {
-  computed,
-  defineComponent,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from "vue"
+  chipClassFor,
+  containerClassFor,
+  inputClassFor,
+  listClassFor,
+  optionClassFor,
+  removeClassFor,
+  type TagInputVariant,
+} from "./tag-input/tagInputVariants.js"
+import { useTagInput } from "./tag-input/useTagInput.js"
 
 export interface TagInputProps {
   modelValue: string[]
@@ -14,379 +16,48 @@ export interface TagInputProps {
   placeholder?: string
   allowNew?: boolean
   disabled?: boolean
-  variant?: "dashboard" | "content" | "well"
+  variant?: TagInputVariant
 }
 
 export default defineComponent({
   name: "TagInput",
   props: {
-    modelValue: {
-      type: Array as () => string[],
-      default: () => [],
-    },
-    options: {
-      type: Array as () => string[],
-      default: () => [],
-    },
-    placeholder: {
-      type: String,
-      default: "",
-    },
-    allowNew: {
-      type: Boolean,
-      default: true,
-    },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
-    variant: {
-      type: String,
-      default: "dashboard",
-    },
+    modelValue: { type: Array as () => string[], default: () => [] },
+    options: { type: Array as () => string[], default: () => [] },
+    placeholder: { type: String, default: "" },
+    allowNew: { type: Boolean, default: true },
+    disabled: { type: Boolean, default: false },
+    variant: { type: String as () => TagInputVariant, default: "dashboard" },
   },
   emits: ["update:modelValue", "focus"],
   setup(props, { emit }) {
-    const containerRef = ref<HTMLElement | null>(null)
-    const inputRef = ref<HTMLInputElement | null>(null)
-    const internalValue = ref<string[]>([...props.modelValue])
-    const inputValue = ref("")
-    const dropdownOpen = ref(false)
-    const activeIndex = ref(-1)
-    const isFocused = ref(false)
-
-    const normalizedOptions = computed(() => {
-      const seen = new Set()
-      const result: string[] = []
-      props.options.forEach((option) => {
-        const trimmed = typeof option === "string" ? option.trim() : ""
-        if (!trimmed) {
-          return
-        }
-        const key = trimmed.toLowerCase()
-        if (!seen.has(key)) {
-          seen.add(key)
-          result.push(trimmed)
-        }
-      })
-      return result
-    })
-
-    const filteredOptions = computed(() => {
-      const term = inputValue.value.trim().toLowerCase()
-      return normalizedOptions.value
-        .filter(
-          (option) =>
-            !internalValue.value.some(
-              (tag) => tag.toLowerCase() === option.toLowerCase(),
-            ),
-        )
-        .filter((option) => (term ? option.toLowerCase().includes(term) : true))
-        .slice(0, 50)
-    })
-
-    watch(
-      () => props.modelValue,
-      (next) => {
-        const sanitized = Array.isArray(next)
-          ? next
-              .filter((tag) => typeof tag === "string" && tag.trim())
-              .map((tag) => tag.trim())
-          : []
-        internalValue.value = [...new Set(sanitized.map((tag) => tag.trim()))]
+    const api = useTagInput(
+      {
+        modelValue: props.modelValue,
+        options: props.options,
+        allowNew: props.allowNew,
+        disabled: props.disabled,
+        variant: props.variant,
       },
-      { immediate: true },
+      emit,
     )
 
-    watch(filteredOptions, (options) => {
-      if (!options.length) {
-        dropdownOpen.value = false
-        activeIndex.value = -1
-      }
-    })
-
-    function emitChange() {
-      emit("update:modelValue", [...internalValue.value])
-    }
-
-    function addTag(raw: string): boolean {
-      const tag = typeof raw === "string" ? raw.trim() : ""
-      if (!tag) {
-        return false
-      }
-      if (
-        !props.allowNew &&
-        !normalizedOptions.value.some(
-          (option) => option.toLowerCase() === tag.toLowerCase(),
-        )
-      ) {
-        return false
-      }
-      if (
-        internalValue.value.some(
-          (current) => current.toLowerCase() === tag.toLowerCase(),
-        )
-      ) {
-        return false
-      }
-      internalValue.value = [...internalValue.value, tag]
-      emitChange()
-      return true
-    }
-
-    function removeTag(tag: string) {
-      const lower = tag.toLowerCase()
-      const next = internalValue.value.filter(
-        (item) => item.toLowerCase() !== lower,
-      )
-      if (next.length === internalValue.value.length) {
-        return
-      }
-      internalValue.value = next
-      emitChange()
-    }
-
-    function closeDropdown() {
-      dropdownOpen.value = false
-      activeIndex.value = -1
-    }
-
-    function openDropdown() {
-      if (filteredOptions.value.length) {
-        dropdownOpen.value = true
-        if (activeIndex.value < 0) {
-          activeIndex.value = 0
-        }
-      }
-    }
-
-    function commitInput() {
-      const hasOptions =
-        dropdownOpen.value && filteredOptions.value[activeIndex.value]
-      if (hasOptions) {
-        const added = addTag(filteredOptions.value[activeIndex.value])
-        if (added) {
-          inputValue.value = ""
-        }
-        closeDropdown()
-        focusInput()
-        return
-      }
-      const value = inputValue.value
-      if (!value.trim()) {
-        return
-      }
-      if (addTag(value)) {
-        inputValue.value = ""
-      }
-      closeDropdown()
-    }
-
-    function handleInput(event: Event) {
-      inputValue.value = (event.target as HTMLInputElement).value
-      if (!inputValue.value.trim()) {
-        if (filteredOptions.value.length) {
-          dropdownOpen.value = true
-          activeIndex.value = 0
-        } else {
-          closeDropdown()
-        }
-        return
-      }
-      openDropdown()
-    }
-
-    function handleKeydown(event: KeyboardEvent) {
-      event.stopPropagation()
-      if (event.key === "Enter") {
-        event.preventDefault()
-        commitInput()
-        return
-      }
-      if (
-        event.key === "Backspace" &&
-        !inputValue.value &&
-        internalValue.value.length
-      ) {
-        event.preventDefault()
-        removeTag(internalValue.value[internalValue.value.length - 1])
-        return
-      }
-      if (event.key === "ArrowDown") {
-        event.preventDefault()
-        if (!dropdownOpen.value) {
-          openDropdown()
-          return
-        }
-        activeIndex.value =
-          activeIndex.value + 1 >= filteredOptions.value.length
-            ? 0
-            : activeIndex.value + 1
-        scrollOptionIntoView()
-        return
-      }
-      if (event.key === "ArrowUp" && dropdownOpen.value) {
-        event.preventDefault()
-        activeIndex.value =
-          activeIndex.value - 1 < 0
-            ? filteredOptions.value.length - 1
-            : activeIndex.value - 1
-        scrollOptionIntoView()
-        return
-      }
-      if (event.key === "Escape") {
-        closeDropdown()
-      }
-    }
-
-    function handleKeyup(event: KeyboardEvent) {
-      event.stopPropagation()
-    }
-
-    function handleFocus() {
-      if (props.disabled) {
-        return
-      }
-      isFocused.value = true
-      emit("focus")
-      nextTick(() => {
-        if (filteredOptions.value.length) {
-          dropdownOpen.value = true
-          activeIndex.value = 0
-        }
-      })
-    }
-
-    function handleBlur(event: FocusEvent) {
-      if (props.disabled) {
-        return
-      }
-      setTimeout(() => {
-        const path = event?.composedPath ? event.composedPath() : []
-        const inside =
-          (containerRef.value && path.includes(containerRef.value)) ||
-          containerRef.value?.contains(document.activeElement)
-        if (inside) {
-          return
-        }
-        isFocused.value = false
-        closeDropdown()
-      }, 120)
-    }
-
-    function handleContainerMouseDown(event: MouseEvent) {
-      const removeSelector =
-        props.variant === "content"
-          ? ".myz-tag-input__remove"
-          : ".tag-input__remove"
-      if (
-        event.target instanceof HTMLElement &&
-        event.target.closest(removeSelector)
-      ) {
-        return
-      }
-      focusInput()
-    }
-
-    function focusInput() {
-      if (props.disabled) {
-        return
-      }
-      nextTick(() => inputRef.value?.focus())
-    }
-
-    function selectOption(option: string) {
-      if (addTag(option)) {
-        inputValue.value = ""
-      }
-      closeDropdown()
-      focusInput()
-    }
-
-    function scrollOptionIntoView() {
-      nextTick(() => {
-        const list = containerRef.value?.querySelector("[data-role='tag-options']")
-        if (!list) {
-          return
-        }
-        const option = list.children[activeIndex.value]
-        if (option && typeof option.scrollIntoView === "function") {
-          option.scrollIntoView({ block: "nearest" })
-        }
-      })
-    }
-
-    function handleOptionMouseDown(
-      event: MouseEvent,
-      option: string,
-      index: number,
-    ) {
-      event.preventDefault()
-      activeIndex.value = index
-      selectOption(option)
-    }
-
-    function handleDocumentClick(event: MouseEvent) {
-      if (!containerRef.value) {
-        return
-      }
-      const path = event.composedPath ? event.composedPath() : []
-      const inside =
-        (containerRef.value && path.includes(containerRef.value)) ||
-        containerRef.value.contains(event.target as Node)
-      if (!inside) {
-        isFocused.value = false
-        closeDropdown()
-      }
-    }
-
-    onMounted(() => {
-      document.addEventListener("click", handleDocumentClick)
-    })
-
-    onBeforeUnmount(() => {
-      document.removeEventListener("click", handleDocumentClick)
-    })
-
     return () => {
-      const useContentVariant = props.variant === "content"
-      const useWellVariant = props.variant === "well"
-      const chipClass =
-        "inline-flex h-[22px] items-center gap-2 rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
-      const containerClasses = useContentVariant
-        ? [
-            "myz-tag-input",
-            isFocused.value ? "is-focused" : "",
-            props.disabled ? "is-disabled" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")
-        : useWellVariant
-          ? [
-              "relative flex w-full flex-wrap items-center gap-2 rounded-control border px-3 py-2 text-compact transition",
-              props.disabled ? "cursor-not-allowed opacity-45" : "cursor-text",
-              isFocused.value
-                ? "border-accent ring-[3px] ring-accent/20"
-                : "border-well-border bg-well-control-bg",
-            ].join(" ")
-          : [
-              "relative flex w-full flex-wrap items-center gap-2 rounded-control border px-3 py-2 text-compact transition",
-              props.disabled ? "cursor-not-allowed opacity-45" : "cursor-text",
-              isFocused.value
-                ? "border-accent bg-surface ring-[3px] ring-accent/20 dark:bg-surface-2"
-                : "border-line bg-surface dark:border-line dark:bg-surface-2",
-            ].join(" ")
-
+      const variant = props.variant
       return (
         <div class="relative w-full">
           <div
-            ref={containerRef}
-            class={containerClasses}
-            onMousedown={handleContainerMouseDown}
+            ref={api.containerRef}
+            class={containerClassFor(
+              variant,
+              api.isFocused.value,
+              props.disabled,
+            )}
+            onMousedown={api.handleContainerMouseDown}
           >
-            {internalValue.value.map((tag) => (
+            {api.internalValue.value.map((tag) => (
               <span
-                class={useContentVariant ? "myz-tag-input__chip" : chipClass}
+                class={chipClassFor(variant)}
                 key={tag}
                 data-role="tag-chip"
               >
@@ -394,14 +65,8 @@ export default defineComponent({
                 {!props.disabled && (
                   <button
                     type="button"
-                    class={
-                      useContentVariant
-                        ? "myz-tag-input__remove"
-                        : useWellVariant
-                          ? "tag-input__remove appearance-none rounded-tag border-0 bg-transparent p-0 leading-none text-well-muted hover:text-well-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-well-chrome"
-                          : "tag-input__remove rounded-tag text-muted hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg dark:text-text dark:hover:text-error"
-                    }
-                    onClick={() => removeTag(tag)}
+                    class={removeClassFor(variant)}
+                    onClick={() => api.removeTag(tag)}
                     aria-label={`移除标签 ${tag}`}
                   >
                     ×
@@ -412,68 +77,40 @@ export default defineComponent({
             {!props.disabled && (
               <input
                 data-testid="tag-input-field"
-                ref={inputRef}
-                class={
-                  useContentVariant
-                    ? "myz-tag-input__input"
-                    : useWellVariant
-                      ? "min-w-20 flex-1 appearance-none border-0 bg-transparent p-0 text-compact text-well-text placeholder:text-well-muted focus:outline-none"
-                      : "min-w-20 flex-1 bg-transparent text-compact text-text placeholder:text-muted focus:outline-none dark:text-text dark:placeholder:text-muted"
-                }
+                ref={api.inputRef}
+                class={inputClassFor(variant)}
                 type="text"
-                value={inputValue.value}
+                value={api.inputValue.value}
                 placeholder={props.placeholder}
-                onInput={handleInput}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                onKeydown={handleKeydown}
-                onKeyup={handleKeyup}
+                onInput={api.handleInput}
+                onFocus={api.handleFocus}
+                onBlur={api.handleBlur}
+                onKeydown={api.handleKeydown}
+                onKeyup={(event: KeyboardEvent) => event.stopPropagation()}
                 autocomplete="off"
                 spellcheck="false"
               />
             )}
           </div>
-          {dropdownOpen.value && filteredOptions.value.length ? (
+          {api.dropdownOpen.value && api.filteredOptions.value.length ? (
             <div
-              class={
-                useContentVariant
-                  ? "myz-tag-input__list"
-                  : useWellVariant
-                    ? "absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-panel border border-well-control-border bg-well-chrome p-1 shadow-float"
-                    : "absolute left-0 top-full z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-panel border border-control-border bg-surface p-1 shadow-float"
-              }
+              class={listClassFor(variant)}
               role="listbox"
               data-role="tag-options"
             >
-              {filteredOptions.value.map((option, index) => (
+              {api.filteredOptions.value.map((option, index) => (
                 <div
                   key={option}
-                  class={
-                    useContentVariant
-                      ? [
-                          "myz-tag-input__option",
-                          activeIndex.value === index ? "is-active" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")
-                      : useWellVariant
-                        ? [
-                            "flex h-8 cursor-pointer items-center rounded-tag px-2.5 text-label text-well-text transition hover:bg-well-control-bg",
-                            activeIndex.value === index
-                              ? "bg-well-control-bg text-accent-text"
-                              : "",
-                          ].join(" ")
-                        : [
-                            "flex h-8 cursor-pointer items-center rounded-tag px-2.5 text-label text-text transition hover:bg-surface-2",
-                            activeIndex.value === index
-                              ? "bg-surface-2 text-accent-text"
-                              : "",
-                          ].join(" ")
-                  }
+                  class={optionClassFor(
+                    variant,
+                    api.activeIndex.value === index,
+                  )}
                   role="option"
-                  aria-selected={activeIndex.value === index ? "true" : "false"}
-                  onMousedown={(event) =>
-                    handleOptionMouseDown(event, option, index)
+                  aria-selected={
+                    api.activeIndex.value === index ? "true" : "false"
+                  }
+                  onMousedown={(event: MouseEvent) =>
+                    api.handleOptionMouseDown(event, option, index)
                   }
                 >
                   {option}
