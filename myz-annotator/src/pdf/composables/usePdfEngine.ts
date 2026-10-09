@@ -29,6 +29,8 @@ export interface PdfEngine {
 const MAX_CONCURRENT_RENDERS = 3;
 /** Keep rendered pages within this distance (in pages) of the current one. */
 const KEEP_RADIUS = 8;
+/** Never evict a rendered page within this many px of the viewport. */
+const KEEP_MARGIN_PX = 1600;
 /** Soft cap on resident canvas memory (bytes); farthest pages evict first. */
 const MAX_RESIDENT_BYTES = 384 * 1024 * 1024;
 
@@ -59,7 +61,6 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
   let persistTimer: number | null = null;
   let scrollRaf = 0;
   let activeRenders = 0;
-  let scrollCheckPending = false;
   let afterRender: ((pageEl: HTMLElement) => void) | null = null;
   /** Bumped on every rebuild so stale render callbacks are ignored. */
   let generation = 0;
@@ -164,30 +165,42 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
     slots.delete(pageNumber);
   }
 
-  function evictIfNeeded() {
-    if (slots.size === 0) {
+  /**
+   * Releases far-away rendered pages. `anchorPage` must be the page actually at
+   * the viewport centre (computed fresh), never the possibly-stale
+   * `state.page`; otherwise a page the user just jumped to would be evicted
+   * immediately and stay blank until the IntersectionObserver fires again.
+   *
+   * Only completed renders are evicted. In-flight renders are left alone so a
+   * page the user is waiting for is never cancelled.
+   */
+  function evictIfNeeded(anchorPage: number) {
+    if (slots.size === 0 || !stage) {
       return;
     }
-    const currentPage = state.page.value;
-    // Abandon in-flight renders that scrolled far away before finishing.
-    for (const [pageNumber, slot] of [...slots.entries()]) {
-      if (
-        !slot.rendered &&
-        slot.handle &&
-        Math.abs(pageNumber - currentPage) > KEEP_RADIUS
-      ) {
-        slot.handle.cancel();
-      }
-    }
+    const stageRect = stage.getBoundingClientRect();
     const rendered = [...slots.entries()].filter(([, slot]) => slot.rendered);
     let totalBytes = rendered.reduce((sum, [, slot]) => sum + slot.bytes, 0);
     const byDistance = [...rendered].sort(
-      (a, b) => Math.abs(b[0] - currentPage) - Math.abs(a[0] - currentPage),
+      (a, b) => Math.abs(b[0] - anchorPage) - Math.abs(a[0] - anchorPage),
     );
     for (const [pageNumber, slot] of byDistance) {
-      const far = Math.abs(pageNumber - currentPage) > KEEP_RADIUS;
+      const far = Math.abs(pageNumber - anchorPage) > KEEP_RADIUS;
       if (!far && totalBytes <= MAX_RESIDENT_BYTES) {
         continue;
+      }
+      // Never evict a page that is still near the viewport: the
+      // IntersectionObserver only fires on intersection *changes*, so an
+      // evicted-but-visible page would stay blank until the user scrolls.
+      const el = pageEl(pageNumber);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const nearViewport =
+          rect.bottom > stageRect.top - KEEP_MARGIN_PX &&
+          rect.top < stageRect.bottom + KEEP_MARGIN_PX;
+        if (nearViewport) {
+          continue;
+        }
       }
       evict(pageNumber);
       totalBytes -= slot.bytes;
@@ -242,11 +255,11 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
           activeRenders -= 1;
           if (gen === generation) {
             finish(pageNumber);
-            evictIfNeeded();
-          }
-          if (activeRenders === 0 && scrollCheckPending) {
-            scrollCheckPending = false;
-            updateCurrentPage();
+            // Once a batch settles, recompute the real viewport page (which may
+            // have moved while renders were in flight) before evicting.
+            if (activeRenders === 0) {
+              updateCurrentPage();
+            }
           }
           pump();
         });
@@ -295,15 +308,14 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
     if (next !== state.page.value) {
       state.page.value = next;
       schedulePersist();
-      evictIfNeeded();
     }
+    evictIfNeeded(next);
   }
 
   function handleScroll() {
-    // Ignore transient layout shifts while pages are still rendering;
-    // re-check once rendering settles.
+    // Layout shifts while pages render can misreport the centre page; the
+    // render batch's `finally` re-checks once rendering settles.
     if (activeRenders > 0) {
-      scrollCheckPending = true;
       return;
     }
     if (scrollRaf !== 0) {
@@ -330,7 +342,7 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
     state.page.value = next;
     // Persist off the navigation path so jumping does not wait on IndexedDB.
     schedulePersist();
-    evictIfNeeded();
+    evictIfNeeded(next);
     void ensureRendered(next + 1, 2);
     if (next > 1) {
       void ensureRendered(next - 1, 2);

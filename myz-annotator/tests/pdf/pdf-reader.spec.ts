@@ -278,6 +278,60 @@ test("reader_evicts_distant_pages_and_releases_canvas", async () => {
   await page.close();
 });
 
+test("reader_renders_landing_page_after_direct_scroll_jump", async () => {
+  const pdfUrl = `${serverUrl}/myz-pdf-paged.pdf`;
+  const { page, errors } = await openReader(
+    readerUrl(`?url=${encodeURIComponent(pdfUrl)}`),
+  );
+  await waitReady(page);
+
+  // Slow the renderer so page renders stay in flight while the scroll position
+  // moves, reproducing a scrollbar drag (the path that used to leave the
+  // landing pages blank until an extra scroll).
+  const client = await context.newCDPSession(page);
+  await client.send("Emulation.setCPUThrottlingRate", { rate: 20 });
+
+  await page.evaluate(async () => {
+    const stage = document.querySelector(".reader-stage") as HTMLElement;
+    const target = stage.querySelector(
+      '.pdf-page[data-page="28"]',
+    ) as HTMLElement;
+    const start = stage.scrollTop;
+    const end =
+      start +
+      (target.getBoundingClientRect().top - stage.getBoundingClientRect().top);
+    const steps = 14;
+    for (let i = 1; i <= steps; i += 1) {
+      stage.scrollTop = start + ((end - start) * i) / steps;
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => resolve(null)),
+      );
+    }
+  });
+
+  await client.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+
+  await page.waitForFunction(
+    () => (window as any).__MYZ_PDF__?.getState().page === 28,
+    undefined,
+    { timeout: 20000 },
+  );
+
+  // The landing page must render on its own and stay rendered (not be evicted).
+  await page.waitForFunction(
+    () => Boolean(document.querySelector('.pdf-page[data-page="28"] canvas')),
+    undefined,
+    { timeout: 10000 },
+  );
+  await page.waitForTimeout(600);
+  const stillRendered = await page.evaluate(() =>
+    Boolean(document.querySelector('.pdf-page[data-page="28"] canvas')),
+  );
+  expect(stillRendered).toBe(true);
+  expect(errors, errors.join("\n")).toHaveLength(0);
+  await page.close();
+});
+
 test("reader_loads_local_bytes_via_backdoor", async () => {
   const { page, errors } = await openReader(readerUrl());
   const fixturePath = path.join(
