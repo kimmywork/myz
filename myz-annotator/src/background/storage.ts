@@ -114,6 +114,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
     : [];
 
   settings.sync = normalizeSyncSettings(settings.sync);
+  settings.syncSetupSeen = settings.syncSetupSeen === true;
   settings.inboxEnabled = settings.inboxEnabled !== false;
   settings.inboxReminderEnabled = settings.inboxReminderEnabled !== false;
 

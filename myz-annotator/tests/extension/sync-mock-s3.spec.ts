@@ -175,3 +175,251 @@ test("syncs highlights and inbox between two profiles via a mock S3", async () =
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test("first-run wizard: branch B creates an account and syncs", async () => {
+  test.setTimeout(120_000);
+  const mock = createMockS3Server();
+  const { server, url } = await mock.listen(0);
+  const device = await launchExtension(extensionPath);
+
+  try {
+    const dashUrl = `chrome-extension://${device.extensionId}/src/dashboard/index.html`;
+    const page = await device.context.newPage();
+    await page.goto(`${dashUrl}#/settings/sync`);
+    await page.waitForSelector(".app-shell", { timeout: 10_000 });
+
+    // No account and not seen yet → auto-enter the wizard.
+    await page.waitForURL(/#\/setup/, { timeout: 10_000 });
+    await expect(page.getByRole("button", { name: "新建账号" })).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: "加入已有账号" }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: "给新设备授权" }),
+    ).toBeDisabled();
+
+    await page.getByRole("button", { name: "新建账号" }).click();
+
+    // B1: S3 with a test-connection gate.
+    await page.getByLabel("Endpoint").fill(url);
+    await page.getByLabel("Region").fill("us-east-1");
+    await page.getByLabel("Bucket").fill("myz");
+    await page.getByLabel("Access Key ID").fill("AKIAMOCK");
+    await page.getByLabel("Secret Key").fill("mock-secret");
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByText("连接成功")).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: "下一步" }).click();
+
+    // B2: migration is always shown, here with no legacy data.
+    await expect(page.getByText("未检测到旧格式数据，无需迁移")).toBeVisible();
+    await page.getByRole("button", { name: "下一步" }).click();
+
+    // B3: create the account.
+    await page.getByRole("button", { name: "创建同步账号" }).click();
+    await expect(page.getByLabel("Account ID")).toHaveValue(/acct_/, {
+      timeout: 10_000,
+    });
+    const accountId = await page.getByLabel("Account ID").inputValue();
+    await page.getByRole("button", { name: "下一步" }).click();
+
+    // A local record that must be uploaded by the first sync.
+    await saveClip(page, "wizard-uploaded-clip");
+
+    // B4: first sync.
+    await page.getByRole("button", { name: "开始同步" }).click();
+    await expect(page.getByText("首次同步完成", { exact: true })).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.getByRole("button", { name: "下一步" }).click();
+
+    // The first sync really wrote ciphertext under the account to S3.
+    const status = await send<{ lastSyncAt: string | null }>(
+      page,
+      "myz:syncStatus",
+    );
+    expect(status.lastSyncAt).toBeTruthy();
+    expect(
+      Array.from(mock.objects.keys()).some((key) =>
+        key.startsWith(`${accountId}/`),
+      ),
+    ).toBe(true);
+
+    // B5: done.
+    await expect(page.getByText("账号已建立并完成首次同步")).toBeVisible();
+    await page.getByRole("button", { name: "完成" }).click();
+    await page.waitForURL(/#\/settings\/sync/);
+    await expect(page.getByText("已建立")).toBeVisible();
+
+    // The wizard must not auto-open again on the next visit.
+    await page.reload();
+    await page.waitForURL(/#\/settings\/sync/, { timeout: 10_000 });
+    await expect(page.getByText("已建立")).toBeVisible();
+  } finally {
+    await device.context.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("first-run wizard: authorize branch gates completion on the SAS", async () => {
+  test.setTimeout(120_000);
+  const mock = createMockS3Server();
+  const { server, url } = await mock.listen(0);
+  const host = await launchExtension(extensionPath);
+  const guest = await launchExtension(extensionPath);
+
+  try {
+    const dashUrl = (id: string) =>
+      `chrome-extension://${id}/src/dashboard/index.html`;
+    const hostPage = await host.context.newPage();
+    await hostPage.goto(dashUrl(host.extensionId!));
+    await hostPage.waitForSelector(".app-shell", { timeout: 10_000 });
+    await send(hostPage, "myz:updateSettings", {
+      sync: { enabled: true, s3: s3Settings(url) },
+    });
+    const bootstrap = await send<{ accountId: string }>(
+      hostPage,
+      "myz:accountBootstrap",
+      { rescue: false, userGesture: true },
+    );
+    expect(bootstrap.accountId).toMatch(/^acct_/);
+
+    // Open the wizard directly on branch C.
+    await hostPage.goto(
+      `${dashUrl(host.extensionId!)}#/setup?scenario=authorize`,
+    );
+    await hostPage.waitForSelector(".app-shell", { timeout: 10_000 });
+
+    // C1: generate the invite (S3 already configured → no S3 step).
+    await hostPage.getByRole("button", { name: "生成配对邀请" }).click();
+    const inviteField = hostPage.getByLabel("邀请串");
+    await expect(inviteField).toHaveValue(/.+/, { timeout: 10_000 });
+    const invite = await inviteField.inputValue();
+    await hostPage.getByRole("button", { name: "下一步" }).click();
+
+    // Guest accepts the invite and returns a response + SAS.
+    const guestPage = await guest.context.newPage();
+    await guestPage.goto(dashUrl(guest.extensionId!));
+    await guestPage.waitForSelector(".app-shell", { timeout: 10_000 });
+    const accepted = await send<{ response: string; sas: string }>(
+      guestPage,
+      "myz:pairingAccept",
+      { invite, userGesture: true },
+    );
+
+    // C2/C3: paste the response, then approve.
+    await hostPage.getByLabel("响应串").fill(accepted.response);
+    await hostPage.getByRole("button", { name: "下一步" }).click();
+    await hostPage.getByRole("button", { name: "批准并加入设备" }).click();
+    await expect(hostPage.getByText(accepted.sas, { exact: true })).toBeVisible(
+      {
+        timeout: 10_000,
+      },
+    );
+
+    // Completion is blocked until the host confirms the SAS.
+    const done = hostPage.getByRole("button", { name: "完成" });
+    await expect(done).toBeDisabled();
+    await hostPage.getByRole("checkbox").check();
+    await expect(done).toBeEnabled();
+  } finally {
+    await host.context.close();
+    await guest.context.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("first-run wizard: branch A joins and uses the prefilled S3 prefix", async () => {
+  test.setTimeout(120_000);
+  const mock = createMockS3Server();
+  const { server, url } = await mock.listen(0);
+  const host = await launchExtension(extensionPath);
+  const guest = await launchExtension(extensionPath);
+
+  try {
+    const dashUrl = (id: string) =>
+      `chrome-extension://${id}/src/dashboard/index.html`;
+
+    // Host: S3 with a non-empty prefix, seed a clip, create the account.
+    const hostPage = await host.context.newPage();
+    await hostPage.goto(dashUrl(host.extensionId!));
+    await hostPage.waitForSelector(".app-shell", { timeout: 10_000 });
+    await send(hostPage, "myz:updateSettings", {
+      sync: { enabled: true, s3: { ...s3Settings(url), prefix: "team-a" } },
+    });
+    await saveClip(hostPage, "host-seeded-clip");
+    await send(hostPage, "myz:accountBootstrap", {
+      rescue: false,
+      userGesture: true,
+    });
+    const invite = await send<{ offer: string }>(
+      hostPage,
+      "myz:pairingInvite",
+      {
+        userGesture: true,
+      },
+    );
+
+    // Guest: enter the join wizard and leave the prefix empty on purpose.
+    const guestPage = await guest.context.newPage();
+    await guestPage.goto(`${dashUrl(guest.extensionId!)}#/setup?scenario=join`);
+    await guestPage.waitForSelector(".app-shell", { timeout: 10_000 });
+    await guestPage.getByLabel("Endpoint").fill(url);
+    await guestPage.getByLabel("Region").fill("us-east-1");
+    await guestPage.getByLabel("Bucket").fill("myz");
+    await guestPage.getByLabel("Access Key ID").fill("AKIAMOCK");
+    await guestPage.getByLabel("Secret Key").fill("mock-secret");
+    await guestPage.getByRole("button", { name: "测试连接" }).click();
+    await expect(guestPage.getByText("连接成功")).toBeVisible({
+      timeout: 10_000,
+    });
+    await guestPage.getByRole("button", { name: "下一步" }).click();
+
+    // A2: accepting the invite prefills and persists the host's S3 prefix.
+    await guestPage.getByLabel("邀请串").fill(invite.offer);
+    await guestPage.getByRole("button", { name: "解析邀请" }).click();
+    await expect(guestPage.getByText("本机短码：")).toBeVisible({
+      timeout: 10_000,
+    });
+    const response = await guestPage.getByLabel("响应串").inputValue();
+    await guestPage.getByRole("button", { name: "下一步" }).click();
+
+    // Host approves the response.
+    const approved = await send<{ sas: string; roster: string }>(
+      hostPage,
+      "myz:pairingApprove",
+      { response, userGesture: true },
+    );
+
+    // A4: paste the pairing string and confirm the SAS.
+    await guestPage.getByLabel("配对串").fill(approved.roster);
+    await guestPage.getByRole("checkbox").check();
+    await guestPage.getByRole("button", { name: "完成加入" }).click();
+
+    // A5: first sync.
+    await guestPage.getByRole("button", { name: "开始同步" }).click();
+    await expect(
+      guestPage.getByText("首次同步完成", { exact: true }),
+    ).toBeVisible({ timeout: 20_000 });
+
+    // The prefilled prefix was persisted and used, so the guest reads the
+    // host's record from the same S3 prefix.
+    const settings = await send<{ sync: { s3: { prefix?: string } } }>(
+      guestPage,
+      "myz:getSettings",
+    );
+    expect(settings.sync.s3.prefix).toBe("team-a");
+    const highlights = await send<Array<{ text?: string }>>(
+      guestPage,
+      "myz:getAllHighlights",
+    );
+    expect(
+      highlights.some((record) =>
+        (record.text || "").includes("host-seeded-clip"),
+      ),
+    ).toBe(true);
+  } finally {
+    await host.context.close();
+    await guest.context.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});

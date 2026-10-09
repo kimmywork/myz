@@ -6,6 +6,8 @@ import {
   type PairingResponse,
 } from "@myz/sync-core/pairing";
 import { addDeviceToRoster } from "@myz/sync-core/roster";
+import type { SyncS3Settings } from "@myz/sync-core/settings";
+import { readSettings } from "../../storage";
 import { loadLocalAccount } from "../accountKeyring";
 import { loadOrCreateDeviceKeys } from "../deviceKeyring";
 import { writeAccountRecord } from "../storage";
@@ -25,12 +27,50 @@ interface PendingPairing {
   createdAt: number;
 }
 
+/** Non-sensitive S3 coordinates carried alongside an invite for prefill. */
+export interface PairingInviteS3 {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  prefix?: string;
+}
+
+/**
+ * App-layer invite envelope. The sync-core `PairingOffer` is intentionally
+ * unchanged; non-sensitive S3 coordinates ride along so a new device can
+ * prefill its config. Credentials (`accessKeyId`/`secretAccessKey`/
+ * `sessionToken`) are never part of the envelope.
+ */
+export interface PairingInvite {
+  offer: PairingOffer;
+  s3?: PairingInviteS3;
+}
+
 export function encodePairing(value: unknown): string {
   return bytesToBase64(encodeBinaryPayload(value));
 }
 
 export function decodePairing<T>(text: string): T {
   return decodeBinaryPayload(base64ToBytes(text.trim())) as T;
+}
+
+function s3PrefillFromSettings(
+  s3: SyncS3Settings,
+): PairingInviteS3 | undefined {
+  if (!s3.endpoint || !s3.bucket) return undefined;
+  return {
+    endpoint: s3.endpoint,
+    region: s3.region || "",
+    bucket: s3.bucket,
+    prefix: s3.prefix || "",
+  };
+}
+
+function unwrapInvite(decoded: PairingInvite | PairingOffer): PairingInvite {
+  if (decoded && typeof decoded === "object" && "offer" in decoded) {
+    return decoded as PairingInvite;
+  }
+  return { offer: decoded as PairingOffer };
 }
 
 async function savePending(value: PendingPairing): Promise<void> {
@@ -67,17 +107,26 @@ export async function createPairingInvite(): Promise<{ offer: string }> {
     secret: bytesToBase64(secret),
     createdAt: Date.now(),
   });
-  return { offer: encodePairing(offer) };
+  const settings = await readSettings();
+  const s3 = s3PrefillFromSettings(settings.sync.s3);
+  const envelope: PairingInvite = s3 ? { offer, s3 } : { offer };
+  return { offer: encodePairing(envelope) };
 }
 
-/** Step 2 (new device): accept the invite and show the SAS to compare. */
-export async function acceptPairingInvite(
-  invite: string,
-): Promise<{ response: string; sas: string }> {
-  const offer = decodePairing<PairingOffer>(invite);
+/**
+ * Step 2 (new device): accept the invite, show the SAS to compare, and return
+ * any non-sensitive S3 coordinates for prefill.
+ */
+export async function acceptPairingInvite(invite: string): Promise<{
+  response: string;
+  sas: string;
+  s3?: PairingInviteS3;
+}> {
+  const decoded = decodePairing<PairingInvite | PairingOffer>(invite);
+  const { offer, s3 } = unwrapInvite(decoded);
   const { pair } = await loadOrCreateDeviceKeys();
   const { response, sas } = await acceptPairingOffer({ offer, device: pair });
-  return { response: encodePairing(response), sas };
+  return { response: encodePairing(response), sas, s3 };
 }
 
 /**

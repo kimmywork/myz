@@ -10,6 +10,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   pair: null as ReturnType<typeof generateDeviceKeyPair> | null,
   account: null as Awaited<ReturnType<typeof createSyncAccount>> | null,
+  s3: {
+    endpoint: "https://s3.example.com",
+    region: "us-east-1",
+    bucket: "myz-sync",
+    accessKeyId: "AKIASECRET",
+    secretAccessKey: "super-secret-key",
+    sessionToken: "session-token",
+    prefix: "team-a",
+  },
 }));
 
 vi.mock("@/background/sync/deviceKeyring", () => ({
@@ -27,11 +36,16 @@ vi.mock("@/background/sync/storage", () => ({
   writeAccountRecord: vi.fn(async () => {}),
 }));
 
+vi.mock("@/background/storage", () => ({
+  readSettings: async () => ({ sync: { enabled: true, s3: state.s3 } }),
+}));
+
 import {
   acceptPairingInvite,
   approvePairing,
   createPairingInvite,
   decodePairing,
+  type PairingInvite,
 } from "@/background/sync/v2/pairingSession";
 
 const store = new Map<string, unknown>();
@@ -86,6 +100,34 @@ describe("device pairing session", () => {
     expect(Array.from(guestAccount.dataKey)).toEqual(
       Array.from(hostAccount.dataKey),
     );
+  });
+
+  it("carries non-sensitive S3 prefill but never credentials", async () => {
+    const hostPair = generateDeviceKeyPair();
+    const hostAccount = await createSyncAccount({
+      device: hostPair,
+      accountId: "acct_pair_s3",
+    });
+    state.account = hostAccount;
+    state.pair = hostPair;
+
+    const { offer } = await createPairingInvite();
+    const envelope = decodePairing<PairingInvite>(offer);
+    expect(envelope.s3).toEqual({
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "myz-sync",
+      prefix: "team-a",
+    });
+
+    state.pair = generateDeviceKeyPair();
+    const guest = await acceptPairingInvite(offer);
+    expect(guest.s3?.bucket).toBe("myz-sync");
+
+    const serialized = JSON.stringify(envelope);
+    expect(serialized).not.toContain("super-secret-key");
+    expect(serialized).not.toContain("AKIASECRET");
+    expect(serialized).not.toContain("session-token");
   });
 
   it("rejects an unknown/expired invite response", async () => {

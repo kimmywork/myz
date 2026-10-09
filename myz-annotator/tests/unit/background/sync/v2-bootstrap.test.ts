@@ -10,8 +10,18 @@ import {
   bytesToHex,
   stableStringify,
 } from "@myz/sync-core/utils";
-import { describe, expect, it } from "vitest";
-import { pullLegacyRemote } from "@/background/sync/v2/bootstrap";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/background/sync/keyring", () => ({
+  loadKeyset: async () => null,
+  deriveKeysetFromSecret: vi.fn(),
+  clearKeyset: vi.fn(async () => {}),
+}));
+
+import {
+  migrateLegacyRemote,
+  pullLegacyRemote,
+} from "@/background/sync/v2/bootstrap";
 
 class MemStore implements SyncObjectStore {
   map = new Map<string, Uint8Array>();
@@ -120,5 +130,12 @@ describe("legacy v1 rescue", () => {
       publicKey: keyset.publicKey,
     });
     expect(records).toEqual([]);
+  });
+});
+
+describe("legacy migration step", () => {
+  it("reports no legacy data when no keyset is stored", async () => {
+    const result = await migrateLegacyRemote();
+    expect(result).toEqual({ rescued: 0, hasLegacy: false });
   });
 });

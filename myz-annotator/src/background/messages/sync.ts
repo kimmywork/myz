@@ -31,7 +31,11 @@ import {
   decodeBinaryPayload,
   encodeBinaryPayload,
 } from "../sync/utils";
-import { bootstrapV2Account } from "../sync/v2/bootstrap";
+import {
+  bootstrapV2Account,
+  cleanupLegacy,
+  migrateLegacyRemote,
+} from "../sync/v2/bootstrap";
 import {
   acceptPairingInvite,
   approvePairing,
@@ -109,13 +113,27 @@ export function initializeSyncMessageHandlers() {
     "myz:accountCreate",
     async (payload: { userGesture?: boolean }) => {
       void payload;
-      const account = await createLocalAccount();
+      // Idempotent: the wizard can re-run this step without rotating the
+      // account if a previous run was interrupted after creation.
+      const account =
+        (await loadLocalAccount()) ?? (await createLocalAccount());
       return {
         accountId: account.accountId,
         deviceId: account.deviceId,
         epoch: account.epoch,
         roster: bytesToBase64(encodeBinaryPayload(account.roster)),
       };
+    },
+  );
+
+  registerMessageHandler(
+    "myz:accountMigrateLegacy",
+    async (payload: {
+      secret?: string;
+      s3?: Partial<SyncS3Settings>;
+      userGesture?: boolean;
+    }) => {
+      return migrateLegacyRemote({ secret: payload?.secret, s3: payload?.s3 });
     },
   );
 
@@ -298,6 +316,20 @@ export function initializeSyncMessageHandlers() {
   });
 
   registerMessageHandler("myz:syncNow", async () => {
-    return syncNow();
+    const result = await syncNow();
+    // Once a v2 account is in place, a successful sync means the legacy keyset
+    // (if any) is no longer needed; purge it only after success so an
+    // interrupted first run can still be resumed.
+    if (result?.ok) {
+      try {
+        const account = await loadLocalAccount();
+        if (account && (await loadKeyset())) {
+          await cleanupLegacy();
+        }
+      } catch (error) {
+        console.warn("Failed to purge legacy keyset after sync", error);
+      }
+    }
+    return result;
   });
 }

@@ -20,10 +20,14 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
 - v2/stateStore.ts: per-stream sync state (streamVersion/shardHashes/tombstones).
 - v2/engine.ts: v2 sync orchestration (account streams + account-scoped lease);
   `syncEngine.syncNow` delegates here when an account exists, else legacy v1.
-- v2/bootstrap.ts: clean-break bootstrap (one-time legacy v1 rescue → create
-  v2 account → upload → purge legacy keyset/metadata).
+- v2/bootstrap.ts: legacy migration + clean-break bootstrap. `migrateLegacyRemote`
+  (rescue-only, optional old secret/S3 override, idempotent) and `cleanupLegacy`
+  (purge old keyset/metadata) are composed by the setup wizard; `bootstrapV2Account`
+  keeps the original atomic legacy path (rescue → create account → upload → purge).
 - v2/pairingSession.ts: same-machine device pairing over transferable strings
-  (offer → response → approve) using the sync-core pairing/SAS + roster.
+  (offer → response → approve) using the sync-core pairing/SAS + roster. Wraps the
+  `PairingOffer` in an app-layer `PairingInvite` envelope `{ offer, s3? }` that
+  carries only non-sensitive S3 coordinates for prefill.
 
 ## References
 

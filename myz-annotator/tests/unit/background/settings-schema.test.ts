@@ -26,3 +26,18 @@ describe("settings colorScheme", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("settings syncSetupSeen", () => {
+  it("defaults to false", () => {
+    expect(DEFAULT_SETTINGS.syncSetupSeen).toBe(false);
+    expect(SettingsSchemaV1.parse(DEFAULT_SETTINGS).syncSetupSeen).toBe(false);
+  });
+
+  it("accepts a boolean flag", () => {
+    const parsed = SettingsSchemaV1.parse({
+      ...DEFAULT_SETTINGS,
+      syncSetupSeen: true,
+    });
+    expect(parsed.syncSetupSeen).toBe(true);
+  });
+});

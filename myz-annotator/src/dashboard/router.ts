@@ -9,6 +9,7 @@ import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx";
 import SettingsInboxPage from "./pages/settings/SettingsInboxPage.jsx";
 import SettingsLayout from "./pages/settings/SettingsLayout.jsx";
 import SettingsSyncPage from "./pages/settings/SettingsSyncPage.jsx";
+import SetupPage from "./pages/SetupPage.jsx";
 
 const routes = [
   { path: "/", redirect: "/highlights" },
@@ -20,6 +21,12 @@ const routes = [
     component: HighlightViewerPage,
   },
   { path: "/readers", name: "readers", component: ReadersPage },
+  {
+    path: "/setup",
+    name: "setup",
+    component: SetupPage,
+    meta: { fullscreen: true },
+  },
   {
     path: "/settings",
     component: SettingsLayout,

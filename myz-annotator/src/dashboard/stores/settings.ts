@@ -22,6 +22,7 @@ export const useSettingsStore = defineStore("settings", () => {
     colorPalette: ["#b58900", "#ef476f", "#9f7aea", "#38bdf8", "#34d399"],
     lastUsedColor: DEFAULT_COLOR,
     lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
+    syncSetupSeen: false,
     inboxEnabled: true,
     inboxReminderEnabled: true,
     sync: {
@@ -61,6 +62,7 @@ export const useSettingsStore = defineStore("settings", () => {
           ? result.colorPalette.filter((c) => typeof c === "string" && c.trim())
           : settings.colorPalette,
         sync: normalizeSyncSettings(result.sync),
+        syncSetupSeen: result.syncSetupSeen === true,
         inboxEnabled: result.inboxEnabled !== false,
         inboxReminderEnabled: result.inboxReminderEnabled !== false,
         lastUsedColor:

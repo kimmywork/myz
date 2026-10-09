@@ -1,6 +1,6 @@
 # Sync Setup Wizard（独立全屏设置向导）
 
-> 状态：**设计已确认，待实现**（2026-10-08）。
+> 状态：**已实现**（v0.6.5，2026-10-09）。实现见 `.agents/worklog/2026-10.md`（2026-10-09）与 CHANGELOG v0.6.5。
 >
 > 关联：
 > - 安全/密钥模型：`docs/plan/e2ee-security-hardening.md`（KM1–KM5、roster、D、按设备签名）。

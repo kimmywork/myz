@@ -11,6 +11,8 @@ export interface Settings {
   lastUsedStyle: HIGHLIGHT_STYLES;
   lastUsedColor: string;
   sync: SyncSettings;
+  /** Whether the first-run sync setup wizard has been shown once. */
+  syncSetupSeen?: boolean;
   /** Inbox is enabled by default; when false new captures go straight to kept. */
   inboxEnabled?: boolean;
   /** Daily Inbox cleanup reminder; enabled by default. */
