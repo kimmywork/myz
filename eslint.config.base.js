@@ -12,6 +12,30 @@ export function createBaseConfig(options = {}) {
     extraGlobals = {},
   } = options;
 
+  /**
+   * Size guardrails, surfaced as warnings so they inform review without
+   * failing existing code. Target is 300 lines per file; the warning is set to
+   * 400 for now to grandfather current files. Line length is capped at 120
+   * (unbreakable URLs/strings/templates/regex are ignored, since Prettier
+   * already wraps everything it can at 80 columns).
+   */
+  const sizeRules = {
+    "max-len": [
+      "warn",
+      {
+        code: 120,
+        ignoreUrls: true,
+        ignoreStrings: true,
+        ignoreTemplateLiterals: true,
+        ignoreRegExpLiterals: true,
+      },
+    ],
+    "max-lines": [
+      "warn",
+      { max: 400, skipBlankLines: true, skipComments: true },
+    ],
+  };
+
   const configs = [
     {
       ignores: ["dist/**", "node_modules/**", "**/*.d.ts"],
@@ -64,7 +88,12 @@ export function createBaseConfig(options = {}) {
             alphabetize: { order: "asc", caseInsensitive: true },
           },
         ],
+        ...sizeRules,
       },
+    },
+    {
+      files: ["**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs"],
+      rules: sizeRules,
     },
     {
       files: ["**/*.config.ts", "**/*.config.js", "vite.config.ts", "scripts/**/*.mjs"],

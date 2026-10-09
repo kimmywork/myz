@@ -31,6 +31,7 @@ Other modules: check each module's `package.json` for scripts.
 
 ## Engineering Conventions (concise)
 - Indent 2 spaces; avoid semicolons in TS/TSX files.
+- Size guardrails (repo-wide, all ts/tsx/js/jsx/mjs/cjs via `eslint.config.base.js`): lines ≤ 120 chars (`max-len`; unbreakable URLs/strings/templates/regex ignored); files ≤ ~300 lines target (`max-lines` currently warns at 400 as a staged limit). Split rather than grow oversized modules.
 - All new code must be TypeScript.
 - Schema-first: update/extend schemas and types before UI or storage changes.
 - Vue uses Composition API + JSX; state via Pinia.
