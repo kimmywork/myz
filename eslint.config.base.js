@@ -96,6 +96,22 @@ export function createBaseConfig(options = {}) {
       rules: sizeRules,
     },
     {
+      // Tests/specs may run a little longer than production modules.
+      files: [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "tests/**",
+      ],
+      rules: {
+        "max-lines": [
+          "warn",
+          { max: 500, skipBlankLines: true, skipComments: true },
+        ],
+      },
+    },
+    {
       files: ["**/*.config.ts", "**/*.config.js", "vite.config.ts", "scripts/**/*.mjs"],
       languageOptions: {
         globals: {
