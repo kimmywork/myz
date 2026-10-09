@@ -1,27 +1,16 @@
-import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
 import {
   MyZRecord,
   RECORD_KINDS,
   CONTENT_TYPES,
-  ensureRecordSchemaVersion,
   getRecordKind,
-  resolveRecordContentType,
 } from "@myz/shared/types";
 import { normalizeBadgeCounts, BadgeCount, buildActionTitle } from "../badge";
-import {
-  ImportStrategy,
-  normalizeImportStrategy,
-  sanitizeImportedHighlight,
-  resolveImportConflict,
-  buildRecordSignature,
-  applyTimestampFallback,
-} from "../import";
+import { ImportStrategy, normalizeImportStrategy } from "../import";
 import { getInboxStatus, setInboxStatus } from "../inbox/actions";
 import { buildMarkdownExport } from "../markdown";
 import {
   generateId,
   persistHighlightPreferences,
-  generateUniqueImportId,
   getHighlightsForUrl,
   saveHighlight,
   getHighlight,
@@ -33,17 +22,17 @@ import { recordHighlightDeletion } from "../sync/deletions";
 import { recordIdForHighlight } from "../sync/records";
 import { sendToContentScript } from "../utils/sendToContentScript";
 import { registerMessageHandler } from "./handler";
+import { mergeImportedRecords } from "./highlights/import-merge";
+import {
+  applyKindShape,
+  buildNewRecord,
+  buildUpdatedRecord,
+  collectAllTags,
+  normalizeIds,
+  resolveRequestedUrls,
+} from "./highlights/record-helpers";
 
-export function normalizeIds(ids?: unknown): string[] {
-  const list = Array.isArray(ids) ? ids : [];
-  return Array.from(
-    new Set(
-      list
-        .map((id) => (typeof id === "string" ? id.trim() : ""))
-        .filter(Boolean),
-    ),
-  );
-}
+export { normalizeIds };
 
 export type GetHighlightsForUrlMessageResult = MyZRecord[];
 export type SaveHighlightMessageResult = MyZRecord;
@@ -61,34 +50,39 @@ export interface UpdateRecordsByIdsMessageResult {
 export type GetAllHighlightsMessageResult = MyZRecord[];
 export type GetAllTagsMessageResult = string[];
 
+/** Convert record.html to markdown via the page's content script, with a
+ * fallback to stripping tags so the record can still be saved. */
+async function resolveRecordText(record: MyZRecord, tabId: number | undefined) {
+  if (typeof record.html !== "string" || record.html.trim().length === 0) {
+    return;
+  }
+  try {
+    const { markdown } = await sendToContentScript<
+      { html: string },
+      { markdown: string }
+    >("myz:convertHtmlToMarkdown", { html: record.html }, tabId);
+    record.text = markdown;
+    record.contentType = CONTENT_TYPES.MARKDOWN;
+  } catch {
+    const fallbackText = record.html
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    record.text = fallbackText;
+    if (fallbackText) record.contentType = CONTENT_TYPES.MARKDOWN;
+  }
+  delete (record as Record<string, unknown>).html;
+}
+
 export function initializeHighlightMessageHandlers() {
   registerMessageHandler(
     "myz:getHighlightsForUrl",
     async (payload: { url?: string; aliases?: string[] }) => {
-      const urls = new Set<string>();
-      if (typeof payload?.url === "string" && payload.url) {
-        urls.add(payload.url);
-      }
-      if (Array.isArray(payload?.aliases)) {
-        payload.aliases.forEach((candidate) => {
-          if (typeof candidate === "string" && candidate) {
-            urls.add(candidate);
-          }
-        });
-      }
-      if (!urls.size) {
-        return [];
-      }
-
-      const promises = Array.from(urls).map((url) => getHighlightsForUrl(url));
-      const results = await Promise.all(promises);
-      const matches = results.flat();
-
-      const uniqueMatches = Array.from(
-        new Map(matches.map((m) => [m.id, m])).values(),
-      );
-
-      return uniqueMatches;
+      const urls = resolveRequestedUrls(payload);
+      if (!urls.length) return [];
+      const promises = urls.map((url) => getHighlightsForUrl(url));
+      const matches = (await Promise.all(promises)).flat();
+      return Array.from(new Map(matches.map((m) => [m.id, m])).values());
     },
   );
 
@@ -98,69 +92,25 @@ export function initializeHighlightMessageHandlers() {
       payload: SaveHighlightMessagePayload,
       sender: chrome.runtime.MessageSender,
     ) => {
-      if (!payload) {
-        throw new Error("Missing highlight payload");
-      }
+      if (!payload) throw new Error("Missing highlight payload");
       const now = new Date().toISOString();
       const id = payload.id || generateId();
       const kind = getRecordKind(payload);
-      const record: MyZRecord = ensureRecordSchemaVersion({
-        ...payload,
-        id,
-        kind,
-        createdAt: payload.createdAt || now,
-        updatedAt: now,
-      }) as MyZRecord;
-      record.contentType = resolveRecordContentType(record);
-
-      if (typeof record.html === "string" && record.html.trim().length > 0) {
-        try {
-          const tabId = sender?.tab?.id;
-          const { markdown } = await sendToContentScript<
-            { html: string },
-            { markdown: string }
-          >("myz:convertHtmlToMarkdown", { html: record.html }, tabId);
-          record.text = markdown;
-          record.contentType = CONTENT_TYPES.MARKDOWN;
-        } catch {
-          // Content script not available — fall back to stripping HTML tags
-          // so the record can still be saved.
-          const fallbackText = record.html
-            .replace(/<[^>]+>/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-          record.text = fallbackText;
-          if (fallbackText) {
-            record.contentType = CONTENT_TYPES.MARKDOWN;
-          }
-        }
-        delete (record as Record<string, unknown>).html;
-      }
-
-      if (kind !== RECORD_KINDS.HIGHLIGHT) {
-        record.range = undefined;
-        record.color = undefined;
-        record.style = undefined;
-      } else {
-        record.style = normalizeHighlightStyle(payload.style);
-      }
-
+      const record = buildNewRecord(payload, now, id, kind);
+      await resolveRecordText(record, sender?.tab?.id);
+      applyKindShape(record);
       await saveHighlight(record);
-
       if (kind === RECORD_KINDS.HIGHLIGHT) {
         await persistHighlightPreferences({
           color: record.color,
           style: record.style,
         });
       }
-
       const settings = await readSettings();
       if (settings.inboxEnabled !== false) {
         const targetId = recordIdForHighlight(record.id);
         const existing = await getInboxStatus(targetId);
-        if (!existing) {
-          await setInboxStatus(targetId, "pending");
-        }
+        if (!existing) await setInboxStatus(targetId, "pending");
       }
       return record;
     },
@@ -169,33 +119,15 @@ export function initializeHighlightMessageHandlers() {
   registerMessageHandler(
     "myz:updateHighlight",
     async (payload: Partial<MyZRecord>) => {
-      if (!payload?.id) {
-        throw new Error("Missing highlight id");
-      }
+      if (!payload?.id) throw new Error("Missing highlight id");
       const existing = await getHighlight(payload.id);
-      if (!existing) {
-        throw new Error("Highlight not found");
-      }
-      const now = new Date().toISOString();
-      const requestedKind =
-        typeof payload.kind === "string" &&
-        Object.values(RECORD_KINDS).includes(payload.kind as RECORD_KINDS)
-          ? (payload.kind as RECORD_KINDS)
-          : existing.kind;
-      const updated: MyZRecord = ensureRecordSchemaVersion({
-        ...existing,
-        ...payload,
-        kind: requestedKind,
-        updatedAt: now,
-      }) as MyZRecord;
-      updated.contentType = resolveRecordContentType(updated);
-      if (updated.kind !== RECORD_KINDS.HIGHLIGHT) {
-        updated.range = undefined;
-        updated.color = undefined;
-        updated.style = undefined;
-      } else {
-        updated.style = normalizeHighlightStyle(updated.style);
-      }
+      if (!existing) throw new Error("Highlight not found");
+      const updated = buildUpdatedRecord(
+        existing,
+        payload,
+        new Date().toISOString(),
+      );
+      applyKindShape(updated);
       await saveHighlight(updated);
       if (updated.kind === RECORD_KINDS.HIGHLIGHT) {
         await persistHighlightPreferences({
@@ -214,14 +146,12 @@ export function initializeHighlightMessageHandlers() {
         throw new Error("Missing highlight id or range");
       }
       const existing = await getHighlight(payload.id);
-      if (!existing) {
-        throw new Error("Highlight not found");
-      }
-      const updated = ensureRecordSchemaVersion({
+      if (!existing) throw new Error("Highlight not found");
+      const updated = {
         ...existing,
         range: payload.range,
         updatedAt: new Date().toISOString(),
-      }) as MyZRecord;
+      } as MyZRecord;
       await saveHighlight(updated);
       return updated;
     },
@@ -230,9 +160,7 @@ export function initializeHighlightMessageHandlers() {
   registerMessageHandler(
     "myz:removeHighlight",
     async (payload: { id?: string }) => {
-      if (!payload?.id) {
-        throw new Error("Missing highlight id");
-      }
+      if (!payload?.id) throw new Error("Missing highlight id");
       await recordHighlightDeletion(payload.id);
       await deleteHighlight(payload.id);
       return { success: true };
@@ -243,9 +171,7 @@ export function initializeHighlightMessageHandlers() {
     "myz:removeRecordsByIds",
     async (payload: { ids?: string[] }) => {
       const unique = normalizeIds(payload?.ids);
-      if (!unique.length) {
-        return { removed: 0 };
-      }
+      if (!unique.length) return { removed: 0 };
       for (const id of unique) {
         await recordHighlightDeletion(id);
         await deleteHighlight(id);
@@ -262,15 +188,11 @@ export function initializeHighlightMessageHandlers() {
         payload?.patch && typeof payload.patch === "object"
           ? payload.patch
           : {};
-      if (!unique.length) {
-        return { updated: 0 };
-      }
+      if (!unique.length) return { updated: 0 };
       const now = new Date().toISOString();
       for (const id of unique) {
         const existing = await getHighlight(id);
-        if (!existing) {
-          continue;
-        }
+        if (!existing) continue;
         const updated: MyZRecord = {
           ...existing,
           note:
@@ -284,31 +206,13 @@ export function initializeHighlightMessageHandlers() {
     },
   );
 
-  registerMessageHandler("myz:getAllHighlights", async () => {
-    const highlights = await getAllHighlights();
-    return highlights;
-  });
+  registerMessageHandler("myz:getAllHighlights", async () =>
+    getAllHighlights(),
+  );
 
-  registerMessageHandler("myz:getAllTags", async () => {
-    const highlights = await getAllHighlights();
-    const tags = new Set<string>();
-    highlights.forEach((item) => {
-      if (!item || !Array.isArray(item.tags)) {
-        return;
-      }
-      item.tags.forEach((tag) => {
-        if (typeof tag !== "string") {
-          return;
-        }
-        const normalized = tag.trim();
-        if (!normalized) {
-          return;
-        }
-        tags.add(normalized);
-      });
-    });
-    return Array.from(tags).sort((a, b) => a.localeCompare(b));
-  });
+  registerMessageHandler("myz:getAllTags", async () =>
+    collectAllTags(await getAllHighlights()),
+  );
 
   registerMessageHandler("myz:export", async () => {
     const highlights = await getAllHighlights();
@@ -359,121 +263,24 @@ export function initializeHighlightMessageHandlers() {
     "myz:importHighlights",
     async (payload: { records?: MyZRecord[]; strategy?: ImportStrategy }) => {
       const records = Array.isArray(payload?.records) ? payload.records : [];
-      if (!records.length) {
-        throw new Error("没有可导入的数据");
-      }
-
+      if (!records.length) throw new Error("没有可导入的数据");
       const strategy = normalizeImportStrategy(payload?.strategy);
-      const existingHighlightsList = await getAllHighlights();
+      const list = await getAllHighlights();
       const existingHighlights: Record<string, MyZRecord> = {};
-      existingHighlightsList.forEach((h) => (existingHighlights[h.id] = h));
-      const usedIds = new Set(Object.keys(existingHighlights));
+      list.forEach((h) => (existingHighlights[h.id] = h));
 
-      const existingSignatures = new Set();
-      Object.values(existingHighlights).forEach((record) => {
-        const signature = buildRecordSignature(record);
-        if (signature) {
-          existingSignatures.add(signature);
-        }
-      });
-
-      const replacements: Map<string, MyZRecord> = new Map();
-      const additions: Map<string, MyZRecord> = new Map();
-      let skipped = 0;
-
-      records.forEach((raw) => {
-        const sanitized = sanitizeImportedHighlight(raw);
-        if (!sanitized) {
-          skipped += 1;
-          return;
-        }
-
-        let identifier =
-          typeof sanitized.id === "string" ? sanitized.id.trim() : "";
-
-        // Handle conflicts with existing highlights first.
-        if (
-          identifier &&
-          existingHighlights[identifier] &&
-          !replacements.has(identifier)
-        ) {
-          const existingRecord = existingHighlights[identifier];
-          if (!resolveImportConflict(strategy, existingRecord, sanitized)) {
-            skipped += 1;
-            return;
-          }
-          sanitized.id = identifier;
-          applyTimestampFallback(sanitized, existingRecord);
-          const signature = buildRecordSignature(sanitized);
-          if (signature) {
-            existingSignatures.add(signature);
-          }
-          replacements.set(identifier, sanitized);
-          return;
-        }
-
-        // Conflicts with already staged replacements or additions (duplicate IDs within payload).
-        if (
-          identifier &&
-          (replacements.has(identifier) || additions.has(identifier))
-        ) {
-          const staged = (replacements.get(identifier) ||
-            additions.get(identifier))!;
-          if (!resolveImportConflict(strategy, staged, sanitized)) {
-            skipped += 1;
-            return;
-          }
-          sanitized.id = identifier;
-          applyTimestampFallback(sanitized, staged);
-          const signature = buildRecordSignature(sanitized);
-          if (signature) {
-            existingSignatures.add(signature);
-          }
-          if (replacements.has(identifier)) {
-            replacements.set(identifier, sanitized);
-          } else {
-            additions.set(identifier, sanitized);
-          }
-          return;
-        }
-
-        // De-duplicate by record signature to avoid creating duplicates.
-        const signature = buildRecordSignature(sanitized);
-        if (signature && existingSignatures.has(signature)) {
-          skipped += 1;
-          return;
-        }
-
-        let resolvedId = identifier;
-        if (
-          !resolvedId ||
-          usedIds.has(resolvedId) ||
-          additions.has(resolvedId)
-        ) {
-          resolvedId = generateUniqueImportId(usedIds);
-        } else {
-          usedIds.add(resolvedId);
-        }
-        sanitized.id = resolvedId;
-        applyTimestampFallback(sanitized);
-        sanitized.updatedAt = sanitized.updatedAt || sanitized.createdAt;
-        if (signature) {
-          existingSignatures.add(signature);
-        }
-        additions.set(resolvedId, sanitized);
-      });
-
+      const { replacements, additions, skipped } = mergeImportedRecords(
+        existingHighlights,
+        records,
+        strategy,
+      );
       if (!additions.size && !replacements.size && skipped === 0) {
         throw new Error("没有符合要求的记录");
       }
-
-      const savePromises: Promise<void>[] = [];
-      replacements.forEach((record) =>
-        savePromises.push(saveHighlight(record)),
-      );
-      additions.forEach((record) => savePromises.push(saveHighlight(record)));
-      await Promise.all(savePromises);
-
+      const saves: Promise<void>[] = [];
+      replacements.forEach((record) => saves.push(saveHighlight(record)));
+      additions.forEach((record) => saves.push(saveHighlight(record)));
+      await Promise.all(saves);
       return {
         inserted: additions.size,
         replaced: replacements.size,
