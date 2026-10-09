@@ -323,6 +323,20 @@ test("reader_renders_landing_page_after_direct_scroll_jump", async () => {
     undefined,
     { timeout: 10000 },
   );
+
+  // It must also be upgraded from the low-res preview to full resolution.
+  await page.waitForFunction(
+    () => {
+      const el = document.querySelector(
+        '.pdf-page[data-page="28"]',
+      ) as HTMLElement | null;
+      const canvas = el?.querySelector("canvas") as HTMLCanvasElement | null;
+      return Boolean(canvas && canvas.width >= el!.clientWidth * 0.9);
+    },
+    undefined,
+    { timeout: 10000 },
+  );
+
   await page.waitForTimeout(600);
   const stillRendered = await page.evaluate(() =>
     Boolean(document.querySelector('.pdf-page[data-page="28"] canvas')),

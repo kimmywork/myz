@@ -37,8 +37,6 @@ const MAX_RESIDENT_BYTES = 384 * 1024 * 1024;
 interface RenderSlot {
   handle: { cancel: () => void } | null;
   rendered: boolean;
-  bytes: number;
-  lastSeen: number;
 }
 
 interface QueuedRender {
@@ -61,6 +59,8 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
   let persistTimer: number | null = null;
   let scrollRaf = 0;
   let activeRenders = 0;
+  /** Page explicitly requested by navigation; never dropped/cancelled. */
+  let navTarget: number | null = null;
   let afterRender: ((pageEl: HTMLElement) => void) | null = null;
   /** Bumped on every rebuild so stale render callbacks are ignored. */
   let generation = 0;
@@ -180,11 +180,18 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
     }
     const stageRect = stage.getBoundingClientRect();
     const rendered = [...slots.entries()].filter(([, slot]) => slot.rendered);
-    let totalBytes = rendered.reduce((sum, [, slot]) => sum + slot.bytes, 0);
+    const bytesOf = (pageNumber: number): number => {
+      const el = pageEl(pageNumber);
+      return el ? estimateBytes(el) : 0;
+    };
+    let totalBytes = rendered.reduce(
+      (sum, [pageNumber]) => sum + bytesOf(pageNumber),
+      0,
+    );
     const byDistance = [...rendered].sort(
       (a, b) => Math.abs(b[0] - anchorPage) - Math.abs(a[0] - anchorPage),
     );
-    for (const [pageNumber, slot] of byDistance) {
+    for (const [pageNumber] of byDistance) {
       const far = Math.abs(pageNumber - anchorPage) > KEEP_RADIUS;
       if (!far && totalBytes <= MAX_RESIDENT_BYTES) {
         continue;
@@ -202,8 +209,9 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
           continue;
         }
       }
+      const bytes = bytesOf(pageNumber);
       evict(pageNumber);
-      totalBytes -= slot.bytes;
+      totalBytes -= bytes;
     }
   }
 
@@ -211,35 +219,55 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
     if (!doc || !stage) {
       return;
     }
-    while (activeRenders < MAX_CONCURRENT_RENDERS && queue.length > 0) {
+    // While the page at the viewport centre is still unrendered, render it
+    // alone so a jump lands on a painted page as fast as possible instead of
+    // competing with neighbour decodes for CPU.
+    const focusPage = state.page.value;
+    const focusWaiting =
+      !slots.get(focusPage)?.rendered && pendingRenders.has(focusPage);
+    const limit = focusWaiting ? 1 : MAX_CONCURRENT_RENDERS;
+    while (activeRenders < limit && queue.length > 0) {
       const { pageNumber } = queue.shift()!;
       const el = pageEl(pageNumber);
       if (!el || slots.get(pageNumber)?.rendered) {
         finish(pageNumber);
         continue;
       }
+      // Drop work for pages that scrolled far away instead of decoding them.
+      // They are outside the observer margin, so the observer re-enqueues them
+      // if the user scrolls back.
+      if (
+        pageNumber !== navTarget &&
+        Math.abs(pageNumber - state.page.value) > KEEP_RADIUS
+      ) {
+        finish(pageNumber);
+        continue;
+      }
       const gen = generation;
       const slot: RenderSlot =
         slots.get(pageNumber) ??
-        ({
-          handle: null,
-          rendered: false,
-          bytes: 0,
-          lastSeen: 0,
-        } as RenderSlot);
+        ({ handle: null, rendered: false } as RenderSlot);
       slots.set(pageNumber, slot);
       activeRenders += 1;
-      const handle = renderPageInto(el, doc, pageNumber, state.scale.value);
+      const handle = renderPageInto(
+        el,
+        doc,
+        pageNumber,
+        state.scale.value,
+        () =>
+          gen === generation &&
+          (pageNumber === navTarget ||
+            Math.abs(pageNumber - state.page.value) <= KEEP_RADIUS),
+      );
       slot.handle = handle;
       handle.promise
         .then(() => {
           if (gen !== generation) {
             return;
           }
+          // The preview is painted: the page is visible. The handle stays set
+          // until the full-resolution upgrade settles so eviction can cancel it.
           slot.rendered = true;
-          slot.handle = null;
-          slot.bytes = estimateBytes(el);
-          slot.lastSeen = Date.now();
           afterRender?.(el);
         })
         .catch((renderError) => {
@@ -263,6 +291,11 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
           }
           pump();
         });
+      handle.full.finally(() => {
+        if (gen === generation && slots.get(pageNumber) === slot) {
+          slot.handle = null;
+        }
+      });
     }
   }
 
@@ -287,11 +320,25 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
     return promise;
   }
 
+  /**
+   * Page under the viewport centre. `elementFromPoint` is O(1) and avoids the
+   * per-frame O(N) layout reads of scanning every placeholder; the scan is only
+   * a fallback for when the centre lands in a gap between pages.
+   */
   function computeCurrentPage(): number {
     if (!stage) {
       return state.page.value;
     }
-    const middle = stage.getBoundingClientRect().top + stage.clientHeight / 2;
+    const rect = stage.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+    );
+    const under = hit?.closest<HTMLElement>(".pdf-page");
+    if (under?.dataset.page) {
+      return Number(under.dataset.page);
+    }
+    const middle = rect.top + stage.clientHeight / 2;
     const elements = pageElements();
     for (const el of elements) {
       if (middle < el.getBoundingClientRect().bottom) {
@@ -303,21 +350,36 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
       : 1;
   }
 
+  /** Cancels in-flight renders that have scrolled far from the viewport. */
+  function cancelFarInFlight(anchorPage: number) {
+    for (const [pageNumber, slot] of slots) {
+      if (
+        !slot.rendered &&
+        slot.handle &&
+        pageNumber !== navTarget &&
+        Math.abs(pageNumber - anchorPage) > KEEP_RADIUS
+      ) {
+        slot.handle.cancel();
+      }
+    }
+  }
+
   function updateCurrentPage() {
     const next = computeCurrentPage();
     if (next !== state.page.value) {
       state.page.value = next;
       schedulePersist();
     }
-    evictIfNeeded(next);
+    // Keep queue order and in-flight work aligned with where the user actually
+    // is, even while a render batch is still running.
+    sortQueue();
+    cancelFarInFlight(next);
+    if (activeRenders === 0) {
+      evictIfNeeded(next);
+    }
   }
 
   function handleScroll() {
-    // Layout shifts while pages render can misreport the centre page; the
-    // render batch's `finally` re-checks once rendering settles.
-    if (activeRenders > 0) {
-      return;
-    }
     if (scrollRaf !== 0) {
       return;
     }
@@ -332,20 +394,25 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
       return;
     }
     const next = Math.min(Math.max(1, target), state.pages.value || 1);
-    await ensureRendered(next, 0);
-    const el = pageEl(next);
-    if (el) {
-      const delta =
-        el.getBoundingClientRect().top - stage.getBoundingClientRect().top;
-      stage.scrollTop += delta;
-    }
-    state.page.value = next;
-    // Persist off the navigation path so jumping does not wait on IndexedDB.
-    schedulePersist();
-    evictIfNeeded(next);
-    void ensureRendered(next + 1, 2);
-    if (next > 1) {
-      void ensureRendered(next - 1, 2);
+    navTarget = next;
+    try {
+      await ensureRendered(next, 0);
+      const el = pageEl(next);
+      if (el) {
+        const delta =
+          el.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+        stage.scrollTop += delta;
+      }
+      state.page.value = next;
+      // Persist off the navigation path so jumping does not wait on IndexedDB.
+      schedulePersist();
+      evictIfNeeded(next);
+      void ensureRendered(next + 1, 2);
+      if (next > 1) {
+        void ensureRendered(next - 1, 2);
+      }
+    } finally {
+      navTarget = null;
     }
   }
 
