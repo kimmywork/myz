@@ -99,7 +99,6 @@ export default defineConfig({
         popup: resolve(rootDir, "src/popup/popup.html"),
         dashboard: resolve(rootDir, "src/dashboard/index.html"),
         "pdf-viewer": resolve(rootDir, "src/pdf/pdf-viewer.html"),
-        "pdf-spike": resolve(rootDir, "src/pdf/spike.html"),
         "epub-viewer": resolve(rootDir, "src/epub/epub-viewer.html"),
       },
     },
