@@ -1,13 +1,7 @@
 import { isRecord } from "@myz/shared/typeUtils";
-import type { Roster } from "@myz/sync-core/roster";
 import type { SyncS3Settings, SyncSettings } from "../settings";
 import { readSettings, writeSettings } from "../storage";
-import {
-  clearLocalAccount,
-  createLocalAccount,
-  importLocalAccount,
-  loadLocalAccount,
-} from "../sync/accountKeyring";
+import { loadLocalAccount } from "../sync/accountKeyring";
 import {
   clearKeyset,
   deriveKeysetFromSecret,
@@ -20,174 +14,31 @@ import { ensureSyncAlarm } from "../sync/scheduler";
 import {
   clearDeletions,
   clearRecordStates,
-  clearStreamStates,
   readSyncState,
   writeSyncState,
 } from "../sync/storage";
 import { syncNow } from "../sync/syncEngine";
-import {
-  base64ToBytes,
-  bytesToBase64,
-  decodeBinaryPayload,
-  encodeBinaryPayload,
-} from "../sync/utils";
-import {
-  bootstrapV2Account,
-  cleanupLegacy,
-  migrateLegacyRemote,
-} from "../sync/v2/bootstrap";
-import {
-  acceptPairingInvite,
-  approvePairing,
-  createPairingInvite,
-} from "../sync/v2/pairingSession";
+import { cleanupLegacy } from "../sync/v2/bootstrap";
 import { registerMessageHandler } from "./handler";
+import { registerAccountHandlers } from "./sync/account.js";
+import { registerPairingHandlers } from "./sync/pairing.js";
+import type {
+  SyncNowMessageResult,
+  SyncSetKeyMessageResult,
+  SyncTestConnectionMessageResult,
+} from "./sync/types.js";
 
-export interface SyncStatusMessageResult {
-  enabled: boolean;
-  keyId: string | null;
-  keyUpdatedAt: string | null;
-  lastSyncAt: string | null;
-  lastManifestVersion: number;
-  hasAccount: boolean;
-  accountId: string | null;
-  deviceId: string | null;
-  epoch: number;
-}
-
-export interface AccountStatusMessageResult {
-  hasAccount: boolean;
-  accountId: string | null;
-  deviceId: string | null;
-  epoch: number;
-}
-
-export interface SyncTestConnectionMessageResult {
-  ok: boolean;
-  message?: string;
-}
-
-export interface SyncSetKeyMessageResult {
-  keyId: string;
-  keyUpdatedAt: string;
-}
-
-export interface SyncNowMessageResult {
-  ok: boolean;
-  status?: string;
-  message?: string;
-}
+export type {
+  SyncStatusMessageResult,
+  AccountStatusMessageResult,
+  SyncTestConnectionMessageResult,
+  SyncSetKeyMessageResult,
+  SyncNowMessageResult,
+} from "./sync/types.js";
 
 export function initializeSyncMessageHandlers() {
-  registerMessageHandler("myz:syncStatus", async () => {
-    const settings = await readSettings();
-    const state = await readSyncState();
-    const keyset = await loadKeyset();
-    const account = await loadLocalAccount();
-    const result: SyncStatusMessageResult = {
-      enabled: Boolean(settings.sync?.enabled),
-      keyId: keyset?.keyId || null,
-      keyUpdatedAt: state?.keyUpdatedAt || null,
-      lastSyncAt: state?.lastSyncAt || null,
-      lastManifestVersion: state?.lastManifestVersion || 0,
-      hasAccount: Boolean(account),
-      accountId: account?.accountId || null,
-      deviceId: account?.deviceId || null,
-      epoch: account?.epoch || 0,
-    };
-    return result;
-  });
-
-  registerMessageHandler("myz:accountStatus", async () => {
-    const account = await loadLocalAccount();
-    const result: AccountStatusMessageResult = {
-      hasAccount: Boolean(account),
-      accountId: account?.accountId || null,
-      deviceId: account?.deviceId || null,
-      epoch: account?.epoch || 0,
-    };
-    return result;
-  });
-
-  registerMessageHandler(
-    "myz:accountCreate",
-    async (payload: { userGesture?: boolean }) => {
-      void payload;
-      // Idempotent: the wizard can re-run this step without rotating the
-      // account if a previous run was interrupted after creation.
-      const account =
-        (await loadLocalAccount()) ?? (await createLocalAccount());
-      return {
-        accountId: account.accountId,
-        deviceId: account.deviceId,
-        epoch: account.epoch,
-        roster: bytesToBase64(encodeBinaryPayload(account.roster)),
-      };
-    },
-  );
-
-  registerMessageHandler(
-    "myz:accountMigrateLegacy",
-    async (payload: {
-      secret?: string;
-      s3?: Partial<SyncS3Settings>;
-      userGesture?: boolean;
-    }) => {
-      return migrateLegacyRemote({ secret: payload?.secret, s3: payload?.s3 });
-    },
-  );
-
-  registerMessageHandler(
-    "myz:accountImport",
-    async (payload: { roster: string; userGesture?: boolean }) => {
-      if (!payload?.roster) {
-        throw new Error("Missing roster");
-      }
-      const roster = decodeBinaryPayload(
-        base64ToBytes(payload.roster),
-      ) as Roster;
-      const account = await importLocalAccount(roster);
-      return {
-        accountId: account.accountId,
-        deviceId: account.deviceId,
-        epoch: account.epoch,
-      };
-    },
-  );
-
-  registerMessageHandler("myz:accountClear", async () => {
-    await clearLocalAccount();
-    await clearStreamStates();
-    return { ok: true } satisfies SyncNowMessageResult;
-  });
-
-  registerMessageHandler(
-    "myz:accountBootstrap",
-    async (payload: { rescue?: boolean; userGesture?: boolean }) => {
-      void payload;
-      return bootstrapV2Account({ rescue: payload?.rescue !== false });
-    },
-  );
-
-  registerMessageHandler("myz:pairingInvite", async () => {
-    return createPairingInvite();
-  });
-
-  registerMessageHandler(
-    "myz:pairingAccept",
-    async (payload: { invite: string }) => {
-      if (!payload?.invite) throw new Error("Missing pairing invite");
-      return acceptPairingInvite(payload.invite);
-    },
-  );
-
-  registerMessageHandler(
-    "myz:pairingApprove",
-    async (payload: { response: string }) => {
-      if (!payload?.response) throw new Error("Missing pairing response");
-      return approvePairing(payload.response);
-    },
-  );
+  registerAccountHandlers();
+  registerPairingHandlers();
 
   registerMessageHandler(
     "myz:syncUpdateSettings",
@@ -205,9 +56,7 @@ export function initializeSyncMessageHandlers() {
       }
       const updated = await writeSettings({ sync: syncPatch });
       await ensureSyncAlarm();
-      if (payload?.enabled) {
-        void syncNow();
-      }
+      if (payload?.enabled) void syncNow();
       return { sync: updated.sync };
     },
   );
@@ -235,9 +84,7 @@ export function initializeSyncMessageHandlers() {
   registerMessageHandler(
     "myz:syncSetKey",
     async (payload: { secret: string; userGesture?: boolean }) => {
-      if (!payload?.secret) {
-        throw new Error("Missing secret");
-      }
+      if (!payload?.secret) throw new Error("Missing secret");
       const existing = await readSyncState();
       const clientId =
         existing?.clientId ||
@@ -323,9 +170,7 @@ export function initializeSyncMessageHandlers() {
     if (result?.ok) {
       try {
         const account = await loadLocalAccount();
-        if (account && (await loadKeyset())) {
-          await cleanupLegacy();
-        }
+        if (account && (await loadKeyset())) await cleanupLegacy();
       } catch (error) {
         console.warn("Failed to purge legacy keyset after sync", error);
       }
