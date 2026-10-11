@@ -6,29 +6,25 @@ import {
   getRecordKind,
 } from "@myz/shared/types";
 import { defineStore } from "pinia";
-import { computed, reactive, ref, Ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
+import type { Ref } from "vue";
 import { PAGINATION_BATCH } from "../constants.js";
 import { useHighlightsStore } from "./highlights.js";
+import { matchesFilters, resolveQuickSearch } from "./ui/filters.js";
+import type { SearchFilters } from "./ui/filters.js";
+import { buildGroupedHighlights, buildSummaryText } from "./ui/grouping.js";
 import {
-  computeRecordStats,
   formatDateTime,
   formatInline,
   formatNote,
   getSearchTerms,
-  groupHighlightsByDate,
   groupRecordsByPage,
-  PageSortMode,
   renderHighlightContent,
   sortRecordsForPage,
+  type PageSortMode,
 } from "@/dashboard/utils/records.js";
 
-export interface SearchFilters {
-  search: string;
-  site: string;
-  tags: string[];
-  from: string;
-  to: string;
-}
+export type { SearchFilters } from "./ui/filters.js";
 
 export const useUIStore = defineStore("ui", () => {
   const highlightsStore = useHighlightsStore();
@@ -50,48 +46,11 @@ export const useUIStore = defineStore("ui", () => {
   const searchNeedle = computed(() => filters.search.trim().toLowerCase());
   const searchTerms = computed(() => getSearchTerms(filters.search));
 
-  const filteredHighlightsBase = computed(() => {
-    const needle = searchNeedle.value;
-    const siteFilter = filters.site;
-    const tagsFilter = filters.tags;
-    const from = filters.from;
-    const to = filters.to;
-    return highlightsStore.highlights.filter((item) => {
-      if (!item) {
-        return false;
-      }
-      if (siteFilter && item.hostname !== siteFilter) {
-        return false;
-      }
-      if (tagsFilter.length) {
-        const itemTags = new Set(item.tags || []);
-        if (!tagsFilter.every((tag) => itemTags.has(tag))) {
-          return false;
-        }
-      }
-      if (from) {
-        const itemDate = item.createdAt ? item.createdAt.slice(0, 10) : "";
-        if (itemDate < from) {
-          return false;
-        }
-      }
-      if (to) {
-        const itemDate = item.createdAt ? item.createdAt.slice(0, 10) : "";
-        if (itemDate > to) {
-          return false;
-        }
-      }
-      if (needle) {
-        const haystack = [item.text, item.note, (item.tags || []).join(" ")]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(needle)) {
-          return false;
-        }
-      }
-      return true;
-    });
-  });
+  const filteredHighlightsBase = computed(() =>
+    highlightsStore.highlights.filter((item) =>
+      matchesFilters(item, filters, searchNeedle.value),
+    ),
+  );
 
   const pageGroups = computed(() =>
     groupRecordsByPage(filteredHighlightsBase.value),
@@ -103,11 +62,10 @@ export const useUIStore = defineStore("ui", () => {
       items = items.filter(
         (item) => (item.url || item.sourceUrl || "") === pageFilter.value,
       );
-      if (pageSortMode.value === "range") {
-        items = sortRecordsForPage(items, "range");
-      } else {
-        items = sortRecordsForPage(items, "time");
-      }
+      items = sortRecordsForPage(
+        items,
+        pageSortMode.value === "range" ? "range" : "time",
+      );
     }
     return items;
   });
@@ -117,69 +75,20 @@ export const useUIStore = defineStore("ui", () => {
   );
 
   const visibleHighlights = computed(() => {
-    if (!filteredHighlights.value.length) {
-      return [];
-    }
+    if (!filteredHighlights.value.length) return [];
     const limit =
       renderedCount.value ||
       Math.min(PAGINATION_BATCH, filteredHighlights.value.length);
     return filteredHighlights.value.slice(0, limit);
   });
 
-  const groupedHighlights = computed(() => {
-    if (pageFilter.value) {
-      const stats = computeRecordStats(visibleHighlights.value);
-      const detail = [];
-      if (stats.highlightCount) {
-        detail.push(`划线 ${stats.highlightCount}`);
-      }
-      if (stats.savedCount) {
-        detail.push(`摘录 ${stats.savedCount}`);
-      }
-      return [
-        {
-          date: "当前页面",
-          items: visibleHighlights.value,
-          stats,
-          detailText: detail.length ? `（${detail.join(" · ")}）` : "",
-        },
-      ];
-    }
-    return groupHighlightsByDate(visibleHighlights.value).map(
-      ([date, items]) => {
-        const stats = computeRecordStats(items);
-        const detail = [];
-        if (stats.highlightCount) {
-          detail.push(`划线 ${stats.highlightCount}`);
-        }
-        if (stats.savedCount) {
-          detail.push(`摘录 ${stats.savedCount}`);
-        }
-        return {
-          date,
-          items,
-          stats,
-          detailText: detail.length ? `（${detail.join(" · ")}）` : "",
-        };
-      },
-    );
-  });
+  const groupedHighlights = computed(() =>
+    buildGroupedHighlights(visibleHighlights.value, pageFilter.value),
+  );
 
-  const summaryText = computed(() => {
-    const stats = computeRecordStats(filteredHighlights.value);
-    const sites = new Set(
-      filteredHighlights.value.map((item) => item.hostname).filter(Boolean),
-    );
-    const parts = [];
-    if (stats.highlightCount) {
-      parts.push(`划线 ${stats.highlightCount}`);
-    }
-    if (stats.savedCount) {
-      parts.push(`摘录 ${stats.savedCount}`);
-    }
-    const detail = parts.length ? `（${parts.join(" · ")}）` : "";
-    return `共 ${stats.total} 条记录${detail} · 涉及 ${sites.size} 个站点`;
-  });
+  const summaryText = computed(() =>
+    buildSummaryText(filteredHighlights.value),
+  );
 
   function updateRenderedCount({ preserve }: { preserve?: boolean } = {}) {
     if (preserve) {
@@ -199,9 +108,7 @@ export const useUIStore = defineStore("ui", () => {
   });
 
   watch(pageGroups, (groups) => {
-    if (!pageFilter.value) {
-      return;
-    }
+    if (!pageFilter.value) return;
     const exists = groups.some((group) => group.url === pageFilter.value);
     if (!exists) {
       pageFilter.value = "";
@@ -236,44 +143,16 @@ export const useUIStore = defineStore("ui", () => {
   function applyQuickSearch(value: string) {
     quickSearch.value = value;
     clearFilterFields();
-
-    const trimmed = value.trim();
-    if (!trimmed) {
-      updateRenderedCount();
-      return;
+    const patch = resolveQuickSearch(
+      value,
+      highlightsStore.availableSites,
+      highlightsStore.availableTags,
+    );
+    if (patch) {
+      if (patch.site !== undefined) filters.site = patch.site;
+      if (patch.search !== undefined) filters.search = patch.search;
+      if (patch.tags !== undefined) filters.tags = patch.tags;
     }
-
-    const lower = trimmed.toLowerCase();
-    if (lower.startsWith("site:")) {
-      const candidate = trimmed.slice(5).trim();
-      if (candidate && highlightsStore.availableSites.includes(candidate)) {
-        filters.site = candidate;
-      } else {
-        filters.search = candidate || "";
-      }
-      updateRenderedCount();
-      return;
-    }
-
-    const normalizedTag = trimmed.startsWith("#")
-      ? trimmed.slice(1).trim()
-      : trimmed;
-    if (
-      normalizedTag &&
-      highlightsStore.availableTags.includes(normalizedTag)
-    ) {
-      filters.tags = [normalizedTag];
-      updateRenderedCount();
-      return;
-    }
-
-    if (highlightsStore.availableSites.includes(trimmed)) {
-      filters.site = trimmed;
-      updateRenderedCount();
-      return;
-    }
-
-    filters.search = trimmed.startsWith("#") ? normalizedTag : trimmed;
     updateRenderedCount();
   }
 
@@ -286,13 +165,9 @@ export const useUIStore = defineStore("ui", () => {
   }
 
   function setView(nextView: "cards" | "list", { persist = true } = {}) {
-    if (!nextView || view.value === nextView) {
-      return;
-    }
+    if (!nextView || view.value === nextView) return;
     view.value = nextView;
-    if (persist) {
-      persistDashboardView(nextView);
-    }
+    if (persist) persistDashboardView(nextView);
   }
 
   function togglePageSidebar() {
@@ -333,9 +208,7 @@ export const useUIStore = defineStore("ui", () => {
     patch: { note?: string; tags?: string[]; color?: string },
   ) {
     const record = highlightsStore.highlights.find((item) => item.id === id);
-    if (!record) {
-      return;
-    }
+    if (!record) return;
     const kind = getRecordKind(record);
     const payload: Partial<MyZRecord> = {
       id,
