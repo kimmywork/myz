@@ -1,87 +1,26 @@
-import type { LucideIcon } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
 import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
+import { IconClose } from "@myz/shared/icons";
+import { RECORD_KINDS, type HIGHLIGHT_STYLES } from "@myz/shared/types";
+import { computed, defineComponent, nextTick, ref, watch } from "vue";
+import type { Ref } from "vue";
+import ColorPalette from "./modal/ColorPalette.jsx";
+import StylePicker from "./modal/StylePicker.jsx";
 import {
-  IconClose,
-  IconPencil,
-  highlightStyleIconMap,
-} from "@myz/shared/icons";
-import {
-  colorName,
-  RECORD_KINDS,
-  HIGHLIGHT_STYLE_OPTIONS,
-  HIGHLIGHT_STYLES,
-  HighlightStyleOption,
-} from "@myz/shared/types";
-import { defineComponent, ref, computed, watch, nextTick, type Ref } from "vue";
+  mergeKnownTags,
+  previewText,
+  titleText,
+  uniqueNormalizedTags,
+} from "./modal/tag-utils.js";
 import {
   useModalStore,
-  ModalOpenOptions,
+  type ModalOpenOptions,
 } from "@/content/stores/modal-store.js";
 import { usePreferenceStore } from "@/content/stores/preference-store.js";
 
-function uniqueNormalizedTags(tags: string[]): string[] {
-  const seen = new Set();
-  const result: string[] = [];
-  tags?.forEach((tag) => {
-    if (typeof tag !== "string") {
-      return;
-    }
-    const normalized = tag.trim();
-    if (!normalized) {
-      return;
-    }
-    const key = normalized.toLowerCase();
-    if (seen.has(key)) {
-      return;
-    }
-    seen.add(key);
-    result.push(normalized);
-  });
-  return result;
-}
-
-function normalizeTagValue(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function mergeKnownTags(
-  current: string[] = [],
-  incoming: string[] = [],
-): string[] {
-  const base = Array.isArray(current) ? current : [];
-  const extras = Array.isArray(incoming) ? incoming : [];
-  const merged = new Set<string>();
-  base.forEach((tag) => {
-    const normalized = normalizeTagValue(tag);
-    if (normalized) {
-      merged.add(normalized);
-    }
-  });
-  extras.forEach((tag) => {
-    const normalized = normalizeTagValue(tag);
-    if (normalized) {
-      merged.add(normalized);
-    }
-  });
-  return Array.from(merged).sort((a, b) => a.localeCompare(b));
-}
-
-const titleText = (option: ModalOpenOptions) => {
-  if (option.kind === RECORD_KINDS.CLIP) {
-    return option.mode === "edit" ? "编辑摘录内容" : "保存摘录";
-  }
-  return option.mode === "edit" ? "编辑批注" : "添加批注";
-};
-
-const previewText = (option: ModalOpenOptions): string => {
-  return option.preview || "";
-};
-
 export default defineComponent({
   name: "MyZModal",
-
   setup() {
     const store = useModalStore();
     const preferenceStore = usePreferenceStore();
@@ -91,12 +30,7 @@ export default defineComponent({
     const availableTags: Ref<string[]> = computed(() =>
       mergeKnownTags(knownTags, store.modalOpenOptions.tags || []),
     );
-    const tagInputValue = ref("");
-    const dropdownOpen: Ref<boolean> = ref(false);
-    const filteredOptions: Ref<string[]> = ref([]);
-    const activeOptionIndex: Ref<number> = ref(-1);
     const containerRef: Ref<HTMLElement | null> = ref(null);
-    const tagInputRef: Ref<HTMLElement | null> = ref(null);
 
     let focusTrap: FocusTrap | null = null;
     watch(
@@ -117,62 +51,16 @@ export default defineComponent({
       },
     );
 
-    const previewStyle = (options: ModalOpenOptions) => {
-      if (options.kind !== RECORD_KINDS.HIGHLIGHT) {
-        return {};
-      }
+    const previewStyle = (option: ModalOpenOptions) => {
+      if (option.kind !== RECORD_KINDS.HIGHLIGHT) return {};
       return {
-        "--myz-highlight-color": options.color,
+        "--myz-highlight-color": option.color,
         backgroundColor:
-          options.style === "paint" ? options.color : "transparent",
+          option.style === "paint" ? option.color : "transparent",
       };
     };
 
-    const styleOptions: [HIGHLIGHT_STYLES, HighlightStyleOption][] =
-      Object.entries(HIGHLIGHT_STYLE_OPTIONS) as [
-        HIGHLIGHT_STYLES,
-        HighlightStyleOption,
-      ][];
-
-    function syncFilteredOptions(term = tagInputValue.value) {
-      const normalized = term.trim().toLowerCase();
-      const blocked = new Set(
-        (store.modalOpenOptions.tags || []).map((tag) => tag.toLowerCase()),
-      );
-      const candidates = availableTags.value.filter((option) => {
-        const lower = option.toLowerCase();
-        if (blocked.has(lower)) {
-          return false;
-        }
-        return normalized ? lower.includes(normalized) : true;
-      });
-      filteredOptions.value = candidates.slice(0, 50);
-      dropdownOpen.value = filteredOptions.value.length > 0;
-      if (!dropdownOpen.value) {
-        activeOptionIndex.value = -1;
-      } else if (
-        activeOptionIndex.value >= filteredOptions.value.length ||
-        activeOptionIndex.value === -1
-      ) {
-        activeOptionIndex.value = filteredOptions.value.length ? 0 : -1;
-      }
-    }
-
-    function refreshAvailableTags(extra: string[] = []) {
-      const extras = Array.isArray(extra)
-        ? extra
-        : store.modalOpenOptions.tags || [];
-      availableTags.value = mergeKnownTags(knownTags, extras);
-      syncFilteredOptions(tagInputValue.value);
-    }
-
-    watch(tagInputValue, (value) => {
-      syncFilteredOptions(value);
-    });
-
-    function handleCancel() {
-      store.hide();
-    }
+    const handleCancel = () => store.hide();
 
     function handleKeydown(event: KeyboardEvent) {
       if (event.key === "Escape" && store.isVisible) {
@@ -182,17 +70,12 @@ export default defineComponent({
     }
 
     function handleDelete() {
-      if (confirmDestructive(DELETE_CONFIRM)) {
-        store.deleteRecord();
-      }
+      if (confirmDestructive(DELETE_CONFIRM)) store.deleteRecord();
     }
 
     function handleSelectColor(index: number) {
       const value = preferenceStore.palette[index];
-      if (!value) {
-        return;
-      }
-      store.modalOpenOptions.color = value;
+      if (value) store.modalOpenOptions.color = value;
     }
 
     function handlePaletteInput(index: number, event: Event) {
@@ -202,10 +85,7 @@ export default defineComponent({
     }
 
     function handleSelectStyle(style: HIGHLIGHT_STYLES) {
-      if (!store.isHighlight()) {
-        return;
-      }
-      store.modalOpenOptions.style = style;
+      if (store.isHighlight()) store.modalOpenOptions.style = style;
     }
 
     function handleSubmit() {
@@ -268,36 +148,10 @@ export default defineComponent({
                 <label>样式</label>
                 <span class="myz-annotator-field__hint">选择呈现方式</span>
               </div>
-              <div class="myz-style-picker" role="radiogroup">
-                {styleOptions.map(([value, meta]) => {
-                  const isActive = value === store.modalOpenOptions.style;
-                  const IconComponent: LucideIcon =
-                    highlightStyleIconMap[meta.icon as HIGHLIGHT_STYLES] ||
-                    highlightStyleIconMap.paint;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      class={[
-                        "myz-style-picker__option",
-                        isActive ? "is-active" : "",
-                      ]}
-                      data-style={value}
-                      role="radio"
-                      aria-pressed={isActive ? "true" : "false"}
-                      aria-label={meta.label}
-                      onClick={() => handleSelectStyle(value)}
-                    >
-                      <IconComponent
-                        class="myz-style-picker__icon"
-                        size={18}
-                        aria-hidden="true"
-                      />
-                      <span class="myz-style-picker__label">{meta.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <StylePicker
+                active={store.modalOpenOptions.style || ""}
+                onSelect={handleSelectStyle}
+              />
             </div>
           ) : null}
 
@@ -322,7 +176,6 @@ export default defineComponent({
               </span>
             </div>
             <TagInput
-              ref={tagInputRef}
               modelValue={uniqueNormalizedTags(
                 store.modalOpenOptions.tags || [],
               )}
@@ -332,8 +185,6 @@ export default defineComponent({
               variant="content"
               onUpdate:modelValue={(val) => {
                 store.modalOpenOptions.tags = Array.isArray(val) ? val : [];
-                // keep available tags in sync after external change
-                refreshAvailableTags(store.modalOpenOptions.tags);
               }}
             />
           </div>
@@ -346,46 +197,12 @@ export default defineComponent({
                   点击选择 · 调整色块可自定义
                 </span>
               </div>
-              <div class="myz-color-palette" role="radiogroup">
-                {preferenceStore.palette.map((color, index) => {
-                  const isActive = color === store.modalOpenOptions.color;
-                  return (
-                    <div
-                      class="myz-color-swatch-wrapper"
-                      key={`${color}-${index}`}
-                    >
-                      <button
-                        type="button"
-                        class={[
-                          "myz-color-swatch",
-                          isActive ? "is-active" : "",
-                        ]}
-                        style={{ "--myz-swatch-color": color }}
-                        data-index={index}
-                        role="radio"
-                        aria-label={`选择${colorName(color)}色`}
-                        title={colorName(color)}
-                        aria-pressed={isActive ? "true" : "false"}
-                        onClick={() => handleSelectColor(index)}
-                      />
-                      <label
-                        class="myz-color-edit"
-                        aria-label={`编辑${colorName(color)}色`}
-                        title={`编辑${colorName(color)}色`}
-                      >
-                        <IconPencil size={12} aria-hidden="true" />
-                        <input
-                          type="color"
-                          class="myz-color-editor"
-                          data-color-index={index}
-                          value={color}
-                          onInput={(event) => handlePaletteInput(index, event)}
-                        />
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
+              <ColorPalette
+                palette={preferenceStore.palette}
+                activeColor={store.modalOpenOptions.color || ""}
+                onSelect={handleSelectColor}
+                onEdit={handlePaletteInput}
+              />
             </div>
           ) : null}
 
