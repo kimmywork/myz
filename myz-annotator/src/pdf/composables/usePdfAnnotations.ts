@@ -4,6 +4,11 @@ import { CONTENT_TYPES, RECORD_KINDS, type MyZRecord } from "@myz/shared/types";
 import { extractHostname } from "@myz/shared/url";
 import { computed } from "vue";
 import {
+  buildHighlightCounts,
+  buildHighlightGroups,
+} from "../annotations/highlight-groups.js";
+import { createSelectionEvents } from "../annotations/selection-events.js";
+import {
   extractSelection,
   renderOverlays,
   selectTextInPage,
@@ -11,11 +16,6 @@ import {
 import type { PdfDocument } from "../pdf-document.js";
 import { sourceKeyOf, sourceTypeOf, type PdfSourceRef } from "../source.js";
 import type { ReaderState } from "../stores/state.js";
-import {
-  pageAtPoint,
-  selectBlockAtPoint,
-  selectByDrag,
-} from "../text-selection.js";
 
 export interface AnnotationsDeps {
   pageElements: () => HTMLElement[];
@@ -30,9 +30,6 @@ export interface AnnotationsDeps {
  * inspector drafts and highlight navigation.
  */
 export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
-  let boundStage: HTMLElement | null = null;
-  let dragStart: { x: number; y: number } | null = null;
-
   const activeRecord = computed(
     () =>
       state.annotations.value.find(
@@ -40,57 +37,17 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
       ) ?? null,
   );
 
-  const highlightCounts = computed(() => {
-    const counts = { all: 0, highlight: 0, clip: 0 };
-    for (const record of state.annotations.value) {
-      if (!record.pdfLocator) {
-        continue;
-      }
-      counts.all += 1;
-      if (record.kind === RECORD_KINDS.HIGHLIGHT) {
-        counts.highlight += 1;
-      } else if (record.kind === RECORD_KINDS.CLIP) {
-        counts.clip += 1;
-      }
-    }
-    return counts;
-  });
+  const highlightCounts = computed(() =>
+    buildHighlightCounts(state.annotations.value),
+  );
 
-  /** Records matching the current kind filter and search query, by page. */
-  const highlightGroups = computed(() => {
-    const query = state.highlightQuery.value.trim().toLowerCase();
-    const map = new Map<number, MyZRecord[]>();
-    for (const record of state.annotations.value) {
-      const locator = record.pdfLocator;
-      if (!locator) {
-        continue;
-      }
-      if (
-        state.highlightFilter.value !== "all" &&
-        record.kind !== state.highlightFilter.value
-      ) {
-        continue;
-      }
-      if (query) {
-        const haystack = [
-          record.text,
-          record.note ?? "",
-          ...(record.tags ?? []),
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(query)) {
-          continue;
-        }
-      }
-      const list = map.get(locator.pageNumber) ?? [];
-      list.push(record);
-      map.set(locator.pageNumber, list);
-    }
-    return [...map.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([pageNumber, records]) => ({ pageNumber, records }));
-  });
+  const highlightGroups = computed(() =>
+    buildHighlightGroups(
+      state.annotations.value,
+      state.highlightFilter.value,
+      state.highlightQuery.value,
+    ),
+  );
 
   /** Paints stored annotations for a single page (engine render hook). */
   function renderPage(pageEl: HTMLElement) {
@@ -106,9 +63,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
 
   async function loadAnnotations() {
     const current = deps.getCurrent();
-    if (!current) {
-      return;
-    }
+    if (!current) return;
     try {
       const records = await sendMessage<{ url: string }, MyZRecord[]>(
         "myz:getHighlightsForUrl",
@@ -126,9 +81,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
 
   function applyCurrentSelection() {
     const stage = deps.getStage();
-    if (!stage) {
-      return;
-    }
+    if (!stage) return;
     const next = extractSelection(stage);
     if (!next) {
       state.selection.value = null;
@@ -150,102 +103,16 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     state.selection.value = null;
   }
 
-  function handleMouseDown(event: MouseEvent) {
-    if (event.button !== 0) {
-      dragStart = null;
-      return;
-    }
-    if ((event.target as HTMLElement)?.closest(".pdf-annotation")) {
-      dragStart = null;
-      return;
-    }
-    dragStart = { x: event.clientX, y: event.clientY };
-  }
-
-  function handleMouseUp(event: MouseEvent) {
-    if ((event.target as HTMLElement)?.closest(".pdf-annotation")) {
-      return;
-    }
-    const stage = deps.getStage();
-    const start = dragStart;
-    dragStart = null;
-    if (stage) {
-      const startPage = start ? pageAtPoint(stage, start.x, start.y) : null;
-      // Triple-click selects the whole block (paragraph) under the pointer.
-      if (event.detail === 3) {
-        const page =
-          pageAtPoint(stage, event.clientX, event.clientY) ?? startPage;
-        if (page && selectBlockAtPoint(page, event.clientX, event.clientY)) {
-          window.setTimeout(applyCurrentSelection, 0);
-          return;
-        }
-      } else if (event.detail === 1 && !event.shiftKey && start && startPage) {
-        // Snap a drag to the geometry-derived lines/blocks so overshooting a
-        // paragraph does not bleed into the next one.
-        const endPage = pageAtPoint(stage, event.clientX, event.clientY);
-        if (endPage === startPage) {
-          const snapped = selectByDrag(startPage, start, {
-            x: event.clientX,
-            y: event.clientY,
-          });
-          if (snapped) {
-            window.setTimeout(applyCurrentSelection, 0);
-            return;
-          }
-        }
-      }
-    }
-    window.setTimeout(applyCurrentSelection, 0);
-  }
-
-  function handleClick(event: MouseEvent) {
-    const target = (event.target as HTMLElement)?.closest(
-      ".pdf-annotation",
-    ) as HTMLElement | null;
-    if (target?.dataset.id) {
-      state.activeId.value = target.dataset.id;
-      state.selection.value = null;
-      redrawOverlays();
-    }
-  }
-
-  function handleSelectionKeyup(event: KeyboardEvent) {
-    if (!event.shiftKey) return;
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed || !selection.toString().trim()) {
-      return;
-    }
-    window.setTimeout(applyCurrentSelection, 0);
-  }
-
-  function attachStage(el: HTMLElement | null) {
-    if (!el) {
-      return;
-    }
-    boundStage = el;
-    el.addEventListener("mousedown", handleMouseDown);
-    el.addEventListener("mouseup", handleMouseUp);
-    el.addEventListener("click", handleClick);
-    el.addEventListener("keyup", handleSelectionKeyup);
-  }
-
-  function detachStage() {
-    if (!boundStage) {
-      return;
-    }
-    boundStage.removeEventListener("mousedown", handleMouseDown);
-    boundStage.removeEventListener("mouseup", handleMouseUp);
-    boundStage.removeEventListener("click", handleClick);
-    boundStage.removeEventListener("keyup", handleSelectionKeyup);
-    boundStage = null;
-  }
+  const events = createSelectionEvents(state, {
+    getStage: deps.getStage,
+    applySelection: applyCurrentSelection,
+    redraw: redrawOverlays,
+  });
 
   async function createAnnotation(kind: RECORD_KINDS) {
     const next = state.selection.value;
     const current = deps.getCurrent();
-    if (!next || !current) {
-      return;
-    }
+    if (!next || !current) return;
     const isHighlight = kind === RECORD_KINDS.HIGHLIGHT;
     const sourceKey = sourceKeyOf(current);
     const payload: Partial<MyZRecord> = {
@@ -287,9 +154,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
   }
 
   async function patchActive(patch: Partial<MyZRecord>) {
-    if (!state.activeId.value) {
-      return;
-    }
+    if (!state.activeId.value) return;
     const updated = await sendMessage<Partial<MyZRecord>, MyZRecord>(
       "myz:updateHighlight",
       { id: state.activeId.value, ...patch },
@@ -303,18 +168,14 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     if (patch.style) {
       state.lastStyle.value = patch.style as typeof state.lastStyle.value;
     }
-    if (patch.color) {
-      state.lastColor.value = patch.color;
-    }
+    if (patch.color) state.lastColor.value = patch.color;
     state.savedAt.value = Date.now();
     state.dirty.value = false;
     redrawOverlays();
   }
 
   async function deleteActive() {
-    if (!state.activeId.value) {
-      return;
-    }
+    if (!state.activeId.value) return;
     const id = state.activeId.value;
     await sendMessage("myz:removeHighlight", { id });
     state.annotations.value = state.annotations.value.filter(
@@ -326,9 +187,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
 
   function commitActive() {
     const record = activeRecord.value;
-    if (!record) {
-      return;
-    }
+    if (!record) return;
     const tags = state.tagsDraft.value
       .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
       .filter(Boolean)
@@ -340,9 +199,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     if ((record.note || "") !== state.noteDraft.value) {
       patch.note = state.noteDraft.value;
     }
-    if (!sameTags) {
-      patch.tags = tags;
-    }
+    if (!sameTags) patch.tags = tags;
     if (Object.keys(patch).length > 0) {
       void patchActive(patch);
     } else {
@@ -352,9 +209,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
   }
 
   function savedLabel() {
-    if (state.dirty.value) {
-      return "未保存";
-    }
+    if (state.dirty.value) return "未保存";
     if (state.savedAt.value) {
       return `已保存 ${new Date(state.savedAt.value).toLocaleTimeString()}`;
     }
@@ -368,9 +223,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
   async function focusAnnotation(record: MyZRecord) {
     const locator = record.pdfLocator;
     const stage = deps.getStage();
-    if (!locator || !deps.getDoc() || !stage) {
-      return;
-    }
+    if (!locator || !deps.getDoc() || !stage) return;
     await deps.goToPage(locator.pageNumber);
     const el = stage.querySelector<HTMLElement>(
       `.pdf-page[data-page="${locator.pageNumber}"]`,
@@ -403,9 +256,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     const el = stage?.querySelector<HTMLElement>(
       `.pdf-page[data-page="${pageNumber}"]`,
     );
-    if (!el || !selectTextInPage(el, target)) {
-      return false;
-    }
+    if (!el || !selectTextInPage(el, target)) return false;
     applyCurrentSelection();
     return true;
   }
@@ -419,8 +270,8 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     loadAnnotations,
     applyCurrentSelection,
     clearSelection,
-    attachStage,
-    detachStage,
+    attachStage: events.attachStage,
+    detachStage: events.detachStage,
     createAnnotation,
     patchActive,
     deleteActive,
