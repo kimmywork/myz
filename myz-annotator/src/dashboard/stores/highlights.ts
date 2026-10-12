@@ -1,4 +1,5 @@
 import { sendMessage } from "@myz/shared/messaging";
+import { collectTags } from "@myz/shared/tags";
 import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { computed, reactive, ref, Ref } from "vue";
@@ -40,13 +41,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
     ].sort((a, b) => a.localeCompare(b));
   });
 
-  const availableTags = computed(() => {
-    const set = new Set<string>();
-    highlights.value.forEach((item) => {
-      (item.tags || []).forEach((tag) => set.add(tag));
-    });
-    return [...set].sort((a, b) => a.localeCompare(b));
-  });
+  const availableTags = computed(() => collectTags(highlights.value));
 
   function setTimedImportStatus(
     message: string,

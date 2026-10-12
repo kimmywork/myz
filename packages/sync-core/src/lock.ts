@@ -19,7 +19,8 @@ export interface LockResult {
   leaseExpiresAt?: string
 }
 
-export async function acquireLock(options: {
+/** Arguments shared by lock acquisition and renewal. */
+export interface LockOptions {
   client: SyncObjectStore
   lockPath: string
   masterKey: Uint8Array
@@ -27,7 +28,11 @@ export async function acquireLock(options: {
   publicKey: Uint8Array
   clientId: string
   leaseMs?: number
-}): Promise<LockResult> {
+}
+
+export async function acquireLock(
+  options: LockOptions,
+): Promise<LockResult> {
   const leaseMs = options.leaseMs || DEFAULT_LEASE_MS
   const existing = await options.client.getObject(options.lockPath)
   let etag: string | undefined
@@ -44,12 +49,12 @@ export async function acquireLock(options: {
       return { acquired: false }
     }
   }
-  const payload = await buildLockPayload(
+  const { payload, encrypted } = await buildEncryptedLock(
     options.clientId,
     options.privateKey,
+    options.masterKey,
     leaseMs,
   )
-  const encrypted = await encryptLockPayload(payload, options.masterKey)
   await options.client.putObject(options.lockPath, encrypted, {
     ifMatch: etag,
     ifNoneMatch: etag ? undefined : "*",
@@ -57,20 +62,26 @@ export async function acquireLock(options: {
   return { acquired: true, leaseExpiresAt: payload.leaseExpiresAt }
 }
 
+/** Seal a signed lock payload for storage, shared by acquire and renew. */
+async function buildEncryptedLock(
+  clientId: string,
+  privateKey: Uint8Array,
+  masterKey: Uint8Array,
+  leaseMs: number,
+): Promise<{ payload: LockPayload; encrypted: Uint8Array }> {
+  const payload = await buildLockPayload(clientId, privateKey, leaseMs)
+  const encrypted = await encryptLockPayload(payload, masterKey)
+  return { payload, encrypted }
+}
+
 /**
  * Extend the lease of a lock this client already owns. Returns
  * `{ acquired: false }` when the lock is gone, expired, tampered with, or
  * now held by another client (ownership is proven by the `clientId`).
  */
-export async function renewLock(options: {
-  client: SyncObjectStore
-  lockPath: string
-  masterKey: Uint8Array
-  privateKey: Uint8Array
-  publicKey: Uint8Array
-  clientId: string
-  leaseMs?: number
-}): Promise<LockResult> {
+export async function renewLock(
+  options: LockOptions,
+): Promise<LockResult> {
   const leaseMs = options.leaseMs || DEFAULT_LEASE_MS
   const existing = await options.client.getObject(options.lockPath)
   if (!existing) return { acquired: false }
@@ -82,12 +93,12 @@ export async function renewLock(options: {
   if (!decoded || decoded.clientId !== options.clientId) {
     return { acquired: false }
   }
-  const payload = await buildLockPayload(
+  const { payload, encrypted } = await buildEncryptedLock(
     options.clientId,
     options.privateKey,
+    options.masterKey,
     leaseMs,
   )
-  const encrypted = await encryptLockPayload(payload, options.masterKey)
   try {
     await options.client.putObject(options.lockPath, encrypted, {
       ifMatch: existing.etag,

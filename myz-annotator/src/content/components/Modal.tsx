@@ -5,7 +5,7 @@ import { IconClose } from "@myz/shared/icons";
 import { RECORD_KINDS, type HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { computed, defineComponent, nextTick, ref, watch } from "vue";
 import type { Ref } from "vue";
-import ColorPalette from "./modal/ColorPalette.jsx";
+import HighlightColorEditor from "./modal/HighlightColorEditor.jsx";
 import StylePicker from "./modal/StylePicker.jsx";
 import {
   mergeKnownTags,
@@ -197,7 +197,7 @@ export default defineComponent({
                   点击选择 · 调整色块可自定义
                 </span>
               </div>
-              <ColorPalette
+              <HighlightColorEditor
                 palette={preferenceStore.palette}
                 activeColor={store.modalOpenOptions.color || ""}
                 onSelect={handleSelectColor}

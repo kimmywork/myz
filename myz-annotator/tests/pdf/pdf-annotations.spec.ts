@@ -2,12 +2,11 @@ import { test, expect, BrowserContext, Page } from "@playwright/test";
 import fs from "node:fs";
 import { Server } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 import { createStaticServer } from "../helpers/static-server.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirnameFromImportMeta(import.meta.url);
 const SHOT_DIR = process.env.PDF_SHOT_DIR || "/tmp";
 
 let context: BrowserContext;
@@ -56,6 +55,28 @@ async function waitReady(page: Page, timeout = 15000) {
   await page.waitForFunction(
     () => (window as any).__MYZ_PDF__?.getState().status === "ready",
     undefined,
+    { timeout },
+  );
+}
+
+/**
+ * Wait until a specific page has actually painted its text layer. Pages render
+ * lazily, so `waitReady` alone is not enough before selecting text on page > 1
+ * (TEST2: fixes the flaky clip test).
+ */
+async function waitForPageText(
+  page: Page,
+  pageNumber: number,
+  timeout = 15000,
+) {
+  await page.waitForFunction(
+    (pageNo) => {
+      const layer = document.querySelector(
+        `.pdf-page[data-page="${pageNo}"] .textLayer`,
+      );
+      return Boolean(layer && (layer.textContent || "").trim().length > 0);
+    },
+    pageNumber,
     { timeout },
   );
 }
@@ -367,9 +388,11 @@ test("pdf_clip_saves_without_style", async () => {
   const url = `chrome-extension://${extensionId}/src/pdf/pdf-viewer.html?url=${encodeURIComponent(pdfUrl)}`;
   const { page, errors } = await openReader(url);
   await waitReady(page);
-  await page.evaluate(() =>
+  await waitForPageText(page, 2);
+  const selected = await page.evaluate(() =>
     (window as any).__MYZ_PDF__.selectText("Page 2 of 10", 2),
   );
+  expect(selected).toBe(true);
   await page.evaluate(() =>
     (window as any).__MYZ_PDF__.createAnnotation("clip"),
   );

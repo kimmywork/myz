@@ -1,11 +1,13 @@
 import { test, type BrowserContext, type Page } from "@playwright/test";
 import { Server } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { launchExtension } from "./launch-extension.js";
+import { dirnameFromImportMeta, send } from "./runtime.js";
 import { createStaticServer } from "./static-server.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = dirnameFromImportMeta(import.meta.url);
+
+export { send };
 
 export interface DashboardHarness {
   serverUrl(): string;
@@ -63,30 +65,4 @@ export function setupDashboardHarness(): DashboardHarness {
       return page;
     },
   };
-}
-
-/** Send a background message from a dashboard page, unwrapping `data`. */
-export async function send<T>(
-  page: Page,
-  type: string,
-  payload?: unknown,
-): Promise<T> {
-  const response = await page.evaluate(
-    async (message: { type: string; payload: unknown }) =>
-      new Promise((resolve) => {
-        chrome.runtime.sendMessage(message, (result) => {
-          if (chrome.runtime.lastError) {
-            resolve({ ok: false, error: chrome.runtime.lastError.message });
-            return;
-          }
-          resolve(result);
-        });
-      }),
-    { type, payload },
-  );
-  const typed = response as { ok?: boolean; error?: string; data?: T };
-  if (!typed?.ok) {
-    throw new Error(`${type} failed: ${typed?.error ?? "no response"}`);
-  }
-  return typed.data as T;
 }

@@ -1,10 +1,9 @@
 import { test, expect, BrowserContext, Page } from "@playwright/test";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirnameFromImportMeta(import.meta.url);
 
 let context: BrowserContext;
 let page: Page;

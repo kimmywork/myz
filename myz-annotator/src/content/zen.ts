@@ -203,9 +203,17 @@ export async function captureZenTargetFull() {
         storedRanges.forEach((storedRange) => {
           try {
             selection.addRange(storedRange);
-          } catch {}
+          } catch (error) {
+            // A range may be detached after the capture scroll; skip it.
+            console.debug(
+              "MyZ: failed to restore capture selection range",
+              error,
+            );
+          }
         });
-      } catch {}
+      } catch (error) {
+        console.debug("MyZ: failed to restore capture selection", error);
+      }
     }
   } catch (e) {
     console.error("captureZenTargetFull failed", e);

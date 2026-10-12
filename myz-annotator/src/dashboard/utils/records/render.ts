@@ -1,4 +1,5 @@
 import { renderMarkdown } from "@myz/shared/markdownRenderer";
+import { sanitizeHtmlString } from "@myz/shared/sanitizeHtml";
 import {
   CONTENT_TYPES,
   resolveRecordContentType,
@@ -20,7 +21,9 @@ export function renderHighlightContent(
     return highlightTermsInHtml(rendered, terms);
   }
   if (contentType === CONTENT_TYPES.HTML && record?.html) {
-    return highlightTermsInHtml(record.html, terms);
+    // Imported/captured HTML is untrusted: strip scripts, event handlers and
+    // disallowed tags before it is injected via innerHTML downstream.
+    return highlightTermsInHtml(sanitizeHtmlString(record.html), terms);
   }
   const escaped = escapeHtml(record?.text || "");
   const withBreaks = escaped.replace(/\r?\n/g, "<br>");

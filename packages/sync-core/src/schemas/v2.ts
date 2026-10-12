@@ -1,5 +1,6 @@
 import { SYNC_PROTOCOL_VERSION_V2 } from "@myz/shared/versioning"
 import { z } from "zod"
+import { chunkEnvelopeSchema } from "./common"
 
 const Base64 = z.string().min(1)
 
@@ -85,15 +86,7 @@ export const ManifestDataSchemaV2 = z.object({
   signedBy: z.string().min(1),
 })
 
-export const ChunkEnvelopeSchemaV2 = z.object({
-  protocolVersion: z.literal(SYNC_PROTOCOL_VERSION_V2),
-  recordId: z.string(),
-  updatedAt: z.string(),
-  prevHash: z.string(),
-  keyId: z.string(),
-  recordCipher: z.string(),
-  recordNonce: z.string(),
-})
+export const ChunkEnvelopeSchemaV2 = chunkEnvelopeSchema(SYNC_PROTOCOL_VERSION_V2)
 
 export type DevicePublicKeyV2 = z.infer<typeof DevicePublicKeySchemaV2>
 export type WrappedDataKeyV2 = z.infer<typeof WrappedDataKeySchemaV2>

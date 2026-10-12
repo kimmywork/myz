@@ -1,4 +1,5 @@
 import { type MyZRecord, RECORD_KINDS } from "@myz/shared"
+import { recordKindLabel } from "@myz/shared/recordDisplay"
 
 export type HighlightItemAction =
   | "copy"
@@ -19,12 +20,5 @@ export interface HighlightGroupSection {
 }
 
 export function getKindLabel(kind: RECORD_KINDS) {
-  switch (kind) {
-    case RECORD_KINDS.CLIP:
-      return "摘录"
-    case RECORD_KINDS.BOOKMARK:
-      return "来源"
-    default:
-      return "划线"
-  }
+  return recordKindLabel(kind)
 }

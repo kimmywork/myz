@@ -1,11 +1,5 @@
 import { HighlightStyleSchema, SanitizedColorSchema } from "./schemas"
-import {
-  type MyZRecord,
-  HIGHLIGHT_STYLES,
-  RECORD_KINDS,
-  getRecordKind,
-  normalizeRecord as normalizeBaseRecord,
-} from "./types.ts"
+import { type MyZRecord, HIGHLIGHT_STYLES, RECORD_KINDS, getRecordKind } from "./types.ts"
 
 // Default single color and palette tuned for better visibility on dark
 // backgrounds. These are slightly more saturated / deeper than the old
@@ -27,21 +21,12 @@ export function describeHighlightStyle(style: HIGHLIGHT_STYLES): string {
   return "涂色"
 }
 
-export function normalizeRecord(
-  record: MyZRecord | null | undefined,
-): MyZRecord | null {
-  if (!record) {
-    return null
-  }
-  const base = normalizeBaseRecord(record)
-  if (!base) {
-    return base
-  }
-  if (base.kind === RECORD_KINDS.HIGHLIGHT) {
-    return { ...base, style: normalizeHighlightStyle(base.style) }
-  }
-  return { ...base, style: undefined }
-}
+/**
+ * Canonical record normalization lives in `./types.ts`. Re-exported here so
+ * historical `@myz/shared/highlightUtils` imports keep working without a
+ * second, diverging implementation.
+ */
+export { normalizeRecord } from "./types.ts"
 
 export function isHighlightRecord(record: MyZRecord) {
   return getRecordKind(record) === RECORD_KINDS.HIGHLIGHT
@@ -99,6 +84,10 @@ export function formatNote(value: string): string {
 export function extractPlainText(html?: string): string {
   if (!html) {
     return ""
+  }
+  if (typeof document === "undefined") {
+    // Non-DOM host: fall back to a crude tag strip so callers still get text.
+    return normalizeWhitespace(String(html).replace(/<[^>]*>/g, " "))
   }
   const container = document.createElement("div")
   container.innerHTML = html

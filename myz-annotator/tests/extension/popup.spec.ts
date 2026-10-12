@@ -1,15 +1,14 @@
 import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { Server } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   LaunchedExtension,
   launchExtension,
 } from "../helpers/launch-extension.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 import { createStaticServer } from "../helpers/static-server.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirnameFromImportMeta(import.meta.url);
 
 let server: Server;
 let serverUrl: string;
@@ -104,9 +103,8 @@ test("popup_shows_saved_highlights_and_copy", async () => {
   await popup.waitForSelector(".highlight-item", { timeout: 5000 });
 
   // Tags render as chips per the design system (§4.5).
-  const tagChips = await popup.$$eval(
-    ".highlight-item__tags > span",
-    (els) => els.map((el) => (el.textContent || "").trim()),
+  const tagChips = await popup.$$eval(".highlight-item__tags > span", (els) =>
+    els.map((el) => (el.textContent || "").trim()),
   );
   expect(tagChips).toEqual(["阅读", "排版"]);
 

@@ -1,9 +1,8 @@
 import { StatePanel } from "@myz/dashboard-ui";
 import { defineComponent, onMounted, ref } from "vue";
 import { ensureLocalEpubPermission } from "@/epub/source.js";
-import { listProgress as listEpubProgress } from "@/epub/storage.js";
 import { ensureLocalPdfPermission } from "@/pdf/source.js";
-import { listProgress as listPdfProgress } from "@/pdf/storage.js";
+import { isPdfProgress, listReaderProgress } from "@/reader/progress-store.js";
 
 interface RecentDocument {
   key: string;
@@ -52,40 +51,35 @@ export default defineComponent({
     async function load() {
       loading.value = true;
       try {
-        const [pdf, epub] = await Promise.all([
-          listPdfProgress().catch(() => []),
-          listEpubProgress().catch(() => []),
-        ]);
-        const items: RecentDocument[] = [
-          ...pdf
-            .filter((entry) => entry.fingerprint)
-            .map((entry) => ({
-              key: `pdf:${entry.sourceKey}`,
-              kind: "pdf" as const,
-              title: entry.title || entry.url || "未命名 PDF",
-              meta: entry.pages
-                ? `第 ${entry.page} / ${entry.pages} 页`
-                : "PDF",
-              fingerprint: entry.fingerprint as string,
-              page: entry.page,
-              updatedAt: entry.updatedAt,
-            })),
-          ...epub
-            .filter((entry) => entry.fingerprint)
-            .map((entry) => ({
+        const progress = await listReaderProgress().catch(() => []);
+        documents.value = progress
+          .filter((entry) => entry.fingerprint)
+          .map((entry): RecentDocument => {
+            const fingerprint = entry.fingerprint as string;
+            if (isPdfProgress(entry)) {
+              return {
+                key: `pdf:${entry.sourceKey}`,
+                kind: "pdf",
+                title: entry.title || entry.url || "未命名 PDF",
+                meta: entry.pages
+                  ? `第 ${entry.page} / ${entry.pages} 页`
+                  : "PDF",
+                fingerprint,
+                page: entry.page,
+                updatedAt: entry.updatedAt,
+              };
+            }
+            return {
               key: `epub:${entry.sourceKey}`,
-              kind: "epub" as const,
+              kind: "epub",
               title: entry.title || "未命名 EPUB",
               meta: `第 ${entry.spineIndex + 1} 章`,
-              fingerprint: entry.fingerprint as string,
+              fingerprint,
               spineIndex: entry.spineIndex,
               progression: entry.progression,
               updatedAt: entry.updatedAt,
-            })),
-        ];
-        documents.value = items.sort((a, b) =>
-          b.updatedAt.localeCompare(a.updatedAt),
-        );
+            };
+          });
       } finally {
         loading.value = false;
       }

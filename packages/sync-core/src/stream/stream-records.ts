@@ -159,7 +159,34 @@ export async function readStreamMeta(
 ): Promise<StreamMeta | null> {
   const object = await store.getObject(streamMetaPath(accountId, streamId))
   if (!object) return null
-  return JSON.parse(bytesToUtf8(object.body)) as StreamMeta
+  // The stream meta object is unsigned, so it is untrusted: treat it as a hint
+  // pointing at the signed manifest. A malformed or tampered meta must never
+  // abort or corrupt the signed-manifest flow, so parsing/validation failures
+  // degrade to `null` (callers then treat the stream as absent) rather than
+  // throwing or forcing a rollback.
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(bytesToUtf8(object.body))
+  } catch (error) {
+    console.warn("Ignoring malformed stream meta", error)
+    return null
+  }
+  if (!isValidStreamMeta(parsed)) {
+    console.warn("Ignoring invalid stream meta")
+    return null
+  }
+  return parsed
+}
+
+function isValidStreamMeta(value: unknown): value is StreamMeta {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Partial<StreamMeta>
+  return (
+    Number.isInteger(candidate.streamVersion) &&
+    (candidate.streamVersion as number) >= 0 &&
+    Number.isInteger(candidate.manifestVersion) &&
+    (candidate.manifestVersion as number) >= 0
+  )
 }
 
 export async function writeStreamMeta(

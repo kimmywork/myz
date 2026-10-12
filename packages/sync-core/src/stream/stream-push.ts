@@ -32,8 +32,8 @@ export interface StreamPushResult {
   uploads: Array<{ path: string; body: Uint8Array }>
 }
 
-/** Build (but do not upload) a new signed-ready manifest and its shards. */
-export async function buildStreamPush(options: {
+/** Options shared by {@link buildStreamPush} and {@link commitStreamPush}. */
+export interface StreamPushOptions {
   streamKey: Uint8Array
   accountId: string
   streamId: string
@@ -47,7 +47,12 @@ export async function buildStreamPush(options: {
   features?: string[]
   minReaderVersion?: number
   now?: string
-}): Promise<StreamPushResult> {
+}
+
+/** Build (but do not upload) a new signed-ready manifest and its shards. */
+export async function buildStreamPush(
+  options: StreamPushOptions,
+): Promise<StreamPushResult> {
   const shardCount =
     options.shardCount ?? options.baseManifest?.shardCount ?? 64
   const base = options.baseManifest ?? null
@@ -170,24 +175,13 @@ export async function buildStreamPush(options: {
 }
 
 /** Sign, upload changed shards and the manifest, then advance stream meta. */
-export async function commitStreamPush(options: {
-  store: SyncObjectStore
-  streamKey: Uint8Array
-  device: DeviceKeyPair
-  deviceId: string
-  accountId: string
-  streamId: string
-  clientId: string
-  epoch: number
-  records: StreamRecordInput[]
-  tombstones: Record<string, string>
-  baseManifest?: StreamManifest | null
-  baseTombstones?: Record<string, string>
-  shardCount?: number
-  features?: string[]
-  minReaderVersion?: number
-  now?: string
-}): Promise<StreamManifest> {
+export async function commitStreamPush(
+  options: StreamPushOptions & {
+    store: SyncObjectStore
+    device: DeviceKeyPair
+    deviceId: string
+  },
+): Promise<StreamManifest> {
   const built = await buildStreamPush({
     streamKey: options.streamKey,
     accountId: options.accountId,

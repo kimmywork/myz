@@ -1,20 +1,12 @@
+import {
+  getRecordKindLabel,
+  hostnameForRecord,
+} from "@myz/shared/recordDisplay";
 import { RECORD_KINDS, getRecordKind, type MyZRecord } from "@myz/shared/types";
-import { extractHostname } from "@myz/shared/url";
 import type { PageGroup } from "./types.js";
 
-export function getRecordKindLabel(record: MyZRecord) {
-  const kind = getRecordKind(record);
-  switch (kind) {
-    case RECORD_KINDS.HIGHLIGHT:
-      return "划线";
-    case RECORD_KINDS.CLIP:
-      return "摘录";
-    case RECORD_KINDS.BOOKMARK:
-      return "来源";
-    default:
-      return "划线";
-  }
-}
+// Re-export the canonical label so the barrel keeps the same export surface.
+export { getRecordKindLabel };
 
 export function computeRecordStats(records: MyZRecord[] = []) {
   let highlightCount = 0;
@@ -31,13 +23,28 @@ export function computeRecordStats(records: MyZRecord[] = []) {
   return { total: highlightCount + savedCount, highlightCount, savedCount };
 }
 
-function hostnameFor(url: string, record: MyZRecord): string {
-  if (record.hostname) return record.hostname;
-  try {
-    return extractHostname(url);
-  } catch {
-    return "";
-  }
+/**
+ * Parse an ISO timestamp into milliseconds, or `null` when missing/invalid so
+ * invalid dates never silently bucket into 1970 (BUG3).
+ */
+function toTimestamp(value: string | undefined): number | null {
+  if (!value) return null;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? null : time;
+}
+
+/**
+ * Local-time `YYYY-MM-DD` key for a timestamp. Date inputs are local dates, so
+ * grouping/filtering must not compare against the UTC date (BUG2).
+ */
+export function localDateKey(value: string | undefined): string {
+  const time = toTimestamp(value);
+  if (time === null) return "";
+  const date = new Date(time);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function groupRecordsByPage(records: MyZRecord[]): PageGroup[] {
@@ -47,16 +54,17 @@ export function groupRecordsByPage(records: MyZRecord[]): PageGroup[] {
     const url = record?.url || record?.sourceUrl;
     if (!url) return;
     const existing = map.get(url);
-    const latest = Date.parse(record.createdAt || record.updatedAt || "") || 0;
+    const latest = toTimestamp(record.createdAt || record.updatedAt);
     if (!existing) {
       map.set(url, {
         key: url,
         url,
         title: record.title || "",
-        hostname: hostnameFor(url, record),
-        latestAt: Number.isFinite(latest)
-          ? new Date(latest).toISOString()
-          : record.createdAt || record.updatedAt || "",
+        hostname: hostnameForRecord(record),
+        latestAt:
+          latest !== null
+            ? new Date(latest).toISOString()
+            : record.createdAt || record.updatedAt || "",
         count: 1,
         records: [record],
       });
@@ -68,26 +76,26 @@ export function groupRecordsByPage(records: MyZRecord[]): PageGroup[] {
     if (!existing.hostname && record.hostname) {
       existing.hostname = record.hostname;
     }
-    const existingLatest = Date.parse(existing.latestAt || "") || 0;
-    if (latest > existingLatest) {
+    const existingLatest = toTimestamp(existing.latestAt);
+    if (
+      latest !== null &&
+      (existingLatest === null || latest > existingLatest)
+    ) {
       existing.latestAt = new Date(latest).toISOString();
     }
   });
 
   return Array.from(map.values()).sort((a, b) => {
-    const timeA = Date.parse(a.latestAt || "");
-    const timeB = Date.parse(b.latestAt || "");
-    return (
-      (Number.isFinite(timeB) ? timeB : 0) -
-      (Number.isFinite(timeA) ? timeA : 0)
-    );
+    const timeA = toTimestamp(a.latestAt) ?? 0;
+    const timeB = toTimestamp(b.latestAt) ?? 0;
+    return timeB - timeA;
   });
 }
 
 export function groupHighlightsByDate(highlights: MyZRecord[]) {
   const map = new Map<string, MyZRecord[]>();
   highlights.forEach((item) => {
-    const date = item?.createdAt ? item.createdAt.slice(0, 10) : "未知日期";
+    const date = localDateKey(item?.createdAt) || "未知日期";
     if (!map.has(date)) map.set(date, []);
     map.get(date)?.push(item);
   });

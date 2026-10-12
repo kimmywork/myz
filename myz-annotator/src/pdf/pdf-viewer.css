@@ -1,45 +1,8 @@
 @config "../../tailwind.config.ts";
-/* PDF imports theme/utilities manually (no preflight). Declare layer order so
-   our base rules stay below utilities and never override their focus/outline. */
 @layer theme, base, utilities;
-@import "tailwindcss/theme.css" layer(theme);
-@import "../reader/reader-chrome.css";
-@import "tailwindcss/utilities.css" layer(utilities);
-@import "@myz/shared/theme/tailwind.css";
-@reference "@myz/shared/theme/tailwind.css";
-
-:root {
-  color-scheme: light dark;
-  font-family: var(--myz-sans);
-}
-
-html,
-body {
-  height: 100%;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--myz-well);
-  color: var(--myz-well-text);
-}
-
-#app {
-  height: 100%;
-}
-
-/* §3.9 聚焦：默认强调色外圈；放在 base 层，组件可用 utilities 覆盖（无 preflight，
-   所以这里只给外圈，不重置元素本身） */
-@layer base {
-  :where(button, a, [role="button"], [tabindex], summary, input, select, textarea):focus-visible {
-    outline: 2px solid var(--myz-accent);
-    outline-offset: 2px;
-  }
-}
+/* Shared viewer boilerplate (theme/utilities imports, :root, html/body, #app,
+   focus rules) lives in reader-viewer-base.css (D10). */
+@import "../reader/reader-viewer-base.css";
 
 .reader-app {
   position: relative;

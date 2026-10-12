@@ -15,6 +15,7 @@
     "vue-router": "*"
   },
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   }
 }

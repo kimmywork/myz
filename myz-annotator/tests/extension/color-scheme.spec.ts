@@ -1,15 +1,14 @@
 import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { Server } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   LaunchedExtension,
   launchExtension,
 } from "../helpers/launch-extension.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 import { createStaticServer } from "../helpers/static-server.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirnameFromImportMeta(import.meta.url);
 
 let server: Server;
 let context: BrowserContext;
@@ -48,9 +47,9 @@ test("dashboard_scheme_switch_persists_and_reaches_popup", async () => {
     timeout: 5000,
   });
 
-  expect(await dash.evaluate(() => document.documentElement.dataset.scheme)).toBe(
-    "paper",
-  );
+  expect(
+    await dash.evaluate(() => document.documentElement.dataset.scheme),
+  ).toBe("paper");
 
   await dash.locator("button[role='radio']", { hasText: "赭石" }).click();
   await dash.waitForFunction(

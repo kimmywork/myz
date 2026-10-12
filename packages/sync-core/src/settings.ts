@@ -1,19 +1,28 @@
 import { isRecord } from "@myz/shared/typeUtils"
+import { z } from "zod"
 
-export interface SyncS3Settings {
-  endpoint: string
-  region: string
-  bucket: string
-  accessKeyId: string
-  secretAccessKey: string
-  sessionToken?: string
-  prefix?: string
-}
+/**
+ * Schema-first definition of the S3 credential shape, shared with the
+ * extension's settings schema so the contract cannot drift between the sync
+ * core, the stored defaults and the settings wizard.
+ */
+export const SyncS3SettingsSchema = z.object({
+  endpoint: z.string(),
+  region: z.string(),
+  bucket: z.string(),
+  accessKeyId: z.string(),
+  secretAccessKey: z.string(),
+  sessionToken: z.string().optional(),
+  prefix: z.string().optional(),
+})
 
-export interface SyncSettings {
-  enabled: boolean
-  s3: SyncS3Settings
-}
+export const SyncSettingsSchema = z.object({
+  enabled: z.boolean(),
+  s3: SyncS3SettingsSchema,
+})
+
+export type SyncS3Settings = z.infer<typeof SyncS3SettingsSchema>
+export type SyncSettings = z.infer<typeof SyncSettingsSchema>
 
 export const DEFAULT_S3_SETTINGS: SyncS3Settings = {
   endpoint: "",

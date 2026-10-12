@@ -1,13 +1,12 @@
 import { test, expect, BrowserContext } from "@playwright/test";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   LaunchedExtension,
   launchExtension,
 } from "../helpers/launch-extension.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirnameFromImportMeta(import.meta.url);
 
 const SCHEMES = ["paper", "slate", "celadon", "ochre"] as const;
 const THEMES = ["light", "dark"] as const;
@@ -120,9 +119,9 @@ test("capture_dashboard_appearance_matrix", async () => {
 
       const file = path.join(OUT_DIR, `dashboard-${scheme}-${theme}.png`);
       await dash.screenshot({ path: file, fullPage: true });
-      expect(await dash.evaluate(() => document.documentElement.dataset.scheme)).toBe(
-        scheme,
-      );
+      expect(
+        await dash.evaluate(() => document.documentElement.dataset.scheme),
+      ).toBe(scheme);
     }
   }
 

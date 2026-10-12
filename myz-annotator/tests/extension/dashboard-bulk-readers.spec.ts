@@ -1,8 +1,5 @@
 import { test, expect } from "@playwright/test";
-import {
-  send,
-  setupDashboardHarness,
-} from "../helpers/dashboard-harness.js";
+import { send, setupDashboardHarness } from "../helpers/dashboard-harness.js";
 
 const harness = setupDashboardHarness();
 
@@ -15,7 +12,10 @@ test("bulk_import_and_search_filters", async () => {
   const records = [];
   const now = Date.now();
   for (let i = 0; i < total; i++) {
-    const tags = [tagsPool[i % tagsPool.length], tagsPool[(i + 2) % tagsPool.length]];
+    const tags = [
+      tagsPool[i % tagsPool.length],
+      tagsPool[(i + 2) % tagsPool.length],
+    ];
     const text =
       i % 7 === 0 ? `record ${i} filter-target` : `record ${i} normal`;
     records.push({
@@ -43,13 +43,17 @@ test("bulk_import_and_search_filters", async () => {
   const searchInput = 'input[placeholder="搜索/标签/网站"]';
   await dash.fill(searchInput, "filter-target");
   await dash.waitForTimeout(500);
-  expect(await dash.$$eval("article[data-id]", (els) => els.length)).toBeGreaterThan(0);
+  expect(
+    await dash.$$eval("article[data-id]", (els) => els.length),
+  ).toBeGreaterThan(0);
 
   await dash.fill(searchInput, "");
   await dash.waitForTimeout(200);
   await dash.fill(searchInput, `site:${hosts[1]}`);
   await dash.waitForTimeout(500);
-  expect(await dash.$$eval("article[data-id]", (els) => els.length)).toBeGreaterThan(0);
+  expect(
+    await dash.$$eval("article[data-id]", (els) => els.length),
+  ).toBeGreaterThan(0);
 });
 
 test("infinite_scroll_loads_more", async () => {
@@ -105,9 +109,9 @@ test("infinite_scroll_loads_more", async () => {
     initialCount,
     { timeout: 5000 },
   );
-  expect(await dash.$$eval("article[data-id]", (els) => els.length)).toBeGreaterThan(
-    initialCount,
-  );
+  expect(
+    await dash.$$eval("article[data-id]", (els) => els.length),
+  ).toBeGreaterThan(initialCount);
 });
 
 test("readers_page_lists_recent_local_documents", async () => {

@@ -3,8 +3,8 @@ import { defineComponent } from "vue"
 import type { PropType } from "vue"
 import HighlightCard from "./HighlightCard"
 import HighlightListRow from "./HighlightListRow"
-import StatePanel from "./StatePanel"
 import type { HighlightGroupSection, HighlightItemAction } from "./highlightMeta"
+import StatePanel from "./StatePanel"
 
 export default defineComponent({
   name: "HighlightGroups",
@@ -89,29 +89,21 @@ export default defineComponent({
                     : "space-y-3",
                 ].join(" ")}
               >
-                {group.items.map((item) =>
-                  props.view === "cards" ? (
-                    <HighlightCard
-                      key={item.id}
-                      record={item}
-                      formatInline={props.formatInline}
-                      formatDateTime={props.formatDateTime}
-                      renderHighlight={props.renderHighlight}
-                      formatNote={props.formatNote}
-                      onAction={props.onAction}
-                    />
+                {group.items.map((item) => {
+                  const sharedProps = {
+                    record: item,
+                    formatInline: props.formatInline,
+                    formatDateTime: props.formatDateTime,
+                    renderHighlight: props.renderHighlight,
+                    formatNote: props.formatNote,
+                    onAction: props.onAction,
+                  };
+                  return props.view === "cards" ? (
+                    <HighlightCard key={item.id} {...sharedProps} />
                   ) : (
-                    <HighlightListRow
-                      key={item.id}
-                      record={item}
-                      formatInline={props.formatInline}
-                      formatDateTime={props.formatDateTime}
-                      renderHighlight={props.renderHighlight}
-                      formatNote={props.formatNote}
-                      onAction={props.onAction}
-                    />
-                  ),
-                )}
+                    <HighlightListRow key={item.id} {...sharedProps} />
+                  );
+                })}
               </div>
             </section>
           ))}

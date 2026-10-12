@@ -1,6 +1,8 @@
+import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createChromeStorageTranslationCache,
+  createIndexedDbTranslationCache,
   createMemoryTranslationCache,
 } from "@/reader/translate/storage.js";
 
@@ -63,5 +65,14 @@ describe("createMemoryTranslationCache", () => {
     await cache.set("k", "v");
     await expect(cache.get("k")).resolves.toBe("v");
     await expect(cache.get("other")).resolves.toBeUndefined();
+  });
+});
+
+describe("createIndexedDbTranslationCache", () => {
+  it("round-trips values through IndexedDB", async () => {
+    const cache = createIndexedDbTranslationCache();
+    await cache.set("en:zh:abc", "你好");
+    await expect(cache.get("en:zh:abc")).resolves.toBe("你好");
+    await expect(cache.get("en:zh:missing")).resolves.toBeUndefined();
   });
 });

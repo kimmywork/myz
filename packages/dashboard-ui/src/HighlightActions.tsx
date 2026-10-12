@@ -9,8 +9,8 @@ import {
   Trash2,
 } from "@lucide/vue"
 import type { MyZRecord } from "@myz/shared"
-import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs"
 import { RECORD_KINDS } from "@myz/shared"
+import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs"
 import { isEpubSourceUrl, isPdfSourceUrl } from "@myz/shared/url"
 import type { PropType } from "vue"
 import { computed, defineComponent } from "vue"

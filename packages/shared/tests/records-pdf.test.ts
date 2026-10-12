@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RECORD_KINDS, SOURCE_TYPES } from "../src/enums";
+import { normalizeRecord as normalizeRecordFromHighlightUtils } from "../src/highlightUtils";
 import {
   normalizeRecord,
   normalizeSourceType,
@@ -85,5 +86,28 @@ describe("local pdf source url", () => {
     expect(url).toBe("myz-pdf:abc123");
     expect(isPdfSourceUrl(url)).toBe(true);
     expect(isPdfSourceUrl("https://example.com/a.pdf")).toBe(false);
+  });
+});
+
+describe("normalizeRecord single source of truth", () => {
+  it("normalizes highlight style case-insensitively", () => {
+    const record = normalizeRecord(baseRecord({ style: "UNDERLINE" }));
+    expect(record?.style).toBe("underline");
+  });
+
+  it("drops style from non-highlight records", () => {
+    const record = normalizeRecord(
+      baseRecord({ kind: RECORD_KINDS.CLIP, style: "paint" }),
+    );
+    expect(record?.kind).toBe(RECORD_KINDS.CLIP);
+    expect(record?.style).toBeUndefined();
+  });
+
+  it("keeps the highlightUtils entry point aligned with types", () => {
+    const input = baseRecord({ style: "WAVY" });
+    expect(normalizeRecordFromHighlightUtils(input)).toEqual(
+      normalizeRecord(input),
+    );
+    expect(normalizeRecordFromHighlightUtils(null)).toBeNull();
   });
 });

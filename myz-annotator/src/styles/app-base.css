@@ -1,0 +1,28 @@
+/* Shared base layer for the extension's HTML surfaces (dashboard, popup and the
+   reader viewers). Focus rings, reduced-motion handling and base typography
+   live here so they cannot drift between surfaces (D10). */
+@layer base {
+  :where(button, a, [role="button"], [tabindex], summary, input, select, textarea):focus-visible {
+    outline: 2px solid var(--myz-accent);
+    outline-offset: 2px;
+  }
+
+  :root {
+    font-family: var(--myz-sans);
+  }
+
+  /* §4.1 图标：Lucide 只描边，线宽 1.75 */
+  .lucide {
+    stroke-width: 1.75;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

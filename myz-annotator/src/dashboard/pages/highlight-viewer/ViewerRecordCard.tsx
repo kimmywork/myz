@@ -4,8 +4,8 @@ import type { PropType } from "vue";
 import { useUIStore } from "../../stores/ui.js";
 import type { HighlightViewerApi } from "./useHighlightViewer.js";
 import { getRecordKindLabel } from "@/dashboard/utils/records.js";
-import { openEpubRecordInReader } from "@/epub/open.js";
-import { openPdfRecordInReader } from "@/pdf/open.js";
+import { openEpubRecordInReader } from "@/reader/open.js";
+import { openPdfRecordInReader } from "@/reader/open.js";
 
 /** One record card inside the scroll list. */
 export default defineComponent({

@@ -1,4 +1,5 @@
 import { sendMessage } from "@myz/shared/messaging";
+import { countTags, mergeTags } from "@myz/shared/tags";
 import { computed, ref, watch } from "vue";
 import {
   LIST_PAGE_SIZE,
@@ -69,19 +70,18 @@ export function useInboxData() {
         seen.set(item.targetId, item);
       }
     }
-    const counts = new Map<string, number>();
-    for (const item of seen.values()) {
-      for (const tag of item.record.tags || []) {
-        counts.set(tag, (counts.get(tag) || 0) + 1);
-      }
-    }
-    const tags = new Set([...allTags.value, ...counts.keys()]);
-    return Array.from(tags)
-      .sort(
-        (a, b) =>
-          (counts.get(b) || 0) - (counts.get(a) || 0) || a.localeCompare(b),
-      )
-      .map((tag) => ({ tag, count: counts.get(tag) || 0 }));
+    const counts = countTags(
+      Array.from(seen.values()).map((item) => item.record),
+    );
+    const countMap = new Map(counts.map((entry) => [entry.tag, entry.count]));
+    // Union the record counts with the known tag list, then apply the shared
+    // sort (count desc, tag asc) so a tag with no records still shows up.
+    return mergeTags(
+      allTags.value,
+      counts.map((entry) => entry.tag),
+    )
+      .map((tag) => ({ tag, count: countMap.get(tag) ?? 0 }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
   });
 
   const visibleTags = computed(() => {

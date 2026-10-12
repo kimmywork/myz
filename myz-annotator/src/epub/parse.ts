@@ -110,6 +110,9 @@ let unzipRequestId = 0;
  * Decompresses the archive in a web worker (keeping the UI responsive for large
  * books), then parses the result on the main thread. Prefer this over the
  * synchronous `parseEpub` for user-initiated opens.
+ *
+ * Contract: `bytes` is transferred (detached) to the worker. Pass a `slice()`
+ * copy if the same buffer must be reused afterwards.
  */
 export async function parseEpubAsync(bytes: ArrayBuffer): Promise<EpubBook> {
   const raw = await unzipInWorker(bytes);
@@ -142,7 +145,9 @@ function unzipInWorker(bytes: ArrayBuffer): Promise<Unzipped> {
       }
     };
     worker.addEventListener("message", onMessage);
-    // Transfer the source buffer so it is not copied into the worker.
+    // Transfer the source buffer so it is not copied into the worker. The
+    // caller's `bytes` is detached once this runs; callers that need to reuse
+    // it must pass a `slice()` copy (see the `parseEpubAsync` contract).
     worker.postMessage({ id, bytes }, [bytes]);
   });
 }

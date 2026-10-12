@@ -1,4 +1,5 @@
 import type { MyZRecord } from "@myz/shared/types";
+import { localDateKey } from "@/dashboard/utils/records.js";
 
 export interface SearchFilters {
   search: string;
@@ -20,14 +21,11 @@ export function matchesFilters(
     const itemTags = new Set(item.tags || []);
     if (!filters.tags.every((tag) => itemTags.has(tag))) return false;
   }
-  if (filters.from) {
-    const itemDate = item.createdAt ? item.createdAt.slice(0, 10) : "";
-    if (itemDate < filters.from) return false;
-  }
-  if (filters.to) {
-    const itemDate = item.createdAt ? item.createdAt.slice(0, 10) : "";
-    if (itemDate > filters.to) return false;
-  }
+  // Date inputs are local dates; compare against the local date, not the UTC
+  // slice of the ISO string (BUG2).
+  const itemDate = localDateKey(item.createdAt);
+  if (filters.from && itemDate < filters.from) return false;
+  if (filters.to && itemDate > filters.to) return false;
   if (needle) {
     const haystack = [item.text, item.note, (item.tags || []).join(" ")]
       .join(" ")

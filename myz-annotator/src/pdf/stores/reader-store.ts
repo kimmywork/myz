@@ -1,4 +1,3 @@
-import { sendMessage } from "@myz/shared/messaging";
 import {
   DEFAULT_COLORS,
   HIGHLIGHT_STYLE_OPTIONS,
@@ -6,6 +5,7 @@ import {
 } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
+import { loadHighlightPreferences } from "../../reader/load-preferences.js";
 import { countPageAnnotations } from "../annotations.js";
 import { usePdfAnnotations } from "../composables/usePdfAnnotations.js";
 import { usePdfDocument } from "../composables/usePdfDocument.js";
@@ -97,22 +97,9 @@ export const useReaderStore = defineStore("pdf-reader", () => {
   const colorPalette = ref<string[]>([...DEFAULT_COLORS]);
 
   async function loadColorPalette() {
-    try {
-      const settings = await sendMessage<undefined, { colorPalette?: unknown }>(
-        "myz:getSettings",
-      );
-      const palette = settings?.colorPalette;
-      if (Array.isArray(palette) && palette.length) {
-        const normalized = palette.filter(
-          (color): color is string =>
-            typeof color === "string" && Boolean(color.trim()),
-        );
-        if (normalized.length) {
-          colorPalette.value = normalized;
-        }
-      }
-    } catch {
-      // Keep the bundled default palette when settings are unavailable.
+    const { colorPalette: loaded } = await loadHighlightPreferences();
+    if (loaded.length) {
+      colorPalette.value = loaded;
     }
   }
 

@@ -1,4 +1,12 @@
 import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
+import {
+  idbDelete,
+  idbGet,
+  idbGetAll,
+  idbPut,
+  openDatabase,
+  withStore,
+} from "@myz/shared/idb";
 import { MyZRecord, ensureRecordSchemaVersion } from "@myz/shared/types";
 import { isRecord, type UnknownRecord } from "@myz/shared/typeUtils";
 import { SETTINGS_SCHEMA_VERSION } from "@myz/shared/versioning";
@@ -7,50 +15,44 @@ import {
   type SyncS3Settings,
 } from "@myz/sync-core/settings";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
+import { SettingsRegistry } from "./settings/registry.js";
 import type { Settings, SettingsBundle } from "./settings.js";
 import { openS3Credentials, sealS3Credentials } from "./sync/credentials.js";
 
 const DB_NAME = "myz_db";
 const DB_VERSION = 2;
 
-let dbPromise: Promise<IDBDatabase> | null = null;
+/** Creates the highlight + inbox stores the first time the db is opened. */
+function upgradeSchema(db: IDBDatabase): void {
+  if (!db.objectStoreNames.contains("highlights")) {
+    const store = db.createObjectStore("highlights", { keyPath: "id" });
+    store.createIndex("url", "url", { unique: false });
+    store.createIndex("createdAt", "createdAt", { unique: false });
+  }
 
-function getDB(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
+  if (!db.objectStoreNames.contains("inbox_state")) {
+    db.createObjectStore("inbox_state", { keyPath: "recordId" });
+  }
+}
 
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+/**
+ * Runs the one-shot `chrome.storage.local` → IndexedDB migration. The shared
+ * `openDatabase` caches the connection, so the migration promise is memoized and
+ * awaited by every caller rather than re-running on each (re)open.
+ */
+let migrationPromise: Promise<void> | null = null;
 
-    request.onerror = () => {
-      console.error("Failed to open database", request.error);
-      reject(request.error);
-    };
-
-    request.onsuccess = async () => {
-      const db = request.result;
-      try {
-        await migrateFromLocalStorage(db);
-      } catch (e) {
-        console.error("Migration failed", e);
-      }
-      resolve(db);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const db = request.result;
-
-      if (!db.objectStoreNames.contains("highlights")) {
-        const store = db.createObjectStore("highlights", { keyPath: "id" });
-        store.createIndex("url", "url", { unique: false });
-        store.createIndex("createdAt", "createdAt", { unique: false });
-      }
-
-      if (!db.objectStoreNames.contains("inbox_state")) {
-        db.createObjectStore("inbox_state", { keyPath: "recordId" });
-      }
-    };
+async function getDB(): Promise<IDBDatabase> {
+  const db = await openDatabase({
+    name: DB_NAME,
+    version: DB_VERSION,
+    upgrade: upgradeSchema,
   });
-  return dbPromise;
+  migrationPromise ??= migrateFromLocalStorage(db).catch((e) => {
+    console.error("Migration failed", e);
+  });
+  await migrationPromise;
+  return db;
 }
 
 async function migrateFromLocalStorage(db: IDBDatabase) {
@@ -79,15 +81,7 @@ async function migrateFromLocalStorage(db: IDBDatabase) {
 }
 
 function getAllFromStore<T>(storeName: string): Promise<T[]> {
-  return getDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, "readonly");
-      const store = tx.objectStore(storeName);
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  });
+  return getDB().then((db) => idbGetAll<T>(db, storeName));
 }
 
 function unwrapStoredSettings(stored: unknown): Partial<Settings> | null {
@@ -121,14 +115,30 @@ function normalizeSettings<T extends Settings>(settings: T): T {
   return settings;
 }
 
+/**
+ * Assert that a settings object still matches the versioned zod contract. The
+ * normalize step above is deliberately lenient (it only fills defaults), so
+ * this keeps the schema live and surfaces drift between the schema and the
+ * runtime shape instead of letting it rot as dead code.
+ */
+function assertSettingsShape(settings: Settings, context: string) {
+  const schema = SettingsRegistry.versions[SETTINGS_SCHEMA_VERSION];
+  const result = schema.safeParse(settings);
+  if (!result.success) {
+    console.warn(`Settings failed ${context} schema validation`, result.error);
+  }
+}
+
 async function openStoredSync(
   rawSync: unknown,
 ): Promise<Settings["sync"] | null> {
   if (!isRecord(rawSync)) return null;
   const s3 = isRecord(rawSync.s3) ? rawSync.s3 : null;
-  if (!s3) return rawSync as unknown as Settings["sync"];
-  const opened = await openS3Credentials(s3 as unknown as SyncS3Settings);
-  return { ...(rawSync as unknown as Settings["sync"]), s3: opened };
+  if (!s3) return normalizeSyncSettings(rawSync);
+  // `s3` came out of stored JSON; the encrypted credential fields are sealed,
+  // so the app layer only relies on its non-secret string fields here.
+  const opened = await openS3Credentials(s3 as SyncS3Settings);
+  return { enabled: rawSync.enabled === true, s3: opened };
 }
 
 async function sealSettingsCredentials(settings: Settings): Promise<Settings> {
@@ -139,47 +149,24 @@ async function sealSettingsCredentials(settings: Settings): Promise<Settings> {
 export async function saveHighlight(record: MyZRecord) {
   const db = await getDB();
   const normalized = ensureRecordSchemaVersion(record);
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction("highlights", "readwrite");
-    const store = tx.objectStore("highlights");
-    const request = store.put(normalized);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  return idbPut(db, "highlights", normalized);
 }
 
 export async function deleteHighlight(id: string) {
   const db = await getDB();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction("highlights", "readwrite");
-    const store = tx.objectStore("highlights");
-    const request = store.delete(id);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  return idbDelete(db, "highlights", id);
 }
 
 export async function getHighlightsForUrl(url: string): Promise<MyZRecord[]> {
   const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("highlights", "readonly");
-    const store = tx.objectStore("highlights");
-    const index = store.index("url");
-    const request = index.getAll(url);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  return withStore<MyZRecord[]>(db, "highlights", "readonly", (store) =>
+    store.index("url").getAll(url),
+  );
 }
 
 export async function getHighlight(id: string): Promise<MyZRecord | undefined> {
   const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("highlights", "readonly");
-    const store = tx.objectStore("highlights");
-    const request = store.get(id);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  return idbGet<MyZRecord>(db, "highlights", id);
 }
 
 export async function getAllHighlights(): Promise<MyZRecord[]> {
@@ -205,6 +192,7 @@ export async function readSettings(): Promise<Settings> {
     ...(openedSync ? { sync: openedSync } : {}),
   });
   merged.lastUsedStyle = normalizeHighlightStyle(merged.lastUsedStyle);
+  assertSettingsShape(merged, "read");
   return merged;
 }
 
@@ -214,6 +202,7 @@ export async function writeSettings(
   const current = await readSettings();
   const updated = normalizeSettings({ ...current, ...patch });
   updated.lastUsedStyle = normalizeHighlightStyle(updated.lastUsedStyle);
+  assertSettingsShape(updated, "write");
   const bundle = wrapSettingsBundle(await sealSettingsCredentials(updated));
   await chrome.storage.local.set({ [SETTINGS_KEY]: bundle });
   return updated;
@@ -269,32 +258,17 @@ export async function readInboxState(
   recordId: string,
 ): Promise<InboxStateRecord | undefined> {
   const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("inbox_state", "readonly");
-    const request = tx.objectStore("inbox_state").get(recordId);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  return idbGet<InboxStateRecord>(db, "inbox_state", recordId);
 }
 
 export async function putInboxState(record: InboxStateRecord): Promise<void> {
   const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("inbox_state", "readwrite");
-    const request = tx.objectStore("inbox_state").put(record);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  return idbPut(db, "inbox_state", record);
 }
 
 export async function deleteInboxState(recordId: string): Promise<void> {
   const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("inbox_state", "readwrite");
-    const request = tx.objectStore("inbox_state").delete(recordId);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  return idbDelete(db, "inbox_state", recordId);
 }
 
 export async function getAllInboxStates(): Promise<InboxStateRecord[]> {

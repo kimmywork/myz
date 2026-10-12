@@ -1,4 +1,5 @@
 import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
+import { recordToMarkdown } from "@myz/shared/recordDisplay";
 import {
   MyZRecord,
   RECORD_KINDS,
@@ -16,7 +17,6 @@ import {
   updateExistingHighlight,
 } from "../highlight-state.js";
 import { useModalStore } from "./modal-store.js";
-import { recordToMarkdown } from "@/dashboard/utils/records.js";
 
 interface InspectorRecord {
   id: string | null;

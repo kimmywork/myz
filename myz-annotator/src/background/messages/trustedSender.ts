@@ -1,5 +1,9 @@
 type Sender = chrome.runtime.MessageSender | undefined;
 
+// Messages only trusted extension pages (dashboard/options) may invoke. Keep
+// this in sync with the handlers registered in ./messages/*.ts: non-privileged
+// reads/writes for content scripts are `myz:getPublicSettings` and
+// `myz:updateHighlightPreference`.
 const PRIVILEGED_MESSAGES = new Set<string>([
   "myz:syncSetKey",
   "myz:syncClearKey",
@@ -14,6 +18,12 @@ const PRIVILEGED_MESSAGES = new Set<string>([
   "myz:pairingInvite",
   "myz:pairingAccept",
   "myz:pairingApprove",
+  // Settings: the full bundle (sealed S3 credentials) is extension-page only.
+  "myz:getSettings",
+  "myz:updateSettings",
+  "myz:updatePalette",
+  // Imports write records in bulk and are performed by the dashboard.
+  "myz:importHighlights",
 ]);
 
 const USER_GESTURE_MESSAGES = new Set<string>([

@@ -76,7 +76,12 @@ export function encodeBinaryPayload(value: unknown): Uint8Array {
 export function decodeBinaryPayload(payload: Uint8Array): unknown {
   const inflated = inflateSync(payload)
   const json = strFromU8(inflated)
-  return JSON.parse(json)
+  try {
+    return JSON.parse(json)
+  } catch (error) {
+    console.warn("decodeBinaryPayload: invalid JSON payload", error)
+    return null
+  }
 }
 
 export function concatBytes(...parts: Uint8Array[]): Uint8Array {

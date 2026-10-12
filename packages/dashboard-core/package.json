@@ -10,6 +10,7 @@
     "@myz/shared": "*"
   },
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   }
 }

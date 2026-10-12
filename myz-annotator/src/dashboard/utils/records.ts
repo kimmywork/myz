@@ -9,6 +9,7 @@ export {
   computeRecordStats,
   groupRecordsByPage,
   groupHighlightsByDate,
+  localDateKey,
 } from "./records/grouping.js";
 export { sortRecordsForPage } from "./records/sorting.js";
 export {

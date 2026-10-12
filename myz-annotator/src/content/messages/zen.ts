@@ -39,7 +39,10 @@ export function initializeZenMessageHandlers() {
 
     try {
       chrome.runtime?.sendMessage?.({ type: "myz:zenModeStateChanged" });
-    } catch {}
+    } catch (error) {
+      // The popped-out reader page may have no runtime; ignore silently on purpose.
+      console.debug("MyZ: zenModeStateChanged broadcast failed", error);
+    }
 
     if (state === "error") {
       throw new Error("Failed to toggle Zen Mode");

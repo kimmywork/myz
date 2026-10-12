@@ -1,0 +1,32 @@
+/* Shared boilerplate for the PDF and EPUB viewer pages (D10). Page-specific
+   rules stay in pdf-viewer.css / epub-viewer.css; this file holds the theme /
+   utilities imports plus the viewer chrome that was duplicated between them. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@myz/shared/theme/tailwind.css";
+@import "./reader-chrome.css";
+@import "../styles/app-base.css";
+@reference "@myz/shared/theme/tailwind.css";
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--myz-well);
+  color: var(--myz-well-text);
+}
+
+#app {
+  height: 100%;
+}

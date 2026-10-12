@@ -55,7 +55,9 @@ export async function pullStream(options: {
       streamVersion: null,
     }
   }
-  assertNotRollback(options.seenStreamVersion, meta.streamVersion)
+  // `meta` is unsigned and therefore a hint only: it just points at the signed
+  // manifest. The authoritative anti-rollback check runs below against the
+  // verified manifest, so a tampered meta cannot block or bypass the flow.
 
   const manifestObject = await options.store.getObject(
     streamManifestPath(
@@ -85,6 +87,9 @@ export async function pullStream(options: {
     manifest,
     options.readerVersion ?? manifest.minReaderVersion,
   )
+  // Rollback gate against the signature-verified manifest version, not the
+  // untrusted meta hint.
+  assertNotRollback(options.seenStreamVersion, manifest.streamVersion)
 
   const records = new Map<string, StreamRemoteRecord>()
   const tombstones: Record<string, string> = {}
@@ -150,6 +155,6 @@ export async function pullStream(options: {
     records,
     tombstones,
     shardHashes,
-    streamVersion: meta.streamVersion,
+    streamVersion: manifest.streamVersion,
   }
 }

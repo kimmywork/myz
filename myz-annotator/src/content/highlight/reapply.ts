@@ -5,15 +5,17 @@ import { useNotificationStore } from "../stores/notification-store.ts";
 import { applyHighlight, rebuildHighlightRange } from "./apply.ts";
 import { highlightCache, unreachableHighlights } from "./cache.ts";
 
-const HIGHLIGHT_REAPPLY_INTERVAL = 1200;
+const HIGHLIGHT_REAPPLY_INTERVAL = 1500;
 const HIGHLIGHT_REAPPLY_TIMEOUT = 20000;
 
 interface HighlightReapplyState {
   pending: Set<string>;
   timerId: ReturnType<typeof setInterval> | null;
   observer: MutationObserver | null;
+  observedRoot: Node | null;
   deadline: number;
-  tickHandle: ReturnType<typeof setTimeout> | null;
+  tickHandle: number | null;
+  tickViaIdle: boolean;
   failureNotified: boolean;
   deadlineListenerAttached: boolean;
   deadlineListener: (() => void) | null;
@@ -23,8 +25,10 @@ const state: HighlightReapplyState = {
   pending: new Set(),
   timerId: null,
   observer: null,
+  observedRoot: null,
   deadline: 0,
   tickHandle: null,
+  tickViaIdle: false,
   failureNotified: false,
   deadlineListenerAttached: false,
   deadlineListener: null,
@@ -39,7 +43,10 @@ export function persistRebuiltRange(record: MyZRecord) {
   sendMessage("myz:updateHighlightRange", {
     id: record.id,
     range: record.range,
-  }).catch(() => {});
+  }).catch((error) => {
+    // Fire-and-forget: worst case we search for the range again next load.
+    console.debug("MyZ: persisting rebuilt range failed", record.id, error);
+  });
 }
 
 function cleanupHighlightReapply() {
@@ -47,14 +54,12 @@ function cleanupHighlightReapply() {
     clearInterval(state.timerId);
     state.timerId = null;
   }
-  if (state.tickHandle) {
-    clearTimeout(state.tickHandle);
-    state.tickHandle = null;
-  }
+  cancelScheduledTick();
   if (state.observer) {
     state.observer.disconnect();
     state.observer = null;
   }
+  state.observedRoot = null;
   if (state.deadlineListener) {
     document.removeEventListener("readystatechange", state.deadlineListener);
     state.deadlineListener = null;
@@ -63,16 +68,103 @@ function cleanupHighlightReapply() {
   state.deadline = 0;
 }
 
+function cancelScheduledTick() {
+  if (state.tickHandle === null) return;
+  if (state.tickViaIdle && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(state.tickHandle);
+  } else {
+    window.clearTimeout(state.tickHandle);
+  }
+  state.tickHandle = null;
+  state.tickViaIdle = false;
+}
+
+/** Schedule the next reapply attempt when the main thread is idle (RES2). */
+function scheduleTick() {
+  if (state.tickHandle !== null) return;
+  const run = () => {
+    state.tickHandle = null;
+    state.tickViaIdle = false;
+    attemptHighlightReapply();
+  };
+  if (
+    typeof window !== "undefined" &&
+    typeof window.requestIdleCallback === "function"
+  ) {
+    state.tickViaIdle = true;
+    state.tickHandle = window.requestIdleCallback(run, { timeout: 200 });
+  } else {
+    state.tickViaIdle = false;
+    state.tickHandle = window.setTimeout(run, 80);
+  }
+}
+
 export function resetHighlightReapplyState() {
   state.pending.clear();
   state.failureNotified = false;
   cleanupHighlightReapply();
 }
 
+/** Ancestor chain from `node` up to (and including) the document root. */
+function ancestorChain(node: Node | null): Node[] {
+  const chain: Node[] = [];
+  let current: Node | null = node;
+  while (current) {
+    chain.push(current);
+    current = current.parentNode;
+  }
+  return chain;
+}
+
+function nearestCommonAncestor(nodes: Node[]): Node | null {
+  if (!nodes.length) return null;
+  let common = ancestorChain(nodes[0]);
+  for (let i = 1; i < nodes.length; i += 1) {
+    const chain = new Set(ancestorChain(nodes[i]));
+    common = common.filter((node) => chain.has(node));
+    if (!common.length) return null;
+  }
+  return common[0] ?? null;
+}
+
+/**
+ * Narrowest subtree that still contains every pending highlight, so the
+ * MutationObserver never watches the whole document when a tighter anchor is
+ * available (RES2). Falls back to `document.body` when ranges are missing, not
+ * yet in the DOM, or spread across the page.
+ */
+function resolveObservationRoot(): Node | null {
+  const anchors: Node[] = [];
+  for (const id of state.pending) {
+    const record = highlightCache.get(id);
+    if (!record?.range) continue;
+    let range: Range | null = null;
+    try {
+      range = deserializeRange(record.range);
+    } catch (error) {
+      // Unresolvable ranges just widen the scope; surface for debugging.
+      console.debug("MyZ: highlight anchor lookup failed", id, error);
+      range = null;
+    }
+    const anchor = range?.commonAncestorContainer;
+    if (anchor?.isConnected) anchors.push(anchor);
+  }
+  const common = nearestCommonAncestor(anchors);
+  if (!common) return document.body || document.documentElement;
+  // Watch the parent so a wholesale replacement of the anchor is still seen.
+  const parent = common.parentNode;
+  return parent && parent.isConnected
+    ? parent
+    : document.body || document.documentElement;
+}
+
 function observeMutations() {
+  // Attach once per pending batch; re-resolving on every mutation callback
+  // would re-walk the DOM for each pending record on busy pages.
   if (state.observer) return;
-  const target = document.body || document.documentElement;
+  const target = resolveObservationRoot();
   if (!target) return;
+  state.observedRoot = target;
   state.observer = new MutationObserver(() => queueHighlightReapply());
   state.observer.observe(target, { childList: true, subtree: true });
 }
@@ -104,11 +196,7 @@ function queueHighlightReapply() {
     return;
   }
   observeMutations();
-  if (state.tickHandle) return;
-  state.tickHandle = setTimeout(() => {
-    state.tickHandle = null;
-    attemptHighlightReapply();
-  }, 80);
+  scheduleTick();
 }
 
 function scheduleHighlightReapply() {

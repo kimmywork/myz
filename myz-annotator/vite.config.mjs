@@ -64,7 +64,7 @@ function dropLegacyWoff() {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     dropLegacyWoff(),
     tailwindcss(),
@@ -93,7 +93,9 @@ export default defineConfig({
     outDir: target === "firefox" ? `dist-${target}` : "dist",
     emptyOutDir: true,
     target: target === "firefox" ? "firefox110" : "chrome110",
-    sourcemap: true,
+    // Production builds must not ship source maps: they would expose the
+    // original sources and, via web_accessible_resources, to every site.
+    sourcemap: mode === "development",
     rollupOptions: {
       input: {
         popup: resolve(rootDir, "src/popup/popup.html"),
@@ -103,4 +105,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

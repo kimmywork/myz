@@ -1,6 +1,6 @@
 import { IconSearch } from "@myz/shared/icons";
+import { formatDateTime } from "@myz/shared/recordDisplay";
 import { defineComponent } from "vue";
-import { formatTime } from "./inbox/inbox-utils.js";
 import InboxList from "./inbox/InboxList.jsx";
 import InboxSidebar from "./inbox/InboxSidebar.jsx";
 import { useInboxQueue } from "./inbox/useInboxQueue.js";
@@ -17,7 +17,7 @@ export default defineComponent({
             <p class="text-caption text-muted">
               待处理 {a.queue.value?.counts.pending ?? 0} 条
               {a.queue.value?.oldestPendingAt
-                ? ` · 最早积压 ${formatTime(a.queue.value.oldestPendingAt)}`
+                ? ` · 最早积压 ${formatDateTime(a.queue.value.oldestPendingAt)}`
                 : ""}
             </p>
           </div>

@@ -84,7 +84,10 @@ declare global {
             },
             "*",
           );
-        } catch {}
+        } catch (error) {
+          // Best-effort e2e bridge: a blocked postMessage must not break init.
+          console.debug("MyZ: e2e zenModeState postMessage failed", error);
+        }
       } else if (data.type === "canEnterZenMode") {
         try {
           window.postMessage(
@@ -95,7 +98,9 @@ declare global {
             },
             "*",
           );
-        } catch {}
+        } catch (error) {
+          console.debug("MyZ: e2e canEnterZenMode postMessage failed", error);
+        }
       }
     });
 

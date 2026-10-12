@@ -3,23 +3,10 @@
 @import "@myz/shared/theme/tailwind.css";
 @reference "@myz/shared/theme/tailwind.css";
 @plugin "@tailwindcss/typography";
+/* Shared base layer (focus rings, reduced motion, base type) — D10. */
+@import "../styles/app-base.css";
 
 @layer base {
-  /* §3.9 聚焦：默认给一个强调色外圈；组件自带 ring 的用 `focus-visible:outline-none` 覆盖 */
-  :where(button, a, [role="button"], [tabindex], summary, input, select, textarea):focus-visible {
-    outline: 2px solid var(--myz-accent);
-    outline-offset: 2px;
-  }
-
-  /* §4.1 图标：Lucide 只描边，线宽 1.75 */
-  .lucide {
-    stroke-width: 1.75;
-  }
-
-  :root {
-    font-family: var(--myz-sans);
-  }
-
   body {
     @apply min-h-screen bg-bg text-text;
   }
@@ -42,18 +29,6 @@
   .prose li {
     margin-top: 0.125rem;
     margin-bottom: 0.125rem;
-  }
-}
-
-@layer base {
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
   }
 }
 

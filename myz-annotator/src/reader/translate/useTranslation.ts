@@ -268,3 +268,6 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     copy,
   };
 }
+
+/** The shape returned by {@link useTranslation}; used to type the popover host. */
+export type TranslationController = ReturnType<typeof useTranslation>;

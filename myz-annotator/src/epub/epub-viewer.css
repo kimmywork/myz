@@ -1,44 +1,9 @@
 @config "../../tailwind.config.ts";
-/* EPUB imports theme/utilities manually (no preflight), same as the PDF page.
-   The reader chrome (toolbar buttons, sidebar, outline, highlight list,
-   selection toolbar, inspector, states) is shared with the PDF reader. */
+/* EPUB imports theme/utilities via reader-viewer-base.css (D10). The reader
+   chrome (toolbar buttons, sidebar, outline, highlight list, selection toolbar,
+   inspector, states) is shared with the PDF reader. */
 @layer theme, base, utilities;
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
-@import "@myz/shared/theme/tailwind.css";
-@import "../reader/reader-chrome.css";
-@reference "@myz/shared/theme/tailwind.css";
-
-:root {
-  color-scheme: light dark;
-  font-family: var(--myz-sans);
-}
-
-html,
-body {
-  height: 100%;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--myz-well);
-  color: var(--myz-well-text);
-}
-
-#app {
-  height: 100%;
-}
-
-@layer base {
-  :where(button, a, [role="button"], [tabindex], input, select, textarea):focus-visible {
-    outline: 2px solid var(--myz-accent);
-    outline-offset: 2px;
-  }
-}
+@import "../reader/reader-viewer-base.css";
 
 .epub-app {
   display: flex;

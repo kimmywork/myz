@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { EpubLocatorSchema } from "../src/schemas/common"
+import { MyZRecordSchemaV1 } from "../src/schemas/records/v1"
 import {
   deserializeRange,
   findRangeByNormalizedText,
   serializeRangePaths,
 } from "../src/serializer"
-import { MyZRecordSchemaV1 } from "../src/schemas/records/v1"
 import {
   buildEpubSourceUrl,
   epubFingerprintFromSourceUrl,

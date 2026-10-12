@@ -15,7 +15,10 @@ function syncBadgeWithBackground() {
     total: stats.total,
     highlightCount: stats.highlightCount,
     savedCount: stats.savedCount,
-  }).catch(() => {});
+  }).catch((error) => {
+    // Badge sync is advisory; the content script keeps working regardless.
+    console.debug("MyZ: badge sync failed", error);
+  });
 }
 
 export function updateHighlightIndicators() {

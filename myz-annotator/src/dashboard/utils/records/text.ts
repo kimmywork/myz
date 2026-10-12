@@ -1,11 +1,5 @@
-export function formatDateTime(value: string) {
-  if (!value) return "";
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
-}
+// Single canonical implementation (system locale) shared with popup/inbox (CONS2).
+export { formatDateTime } from "@myz/shared/recordDisplay";
 
 export function escapeHtml(value: string) {
   return String(value)

@@ -1,11 +1,11 @@
 import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { Server } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 import { createStaticServer } from "../helpers/static-server.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = dirnameFromImportMeta(import.meta.url);
 
 let context: BrowserContext;
 let extensionId: string | null;

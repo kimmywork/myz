@@ -1,80 +1,66 @@
+import {
+  idbDelete,
+  idbGet,
+  idbGetAll,
+  idbPut,
+  openDatabase,
+} from "@myz/shared/idb";
+
 const DB_NAME = "myz_sync_db";
 const DB_VERSION = 2;
 
-let dbPromise: Promise<IDBDatabase> | null = null;
-
-function getDb(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains("keys")) {
-        db.createObjectStore("keys", { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains("state")) {
-        db.createObjectStore("state", { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains("deletions")) {
-        db.createObjectStore("deletions", { keyPath: "recordId" });
-      }
-      if (!db.objectStoreNames.contains("record_state")) {
-        db.createObjectStore("record_state", { keyPath: "recordId" });
-      }
-      if (!db.objectStoreNames.contains("stream_state")) {
-        db.createObjectStore("stream_state", { keyPath: "streamId" });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-  });
-  return dbPromise;
+/** Creates the key/state stores the first time the sync db is opened. */
+function upgradeSchema(db: IDBDatabase): void {
+  if (!db.objectStoreNames.contains("keys")) {
+    db.createObjectStore("keys", { keyPath: "id" });
+  }
+  if (!db.objectStoreNames.contains("state")) {
+    db.createObjectStore("state", { keyPath: "id" });
+  }
+  if (!db.objectStoreNames.contains("deletions")) {
+    db.createObjectStore("deletions", { keyPath: "recordId" });
+  }
+  if (!db.objectStoreNames.contains("record_state")) {
+    db.createObjectStore("record_state", { keyPath: "recordId" });
+  }
+  if (!db.objectStoreNames.contains("stream_state")) {
+    db.createObjectStore("stream_state", { keyPath: "streamId" });
+  }
 }
 
-function getStore(name: string, mode: IDBTransactionMode) {
-  return getDb().then((db) => db.transaction(name, mode).objectStore(name));
+function getDb(): Promise<IDBDatabase> {
+  return openDatabase({
+    name: DB_NAME,
+    version: DB_VERSION,
+    upgrade: upgradeSchema,
+  });
 }
 
 async function getRecord<T>(
   storeName: string,
   key: IDBValidKey,
 ): Promise<T | null> {
-  const store = await getStore(storeName, "readonly");
-  return new Promise((resolve, reject) => {
-    const request = store.get(key);
-    request.onsuccess = () => resolve(request.result ?? null);
-    request.onerror = () => reject(request.error);
-  });
+  const db = await getDb();
+  const value = await idbGet<T>(db, storeName, key);
+  return value ?? null;
 }
 
 async function putRecord<T>(storeName: string, value: T): Promise<void> {
-  const store = await getStore(storeName, "readwrite");
-  return new Promise((resolve, reject) => {
-    const request = store.put(value);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  const db = await getDb();
+  return idbPut(db, storeName, value);
 }
 
 async function deleteRecord(
   storeName: string,
   key: IDBValidKey,
 ): Promise<void> {
-  const store = await getStore(storeName, "readwrite");
-  return new Promise((resolve, reject) => {
-    const request = store.delete(key);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  const db = await getDb();
+  return idbDelete(db, storeName, key);
 }
 
 async function getAllRecords<T>(storeName: string): Promise<T[]> {
-  const store = await getStore(storeName, "readonly");
-  return new Promise((resolve, reject) => {
-    const request = store.getAll();
-    request.onsuccess = () => resolve(request.result as T[]);
-    request.onerror = () => reject(request.error);
-  });
+  const db = await getDb();
+  return idbGetAll<T>(db, storeName);
 }
 
 export interface DeviceKeyRecord {

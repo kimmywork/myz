@@ -1,13 +1,12 @@
 import { SOURCE_TYPES } from "@myz/shared/types";
 import { buildEpubSourceUrl } from "@myz/shared/url";
 import {
-  ensureReadPermission,
   fingerprintBytes,
   readHandle,
-  supportsFileSystemAccess as supportsLocalFileSystemAccess,
   type FilePicker,
   type PermissionCapableHandle,
 } from "../reader/local-file.js";
+import { createReaderSource } from "../reader/source.js";
 import { getFileHandle, putFileHandle } from "./storage";
 
 export type EpubSourceRef = {
@@ -16,31 +15,27 @@ export type EpubSourceRef = {
   title: string;
 };
 
-export function sourceKeyOf(ref: EpubSourceRef): string {
-  return buildEpubSourceUrl(ref.fingerprint);
-}
+const source = createReaderSource<EpubSourceRef>({
+  type: SOURCE_TYPES.EPUB,
+  buildUrl: buildEpubSourceUrl,
+  webUrl: () => null,
+  fingerprintOf: (ref) => ref.fingerprint,
+  getFileHandle,
+});
+
+export const sourceKeyOf = source.sourceKeyOf;
 
 export function sourceTypeOf(): SOURCE_TYPES {
   return SOURCE_TYPES.EPUB;
 }
 
-export function supportsFileSystemAccess(): boolean {
-  return supportsLocalFileSystemAccess();
-}
+export const supportsFileSystemAccess = source.supportsFileSystemAccess;
 
 /**
  * Requests read permission for a stored local EPUB while the caller still has
  * user activation, so the reader tab can read the handle without prompting.
  */
-export async function ensureLocalEpubPermission(
-  fingerprint: string,
-): Promise<boolean> {
-  const handle = await getFileHandle<PermissionCapableHandle>(fingerprint);
-  if (!handle) {
-    return false;
-  }
-  return ensureReadPermission(handle);
-}
+export const ensureLocalEpubPermission = source.ensurePermission;
 
 export async function pickLocalEpub(): Promise<{
   ref: EpubSourceRef;

@@ -1,3 +1,4 @@
+import { DEFAULT_S3_SETTINGS } from "@myz/sync-core/settings";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
 
@@ -13,13 +14,9 @@ export interface S3FormValue {
 }
 
 export const EMPTY_S3_FORM: S3FormValue = {
-  endpoint: "",
-  region: "",
-  bucket: "",
-  accessKeyId: "",
-  secretAccessKey: "",
-  sessionToken: "",
-  prefix: "",
+  ...DEFAULT_S3_SETTINGS,
+  sessionToken: DEFAULT_S3_SETTINGS.sessionToken ?? "",
+  prefix: DEFAULT_S3_SETTINGS.prefix ?? "",
 };
 
 export const setupInputClass =

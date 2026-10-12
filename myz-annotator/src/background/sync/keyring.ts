@@ -121,7 +121,14 @@ export async function loadKeyset(): Promise<Keyset | null> {
     );
     migratedFromLegacy = true;
   }
-  const payload = JSON.parse(new TextDecoder().decode(plain)) as KeysetPayload;
+  const decoded = new TextDecoder().decode(plain);
+  let payload: KeysetPayload;
+  try {
+    payload = JSON.parse(decoded) as KeysetPayload;
+  } catch (error) {
+    console.warn("Failed to parse stored keyset payload", error);
+    return null;
+  }
   if (!payload || payload.version !== KEYSET_VERSION) {
     return null;
   }

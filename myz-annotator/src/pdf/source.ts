@@ -1,55 +1,38 @@
 import { SOURCE_TYPES } from "@myz/shared/types";
 import { buildPdfSourceUrl } from "@myz/shared/url";
 import {
-  ensureReadPermission,
   fingerprintBytes,
-  isPermissionError as isLocalFilePermissionError,
-  localFilePermissionError,
   readHandle,
-  supportsFileSystemAccess as supportsLocalFileSystemAccess,
   type FilePicker,
   type PermissionCapableHandle,
 } from "../reader/local-file.js";
+import { createReaderSource } from "../reader/source.js";
 import { getFileHandle, putFileHandle } from "./storage";
 
 export type PdfSourceRef =
   | { kind: "web"; url: string; title: string }
   | { kind: "local"; fingerprint: string; title: string };
 
-export function sourceKeyOf(ref: PdfSourceRef): string {
-  return ref.kind === "web" ? ref.url : buildPdfSourceUrl(ref.fingerprint);
-}
+const source = createReaderSource<PdfSourceRef>({
+  type: SOURCE_TYPES.PDF,
+  buildUrl: buildPdfSourceUrl,
+  webUrl: (ref) => (ref.kind === "web" ? ref.url : null),
+  fingerprintOf: (ref) => (ref.kind === "local" ? ref.fingerprint : null),
+  getFileHandle,
+});
 
-export function sourceTypeOf(ref: PdfSourceRef): SOURCE_TYPES {
-  return ref.kind === "web" ? SOURCE_TYPES.WEB : SOURCE_TYPES.PDF;
-}
-
-export function supportsFileSystemAccess(): boolean {
-  return supportsLocalFileSystemAccess();
-}
-
-export function localPdfPermissionError(): Error {
-  return localFilePermissionError();
-}
-
-export function isPermissionError(err: unknown): boolean {
-  return isLocalFilePermissionError(err);
-}
+export const sourceKeyOf = source.sourceKeyOf;
+export const sourceTypeOf = source.sourceTypeOf;
+export const supportsFileSystemAccess = source.supportsFileSystemAccess;
+export const localPdfPermissionError = source.localPermissionError;
+export const isPermissionError = source.isPermissionError;
 
 /**
  * Requests read permission for a stored local PDF while the caller still has
  * user activation (e.g. a click in the dashboard), so the reader tab can read
  * the handle without prompting. Returns whether permission is granted.
  */
-export async function ensureLocalPdfPermission(
-  fingerprint: string,
-): Promise<boolean> {
-  const handle = await getFileHandle<PermissionCapableHandle>(fingerprint);
-  if (!handle) {
-    return false;
-  }
-  return ensureReadPermission(handle);
-}
+export const ensureLocalPdfPermission = source.ensurePermission;
 
 export function titleFromPdfUrl(url: string): string {
   try {

@@ -1,12 +1,11 @@
 import { test, BrowserContext } from "@playwright/test";
 import { Server } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { launchExtension } from "../helpers/launch-extension.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 import { createStaticServer } from "../helpers/static-server.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirnameFromImportMeta(import.meta.url);
 const OUT_DIR = path.join(__dirname, "..", "screenshots", "out");
 const SCHEMES = ["paper", "slate", "celadon", "ochre"] as const;
 const THEMES = ["light", "dark"] as const;
@@ -25,7 +24,9 @@ test.beforeAll(async () => {
   if (!extensionId) {
     throw new Error("no extension id");
   }
-  const staticServer = createStaticServer(path.join(__dirname, "..", "fixtures"));
+  const staticServer = createStaticServer(
+    path.join(__dirname, "..", "fixtures"),
+  );
   const listen = await staticServer.listen(0);
   server = listen.server;
   serverUrl = listen.url;

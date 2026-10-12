@@ -1,37 +1,11 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { launchExtension } from "../helpers/launch-extension.js";
 import { createMockS3Server } from "../helpers/mock-s3-server.js";
+import { dirnameFromImportMeta, send } from "../helpers/runtime.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirnameFromImportMeta(import.meta.url);
 const extensionPath = path.join(__dirname, "..", "..", "dist");
-
-async function send<T>(
-  page: Page,
-  type: string,
-  payload?: unknown,
-): Promise<T> {
-  const response = await page.evaluate(
-    async (message: { type: string; payload: unknown }) =>
-      new Promise((resolve) => {
-        chrome.runtime.sendMessage(message, (result) => {
-          if (chrome.runtime.lastError) {
-            resolve({ ok: false, error: chrome.runtime.lastError.message });
-            return;
-          }
-          resolve(result);
-        });
-      }),
-    { type, payload },
-  );
-  const typed = response as { ok?: boolean; error?: string; data?: T };
-  if (!typed?.ok) {
-    throw new Error(`${type} failed: ${typed?.error ?? "no response"}`);
-  }
-  return typed.data as T;
-}
 
 async function saveClip(page: Page, text: string): Promise<{ id: string }> {
   return send<{ id: string }>(page, "myz:saveHighlight", {

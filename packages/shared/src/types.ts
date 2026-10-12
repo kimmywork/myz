@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { CONTENT_TYPES, RECORD_KINDS, SOURCE_TYPES } from "./enums"
 import { hasMarkdown } from "./markdownRenderer"
+import { MyZRecordRegistry } from "./recordRegistry"
 import { MyZRecordSchema } from "./schemas"
 import { isRecord } from "./typeUtils"
 import { RECORD_SCHEMA_VERSION, type RecordSchemaVersion } from "./versioning"
@@ -112,10 +113,16 @@ export function normalizeRecord(record?: unknown): MyZRecord | null {
   versioned.contentType = resolveRecordContentType(versioned)
   versioned.sourceType = resolveRecordSourceType(versioned)
 
-  const result = MyZRecordSchema.safeParse(versioned)
-  if (result.success) {
-    return result.data
+  const schema = MyZRecordRegistry.versions[MYZ_RECORD_SCHEMA_VERSION]
+  const result = schema.safeParse(versioned)
+  if (!result.success) {
+    console.warn("Record validation failed", result.error)
+    return null
   }
-  console.warn("Record validation failed", result.error)
-  return null
+  // The schema already normalizes `style` for highlights; non-highlight
+  // records (clips/bookmarks) must not carry a highlight style.
+  if (result.data.kind !== RECORD_KINDS.HIGHLIGHT) {
+    return { ...result.data, style: undefined }
+  }
+  return result.data
 }

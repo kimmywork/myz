@@ -1,23 +1,9 @@
 import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { SETTINGS_SCHEMA_VERSION } from "@myz/shared/versioning";
+import { SyncSettingsSchema } from "@myz/sync-core/settings";
 import { z } from "zod";
 
 export const SettingsSchemaVersionV1 = SETTINGS_SCHEMA_VERSION;
-
-const SyncS3SettingsSchema = z.object({
-  endpoint: z.string(),
-  region: z.string(),
-  bucket: z.string(),
-  accessKeyId: z.string(),
-  secretAccessKey: z.string(),
-  sessionToken: z.string().optional(),
-  prefix: z.string().optional(),
-});
-
-const SyncSettingsSchema = z.object({
-  enabled: z.boolean(),
-  s3: SyncS3SettingsSchema,
-});
 
 export const SettingsSchemaV1 = z.object({
   dashboardView: z.enum(["cards", "list"]),

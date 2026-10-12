@@ -9,8 +9,8 @@ import { useRouter } from "vue-router";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
-import { openEpubRecordInReader } from "@/epub/open.js";
-import { openPdfRecordInReader } from "@/pdf/open.js";
+import { openEpubRecordInReader } from "@/reader/open.js";
+import { openPdfRecordInReader } from "@/reader/open.js";
 
 export default defineComponent({
   name: "HighlightsPane",

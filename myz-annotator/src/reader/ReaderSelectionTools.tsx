@@ -1,8 +1,8 @@
 import { Highlighter, Languages, Paperclip } from "@lucide/vue";
 import { defineComponent, type PropType } from "vue";
+import ConnectedTranslationPopover from "./ConnectedTranslationPopover.js";
 import SelectionToolbar from "./SelectionToolbar.js";
 import { useTranslation } from "./translate/useTranslation.js";
-import TranslationPopover from "./TranslationPopover.js";
 
 /**
  * Shared reader selection tools: the capture bar plus the translation popover.
@@ -68,23 +68,7 @@ export default defineComponent({
             />
           )}
           {translation.open.value ? (
-            <TranslationPopover
-              top={translation.position.value.top}
-              left={translation.position.value.left}
-              bottom={translation.position.value.bottom}
-              sourceText={translation.sourceText.value}
-              sourceLanguage={translation.sourceLanguage.value}
-              targetLanguage={translation.targetLanguage.value}
-              status={translation.status.value}
-              downloadPercent={translation.downloadPercent.value}
-              translation={translation.translation.value}
-              errorMessage={translation.errorMessage.value}
-              copyError={translation.copyError.value}
-              copied={translation.copied.value}
-              onCopy={() => void translation.copy()}
-              onRetry={translation.retry}
-              onClose={translation.close}
-            />
+            <ConnectedTranslationPopover translation={translation} />
           ) : null}
         </>
       );

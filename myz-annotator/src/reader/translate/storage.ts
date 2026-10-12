@@ -5,6 +5,7 @@
  * history cannot touch reading progress, and vice versa.
  */
 
+import { idbGet, idbPut, openDatabase } from "@myz/shared/idb";
 import type { TranslationCache } from "./cache.js";
 
 const DB_NAME = "myz_translate_db";
@@ -17,44 +18,26 @@ interface CachedTranslation {
   updatedAt: string;
 }
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
+function getDb(): Promise<IDBDatabase> {
+  return openDatabase({
+    name: DB_NAME,
+    version: DB_VERSION,
+    upgrade: (db) => {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "key" });
       }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    },
   });
-}
-
-async function withStore<T>(
-  mode: IDBTransactionMode,
-  run: (store: IDBObjectStore) => IDBRequest,
-): Promise<T> {
-  const db = await openDb();
-  try {
-    return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, mode);
-      const request = run(tx.objectStore(STORE_NAME));
-      request.onsuccess = () => resolve(request.result as T);
-      request.onerror = () => reject(request.error);
-    });
-  } finally {
-    db.close();
-  }
 }
 
 export function createIndexedDbTranslationCache(): TranslationCache {
   return {
     async get(key) {
       try {
-        const entry = await withStore<CachedTranslation | undefined>(
-          "readonly",
-          (store) => store.get(key),
+        const entry = await idbGet<CachedTranslation>(
+          await getDb(),
+          STORE_NAME,
+          key,
         );
         return entry?.value;
       } catch {
@@ -63,13 +46,11 @@ export function createIndexedDbTranslationCache(): TranslationCache {
     },
     async set(key, value) {
       try {
-        await withStore<void>("readwrite", (store) =>
-          store.put({
-            key,
-            value,
-            updatedAt: new Date().toISOString(),
-          } satisfies CachedTranslation),
-        );
+        await idbPut(await getDb(), STORE_NAME, {
+          key,
+          value,
+          updatedAt: new Date().toISOString(),
+        } satisfies CachedTranslation);
       } catch {
         // A cache write failure must never fail the translation.
       }

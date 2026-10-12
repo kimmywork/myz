@@ -11,7 +11,7 @@ import {
 } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { Settings } from "@/background/settings.js";
+import type { PublicSettings } from "@/background/settings-public.js";
 
 interface HightlightPreference {
   colorPalette?: string[];
@@ -38,8 +38,8 @@ async function persistSettings(patch: Partial<HightlightPreference>) {
     return;
   }
   try {
-    await sendMessage<Partial<Settings>, Settings>(
-      "myz:updateSettings",
+    await sendMessage<Partial<HightlightPreference>, PublicSettings>(
+      "myz:updateHighlightPreference",
       payload,
     );
   } catch (error) {
@@ -84,8 +84,8 @@ export const usePreferenceStore = defineStore("preference", () => {
   // This will apply settings and set `isLoaded` when complete.
   async function loadSettings() {
     try {
-      const settings = await sendMessage<undefined, Settings>(
-        "myz:getSettings",
+      const settings = await sendMessage<undefined, PublicSettings>(
+        "myz:getPublicSettings",
       );
       if (settings) {
         applySettings(settings);

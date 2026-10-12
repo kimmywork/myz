@@ -1,4 +1,5 @@
 import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
+import { DEFAULT_S3_SETTINGS } from "@myz/sync-core/settings";
 import type { Settings } from "./settings.js";
 
 export const STORAGE_KEY = "myz::highlights";
@@ -30,14 +31,6 @@ export const DEFAULT_SETTINGS: Settings = {
   // E2EE sync
   sync: {
     enabled: false,
-    s3: {
-      endpoint: "",
-      region: "",
-      bucket: "",
-      accessKeyId: "",
-      secretAccessKey: "",
-      sessionToken: "",
-      prefix: "",
-    },
+    s3: { ...DEFAULT_S3_SETTINGS },
   },
 };

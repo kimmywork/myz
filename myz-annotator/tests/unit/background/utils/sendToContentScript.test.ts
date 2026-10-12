@@ -24,7 +24,9 @@ beforeEach(() => {
 
 describe("isExtensionPage", () => {
   it("returns true for chrome-extension:// URLs", () => {
-    expect(isExtensionPage("chrome-extension://abc123/src/popup/popup.html")).toBe(true);
+    expect(
+      isExtensionPage("chrome-extension://abc123/src/popup/popup.html"),
+    ).toBe(true);
   });
 
   it("returns true for chrome:// URLs", () => {
@@ -111,11 +113,10 @@ describe("sendToContentScript", () => {
       },
     );
 
-    const result = await sendToContentScript<{ html: string }, { markdown: string }>(
-      "myz:convertHtmlToMarkdown",
-      { html: "<p>hello</p>" },
-      5,
-    );
+    const result = await sendToContentScript<
+      { html: string },
+      { markdown: string }
+    >("myz:convertHtmlToMarkdown", { html: "<p>hello</p>" }, 5);
 
     expect(mockTabsGet).toHaveBeenCalledWith(5);
     expect(mockTabsSendMessage).toHaveBeenCalledWith(
@@ -142,11 +143,10 @@ describe("sendToContentScript", () => {
       },
     );
 
-    const result = await sendToContentScript<{ html: string }, { markdown: string }>(
-      "myz:convertHtmlToMarkdown",
-      { html: "<p>test</p>" },
-      1,
-    );
+    const result = await sendToContentScript<
+      { html: string },
+      { markdown: string }
+    >("myz:convertHtmlToMarkdown", { html: "<p>test</p>" }, 1);
 
     expect(mockTabsSendMessage).toHaveBeenCalledWith(
       2,

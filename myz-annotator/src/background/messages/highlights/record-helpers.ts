@@ -1,4 +1,5 @@
 import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
+import { collectTags } from "@myz/shared/tags";
 import {
   MyZRecord,
   RECORD_KINDS,
@@ -33,16 +34,7 @@ export function resolveRequestedUrls(payload: {
 }
 
 export function collectAllTags(highlights: MyZRecord[]): string[] {
-  const tags = new Set<string>();
-  highlights.forEach((item) => {
-    if (!item || !Array.isArray(item.tags)) return;
-    item.tags.forEach((tag) => {
-      if (typeof tag !== "string") return;
-      const normalized = tag.trim();
-      if (normalized) tags.add(normalized);
-    });
-  });
-  return Array.from(tags).sort((a, b) => a.localeCompare(b));
+  return collectTags(highlights);
 }
 
 /** Non-highlight kinds drop range/color/style; highlights normalize style. */

@@ -38,6 +38,30 @@ describe("trusted sender authorization", () => {
     expect(isPrivilegedMessage("myz:getHighlights")).toBe(false);
   });
 
+  it("marks settings reads/writes and imports as privileged", () => {
+    expect(isPrivilegedMessage("myz:getSettings")).toBe(true);
+    expect(isPrivilegedMessage("myz:updateSettings")).toBe(true);
+    expect(isPrivilegedMessage("myz:updatePalette")).toBe(true);
+    expect(isPrivilegedMessage("myz:importHighlights")).toBe(true);
+  });
+
+  it("keeps content-script-safe settings messages non-privileged", () => {
+    expect(isPrivilegedMessage("myz:getPublicSettings")).toBe(false);
+    expect(isPrivilegedMessage("myz:updateHighlightPreference")).toBe(false);
+  });
+
+  it("allows content scripts to read/write public highlight prefs", () => {
+    const sender = contentScriptSender();
+    expect(authorizeMessage("myz:getPublicSettings", {}, sender).ok).toBe(true);
+    expect(
+      authorizeMessage(
+        "myz:updateHighlightPreference",
+        { lastUsedColor: "#fff" },
+        sender,
+      ).ok,
+    ).toBe(true);
+  });
+
   it("rejects a content script sender (sender.tab present)", () => {
     const sender = contentScriptSender();
     expect(isTrustedExtensionPage(sender)).toBe(false);
@@ -47,6 +71,10 @@ describe("trusted sender authorization", () => {
       "myz:syncUpdateSettings",
       "myz:syncNow",
       "myz:syncTestConnection",
+      "myz:getSettings",
+      "myz:updateSettings",
+      "myz:updatePalette",
+      "myz:importHighlights",
     ]) {
       const result = authorizeMessage(type, { userGesture: true }, sender);
       expect(result.ok).toBe(false);

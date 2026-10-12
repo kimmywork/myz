@@ -1,12 +1,9 @@
 import { test, expect } from "@playwright/test";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  send,
-  setupDashboardHarness,
-} from "../helpers/dashboard-harness.js";
+import { send, setupDashboardHarness } from "../helpers/dashboard-harness.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = dirnameFromImportMeta(import.meta.url);
 const harness = setupDashboardHarness();
 
 test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
@@ -225,11 +222,9 @@ test("viewer_tag_edit_checks", async () => {
     timeout: 5000,
   });
 
-  const records = await send<Array<{ id: string; tags?: string[]; color?: string }>>(
-    dash,
-    "myz:getHighlightsForUrl",
-    { url: canonical },
-  );
+  const records = await send<
+    Array<{ id: string; tags?: string[]; color?: string }>
+  >(dash, "myz:getHighlightsForUrl", { url: canonical });
   const found = Array.isArray(records)
     ? records.find((r) => r.id === recId)
     : null;
@@ -297,8 +292,7 @@ test("import_through_settings_ui_uploads_real_files", async () => {
     dash,
     "myz:getAllHighlights",
   );
-  const findImport = (id: string) =>
-    allData.find((record) => record.id === id);
+  const findImport = (id: string) => allData.find((record) => record.id === id);
   expect(findImport("ui-import-json-a")).toMatchObject({
     kind: "clip",
     text: "imported from myz json file a",

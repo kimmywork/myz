@@ -8,9 +8,9 @@ import {
 import { selectionBlocks } from "@myz/shared/selectionBlocks";
 import { defineComponent } from "vue";
 import { useToolbarStore } from "@/content/stores/toolbar-store.js";
+import ConnectedTranslationPopover from "@/reader/ConnectedTranslationPopover.js";
 import { createChromeStorageTranslationCache } from "@/reader/translate/storage.js";
 import { useTranslation } from "@/reader/translate/useTranslation.js";
-import TranslationPopover from "@/reader/TranslationPopover.js";
 
 export default defineComponent({
   name: "MyZToolbar",
@@ -95,23 +95,7 @@ export default defineComponent({
         </div>
 
         {translation.open.value ? (
-          <TranslationPopover
-            top={translation.position.value.top}
-            left={translation.position.value.left}
-            bottom={translation.position.value.bottom}
-            sourceText={translation.sourceText.value}
-            sourceLanguage={translation.sourceLanguage.value}
-            targetLanguage={translation.targetLanguage.value}
-            status={translation.status.value}
-            downloadPercent={translation.downloadPercent.value}
-            translation={translation.translation.value}
-            errorMessage={translation.errorMessage.value}
-            copyError={translation.copyError.value}
-            copied={translation.copied.value}
-            onCopy={() => void translation.copy()}
-            onRetry={translation.retry}
-            onClose={translation.close}
-          />
+          <ConnectedTranslationPopover translation={translation} />
         ) : null}
       </>
     );

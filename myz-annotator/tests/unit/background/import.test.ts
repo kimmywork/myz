@@ -1,3 +1,4 @@
+import { sanitizeHtmlString } from "@myz/shared/sanitizeHtml";
 import { CONTENT_TYPES, MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { describe, it, expect } from "vitest";
@@ -10,6 +11,7 @@ import {
   resolveImportConflict,
   sanitizeImportedHighlight,
 } from "@/background/import";
+import { renderHighlightContent } from "@/dashboard/utils/records/render";
 
 const validRange = {
   start: { charOffset: 0, path: [{ name: "p", index: 0 }] },
@@ -229,5 +231,32 @@ describe("background import dedupeOrder", () => {
 
   it("should return empty array for non-array input", () => {
     expect(dedupeOrder(undefined as unknown as string[], {})).toEqual([]);
+  });
+});
+
+describe("imported HTML sanitization (XSS regression)", () => {
+  it("strips event handlers from untrusted HTML strings", () => {
+    const clean = sanitizeHtmlString("<img src=x onerror=alert(1)>");
+    expect(clean).not.toContain("onerror");
+    expect(clean).not.toContain("alert(1)");
+  });
+
+  it("neutralizes javascript: links while keeping safe content", () => {
+    const clean = sanitizeHtmlString('<a href="javascript:alert(1)">x</a>');
+    expect(clean).not.toContain("javascript:");
+    expect(clean).toContain("x");
+  });
+
+  it("sanitizes record html before highlighting in the dashboard renderer", () => {
+    const rendered = renderHighlightContent(
+      record({
+        contentType: CONTENT_TYPES.HTML,
+        html: '<img src=x onerror=alert(1)><b onclick="alert(2)">bold</b>',
+      }),
+      [],
+    );
+    expect(rendered).not.toContain("onerror");
+    expect(rendered).not.toContain("onclick");
+    expect(rendered).toContain("bold");
   });
 });

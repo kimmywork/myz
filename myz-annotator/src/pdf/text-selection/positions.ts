@@ -115,6 +115,16 @@ export function nearestLineIndex(
   return best;
 }
 
+/** The nearest line to a point plus its index in the block. */
+function nearestLine(
+  lines: SpanItem[][],
+  x: number,
+  y: number,
+): { index: number; line: SpanItem[] } {
+  const index = nearestLineIndex(lines, x, y);
+  return { index, line: lines[index] };
+}
+
 /** Anchor endpoint: the character under the point, or the nearest line edge. */
 export function resolveAnchor(
   lines: SpanItem[][],
@@ -123,8 +133,7 @@ export function resolveAnchor(
 ): TextPosition {
   const containing = lineAtPoint(lines, x, y);
   if (containing) return positionInLine(containing, x, y);
-  const index = nearestLineIndex(lines, x, y);
-  const line = lines[index];
+  const { line } = nearestLine(lines, x, y);
   return y < lineRect(line).top ? startOfLine(line) : endOfLine(line);
 }
 
@@ -141,8 +150,7 @@ export function resolveFocus(
 ): TextPosition {
   const containing = lineAtPoint(lines, x, y);
   if (containing) return positionInLine(containing, x, y);
-  const index = nearestLineIndex(lines, x, y);
-  const line = lines[index];
+  const { index, line } = nearestLine(lines, x, y);
   if (y < lineRect(line).top) {
     if (forward && index > 0) return endOfLine(lines[index - 1]);
     return startOfLine(line);

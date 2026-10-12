@@ -34,7 +34,9 @@ describe("resolvePdfTargetUrl", () => {
   it("returns null for empty or unsupported candidates", async () => {
     const probe = vi.fn();
     await expect(resolvePdfTargetUrl(undefined, probe)).resolves.toBeNull();
-    await expect(resolvePdfTargetUrl("chrome://settings", probe)).resolves.toBeNull();
+    await expect(
+      resolvePdfTargetUrl("chrome://settings", probe),
+    ).resolves.toBeNull();
     expect(probe).not.toHaveBeenCalled();
   });
 });

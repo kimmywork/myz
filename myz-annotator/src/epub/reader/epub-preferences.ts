@@ -1,7 +1,6 @@
-import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
-import { sendMessage } from "@myz/shared/messaging";
-import { HIGHLIGHT_STYLES } from "@myz/shared/types";
+import type { HIGHLIGHT_STYLES } from "@myz/shared/types";
 import type { Ref } from "vue";
+import { loadHighlightPreferences } from "../../reader/load-preferences.js";
 
 interface PreferenceDeps {
   colorPalette: Ref<string[]>;
@@ -17,31 +16,15 @@ interface PreferenceDeps {
  */
 export function createLoadPreferences(deps: PreferenceDeps) {
   return async function loadPreferences() {
-    try {
-      const settings = await sendMessage<
-        undefined,
-        {
-          colorPalette?: unknown;
-          lastUsedColor?: unknown;
-          lastUsedStyle?: unknown;
-        }
-      >("myz:getSettings");
-      const palette = settings?.colorPalette;
-      if (Array.isArray(palette) && palette.length) {
-        const normalized = palette.filter(
-          (color): color is string =>
-            typeof color === "string" && Boolean(color.trim()),
-        );
-        if (normalized.length) deps.colorPalette.value = normalized;
-      }
-      if (typeof settings?.lastUsedColor === "string") {
-        deps.lastColor.value = settings.lastUsedColor;
-      }
-      if (typeof settings?.lastUsedStyle === "string") {
-        deps.lastStyle.value = normalizeHighlightStyle(settings.lastUsedStyle);
-      }
-    } catch {
-      // Keep the bundled defaults when settings are unavailable.
+    const preferences = await loadHighlightPreferences();
+    if (preferences.colorPalette.length) {
+      deps.colorPalette.value = preferences.colorPalette;
+    }
+    if (preferences.lastUsedColor) {
+      deps.lastColor.value = preferences.lastUsedColor;
+    }
+    if (preferences.lastUsedStyle) {
+      deps.lastStyle.value = preferences.lastUsedStyle;
     }
   };
 }

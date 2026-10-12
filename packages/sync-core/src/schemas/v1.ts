@@ -1,5 +1,6 @@
 import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning"
 import { z } from "zod"
+import { chunkEnvelopeSchema } from "./common"
 
 export const SyncProtocolVersionV1 = SYNC_PROTOCOL_VERSION
 
@@ -41,15 +42,7 @@ export const ManifestDataSchemaV1 = z.object({
   chainHeads: z.record(z.string(), ManifestChainHeadSchemaV1),
 })
 
-export const ChunkEnvelopeSchemaV1 = z.object({
-  protocolVersion: z.literal(SYNC_PROTOCOL_VERSION),
-  recordId: z.string(),
-  updatedAt: z.string(),
-  prevHash: z.string(),
-  keyId: z.string(),
-  recordCipher: z.string(),
-  recordNonce: z.string(),
-})
+export const ChunkEnvelopeSchemaV1 = chunkEnvelopeSchema(SYNC_PROTOCOL_VERSION)
 
 export const LockPayloadSchemaV1 = z.object({
   clientId: z.string(),

@@ -1,6 +1,7 @@
+import { hostnameForRecord } from "@myz/shared/recordDisplay";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
-import { excerpt, hostOf } from "./inbox-utils.js";
+import { excerpt } from "./inbox-utils.js";
 import type { InboxApi } from "./useInboxQueue.js";
 
 /** Single-item focus mode card with keyboard hints. */
@@ -39,7 +40,7 @@ export default defineComponent({
                 {excerpt(item.record.text || item.record.note, 400)}
               </p>
               <div class="mt-1 text-caption text-muted">
-                {item.record.title || hostOf(item.record)}
+                {item.record.title || hostnameForRecord(item.record)}
               </div>
               <p class="mt-3 text-caption text-muted">
                 快捷键：K 保留 · A 归档 · S 稍后 · D 删除 · M 标记 · Space

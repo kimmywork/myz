@@ -1,14 +1,9 @@
 import { sendMessage } from "@myz/shared/messaging";
-import {
-  COLOR_SCHEMES,
-  DEFAULT_COLOR,
-  DEFAULT_COLOR_SCHEME,
-  DEFAULT_HIGHLIGHT_STYLE,
-  HIGHLIGHT_STYLES,
-} from "@myz/shared/types";
+import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { normalizeSyncSettings } from "@myz/sync-core/settings";
 import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
+import { DEFAULT_SETTINGS } from "@/background/constants.js";
 import { Settings } from "@/background/settings.js";
 import {
   setTimedStatus,
@@ -16,26 +11,14 @@ import {
 } from "@/dashboard/utils/setTimedStatus.js";
 
 export const useSettingsStore = defineStore("settings", () => {
+  // Seed from the canonical defaults so new settings only need to be added in
+  // one place (`background/constants.ts`).
   const settings: Settings = reactive({
-    dashboardView: "cards",
-    colorScheme: DEFAULT_COLOR_SCHEME,
-    colorPalette: ["#b58900", "#ef476f", "#9f7aea", "#38bdf8", "#34d399"],
-    lastUsedColor: DEFAULT_COLOR,
-    lastUsedStyle: DEFAULT_HIGHLIGHT_STYLE,
-    syncSetupSeen: false,
-    inboxEnabled: true,
-    inboxReminderEnabled: true,
+    ...DEFAULT_SETTINGS,
+    colorPalette: [...DEFAULT_SETTINGS.colorPalette],
     sync: {
-      enabled: false,
-      s3: {
-        endpoint: "",
-        region: "",
-        bucket: "",
-        accessKeyId: "",
-        secretAccessKey: "",
-        sessionToken: "",
-        prefix: "",
-      },
+      ...DEFAULT_SETTINGS.sync,
+      s3: { ...DEFAULT_SETTINGS.sync.s3 },
     },
   });
 
@@ -99,45 +82,7 @@ export const useSettingsStore = defineStore("settings", () => {
           );
         }
         if ("sync" in updated) {
-          settings.sync =
-            updated.sync && typeof updated.sync === "object"
-              ? {
-                  enabled: Boolean(updated.sync.enabled),
-                  s3:
-                    updated.sync.s3 && typeof updated.sync.s3 === "object"
-                      ? {
-                          endpoint:
-                            typeof updated.sync.s3.endpoint === "string"
-                              ? updated.sync.s3.endpoint
-                              : settings.sync.s3.endpoint,
-                          region:
-                            typeof updated.sync.s3.region === "string"
-                              ? updated.sync.s3.region
-                              : settings.sync.s3.region,
-                          bucket:
-                            typeof updated.sync.s3.bucket === "string"
-                              ? updated.sync.s3.bucket
-                              : settings.sync.s3.bucket,
-                          accessKeyId:
-                            typeof updated.sync.s3.accessKeyId === "string"
-                              ? updated.sync.s3.accessKeyId
-                              : settings.sync.s3.accessKeyId,
-                          secretAccessKey:
-                            typeof updated.sync.s3.secretAccessKey === "string"
-                              ? updated.sync.s3.secretAccessKey
-                              : settings.sync.s3.secretAccessKey,
-                          sessionToken:
-                            typeof updated.sync.s3.sessionToken === "string"
-                              ? updated.sync.s3.sessionToken
-                              : settings.sync.s3.sessionToken,
-                          prefix:
-                            typeof updated.sync.s3.prefix === "string"
-                              ? updated.sync.s3.prefix
-                              : settings.sync.s3.prefix,
-                        }
-                      : settings.sync.s3,
-                }
-              : settings.sync;
+          settings.sync = normalizeSyncSettings(updated.sync);
         }
       }
       setTimedStatus(settingsStatus, "设置已保存", 3000);

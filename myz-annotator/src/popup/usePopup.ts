@@ -1,7 +1,12 @@
 import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import { normalizeWhitespace } from "@myz/shared/highlightUtils";
 import { sendMessage } from "@myz/shared/messaging";
-import { RECORD_KINDS, type MyZRecord } from "@myz/shared/types";
+import { recordToMarkdown } from "@myz/shared/recordDisplay";
+import {
+  RECORD_KINDS,
+  normalizeRecord,
+  type MyZRecord,
+} from "@myz/shared/types";
 import {
   buildUrlAliases,
   canonicalUrl,
@@ -10,10 +15,6 @@ import {
 } from "@myz/shared/url";
 import { computed, onMounted, ref } from "vue";
 import { getActiveTab, getPageHighlightState } from "./tabs.js";
-import {
-  normalizeRecord,
-  recordToMarkdown,
-} from "@/dashboard/utils/records.js";
 import { resolvePdfTargetUrl } from "@/pdf/detect.js";
 
 /** State + data/actions for the popup. View lives in App.tsx. */

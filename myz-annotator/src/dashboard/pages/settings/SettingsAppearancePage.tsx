@@ -2,13 +2,43 @@ import { SettingsRow } from "@myz/dashboard-ui";
 import { useColorScheme } from "@myz/shared/colorScheme";
 import ThemeToggle from "@myz/shared/components/ThemeToggle";
 import { useThemePreference } from "@myz/shared/theme";
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, ref } from "vue";
 
 export default defineComponent({
   name: "SettingsAppearancePage",
   setup() {
     const { mode, ready } = useThemePreference();
     const { scheme, options, setScheme, ready: schemeReady } = useColorScheme();
+    const groupRef = ref<HTMLElement | null>(null);
+
+    /** Arrow-key roving focus across the scheme radiogroup (A11Y1). */
+    function onSchemeKeydown(event: KeyboardEvent) {
+      const handled = [
+        "ArrowRight",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowUp",
+        "Home",
+        "End",
+      ];
+      if (!handled.includes(event.key)) return;
+      const buttons = Array.from(
+        groupRef.value?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [],
+      );
+      const count = buttons.length;
+      if (!count) return;
+      event.preventDefault();
+      const current = buttons.indexOf(event.target as HTMLElement);
+      let next = current < 0 ? 0 : current;
+      if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = count - 1;
+      else if (event.key === "ArrowRight" || event.key === "ArrowDown")
+        next = (current + 1 + count) % count;
+      else next = (current - 1 + count) % count;
+      const option = options.value[next];
+      if (option) setScheme(option.value);
+      buttons[next]?.focus();
+    }
 
     const themeCaption = computed(() => {
       if (!ready.value) {
@@ -46,11 +76,13 @@ export default defineComponent({
             </p>
           </div>
           <div
+            ref={groupRef}
             class="grid grid-cols-2 gap-3 sm:grid-cols-4"
             role="radiogroup"
             aria-label="配色方案"
+            onKeydown={onSchemeKeydown}
           >
-            {options.value.map((option) => {
+            {options.value.map((option, index) => {
               const active = option.value === scheme.value;
               return (
                 <button
@@ -58,6 +90,7 @@ export default defineComponent({
                   type="button"
                   role="radio"
                   aria-checked={active}
+                  tabindex={active || (!scheme.value && index === 0) ? 0 : -1}
                   title={option.description}
                   onClick={() => setScheme(option.value)}
                   class={[

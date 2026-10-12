@@ -71,12 +71,13 @@ export async function readStreamAcks(
   for (const object of objects) {
     const payload = await store.getObject(object.key)
     if (!payload) continue
-    let ack: StreamAck
+    let ack: StreamAck | null
     try {
-      ack = decodeBinaryPayload(payload.body) as StreamAck
+      ack = decodeBinaryPayload(payload.body) as StreamAck | null
     } catch {
       continue
     }
+    if (!ack) continue
     if (
       ack.accountId !== options.accountId ||
       ack.streamId !== options.streamId

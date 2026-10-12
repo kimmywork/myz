@@ -1,8 +1,13 @@
 import { Archive, Clock, Inbox, Star, Tag, Trash2 } from "@lucide/vue";
 import { IconClose } from "@myz/shared/icons";
+import {
+  formatDateTime,
+  getRecordKindLabel,
+  hostnameForRecord,
+} from "@myz/shared/recordDisplay";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
-import { excerpt, formatTime, hostOf, kindLabel } from "./inbox-utils.js";
+import { excerpt } from "./inbox-utils.js";
 import type { InboxApi } from "./useInboxQueue.js";
 import type { InboxQueueItem } from "@/background/messages/inbox";
 
@@ -11,7 +16,7 @@ function StatusPill({ item }: { item: InboxQueueItem }) {
     return (
       <span class="inline-flex items-center gap-1 rounded-tag bg-surface-2 px-2 py-0.5 text-tag text-muted">
         <Clock size={12} />
-        稍后 · {formatTime(item.state.snoozedUntil)}
+        稍后 · {formatDateTime(item.state.snoozedUntil)}
       </span>
     );
   }
@@ -68,7 +73,7 @@ export default defineComponent({
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
                 <span class="rounded-tag border border-line px-1.5 py-0.5 text-tag text-muted">
-                  {kindLabel(item.record)}
+                  {getRecordKindLabel(item.record)}
                 </span>
                 <StatusPill item={item} />
                 {item.marked ? (
@@ -84,12 +89,12 @@ export default defineComponent({
                 {excerpt(item.record.text || item.record.note)}
               </p>
               <div class="mt-1 text-caption text-muted">
-                {item.record.title || hostOf(item.record)}
-                {item.record.title && hostOf(item.record)
-                  ? ` · ${hostOf(item.record)}`
+                {item.record.title || hostnameForRecord(item.record)}
+                {item.record.title && hostnameForRecord(item.record)
+                  ? ` · ${hostnameForRecord(item.record)}`
                   : ""}
                 {" · "}
-                {formatTime(item.record.createdAt)}
+                {formatDateTime(item.record.createdAt)}
               </div>
               {item.record.tags && item.record.tags.length > 0 ? (
                 <div class="mt-1 flex flex-wrap items-center gap-1">

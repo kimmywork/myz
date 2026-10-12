@@ -1,6 +1,5 @@
 import { isClipRecord } from "@myz/shared/highlightUtils";
-import type { MyZRecord } from "@myz/shared/types";
-import { normalizeRecord } from "@/dashboard/utils/records.ts";
+import { normalizeRecord, type MyZRecord } from "@myz/shared/types";
 
 /** Live highlight records keyed by id, mirrored from the background store. */
 export const highlightCache = new Map<string, MyZRecord>();

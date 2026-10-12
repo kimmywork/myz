@@ -3,19 +3,14 @@
 @import "@myz/shared/theme/tailwind.css";
 @reference "@myz/shared/theme/tailwind.css";
 @plugin "@tailwindcss/typography";
+/* Shared base layer (focus rings, reduced motion, base type) — D10. */
+@import "../styles/app-base.css";
 
 @layer base {
-  :where(button, a, [role="button"], [tabindex], summary, input, select, textarea):focus-visible {
-    outline: 2px solid var(--myz-accent);
-    outline-offset: 2px;
-  }
-
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
-  }
-
-  :root {
-    font-family: var(--myz-sans);
   }
 
   body {
@@ -28,15 +23,5 @@
 
   button {
     font: inherit;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
   }
 }

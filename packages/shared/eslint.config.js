@@ -5,6 +5,11 @@ const baseConfigs = createBaseConfig({
   tsconfigRootDir: import.meta.dirname,
   extraGlobals: {
     ParentNode: "readonly",
+    IDBDatabase: "readonly",
+    IDBObjectStore: "readonly",
+    IDBRequest: "readonly",
+    IDBTransactionMode: "readonly",
+    IDBValidKey: "readonly",
   },
 });
 

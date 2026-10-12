@@ -6,11 +6,16 @@ import {
 } from "@myz/shared/highlightUtils";
 import { IconHash, IconWarning } from "@myz/shared/icons";
 import { renderMarkdown } from "@myz/shared/markdownRenderer";
-import { CONTENT_TYPES, resolveRecordContentType } from "@myz/shared/types";
-
-import { MyZRecord, RECORD_KINDS, getRecordKind } from "@myz/shared/types";
-import { defineComponent, computed } from "vue";
-import { getRecordKindLabel } from "@/dashboard/utils/records.js";
+import { getRecordKindLabel } from "@myz/shared/recordDisplay";
+import { sanitizeHtmlString } from "@myz/shared/sanitizeHtml";
+import {
+  CONTENT_TYPES,
+  RECORD_KINDS,
+  getRecordKind,
+  resolveRecordContentType,
+  type MyZRecord,
+} from "@myz/shared/types";
+import { computed, defineComponent } from "vue";
 
 const CLIP_COLOR = "var(--myz-clip)";
 
@@ -60,7 +65,8 @@ export default defineComponent({
       const contentType = resolveRecordContentType(props.record);
       if (contentType === CONTENT_TYPES.MARKDOWN && props.record.text) {
         const rendered = renderMarkdown(props.record.text);
-        return { html: rendered, isHtml: true };
+        // Defensively sanitize before injecting via innerHTML.
+        return { html: sanitizeHtmlString(rendered), isHtml: true };
       }
       const content = getRecordPlainText(props.record);
       return { html: content || "(无正文内容)", isHtml: false };

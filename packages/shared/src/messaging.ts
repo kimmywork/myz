@@ -3,7 +3,7 @@ export async function sendMessage<Payload, Result = unknown>(
   payload?: Payload,
 ): Promise<Result> {
   return new Promise((resolve, reject) => {
-    if (!chrome || !chrome.runtime) {
+    if (typeof chrome === "undefined" || !chrome.runtime) {
       reject(new Error("Chrome runtime not available"))
       return
     }
@@ -36,7 +36,7 @@ export async function sendMessageToTab<Type, Payload, Response = unknown>(
   payload: Payload,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
-    if (!chrome || !chrome.tabs) {
+    if (typeof chrome === "undefined" || !chrome.tabs) {
       reject(new Error("Chrome tabs API not available"))
       return
     }

@@ -4,6 +4,7 @@ import {
 } from "@myz/shared/highlightUtils";
 import { sendMessage } from "@myz/shared/messaging";
 import { serializeRange } from "@myz/shared/serializer";
+import { mergeTags } from "@myz/shared/tags";
 import {
   CONTENT_TYPES,
   DEFAULT_COLORS,
@@ -277,7 +278,7 @@ export const useModalStore = defineStore("modal", () => {
   }
 
   function addModalKnownTags(tags: string[]) {
-    knownTags.value = Array.from(new Set([...knownTags.value, ...tags]));
+    knownTags.value = mergeTags(knownTags.value, tags);
   }
 
   function setModalKnownTags(tags: string[]) {

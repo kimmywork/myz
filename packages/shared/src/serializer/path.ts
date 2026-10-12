@@ -122,28 +122,11 @@ export function resolvePath(
   rootDocument: Document = document,
 ): Node | null {
   let current: Node = rootDocument
-  if (Array.isArray(path) && path.length && current && current.nodeName) {
-    const firstName = path[0] && path[0].name
-    if (
-      typeof firstName === "string" &&
-      firstName.toLowerCase() === (current.nodeName || "").toLowerCase()
-    ) {
-      path = path.slice(1)
-    }
-  }
-  for (const segment of path) {
-    const logicalList = getLogicalChildNodes(current)
-    const pairs = logicalList.filter((entry) => {
-      const logical = entry.logical
-      if (segment.name === "#text") return logical.nodeType === Node.TEXT_NODE
-      return (
-        logical.nodeType === Node.ELEMENT_NODE &&
-        logical.nodeName.toLowerCase() === segment.name
-      )
-    })
-    const chosenPair = pairs[segment.index] || null
-    if (!chosenPair) return null
-    current = chosenPair.dom
+  const segments = stripRootSegment(path, current)
+  for (const segment of segments) {
+    const chosen = matchingLogicalChildren(current, segment)[segment.index] || null
+    if (!chosen) return null
+    current = chosen.dom
   }
   return current
 }
@@ -158,32 +141,48 @@ export function resolvePartialPath(
   rootDocument: Document = document,
 ): Node | null {
   let current: Node = rootDocument
-  if (Array.isArray(path) && path.length && current.nodeName) {
-    const firstName = path[0] && path[0].name
-    if (
-      typeof firstName === "string" &&
-      firstName.toLowerCase() === (current.nodeName || "").toLowerCase()
-    ) {
-      path = path.slice(1)
-    }
-  }
+  const segments = stripRootSegment(path, current)
   let deepest: Node | null = rootDocument.body ?? rootDocument
-  for (const segment of path) {
-    const logicalList = getLogicalChildNodes(current)
-    const pairs = logicalList.filter((entry) => {
-      const logical = entry.logical
-      if (segment.name === "#text") return logical.nodeType === Node.TEXT_NODE
-      return (
-        logical.nodeType === Node.ELEMENT_NODE &&
-        logical.nodeName.toLowerCase() === segment.name
-      )
-    })
-    const chosen = pairs[segment.index] || null
+  for (const segment of segments) {
+    const chosen = matchingLogicalChildren(current, segment)[segment.index] || null
     if (!chosen) break
     current = chosen.dom
     deepest = current
   }
   return deepest
+}
+
+/**
+ * A stored path may begin with the root document's own node name; drop that
+ * segment when it matches so the rest can be walked relative to the root.
+ */
+function stripRootSegment(path: PathSegment[], root: Node): PathSegment[] {
+  if (!Array.isArray(path) || !path.length || !root || !root.nodeName) {
+    return path
+  }
+  const firstName = path[0] && path[0].name
+  if (
+    typeof firstName === "string" &&
+    firstName.toLowerCase() === (root.nodeName || "").toLowerCase()
+  ) {
+    return path.slice(1)
+  }
+  return path
+}
+
+/** Logical children of `current` that match a path segment's node name. */
+function matchingLogicalChildren(
+  current: Node,
+  segment: PathSegment,
+): { dom: Node; logical: Node }[] {
+  return getLogicalChildNodes(current).filter((entry) => {
+    const logical = entry.logical
+    if (segment.name === "#text") return logical.nodeType === Node.TEXT_NODE
+    return (
+      logical.nodeType === Node.ELEMENT_NODE &&
+      logical.nodeName.toLowerCase() === segment.name
+    )
+  })
 }
 
 function shouldIgnoreForPath(node?: Node): boolean {

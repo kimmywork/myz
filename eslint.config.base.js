@@ -34,6 +34,13 @@ export function createBaseConfig(options = {}) {
       "warn",
       { max: 400, skipBlankLines: true, skipComments: true },
     ],
+    // Staged: functions should stay small enough to reason about and test.
+    // Vue components legitimately concentrate setup/render, so .tsx files get a
+    // relaxed limit via an override below.
+    "max-lines-per-function": [
+      "warn",
+      { max: 80, skipBlankLines: true, skipComments: true },
+    ],
   };
 
   const configs = [
@@ -96,6 +103,17 @@ export function createBaseConfig(options = {}) {
       rules: sizeRules,
     },
     {
+      // Vue components concentrate setup()/render(); allow longer functions
+      // there while keeping the stricter .ts limit above.
+      files: ["**/*.tsx"],
+      rules: {
+        "max-lines-per-function": [
+          "warn",
+          { max: 250, skipBlankLines: true, skipComments: true },
+        ],
+      },
+    },
+    {
       // Tests/specs may run a little longer than production modules.
       files: [
         "**/*.test.ts",
@@ -109,6 +127,7 @@ export function createBaseConfig(options = {}) {
           "warn",
           { max: 500, skipBlankLines: true, skipComments: true },
         ],
+        "max-lines-per-function": "off",
       },
     },
     {

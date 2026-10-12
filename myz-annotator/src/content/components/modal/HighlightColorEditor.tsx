@@ -1,11 +1,11 @@
 import { IconPencil } from "@myz/shared/icons";
 import { colorName } from "@myz/shared/types";
-import { defineComponent } from "vue";
+import { defineComponent, ref } from "vue";
 import type { PropType } from "vue";
 
 /** Colour swatches with inline colour editing. */
 export default defineComponent({
-  name: "ModalColorPalette",
+  name: "HighlightColorEditor",
   props: {
     palette: { type: Array as () => string[], required: true },
     activeColor: { type: String, required: true },
@@ -19,8 +19,44 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const groupRef = ref<HTMLElement | null>(null);
+
+    /** Arrow-key roving focus across the radiogroup (A11Y1). */
+    function onKeydown(event: KeyboardEvent) {
+      const handled = [
+        "ArrowRight",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowUp",
+        "Home",
+        "End",
+      ];
+      if (!handled.includes(event.key)) return;
+      const buttons = Array.from(
+        groupRef.value?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [],
+      );
+      const count = buttons.length;
+      if (!count) return;
+      event.preventDefault();
+      const current = buttons.indexOf(event.target as HTMLElement);
+      let next = current < 0 ? 0 : current;
+      if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = count - 1;
+      else if (event.key === "ArrowRight" || event.key === "ArrowDown")
+        next = (current + 1 + count) % count;
+      else next = (current - 1 + count) % count;
+      props.onSelect(next);
+      buttons[next]?.focus();
+    }
+
     return () => (
-      <div class="myz-color-palette" role="radiogroup">
+      <div
+        ref={groupRef}
+        class="myz-color-palette"
+        role="radiogroup"
+        aria-label="划线颜色"
+        onKeydown={onKeydown}
+      >
         {props.palette.map((color, index) => {
           const isActive = color === props.activeColor;
           return (
@@ -33,7 +69,10 @@ export default defineComponent({
                 role="radio"
                 aria-label={`选择${colorName(color)}色`}
                 title={colorName(color)}
-                aria-pressed={isActive ? "true" : "false"}
+                aria-checked={isActive}
+                tabindex={
+                  isActive || (!props.activeColor && index === 0) ? 0 : -1
+                }
                 onClick={() => props.onSelect(index)}
               />
               <label

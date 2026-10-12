@@ -7,8 +7,8 @@ vi.mock("@/background/sync/keyring", () => ({
   getDeviceKey: async () => holder.key,
 }));
 
-import { readSettings, writeSettings } from "@/background/storage";
 import { SETTINGS_KEY } from "@/background/constants";
+import { readSettings, writeSettings } from "@/background/storage";
 
 const store = new Map<string, unknown>();
 
@@ -93,6 +93,8 @@ describe("settings credential encryption (QW3 integration)", () => {
 
     await writeSettings({ colorScheme: read.colorScheme });
     const bundle = store.get(SETTINGS_KEY) as StoredBundle;
-    expect(bundle.data.sync.s3.secretAccessKey.startsWith("enc:v1:")).toBe(true);
+    expect(bundle.data.sync.s3.secretAccessKey.startsWith("enc:v1:")).toBe(
+      true,
+    );
   });
 });

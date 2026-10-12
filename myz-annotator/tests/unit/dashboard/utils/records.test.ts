@@ -14,6 +14,7 @@ import {
   groupRecordsByPage,
   sortRecordsForPage,
   formatDateTime,
+  localDateKey,
 } from "@/dashboard/utils/records";
 
 describe("records", () => {
@@ -162,6 +163,24 @@ describe("records", () => {
       expect(exampleGroup.count).toBe(2);
       expect(exampleGroup.latestAt).toBe("2024-02-02T10:00:00.000Z");
     });
+
+    it("should not bucket an invalid date into 1970", () => {
+      const records = [
+        {
+          id: "1",
+          kind: RECORD_KINDS.HIGHLIGHT,
+          text: "",
+          createdAt: "not-a-date",
+          updatedAt: "also-bad",
+          url: "https://example.com/bad",
+        },
+      ] as MyZRecord[];
+
+      const groups = groupRecordsByPage(records);
+      expect(groups).toHaveLength(1);
+      expect(groups[0].latestAt).toBe("not-a-date");
+      expect(groups[0].latestAt.startsWith("1970")).toBe(false);
+    });
   });
 
   describe("sortRecordsForPage", () => {
@@ -246,8 +265,20 @@ describe("records", () => {
       expect(formatDateTime(date.toISOString())).toBe(date.toLocaleString());
     });
 
-    it('should return "Invalid Date" if invalid date string provided', () => {
-      expect(formatDateTime("invalid-date")).toBe("Invalid Date");
+    it("should return the original value for an invalid date string", () => {
+      expect(formatDateTime("invalid-date")).toBe("invalid-date");
+    });
+  });
+
+  describe("localDateKey", () => {
+    it("should return the local calendar date", () => {
+      const date = new Date(2024, 4, 9, 23, 30);
+      expect(localDateKey(date.toISOString())).toBe("2024-05-09");
+    });
+
+    it("should return an empty string for missing or invalid values", () => {
+      expect(localDateKey(undefined)).toBe("");
+      expect(localDateKey("nope")).toBe("");
     });
   });
 });

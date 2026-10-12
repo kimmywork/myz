@@ -1,15 +1,14 @@
 import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { Server } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   LaunchedExtension,
   launchExtension,
 } from "../helpers/launch-extension.js";
+import { dirnameFromImportMeta } from "../helpers/runtime.js";
 import { createStaticServer } from "../helpers/static-server.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirnameFromImportMeta(import.meta.url);
 
 let server: Server;
 let serverUrl: string;
@@ -68,9 +67,10 @@ test("popup_theme_toggle_reflects_effective_theme", async () => {
   expect(button).toBeTruthy();
 
   // The label is "加载中…" until the theme preference resolves; wait for it.
-  await expect(
-    popup.locator("button[aria-haspopup='listbox']"),
-  ).toContainText(/亮色|暗色|跟随系统/, { timeout: 5000 });
+  await expect(popup.locator("button[aria-haspopup='listbox']")).toContainText(
+    /亮色|暗色|跟随系统/,
+    { timeout: 5000 },
+  );
 });
 
 test("dashboard_theme_dropdown_changes_theme", async () => {

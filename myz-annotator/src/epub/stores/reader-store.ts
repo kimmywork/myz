@@ -1,4 +1,5 @@
 import { useColorScheme } from "@myz/shared/colorScheme";
+import { collectTags } from "@myz/shared/tags";
 import { useThemePreference } from "@myz/shared/theme";
 import {
   DEFAULT_COLORS,
@@ -59,11 +60,7 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
   const sourceKey = computed(() =>
     sourceRef.value ? buildEpubSourceUrl(sourceRef.value.fingerprint) : "",
   );
-  const tagOptions = computed(() =>
-    Array.from(
-      new Set(records.value.flatMap((record) => record.tags ?? [])),
-    ).sort((a, b) => a.localeCompare(b)),
-  );
+  const tagOptions = computed(() => collectTags(records.value));
   const highlightList = computed(() =>
     records.value
       .filter(
