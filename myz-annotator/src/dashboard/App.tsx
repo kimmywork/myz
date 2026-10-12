@@ -22,7 +22,6 @@ export default defineComponent({
           highlightsStore.initialize(),
           settingsStore.initialize(),
         ]);
-        console.info("Dashboard initialized");
       } catch (error) {
         console.error("Dashboard init failed", error);
       }

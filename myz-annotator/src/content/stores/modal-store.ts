@@ -141,8 +141,6 @@ export const useModalStore = defineStore("modal", () => {
 
     modalState.value.formKind = kind;
 
-    console.log("Submitting modal", { payload, state: modalState.value });
-
     const style = { color: DEFAULT_COLORS[0], style: DEFAULT_HIGHLIGHT_STYLE };
 
     if (kind === RECORD_KINDS.HIGHLIGHT) {
