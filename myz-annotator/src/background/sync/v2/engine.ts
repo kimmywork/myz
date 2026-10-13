@@ -81,7 +81,7 @@ export async function syncAccountNow(): Promise<SyncResult> {
       device: pair,
       clientId,
       datasets,
-      stateStore: createStreamStateStore(),
+      stateStore: createStreamStateStore(account.accountId),
     });
     for (const summary of result.streams) {
       if (!summary.uploaded) continue;

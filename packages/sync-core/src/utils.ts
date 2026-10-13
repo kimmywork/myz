@@ -37,8 +37,44 @@ export function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
+/**
+ * URL-safe, unpadded base64. Used for strings that travel between devices
+ * through user-chosen channels (chat, notes, clipboard), where the standard
+ * alphabet's `+` / `/` / `=` are commonly mangled or re-encoded.
+ */
+export function bytesToBase64Url(bytes: Uint8Array): string {
+  return bytesToBase64(bytes)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
+}
+
+/**
+ * Decode standard or URL-safe base64 (padding optional, whitespace ignored).
+ * Throws a descriptive `Error` instead of a raw `DOMException` and rejects
+ * truncated input up front so hosts can show a friendly "please re-copy"
+ * message rather than a cryptic `InvalidCharacterError`.
+ */
 export function base64ToBytes(value: string): Uint8Array {
-  const binary = atob(value)
+  const normalized = value
+    .replace(/\s+/g, "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+  if (normalized.length === 0) {
+    throw new Error("内容为空")
+  }
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
+    throw new Error("内容包含非法字符（可能被改写）")
+  }
+  if (normalized.replace(/=+$/, "").length % 4 === 1) {
+    throw new Error("内容长度不完整（复制时可能被截断）")
+  }
+  let binary: string
+  try {
+    binary = atob(normalized)
+  } catch {
+    throw new Error("内容已损坏，无法解码")
+  }
   const output = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i += 1) {
     output[i] = binary.charCodeAt(i)

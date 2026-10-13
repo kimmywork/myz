@@ -63,6 +63,74 @@ describe("device roster", () => {
     ).rejects.toThrow()
   })
 
+  it("re-approving an existing active device is idempotent", async () => {
+    const a = generateDeviceKeyPair()
+    const b = generateDeviceKeyPair()
+    const dataKey = generateDataKey()
+    const genesis = await createGenesisRoster({
+      accountId: generateAccountId(),
+      device: a,
+      dataKey,
+    })
+    const aId = await deviceId(a)
+    const bId = await deviceId(b)
+    const first = await addDeviceToRoster({
+      roster: genesis,
+      approver: a,
+      approverDeviceId: aId,
+      newDevice: b,
+      dataKey,
+    })
+    const second = await addDeviceToRoster({
+      roster: first.roster,
+      approver: a,
+      approverDeviceId: aId,
+      newDevice: b,
+      dataKey,
+    })
+    expect(second.roster.rosterVersion).toBe(first.roster.rosterVersion)
+    expect(
+      second.roster.devices.filter((device) => device.deviceId === bId),
+    ).toHaveLength(1)
+    expect(await verifyRoster(second.roster)).toBe(true)
+  })
+
+  it("refuses to re-add a revoked device", async () => {
+    const a = generateDeviceKeyPair()
+    const b = generateDeviceKeyPair()
+    const dataKey = generateDataKey()
+    const genesis = await createGenesisRoster({
+      accountId: generateAccountId(),
+      device: a,
+      dataKey,
+    })
+    const aId = await deviceId(a)
+    const bId = await deviceId(b)
+    const { roster } = await addDeviceToRoster({
+      roster: genesis,
+      approver: a,
+      approverDeviceId: aId,
+      newDevice: b,
+      dataKey,
+    })
+    const rotated = await revokeDeviceAndRotate({
+      roster,
+      approver: a,
+      approverDeviceId: aId,
+      revokeDeviceId: bId,
+      newDataKey: generateDataKey(),
+    })
+    await expect(
+      addDeviceToRoster({
+        roster: rotated,
+        approver: a,
+        approverDeviceId: aId,
+        newDevice: b,
+        dataKey,
+      }),
+    ).rejects.toThrow(/revoked/i)
+  })
+
   it("rotates on revoke so the removed device cannot read the new epoch", async () => {
     const a = generateDeviceKeyPair()
     const b = generateDeviceKeyPair()

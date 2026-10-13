@@ -14,6 +14,7 @@ import { writeAccountRecord } from "../storage";
 import {
   base64ToBytes,
   bytesToBase64,
+  bytesToBase64Url,
   decodeBinaryPayload,
   encodeBinaryPayload,
 } from "../utils";
@@ -46,12 +47,29 @@ export interface PairingInvite {
   s3?: PairingInviteS3;
 }
 
+/**
+ * Encode a transferable pairing string as URL-safe base64 so the standard
+ * alphabet's `+` / `/` / `=` cannot be mangled by chat, URL or note apps.
+ * Decoding stays tolerant: `decodePairing` also accepts the legacy standard
+ * alphabet, whitespace and missing padding.
+ */
 export function encodePairing(value: unknown): string {
-  return bytesToBase64(encodeBinaryPayload(value));
+  return bytesToBase64Url(encodeBinaryPayload(value));
 }
 
 export function decodePairing<T>(text: string): T {
-  return decodeBinaryPayload(base64ToBytes(text.trim())) as T;
+  let decoded: unknown;
+  try {
+    decoded = decodeBinaryPayload(base64ToBytes(text.trim()));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "内容无法解析，请重新复制";
+    throw new Error(message);
+  }
+  if (!decoded || typeof decoded !== "object") {
+    throw new Error("内容无法解析，可能不完整或已损坏，请重新复制");
+  }
+  return decoded as T;
 }
 
 function s3PrefillFromSettings(

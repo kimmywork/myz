@@ -115,6 +115,7 @@ export interface RecordStateRecord {
 }
 
 export interface StreamStateRecord {
+  accountId: string;
   streamId: string;
   streamVersion: number;
   shardHashes: Record<string, string>;

@@ -17,7 +17,10 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
   roster) on top of the device identity.
 - v2/datasets.ts: `StreamDataset` adapters (highlight stream `h:<id>`).
 - v2/inboxDataset.ts: inbox workflow stream (`status:` / `mark:` / `rel:`).
-- v2/stateStore.ts: per-stream sync state (streamVersion/shardHashes/tombstones).
+- v2/stateStore.ts: per-stream sync state (streamVersion/shardHashes/tombstones),
+  scoped by `accountId`; records from another account (or legacy records without
+  an `accountId`) are ignored so joining a new account can't trip the
+  anti-rollback gate with a stale high-water mark.
 - v2/engine.ts: v2 sync orchestration (account streams + account-scoped lease);
   `syncEngine.syncNow` delegates here when an account exists, else legacy v1.
 - v2/bootstrap.ts: legacy migration + clean-break bootstrap. `migrateLegacyRemote`
@@ -27,7 +30,11 @@ Core protocol/crypto logic lives in `packages/sync-core/`.
 - v2/pairingSession.ts: same-machine device pairing over transferable strings
   (offer → response → approve) using the sync-core pairing/SAS + roster. Wraps the
   `PairingOffer` in an app-layer `PairingInvite` envelope `{ offer, s3? }` that
-  carries only non-sensitive S3 coordinates for prefill.
+  carries only non-sensitive S3 coordinates for prefill. Transferable strings are
+  encoded as **URL-safe base64** (`bytesToBase64Url`) and decoded tolerantly
+  (standard or URL-safe alphabet, whitespace and missing padding all accepted),
+  so a single mangled `+`/`/`/`=` on the way through chat/clipboard no longer
+  breaks pairing.
 
 ## References
 

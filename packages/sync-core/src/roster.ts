@@ -120,8 +120,19 @@ export async function addDeviceToRoster(options: {
   const newDeviceId = await deviceIdFromSignPublicKey(
     options.newDevice.signPublicKey,
   )
-  if (options.roster.devices.some((d) => d.deviceId === newDeviceId)) {
-    throw new Error("Device is already in the roster")
+  const existing = options.roster.devices.find((d) => d.deviceId === newDeviceId)
+  if (existing) {
+    if (existing.revokedAt) {
+      throw new Error("Device is revoked and cannot rejoin")
+    }
+    // Re-approving a device that is already an active member is idempotent:
+    // it already has access to D, so returning the roster unchanged lets a
+    // retry (e.g. after the import step failed) succeed instead of dead-ending
+    // on "already in the roster".
+    if (existing.agreePub !== bytesToBase64(options.newDevice.agreePublicKey)) {
+      throw new Error("Device public key does not match the existing entry")
+    }
+    return { roster: options.roster, newDeviceId }
   }
   const wrapped = await wrapDataKeyForDevice(
     options.dataKey,

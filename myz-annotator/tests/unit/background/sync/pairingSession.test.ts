@@ -5,6 +5,7 @@ import {
   generateDeviceKeyPair,
 } from "@myz/sync-core/deviceKeys";
 import type { Roster } from "@myz/sync-core/roster";
+import { bytesToBase64, encodeBinaryPayload } from "@myz/sync-core/utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -45,6 +46,7 @@ import {
   approvePairing,
   createPairingInvite,
   decodePairing,
+  encodePairing,
   type PairingInvite,
 } from "@/background/sync/v2/pairingSession";
 
@@ -139,5 +141,25 @@ describe("device pairing session", () => {
     state.account = hostAccount;
     state.pair = hostPair;
     await expect(approvePairing("not-a-real-response")).rejects.toThrow();
+  });
+
+  it("encodes transferable strings as URL-safe, decodable base64", () => {
+    const payload = {
+      offer: { accountId: "a" },
+      s3: { endpoint: "https://x", region: "", bucket: "b" },
+    };
+    const encoded = encodePairing(payload);
+    expect(encoded).not.toMatch(/[+/=]/);
+    expect(decodePairing(encoded)).toEqual(payload);
+    // Legacy standard-alphabet (padded, `+`/`/`) strings still decode.
+    const legacy = bytesToBase64(encodeBinaryPayload(payload));
+    expect(legacy).toMatch(/[+/=]/);
+    expect(decodePairing(legacy)).toEqual(payload);
+  });
+
+  it("reports a friendly error for a truncated invite", async () => {
+    await expect(acceptPairingInvite("HY/LbsIwE")).rejects.toThrow(
+      /长度不完整/,
+    );
   });
 });

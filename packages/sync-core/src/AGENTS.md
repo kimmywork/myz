@@ -14,6 +14,11 @@ adapter interfaces, and object-store client logic.
 ## Module Boundaries (Core)
 
 - crypto.ts: WebCrypto helpers (HKDF, AES-GCM, HMAC, SHA-256, PBKDF2).
+- utils.ts: hex/standard-base64 encoders plus `bytesToBase64Url` for
+  copy/paste-friendly transferable strings; `base64ToBytes` accepts both
+  standard and URL-safe alphabets (whitespace/padding tolerant) and throws
+  descriptive errors on truncated/invalid input instead of a raw DOMException;
+  deflate/JSON binary payload codecs.
 - s3Client.ts: REST calls (GET/PUT/HEAD/LIST/DELETE) with signing; HTTPS-only.
 - manifest.ts: manifest build/parse, signature verify.
 - chunks.ts: chunk pack/unpack, chunkId derivation, encrypt/decrypt.
@@ -29,6 +34,8 @@ adapter interfaces, and object-store client logic.
 - signing.ts: stable-stringify Ed25519 sign/verify for JSON objects.
 - dataKey.ts: random accountId/D, master + per-stream key derivation.
 - roster.ts: signed device roster (genesis/add/revoke+rotate/verify/advance).
+  `addDeviceToRoster` is idempotent for an already-active device (re-approval
+  retry returns the roster unchanged) and rejects re-adding a revoked device.
 - account.ts: create/open a sync account (random accountId + D + roster) and
   per-device payload sign/verify.
 - jumpHash.ts: FNV-1a seeded jump consistent hash for shard mapping.
