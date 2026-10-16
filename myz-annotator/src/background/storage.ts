@@ -46,9 +46,12 @@ function upgradeSchema(db: IDBDatabase): void {
   }
 
   // Opaque overflow for synced records we cannot materialize (unknown
-  // schemaId / record-id prefix). Kept verbatim so sync never drops them.
+  // schemaId / record-id prefix). Keyed by (streamId, recordId) so the same
+  // recordId on two streams cannot collide.
   if (!db.objectStoreNames.contains("opaque_records")) {
-    db.createObjectStore("opaque_records", { keyPath: "recordId" });
+    db.createObjectStore("opaque_records", {
+      keyPath: ["streamId", "recordId"],
+    });
   }
 }
 
@@ -269,6 +272,8 @@ export interface InboxStateRecord {
   kind: "status" | "mark" | "rel";
   changedAt: string;
   payload: unknown;
+  /** Original remote payload, kept so `collect` can round-trip it verbatim. */
+  rawData?: unknown;
 }
 
 export async function readInboxState(
@@ -346,7 +351,10 @@ export async function listOpaqueRecords(
     : records;
 }
 
-export async function deleteOpaqueRecord(recordId: string): Promise<void> {
+export async function deleteOpaqueRecord(
+  streamId: string,
+  recordId: string,
+): Promise<void> {
   const db = await getDB();
-  return idbDelete(db, "opaque_records", recordId);
+  return idbDelete(db, "opaque_records", [streamId, recordId]);
 }

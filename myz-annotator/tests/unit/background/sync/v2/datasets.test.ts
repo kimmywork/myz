@@ -43,6 +43,25 @@ describe("highlight dataset opaque closure (D1)", () => {
     });
   });
 
+  it("preserves an h:-prefixed record whose payload id does not match", async () => {
+    const dataset = createHighlightDataset();
+    // A future highlight payload (or a mismatched id) must not be upserted as
+    // a real record — it stays opaque and round-trips verbatim.
+    await dataset.apply({
+      recordId: "h:future-1",
+      updatedAt: NOW,
+      data: { schemaId: "future.highlight" },
+      recordHash: "m",
+    });
+    expect((await recordsStore.listAll()).map((r) => r.id)).not.toContain(
+      "future-1",
+    );
+    const preserved = (await dataset.collect()).find(
+      (r) => r.recordId === "h:future-1",
+    );
+    expect(preserved?.data).toEqual({ schemaId: "future.highlight" });
+  });
+
   it("materializes a normal highlight and round-trips it", async () => {
     const dataset = createHighlightDataset();
     await dataset.apply({

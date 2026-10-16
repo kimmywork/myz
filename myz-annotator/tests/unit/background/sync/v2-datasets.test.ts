@@ -85,6 +85,9 @@ describe("v2 highlight dataset adapter", () => {
     expect(mocks.deleteHighlight).toHaveBeenCalledWith("abc");
     await dataset.remove("unknown:x");
     expect(mocks.deleteHighlight).toHaveBeenCalledTimes(1);
-    expect(mocks.deleteOpaqueRecord).toHaveBeenCalledWith("unknown:x");
+    expect(mocks.deleteOpaqueRecord).toHaveBeenCalledWith(
+      "highlights",
+      "unknown:x",
+    );
   });
 });

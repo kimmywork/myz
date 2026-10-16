@@ -10,6 +10,8 @@
 export type ChangeDomain = "records" | "inbox" | "settings" | "sync";
 
 export interface ChangeEvent {
+  /** Stable id, used to deduplicate delivery across transport channels. */
+  id: string;
   domain: ChangeDomain;
   /** Affected record/state ids, when cheap to know. */
   ids?: string[];

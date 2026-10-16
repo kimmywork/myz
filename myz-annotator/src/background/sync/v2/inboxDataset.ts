@@ -22,7 +22,10 @@ export function createInboxDataset(): StreamDataset {
       const materialized = states.map((state) => ({
         recordId: state.recordId,
         updatedAt: state.changedAt,
-        data: { kind: state.kind, ...(state.payload as object) } as unknown,
+        data:
+          state.rawData !== undefined
+            ? state.rawData
+            : ({ kind: state.kind, ...(state.payload as object) } as unknown),
       }));
       const preserved = opaque.map((record) => ({
         recordId: record.recordId,
@@ -48,6 +51,7 @@ export function createInboxDataset(): StreamDataset {
         kind: parsed.kind,
         changedAt: record.updatedAt,
         payload,
+        rawData: record.data,
       });
     },
     async remove(recordId) {
@@ -55,7 +59,7 @@ export function createInboxDataset(): StreamDataset {
         await inboxStateStore.remove(recordId);
         return;
       }
-      await recordsStore.deleteOpaque(recordId);
+      await recordsStore.deleteOpaque(STREAM_ID, recordId);
     },
     async collectTombstones() {
       const deletions = await listDeletions();

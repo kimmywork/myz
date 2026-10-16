@@ -36,9 +36,19 @@ export function createHighlightDataset(): StreamDataset {
     },
     async apply(record) {
       const parsed = parseRecordId(record.recordId);
-      if (parsed?.kind === "highlight") {
-        const data = record.data as MyZRecord;
-        await recordsStore.upsert({ ...data, updatedAt: record.updatedAt });
+      const data = record.data as Partial<MyZRecord> | null | undefined;
+      // Only materialize when the record id AND payload agree (a future
+      // highlight schema, or a payload whose id differs, stays opaque).
+      const isHighlight =
+        parsed?.kind === "highlight" &&
+        !!data &&
+        typeof data === "object" &&
+        data.id === parsed.id;
+      if (isHighlight) {
+        await recordsStore.upsert({
+          ...(data as MyZRecord),
+          updatedAt: record.updatedAt,
+        });
         return;
       }
       await recordsStore.putOpaque({
@@ -54,7 +64,7 @@ export function createHighlightDataset(): StreamDataset {
         await recordsStore.remove(parsed.id);
         return;
       }
-      await recordsStore.deleteOpaque(recordId);
+      await recordsStore.deleteOpaque(STREAM_ID, recordId);
     },
     async collectTombstones() {
       const deletions = await listDeletions();

@@ -34,7 +34,7 @@ export interface RecordsStore {
   putOpaque(record: OpaqueRecord): Promise<void>;
   /** Opaque records, optionally filtered to one stream. */
   listOpaque(streamId?: string): Promise<OpaqueRecord[]>;
-  deleteOpaque(recordId: string): Promise<void>;
+  deleteOpaque(streamId: string, recordId: string): Promise<void>;
 }
 
 /** One local workflow-state row (`status:` / `mark:` / `rel:`). */
@@ -43,6 +43,8 @@ export interface InboxStateRecord {
   kind: "status" | "mark" | "rel";
   changedAt: string;
   payload: unknown;
+  /** Original remote payload, kept so `collect` can round-trip it verbatim. */
+  rawData?: unknown;
 }
 
 export interface InboxStateStore {

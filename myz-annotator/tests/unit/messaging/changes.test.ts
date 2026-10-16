@@ -67,6 +67,39 @@ describe("changeBus", () => {
     expect(received).toEqual(["inbox"]);
   });
 
+  it("deduplicates delivery across both channels", () => {
+    vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
+    const handlers: Array<(changes: unknown, area: string) => void> = [];
+    vi.stubGlobal("chrome", {
+      storage: {
+        onChanged: {
+          addListener: (fn: (changes: unknown, area: string) => void) =>
+            handlers.push(fn),
+          removeListener: () => {},
+        },
+        local: {
+          set: (value: Record<string, unknown>) => {
+            const changes = Object.fromEntries(
+              Object.entries(value).map(([key, v]) => [key, { newValue: v }]),
+            );
+            handlers.forEach((fn) => fn(changes, "local"));
+          },
+        },
+      },
+    });
+
+    const page = createChangeBus();
+    const worker = createChangeBus();
+    const received: string[] = [];
+    page.subscribe((event) => received.push(event.id));
+
+    // Delivered on both BroadcastChannel and chrome.storage, but the shared
+    // event id collapses them into one delivery.
+    worker.publish({ domain: "records" });
+
+    expect(received).toHaveLength(1);
+  });
+
   it("stops delivery after unsubscribe", () => {
     vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
     const page = createChangeBus();

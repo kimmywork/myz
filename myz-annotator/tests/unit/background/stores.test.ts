@@ -56,7 +56,7 @@ describe("recordsStore (IndexedDB contract)", () => {
     expect(await recordsStore.listOpaque("inbox")).toEqual([]);
     expect(await recordsStore.listOpaque("highlights")).toHaveLength(1);
 
-    await recordsStore.deleteOpaque("n:unknown-1");
+    await recordsStore.deleteOpaque("highlights", "n:unknown-1");
     expect(
       (await recordsStore.listOpaque()).find(
         (entry) => entry.recordId === "n:unknown-1",

@@ -38,7 +38,7 @@ export const recordsStore: RecordsStore = {
   remove: (id) => deleteHighlight(id),
   putOpaque: (record) => putOpaqueRecord(record),
   listOpaque: (streamId) => listOpaqueRecords(streamId),
-  deleteOpaque: (recordId) => deleteOpaqueRecord(recordId),
+  deleteOpaque: (streamId, recordId) => deleteOpaqueRecord(streamId, recordId),
 };
 
 export const inboxStateStore: InboxStateStore = {

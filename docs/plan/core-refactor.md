@@ -313,3 +313,9 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 测试：`tests/unit/messaging/changes.test.ts`（3 用例：BroadcastChannel 跨上下文、storage 兜底、退订）。
   - 验证：core 26、annotator 287 单测通过；`vue-tsc -b` 0；eslint 0 error（仅既有 `max-lines-per-function` warning）；`vite build` 成功。
   - **未做（转后续）**：inbox/readers/popup 的订阅刷新；基于 `ids` 的增量刷新（当前为整体 reload）；同步过程中逐条发布合流。
+- **评审修复（2026-10-16，CodeRabbit PR #91）**：4 条 finding 已全部修复。
+  - **opaque 存储键**改为复合 `[streamId, recordId]`，`deleteOpaque(streamId, recordId)`——避免同一 `recordId` 出现在两条流时互相覆盖/误删。
+  - **highlight dataset `apply`** 增加 payload 校验：仅当 `recordId` 前缀为 `h:` **且** payload 的 `id` 与之一致时才 `upsert`；否则原样 opaque，避免误物化或改变 `recordId`。
+  - **inbox dataset** 对远端记录保留 `rawData`，`collect` 优先原样回传（本地记录仍按 `{kind, ...payload}` 重建）。
+  - **`ChangeEvent` 增稳定 `id`**，`createChangeBus` 按 id 对双通道投递去重（避免 dashboard 重复刷新）。
+  - 测试：core 29、annotator 289 通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
