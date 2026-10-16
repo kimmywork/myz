@@ -11,15 +11,13 @@ describe("background message handler", () => {
   });
 
   it("should register and resolve a handler", async () => {
-    registerMessageHandler("myz:test", async () => "ok");
-    expect(hasHandler("myz:test")).toBe(true);
+    registerMessageHandler("myz:getAllTags", async () => ["ok"]);
+    expect(hasHandler("myz:getAllTags")).toBe(true);
 
-    const result = await handleMessage(
-      "myz:test",
-      {},
-      { tab: { id: 1 } as chrome.tabs.Tab },
-    );
-    expect(result).toBe("ok");
+    const result = await handleMessage("myz:getAllTags", undefined, {
+      tab: { id: 1 } as chrome.tabs.Tab,
+    });
+    expect(result).toEqual(["ok"]);
   });
 
   it("should throw for unregistered handler", async () => {

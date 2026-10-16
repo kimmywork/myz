@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   authorizeMessage,
-  isPrivilegedMessage,
   isTrustedExtensionPage,
 } from "@/background/messages/trustedSender";
+import { isPrivilegedMessage } from "@/messaging/privilege";
 
 const EXTENSION_ID = "abcdefghijklmnop";
 

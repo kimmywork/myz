@@ -1,53 +1,9 @@
+import {
+  isPrivilegedMessage,
+  requiresUserGesture,
+} from "@/messaging/privilege.js";
+
 type Sender = chrome.runtime.MessageSender | undefined;
-
-// Messages only trusted extension pages (dashboard/options) may invoke. Keep
-// this in sync with the handlers registered in ./messages/*.ts: non-privileged
-// reads/writes for content scripts are `myz:getPublicSettings` and
-// `myz:updateHighlightPreference`.
-const PRIVILEGED_MESSAGES = new Set<string>([
-  "myz:syncSetKey",
-  "myz:syncClearKey",
-  "myz:syncUpdateSettings",
-  "myz:syncNow",
-  "myz:syncTestConnection",
-  "myz:accountCreate",
-  "myz:accountImport",
-  "myz:accountClear",
-  "myz:accountBootstrap",
-  "myz:accountMigrateLegacy",
-  "myz:pairingInvite",
-  "myz:pairingAccept",
-  "myz:pairingApprove",
-  // Settings: the full bundle (sealed S3 credentials) is extension-page only.
-  "myz:getSettings",
-  "myz:updateSettings",
-  "myz:updatePalette",
-  // Imports write records in bulk and are performed by the dashboard.
-  "myz:importHighlights",
-  // Capture cache: only content scripts may *write* an asset
-  // (`myz:stageAsset`); reading/deleting is done from the stitch editor page.
-  "myz:listStagedAssets",
-  "myz:getStagedAsset",
-  "myz:deleteStagedAsset",
-  "myz:clearStagedAssets",
-]);
-
-const USER_GESTURE_MESSAGES = new Set<string>([
-  "myz:syncSetKey",
-  "myz:syncClearKey",
-  "myz:accountCreate",
-  "myz:accountImport",
-  "myz:accountClear",
-  "myz:accountBootstrap",
-  "myz:accountMigrateLegacy",
-  "myz:pairingInvite",
-  "myz:pairingAccept",
-  "myz:pairingApprove",
-]);
-
-export function isPrivilegedMessage(type: string): boolean {
-  return PRIVILEGED_MESSAGES.has(type);
-}
 
 export function isTrustedExtensionPage(sender: Sender): boolean {
   if (!sender) return false;
@@ -64,6 +20,12 @@ export function isTrustedExtensionPage(sender: Sender): boolean {
 
 export type AuthorizationResult = { ok: true } | { ok: false; error: string };
 
+/**
+ * Authorize an incoming runtime message. Privilege and user-gesture metadata
+ * live in `@/messaging/privilege.ts`, keyed to the typed message contract, so a
+ * message that is added/removed/renamed cannot silently fall out of sync with
+ * its authorization policy.
+ */
 export function authorizeMessage(
   type: string,
   payload: unknown,
@@ -78,7 +40,7 @@ export function authorizeMessage(
       error: "Unauthorized sender for privileged sync message",
     };
   }
-  if (USER_GESTURE_MESSAGES.has(type)) {
+  if (requiresUserGesture(type)) {
     const userGesture = (payload as { userGesture?: unknown } | undefined)
       ?.userGesture;
     if (userGesture !== true) {

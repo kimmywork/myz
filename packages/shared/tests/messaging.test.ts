@@ -50,6 +50,23 @@ describe("messaging", () => {
 
       await expect(sendMessage("TEST", {})).rejects.toThrow("Custom error");
     });
+
+    it("preserves falsy data instead of falling back to the envelope", async () => {
+      for (const data of [null, false, 0, ""]) {
+        (global.chrome.runtime.sendMessage as any).mockImplementation(
+          (msg: any, cb: any) => cb({ ok: true, data }),
+        );
+        await expect(sendMessage("TEST", {})).resolves.toBe(data);
+      }
+    });
+
+    it("falls back to the whole response when there is no data key", async () => {
+      const envelope = { ok: true, result: "raw" };
+      (global.chrome.runtime.sendMessage as any).mockImplementation(
+        (msg: any, cb: any) => cb(envelope),
+      );
+      await expect(sendMessage("TEST", {})).resolves.toEqual(envelope);
+    });
   });
 
   describe("sendMessageToTab", () => {

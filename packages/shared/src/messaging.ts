@@ -24,7 +24,12 @@ export async function sendMessage<Payload, Result = unknown>(
           return
         }
 
-        resolve(response.data || (response as Result))
+        // Use the presence of the `data` key, not its truthiness: a handler may
+        // legitimately resolve `null` / `false` / `0` / `""`, and `||` would
+        // wrongly fall back to the whole `{ ok, data }` envelope.
+        resolve(
+          "data" in response ? (response.data as Result) : (response as Result),
+        )
       },
     )
   })

@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**计划中，未实施**（v2，已结合 2026-10-16 深度评审修订）。本文只定义目标架构、边界、端口契约与增量顺序，尚未改动任何代码。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）**已实现并验证**（见 §12）；I2–I10 未开始。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -144,7 +144,7 @@ type Locator =
 | `CapturePort` | 抓网页 / 导入图片 / 打开文档 | `*source.ts` / `sendToContentScript` |
 | `SearchIndex`（后置） | 全文索引 | 新 |
 
-**消息契约表**（`@myz/shared`，纯类型）：
+**消息契约表**（落地位置见 §12）：`@myz/shared/messageRegistry` 提供通用泛型注册表；每个通道的契约映射放在**宿主内**（`myz-annotator/src/messaging/contract.ts`），因为消息键是宿主内部契约、且引用宿主类型：
 
 ```ts
 interface MyzRuntimeMap { // UI/CS → SW
@@ -185,7 +185,7 @@ interface MyzTabMap { // SW → CS
 
 | # | 增量 | 产物 | 依赖 | 验证 |
 | --- | --- | --- | --- | --- |
-| **I1** | 消息契约表 + 泛型 API + **D3 修复** | `MyzRuntimeMap`/`MyzTabMap`、泛型 `invoke`/`handle`；修复 falsy 解包；特权元数据入契约；清查平铺 payload 调用点 | 无 | 全部注册点编译通过；行为不变；新增 falsy 返回的回归测试 |
+| **I1** | 消息契约表 + 泛型 API + **D3 修复** | `MyzRuntimeMap`/`MyzTabMap`、泛型 `invoke`/`handle`；修复 falsy 解包；特权元数据入契约；清查平铺 payload 调用点 | 无 | 全部注册点编译通过；行为不变；新增 falsy 返回的回归测试 **（已完成，见 §12；调用点迁移见 I1b）** |
 | **I2** | Transport 端口 + `MessageContext` | `Transport` 接口 + 扩展实现（Runtime/Tab 两方向）；`messaging.ts` 降级为 adapter | I1 | 现有 e2e 全绿 |
 | **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 |
 | **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 |
@@ -254,3 +254,13 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
 **增量顺序调整**：I1 增补 D3 修复；I4 增补 opaque 溢出表；I6 增补 opaque 闭环验收；**I7（ChangeBus）提前到 I5 之后**；I8 移除 JobQueue；I10 改为 Node 集成套件。
 
 **未采纳 / 保留**：无。评审的三项缺陷与四项风险均经核验属实并纳入。
+
+## 12. 实施状态
+
+- **I1 完成（2026-10-16）**：建立消息契约表并接线到两端注册表。
+  - `@myz/shared/messageRegistry`：`createMessageRegistry<M>()` 泛型化；`registerMessageHandler<K>` 按契约做编译校验；`handleMessage` 仍是线上边界的非类型化派发。
+  - `myz-annotator/src/messaging/contract.ts`：`MyzRuntimeMap`（47 键）+ `MyzTabMap`（10 键）+ `myz:zenModeStateChanged` 通知键。**落点修正**：契约放在宿主内而非 `@myz/shared`，因为消息键是宿主内部契约且引用宿主类型（`Settings`/`StagedAsset`/Sync 结果类型等）。
+  - `myz-annotator/src/messaging/privilege.ts`：特权 / 手势集合改为 `ReadonlySet<MyzRuntimeType>`（原来两个手维护的 `Set<string>`），`trustedSender.ts` 改为引用它（D3-b）。平铺 `{type, ...rest}` 调用点清查：无调用方使用（D3 附带项）。
+  - **D3-a 修复**：`packages/shared/src/messaging.ts` 的解包改为按 `"data" in response` 判定（原先 `response.data || response` 会在 `null/false/0/""` 时错误回退整个信封）；补 2 条回归测试。
+  - 验证：`vue-tsc -b` 0；shared 94、annotator 276 单测通过；eslint 0；`vite build` 成功。
+  - **遗留（I1b，未做）**：调用点仍走 `@myz/shared/messaging` 的宽松 `sendMessage<Payload, Result>`（45 处），按 §9「先并存、再逐个收敛」渐进迁移到类型化 `invoke`；`sendMessageToTab` 与 `sendMessage` 的返回形状仍不一致。

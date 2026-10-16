@@ -1,41 +1,64 @@
-type MessageHandler<T = unknown, R = unknown> = (
-  payload: T,
-  sender: chrome.runtime.MessageSender,
-) => Promise<R> | R
+/**
+ * Typed message-handler registry.
+ *
+ * A host defines one contract map per transport channel (message key →
+ * `{ payload, result }`) and instantiates a registry from it. Registration is
+ * then checked against the map, so unknown keys and payload/result drift fail
+ * at compile time. Dispatch stays untyped on purpose: the wire payload is
+ * untrusted until a matching handler runs, and the dispatcher only knows the
+ * key as a runtime string.
+ */
 
-interface RegistryEntry {
-  key: string
-  handler: MessageHandler<unknown, unknown>
+/** The payload/result shape a single message key carries. */
+export interface MessageSpec {
+  payload: unknown
+  result: unknown
 }
 
-/**
- * 创建一个消息处理器注册表。background service worker 与 content script
- * 共用同一套注册/分发逻辑；handler 可返回 Promise 或同步值。
- */
-export function createMessageRegistry() {
-  const handlers: Map<string, RegistryEntry> = new Map()
+/** Maps message keys to their payload/result contract for one channel. */
+export type MessageContract = Record<string, MessageSpec>
 
-  function registerMessageHandler<T = unknown, R = unknown>(
-    key: string,
-    handler: MessageHandler<T, R>,
-  ) {
-    handlers.set(key, {
-      key,
-      handler: (payload, sender) =>
-        Promise.resolve(handler(payload as T, sender)),
-    })
+/** A handler for one key of a contract map. */
+export type MessageHandler<M extends MessageContract, K extends keyof M> = (
+  payload: M[K]["payload"],
+  sender: chrome.runtime.MessageSender,
+) => M[K]["result"] | Promise<M[K]["result"]>
+
+/** Type-erased handler used for storage; `never` accepts any payload. */
+type ErasedHandler = (
+  payload: never,
+  sender: chrome.runtime.MessageSender,
+) => unknown
+
+/**
+ * Create a typed message-handler registry for one channel.
+ *
+ * - `registerMessageHandler<K>(key, handler)` — key and handler are checked
+ *   against the contract map.
+ * - `handleMessage(key, payload, sender)` — untyped dispatch for the wire
+ *   boundary; throws when no handler is registered.
+ * - `hasHandler(key)` — whether a key is registered.
+ */
+export function createMessageRegistry<M extends MessageContract>() {
+  const handlers = new Map<string, ErasedHandler>()
+
+  function registerMessageHandler<K extends keyof M>(
+    key: K,
+    handler: MessageHandler<M, K>,
+  ): void {
+    handlers.set(key as string, handler as unknown as ErasedHandler)
   }
 
-  async function handleMessage<T = unknown, R = unknown>(
+  async function handleMessage(
     key: string,
-    payload: T,
+    payload: unknown,
     sender: chrome.runtime.MessageSender,
-  ): Promise<R> {
+  ): Promise<unknown> {
     const entry = handlers.get(key)
     if (!entry) {
       throw new Error(`No handler registered for message key: ${key}`)
     }
-    return entry.handler(payload, sender) as Promise<R>
+    return entry(payload as never, sender)
   }
 
   function hasHandler(key: string): boolean {
