@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>MyZ video capture fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font: 14px system-ui;
+      }
+      video {
+        width: 480px;
+        height: 360px;
+        background: #111;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Video capture fixture</h1>
+    <video id="v" muted playsinline loop></video>
+    <script>
+      // Synthesize a tiny WebM from a canvas so the test is hermetic (no network,
+      // no bundled binary). The blob URL is same-origin, so drawImage() is clean.
+      (async () => {
+        const video = document.getElementById("v");
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 320;
+          canvas.height = 240;
+          const ctx = canvas.getContext("2d");
+          const stream = canvas.captureStream(15);
+          const recorder = new MediaRecorder(stream, {
+            mimeType: "video/webm",
+          });
+          const chunks = [];
+          recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size) chunks.push(event.data);
+          };
+          const stopped = new Promise((resolve) => {
+            recorder.onstop = resolve;
+          });
+          recorder.start();
+          for (let i = 0; i < 30; i += 1) {
+            ctx.fillStyle = i % 2 ? "#c0392b" : "#2471a3";
+            ctx.fillRect(0, 0, 320, 240);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "40px sans-serif";
+            ctx.fillText(String(i), 20, 140);
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+          recorder.stop();
+          await stopped;
+          const blob = new Blob(chunks, { type: "video/webm" });
+          video.src = URL.createObjectURL(blob);
+          await video.play().catch(() => {});
+          document.documentElement.dataset.videoReady = "1";
+        } catch (error) {
+          document.documentElement.dataset.videoError = String(error);
+        }
+      })();
+    </script>
+  </body>
+</html>
