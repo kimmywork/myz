@@ -115,7 +115,7 @@ test("video_frame_button_captures_current_frame", async () => {
       return !!video && video.videoWidth > 0 && video.readyState >= 2;
     },
     null,
-    { timeout: 15000 },
+    { timeout: 25000 },
   );
 
   const box = await page.locator("video").boundingBox();
@@ -130,6 +130,41 @@ test("video_frame_button_captures_current_frame", async () => {
   const list = await waitForStagedCount(stitch, 1);
   expect(list[0].sourceKind).toBe("video-frame");
   expect(String(list[0].name)).toMatch(/^myz-video-.+\.png$/);
+});
+
+test("stitch_editor_exports_with_expected_filenames", async () => {
+  const stitch = await harness.openStitch();
+  await send(stitch, "myz:clearStagedAssets");
+  const dataUrl = await makePngDataUrl(stitch);
+  await stagePng(stitch, dataUrl, "a");
+  await stagePng(stitch, dataUrl, "b");
+
+  await stitch.reload();
+  await stitch.waitForSelector(".staging-item", { timeout: 8000 });
+  await stitch.getByRole("button", { name: "全选" }).click();
+  await stitch.getByRole("button", { name: /导入所选/ }).click();
+  await stitch.waitForSelector(".stage-canvas", { timeout: 8000 });
+
+  const modes: Array<[string, string]> = [
+    ["截图拼接", "myz-stitch"],
+    ["拼图", "myz-collage"],
+    ["展示图", "myz-showcase"],
+  ];
+  for (const [tab, prefix] of modes) {
+    if (tab !== "截图拼接") {
+      await stitch.getByRole("tab", { name: tab }).click();
+      await stitch.waitForSelector(".stage-canvas");
+    }
+    const save = stitch.getByRole("button", { name: "保存图片" }).first();
+    await expect(save).toBeEnabled({ timeout: 10000 });
+    const [download] = await Promise.all([
+      stitch.waitForEvent("download", { timeout: 15000 }),
+      save.click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(
+      new RegExp(`^${prefix}-.+\\.png$`),
+    );
+  }
 });
 
 // Opt-in: exercises a real remote player. Off by default because it needs

@@ -25,11 +25,15 @@
       // no bundled binary). The blob URL is same-origin, so drawImage() is clean.
       (async () => {
         const video = document.getElementById("v");
+        video.preload = "auto";
         try {
           const canvas = document.createElement("canvas");
           canvas.width = 320;
           canvas.height = 240;
           const ctx = canvas.getContext("2d");
+          // Paint once before captureStream so the stream has a frame.
+          ctx.fillStyle = "#2471a3";
+          ctx.fillRect(0, 0, 320, 240);
           const stream = canvas.captureStream(15);
           const recorder = new MediaRecorder(stream, {
             mimeType: "video/webm",
@@ -41,8 +45,8 @@
           const stopped = new Promise((resolve) => {
             recorder.onstop = resolve;
           });
-          recorder.start();
-          for (let i = 0; i < 30; i += 1) {
+          recorder.start(100);
+          for (let i = 0; i < 45; i += 1) {
             ctx.fillStyle = i % 2 ? "#c0392b" : "#2471a3";
             ctx.fillRect(0, 0, 320, 240);
             ctx.fillStyle = "#ffffff";
@@ -54,6 +58,7 @@
           await stopped;
           const blob = new Blob(chunks, { type: "video/webm" });
           video.src = URL.createObjectURL(blob);
+          video.load();
           await video.play().catch(() => {});
           document.documentElement.dataset.videoReady = "1";
         } catch (error) {
