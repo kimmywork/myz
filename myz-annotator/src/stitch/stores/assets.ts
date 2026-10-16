@@ -1,10 +1,29 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import { fileToAsset, releaseAsset } from "../core/imageUtils";
 import type { AssetItem } from "../types";
 
 /** Maximum number of images that may be loaded into one composition. */
 export const MAX_IMAGES = 16;
+
+/** Decode the picked/dropped image files sequentially (avoids decode spikes). */
+async function loadFiles(
+  files: FileList | File[],
+): Promise<{ loaded: AssetItem[]; error: string | null }> {
+  const list = Array.from(files).filter((file) =>
+    file.type.startsWith("image/"),
+  );
+  const loaded: AssetItem[] = [];
+  let error: string | null = null;
+  for (const file of list) {
+    try {
+      loaded.push(await fileToAsset(file));
+    } catch (err) {
+      error = err instanceof Error ? err.message : "图片读取失败";
+    }
+  }
+  return { loaded, error };
+}
 
 /**
  * Asset list for the editor — a Pinia port of stitch-web's `useAssets` hook.
@@ -15,27 +34,18 @@ export const useAssetsStore = defineStore("stitch-assets", () => {
   const busy = ref(false);
   const error = ref<string | null>(null);
 
-  const count = computed(() => assets.value.length);
-  const isEmpty = computed(() => assets.value.length === 0);
+  const inRange = (index: number) => index >= 0 && index < assets.value.length;
 
   async function addFiles(files: FileList | File[] | null) {
     if (!files) return;
-    const list = Array.from(files).filter((file) =>
-      file.type.startsWith("image/"),
-    );
-    if (list.length === 0) return;
     busy.value = true;
     error.value = null;
     try {
-      const loaded: AssetItem[] = [];
-      for (const file of list) {
-        try {
-          loaded.push(await fileToAsset(file));
-        } catch (err) {
-          error.value = err instanceof Error ? err.message : "图片读取失败";
-        }
+      const result = await loadFiles(files);
+      if (result.error) error.value = result.error;
+      if (result.loaded.length) {
+        assets.value = [...assets.value, ...result.loaded].slice(0, MAX_IMAGES);
       }
-      assets.value = [...assets.value, ...loaded].slice(0, MAX_IMAGES);
     } finally {
       busy.value = false;
     }
@@ -58,15 +68,7 @@ export const useAssetsStore = defineStore("stitch-assets", () => {
   }
 
   function move(from: number, to: number) {
-    if (
-      from === to ||
-      from < 0 ||
-      to < 0 ||
-      from >= assets.value.length ||
-      to >= assets.value.length
-    ) {
-      return;
-    }
+    if (from === to || !inRange(from) || !inRange(to)) return;
     const next = assets.value.slice();
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);
@@ -74,37 +76,21 @@ export const useAssetsStore = defineStore("stitch-assets", () => {
   }
 
   function swap(a: number, b: number) {
-    if (
-      a === b ||
-      a < 0 ||
-      b < 0 ||
-      a >= assets.value.length ||
-      b >= assets.value.length
-    ) {
-      return;
-    }
+    if (a === b || !inRange(a) || !inRange(b)) return;
     const next = assets.value.slice();
     [next[a], next[b]] = [next[b], next[a]];
     assets.value = next;
-  }
-
-  function replaceAll(next: AssetItem[]) {
-    assets.value.forEach(releaseAsset);
-    assets.value = next.slice(0, MAX_IMAGES);
   }
 
   return {
     assets,
     busy,
     error,
-    count,
-    isEmpty,
     addFiles,
     addAssets,
     remove,
     clear,
     move,
     swap,
-    replaceAll,
   };
 });

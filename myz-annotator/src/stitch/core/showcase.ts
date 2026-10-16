@@ -139,6 +139,100 @@ function drawCard(
   ctx.restore();
 }
 
+interface ShowcaseSlot {
+  rx: number;
+  ry: number;
+  hf: number;
+  rot: number;
+}
+
+/** Title + subtitle block; returns the y below which the cards may be drawn. */
+function drawTitleBlock(
+  ctx: CanvasRenderingContext2D,
+  p: ShowcaseParams,
+  W: number,
+  H: number,
+): number {
+  if (!p.title.trim() && !p.subtitle.trim()) return 0;
+  const pad = W * 0.09;
+  let cursorY = H * 0.09;
+  if (p.title.trim()) {
+    const size = fitText(ctx, p.title, W - pad * 2, W * 0.11 * p.titleScale);
+    ctx.fillStyle = p.textColor;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `700 ${size}px system-ui, -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(p.title, W / 2, cursorY + size);
+    cursorY += size * 1.35;
+  }
+  if (p.subtitle.trim()) {
+    const size = fitText(ctx, p.subtitle, W - pad * 2, W * 0.05 * p.titleScale);
+    ctx.fillStyle = p.textColor;
+    ctx.globalAlpha = 0.82;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `500 ${size}px system-ui, -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(p.subtitle, W / 2, cursorY + size);
+    ctx.globalAlpha = 1;
+    cursorY += size * 1.4;
+  }
+  return cursorY + H * 0.02;
+}
+
+function templateSlots(
+  template: ShowcaseTemplate,
+  count: number,
+): ShowcaseSlot[] {
+  if (template === "single" || count === 1) {
+    return [{ rx: 0.5, ry: 0.5, hf: 0.9, rot: 0 }];
+  }
+  if (template === "duo" && count >= 2) {
+    return [
+      { rx: 0.3, ry: 0.52, hf: 0.72, rot: -0.07 },
+      { rx: 0.7, ry: 0.46, hf: 0.72, rot: 0.07 },
+    ];
+  }
+  return [
+    { rx: 0.5, ry: 0.54, hf: 0.74, rot: 0 },
+    { rx: 0.25, ry: 0.42, hf: 0.58, rot: -0.12 },
+    { rx: 0.75, ry: 0.42, hf: 0.58, rot: 0.12 },
+  ];
+}
+
+/** Draws the selected assets into their template slots (back-to-front for trio). */
+function drawShowcaseCards(
+  ctx: CanvasRenderingContext2D,
+  source: AssetItem[],
+  layout: ShowcaseSlot[],
+  order: number[],
+  box: {
+    topUsed: number;
+    availH: number;
+    availW: number;
+    pad: number;
+    spacing: number;
+    baseH: number;
+    cardOpts: CardOpts;
+  },
+): void {
+  for (const index of order) {
+    const asset = source[index];
+    const slot = layout[index];
+    if (!asset || !slot) continue;
+    const aspect = asset.width / asset.height;
+    let cardH = box.baseH * slot.hf * box.spacing;
+    let cardW = cardH * aspect;
+    const maxW = box.availW * (source.length > 1 ? 0.52 : 0.82);
+    if (cardW > maxW) {
+      cardW = maxW;
+      cardH = cardW / aspect;
+    }
+    const cx = box.pad + box.availW * slot.rx;
+    const cy = box.topUsed + box.availH * slot.ry;
+    drawCard(ctx, cx, cy, cardW, cardH, asset, box.cardOpts, slot.rot);
+  }
+}
+
 export function composeShowcase(
   assets: AssetItem[],
   p: ShowcaseParams,
@@ -159,49 +253,14 @@ export function composeShowcase(
       : p.bgFrom;
   ctx.fillRect(0, 0, W, H);
 
-  const hasTitle = p.title.trim().length > 0 || p.subtitle.trim().length > 0;
   const pad = W * 0.09;
-  let topUsed = 0;
-
-  if (hasTitle) {
-    let cursorY = H * 0.09;
-    if (p.title.trim()) {
-      const base = W * 0.11 * p.titleScale;
-      const size = fitText(ctx, p.title, W - pad * 2, base);
-      ctx.fillStyle = p.textColor;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "alphabetic";
-      ctx.font = `700 ${size}px system-ui, -apple-system, "PingFang SC", sans-serif`;
-      ctx.fillText(p.title, W / 2, cursorY + size);
-      cursorY += size * 1.35;
-    }
-    if (p.subtitle.trim()) {
-      const base = W * 0.05 * p.titleScale;
-      const size = fitText(ctx, p.subtitle, W - pad * 2, base);
-      ctx.fillStyle = p.textColor;
-      ctx.globalAlpha = 0.82;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "alphabetic";
-      ctx.font = `500 ${size}px system-ui, -apple-system, "PingFang SC", sans-serif`;
-      ctx.fillText(p.subtitle, W / 2, cursorY + size);
-      ctx.globalAlpha = 1;
-      cursorY += size * 1.4;
-    }
-    topUsed = cursorY + H * 0.02;
-  }
-
+  const topUsed = drawTitleBlock(ctx, p, W, H);
   const source = assets.slice(
     0,
     p.template === "single" ? 1 : p.template === "duo" ? 2 : 3,
   );
-  const cardOpts: CardOpts = {
-    radius: p.radius,
-    shadow: p.shadow,
-  };
-
   const availH = H - topUsed - H * 0.06;
   const availW = W - pad * 2;
-  const areaCY = topUsed + availH / 2;
 
   if (source.length === 0) {
     // Placeholder hint.
@@ -210,52 +269,26 @@ export function composeShowcase(
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = `500 ${W * 0.045}px system-ui, sans-serif`;
-    ctx.fillText("请先添加截图", W / 2, areaCY);
+    ctx.fillText("请先添加截图", W / 2, topUsed + availH / 2);
     ctx.globalAlpha = 1;
     return canvas;
   }
 
-  const layoutByTemplate = (count: number) => {
-    if (p.template === "single" || count === 1) {
-      return [{ rx: 0.5, ry: 0.5, hf: 0.9, rot: 0 }];
-    }
-    if (p.template === "duo" && count >= 2) {
-      return [
-        { rx: 0.3, ry: 0.52, hf: 0.72, rot: -0.07 },
-        { rx: 0.7, ry: 0.46, hf: 0.72, rot: 0.07 },
-      ];
-    }
-    return [
-      { rx: 0.5, ry: 0.54, hf: 0.74, rot: 0 },
-      { rx: 0.25, ry: 0.42, hf: 0.58, rot: -0.12 },
-      { rx: 0.75, ry: 0.42, hf: 0.58, rot: 0.12 },
-    ];
-  };
-
-  const layout = layoutByTemplate(source.length);
+  const layout = templateSlots(p.template, source.length);
   // Draw back phones first for the trio template.
   const order = p.template === "trio" ? [1, 2, 0] : layout.map((_, i) => i);
-
   const baseH =
     Math.min(availH, availW * 2.1) *
     Math.min(1.1, Math.max(0.4, p.deviceScale));
-
-  for (const idx of order) {
-    const asset = source[idx];
-    const slot = layout[idx];
-    if (!asset || !slot) continue;
-    const aspect = asset.width / asset.height;
-    let phoneH = baseH * slot.hf * p.spacing;
-    let phoneW = phoneH * aspect;
-    const maxW = availW * (source.length > 1 ? 0.52 : 0.82);
-    if (phoneW > maxW) {
-      phoneW = maxW;
-      phoneH = phoneW / aspect;
-    }
-    const cx = pad + availW * slot.rx;
-    const cy = topUsed + availH * slot.ry;
-    drawCard(ctx, cx, cy, phoneW, phoneH, asset, cardOpts, slot.rot);
-  }
+  drawShowcaseCards(ctx, source, layout, order, {
+    topUsed,
+    availH,
+    availW,
+    pad,
+    spacing: p.spacing,
+    baseH,
+    cardOpts: { radius: p.radius, shadow: p.shadow },
+  });
 
   return canvas;
 }

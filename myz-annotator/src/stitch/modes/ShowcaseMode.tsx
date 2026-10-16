@@ -1,6 +1,5 @@
 import { computed, defineComponent, ref } from "vue";
 import AssetTray from "../components/AssetTray";
-import DropZone from "../components/DropZone";
 import ExportPanel from "../components/ExportPanel";
 import PreviewCanvas from "../components/PreviewCanvas";
 import {
@@ -21,6 +20,7 @@ import {
 } from "../core/showcase";
 import { useAssetsStore } from "../stores/assets";
 import { readAccentColor, readAccentHoverColor } from "../theme-accent";
+import ModeEmptyState from "./ModeEmptyState";
 
 const GRADIENTS: { from: string; to: string; angle: number }[] = [
   { from: "#5b8cff", to: "#7c5cff", angle: 135 },
@@ -75,24 +75,14 @@ export default defineComponent({
         <div class="mode">
           <div class="mode-main">
             {assets.length === 0 ? (
-              <div class="stage-empty">
-                <DropZone
-                  onFiles={(files: FileList | File[] | null) =>
-                    void store.addFiles(files)
-                  }
-                />
-                <div class="tips">
-                  <h3>App Store 展示图</h3>
-                  <ol>
-                    <li>
-                      选择目标尺寸（iPhone / iPad / Google Play / 社交卡片）。
-                    </li>
-                    <li>添加 1–3 张截图，自动套上设备边框并排版。</li>
-                    <li>填写标题与副标题，调整背景渐变与配色。</li>
-                    <li>导出即成可上传的商店展示图。</li>
-                  </ol>
-                </div>
-              </div>
+              <ModeEmptyState title="App Store 展示图">
+                <li>
+                  选择目标尺寸（iPhone / iPad / Google Play / 社交卡片）。
+                </li>
+                <li>添加 1–3 张截图，自动排版并套上圆角与投影。</li>
+                <li>填写标题与副标题，调整背景渐变与配色。</li>
+                <li>导出即成可上传的商店展示图。</li>
+              </ModeEmptyState>
             ) : (
               <PreviewCanvas
                 width={target.w}

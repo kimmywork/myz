@@ -187,7 +187,7 @@ function clamp01(v: number): number {
 }
 
 /** 1 where the two frames differ, 0 where they are identical (static overlays). */
-function buildDiffWeight(a: Gray, b: Gray, axis: Axis): Gray | null {
+function buildDiffWeight(a: Gray, b: Gray): Gray | null {
   const w = Math.min(a.w, b.w);
   const h = Math.min(a.h, b.h);
   if (w <= 0 || h <= 0) return null;
@@ -207,6 +207,108 @@ function buildDiffWeight(a: Gray, b: Gray, axis: Axis): Gray | null {
   }
   if (active < w * h * 0.01) return null; // nothing to distinguish -> fall back
   return { w: a.w, h: a.h, data: weight };
+}
+
+/** Box-filtered pyramid (8×, 4×, 2×, 1×) with optional diff weights. */
+function buildPyramid(a: Gray, b: Gray, weight: Gray | null): Level[] {
+  return [8, 4, 2, 1].map((factor) => ({
+    ga: downsample(a, factor),
+    gb: downsample(b, factor),
+    wt: weight ? downsampleWeight(weight, factor) : null,
+    scale: factor,
+  }));
+}
+
+/** Full-range search at the coarsest level, then ±3px refinement down to native. */
+function searchPyramid(
+  levels: Level[],
+  axis: Axis,
+  searchMax: number,
+): { offset: number; err: number } {
+  let estimate = -1;
+  let best = { offset: 0, err: Infinity };
+  for (const level of levels) {
+    const levelLen = along(level.ga, axis);
+    const levelMax = Math.max(1, Math.min(levelLen, along(level.gb, axis)) - 1);
+    const levelSearchMax = Math.max(
+      1,
+      Math.min(levelMax, Math.floor(searchMax / level.scale)),
+    );
+    let lo = 1;
+    let hi = levelSearchMax;
+    if (estimate >= 0) {
+      const center = estimate / level.scale;
+      lo = Math.max(1, Math.floor(center) - 3);
+      hi = Math.min(levelSearchMax, Math.ceil(center) + 3);
+      if (hi < lo) {
+        lo = 1;
+        hi = levelSearchMax;
+      }
+    }
+    const result = searchRange(level, axis, lo, hi);
+    estimate = result.offset * level.scale;
+    best = { offset: Math.round(estimate), err: result.err };
+  }
+  return best;
+}
+
+/** Pixel-accurate search restricted to a window around a coarse estimate. */
+function searchWindow(
+  a: Gray,
+  b: Gray,
+  weight: Gray | null,
+  axis: Axis,
+  searchMax: number,
+  window: { center: number; radius: number },
+): { offset: number; err: number } {
+  const level: Level = { ga: a, gb: b, wt: weight, scale: 1 };
+  const lo = Math.max(1, Math.round(window.center - window.radius));
+  const hi = Math.min(searchMax, Math.round(window.center + window.radius));
+  const result = searchRange(level, axis, Math.min(lo, hi), hi);
+  return { offset: result.offset, err: result.err };
+}
+
+/** Peak ratio at 1/4 resolution: best offset vs the best unrelated offset. */
+function peakConfidence(
+  a: Gray,
+  b: Gray,
+  weight: Gray | null,
+  axis: Axis,
+  searchMax: number,
+): number {
+  const level: Level = {
+    ga: downsample(a, 4),
+    gb: downsample(b, 4),
+    wt: weight ? downsampleWeight(weight, 4) : null,
+    scale: 4,
+  };
+  const confLen = along(level.ga, axis);
+  const confMax = Math.max(1, Math.min(confLen, along(level.gb, axis)) - 1);
+  const confSearchMax = Math.max(
+    1,
+    Math.min(confMax, Math.floor(searchMax / 4)),
+  );
+  const guard = Math.max(2, Math.round(0.06 * confLen));
+  let minOff = 1;
+  let minErr = Infinity;
+  for (let off = 1; off <= confSearchMax; off += 1) {
+    const e = evalLevel(level, off, axis);
+    if (e < minErr) {
+      minErr = e;
+      minOff = off;
+    }
+  }
+  let secondErr = Infinity;
+  for (let off = 1; off <= confSearchMax; off += 1) {
+    if (Math.abs(off - minOff) <= guard) continue;
+    const e = evalLevel(level, off, axis);
+    if (e < secondErr) secondErr = e;
+  }
+  if (!Number.isFinite(minErr)) return 0;
+  if (secondErr > 0 && Number.isFinite(secondErr)) {
+    return clamp01(1 - minErr / secondErr);
+  }
+  return 1;
 }
 
 /**
@@ -234,91 +336,13 @@ export function estimateOffset(
     Math.min(minLen - 1, Math.floor(minLen * (1 - minOverlapRatio))),
   );
 
-  const weight = opts.diffMode ? buildDiffWeight(a, b, axis) : null;
+  const weight = opts.diffMode ? buildDiffWeight(a, b) : null;
 
-  let bestNative = 0;
-  let bestErr = Infinity;
+  const { offset: bestNative, err: bestErr } = opts.window
+    ? searchWindow(a, b, weight, axis, searchMax, opts.window)
+    : searchPyramid(buildPyramid(a, b, weight), axis, searchMax);
 
-  const factors = [8, 4, 2, 1];
-  const levels: Level[] = factors.map((f) => ({
-    ga: downsample(a, f),
-    gb: downsample(b, f),
-    wt: weight ? downsampleWeight(weight, f) : null,
-    scale: f,
-  }));
-
-  if (opts.window) {
-    const lv: Level = { ga: a, gb: b, wt: weight, scale: 1 };
-    const lo = Math.max(1, Math.round(opts.window.center - opts.window.radius));
-    const hi = Math.min(
-      searchMax,
-      Math.round(opts.window.center + opts.window.radius),
-    );
-    const r = searchRange(lv, axis, Math.min(lo, hi), hi);
-    bestNative = r.offset;
-    bestErr = r.err;
-  } else {
-    let estimate = -1;
-    for (const lv of levels) {
-      const levelLen = along(lv.ga, axis);
-      const levelMax = Math.max(1, Math.min(levelLen, along(lv.gb, axis)) - 1);
-      const levelSearchMax = Math.max(
-        1,
-        Math.min(levelMax, Math.floor(searchMax / lv.scale)),
-      );
-      let lo = 1;
-      let hi = levelSearchMax;
-      if (estimate >= 0) {
-        const center = estimate / lv.scale;
-        lo = Math.max(1, Math.floor(center) - 3);
-        hi = Math.min(levelSearchMax, Math.ceil(center) + 3);
-        if (hi < lo) {
-          lo = 1;
-          hi = levelSearchMax;
-        }
-      }
-      const r = searchRange(lv, axis, lo, hi);
-      estimate = r.offset * lv.scale;
-      bestNative = Math.round(estimate);
-      bestErr = r.err;
-    }
-  }
-
-  // Confidence = "peak ratio" at a 1/4 resolution: how much better is the best offset
-  // than the best *unrelated* offset (outside a guard band around it)?
-  const confLv: Level = {
-    ga: downsample(a, 4),
-    gb: downsample(b, 4),
-    wt: weight ? downsampleWeight(weight, 4) : null,
-    scale: 4,
-  };
-  const confLen = along(confLv.ga, axis);
-  const confMax = Math.max(1, Math.min(confLen, along(confLv.gb, axis)) - 1);
-  const confSearchMax = Math.max(
-    1,
-    Math.min(confMax, Math.floor(searchMax / 4)),
-  );
-  const guard = Math.max(2, Math.round(0.06 * confLen));
-  let minOff = 1;
-  let minErr = Infinity;
-  for (let off = 1; off <= confSearchMax; off += 1) {
-    const e = evalLevel(confLv, off, axis);
-    if (e < minErr) {
-      minErr = e;
-      minOff = off;
-    }
-  }
-  let secondErr = Infinity;
-  for (let off = 1; off <= confSearchMax; off += 1) {
-    if (Math.abs(off - minOff) <= guard) continue;
-    const e = evalLevel(confLv, off, axis);
-    if (e < secondErr) secondErr = e;
-  }
-  const confidence = Number.isFinite(minErr)
-    ? secondErr > 0 && Number.isFinite(secondErr)
-      ? clamp01(1 - minErr / secondErr)
-      : 1
-    : 0;
+  const confidence = peakConfidence(a, b, weight, axis, searchMax);
 
   const overlap = Math.max(0, minLen - bestNative);
   const overlapRatio = overlap / minLen;

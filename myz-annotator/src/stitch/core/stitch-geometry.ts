@@ -52,14 +52,25 @@ function stripHeightFor(len: number, p: StitchParams, i: number): number {
  * 字幕堆叠: the first frame keeps its full picture, every later frame contributes only its
  * bottom subtitle strip. This mirrors how subtitle screenshots are stacked into a strip comic.
  */
+interface Measures {
+  n: number;
+  lens: number[];
+  crosses: number[];
+  crossMax: number;
+}
+
+/** Along-axis length, cross-axis length and the max cross length for a set. */
+function measure(assets: AssetItem[], p: StitchParams): Measures {
+  const lens = assets.map((a) => alongLength(a, p.axis));
+  const crosses = assets.map((a) => crossLength(a, p.axis));
+  return { n: assets.length, lens, crosses, crossMax: Math.max(...crosses, 1) };
+}
+
 function buildSubtitleGeometry(
   assets: AssetItem[],
   p: StitchParams,
 ): StitchGeometry {
-  const n = assets.length;
-  const lens = assets.map((a) => alongLength(a, p.axis));
-  const crosses = assets.map((a) => crossLength(a, p.axis));
-  const crossMax = Math.max(...crosses, 1);
+  const { n, lens, crossMax } = measure(assets, p);
 
   const positions = new Array<number>(n).fill(0);
   const parts: { start: number; len: number }[] = [];
@@ -133,34 +144,84 @@ function placementsFromParts(
   return { width, height, placements };
 }
 
-/** Build the full-resolution layout for the preview and export canvases. */
-export function buildGeometry(
+/** One placement, axis-aware (cross-axis centering is passed in). */
+function makePlacement(
+  axis: StitchParams["axis"],
+  asset: AssetItem,
+  alongStart: number,
+  alongLen: number,
+  alongDest: number,
+  crossOff: number,
+  blend: number,
+): Placement {
+  if (axis === "y") {
+    return {
+      asset,
+      sx: 0,
+      sy: alongStart,
+      sw: asset.width,
+      sh: alongLen,
+      dx: crossOff,
+      dy: alongDest,
+      dw: asset.width,
+      dh: alongLen,
+      blend,
+    };
+  }
+  return {
+    asset,
+    sx: alongStart,
+    sy: 0,
+    sw: alongLen,
+    sh: asset.height,
+    dx: alongDest,
+    dy: crossOff,
+    dw: alongLen,
+    dh: asset.height,
+    blend,
+  };
+}
+
+/** 简单串联: trim per-image, then stack with gaps. */
+function buildConcatGeometry(
   assets: AssetItem[],
   p: StitchParams,
+  lens: number[],
+  crossMax: number,
+): StitchGeometry {
+  const parts = assets.map((_, i) => {
+    const cfg = perImage(assets, p, i);
+    const trimTop = clampBand(cfg.trimTop, lens[i]);
+    const trimBottom = clampBand(
+      cfg.trimBottom,
+      Math.max(0, lens[i] - trimTop),
+    );
+    return { start: trimTop, len: Math.max(1, lens[i] - trimTop - trimBottom) };
+  });
+  const positions = new Array<number>(assets.length).fill(0);
+  let acc = 0;
+  for (let i = 0; i < assets.length; i += 1) {
+    positions[i] = acc;
+    acc += parts[i].len + (i < assets.length - 1 ? p.gap : 0);
+  }
+  return placementsFromParts(assets, p, positions, parts, crossMax, acc);
+}
+
+/** 智能裁剪 / 过渡混合: overlap from the analysed offsets, optional fixed bands. */
+function buildCropBlendGeometry(
+  assets: AssetItem[],
+  p: StitchParams,
+  lens: number[],
+  crosses: number[],
+  crossMax: number,
 ): StitchGeometry {
   const n = assets.length;
-  if (n === 0) return { width: 1, height: 1, placements: [] };
-
-  if (p.strategy === "subtitle") return buildSubtitleGeometry(assets, p);
-
-  const lens = assets.map((a) => alongLength(a, p.axis));
-  const crosses = assets.map((a) => crossLength(a, p.axis));
-  const crossMax = Math.max(...crosses, 1);
   const offsets = p.offsets;
-
   const positions = new Array<number>(n).fill(0);
-  if (p.strategy === "concat") {
-    let acc = 0;
-    for (let i = 0; i < n; i += 1) {
-      positions[i] = acc;
-      acc += lens[i] + (i < n - 1 ? p.gap : 0);
-    }
-  } else {
-    let acc = 0;
-    for (let i = 0; i < n; i += 1) {
-      positions[i] = acc;
-      if (i < n - 1) acc += Math.max(0, Math.round(offsets[i] ?? 0));
-    }
+  let acc = 0;
+  for (let i = 0; i < n; i += 1) {
+    positions[i] = acc;
+    if (i < n - 1) acc += Math.max(0, Math.round(offsets[i] ?? 0));
   }
   const totalAlong = positions[n - 1] + lens[n - 1];
 
@@ -168,41 +229,15 @@ export function buildGeometry(
   const fixedB = clampBand(p.fixedBottom, Math.min(...lens));
   const useBands = (fixedT > 0 || fixedB > 0) && n > 1;
 
-  if (p.strategy === "concat") {
-    // Simple concatenation, but honour per-image trims so it can also crop letterbox bars.
-    const parts = assets.map((a, i) => {
-      const cfg = perImage(assets, p, i);
-      const trimTop = clampBand(cfg.trimTop, lens[i]);
-      const trimBottom = clampBand(
-        cfg.trimBottom,
-        Math.max(0, lens[i] - trimTop),
-      );
-      return {
-        start: trimTop,
-        len: Math.max(1, lens[i] - trimTop - trimBottom),
-      };
-    });
-    // Recompute positions with trimmed lengths.
-    let acc = 0;
-    for (let i = 0; i < n; i += 1) {
-      positions[i] = acc;
-      acc += parts[i].len + (i < n - 1 ? p.gap : 0);
-    }
-    return placementsFromParts(assets, p, positions, parts, crossMax, acc);
-  }
-
   const placements: Placement[] = [];
   for (let i = 0; i < n; i += 1) {
-    const a = assets[i];
     const len = lens[i];
-
     let alongStart = 0;
     let alongLen = len;
     let alongDest = positions[i];
 
     if (useBands && fixedT + fixedB < len) {
       if (i === 0) {
-        alongStart = 0;
         alongLen = len - fixedB;
       } else if (i === n - 1) {
         alongStart = fixedT;
@@ -223,39 +258,38 @@ export function buildGeometry(
     }
 
     const crossOff = (crossMax - crosses[i]) / 2;
-
-    if (p.axis === "y") {
-      placements.push({
-        asset: a,
-        sx: 0,
-        sy: alongStart,
-        sw: a.width,
-        sh: alongLen,
-        dx: crossOff,
-        dy: alongDest,
-        dw: a.width,
-        dh: alongLen,
+    placements.push(
+      makePlacement(
+        p.axis,
+        assets[i],
+        alongStart,
+        alongLen,
+        alongDest,
+        crossOff,
         blend,
-      });
-    } else {
-      placements.push({
-        asset: a,
-        sx: alongStart,
-        sy: 0,
-        sw: alongLen,
-        sh: a.height,
-        dx: alongDest,
-        dy: crossOff,
-        dw: alongLen,
-        dh: a.height,
-        blend,
-      });
-    }
+      ),
+    );
   }
 
   const width = p.axis === "y" ? crossMax : totalAlong;
   const height = p.axis === "y" ? totalAlong : crossMax;
   return { width, height, placements };
+}
+
+/** Build the full-resolution layout for the preview and export canvases. */
+export function buildGeometry(
+  assets: AssetItem[],
+  p: StitchParams,
+): StitchGeometry {
+  const n = assets.length;
+  if (n === 0) return { width: 1, height: 1, placements: [] };
+  if (p.strategy === "subtitle") return buildSubtitleGeometry(assets, p);
+
+  const { lens, crosses, crossMax } = measure(assets, p);
+
+  return p.strategy === "concat"
+    ? buildConcatGeometry(assets, p, lens, crossMax)
+    : buildCropBlendGeometry(assets, p, lens, crosses, crossMax);
 }
 
 let tempCanvas: HTMLCanvasElement | null = null;

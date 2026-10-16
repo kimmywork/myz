@@ -65,6 +65,31 @@ export function resolveExportScale(
 
 export type RenderFn = (scale: number) => HTMLCanvasElement;
 
+interface ResolvedExport {
+  scale: number;
+  width: number;
+  height: number;
+  clamped: boolean;
+}
+
+function renderResolved(
+  render: RenderFn,
+  settings: ExportSettings,
+  baseWidth: number,
+  baseHeight: number,
+): { canvas: HTMLCanvasElement; resolved: ResolvedExport } {
+  const resolved = resolveExportScale(baseWidth, baseHeight, settings.scale);
+  return { canvas: render(resolved.scale), resolved };
+}
+
+function dims(resolved: ResolvedExport) {
+  return {
+    width: resolved.width,
+    height: resolved.height,
+    clamped: resolved.clamped,
+  };
+}
+
 export async function saveRendered(
   render: RenderFn,
   settings: ExportSettings,
@@ -72,8 +97,12 @@ export async function saveRendered(
   baseHeight: number,
   filenameBase: string,
 ): Promise<{ width: number; height: number; clamped: boolean }> {
-  const resolved = resolveExportScale(baseWidth, baseHeight, settings.scale);
-  const canvas = render(resolved.scale);
+  const { canvas, resolved } = renderResolved(
+    render,
+    settings,
+    baseWidth,
+    baseHeight,
+  );
   const blob = await canvasToBlob(
     canvas,
     settings.format,
@@ -83,11 +112,7 @@ export async function saveRendered(
     blob,
     `${filenameBase}-${formatTimestamp()}.${formatExt(settings.format)}`,
   );
-  return {
-    width: resolved.width,
-    height: resolved.height,
-    clamped: resolved.clamped,
-  };
+  return dims(resolved);
 }
 
 export async function copyRendered(
@@ -96,14 +121,14 @@ export async function copyRendered(
   baseWidth: number,
   baseHeight: number,
 ): Promise<{ width: number; height: number; clamped: boolean }> {
+  const { canvas, resolved } = renderResolved(
+    render,
+    settings,
+    baseWidth,
+    baseHeight,
+  );
   // Clipboard PNG is the most widely supported format.
-  const resolved = resolveExportScale(baseWidth, baseHeight, settings.scale);
-  const canvas = render(resolved.scale);
   const blob = await canvasToBlob(canvas, "image/png");
   await copyBlobToClipboard(blob);
-  return {
-    width: resolved.width,
-    height: resolved.height,
-    clamped: resolved.clamped,
-  };
+  return dims(resolved);
 }
