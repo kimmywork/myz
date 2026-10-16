@@ -26,7 +26,7 @@ export function createHighlightDataset(): StreamDataset {
     },
     async remove(recordId) {
       const parsed = parseRecordId(recordId);
-      if (parsed?.type === "highlight") {
+      if (parsed?.kind === "highlight") {
         await deleteHighlight(parsed.id);
       }
     },

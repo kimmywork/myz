@@ -1,0 +1,23 @@
+{
+  "name": "@myz/core",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./identity": "./src/identity.ts",
+    "./source-kind": "./src/source-kind.ts",
+    "./locator": "./src/locator.ts",
+    "./payload-codec": "./src/payload-codec.ts",
+    "./lifecycle": "./src/lifecycle.ts",
+    "./relations": "./src/relations.ts",
+    "./inbox": "./src/inbox.ts"
+  },
+  "dependencies": {
+    "@myz/shared": "*",
+    "zod": "*"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "test": "vitest run"
+  }
+}

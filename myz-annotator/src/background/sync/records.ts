@@ -1,29 +1,16 @@
+import { parseRecordId, recordIdForHighlight } from "@myz/core/identity";
 import type { MyZRecord } from "@myz/shared/types";
 import { SYNC_PROTOCOL_VERSION } from "@myz/shared/versioning";
 import { deleteHighlight, getAllHighlights, saveHighlight } from "../storage";
 import { sha256, utf8ToBytes } from "./crypto";
-import type { SyncRecord, SyncRecordPayload, SyncRecordType } from "./types";
+import type { SyncRecord, SyncRecordPayload } from "./types";
 import {
   decodeBinaryPayload,
   encodeBinaryPayload,
   stableStringify,
 } from "./utils";
 
-const HIGHLIGHT_PREFIX = "h:";
-
-export function recordIdForHighlight(id: string) {
-  return `${HIGHLIGHT_PREFIX}${id}`;
-}
-
-export function parseRecordId(recordId: string): {
-  type: SyncRecordType;
-  id: string;
-} | null {
-  if (recordId.startsWith(HIGHLIGHT_PREFIX)) {
-    return { type: "highlight", id: recordId.slice(HIGHLIGHT_PREFIX.length) };
-  }
-  return null;
-}
+export { parseRecordId, recordIdForHighlight };
 
 function resolveUpdatedAt(value?: string) {
   if (value && typeof value === "string") {
@@ -105,7 +92,7 @@ export async function applyRecordPayload(
 export async function deleteLocalRecord(recordId: string): Promise<void> {
   const parsed = parseRecordId(recordId);
   if (!parsed) return;
-  if (parsed.type === "highlight") {
+  if (parsed.kind === "highlight") {
     await deleteHighlight(parsed.id);
     return;
   }

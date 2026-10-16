@@ -1,3 +1,4 @@
+import { transitionLifecycle } from "@myz/core/lifecycle";
 import {
   inboxMarkRecordId,
   inboxRelationRecordId,
@@ -30,22 +31,11 @@ export async function setInboxStatus(
   status: InboxStatus,
   options: { snoozedUntil?: string; now?: string } = {},
 ): Promise<InboxStatusState> {
-  const changedAt = options.now ?? nowIso();
-  const state: InboxStatusState = {
-    targetId,
-    status,
-    changedAt,
-    ...(status === "snoozed" && options.snoozedUntil
-      ? { snoozedUntil: options.snoozedUntil }
-      : {}),
-    ...(status === "kept" || status === "archived"
-      ? { handledAt: changedAt }
-      : {}),
-  };
+  const state = transitionLifecycle(targetId, status, options);
   await putInboxState({
     recordId: inboxStatusRecordId(targetId),
     kind: "status",
-    changedAt,
+    changedAt: state.changedAt,
     payload: {
       status: state.status,
       snoozedUntil: state.snoozedUntil,

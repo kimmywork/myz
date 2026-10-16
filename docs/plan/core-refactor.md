@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）**已实现并验证**（见 §12）；I3–I10 未开始。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）**已实现并验证**（见 §12）；I4–I10 未开始。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -187,7 +187,7 @@ interface MyzTabMap { // SW → CS
 | --- | --- | --- | --- | --- |
 | **I1** | 消息契约表 + 泛型 API + **D3 修复** | `MyzRuntimeMap`/`MyzTabMap`、泛型 `invoke`/`handle`；修复 falsy 解包；特权元数据入契约；清查平铺 payload 调用点 | 无 | 全部注册点编译通过；行为不变；新增 falsy 返回的回归测试 **（已完成，见 §12；调用点迁移见 I1b）** |
 | **I2** | Transport 端口 + `MessageContext` | `Transport` 接口 + 扩展实现（Runtime/Tab 两方向）；`messaging.ts` 降级为 adapter | I1 | 现有 e2e 全绿 |
-| **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 |
+| **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 **（已完成，见 §12；设置模型转 I4）** |
 | **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 |
 | **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 |
 | **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 |
@@ -272,3 +272,10 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 用到 sender 的处理器（`background/messages/capture.ts`、`highlights.ts`）改用 `ctx.tabId` / `ctx.windowId`。
   - 验证：`vue-tsc -b` 0；shared 94、annotator 276 单测通过；eslint 0 error（仅 `highlights.ts` 既有 `max-lines` 警告）；`vite build` 成功。
   - **遗留**：Tab 方向的 `invoke` 仍走 `sendToContentScript`（含 tab 发现逻辑），未并入 `Transport.invoke`；调用点仍走宽松 `sendMessage`（I1b）。
+- **I3 完成（2026-10-16）**：建立 `@myz/core` 领域层并迁移纯逻辑。
+  - 新包 `packages/core`（`@myz/core`，env-agnostic，无 chrome / DOM / IO），子路径导出 `identity` / `source-kind` / `locator` / `payload-codec` / `lifecycle` / `relations` / `inbox`。
+  - 模型注册表：**记录身份**（`h:` 前缀 ↔ kind，新增 kind 只改这里）、**SourceKind**（web/pdf/epub + 身份方案 / 能力位 / 合成 url 前缀）、**LocatorKind** + `normalizeLocator`（读时归一化，§10/5）、**PayloadCodec** registry（`schemaId` + 版本 + 迁移，供 sync `apply` 侧用）、**Lifecycle**（`transitionLifecycle` 纯状态迁移）、**Relation**（`rel:` + `backlinksOf`）。
+  - 迁移：`recordIdForHighlight` / `parseRecordId`（扩展 `background/sync/records.ts` 改为 re-export core，`datasets.ts` 用 `parsed.kind`）；`buildInboxQueue` 读模型（扩展 `background/inbox/queue.ts` 委托，badge 留在扩展）；`setInboxStatus` 用 core `transitionLifecycle`。
+  - 测试：`packages/core/tests/` 共 16 用例。
+  - 验证：core 16、annotator 276 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
+  - **未做（转后续）**：设置模型迁移（与 `sync-core` + `chrome.storage` 纠缠，随 I4 存储端口一起）；其余 inbox 存储动作（`getInboxStatus`/mark/relation 的持久化）留在扩展，待 I4/I5 收敛。
