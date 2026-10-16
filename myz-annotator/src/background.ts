@@ -6,6 +6,7 @@ import { initializeHighlightMessageHandlers } from "./background/messages/highli
 import { initializeInboxMessageHandlers } from "./background/messages/inbox.js";
 import { initializeSearchMessageHandlers } from "./background/messages/search.js";
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
+import { initializeStagedAssetMessageHandlers } from "./background/messages/staged-assets.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
 import { authorizeMessage } from "./background/messages/trustedSender.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
@@ -46,6 +47,36 @@ async function ensureContextMenus() {
       title: "在 MyZ 中打开 PDF",
       contexts: ["link"],
     });
+    try {
+      await chrome.contextMenus.remove("myz-save-image");
+    } catch (error) {
+      console.warn("Failed to remove existing save-image menu", error);
+    }
+    chrome.contextMenus.create({
+      id: "myz-save-image",
+      title: "保存图片到 MyZ",
+      contexts: ["image"],
+    });
+    try {
+      await chrome.contextMenus.remove("myz-capture-video-frame");
+    } catch (error) {
+      console.warn("Failed to remove existing video-frame menu", error);
+    }
+    chrome.contextMenus.create({
+      id: "myz-capture-video-frame",
+      title: "截取当前视频帧到 MyZ",
+      contexts: ["video"],
+    });
+    try {
+      await chrome.contextMenus.remove("myz-open-stitch");
+    } catch (error) {
+      console.warn("Failed to remove existing open-stitch menu", error);
+    }
+    chrome.contextMenus.create({
+      id: "myz-open-stitch",
+      title: "打开 MyZ 拼图",
+      contexts: ["page", "selection"],
+    });
   } catch (error) {
     console.warn("Context menu creation failed", error);
   }
@@ -80,6 +111,20 @@ chrome.contextMenus.onClicked.addListener(
         const base = chrome.runtime.getURL("src/pdf/pdf-viewer.html");
         const url = target ? `${base}?url=${encodeURIComponent(target)}` : base;
         await chrome.tabs.create({ url });
+      } else if (info.menuItemId === "myz-save-image") {
+        await chrome.tabs.sendMessage(tab.id, {
+          type: "myz:capturePageImage",
+          payload: { srcUrl: info.srcUrl },
+        });
+      } else if (info.menuItemId === "myz-capture-video-frame") {
+        await chrome.tabs.sendMessage(tab.id, {
+          type: "myz:captureVideoFrame",
+          payload: { srcUrl: info.srcUrl },
+        });
+      } else if (info.menuItemId === "myz-open-stitch") {
+        await chrome.tabs.create({
+          url: chrome.runtime.getURL("src/stitch/stitch.html"),
+        });
       }
     } catch (e) {
       // ignore
@@ -141,6 +186,7 @@ initializeHighlightMessageHandlers();
 initializeInboxMessageHandlers();
 initializeSearchMessageHandlers();
 initializeSettingsMessageHandlers();
+initializeStagedAssetMessageHandlers();
 initializeSyncMessageHandlers();
 initializeSyncScheduler();
 initializeInboxReminder();

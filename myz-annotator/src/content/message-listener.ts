@@ -1,3 +1,4 @@
+import { initializeCaptureMediaMessageHandlers } from "./messages/capture";
 import { initializeConvertMessageHandlers } from "./messages/convert";
 import { handleMessage, hasHandler } from "./messages/handler";
 import { initializeHighlightMessageHandlers } from "./messages/highlights";
@@ -7,6 +8,7 @@ import { initializeZenMessageHandlers } from "./messages/zen";
 initializeHighlightMessageHandlers();
 initializeConvertMessageHandlers();
 initializeZenMessageHandlers();
+initializeCaptureMediaMessageHandlers();
 
 export interface MessagePayload {
   type: string;

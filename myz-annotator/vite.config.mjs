@@ -102,6 +102,7 @@ export default defineConfig(({ mode }) => ({
         dashboard: resolve(rootDir, "src/dashboard/index.html"),
         "pdf-viewer": resolve(rootDir, "src/pdf/pdf-viewer.html"),
         "epub-viewer": resolve(rootDir, "src/epub/epub-viewer.html"),
+        "stitch-viewer": resolve(rootDir, "src/stitch/stitch.html"),
       },
     },
   },

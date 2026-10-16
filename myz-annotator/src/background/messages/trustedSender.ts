@@ -24,6 +24,12 @@ const PRIVILEGED_MESSAGES = new Set<string>([
   "myz:updatePalette",
   // Imports write records in bulk and are performed by the dashboard.
   "myz:importHighlights",
+  // Capture cache: only content scripts may *write* an asset
+  // (`myz:stageAsset`); reading/deleting is done from the stitch editor page.
+  "myz:listStagedAssets",
+  "myz:getStagedAsset",
+  "myz:deleteStagedAsset",
+  "myz:clearStagedAssets",
 ]);
 
 const USER_GESTURE_MESSAGES = new Set<string>([

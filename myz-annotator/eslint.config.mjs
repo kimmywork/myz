@@ -22,6 +22,7 @@ for (const config of baseConfigs) {
       IDBValidKey: "readonly",
       ParentNode: "readonly",
       BlobPart: "readonly",
+      CanvasImageSource: "readonly",
       PointerEventInit: "readonly",
       MouseEventInit: "readonly",
       KeyboardEventInit: "readonly",

@@ -1,4 +1,4 @@
-import { BookOpen } from "@lucide/vue";
+import { BookOpen, LayoutGrid } from "@lucide/vue";
 import { StatePanel } from "@myz/dashboard-ui";
 import ThemeToggle from "@myz/shared/components/ThemeToggle";
 import { IconFileText, IconSettings } from "@myz/shared/icons";
@@ -41,6 +41,15 @@ export default defineComponent({
               onClick={popup.openEpubReader}
             >
               <BookOpen size={18} aria-hidden="true" />
+            </button>
+            <button
+              class={ICON_BUTTON}
+              aria-label="打开图片合成"
+              title="打开图片合成"
+              type="button"
+              onClick={popup.openStitch}
+            >
+              <LayoutGrid size={18} aria-hidden="true" />
             </button>
             <button
               class={ICON_BUTTON}

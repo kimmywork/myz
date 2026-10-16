@@ -1,12 +1,10 @@
 import { detectCjkRegion, type CjkRegion } from "@myz/shared/cjk";
+import { stageCapturedImage } from "./capture-media.js";
 import { findPrimaryContentElement } from "./content-extraction.js";
 import { waitForNextPaint } from "./html.js";
-import {
-  captureVisiblePngWithThrottle,
-  cropToCanvas,
-  downloadImage,
-} from "./image.js";
+import { captureVisiblePngWithThrottle, cropToCanvas } from "./image.js";
 import { getThemeRoot } from "./theme-root.js";
+import { buildSimpleName } from "@/stitch/filename";
 
 declare global {
   interface Window {
@@ -189,10 +187,14 @@ export async function captureZenTargetFull() {
             );
           }
         }
-        downloadImage(
-          stitched.toDataURL("image/png"),
-          `myz-article-${Date.now()}-${rowStart}-${colStart}.png`,
-        );
+        await stageCapturedImage({
+          dataUrl: stitched.toDataURL("image/png"),
+          width: stitched.width,
+          height: stitched.height,
+          name: `${buildSimpleName("screenshot")}-${rowStart}-${colStart}`,
+          sourceKind: "screenshot",
+          sourceUrl: window.location.href,
+        });
       }
     }
     window.scrollTo(originalScroll.x, originalScroll.y);

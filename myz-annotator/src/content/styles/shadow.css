@@ -841,3 +841,51 @@
 .myz-tag-input__option.is-active {
   color: var(--myz-accent-text);
 }
+
+/* ── 视频截帧浮动按钮：hover 到视频右上角时出现 ───────────────────── */
+.myz-video-capture {
+  position: fixed;
+  z-index: 2147483647;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: var(--myz-r-pill);
+  background: var(--myz-overlay);
+  color: var(--myz-overlay-text);
+  opacity: 0.55;
+  cursor: grab;
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.18);
+  transition:
+    opacity var(--myz-motion-fast) ease,
+    background var(--myz-motion-fast) ease;
+  touch-action: none;
+}
+
+.myz-video-capture:hover {
+  opacity: 1;
+  background: var(--myz-accent);
+  color: var(--myz-on-accent);
+}
+
+.myz-video-capture.is-dragging {
+  opacity: 1;
+  cursor: grabbing;
+}
+
+.myz-video-capture:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--myz-overlay-text);
+  outline-offset: 2px;
+}
+
+.myz-video-capture svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}

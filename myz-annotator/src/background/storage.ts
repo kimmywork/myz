@@ -18,11 +18,16 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 import { SettingsRegistry } from "./settings/registry.js";
 import type { Settings, SettingsBundle } from "./settings.js";
 import { openS3Credentials, sealS3Credentials } from "./sync/credentials.js";
+import type { StagedAsset } from "@/stitch/staged-asset.js";
 
 const DB_NAME = "myz_db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
-/** Creates the highlight + inbox stores the first time the db is opened. */
+/**
+ * Creates the object stores the first time the db is opened (or upgrades an
+ * older one). Store creation is guarded by `contains` so a caller that opens an
+ * already-current db is unaffected.
+ */
 function upgradeSchema(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains("highlights")) {
     const store = db.createObjectStore("highlights", { keyPath: "id" });
@@ -32,6 +37,11 @@ function upgradeSchema(db: IDBDatabase): void {
 
   if (!db.objectStoreNames.contains("inbox_state")) {
     db.createObjectStore("inbox_state", { keyPath: "recordId" });
+  }
+
+  if (!db.objectStoreNames.contains("staged_assets")) {
+    const store = db.createObjectStore("staged_assets", { keyPath: "id" });
+    store.createIndex("createdAt", "createdAt", { unique: false });
   }
 }
 
@@ -273,4 +283,40 @@ export async function deleteInboxState(recordId: string): Promise<void> {
 
 export async function getAllInboxStates(): Promise<InboxStateRecord[]> {
   return getAllFromStore<InboxStateRecord>("inbox_state");
+}
+
+// ── Staged assets (capture cache) ───────────────────────────────────────────
+// Local-only: these hold base64 image payloads and are deliberately excluded
+// from E2EE sync (the protocol is tuned for small text records).
+
+export async function saveStagedAsset(asset: StagedAsset): Promise<void> {
+  const db = await getDB();
+  return idbPut(db, "staged_assets", asset);
+}
+
+/** Newest first. */
+export async function getStagedAssets(): Promise<StagedAsset[]> {
+  const records = await getAllFromStore<StagedAsset>("staged_assets");
+  return records.sort((a, b) =>
+    (b.createdAt || "").localeCompare(a.createdAt || ""),
+  );
+}
+
+export async function getStagedAsset(
+  id: string,
+): Promise<StagedAsset | undefined> {
+  const db = await getDB();
+  return idbGet<StagedAsset>(db, "staged_assets", id);
+}
+
+export async function deleteStagedAsset(id: string): Promise<void> {
+  const db = await getDB();
+  return idbDelete(db, "staged_assets", id);
+}
+
+export async function clearStagedAssets(): Promise<void> {
+  const db = await getDB();
+  return withStore<void>(db, "staged_assets", "readwrite", (store) =>
+    store.clear(),
+  );
 }

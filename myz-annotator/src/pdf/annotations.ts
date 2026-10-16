@@ -117,14 +117,19 @@ export function renderOverlays(
     group.dataset.id = record.id;
     if (record.color) group.style.setProperty("--myz-color", record.color);
     rects.forEach((rect) => {
+      // Grow the overlay vertically so tall glyphs (CJK) are not left outside
+      // the paint; the group's single opacity keeps overlaps from darkening.
+      const padY = rect.height * 0.14;
+      const top = Math.max(0, rect.y - padY);
+      const bottom = Math.min(1, rect.y + rect.height + padY);
       const div = document.createElement("div");
       div.className = "pdf-annotation";
       div.dataset.id = record.id;
       div.dataset.style = style;
       div.style.left = `${rect.x * 100}%`;
-      div.style.top = `${rect.y * 100}%`;
+      div.style.top = `${top * 100}%`;
       div.style.width = `${rect.width * 100}%`;
-      div.style.height = `${rect.height * 100}%`;
+      div.style.height = `${(bottom - top) * 100}%`;
       group.append(div);
     });
     overlay.append(group);

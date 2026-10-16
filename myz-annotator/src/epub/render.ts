@@ -175,7 +175,7 @@ figure { margin: 1em 0; }
 .myz-highlight--paint {
   background: color-mix(in srgb, var(--myz-highlight-color, ${tokens.accent}) 42%, transparent);
   border-radius: 3px;
-  padding: 0 2px;
+  padding: 0.12em 2px;
   color: inherit;
 }
 .myz-highlight--paint:hover {

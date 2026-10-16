@@ -25,7 +25,10 @@
     transparent
   );
   border-radius: var(--myz-mark-radius, 3px);
-  padding: 0 2px;
+  /* Vertical padding extends the paint past the em box so tall glyphs (CJK,
+     accents) are covered — inline vertical padding is painted but does not
+     affect line layout. */
+  padding: 0.12em 2px;
 }
 
 .myz-highlight--paint:hover {

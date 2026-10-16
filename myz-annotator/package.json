@@ -1,6 +1,6 @@
 {
   "name": "myz-annotator",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "type": "module",
   "scripts": {
     "build": "vue-tsc -b && vite build",

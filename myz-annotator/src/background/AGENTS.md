@@ -5,7 +5,8 @@ This folder contains the MV3 service worker background logic.
 ## Key Entry Points
 
 - Background message handlers: `src/background/messages/`
-  - `capture.ts` — Screenshot and page capture handlers.
+  - `capture.ts` — Screenshot (`myz:captureSelection`) and page-asset (`myz:fetchAsset`) capture handlers.
+  - `staged-assets.ts` — capture-cache CRUD (`myz:stageAsset` from content scripts; list/get/delete/clear from the stitch editor page).
   - `highlights.ts` — CRUD operations for highlights/clips/bookmarks.
   - `settings.ts` — Settings read/write handlers.
   - `search.ts` — Search handlers (`chrome.search.query`).

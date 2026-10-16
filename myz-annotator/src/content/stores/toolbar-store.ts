@@ -2,6 +2,7 @@ import { sendMessage } from "@myz/shared/messaging";
 import { RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { Ref, ref } from "vue";
+import { stageCapturedImage } from "../capture-media";
 import { serializeRangeToHtml, waitForNextPaint } from "../html";
 import { cropAndDownloadSelection, getSelectionBoundingRect } from "../image";
 import type { CropRect } from "../image";
@@ -122,9 +123,17 @@ export const useToolbarStore = defineStore("toolbar", () => {
       if (!result || !result.dataUrl) {
         return;
       }
-      await cropAndDownloadSelection(result.dataUrl, rect, {
+      const cropped = await cropAndDownloadSelection(result.dataUrl, rect, {
         width: window.innerWidth,
         height: window.innerHeight,
+      });
+      // Keep a copy in the capture cache as well (the download already
+      // happened inside cropAndDownloadSelection).
+      await stageCapturedImage({
+        ...cropped,
+        sourceKind: "screenshot",
+        sourceUrl: window.location.href,
+        download: false,
       });
     } catch (error) {
       console.error("Selection capture failed", error);

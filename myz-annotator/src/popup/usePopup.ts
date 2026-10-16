@@ -181,6 +181,12 @@ export function usePopup() {
     });
   }
 
+  function openStitch() {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("src/stitch/stitch.html"),
+    });
+  }
+
   onMounted(async () => {
     try {
       const tab = await getActiveTab();
@@ -215,5 +221,6 @@ export function usePopup() {
     openDashboard,
     openPdfReader,
     openEpubReader,
+    openStitch,
   };
 }
