@@ -13,7 +13,8 @@
     "./inbox": "./src/inbox.ts",
     "./ports": "./src/ports.ts",
     "./changes": "./src/changes.ts",
-    "./services/records": "./src/services/records.ts"
+    "./services/records": "./src/services/records.ts",
+    "./services/inbox": "./src/services/inbox.ts"
   },
   "dependencies": {
     "@myz/shared": "*",

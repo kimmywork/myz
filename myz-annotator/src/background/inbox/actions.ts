@@ -1,48 +1,33 @@
-import { transitionLifecycle } from "@myz/core/lifecycle";
 import {
-  inboxMarkRecordId,
+  addInboxRelation as coreAddRelation,
+  getInboxStatus as coreGetStatus,
+  listInboxStates as coreListStates,
+  removeInboxRelation as coreRemoveRelation,
+  setInboxMark as coreSetMark,
+  setInboxStatus as coreSetStatus,
+} from "@myz/core/services/inbox";
+import {
   inboxRelationRecordId,
-  inboxStatusRecordId,
-  type InboxMarkState,
-  type InboxRelationState,
   type InboxStatus,
   type InboxStatusState,
 } from "@myz/shared/inbox";
-import {
-  deleteInboxState,
-  getAllInboxStates,
-  putInboxState,
-  readInboxState,
-  type InboxStateRecord,
-} from "../storage";
+import { inboxStateStore } from "../stores";
 import { recordInboxDeletion } from "../sync/deletions";
 import { refreshInboxBadge } from "./queue";
 import { changeBus } from "@/messaging/changes";
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
 /**
- * Write an explicit `status:` record. Kept/archived/snoozed record `handledAt`
- * so review stats and 5-second undo work; `pending` does not.
+ * Host wrappers over the core Inbox service: the domain transitions live in
+ * `@myz/core/services/inbox`; this layer adds the host side effects (badge,
+ * deletion logging, change notification).
  */
+
 export async function setInboxStatus(
   targetId: string,
   status: InboxStatus,
   options: { snoozedUntil?: string; now?: string } = {},
 ): Promise<InboxStatusState> {
-  const state = transitionLifecycle(targetId, status, options);
-  await putInboxState({
-    recordId: inboxStatusRecordId(targetId),
-    kind: "status",
-    changedAt: state.changedAt,
-    payload: {
-      status: state.status,
-      snoozedUntil: state.snoozedUntil,
-      handledAt: state.handledAt,
-    },
-  });
+  const state = await coreSetStatus(inboxStateStore, targetId, status, options);
   await refreshInboxBadge();
   changeBus.publish({ domain: "inbox", ids: [targetId] });
   return state;
@@ -51,59 +36,31 @@ export async function setInboxStatus(
 export async function getInboxStatus(
   targetId: string,
 ): Promise<InboxStatusState | null> {
-  const record = await readInboxState(inboxStatusRecordId(targetId));
-  if (!record || record.kind !== "status") return null;
-  const payload = record.payload as Partial<InboxStatusState>;
-  return {
-    targetId,
-    status: payload.status ?? "kept",
-    snoozedUntil: payload.snoozedUntil,
-    handledAt: payload.handledAt,
-    changedAt: record.changedAt,
-  };
+  return coreGetStatus(inboxStateStore, targetId);
 }
 
-export async function setInboxMark(
-  targetId: string,
-  marked: boolean,
-): Promise<InboxMarkState> {
-  const changedAt = nowIso();
-  await putInboxState({
-    recordId: inboxMarkRecordId(targetId),
-    kind: "mark",
-    changedAt,
-    payload: { marked },
-  });
+export async function setInboxMark(targetId: string, marked: boolean) {
+  const state = await coreSetMark(inboxStateStore, targetId, marked);
   await refreshInboxBadge();
   changeBus.publish({ domain: "inbox", ids: [targetId] });
-  return { targetId, marked, changedAt };
+  return state;
 }
 
-export async function addInboxRelation(
-  sourceId: string,
-  targetId: string,
-): Promise<InboxRelationState> {
-  const changedAt = nowIso();
-  await putInboxState({
-    recordId: inboxRelationRecordId(sourceId, targetId),
-    kind: "rel",
-    changedAt,
-    payload: { sourceId, targetId },
-  });
+export async function addInboxRelation(sourceId: string, targetId: string) {
+  const state = await coreAddRelation(inboxStateStore, sourceId, targetId);
   changeBus.publish({ domain: "inbox", ids: [sourceId, targetId] });
-  return { sourceId, targetId, changedAt };
+  return state;
 }
 
 export async function removeInboxRelation(
   sourceId: string,
   targetId: string,
 ): Promise<void> {
-  const recordId = inboxRelationRecordId(sourceId, targetId);
-  await deleteInboxState(recordId);
-  await recordInboxDeletion(recordId);
+  await coreRemoveRelation(inboxStateStore, sourceId, targetId);
+  await recordInboxDeletion(inboxRelationRecordId(sourceId, targetId));
   changeBus.publish({ domain: "inbox", ids: [sourceId, targetId] });
 }
 
-export async function listInboxStates(): Promise<InboxStateRecord[]> {
-  return getAllInboxStates();
+export async function listInboxStates() {
+  return coreListStates(inboxStateStore);
 }

@@ -16,3 +16,4 @@ export * from "./inbox";
 export * from "./ports";
 export * from "./changes";
 export * from "./services/records";
+export * from "./services/inbox";
