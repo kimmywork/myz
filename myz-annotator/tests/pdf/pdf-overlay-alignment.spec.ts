@@ -107,6 +107,9 @@ test("pdf_overlay_aligns_with_text_before_and_after_reload", async () => {
   await page.evaluate(() =>
     (window as any).__MYZ_PDF__.selectText("Page One Alpha", 1),
   );
+  // Let the PDF text layer settle its fonts/layout before the annotation is
+  // positioned; otherwise the overlay can be a few px off under CI headless.
+  await page.evaluate(() => (document as any).fonts?.ready);
   await page.evaluate(() =>
     (window as any).__MYZ_PDF__.createAnnotation("highlight"),
   );
@@ -122,6 +125,7 @@ test("pdf_overlay_aligns_with_text_before_and_after_reload", async () => {
   await page.waitForFunction(
     () => (window as any).__MYZ_PDF__?.getState().status === "ready",
   );
+  await page.evaluate(() => (document as any).fonts?.ready);
   const restored = await measure(page);
   console.log("ALIGN_RESTORED", JSON.stringify(restored));
   expect(Math.abs(restored.dx)).toBeLessThan(ALIGN_SLACK);
