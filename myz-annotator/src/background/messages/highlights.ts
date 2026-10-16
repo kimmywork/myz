@@ -28,6 +28,7 @@ import { recordIdForHighlight } from "../sync/records";
 import { sendToContentScript } from "../utils/sendToContentScript";
 import { registerMessageHandler } from "./handler";
 import { mergeImportedRecords } from "./highlights/import-merge";
+import { changeBus } from "@/messaging/changes";
 
 export { normalizeIds };
 
@@ -75,6 +76,7 @@ export function initializeHighlightMessageHandlers() {
         tabId: ctx.tabId,
         htmlToMarkdown,
       });
+      changeBus.publish({ domain: "records", ids: [record.id] });
       if (record.kind === RECORD_KINDS.HIGHLIGHT) {
         await persistHighlightPreferences({
           color: record.color,
@@ -96,6 +98,7 @@ export function initializeHighlightMessageHandlers() {
     async (payload: Partial<MyZRecord>) => {
       if (!payload?.id) throw new Error("Missing highlight id");
       const updated = await updateRecord(recordsStore, payload.id, payload);
+      changeBus.publish({ domain: "records", ids: [updated.id] });
       if (updated.kind === RECORD_KINDS.HIGHLIGHT) {
         await persistHighlightPreferences({
           color: updated.color,
@@ -112,7 +115,13 @@ export function initializeHighlightMessageHandlers() {
       if (!payload?.id || !payload.range) {
         throw new Error("Missing highlight id or range");
       }
-      return updateRecordRange(recordsStore, payload.id, payload.range);
+      const updated = await updateRecordRange(
+        recordsStore,
+        payload.id,
+        payload.range,
+      );
+      changeBus.publish({ domain: "records", ids: [updated.id] });
+      return updated;
     },
   );
 
@@ -122,6 +131,7 @@ export function initializeHighlightMessageHandlers() {
       if (!payload?.id) throw new Error("Missing highlight id");
       await recordHighlightDeletion(payload.id);
       await removeRecord(recordsStore, payload.id);
+      changeBus.publish({ domain: "records", ids: [payload.id] });
       return { success: true };
     },
   );
@@ -134,7 +144,9 @@ export function initializeHighlightMessageHandlers() {
       for (const id of unique) {
         await recordHighlightDeletion(id);
       }
-      return { removed: await removeRecords(recordsStore, unique) };
+      const removed = await removeRecords(recordsStore, unique);
+      changeBus.publish({ domain: "records", ids: unique });
+      return { removed };
     },
   );
 
@@ -147,7 +159,9 @@ export function initializeHighlightMessageHandlers() {
           ? payload.patch
           : {};
       if (!unique.length) return { updated: 0 };
-      return { updated: await updateRecordsPatch(recordsStore, unique, patch) };
+      const updated = await updateRecordsPatch(recordsStore, unique, patch);
+      changeBus.publish({ domain: "records", ids: unique });
+      return { updated };
     },
   );
 
@@ -224,6 +238,7 @@ export function initializeHighlightMessageHandlers() {
       replacements.forEach((record) => saves.push(recordsStore.upsert(record)));
       additions.forEach((record) => saves.push(recordsStore.upsert(record)));
       await Promise.all(saves);
+      changeBus.publish({ domain: "records" });
       return {
         inserted: additions.size,
         replaced: replacements.size,

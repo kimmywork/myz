@@ -12,6 +12,7 @@
     "./relations": "./src/relations.ts",
     "./inbox": "./src/inbox.ts",
     "./ports": "./src/ports.ts",
+    "./changes": "./src/changes.ts",
     "./services/records": "./src/services/records.ts"
   },
   "dependencies": {

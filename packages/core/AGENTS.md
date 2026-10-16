@@ -28,6 +28,9 @@ through ports. Depends on `@myz/shared` and `zod`.
   / `updateRecordRange` / bulk remove & patch / projections) over `RecordsStore`.
   Host capabilities (id generation, clock, HTML→Markdown) are injected via
   `RecordServiceContext`, so the service stays pure (plan §5 D3.3).
+- `changes.ts` — `ChangeBus` port + `ChangeEvent` (`records` / `inbox` /
+  `settings` / `sync`). Domains publish after a write; every context subscribes
+  and re-pulls. Extension impl: `myz-annotator/src/messaging/changes.ts`.
 
 ## Rules
 

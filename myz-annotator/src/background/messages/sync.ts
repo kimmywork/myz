@@ -27,6 +27,7 @@ import type {
   SyncSetKeyMessageResult,
   SyncTestConnectionMessageResult,
 } from "./sync/types.js";
+import { changeBus } from "@/messaging/changes";
 
 export type {
   SyncStatusMessageResult,
@@ -164,6 +165,11 @@ export function initializeSyncMessageHandlers() {
 
   registerMessageHandler("myz:syncNow", async () => {
     const result = await syncNow();
+    if (result?.ok) {
+      changeBus.publish({ domain: "sync" });
+      changeBus.publish({ domain: "records" });
+      changeBus.publish({ domain: "inbox" });
+    }
     // Once a v2 account is in place, a successful sync means the legacy keyset
     // (if any) is no longer needed; purge it only after success so an
     // interrupted first run can still be resumed.

@@ -17,6 +17,7 @@ import {
 } from "../storage";
 import { recordInboxDeletion } from "../sync/deletions";
 import { refreshInboxBadge } from "./queue";
+import { changeBus } from "@/messaging/changes";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -43,6 +44,7 @@ export async function setInboxStatus(
     },
   });
   await refreshInboxBadge();
+  changeBus.publish({ domain: "inbox", ids: [targetId] });
   return state;
 }
 
@@ -73,6 +75,7 @@ export async function setInboxMark(
     payload: { marked },
   });
   await refreshInboxBadge();
+  changeBus.publish({ domain: "inbox", ids: [targetId] });
   return { targetId, marked, changedAt };
 }
 
@@ -87,6 +90,7 @@ export async function addInboxRelation(
     changedAt,
     payload: { sourceId, targetId },
   });
+  changeBus.publish({ domain: "inbox", ids: [sourceId, targetId] });
   return { sourceId, targetId, changedAt };
 }
 
@@ -97,6 +101,7 @@ export async function removeInboxRelation(
   const recordId = inboxRelationRecordId(sourceId, targetId);
   await deleteInboxState(recordId);
   await recordInboxDeletion(recordId);
+  changeBus.publish({ domain: "inbox", ids: [sourceId, targetId] });
 }
 
 export async function listInboxStates(): Promise<InboxStateRecord[]> {
