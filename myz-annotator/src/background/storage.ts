@@ -1,3 +1,4 @@
+import type { OpaqueRecord } from "@myz/core/ports";
 import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
 import {
   idbDelete,
@@ -21,7 +22,7 @@ import { openS3Credentials, sealS3Credentials } from "./sync/credentials.js";
 import type { StagedAsset } from "@/stitch/staged-asset.js";
 
 const DB_NAME = "myz_db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 /**
  * Creates the object stores the first time the db is opened (or upgrades an
@@ -42,6 +43,12 @@ function upgradeSchema(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains("staged_assets")) {
     const store = db.createObjectStore("staged_assets", { keyPath: "id" });
     store.createIndex("createdAt", "createdAt", { unique: false });
+  }
+
+  // Opaque overflow for synced records we cannot materialize (unknown
+  // schemaId / record-id prefix). Kept verbatim so sync never drops them.
+  if (!db.objectStoreNames.contains("opaque_records")) {
+    db.createObjectStore("opaque_records", { keyPath: "recordId" });
   }
 }
 
@@ -319,4 +326,22 @@ export async function clearStagedAssets(): Promise<void> {
   return withStore<void>(db, "staged_assets", "readwrite", (store) =>
     store.clear(),
   );
+}
+
+// ── Opaque overflow records (D1) ────────────────────────────────────────────
+// Unknown synced records are stored verbatim and returned to sync via
+// `listOpaqueRecords`, so a newer client's record is preserved, never dropped.
+
+export async function putOpaqueRecord(record: OpaqueRecord): Promise<void> {
+  const db = await getDB();
+  return idbPut(db, "opaque_records", record);
+}
+
+export async function listOpaqueRecords(): Promise<OpaqueRecord[]> {
+  return getAllFromStore<OpaqueRecord>("opaque_records");
+}
+
+export async function deleteOpaqueRecord(recordId: string): Promise<void> {
+  const db = await getDB();
+  return idbDelete(db, "opaque_records", recordId);
 }

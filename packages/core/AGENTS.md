@@ -21,6 +21,9 @@ through ports. Depends on `@myz/shared` and `zod`.
   `backlinksOf`.
 - `inbox.ts` — `buildInboxQueue` read model (pending/snoozed/marked + review
   counters). The host reads storage and hands records + state rows in.
+- `ports.ts` — storage port interfaces (`RecordsStore` incl. opaque overflow,
+  `InboxStateStore`, `SettingsStore<T>`). The extension implements them over
+  IndexedDB in `myz-annotator/src/background/stores.ts`.
 
 ## Rules
 

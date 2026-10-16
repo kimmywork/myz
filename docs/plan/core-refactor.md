@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）**已实现并验证**（见 §12）；I4–I10 未开始。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）**已实现并验证**（见 §12）；I5–I10 未开始。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -188,7 +188,7 @@ interface MyzTabMap { // SW → CS
 | **I1** | 消息契约表 + 泛型 API + **D3 修复** | `MyzRuntimeMap`/`MyzTabMap`、泛型 `invoke`/`handle`；修复 falsy 解包；特权元数据入契约；清查平铺 payload 调用点 | 无 | 全部注册点编译通过；行为不变；新增 falsy 返回的回归测试 **（已完成，见 §12；调用点迁移见 I1b）** |
 | **I2** | Transport 端口 + `MessageContext` | `Transport` 接口 + 扩展实现（Runtime/Tab 两方向）；`messaging.ts` 降级为 adapter | I1 | 现有 e2e 全绿 |
 | **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 **（已完成，见 §12；设置模型转 I4）** |
-| **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 |
+| **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 **（RecordsStore/InboxStateStore/SettingsStore 已完成，见 §12；`BlobStore`/`StagedAssetStore` 转 I4b）** |
 | **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 |
 | **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 |
 | **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 |
@@ -279,3 +279,9 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 测试：`packages/core/tests/` 共 16 用例。
   - 验证：core 16、annotator 276 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
   - **未做（转后续）**：设置模型迁移（与 `sync-core` + `chrome.storage` 纠缠，随 I4 存储端口一起）；其余 inbox 存储动作（`getInboxStatus`/mark/relation 的持久化）留在扩展，待 I4/I5 收敛。
+- **I4 完成（2026-10-16）**：存储端口 + IndexedDB 实现（含 opaque 溢出表）。
+  - `@myz/core/ports`：`RecordsStore`（含 `putOpaque` / `listOpaque` / `deleteOpaque`）、`InboxStateStore`、`SettingsStore<T>` 端口接口（按用例命名，不泄露存储细节）。
+  - 扩展：`myz_db` v3→v4 新增 `opaque_records` store（**数据零迁移**，仅新增 store，旧 store 不变）；`background/storage.ts` 增 opaque 读写；新增 `background/stores.ts` 以 IndexedDB 实现三个端口。
+  - 契约测试：`tests/unit/background/stores.test.ts`（fake-indexeddb）覆盖 records 增删查 / 按 url 查 / **opaque 往返** + inbox state 往返。
+  - 验证：core 16、annotator 280 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
+  - **未做（转后续）**：`BlobStore` / `StagedAssetStore` 端口（需一并把 `StagedAsset` 类型搬到 core）→ I4b；D1 的 opaque **接线到 sync dataset**（`collect` / `apply`）→ I6；设置模型整体搬到 core 仍待做（`SettingsStore` 现为对既有 `readSettings` / `writeSettings` 的薄包装）。
