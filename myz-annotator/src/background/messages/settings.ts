@@ -4,6 +4,7 @@ import { pickPublicSettings } from "../settings-public";
 import { readSettings, writeSettings } from "../storage";
 import { ensureSyncAlarm } from "../sync/scheduler";
 import { registerMessageHandler } from "./handler";
+import { changeBus } from "@/messaging/changes";
 
 /**
  * Whitelist of settings keys content scripts may persist. Anything else in a
@@ -48,6 +49,7 @@ export function initializeSettingsMessageHandlers() {
     async (payload: Partial<Settings>) => {
       const patch: Partial<Settings> = payload ? { ...payload } : {};
       const updated = await writeSettings(patch);
+      changeBus.publish({ domain: "settings" });
       if (patch.sync) {
         await ensureSyncAlarm();
       }

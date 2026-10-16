@@ -16,6 +16,7 @@ import {
   recordToMarkdown,
 } from "@/dashboard/utils/records.js";
 import { setTimedStatus } from "@/dashboard/utils/setTimedStatus.js";
+import { changeBus } from "@/messaging/changes";
 
 export type MessageTone = "info" | "error" | "success";
 
@@ -86,8 +87,21 @@ export const useHighlightsStore = defineStore("highlights", () => {
     await loadHighlights();
   }
 
+  let changeUnsubscribe: (() => void) | null = null;
+
+  /** Refresh when another context (tab / reader / sync) changes records. */
+  function subscribeToChanges() {
+    if (changeUnsubscribe) return;
+    changeUnsubscribe = changeBus.subscribe((event) => {
+      if (event.domain === "records" || event.domain === "sync") {
+        void loadHighlights();
+      }
+    });
+  }
+
   async function initialize() {
     await loadHighlights();
+    subscribeToChanges();
   }
 
   async function copyHighlight(id: string) {

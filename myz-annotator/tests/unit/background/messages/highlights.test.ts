@@ -58,26 +58,6 @@ vi.mock("@/background/utils/sendToContentScript", () => ({
   sendToContentScript: (...args: unknown[]) => mockSendToContentScript(...args),
 }));
 
-const createTab = (overrides: Partial<chrome.tabs.Tab> = {}): chrome.tabs.Tab =>
-  ({
-    id: 1,
-    index: 0,
-    highlighted: false,
-    pinned: false,
-    windowId: 1,
-    active: false,
-    incognito: false,
-    selected: false,
-    discarded: false,
-    autoDiscardable: true,
-    frozen: false,
-    url: "https://example.com",
-    title: "Example",
-    favIconUrl: "",
-    status: "complete",
-    ...overrides,
-  }) as chrome.tabs.Tab;
-
 describe("background highlights message handlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -105,8 +85,9 @@ describe("background highlights message handlers", () => {
     mockSaveHighlight.mockResolvedValue(undefined);
 
     const result = (await handleMessage("myz:saveHighlight", payload, {
-      tab: createTab(),
-    } as chrome.runtime.MessageSender)) as { id?: string };
+      tabId: 1,
+      trusted: false,
+    })) as { id?: string };
 
     expect(mockSaveHighlight).toHaveBeenCalledTimes(1);
     expect(result.id).toBe("generated-id");
@@ -127,7 +108,7 @@ describe("background highlights message handlers", () => {
     const result = (await handleMessage(
       "myz:updateHighlight",
       { id: "existing-id", text: "new text" },
-      { tab: createTab() } as chrome.runtime.MessageSender,
+      { tabId: 1, trusted: false },
     )) as { text?: string };
 
     expect(mockGetHighlight).toHaveBeenCalledWith("existing-id");
@@ -142,7 +123,7 @@ describe("background highlights message handlers", () => {
     const result = (await handleMessage(
       "myz:removeHighlight",
       { id: "to-delete" },
-      { tab: createTab() } as chrome.runtime.MessageSender,
+      { tabId: 1, trusted: false },
     )) as { success: boolean };
 
     expect(mockDeleteHighlight).toHaveBeenCalledWith("to-delete");
@@ -166,8 +147,9 @@ describe("background highlights message handlers", () => {
     };
 
     const result = (await handleMessage("myz:saveHighlight", payload, {
-      tab: createTab(),
-    } as chrome.runtime.MessageSender)) as { text?: string; html?: string };
+      tabId: 1,
+      trusted: false,
+    })) as { text?: string; html?: string };
 
     expect(mockSendToContentScript).toHaveBeenCalledWith(
       "myz:convertHtmlToMarkdown",
@@ -198,8 +180,9 @@ describe("background highlights message handlers", () => {
     };
 
     const result = (await handleMessage("myz:saveHighlight", payload, {
-      tab: createTab(),
-    } as chrome.runtime.MessageSender)) as {
+      tabId: 1,
+      trusted: false,
+    })) as {
       text?: string;
       html?: string;
       contentType?: string;
@@ -231,8 +214,9 @@ describe("background highlights message handlers", () => {
     };
 
     const result = (await handleMessage("myz:saveHighlight", payload, {
-      tab: createTab(),
-    } as chrome.runtime.MessageSender)) as {
+      tabId: 1,
+      trusted: false,
+    })) as {
       text?: string;
       contentType?: string;
     };

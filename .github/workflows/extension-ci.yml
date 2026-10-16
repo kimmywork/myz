@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - "myz-annotator/**"
+      - "packages/**"
       - ".github/workflows/extension-ci.yml"
 
 jobs:
@@ -15,9 +16,6 @@ jobs:
     strategy:
       matrix:
         node-version: [24]
-    defaults:
-      run:
-        working-directory: myz-annotator
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,15 +25,23 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Install myz-annotator dependencies
+      # The repo is an npm workspaces monorepo: the extension's build toolchain
+      # (vue-tsc / vite / typescript) lives in the ROOT package.json, so the
+      # install must run at the repo root, not inside myz-annotator.
+      - name: Install dependencies
+        working-directory: .
         run: npm install
 
       - name: Build myz-annotator
+        working-directory: myz-annotator
         run: npm run build --if-present
 
       - name: Install Playwright browsers and system deps
-        run: npx playwright install  --with-deps chromium
+        working-directory: myz-annotator
+        run: npx playwright install --with-deps chromium
+
       - name: Run Playwright tests
+        working-directory: myz-annotator
         run: xvfb-run npx playwright test tests --config=tests/playwright.config.ts --reporter=list,html
         env:
           CI: true

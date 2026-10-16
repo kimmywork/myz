@@ -11,3 +11,8 @@ node_modules
 
 # monorepo: only root lock file is needed
 */package-lock.json
+
+# local secrets — never commit real tokens
+.env
+.env.*
+!.env.example

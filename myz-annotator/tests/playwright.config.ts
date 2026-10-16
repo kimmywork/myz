@@ -2,10 +2,14 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./",
+  // The extension's unit tests live under `tests/unit` and are run by Vitest,
+  // not Playwright. Without this, Playwright's default `*.test.ts` match picks
+  // them up and fails.
+  testIgnore: ["**/unit/**"],
   timeout: 30_000,
   expect: { timeout: 5000 },
   fullyParallel: false,
-  retries: 0,
+  retries: process.env.CI ? 2 : 0,
   workers: 1,
   use: {
     actionTimeout: 10_000,

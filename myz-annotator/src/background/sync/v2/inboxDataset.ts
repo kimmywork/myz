@@ -1,41 +1,65 @@
 import { parseInboxRecordId } from "@myz/shared/inbox";
 import type { StreamDataset } from "@myz/sync-core/accountSync";
-import {
-  deleteInboxState,
-  getAllInboxStates,
-  putInboxState,
-} from "../../storage";
+import { inboxStateStore, recordsStore } from "../../stores";
 import { listDeletions, removeDeletion } from "../storage";
+
+const STREAM_ID = "inbox";
 
 /**
  * Inbox workflow metadata stream (`status:` / `mark:` / `rel:` records).
  * Physically isolated from the highlight stream so status writes never
- * overwrite body/annotation edits.
+ * overwrite body/annotation edits. Unknown records are preserved opaquely
+ * (D1) rather than dropped.
  */
 export function createInboxDataset(): StreamDataset {
   return {
-    streamId: "inbox",
+    streamId: STREAM_ID,
     async collect() {
-      const records = await getAllInboxStates();
-      return records.map((record) => ({
-        recordId: record.recordId,
-        updatedAt: record.changedAt,
-        data: { kind: record.kind, ...(record.payload as object) },
+      const [states, opaque] = await Promise.all([
+        inboxStateStore.listAll(),
+        recordsStore.listOpaque(STREAM_ID),
+      ]);
+      const materialized = states.map((state) => ({
+        recordId: state.recordId,
+        updatedAt: state.changedAt,
+        data:
+          state.rawData !== undefined
+            ? state.rawData
+            : ({ kind: state.kind, ...(state.payload as object) } as unknown),
       }));
+      const preserved = opaque.map((record) => ({
+        recordId: record.recordId,
+        updatedAt: record.updatedAt,
+        data: record.data,
+      }));
+      return [...materialized, ...preserved];
     },
     async apply(record) {
       const parsed = parseInboxRecordId(record.recordId);
-      if (!parsed) return;
+      if (!parsed) {
+        await recordsStore.putOpaque({
+          streamId: STREAM_ID,
+          recordId: record.recordId,
+          updatedAt: record.updatedAt,
+          data: record.data,
+        });
+        return;
+      }
       const payload = record.data as Record<string, unknown>;
-      await putInboxState({
+      await inboxStateStore.put({
         recordId: record.recordId,
         kind: parsed.kind,
         changedAt: record.updatedAt,
         payload,
+        rawData: record.data,
       });
     },
     async remove(recordId) {
-      await deleteInboxState(recordId);
+      if (parseInboxRecordId(recordId)) {
+        await inboxStateStore.remove(recordId);
+        return;
+      }
+      await recordsStore.deleteOpaque(STREAM_ID, recordId);
     },
     async collectTombstones() {
       const deletions = await listDeletions();
