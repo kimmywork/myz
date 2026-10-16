@@ -1,22 +1,8 @@
+import type { MessageContext } from "@myz/shared/messageRegistry";
 import {
   isPrivilegedMessage,
   requiresUserGesture,
 } from "@/messaging/privilege.js";
-
-type Sender = chrome.runtime.MessageSender | undefined;
-
-export function isTrustedExtensionPage(sender: Sender): boolean {
-  if (!sender) return false;
-  const url = sender.url;
-  if (!url) return false;
-  const extensionId = chrome.runtime?.id;
-  if (!extensionId) return false;
-  // Trust only our own extension pages. Content scripts report the host page
-  // URL here (and have `sender.tab` set), so this rejects them. Note extension
-  // pages opened in a tab (options/dashboard) *do* carry `sender.tab`, so the
-  // check must not require `sender.tab === undefined`.
-  return url.startsWith(`chrome-extension://${extensionId}/`);
-}
 
 export type AuthorizationResult = { ok: true } | { ok: false; error: string };
 
@@ -29,12 +15,12 @@ export type AuthorizationResult = { ok: true } | { ok: false; error: string };
 export function authorizeMessage(
   type: string,
   payload: unknown,
-  sender: Sender,
+  ctx: MessageContext,
 ): AuthorizationResult {
   if (!isPrivilegedMessage(type)) {
     return { ok: true };
   }
-  if (!isTrustedExtensionPage(sender)) {
+  if (!ctx.trusted) {
     return {
       ok: false,
       error: "Unauthorized sender for privileged sync message",

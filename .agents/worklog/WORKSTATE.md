@@ -1,5 +1,6 @@
 # Workstate
 
+- Core refactor I2 done (2026-10-16): Transport 端口 + `MessageContext`。新增 `@myz/shared/transport`（`Transport<M>`），shared 注册表改用 `MessageContext`（不再依赖 chrome）；扩展 `src/messaging/{context,transport}.ts` 适配；`trustedSender` / 派发边界 / 用到 sender 的处理器改用 ctx。验证：vue-tsc 0、shared 94 / annotator 276 单测、eslint 0 error、build 成功。下一步 I3（建立 `@myz/core` + 领域模型注册表）。遗留：I1b 调用点迁移、Tab invoke 未并入 Transport。
 - Core refactor I1 done (2026-10-16): 消息契约表落地——新增 `myz-annotator/src/messaging/{contract,privilege}.ts`（`MyzRuntimeMap` 47 + `MyzTabMap` 10）、泛型化 `@myz/shared/messageRegistry`、两端 handler 接入、`trustedSender` 改用契约元数据；修复 `messaging.ts` falsy 解包 + 回归测试。验证：vue-tsc 0、shared 94 / annotator 276 单测、eslint 0、build 成功。遗留 I1b：45 处调用点渐进迁移到类型化 `invoke`。下一步 I2（Transport 端口 + MessageContext）。
 - Core refactor plan v2 — decisions locked (2026-10-16, doc only): `docs/plan/core-refactor.md` §10 五项决策已由用户确认（1 收编 `dashboard-core`、2 生命周期 record 级、3 解析不进 core、4 无 `JobQueue`、5 读时归一化）。**仍未实施**。下一步：I1（消息契约表 + D3 falsy 解包修复）。
 - Core refactor plan v2 (2026-10-16, doc only): `docs/plan/core-refactor.md` 已按深度评审修订——核验并纳入 3 个架构缺陷（D1 opaque 未接线会丢未知记录 / D2 `dashboard-core` 死代码双门面 / D3 传输 falsy 解包+反向调 CS 转 Markdown）与 4 个风险（R1 文件句柄不可过 Transport / R2 JobQueue YAGNI / R3 source 级生命周期无落点 / R4 Locator 写时回填触发 E2EE 重哈希）。§10 五项待决全部拍板。**仍未实施**。下一步：从 I1（消息契约表 + D3 修复）起步。

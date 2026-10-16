@@ -10,6 +10,7 @@ import { initializeStagedAssetMessageHandlers } from "./background/messages/stag
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
 import { authorizeMessage } from "./background/messages/trustedSender.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
+import { toMessageContext } from "./messaging/context.js";
 import { resolvePdfTargetUrl } from "./pdf/detect.js";
 
 async function ensureContextMenus() {
@@ -212,14 +213,18 @@ chrome.runtime.onMessage.addListener(
             const { type: _type, payload: _, ...rest } = message;
             return Object.keys(rest).length > 0 ? rest : undefined;
           })();
-    const authorization = authorizeMessage(message.type, payload, sender);
+    const authorization = authorizeMessage(
+      message.type,
+      payload,
+      toMessageContext(sender),
+    );
     if (!authorization.ok) {
       console.warn("Rejected privileged message", message.type);
       sendResponse({ ok: false, error: authorization.error });
       return true;
     }
     try {
-      handleMessage(message.type, payload, sender)
+      handleMessage(message.type, payload, toMessageContext(sender))
         .then((result) => sendResponse({ ok: true, data: result }))
         .catch((error) => {
           console.error("Handler error", message.type, error);

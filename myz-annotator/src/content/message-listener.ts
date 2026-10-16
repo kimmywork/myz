@@ -3,6 +3,7 @@ import { initializeConvertMessageHandlers } from "./messages/convert";
 import { handleMessage, hasHandler } from "./messages/handler";
 import { initializeHighlightMessageHandlers } from "./messages/highlights";
 import { initializeZenMessageHandlers } from "./messages/zen";
+import { toMessageContext } from "@/messaging/context.js";
 
 // Initialize handlers
 initializeHighlightMessageHandlers();
@@ -25,7 +26,7 @@ export function messageListener(
   }
 
   if (hasHandler(message.type)) {
-    handleMessage(message.type, message.payload, sender)
+    handleMessage(message.type, message.payload, toMessageContext(sender))
       .then((data) => {
         sendResponse({ ok: true, data });
       })

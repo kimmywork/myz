@@ -15,14 +15,15 @@ describe("background message handler", () => {
     expect(hasHandler("myz:getAllTags")).toBe(true);
 
     const result = await handleMessage("myz:getAllTags", undefined, {
-      tab: { id: 1 } as chrome.tabs.Tab,
+      trusted: false,
+      tabId: 1,
     });
     expect(result).toEqual(["ok"]);
   });
 
   it("should throw for unregistered handler", async () => {
     await expect(
-      handleMessage("missing", {}, { tab: { id: 1 } as chrome.tabs.Tab }),
+      handleMessage("missing", {}, { trusted: false, tabId: 1 }),
     ).rejects.toThrow("No handler registered for message key: missing");
   });
 });

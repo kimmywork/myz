@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  authorizeMessage,
-  isTrustedExtensionPage,
-} from "@/background/messages/trustedSender";
+import { authorizeMessage } from "@/background/messages/trustedSender";
+import { isTrustedExtensionPage, toMessageContext } from "@/messaging/context";
 import { isPrivilegedMessage } from "@/messaging/privilege";
 
 const EXTENSION_ID = "abcdefghijklmnop";
@@ -18,6 +16,15 @@ function extensionPageSender(): chrome.runtime.MessageSender {
   return {
     url: `chrome-extension://${EXTENSION_ID}/src/dashboard/dashboard.html`,
   };
+}
+
+/** Authorize as if the message arrived from `sender`. */
+function authorize(
+  type: string,
+  payload: unknown,
+  sender: chrome.runtime.MessageSender | undefined,
+) {
+  return authorizeMessage(type, payload, toMessageContext(sender));
 }
 
 describe("trusted sender authorization", () => {
@@ -52,9 +59,9 @@ describe("trusted sender authorization", () => {
 
   it("allows content scripts to read/write public highlight prefs", () => {
     const sender = contentScriptSender();
-    expect(authorizeMessage("myz:getPublicSettings", {}, sender).ok).toBe(true);
+    expect(authorize("myz:getPublicSettings", {}, sender).ok).toBe(true);
     expect(
-      authorizeMessage(
+      authorize(
         "myz:updateHighlightPreference",
         { lastUsedColor: "#fff" },
         sender,
@@ -76,7 +83,7 @@ describe("trusted sender authorization", () => {
       "myz:updatePalette",
       "myz:importHighlights",
     ]) {
-      const result = authorizeMessage(type, { userGesture: true }, sender);
+      const result = authorize(type, { userGesture: true }, sender);
       expect(result.ok).toBe(false);
     }
   });
@@ -84,13 +91,9 @@ describe("trusted sender authorization", () => {
   it("accepts a trusted extension page for non-key privileged messages", () => {
     const sender = extensionPageSender();
     expect(isTrustedExtensionPage(sender)).toBe(true);
-    expect(authorizeMessage("myz:syncUpdateSettings", {}, sender).ok).toBe(
-      true,
-    );
-    expect(authorizeMessage("myz:syncNow", {}, sender).ok).toBe(true);
-    expect(authorizeMessage("myz:syncTestConnection", {}, sender).ok).toBe(
-      true,
-    );
+    expect(authorize("myz:syncUpdateSettings", {}, sender).ok).toBe(true);
+    expect(authorize("myz:syncNow", {}, sender).ok).toBe(true);
+    expect(authorize("myz:syncTestConnection", {}, sender).ok).toBe(true);
   });
 
   it("accepts an extension page opened in a tab (sender.tab set)", () => {
@@ -99,20 +102,20 @@ describe("trusted sender authorization", () => {
       url: `chrome-extension://${EXTENSION_ID}/src/dashboard/index.html`,
     };
     expect(isTrustedExtensionPage(sender)).toBe(true);
-    expect(authorizeMessage("myz:syncNow", {}, sender).ok).toBe(true);
+    expect(authorize("myz:syncNow", {}, sender).ok).toBe(true);
   });
 
   it("requires an explicit user gesture for key changes", () => {
     const sender = extensionPageSender();
-    expect(authorizeMessage("myz:syncSetKey", {}, sender).ok).toBe(false);
+    expect(authorize("myz:syncSetKey", {}, sender).ok).toBe(false);
     expect(
-      authorizeMessage("myz:syncClearKey", { userGesture: false }, sender).ok,
+      authorize("myz:syncClearKey", { userGesture: false }, sender).ok,
     ).toBe(false);
+    expect(authorize("myz:syncSetKey", { userGesture: true }, sender).ok).toBe(
+      true,
+    );
     expect(
-      authorizeMessage("myz:syncSetKey", { userGesture: true }, sender).ok,
-    ).toBe(true);
-    expect(
-      authorizeMessage("myz:syncClearKey", { userGesture: true }, sender).ok,
+      authorize("myz:syncClearKey", { userGesture: true }, sender).ok,
     ).toBe(true);
   });
 
@@ -121,11 +124,11 @@ describe("trusted sender authorization", () => {
       url: "chrome-extension://someoneelse/dashboard.html",
     };
     expect(isTrustedExtensionPage(sender)).toBe(false);
-    expect(authorizeMessage("myz:syncNow", {}, sender).ok).toBe(false);
+    expect(authorize("myz:syncNow", {}, sender).ok).toBe(false);
   });
 
   it("rejects a missing sender and allows non-privileged messages", () => {
-    expect(authorizeMessage("myz:syncNow", {}, undefined).ok).toBe(false);
-    expect(authorizeMessage("myz:getHighlights", {}, undefined).ok).toBe(true);
+    expect(authorize("myz:syncNow", {}, undefined).ok).toBe(false);
+    expect(authorize("myz:getHighlights", {}, undefined).ok).toBe(true);
   });
 });

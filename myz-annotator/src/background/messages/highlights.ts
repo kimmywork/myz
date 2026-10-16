@@ -1,3 +1,4 @@
+import type { MessageContext } from "@myz/shared/messageRegistry";
 import {
   MyZRecord,
   RECORD_KINDS,
@@ -88,16 +89,13 @@ export function initializeHighlightMessageHandlers() {
 
   registerMessageHandler(
     "myz:saveHighlight",
-    async (
-      payload: SaveHighlightMessagePayload,
-      sender: chrome.runtime.MessageSender,
-    ) => {
+    async (payload: SaveHighlightMessagePayload, ctx: MessageContext) => {
       if (!payload) throw new Error("Missing highlight payload");
       const now = new Date().toISOString();
       const id = payload.id || generateId();
       const kind = getRecordKind(payload);
       const record = buildNewRecord(payload, now, id, kind);
-      await resolveRecordText(record, sender?.tab?.id);
+      await resolveRecordText(record, ctx.tabId);
       applyKindShape(record);
       await saveHighlight(record);
       if (kind === RECORD_KINDS.HIGHLIGHT) {
@@ -226,10 +224,10 @@ export function initializeHighlightMessageHandlers() {
     "myz:updateBadge",
     async (
       payload: { tabId?: number } & Partial<BadgeCount>,
-      sender: chrome.runtime.MessageSender,
+      ctx: MessageContext,
     ) => {
       const tabId =
-        typeof payload?.tabId === "number" ? payload.tabId : sender?.tab?.id;
+        typeof payload?.tabId === "number" ? payload.tabId : ctx.tabId;
       if (typeof tabId !== "number" || Number.isNaN(tabId)) {
         return { success: false };
       }

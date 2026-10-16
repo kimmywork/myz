@@ -33,6 +33,7 @@
     "./colorScheme": "./src/colorScheme.ts",
     "./recordRegistry": "./src/recordRegistry.ts",
     "./messageRegistry": "./src/messageRegistry.ts",
+    "./transport": "./src/transport.ts",
     "./components/ThemeToggle": "./src/components/ThemeToggle.tsx"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）**已实现并验证**（见 §12）；I2–I10 未开始。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）**已实现并验证**（见 §12）；I3–I10 未开始。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -264,3 +264,11 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - **D3-a 修复**：`packages/shared/src/messaging.ts` 的解包改为按 `"data" in response` 判定（原先 `response.data || response` 会在 `null/false/0/""` 时错误回退整个信封）；补 2 条回归测试。
   - 验证：`vue-tsc -b` 0；shared 94、annotator 276 单测通过；eslint 0；`vite build` 成功。
   - **遗留（I1b，未做）**：调用点仍走 `@myz/shared/messaging` 的宽松 `sendMessage<Payload, Result>`（45 处），按 §9「先并存、再逐个收敛」渐进迁移到类型化 `invoke`；`sendMessageToTab` 与 `sendMessage` 的返回形状仍不一致。
+- **I2 完成（2026-10-16）**：Transport 端口 + `MessageContext`。
+  - `packages/shared/src/transport.ts`：宿主无关的 `Transport<M>` 端口（`invoke` / `handle` / `has` / `run`）。
+  - `packages/shared/src/messageRegistry.ts`：新增 `MessageContext`（`tabId` / `windowId` / `url` / `trusted`），handler 第二参由裸 `chrome.runtime.MessageSender` 改为 `MessageContext`——**shared 注册表不再引用 chrome**。
+  - 扩展适配：`src/messaging/context.ts`（`toMessageContext` / `isTrustedExtensionPage`）+ `src/messaging/transport.ts`（`createRuntimeTransport`，Chrome 实现）。background `handler.ts` 改为 `createRuntimeTransport<MyzRuntimeMap>()` 绑定导出。
+  - `trustedSender.ts`：`authorizeMessage(type, payload, ctx)` 改用 `ctx.trusted`；`background.ts` / `content/message-listener.ts` 在派发边界构造 ctx。
+  - 用到 sender 的处理器（`background/messages/capture.ts`、`highlights.ts`）改用 `ctx.tabId` / `ctx.windowId`。
+  - 验证：`vue-tsc -b` 0；shared 94、annotator 276 单测通过；eslint 0 error（仅 `highlights.ts` 既有 `max-lines` 警告）；`vite build` 成功。
+  - **遗留**：Tab 方向的 `invoke` 仍走 `sendToContentScript`（含 tab 发现逻辑），未并入 `Transport.invoke`；调用点仍走宽松 `sendMessage`（I1b）。
