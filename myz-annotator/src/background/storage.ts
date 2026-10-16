@@ -337,8 +337,13 @@ export async function putOpaqueRecord(record: OpaqueRecord): Promise<void> {
   return idbPut(db, "opaque_records", record);
 }
 
-export async function listOpaqueRecords(): Promise<OpaqueRecord[]> {
-  return getAllFromStore<OpaqueRecord>("opaque_records");
+export async function listOpaqueRecords(
+  streamId?: string,
+): Promise<OpaqueRecord[]> {
+  const records = await getAllFromStore<OpaqueRecord>("opaque_records");
+  return streamId
+    ? records.filter((record) => record.streamId === streamId)
+    : records;
 }
 
 export async function deleteOpaqueRecord(recordId: string): Promise<void> {

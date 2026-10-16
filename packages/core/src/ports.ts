@@ -15,6 +15,8 @@ import type { MyZRecord } from "@myz/shared/types";
  * (opaque preservation; see `docs/plan/core-refactor.md` D1).
  */
 export interface OpaqueRecord {
+  /** Stream the record arrived on, so collect routes it back to the same one. */
+  streamId: string;
   recordId: string;
   updatedAt: string;
   data: unknown;
@@ -30,7 +32,8 @@ export interface RecordsStore {
   remove(id: string): Promise<void>;
   /** Opaque preservation (D1): keep unknown synced records verbatim. */
   putOpaque(record: OpaqueRecord): Promise<void>;
-  listOpaque(): Promise<OpaqueRecord[]>;
+  /** Opaque records, optionally filtered to one stream. */
+  listOpaque(streamId?: string): Promise<OpaqueRecord[]>;
   deleteOpaque(recordId: string): Promise<void>;
 }
 

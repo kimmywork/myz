@@ -44,6 +44,7 @@ describe("recordsStore (IndexedDB contract)", () => {
 
   it("round-trips opaque records (D1)", async () => {
     const opaque = {
+      streamId: "highlights",
       recordId: "n:unknown-1",
       updatedAt: "2026-02-02T00:00:00Z",
       data: { schemaId: "future.kind", body: "keep me" },
@@ -52,6 +53,8 @@ describe("recordsStore (IndexedDB contract)", () => {
     const list = await recordsStore.listOpaque();
     const found = list.find((entry) => entry.recordId === "n:unknown-1");
     expect(found).toEqual(opaque);
+    expect(await recordsStore.listOpaque("inbox")).toEqual([]);
+    expect(await recordsStore.listOpaque("highlights")).toHaveLength(1);
 
     await recordsStore.deleteOpaque("n:unknown-1");
     expect(

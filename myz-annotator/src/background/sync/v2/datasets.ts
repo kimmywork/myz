@@ -1,34 +1,60 @@
+import { parseRecordId, recordIdForHighlight } from "@myz/core/identity";
 import type { MyZRecord } from "@myz/shared/types";
 import type { StreamDataset } from "@myz/sync-core/accountSync";
-import {
-  deleteHighlight,
-  getAllHighlights,
-  saveHighlight,
-} from "../../storage";
-import { parseRecordId, recordIdForHighlight } from "../records";
+import { recordsStore } from "../../stores";
 import { listDeletions, removeDeletion } from "../storage";
 
-/** The main highlight stream dataset (recordId `h:<id>`). */
+const STREAM_ID = "highlights";
+
+/**
+ * The main (highlight) stream dataset (recordId `h:<id>`).
+ *
+ * Records we cannot materialize (unknown record-id prefix / future `schemaId`)
+ * are not dropped: `apply` stores them verbatim in the opaque overflow and
+ * `collect` hands them back, so a newer client's record survives on this
+ * (older) client (D1).
+ */
 export function createHighlightDataset(): StreamDataset {
   return {
-    streamId: "highlights",
+    streamId: STREAM_ID,
     async collect() {
-      const highlights = await getAllHighlights();
-      return highlights.map((highlight) => ({
+      const [highlights, opaque] = await Promise.all([
+        recordsStore.listAll(),
+        recordsStore.listOpaque(STREAM_ID),
+      ]);
+      const materialized = highlights.map((highlight) => ({
         recordId: recordIdForHighlight(highlight.id),
         updatedAt: highlight.updatedAt || highlight.createdAt,
-        data: highlight,
+        data: highlight as unknown,
       }));
+      const preserved = opaque.map((record) => ({
+        recordId: record.recordId,
+        updatedAt: record.updatedAt,
+        data: record.data,
+      }));
+      return [...materialized, ...preserved];
     },
     async apply(record) {
-      const data = record.data as MyZRecord;
-      await saveHighlight({ ...data, updatedAt: record.updatedAt });
+      const parsed = parseRecordId(record.recordId);
+      if (parsed?.kind === "highlight") {
+        const data = record.data as MyZRecord;
+        await recordsStore.upsert({ ...data, updatedAt: record.updatedAt });
+        return;
+      }
+      await recordsStore.putOpaque({
+        streamId: STREAM_ID,
+        recordId: record.recordId,
+        updatedAt: record.updatedAt,
+        data: record.data,
+      });
     },
     async remove(recordId) {
       const parsed = parseRecordId(recordId);
       if (parsed?.kind === "highlight") {
-        await deleteHighlight(parsed.id);
+        await recordsStore.remove(parsed.id);
+        return;
       }
+      await recordsStore.deleteOpaque(recordId);
     },
     async collectTombstones() {
       const deletions = await listDeletions();
