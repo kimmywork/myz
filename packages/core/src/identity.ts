@@ -40,3 +40,8 @@ export function parseRecordId(
   }
   return null;
 }
+
+/** Generate a fresh local record id (host clocks may override this). */
+export function generateRecordId(): string {
+  return `myz_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}

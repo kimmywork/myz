@@ -11,7 +11,8 @@
     "./lifecycle": "./src/lifecycle.ts",
     "./relations": "./src/relations.ts",
     "./inbox": "./src/inbox.ts",
-    "./ports": "./src/ports.ts"
+    "./ports": "./src/ports.ts",
+    "./services/records": "./src/services/records.ts"
   },
   "dependencies": {
     "@myz/shared": "*",

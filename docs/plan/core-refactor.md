@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）**已实现并验证**（见 §12）；I5–I10 未开始。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I5（RecordsService + handler 瘦身 + D3.3）**已实现并验证**（见 §12）；I5b–I10 未开始。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -189,7 +189,7 @@ interface MyzTabMap { // SW → CS
 | **I2** | Transport 端口 + `MessageContext` | `Transport` 接口 + 扩展实现（Runtime/Tab 两方向）；`messaging.ts` 降级为 adapter | I1 | 现有 e2e 全绿 |
 | **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 **（已完成，见 §12；设置模型转 I4）** |
 | **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 **（RecordsStore/InboxStateStore/SettingsStore 已完成，见 §12；`BlobStore`/`StagedAssetStore` 转 I4b）** |
-| **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 |
+| **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 **（RecordsService 已完成，见 §12；Inbox/Settings/Import/SyncOrch 转 I5b）** |
 | **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 |
 | **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 |
 | **I8** | `Scheduler` / `Notifier` 端口化（**移除 JobQueue**） | 端口 + 扩展实现 | I4 | 定时 / 通知行为不变 |
@@ -285,3 +285,10 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 契约测试：`tests/unit/background/stores.test.ts`（fake-indexeddb）覆盖 records 增删查 / 按 url 查 / **opaque 往返** + inbox state 往返。
   - 验证：core 16、annotator 280 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
   - **未做（转后续）**：`BlobStore` / `StagedAssetStore` 端口（需一并把 `StagedAsset` 类型搬到 core）→ I4b；D1 的 opaque **接线到 sync dataset**（`collect` / `apply`）→ I6；设置模型整体搬到 core 仍待做（`SettingsStore` 现为对既有 `readSettings` / `writeSettings` 的薄包装）。
+- **I5 完成（2026-10-16，部分）**：`RecordsService` 抽入 core + handler 瘦身 + D3.3 修复。
+  - `@myz/core/services/records`：`createRecord` / `updateRecord` / `updateRecordRange` / `removeRecord(s)` / `updateRecordsPatch` / `listRecords` / `getRecordsForUrls` / `listTags` + helpers（`normalizeIds` / `resolveRequestedUrls` / `applyKindShape`）。所有宿主能力（`newId` / `now` / `htmlToMarkdown`）经 `RecordServiceContext` 注入 → **服务保持纯领域 + 存储**。
+  - **D3.3 修复**：HTML→Markdown 不再由服务内联反向调用 content script；扩展在 handler 侧注入 `htmlToMarkdown` 端口（绑定 `sendToContentScript`）。
+  - `background/messages/highlights.ts` 改为「解码 → 调服务 → 编码」；删除 `highlights/record-helpers.ts`（逻辑移入 core，去重复）。
+  - 测试：新增 `packages/core/tests/services-records.test.ts`（内存 store）10 用例；扩展既有 `highlights.test.ts` **原样通过**（行为不变）。
+  - 验证：core 26、annotator 280 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
+  - **未做（转 I5b）**：`InboxService`（`background/inbox/actions.ts` 仍直接写存储）、`SettingsService`、`ImportExportService`、`SyncOrch`。
