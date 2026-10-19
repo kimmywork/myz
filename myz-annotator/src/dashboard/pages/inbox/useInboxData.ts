@@ -1,4 +1,3 @@
-import { sendMessage } from "@myz/shared/messaging";
 import { countTags, mergeTags } from "@myz/shared/tags";
 import { computed, ref, watch } from "vue";
 import {
@@ -11,6 +10,7 @@ import type {
   InboxQueueItem,
   InboxQueueResult,
 } from "@/background/messages/inbox";
+import { invoke } from "@/messaging/invoke";
 
 /** Data/derived state and loading for the Inbox queue. */
 export function useInboxData() {
@@ -146,8 +146,8 @@ export function useInboxData() {
     loading.value = true;
     try {
       const [next, tags] = await Promise.all([
-        sendMessage<undefined, InboxQueueResult>("myz:inboxQueue"),
-        sendMessage<undefined, string[]>("myz:getAllTags"),
+        invoke("myz:inboxQueue"),
+        invoke("myz:getAllTags"),
       ]);
       queue.value = next;
       allTags.value = Array.isArray(tags) ? tags : [];

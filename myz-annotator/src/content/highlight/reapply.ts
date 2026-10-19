@@ -1,9 +1,9 @@
-import { sendMessage } from "@myz/shared/messaging";
 import { deserializeRange } from "@myz/shared/serializer";
 import type { MyZRecord } from "@myz/shared/types";
 import { useNotificationStore } from "../stores/notification-store.ts";
 import { applyHighlight, rebuildHighlightRange } from "./apply.ts";
 import { highlightCache, unreachableHighlights } from "./cache.ts";
+import { invoke } from "@/messaging/invoke";
 
 const HIGHLIGHT_REAPPLY_INTERVAL = 1500;
 const HIGHLIGHT_REAPPLY_TIMEOUT = 20000;
@@ -40,7 +40,7 @@ const state: HighlightReapplyState = {
  */
 export function persistRebuiltRange(record: MyZRecord) {
   if (!record?.id || !record?.range) return;
-  sendMessage("myz:updateHighlightRange", {
+  invoke("myz:updateHighlightRange", {
     id: record.id,
     range: record.range,
   }).catch((error) => {

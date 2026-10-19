@@ -1,5 +1,6 @@
 # Workstate
 
+- Core I1b done (2026-10-19, on PR #93): 调用点迁移到类型化 `invoke`（~90 处 / 24 文件）；修正契约缺口（userGesture、可选 payload、legacy count、updateHighlight null 清理）。无裸 `sendMessage` 调用残留。core 37 / annotator 290 单测、vue-tsc 0、eslint 0 error、build 成功。
 - Core I9 done (2026-10-19, on PR #93): Source/Locator 读时归一化——`@myz/core/source`（resolveSourceKind/Identity/RecordLocator），ViewerRecordCard 改用它（不写回记录）。core 37 / annotator 290 单测、vue-tsc 0、eslint 0、build 成功。
 - Core I6b done (2026-10-19, on PR #93): 显式 `schemaId` + `recordCodecs` 接到 sync `apply`；`createRecord`/`updateRecord` 写入 `schemaId`，apply 三条件一致才物化。core 31 / annotator 290 单测、vue-tsc 0、eslint 0、build 成功。
 - Core I5c partial done (2026-10-19, on PR #93): Import/Export 抽入 core（`@myz/core/import`、`import-merge`、`markdown-export`），删除扩展对应文件；SyncOrch 仍待做。core 31 / annotator 290 单测、vue-tsc 0、eslint 0、build 成功。

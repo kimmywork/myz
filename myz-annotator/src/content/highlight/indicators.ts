@@ -1,5 +1,5 @@
-import { sendMessage } from "@myz/shared/messaging";
 import { computeHighlightStats } from "./cache.ts";
+import { invoke } from "@/messaging/invoke";
 
 function syncBadgeWithBackground() {
   let isTopLevel = false;
@@ -10,7 +10,7 @@ function syncBadgeWithBackground() {
   }
   if (!isTopLevel) return;
   const stats = computeHighlightStats();
-  sendMessage("myz:updateBadge", {
+  invoke("myz:updateBadge", {
     count: stats.total,
     total: stats.total,
     highlightCount: stats.highlightCount,

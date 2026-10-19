@@ -1,5 +1,4 @@
 import { isHighlightRecord } from "@myz/shared/highlightUtils";
-import { sendMessage } from "@myz/shared/messaging";
 import type { MyZRecord } from "@myz/shared/types";
 import { decorateHighlightElement } from "../apply-highlight.ts";
 import { useInspectorStore } from "../stores/inspector-store.ts";
@@ -8,19 +7,13 @@ import { removeHighlightFromDom } from "./apply.ts";
 import { highlightCache, storeRecord, unreachableHighlights } from "./cache.ts";
 import { updateHighlightIndicators } from "./indicators.ts";
 import { removeHighlightFromPending } from "./reapply.ts";
-import type {
-  RemoveHighlightMessageResult,
-  UpdateHighlightMessageResult,
-} from "@/background/messages/highlights";
+import { invoke } from "@/messaging/invoke";
 
 export async function updateExistingHighlight(update: Partial<MyZRecord>) {
   const modalStore = useModalStore();
   const inspectorStore = useInspectorStore();
   try {
-    const record = await sendMessage<
-      Partial<MyZRecord>,
-      UpdateHighlightMessageResult
-    >("myz:updateHighlight", update);
+    const record = await invoke("myz:updateHighlight", update);
     if (!record) return;
     const stored = storeRecord(record);
     if (!stored) return;
@@ -49,10 +42,7 @@ export async function updateExistingHighlight(update: Partial<MyZRecord>) {
 export async function deleteHighlight(id: string) {
   const inspectorStore = useInspectorStore();
   try {
-    await sendMessage<{ id?: string }, RemoveHighlightMessageResult>(
-      "myz:removeHighlight",
-      { id },
-    );
+    await invoke("myz:removeHighlight", { id });
     highlightCache.delete(id);
     removeHighlightFromPending(id);
     unreachableHighlights.delete(id);

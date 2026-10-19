@@ -1,12 +1,7 @@
-import { sendMessage } from "@myz/shared/messaging";
 import type { useSettingsStore } from "../../stores/settings.js";
-import {
-  toS3Form,
-  validateS3Form,
-  type S3FormValue,
-} from "./SetupS3Fields.jsx";
+import { toS3Form, validateS3Form } from "./SetupS3Fields.jsx";
 import type { WizardState } from "./wizard-state.js";
-import type { SyncStatusResult } from "./wizard-types.js";
+import { invoke } from "@/messaging/invoke";
 
 type SettingsStore = ReturnType<typeof useSettingsStore>;
 
@@ -21,9 +16,7 @@ export function createAccountActions(
 
   async function loadStatus() {
     try {
-      const result = await sendMessage<undefined, SyncStatusResult>(
-        "myz:syncStatus",
-      );
+      const result = await invoke("myz:syncStatus");
       state.hasAccount.value = Boolean(result?.hasAccount);
       state.accountId.value = result?.accountId || null;
       state.deviceId.value = result?.deviceId || null;
@@ -57,10 +50,9 @@ export function createAccountActions(
     state.isBusy.value = true;
     state.setStatus("测试连接中…", "info");
     try {
-      const result = await sendMessage<
-        { s3: S3FormValue },
-        { ok: boolean; message?: string }
-      >("myz:syncTestConnection", { s3: { ...state.s3 } });
+      const result = await invoke("myz:syncTestConnection", {
+        s3: { ...state.s3 },
+      });
       state.s3Tested.value = Boolean(result?.ok);
       state.setStatus(
         result?.ok ? "连接成功" : result?.message || "连接失败",
@@ -94,10 +86,7 @@ export function createAccountActions(
     state.isBusy.value = true;
     state.setStatus("迁移中…", "info");
     try {
-      const result = await sendMessage<
-        { secret?: string; s3?: Partial<S3FormValue>; userGesture: boolean },
-        { rescued: number; hasLegacy: boolean }
-      >("myz:accountMigrateLegacy", {
+      const result = await invoke("myz:accountMigrateLegacy", {
         secret: state.legacySecret.value.trim() || undefined,
         s3: state.showOldS3.value ? { ...state.oldS3 } : undefined,
         userGesture: true,
@@ -126,10 +115,7 @@ export function createAccountActions(
     state.isBusy.value = true;
     state.setStatus("创建账号中…", "info");
     try {
-      const result = await sendMessage<
-        { userGesture: boolean },
-        { accountId: string }
-      >("myz:accountCreate", { userGesture: true });
+      const result = await invoke("myz:accountCreate", { userGesture: true });
       state.createdAccountId.value = result.accountId;
       await loadStatus();
       state.setStatus("账号已创建", "success");
@@ -146,10 +132,7 @@ export function createAccountActions(
     state.syncState.value = "running";
     state.setStatus("正在上传本机数据…", "info");
     try {
-      const result = await sendMessage<
-        undefined,
-        { ok: boolean; status?: string; message?: string }
-      >("myz:syncNow");
+      const result = await invoke("myz:syncNow");
       if (result?.ok) {
         await loadStatus();
         state.syncState.value = "done";

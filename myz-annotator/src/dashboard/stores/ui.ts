@@ -1,4 +1,3 @@
-import { sendMessage } from "@myz/shared/messaging";
 import {
   DEFAULT_COLOR,
   MyZRecord,
@@ -23,6 +22,7 @@ import {
   sortRecordsForPage,
   type PageSortMode,
 } from "@/dashboard/utils/records.js";
+import { invoke } from "@/messaging/invoke";
 
 export type { SearchFilters } from "./ui/filters.js";
 
@@ -158,7 +158,7 @@ export const useUIStore = defineStore("ui", () => {
 
   async function persistDashboardView(nextView: "cards" | "list") {
     try {
-      await sendMessage("myz:updateSettings", { dashboardView: nextView });
+      await invoke("myz:updateSettings", { dashboardView: nextView });
     } catch (error) {
       console.warn("Failed to persist dashboard view", error);
     }
@@ -222,10 +222,7 @@ export const useUIStore = defineStore("ui", () => {
       payload.color = undefined;
       payload.range = undefined;
     }
-    const updated = await sendMessage<Partial<MyZRecord>, MyZRecord>(
-      "myz:updateHighlight",
-      payload,
-    );
+    const updated = await invoke("myz:updateHighlight", payload);
     highlightsStore.applyUpdatedRecord(updated);
   }
 

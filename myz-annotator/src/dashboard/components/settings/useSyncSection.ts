@@ -1,12 +1,7 @@
-import { sendMessage } from "@myz/shared/messaging";
 import { onMounted, ref, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import { useSettingsStore } from "../../stores/settings.js";
-import type {
-  SyncNowMessageResult,
-  SyncStatusMessageResult,
-  SyncTestConnectionMessageResult,
-} from "@/background/messages/sync";
+import { invoke } from "@/messaging/invoke";
 
 type StatusTone = "info" | "error" | "success";
 
@@ -69,9 +64,7 @@ export function useSyncSection() {
 
   async function refreshSyncStatus() {
     try {
-      const result = await sendMessage<undefined, SyncStatusMessageResult>(
-        "myz:syncStatus",
-      );
+      const result = await invoke("myz:syncStatus");
       keyId.value = result?.keyId || null;
       keyUpdatedAt.value = result?.keyUpdatedAt || null;
       lastSyncAt.value = result?.lastSyncAt || null;
@@ -106,10 +99,9 @@ export function useSyncSection() {
     isBusy.value = true;
     setStatus("测试连接中…", "info");
     try {
-      const result = await sendMessage<
-        { s3: ReturnType<typeof buildS3Payload> },
-        SyncTestConnectionMessageResult
-      >("myz:syncTestConnection", { s3: buildS3Payload() });
+      const result = await invoke("myz:syncTestConnection", {
+        s3: buildS3Payload(),
+      });
       if (result?.ok) {
         setStatus("连接成功", "success");
       } else {
@@ -139,7 +131,7 @@ export function useSyncSection() {
     isBusy.value = true;
     setStatus("设置密钥中…", "info");
     try {
-      await sendMessage("myz:syncSetKey", {
+      await invoke("myz:syncSetKey", {
         secret: syncSecret.value.trim(),
         userGesture: true,
       });
@@ -158,9 +150,7 @@ export function useSyncSection() {
     isBusy.value = true;
     setStatus("同步中…", "info");
     try {
-      const result = await sendMessage<undefined, SyncNowMessageResult>(
-        "myz:syncNow",
-      );
+      const result = await invoke("myz:syncNow");
       if (result?.ok) {
         setStatus("同步完成", "success");
       } else {
@@ -185,7 +175,7 @@ export function useSyncSection() {
     }
     isBusy.value = true;
     try {
-      await sendMessage("myz:accountClear", { userGesture: true });
+      await invoke("myz:accountClear", { userGesture: true });
       await refreshSyncStatus();
       setStatus("已解除同步账号", "success");
     } catch (error) {

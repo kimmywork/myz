@@ -1,6 +1,5 @@
 import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import { normalizeWhitespace } from "@myz/shared/highlightUtils";
-import { sendMessage } from "@myz/shared/messaging";
 import { recordToMarkdown } from "@myz/shared/recordDisplay";
 import {
   RECORD_KINDS,
@@ -15,6 +14,7 @@ import {
 } from "@myz/shared/url";
 import { computed, onMounted, ref } from "vue";
 import { getActiveTab, getPageHighlightState } from "./tabs.js";
+import { invoke } from "@/messaging/invoke";
 import { resolvePdfTargetUrl } from "@/pdf/detect.js";
 
 /** State + data/actions for the popup. View lives in App.tsx. */
@@ -57,7 +57,7 @@ export function usePopup() {
       loading.value = true;
       const aliases = buildUrlAliases(rawPageUrl.value, canonicalPageUrl.value);
       const [records, highlightState] = await Promise.all([
-        sendMessage("myz:getHighlightsForUrl", {
+        invoke("myz:getHighlightsForUrl", {
           url: canonicalPageUrl.value,
           aliases,
         }),
@@ -122,7 +122,7 @@ export function usePopup() {
   async function deleteHighlight(id: string) {
     if (!confirmDestructive(DELETE_CONFIRM)) return;
     try {
-      await sendMessage("myz:removeHighlight", { id });
+      await invoke("myz:removeHighlight", { id });
       highlights.value = highlights.value.filter((item) => item.id !== id);
       notifyContentScript("myz:refreshHighlights");
     } catch (err) {
@@ -134,12 +134,9 @@ export function usePopup() {
     const existing = highlights.value.find((item) => item.id === id);
     if (!existing || existing.kind === RECORD_KINDS.CLIP) return;
     try {
-      const updated = await sendMessage("myz:updateHighlight", {
+      const updated = await invoke("myz:updateHighlight", {
         id,
         kind: RECORD_KINDS.CLIP,
-        range: null,
-        color: null,
-        style: null,
       });
       if (updated) {
         const normalized = normalizeRecord({

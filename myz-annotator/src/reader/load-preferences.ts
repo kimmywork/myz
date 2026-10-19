@@ -1,6 +1,6 @@
 import { normalizeHighlightStyle } from "@myz/shared/highlightUtils";
-import { sendMessage } from "@myz/shared/messaging";
 import { DEFAULT_COLORS, type HIGHLIGHT_STYLES } from "@myz/shared/types";
+import { invoke } from "@/messaging/invoke";
 
 /** Highlight preferences both readers load before they can be edited. */
 export interface LoadedHighlightPreferences {
@@ -17,14 +17,7 @@ export interface LoadedHighlightPreferences {
  */
 export async function loadHighlightPreferences(): Promise<LoadedHighlightPreferences> {
   try {
-    const settings = await sendMessage<
-      undefined,
-      {
-        colorPalette?: unknown;
-        lastUsedColor?: unknown;
-        lastUsedStyle?: unknown;
-      }
-    >("myz:getPublicSettings");
+    const settings = await invoke("myz:getPublicSettings");
     const palette = Array.isArray(settings?.colorPalette)
       ? settings.colorPalette.filter(
           (color): color is string =>

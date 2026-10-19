@@ -1,6 +1,5 @@
-import { sendMessage } from "@myz/shared/messaging";
 import type { WizardState } from "./wizard-state.js";
-import type { PairingS3Prefill } from "./wizard-types.js";
+import { invoke } from "@/messaging/invoke";
 
 interface PairingDeps {
   persistS3: () => Promise<boolean>;
@@ -30,10 +29,7 @@ export function createPairingActions(state: WizardState, deps: PairingDeps) {
     state.isBusy.value = true;
     state.setStatus("解析邀请中…", "info");
     try {
-      const result = await sendMessage<
-        { invite: string; userGesture: boolean },
-        { response: string; sas: string; s3?: PairingS3Prefill }
-      >("myz:pairingAccept", {
+      const result = await invoke("myz:pairingAccept", {
         invite: state.pairingInviteInput.value.trim(),
         userGesture: true,
       });
@@ -73,7 +69,7 @@ export function createPairingActions(state: WizardState, deps: PairingDeps) {
     state.isBusy.value = true;
     state.setStatus("加入账号中…", "info");
     try {
-      await sendMessage("myz:accountImport", {
+      await invoke("myz:accountImport", {
         roster: state.pairingImportInput.value.trim(),
         userGesture: true,
       });
@@ -95,10 +91,7 @@ export function createPairingActions(state: WizardState, deps: PairingDeps) {
     state.isBusy.value = true;
     state.setStatus("生成邀请中…", "info");
     try {
-      const result = await sendMessage<
-        { userGesture: boolean },
-        { offer: string }
-      >("myz:pairingInvite", { userGesture: true });
+      const result = await invoke("myz:pairingInvite", { userGesture: true });
       state.pairingInvite.value = result.offer;
       state.setStatus("邀请已生成，请发送给新设备", "success");
     } catch (err) {
@@ -117,10 +110,7 @@ export function createPairingActions(state: WizardState, deps: PairingDeps) {
     state.isBusy.value = true;
     state.setStatus("批准中…", "info");
     try {
-      const result = await sendMessage<
-        { response: string; userGesture: boolean },
-        { sas: string; roster: string }
-      >("myz:pairingApprove", {
+      const result = await invoke("myz:pairingApprove", {
         response: state.pairingResponseInput.value.trim(),
         userGesture: true,
       });

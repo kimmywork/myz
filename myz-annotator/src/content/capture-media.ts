@@ -11,18 +11,17 @@
  * A copy is always downloaded (existing behaviour) and staged; the clipboard
  * write is best-effort because it needs a live user gesture.
  */
-import { sendMessage } from "@myz/shared/messaging";
 import {
   captureVisiblePngWithThrottle,
   cropToCanvas,
   downloadImage,
 } from "./image";
 import { useNotificationStore } from "./stores/notification-store";
+import { invoke } from "@/messaging/invoke";
 import { buildSimpleName, buildVideoName } from "@/stitch/filename";
 import {
   STAGED_ASSET_THUMB_EDGE,
   estimateDataUrlBytes,
-  type NewStagedAsset,
   type StagedAssetKind,
 } from "@/stitch/staged-asset";
 
@@ -142,20 +141,17 @@ export async function stageCapturedImage(
   }
   try {
     const thumb = await makeThumb(input.dataUrl);
-    const result = await sendMessage<NewStagedAsset, { id: string }>(
-      "myz:stageAsset",
-      {
-        name,
-        mime,
-        width: input.width ?? 0,
-        height: input.height ?? 0,
-        dataUrl: input.dataUrl,
-        thumb,
-        sourceKind: input.sourceKind,
-        sourceUrl: input.sourceUrl,
-        size: estimateDataUrlBytes(input.dataUrl),
-      },
-    );
+    const result = await invoke("myz:stageAsset", {
+      name,
+      mime,
+      width: input.width ?? 0,
+      height: input.height ?? 0,
+      dataUrl: input.dataUrl,
+      thumb,
+      sourceKind: input.sourceKind,
+      sourceUrl: input.sourceUrl,
+      size: estimateDataUrlBytes(input.dataUrl),
+    });
     return result?.id ?? null;
   } catch (error) {
     console.warn("MyZ: staging failed", error);
@@ -169,10 +165,7 @@ async function fetchViaBackground(
   url: string,
 ): Promise<CapturedPayload | null> {
   try {
-    const result = await sendMessage<
-      { url: string },
-      { dataUrl: string; mime: string }
-    >("myz:fetchAsset", { url });
+    const result = await invoke("myz:fetchAsset", { url });
     if (!result?.dataUrl) return null;
     const size = await measureImage(result.dataUrl);
     if (!size.width || !size.height) return null;

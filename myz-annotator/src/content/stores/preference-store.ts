@@ -3,7 +3,6 @@ import {
   normalizeColor,
   normalizePalette,
 } from "@myz/shared/highlightUtils";
-import { sendMessage } from "@myz/shared/messaging";
 import {
   DEFAULT_COLORS,
   DEFAULT_HIGHLIGHT_STYLE,
@@ -11,7 +10,7 @@ import {
 } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { PublicSettings } from "@/background/settings-public.js";
+import { invoke } from "@/messaging/invoke";
 
 interface HightlightPreference {
   colorPalette?: string[];
@@ -38,10 +37,7 @@ async function persistSettings(patch: Partial<HightlightPreference>) {
     return;
   }
   try {
-    await sendMessage<Partial<HightlightPreference>, PublicSettings>(
-      "myz:updateHighlightPreference",
-      payload,
-    );
+    await invoke("myz:updateHighlightPreference", payload);
   } catch (error) {
     console.warn("Failed to persist highlight preferences", error);
   }
@@ -84,9 +80,7 @@ export const usePreferenceStore = defineStore("preference", () => {
   // This will apply settings and set `isLoaded` when complete.
   async function loadSettings() {
     try {
-      const settings = await sendMessage<undefined, PublicSettings>(
-        "myz:getPublicSettings",
-      );
+      const settings = await invoke("myz:getPublicSettings");
       if (settings) {
         applySettings(settings);
       } else {
