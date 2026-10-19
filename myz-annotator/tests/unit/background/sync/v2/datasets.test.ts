@@ -119,4 +119,18 @@ describe("inbox dataset opaque closure (D1)", () => {
     expect(collected.find((r) => r.recordId === "weird:1")).toBeDefined();
     expect(await recordsStore.listOpaque("inbox")).toHaveLength(1);
   });
+
+  it("round-trips a parseable inbox record verbatim via rawData", async () => {
+    const dataset = createInboxDataset();
+    const data = { kind: "status", status: "pending", extra: 1 };
+    await dataset.apply({
+      recordId: "status:h:1",
+      updatedAt: NOW,
+      data,
+      recordHash: "v",
+    });
+    const collected = await dataset.collect();
+    const preserved = collected.find((r) => r.recordId === "status:h:1");
+    expect(preserved?.data).toEqual(data);
+  });
 });
