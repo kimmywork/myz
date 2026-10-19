@@ -1,3 +1,6 @@
+import { ImportStrategy, normalizeImportStrategy } from "@myz/core/import";
+import { mergeImportedRecords } from "@myz/core/import-merge";
+import { buildMarkdownExport } from "@myz/core/markdown-export";
 import {
   createRecord,
   getRecordsForUrls,
@@ -14,9 +17,7 @@ import {
 import type { MessageContext } from "@myz/shared/messageRegistry";
 import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { normalizeBadgeCounts, BadgeCount, buildActionTitle } from "../badge";
-import { ImportStrategy, normalizeImportStrategy } from "../import";
 import { getInboxStatus, setInboxStatus } from "../inbox/actions";
-import { buildMarkdownExport } from "../markdown";
 import {
   generateId,
   persistHighlightPreferences,
@@ -27,7 +28,6 @@ import { recordHighlightDeletion } from "../sync/deletions";
 import { recordIdForHighlight } from "../sync/records";
 import { sendToContentScript } from "../utils/sendToContentScript";
 import { registerMessageHandler } from "./handler";
-import { mergeImportedRecords } from "./highlights/import-merge";
 import { changeBus } from "@/messaging/changes";
 
 export { normalizeIds };

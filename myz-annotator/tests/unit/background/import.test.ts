@@ -1,7 +1,3 @@
-import { sanitizeHtmlString } from "@myz/shared/sanitizeHtml";
-import { CONTENT_TYPES, MyZRecord, RECORD_KINDS } from "@myz/shared/types";
-import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
-import { describe, it, expect } from "vitest";
 import {
   applyTimestampFallback,
   buildHighlightSignature,
@@ -10,7 +6,11 @@ import {
   normalizeImportStrategy,
   resolveImportConflict,
   sanitizeImportedHighlight,
-} from "@/background/import";
+} from "@myz/core/import";
+import { sanitizeHtmlString } from "@myz/shared/sanitizeHtml";
+import { CONTENT_TYPES, MyZRecord, RECORD_KINDS } from "@myz/shared/types";
+import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
+import { describe, it, expect } from "vitest";
 import { renderHighlightContent } from "@/dashboard/utils/records/render";
 
 const validRange = {
