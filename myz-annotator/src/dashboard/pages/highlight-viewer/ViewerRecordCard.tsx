@@ -1,4 +1,4 @@
-import { resolveRecordLocator } from "@myz/core/source";
+import { resolveReaderLocator } from "@myz/core/source";
 import type { MyZRecord } from "@myz/shared/types";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
@@ -21,7 +21,9 @@ export default defineComponent({
     return () => {
       const a = props.api;
       const item = props.item;
-      const locator = resolveRecordLocator(item);
+      // Reader actions need the source-specific locator (PDF page / EPUB
+      // chapter); PDF/EPUB records also carry a generic text `range`.
+      const locator = resolveReaderLocator(item);
       const hasContent = Boolean(item.text || item.html);
       const hasNote = Boolean(item.note);
       return (

@@ -15,6 +15,12 @@ const PREFIX_TO_KIND: ReadonlyArray<readonly [string, string]> = [
   ["myz-epub:", SOURCE_TYPES.EPUB],
 ];
 
+/** Safe url extraction: malformed persisted values must not throw. */
+function recordUrl(record: Partial<MyZRecord>): string {
+  const url = record?.url ?? record?.sourceUrl;
+  return typeof url === "string" ? url : "";
+}
+
 /** Resolve a record's source kind from its `sourceType` or synthetic url. */
 export function resolveSourceKind(
   record: Partial<MyZRecord>,
@@ -23,7 +29,7 @@ export function resolveSourceKind(
   if (typeof declared === "string" && sourceKinds.get(declared)) {
     return sourceKinds.get(declared);
   }
-  const url = record?.url || record?.sourceUrl || "";
+  const url = recordUrl(record);
   for (const [prefix, kind] of PREFIX_TO_KIND) {
     if (url.startsWith(prefix)) return sourceKinds.get(kind);
   }
@@ -41,7 +47,7 @@ export function resolveSourceIdentity(
   record: Partial<MyZRecord>,
 ): SourceIdentity | null {
   const def = resolveSourceKind(record);
-  const url = record?.url || record?.sourceUrl || "";
+  const url = recordUrl(record);
   if (!def) return null;
   if (def.identity === "url") {
     return url ? { kind: def.kind, scheme: "url", value: url } : null;
@@ -58,6 +64,25 @@ export type ResolvedLocator =
   | { kind: "text-range"; value: NonNullable<MyZRecord["range"]> }
   | { kind: "pdf-page-rect"; value: NonNullable<MyZRecord["pdfLocator"]> }
   | { kind: "epub"; value: NonNullable<MyZRecord["epubLocator"]> };
+
+/**
+ * Source-specific reader anchor: PDF page / EPUB chapter. PDF/EPUB records also
+ * carry a generic `range`, so reader actions must use these fields first.
+ */
+export function resolveReaderLocator(
+  record: Partial<MyZRecord>,
+):
+  | { kind: "pdf-page-rect"; value: NonNullable<MyZRecord["pdfLocator"]> }
+  | { kind: "epub"; value: NonNullable<MyZRecord["epubLocator"]> }
+  | null {
+  if (record?.pdfLocator != null) {
+    return { kind: "pdf-page-rect", value: record.pdfLocator };
+  }
+  if (record?.epubLocator != null) {
+    return { kind: "epub", value: record.epubLocator };
+  }
+  return null;
+}
 
 /**
  * Read-time locator normalization. Preserves the historical precedence
