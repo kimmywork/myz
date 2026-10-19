@@ -1,5 +1,6 @@
 # Workstate
 
+- Core I10 done (2026-10-19, on PR #92): Node 宿主集成验证——`packages/core/tests/support/node-host.ts`（Map 实现的四端口）+ `node-host.test.ts` 端到端跑通 Records/Inbox/relations/PayloadCodec/ChangeBus，**core 零改动**，证明「换宿主只写 adapter」。core 31 单测、eslint 0。
 - Core follow-ups (2026-10-19): PR #92（基于 master）处理 #91 的两条 CodeRabbit 线程——`remove()` 清理 opaque `h:` 记录（防 collect 复活）；PDF overlay 对齐断言取消 CI skip、改用 CI 兼容阈值（8/14）。CI 绿；#91 上两条线程已回复并 resolved。待合并。
 - Core layer merged (2026-10-17): PR #91（核心层重构，I1–I7 + I5b）已 **squash 合并到 master**（`0e21c94`），CI 绿；含 CodeRabbit 4 项修复、CI 修复（根目录安装 + Playwright 忽略单测）、MIT `LICENSE`。master 已同步。后续可做：I5c（Import/SyncOrch）、I6b（显式 `schemaId`）、I4b（BlobStore）、I8–I10、I1b（调用点迁移）。
 - Core refactor — CodeRabbit fixes (2026-10-16, PR #91): 按评审修复 4 条 finding —— opaque 键改复合 `[streamId, recordId]`；highlight `apply` 校验 payload id；inbox 远端记录 `rawData` 原样回传；`ChangeEvent` 增 `id` 并双通道去重。core 29 / annotator 289 单测、vue-tsc 0、eslint 0、build 成功。另加根目录 MIT `LICENSE`。PR: https://github.com/kimmywork/myz/pull/91。
