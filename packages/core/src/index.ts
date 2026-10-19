@@ -14,6 +14,7 @@ export * from "./lifecycle";
 export * from "./relations";
 export * from "./inbox";
 export * from "./ports";
+export * from "./staged-asset";
 export * from "./changes";
 export * from "./services/records";
 export * from "./services/inbox";

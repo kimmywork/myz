@@ -96,6 +96,23 @@ describe("node host integration (ports only)", () => {
     expect(host.badges).toContain("1");
     expect(host.notifications).toEqual([{ title: "t", message: "m" }]);
 
+    // Staged asset store (local capture cache).
+    await host.stagedAssets.save({
+      id: "a1",
+      name: "shot",
+      mime: "image/png",
+      width: 1,
+      height: 1,
+      dataUrl: "data:image/png;base64,AA",
+      thumb: "data:image/png;base64,AA",
+      sourceKind: "image",
+      createdAt: "2026-01-01T00:00:00Z",
+      size: 1,
+    });
+    expect(await host.stagedAssets.get("a1")).toMatchObject({ id: "a1" });
+    await host.stagedAssets.clear();
+    expect(await host.stagedAssets.list()).toEqual([]);
+
     // Change notification reached the subscriber.
     expect(events).toEqual(["records"]);
   });

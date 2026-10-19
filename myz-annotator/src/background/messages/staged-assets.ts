@@ -1,16 +1,10 @@
 /**
  * Message handlers for the capture cache ("staged assets"). Content scripts
  * and the stitch editor talk to this API; the actual bytes never leave the
- * extension origin because the background owns the IndexedDB store.
+ * extension origin because the background owns the store.
  */
-import {
-  clearStagedAssets,
-  deleteStagedAsset,
-  generateId,
-  getStagedAsset,
-  getStagedAssets,
-  saveStagedAsset,
-} from "../storage";
+import { generateId } from "../storage";
+import { stagedAssetStore } from "../stores";
 import { registerMessageHandler } from "./handler";
 import {
   STAGED_ASSET_MAX_BYTES,
@@ -73,13 +67,13 @@ export function initializeStagedAssetMessageHandlers() {
       if (!normalized) {
         throw new Error("Invalid staged asset payload");
       }
-      await saveStagedAsset(normalized);
+      await stagedAssetStore.save(normalized);
       return { id: normalized.id } satisfies StageAssetMessageResult;
     },
   );
 
   registerMessageHandler("myz:listStagedAssets", async () => {
-    const assets = await getStagedAssets();
+    const assets = await stagedAssetStore.list();
     return assets.map(toStagedAssetMeta);
   });
 
@@ -87,7 +81,7 @@ export function initializeStagedAssetMessageHandlers() {
     "myz:getStagedAsset",
     async (payload: { id?: string } | undefined) => {
       if (!payload?.id) return null;
-      const asset = await getStagedAsset(payload.id);
+      const asset = await stagedAssetStore.get(payload.id);
       return asset ? normalizeStagedAsset(asset) : null;
     },
   );
@@ -96,13 +90,13 @@ export function initializeStagedAssetMessageHandlers() {
     "myz:deleteStagedAsset",
     async (payload: { id?: string } | undefined) => {
       if (!payload?.id) return { ok: false };
-      await deleteStagedAsset(payload.id);
+      await stagedAssetStore.remove(payload.id);
       return { ok: true };
     },
   );
 
   registerMessageHandler("myz:clearStagedAssets", async () => {
-    await clearStagedAssets();
+    await stagedAssetStore.clear();
     return { ok: true };
   });
 }

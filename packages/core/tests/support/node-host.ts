@@ -17,6 +17,10 @@ import type {
   Scheduler,
   SettingsStore,
 } from "../../src/ports.js";
+import type {
+  StagedAsset,
+  StagedAssetStore,
+} from "../../src/staged-asset.js";
 
 export interface NodeHost {
   records: RecordsStore;
@@ -25,6 +29,7 @@ export interface NodeHost {
   changes: ChangeBus;
   scheduler: Scheduler;
   notifier: Notifier;
+  stagedAssets: StagedAssetStore;
   /** Test helper: fire a scheduled alarm by name. */
   tick(name: string): void;
   /** Test helper: last badge text written. */
@@ -39,6 +44,7 @@ export function createNodeHost(
   const records = new Map<string, MyZRecord>();
   const opaque = new Map<string, OpaqueRecord>();
   const inbox = new Map<string, InboxStateRecord>();
+  const staged = new Map<string, StagedAsset>();
   const listeners = new Set<(event: ChangeEvent) => void>();
   const alarms = new Set<string>();
   const tickListeners = new Set<(name: string) => void>();
@@ -137,6 +143,25 @@ export function createNodeHost(
       },
       async notify(input) {
         notifications.push({ title: input.title, message: input.message });
+      },
+    },
+    stagedAssets: {
+      async save(asset) {
+        staged.set(asset.id, asset);
+      },
+      async list() {
+        return [...staged.values()].sort((a, b) =>
+          b.createdAt.localeCompare(a.createdAt),
+        );
+      },
+      async get(id) {
+        return staged.get(id);
+      },
+      async remove(id) {
+        staged.delete(id);
+      },
+      async clear() {
+        staged.clear();
       },
     },
     tick,

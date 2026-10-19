@@ -8,35 +8,18 @@
  * payload is fetched on demand. These assets are local-only and never synced.
  */
 
-/** Where a staged asset came from. */
-export type StagedAssetKind = "image" | "video-frame" | "screenshot";
+import type {
+  StagedAsset,
+  StagedAssetKind,
+  StagedAssetMeta,
+} from "@myz/core/staged-asset";
 
-/** Full staged record as persisted in `myz_db/staged_assets`. */
-export interface StagedAsset {
-  id: string;
-  /** Display name, usually derived from the source file/URL. */
-  name: string;
-  /** MIME type of `dataUrl`. */
-  mime: string;
-  width: number;
-  height: number;
-  /** Full-resolution `data:` URL payload. */
-  dataUrl: string;
-  /** Small `data:` URL used for list thumbnails. */
-  thumb: string;
-  /** Page URL the asset was captured from, when known. */
-  sourceUrl?: string;
-  sourceKind: StagedAssetKind;
-  createdAt: string;
-  /** Approximate decoded byte size, for display/sorting. */
-  size: number;
-}
-
-/** List projection: everything except the heavy `dataUrl`. */
-export type StagedAssetMeta = Omit<StagedAsset, "dataUrl">;
-
-/** Payload accepted by `myz:stageAsset` (id/createdAt assigned by the store). */
-export type NewStagedAsset = Omit<StagedAsset, "id" | "createdAt">;
+export type {
+  NewStagedAsset,
+  StagedAsset,
+  StagedAssetKind,
+  StagedAssetMeta,
+} from "@myz/core/staged-asset";
 
 /** Longest-edge cap for the generated thumbnail, in CSS pixels. */
 export const STAGED_ASSET_THUMB_EDGE = 320;

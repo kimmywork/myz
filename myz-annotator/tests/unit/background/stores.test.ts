@@ -1,7 +1,11 @@
 import "fake-indexeddb/auto";
 import type { MyZRecord } from "@myz/shared/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { inboxStateStore, recordsStore } from "@/background/stores";
+import {
+  inboxStateStore,
+  recordsStore,
+  stagedAssetStore,
+} from "@/background/stores";
 
 function record(id: string, overrides: Partial<MyZRecord> = {}): MyZRecord {
   return {
@@ -85,5 +89,38 @@ describe("inboxStateStore (IndexedDB contract)", () => {
 
     await inboxStateStore.remove("status:h:1");
     expect(await inboxStateStore.get("status:h:1")).toBeUndefined();
+  });
+});
+
+describe("stagedAssetStore (IndexedDB contract)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("chrome", {
+      storage: { local: { get: async () => ({}), remove: async () => {} } },
+    });
+  });
+
+  it("saves, lists, gets, removes and clears", async () => {
+    const asset = {
+      id: "a1",
+      name: "shot",
+      mime: "image/png",
+      width: 10,
+      height: 20,
+      dataUrl: "data:image/png;base64,AAAA",
+      thumb: "data:image/png;base64,AA",
+      sourceKind: "image" as const,
+      createdAt: "2026-01-01T00:00:00Z",
+      size: 3,
+    };
+    await stagedAssetStore.save(asset);
+    expect((await stagedAssetStore.list()).map((a) => a.id)).toContain("a1");
+    expect(await stagedAssetStore.get("a1")).toMatchObject({ id: "a1" });
+
+    await stagedAssetStore.remove("a1");
+    expect(await stagedAssetStore.get("a1")).toBeUndefined();
+
+    await stagedAssetStore.save(asset);
+    await stagedAssetStore.clear();
+    expect(await stagedAssetStore.list()).toEqual([]);
   });
 });

@@ -10,21 +10,27 @@ import type {
   RecordsStore,
   SettingsStore,
 } from "@myz/core/ports";
+import type { StagedAssetStore } from "@myz/core/staged-asset";
 import type { Settings } from "./settings.js";
 import {
+  clearStagedAssets,
   deleteHighlight,
   deleteInboxState,
   deleteOpaqueRecord,
+  deleteStagedAsset,
   getAllHighlights,
   getAllInboxStates,
   getHighlight,
   getHighlightsForUrl,
+  getStagedAsset,
+  getStagedAssets,
   listOpaqueRecords,
   putInboxState,
   putOpaqueRecord,
   readInboxState,
   readSettings,
   saveHighlight,
+  saveStagedAsset,
   writeSettings,
 } from "./storage.js";
 
@@ -51,4 +57,12 @@ export const inboxStateStore: InboxStateStore = {
 export const settingsStore: SettingsStore<Settings> = {
   read: () => readSettings(),
   write: (patch) => writeSettings(patch),
+};
+
+export const stagedAssetStore: StagedAssetStore = {
+  save: (asset) => saveStagedAsset(asset),
+  list: () => getStagedAssets(),
+  get: (id) => getStagedAsset(id),
+  remove: (id) => deleteStagedAsset(id),
+  clear: () => clearStagedAssets(),
 };
