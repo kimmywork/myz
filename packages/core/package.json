@@ -16,6 +16,7 @@
     "./import": "./src/import.ts",
     "./import-merge": "./src/import-merge.ts",
     "./markdown-export": "./src/markdown-export.ts",
+    "./record-codecs": "./src/record-codecs.ts",
     "./changes": "./src/changes.ts",
     "./services/records": "./src/services/records.ts",
     "./services/inbox": "./src/services/inbox.ts"

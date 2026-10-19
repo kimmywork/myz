@@ -1,4 +1,5 @@
 import { parseRecordId, recordIdForHighlight } from "@myz/core/identity";
+import { recordCodecs, resolveRecordSchemaId } from "@myz/core/record-codecs";
 import type { MyZRecord } from "@myz/shared/types";
 import type { StreamDataset } from "@myz/sync-core/accountSync";
 import { recordsStore } from "../../stores";
@@ -37,13 +38,16 @@ export function createHighlightDataset(): StreamDataset {
     async apply(record) {
       const parsed = parseRecordId(record.recordId);
       const data = record.data as Partial<MyZRecord> | null | undefined;
-      // Only materialize when the record id AND payload agree (a future
-      // highlight schema, or a payload whose id differs, stays opaque).
+      // Materialize only when the id prefix, payload id, AND the payload's
+      // schema discriminator all agree (an unknown schemaId stays opaque).
+      const schemaId = resolveRecordSchemaId(data);
+      const codec = recordCodecs.get(schemaId);
       const isHighlight =
         parsed?.kind === "highlight" &&
         !!data &&
         typeof data === "object" &&
-        data.id === parsed.id;
+        data.id === parsed.id &&
+        !!codec;
       if (isHighlight) {
         await recordsStore.upsert({
           ...(data as MyZRecord),

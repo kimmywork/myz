@@ -74,6 +74,7 @@ describe("createRecord", () => {
       newId: () => "fixed-id",
     });
     expect(record.id).toBe("fixed-id");
+    expect(record.schemaId).toBe("myz.record");
     expect(record.createdAt).toBe("2026-01-01T00:00:00Z");
     expect(record.kind).toBe("highlight");
     expect(await store.get("fixed-id")).toMatchObject({ id: "fixed-id" });

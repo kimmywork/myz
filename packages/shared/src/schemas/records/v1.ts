@@ -13,6 +13,8 @@ export const RecordSchemaVersionV1 = RECORD_SCHEMA_VERSION
 export const MyZRecordSchemaV1 = z
   .object({
     schemaVersion: z.literal(RECORD_SCHEMA_VERSION),
+    /** Payload discriminator (codec id). Absent on legacy records. */
+    schemaId: z.string().optional(),
     id: z.string(),
     kind: z.nativeEnum(RECORD_KINDS),
     sourceType: z.nativeEnum(SOURCE_TYPES).optional(),

@@ -18,6 +18,7 @@ export * from "./staged-asset";
 export * from "./import";
 export * from "./import-merge";
 export * from "./markdown-export";
+export * from "./record-codecs";
 export * from "./changes";
 export * from "./services/records";
 export * from "./services/inbox";
