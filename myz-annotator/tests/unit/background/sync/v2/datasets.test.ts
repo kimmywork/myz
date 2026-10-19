@@ -60,6 +60,18 @@ describe("highlight dataset opaque closure (D1)", () => {
       (r) => r.recordId === "h:future-1",
     );
     expect(preserved?.data).toEqual({ schemaId: "future.highlight" });
+
+    // Removing the `h:` record must also clear its opaque overflow entry,
+    // otherwise it would resurrect on the next collect.
+    await dataset.remove("h:future-1");
+    expect(
+      (await recordsStore.listOpaque("highlights")).some(
+        (r) => r.recordId === "h:future-1",
+      ),
+    ).toBe(false);
+    expect(
+      (await dataset.collect()).some((r) => r.recordId === "h:future-1"),
+    ).toBe(false);
   });
 
   it("materializes a normal highlight and round-trips it", async () => {
