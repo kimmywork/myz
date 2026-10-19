@@ -1,3 +1,4 @@
+import { resolveRecordLocator } from "@myz/core/source";
 import type { MyZRecord } from "@myz/shared/types";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
@@ -20,6 +21,7 @@ export default defineComponent({
     return () => {
       const a = props.api;
       const item = props.item;
+      const locator = resolveRecordLocator(item);
       const hasContent = Boolean(item.text || item.html);
       const hasNote = Boolean(item.note);
       return (
@@ -50,22 +52,22 @@ export default defineComponent({
                 : null}
             </div>
             <div class="flex items-center gap-2">
-              {item.pdfLocator ? (
+              {locator?.kind === "pdf-page-rect" ? (
                 <span class="rounded-full bg-warn-bg px-2 py-0.5 text-tag font-semibold text-warn dark:bg-warn/20 dark:text-warn">
-                  第 {item.pdfLocator.pageNumber} 页
+                  第 {locator.value.pageNumber} 页
                 </span>
-              ) : item.epubLocator ? (
+              ) : locator?.kind === "epub" ? (
                 <span class="rounded-full bg-warn-bg px-2 py-0.5 text-tag font-semibold text-warn dark:bg-warn/20 dark:text-warn">
-                  第 {item.epubLocator.spineIndex + 1} 章
+                  第 {locator.value.spineIndex + 1} 章
                 </span>
               ) : null}
-              {item.pdfLocator || item.epubLocator ? (
+              {locator?.kind === "pdf-page-rect" || locator?.kind === "epub" ? (
                 <button
                   type="button"
                   class="rounded-full border border-warn px-2 py-0.5 text-tag font-semibold text-warn hover:bg-warn-bg dark:border-warn/30 dark:text-warn dark:hover:bg-warn/10"
                   onClick={(event: Event) => {
                     event.stopPropagation();
-                    if (item.epubLocator) {
+                    if (locator.kind === "epub") {
                       void openEpubRecordInReader(item);
                     } else {
                       void openPdfRecordInReader(item);
