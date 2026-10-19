@@ -2,20 +2,19 @@
  * A minimal in-memory host implementation of the `@myz/core` ports.
  *
  * It exists to prove the domain layer is host-independent: the same services
- * and read models that run on IndexedDB in the extension run here against plain
- * Maps, with no chrome/DOM. A desktop/mobile host would swap this for SQLite
- * or files; the core code does not change.
+ * and read models that run on IndexedDB/chrome in the extension run here against
+ * plain Maps and simple emitters, with no chrome/DOM. A desktop/mobile host
+ * would swap this for SQLite/files/timers; the core code does not change.
  */
 import type { MyZRecord } from "@myz/shared/types";
-import type {
-  ChangeBus,
-  ChangeEvent,
-} from "../../src/changes.js";
+import type { ChangeBus, ChangeEvent } from "../../src/changes.js";
 import type {
   InboxStateRecord,
   InboxStateStore,
+  Notifier,
   OpaqueRecord,
   RecordsStore,
+  Scheduler,
   SettingsStore,
 } from "../../src/ports.js";
 
@@ -24,6 +23,14 @@ export interface NodeHost {
   inbox: InboxStateStore;
   settings: SettingsStore<Record<string, unknown>>;
   changes: ChangeBus;
+  scheduler: Scheduler;
+  notifier: Notifier;
+  /** Test helper: fire a scheduled alarm by name. */
+  tick(name: string): void;
+  /** Test helper: last badge text written. */
+  readonly badges: string[];
+  /** Test helper: notifications emitted. */
+  readonly notifications: Array<{ title: string; message: string }>;
 }
 
 export function createNodeHost(
@@ -33,8 +40,16 @@ export function createNodeHost(
   const opaque = new Map<string, OpaqueRecord>();
   const inbox = new Map<string, InboxStateRecord>();
   const listeners = new Set<(event: ChangeEvent) => void>();
+  const alarms = new Set<string>();
+  const tickListeners = new Set<(name: string) => void>();
+  const badges: string[] = [];
+  const notifications: Array<{ title: string; message: string }> = [];
   let settings = { ...initialSettings };
   let seq = 0;
+
+  function tick(name: string) {
+    for (const listener of [...tickListeners]) listener(name);
+  }
 
   return {
     records: {
@@ -90,11 +105,7 @@ export function createNodeHost(
     },
     changes: {
       publish(event) {
-        const full: ChangeEvent = {
-          ...event,
-          id: `e${++seq}`,
-          at: Date.now(),
-        };
+        const full: ChangeEvent = { ...event, id: `e${++seq}`, at: Date.now() };
         for (const listener of [...listeners]) listener(full);
       },
       subscribe(listener) {
@@ -102,5 +113,34 @@ export function createNodeHost(
         return () => listeners.delete(listener);
       },
     },
+    scheduler: {
+      async every(name) {
+        alarms.add(name);
+      },
+      async once(name) {
+        alarms.add(name);
+      },
+      async cancel(name) {
+        alarms.delete(name);
+      },
+      async has(name) {
+        return alarms.has(name);
+      },
+      onTick(listener) {
+        tickListeners.add(listener);
+        return () => tickListeners.delete(listener);
+      },
+    },
+    notifier: {
+      async setBadge(text) {
+        badges.push(text);
+      },
+      async notify(input) {
+        notifications.push({ title: input.title, message: input.message });
+      },
+    },
+    tick,
+    badges,
+    notifications,
   };
 }

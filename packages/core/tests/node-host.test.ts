@@ -81,6 +81,21 @@ describe("node host integration (ports only)", () => {
       title: "hi",
     });
 
+    // Scheduler / Notifier ports.
+    let ticked = "";
+    host.scheduler.onTick((name) => (ticked = name));
+    await host.scheduler.every("janitor", 5);
+    expect(await host.scheduler.has("janitor")).toBe(true);
+    host.tick("janitor");
+    expect(ticked).toBe("janitor");
+    await host.scheduler.cancel("janitor");
+    expect(await host.scheduler.has("janitor")).toBe(false);
+
+    await host.notifier.setBadge("1");
+    await host.notifier.notify({ title: "t", message: "m" });
+    expect(host.badges).toContain("1");
+    expect(host.notifications).toEqual([{ title: "t", message: "m" }]);
+
     // Change notification reached the subscriber.
     expect(events).toEqual(["records"]);
   });
