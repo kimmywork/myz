@@ -11,8 +11,9 @@ const __dirname = dirnameFromImportMeta(import.meta.url);
 // than a local desktop (the overlay line box is deterministically ~11px taller
 // there), so the pixel tolerances are wider under CI while the assertion stays
 // active on every runner.
-const ALIGN_SLACK = process.env.CI ? 8 : 2;
-const SIZE_SLACK = process.env.CI ? 14 : 3;
+const isCI = process.env.CI === "true";
+const ALIGN_SLACK = isCI ? 8 : 2;
+const SIZE_SLACK = isCI ? 14 : 3;
 
 let context: BrowserContext;
 let extensionId: string | null;
