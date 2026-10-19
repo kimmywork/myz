@@ -1,4 +1,3 @@
-import { sendMessage } from "@myz/shared/messaging";
 import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { normalizeSyncSettings } from "@myz/sync-core/settings";
 import { defineStore } from "pinia";
@@ -9,6 +8,7 @@ import {
   setTimedStatus,
   clearAllTimedStatus,
 } from "@/dashboard/utils/setTimedStatus.js";
+import { invoke } from "@/messaging/invoke";
 
 export const useSettingsStore = defineStore("settings", () => {
   // Seed from the canonical defaults so new settings only need to be added in
@@ -30,7 +30,7 @@ export const useSettingsStore = defineStore("settings", () => {
 
   async function loadSettings() {
     try {
-      const result: Settings = await sendMessage("myz:getSettings");
+      const result: Settings = await invoke("myz:getSettings");
       if (!result) {
         return;
       }
@@ -67,10 +67,7 @@ export const useSettingsStore = defineStore("settings", () => {
   async function saveSettings(payload: Partial<Settings>) {
     settingsStatus.value = "保存中…";
     try {
-      const updated = await sendMessage<Partial<Settings>, Partial<Settings>>(
-        "myz:updateSettings",
-        payload,
-      );
+      const updated = await invoke("myz:updateSettings", payload);
       if (updated) {
         Object.assign(settings, {
           ...settings,

@@ -1,4 +1,3 @@
-import { sendMessage } from "@myz/shared/messaging";
 import { serializeRange } from "@myz/shared/serializer";
 import {
   CONTENT_TYPES,
@@ -8,6 +7,7 @@ import {
 } from "@myz/shared/types";
 import type { ComputedRef, Ref } from "vue";
 import { applyHighlights, type EpubHighlightRecord } from "../highlights.js";
+import { invoke } from "@/messaging/invoke";
 
 interface HighlightDeps {
   records: Ref<MyZRecord[]>;
@@ -27,7 +27,7 @@ export function createEpubHighlights(deps: HighlightDeps) {
       return;
     }
     try {
-      const list = await sendMessage("myz:getHighlightsForUrl", {
+      const list = await invoke("myz:getHighlightsForUrl", {
         url: deps.sourceKey.value,
         aliases: [deps.sourceKey.value],
       });
@@ -78,10 +78,7 @@ export function createEpubHighlights(deps: HighlightDeps) {
       payload.range = serializeRange(range, new Map(), () => {}) ?? undefined;
     }
     try {
-      const saved = await sendMessage<Partial<MyZRecord>, MyZRecord>(
-        "myz:saveHighlight",
-        payload,
-      );
+      const saved = await invoke("myz:saveHighlight", payload);
       if (saved) deps.records.value = [...deps.records.value, saved];
     } catch (error) {
       console.warn("Failed to save EPUB highlight", error);
@@ -93,7 +90,7 @@ export function createEpubHighlights(deps: HighlightDeps) {
   }
 
   async function deleteRecord(id: string) {
-    await sendMessage("myz:removeHighlight", { id });
+    await invoke("myz:removeHighlight", { id });
     deps.records.value = deps.records.value.filter(
       (record) => record.id !== id,
     );
@@ -125,10 +122,7 @@ export function createEpubHighlights(deps: HighlightDeps) {
       payload.color = patch.color ?? current.color ?? deps.lastColor.value;
       payload.style = patch.style ?? current.style ?? deps.lastStyle.value;
     }
-    const updated = await sendMessage<Partial<MyZRecord>, MyZRecord>(
-      "myz:updateHighlight",
-      payload,
-    );
+    const updated = await invoke("myz:updateHighlight", payload);
     if (updated) {
       deps.records.value = deps.records.value.map((record) =>
         record.id === id ? updated : record,

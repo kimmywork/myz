@@ -1,5 +1,4 @@
 import { isHighlightRecord } from "@myz/shared/highlightUtils";
-import { sendMessage } from "@myz/shared/messaging";
 import { unwrapNode } from "@myz/shared/serializer";
 import { buildUrlAliases, canonicalUrl } from "@myz/shared/url";
 import { useInspectorStore } from "../stores/inspector-store.ts";
@@ -19,10 +18,7 @@ import {
   removeHighlightFromPending,
   resetHighlightReapplyState,
 } from "./reapply.ts";
-import type {
-  GetAllTagsMessageResult,
-  GetHighlightsForUrlMessageResult,
-} from "@/background/messages/highlights";
+import { invoke } from "@/messaging/invoke";
 
 export async function restoreHighlights() {
   const modalStore = useModalStore();
@@ -34,19 +30,14 @@ export async function restoreHighlights() {
     const currentCanonical = canonicalUrl(currentUrl);
     const urlAliases = buildUrlAliases(currentUrl, currentCanonical);
     const [highlights, tagList] = await Promise.all([
-      sendMessage<
-        { url?: string; aliases?: string[] },
-        GetHighlightsForUrlMessageResult
-      >("myz:getHighlightsForUrl", {
+      invoke("myz:getHighlightsForUrl", {
         url: currentCanonical,
         aliases: urlAliases,
       }),
-      sendMessage<undefined, GetAllTagsMessageResult>("myz:getAllTags").catch(
-        (error) => {
-          console.warn("Failed to load known tags", error);
-          return null;
-        },
-      ),
+      invoke("myz:getAllTags").catch((error) => {
+        console.warn("Failed to load known tags", error);
+        return null;
+      }),
     ]);
 
     if (Array.isArray(tagList)) modalStore.setModalKnownTags(tagList);

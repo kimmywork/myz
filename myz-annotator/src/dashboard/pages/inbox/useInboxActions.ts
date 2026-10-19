@@ -1,9 +1,9 @@
 import type { InboxStatus } from "@myz/shared/inbox";
-import { sendMessage } from "@myz/shared/messaging";
 import type { UndoState } from "./inbox-types.js";
 import { snoozeTarget } from "./inbox-utils.js";
 import type { InboxData } from "./useInboxData.js";
 import type { InboxQueueItem } from "@/background/messages/inbox";
+import { invoke } from "@/messaging/invoke";
 
 type FocusAction = "keep" | "archive" | "snooze" | "delete" | "mark";
 
@@ -34,12 +34,12 @@ export function useInboxActions(data: InboxData) {
     const state = data.undo.value;
     if (!state) return;
     clearUndo();
-    await sendMessage("myz:inboxSetStatus", {
+    await invoke("myz:inboxSetStatus", {
       targetId: state.targetId,
       status: state.prevStatus,
       snoozedUntil: state.prevSnoozedUntil,
     });
-    await sendMessage("myz:inboxSetMark", {
+    await invoke("myz:inboxSetMark", {
       targetId: state.targetId,
       marked: state.wasMarked,
     });
@@ -51,7 +51,7 @@ export function useInboxActions(data: InboxData) {
     next: InboxStatus,
     options: { snoozedUntil?: string; label: string; undoable?: boolean },
   ) {
-    await sendMessage("myz:inboxSetStatus", {
+    await invoke("myz:inboxSetStatus", {
       targetId: item.targetId,
       status: next,
       snoozedUntil: options.snoozedUntil,
@@ -90,7 +90,7 @@ export function useInboxActions(data: InboxData) {
   }
 
   async function toggleMark(item: InboxQueueItem) {
-    await sendMessage("myz:inboxSetMark", {
+    await invoke("myz:inboxSetMark", {
       targetId: item.targetId,
       marked: !item.marked,
     });
@@ -99,7 +99,7 @@ export function useInboxActions(data: InboxData) {
 
   async function remove(item: InboxQueueItem) {
     if (!window.confirm("删除后不可撤销，确定删除？")) return;
-    await sendMessage("myz:removeHighlight", { id: item.record.id });
+    await invoke("myz:removeHighlight", { id: item.record.id });
     clearUndo();
     await data.load();
     data.status.value = "已删除";
@@ -114,7 +114,7 @@ export function useInboxActions(data: InboxData) {
       if (!item) continue;
       const current = item.record.tags || [];
       if (current.includes(tag)) continue;
-      await sendMessage("myz:updateHighlight", {
+      await invoke("myz:updateHighlight", {
         id: item.record.id,
         tags: [...current, tag],
       });
@@ -135,7 +135,7 @@ export function useInboxActions(data: InboxData) {
 
   async function removeTag(item: InboxQueueItem, tag: string) {
     const next = (item.record.tags || []).filter((entry) => entry !== tag);
-    await sendMessage("myz:updateHighlight", {
+    await invoke("myz:updateHighlight", {
       id: item.record.id,
       tags: next,
     });
@@ -210,7 +210,7 @@ export function useInboxActions(data: InboxData) {
       data.selected.value.has(item.targetId),
     );
     for (const item of chosen) {
-      await sendMessage("myz:inboxSetStatus", {
+      await invoke("myz:inboxSetStatus", {
         targetId: item.targetId,
         status: next,
       });
@@ -226,7 +226,7 @@ export function useInboxActions(data: InboxData) {
     );
     if (!chosen.length) return;
     if (!window.confirm(`删除 ${chosen.length} 条记录？删除不可撤销。`)) return;
-    await sendMessage("myz:removeRecordsByIds", {
+    await invoke("myz:removeRecordsByIds", {
       ids: chosen.map((item) => item.record.id),
     });
     data.selected.value = new Set();

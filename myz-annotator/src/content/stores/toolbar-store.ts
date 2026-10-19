@@ -1,4 +1,3 @@
-import { sendMessage } from "@myz/shared/messaging";
 import { RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { Ref, ref } from "vue";
@@ -8,7 +7,7 @@ import { cropAndDownloadSelection, getSelectionBoundingRect } from "../image";
 import type { CropRect } from "../image";
 import { useModalStore } from "./modal-store";
 import { useNotificationStore } from "./notification-store";
-import type { CaptureSelectionMessageResult } from "@/background/messages/capture";
+import { invoke } from "@/messaging/invoke";
 
 export interface ToolbarStore {
   show(position: DOMRect): void;
@@ -114,10 +113,7 @@ export const useToolbarStore = defineStore("toolbar", () => {
     await waitForNextPaint();
 
     try {
-      const result = await sendMessage<
-        { format?: "jpeg" | "png"; quality?: number },
-        CaptureSelectionMessageResult
-      >("myz:captureSelection", {
+      const result = await invoke("myz:captureSelection", {
         format: "png",
       });
       if (!result || !result.dataUrl) {
@@ -162,7 +158,7 @@ export const useToolbarStore = defineStore("toolbar", () => {
       return;
     }
     try {
-      await sendMessage<{ query: string }>("myz:search", { query });
+      await invoke("myz:search", { query });
     } catch (error) {
       console.error("Search failed", error);
     } finally {

@@ -1,5 +1,4 @@
 import { normalizeRecord } from "@myz/shared/highlightUtils";
-import { sendMessage } from "@myz/shared/messaging";
 import { CONTENT_TYPES, RECORD_KINDS, type MyZRecord } from "@myz/shared/types";
 import { extractHostname } from "@myz/shared/url";
 import { computed } from "vue";
@@ -16,6 +15,7 @@ import {
 import type { PdfDocument } from "../pdf-document.js";
 import { sourceKeyOf, sourceTypeOf, type PdfSourceRef } from "../source.js";
 import type { ReaderState } from "../stores/state.js";
+import { invoke } from "@/messaging/invoke";
 
 export interface AnnotationsDeps {
   pageElements: () => HTMLElement[];
@@ -65,10 +65,9 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     const current = deps.getCurrent();
     if (!current) return;
     try {
-      const records = await sendMessage<{ url: string }, MyZRecord[]>(
-        "myz:getHighlightsForUrl",
-        { url: sourceKeyOf(current) },
-      );
+      const records = await invoke("myz:getHighlightsForUrl", {
+        url: sourceKeyOf(current),
+      });
       state.annotations.value = (records || [])
         .map((record) => normalizeRecord(record))
         .filter((record): record is MyZRecord => Boolean(record));
@@ -136,10 +135,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
       payload.color = state.lastColor.value;
       payload.style = state.lastStyle.value;
     }
-    const saved = await sendMessage<Partial<MyZRecord>, MyZRecord>(
-      "myz:saveHighlight",
-      payload,
-    );
+    const saved = await invoke("myz:saveHighlight", payload);
     const normalized = normalizeRecord(saved);
     if (normalized) {
       state.annotations.value = [
@@ -155,10 +151,10 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
 
   async function patchActive(patch: Partial<MyZRecord>) {
     if (!state.activeId.value) return;
-    const updated = await sendMessage<Partial<MyZRecord>, MyZRecord>(
-      "myz:updateHighlight",
-      { id: state.activeId.value, ...patch },
-    );
+    const updated = await invoke("myz:updateHighlight", {
+      id: state.activeId.value,
+      ...patch,
+    });
     const normalized = normalizeRecord(updated);
     if (normalized) {
       state.annotations.value = state.annotations.value.map((item) =>
@@ -177,7 +173,7 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
   async function deleteActive() {
     if (!state.activeId.value) return;
     const id = state.activeId.value;
-    await sendMessage("myz:removeHighlight", { id });
+    await invoke("myz:removeHighlight", { id });
     state.annotations.value = state.annotations.value.filter(
       (item) => item.id !== id,
     );

@@ -1,5 +1,4 @@
 import { ImportStrategy } from "@myz/core/import";
-import { sendMessage } from "@myz/shared/messaging";
 import { collectTags } from "@myz/shared/tags";
 import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
@@ -17,6 +16,7 @@ import {
 } from "@/dashboard/utils/records.js";
 import { setTimedStatus } from "@/dashboard/utils/setTimedStatus.js";
 import { changeBus } from "@/messaging/changes";
+import { invoke } from "@/messaging/invoke";
 
 export type MessageTone = "info" | "error" | "success";
 
@@ -67,7 +67,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
   async function loadHighlights() {
     loadingHighlights.value = true;
     try {
-      const result = await sendMessage("myz:getAllHighlights");
+      const result = await invoke("myz:getAllHighlights");
       const normalized = Array.isArray(result)
         ? (result
             .map((item) => normalizeRecord(item))
@@ -121,7 +121,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
 
   async function deleteHighlight(id: string) {
     try {
-      await sendMessage("myz:removeHighlight", { id });
+      await invoke("myz:removeHighlight", { id });
       highlights.value = highlights.value.filter((item) => item.id !== id);
     } catch (error) {
       console.error("删除失败", error);
@@ -153,14 +153,9 @@ export const useHighlightsStore = defineStore("highlights", () => {
       return;
     }
     try {
-      const updated = await sendMessage<
-        { id: string; kind: RECORD_KINDS; range: null; color: null },
-        MyZRecord
-      >("myz:updateHighlight", {
+      const updated = await invoke("myz:updateHighlight", {
         id,
         kind: RECORD_KINDS.CLIP,
-        range: null,
-        color: null,
       });
       applyUpdatedRecord(updated);
     } catch (error) {
@@ -171,10 +166,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
 
   async function handleExport(format: "markdown" | "json") {
     try {
-      const result = await sendMessage<
-        undefined,
-        { markdown?: string; json?: string } | null
-      >("myz:export");
+      const result = await invoke("myz:export");
       if (!result) {
         return;
       }
@@ -232,10 +224,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
       throw new Error(message);
     }
     setTimedImportStatus("写入中…", "info", 0);
-    const result = await sendMessage<
-      { records: MyZRecord[]; strategy: ImportStrategy },
-      { inserted?: number; replaced?: number; skipped?: number }
-    >("myz:importHighlights", {
+    const result = await invoke("myz:importHighlights", {
       records,
       strategy,
     });

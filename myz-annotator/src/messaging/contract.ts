@@ -87,7 +87,7 @@ export type MyzRuntimeMap = {
   "myz:getAllTags": { payload: void; result: string[] };
   "myz:export": { payload: void; result: { json: string; markdown: string } };
   "myz:updateBadge": {
-    payload: { tabId?: number } & Partial<BadgeCount>;
+    payload: { tabId?: number; count?: number } & Partial<BadgeCount>;
     result: { success: boolean };
   };
   "myz:importHighlights": {
@@ -164,14 +164,17 @@ export type MyzRuntimeMap = {
     result: { sync: SyncSettings };
   };
   "myz:syncTestConnection": {
-    payload: { s3?: Partial<SyncS3Settings> };
+    payload: { s3?: Partial<SyncS3Settings> } | undefined;
     result: SyncTestConnectionMessageResult;
   };
   "myz:syncSetKey": {
     payload: { secret: string; userGesture?: boolean };
     result: SyncSetKeyMessageResult;
   };
-  "myz:syncClearKey": { payload: void; result: SyncNowMessageResult };
+  "myz:syncClearKey": {
+    payload: { userGesture?: boolean };
+    result: SyncNowMessageResult;
+  };
   "myz:syncNow": { payload: void; result: SyncNowMessageResult };
   "myz:syncStatus": { payload: void; result: SyncStatusMessageResult };
   "myz:accountStatus": { payload: void; result: AccountStatusMessageResult };
@@ -196,18 +199,24 @@ export type MyzRuntimeMap = {
     payload: { roster: string; userGesture?: boolean };
     result: { accountId: string; deviceId: string; epoch: number };
   };
-  "myz:accountClear": { payload: void; result: SyncNowMessageResult };
+  "myz:accountClear": {
+    payload: { userGesture?: boolean };
+    result: SyncNowMessageResult;
+  };
   "myz:accountBootstrap": {
     payload: { rescue?: boolean; userGesture?: boolean };
     result: { accountId: string; rescued: number };
   };
-  "myz:pairingInvite": { payload: void; result: { offer: string } };
+  "myz:pairingInvite": {
+    payload: { userGesture?: boolean };
+    result: { offer: string };
+  };
   "myz:pairingAccept": {
-    payload: { invite: string };
+    payload: { invite: string; userGesture?: boolean };
     result: PairingAcceptResult;
   };
   "myz:pairingApprove": {
-    payload: { response: string };
+    payload: { response: string; userGesture?: boolean };
     result: { sas: string; roster: string };
   };
 

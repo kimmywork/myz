@@ -13,9 +13,9 @@ import {
   DASHBOARD_HOST_CAPABILITY_PRESETS,
   DASHBOARD_HOST_FEATURE_PRESETS,
 } from "@myz/dashboard-core/host";
-import { sendMessage } from "@myz/shared/messaging";
 import type { MyZRecord } from "@myz/shared/types";
 import type { Settings } from "@/background/settings";
+import { invoke } from "@/messaging/invoke";
 
 const THEME_STORAGE_KEY = "myz:theme";
 
@@ -52,7 +52,7 @@ function writeChromeStorage<T>(key: string, value: T): Promise<void> {
 }
 
 async function listRecords(_query?: RecordQuery): Promise<MyZRecord[]> {
-  return sendMessage("myz:getAllHighlights");
+  return invoke("myz:getAllHighlights");
 }
 
 async function getRecord(recordId: string): Promise<MyZRecord | null> {
@@ -61,7 +61,7 @@ async function getRecord(recordId: string): Promise<MyZRecord | null> {
 }
 
 async function saveRecord(record: MyZRecord): Promise<MyZRecord> {
-  return sendMessage("myz:saveHighlight", record);
+  return invoke("myz:saveHighlight", record);
 }
 
 async function saveRecords(records: MyZRecord[]): Promise<MyZRecord[]> {
@@ -73,29 +73,29 @@ async function removeRecords(recordIds: string[]): Promise<void> {
     return;
   }
   if (recordIds.length === 1) {
-    await sendMessage("myz:removeHighlight", { id: recordIds[0] });
+    await invoke("myz:removeHighlight", { id: recordIds[0] });
     return;
   }
-  await sendMessage("myz:removeRecordsByIds", { ids: recordIds });
+  await invoke("myz:removeRecordsByIds", { ids: recordIds });
 }
 
 async function exportRecords(): Promise<RecordExportResult> {
-  return sendMessage("myz:export");
+  return invoke("myz:export");
 }
 
 async function importRecords(input: {
   records: MyZRecord[];
   strategy: "skip" | "overwrite" | "latest";
 }): Promise<RecordImportResult> {
-  return sendMessage("myz:importHighlights", input);
+  return invoke("myz:importHighlights", input);
 }
 
 async function getSettings(): Promise<Settings> {
-  return sendMessage("myz:getSettings");
+  return invoke("myz:getSettings");
 }
 
 async function updateSettings(patch: Partial<Settings>): Promise<Settings> {
-  return sendMessage("myz:updateSettings", patch);
+  return invoke("myz:updateSettings", patch);
 }
 
 async function getTheme(): Promise<DashboardTheme | null> {
@@ -167,16 +167,7 @@ async function updateSyncConfig(
 async function getSyncStatus(): Promise<SyncStatus> {
   const [config, status] = await Promise.all([
     getSyncConfig(),
-    sendMessage<
-      undefined,
-      {
-        enabled: boolean;
-        keyId: string | null;
-        keyUpdatedAt: string | null;
-        lastSyncAt: string | null;
-        lastManifestVersion: number;
-      }
-    >("myz:syncStatus"),
+    invoke("myz:syncStatus"),
   ]);
   return {
     enabled: config.enabled,
@@ -193,30 +184,24 @@ async function getSyncStatus(): Promise<SyncStatus> {
 async function testSyncConnection(
   config?: Partial<SyncConfig>,
 ): Promise<{ ok: boolean; message?: string }> {
-  return sendMessage<
-    { s3?: Partial<SyncConfig["s3"]> } | undefined,
-    { ok: boolean; message?: string }
-  >("myz:syncTestConnection", config?.s3 ? { s3: config.s3 } : undefined);
+  return invoke(
+    "myz:syncTestConnection",
+    config?.s3 ? { s3: config.s3 } : undefined,
+  );
 }
 
 async function setSyncSecret(
   secret: string,
 ): Promise<{ keyId: string; keyUpdatedAt: string }> {
-  return sendMessage<
-    { secret: string; userGesture: boolean },
-    { keyId: string; keyUpdatedAt: string }
-  >("myz:syncSetKey", { secret, userGesture: true });
+  return invoke("myz:syncSetKey", { secret, userGesture: true });
 }
 
 async function clearSyncSecret(): Promise<void> {
-  await sendMessage("myz:syncClearKey", { userGesture: true });
+  await invoke("myz:syncClearKey", { userGesture: true });
 }
 
 async function runSync(_reason?: SyncRunReason): Promise<SyncRunResult> {
-  const result = await sendMessage<
-    undefined,
-    { ok: boolean; status?: string; message?: string }
-  >("myz:syncNow");
+  const result = await invoke("myz:syncNow");
   return {
     ok: Boolean(result.ok),
     state: result.ok ? "idle" : "error",

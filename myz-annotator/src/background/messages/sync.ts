@@ -64,7 +64,7 @@ export function initializeSyncMessageHandlers() {
 
   registerMessageHandler(
     "myz:syncTestConnection",
-    async (payload: { s3?: Partial<SyncS3Settings> }) => {
+    async (payload: { s3?: Partial<SyncS3Settings> } | undefined) => {
       const settings = await readSettings();
       const baseS3 = settings.sync.s3;
       const s3 = isRecord(payload?.s3) ? { ...baseS3, ...payload.s3 } : baseS3;

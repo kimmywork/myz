@@ -2,7 +2,6 @@ import {
   isHighlightRecord,
   normalizeHighlightStyle,
 } from "@myz/shared/highlightUtils";
-import { sendMessage } from "@myz/shared/messaging";
 import { serializeRange } from "@myz/shared/serializer";
 import { mergeTags } from "@myz/shared/tags";
 import {
@@ -30,10 +29,7 @@ import {
 import { useNotificationStore } from "./notification-store";
 import { usePreferenceStore } from "./preference-store";
 import { useToolbarStore } from "./toolbar-store";
-import type {
-  SaveHighlightMessagePayload,
-  SaveHighlightMessageResult,
-} from "@/background/messages/highlights";
+import { invoke } from "@/messaging/invoke";
 
 interface ModalState {
   currentRange: Range | null;
@@ -222,10 +218,7 @@ export const useModalStore = defineStore("modal", () => {
           ...style,
           range: serializedRange,
         };
-        const record = await sendMessage<
-          SaveHighlightMessagePayload,
-          SaveHighlightMessageResult
-        >("myz:saveHighlight", payloadToSave);
+        const record = await invoke("myz:saveHighlight", payloadToSave);
         if (record) {
           const stored = storeRecord(record);
           if (stored) {
@@ -247,10 +240,7 @@ export const useModalStore = defineStore("modal", () => {
           style: undefined,
           range: undefined,
         };
-        const record = await sendMessage<
-          SaveHighlightMessagePayload,
-          SaveHighlightMessageResult
-        >("myz:saveHighlight", payloadToSave);
+        const record = await invoke("myz:saveHighlight", payloadToSave);
         if (record) {
           const stored = storeRecord(record);
           if (stored) {

@@ -1,4 +1,3 @@
-import { sendMessage } from "@myz/shared/messaging";
 import { SOURCE_TYPES } from "@myz/shared/types";
 import { ref as createRef } from "vue";
 import { fingerprintPdf } from "../fingerprint.js";
@@ -19,7 +18,7 @@ import {
 import { getProgress, listProgress, type PdfProgress } from "../storage.js";
 import type { ReaderState } from "../stores/state.js";
 import type { PdfEngine } from "./usePdfEngine.js";
-import type { Settings } from "@/background/settings.js";
+import { invoke } from "@/messaging/invoke";
 
 export interface DocumentDeps {
   engine: PdfEngine;
@@ -41,9 +40,7 @@ export function usePdfDocument(state: ReaderState, deps: DocumentDeps) {
 
   async function loadPreferences() {
     try {
-      const settings = await sendMessage<undefined, Settings>(
-        "myz:getSettings",
-      );
+      const settings = await invoke("myz:getSettings");
       if (settings?.lastUsedStyle) {
         state.lastStyle.value = settings.lastUsedStyle;
       }
