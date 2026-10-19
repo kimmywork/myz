@@ -62,3 +62,36 @@ export interface SettingsStore<TSettings = unknown> {
   read(): Promise<TSettings>;
   write(patch: Partial<TSettings>): Promise<TSettings>;
 }
+
+/** Periodic / one-off background jobs. */
+export interface Scheduler {
+  /** Create or replace a repeating alarm. */
+  every(
+    name: string,
+    periodInMinutes: number,
+    delayInMinutes?: number,
+  ): Promise<void>;
+  /** Create a one-off alarm after `delayInMinutes`. */
+  once(name: string, delayInMinutes: number): Promise<void>;
+  /** Cancel an alarm by name. */
+  cancel(name: string): Promise<void>;
+  /** Whether an alarm with this name exists. */
+  has(name: string): Promise<boolean>;
+  /** Subscribe to fired alarms; returns an unsubscribe function. */
+  onTick(listener: (name: string) => void): () => void;
+}
+
+/** One-way user-facing notifications (badge / system notification). */
+export interface Notifier {
+  /** Set the toolbar badge text; an empty string clears it. */
+  setBadge(
+    text: string,
+    background?: readonly [number, number, number, number],
+  ): Promise<void>;
+  notify(input: {
+    id?: string;
+    title: string;
+    message: string;
+    iconUrl?: string;
+  }): Promise<void>;
+}

@@ -62,8 +62,10 @@ export function createHighlightDataset(): StreamDataset {
       const parsed = parseRecordId(recordId);
       if (parsed?.kind === "highlight") {
         await recordsStore.remove(parsed.id);
-        return;
       }
+      // An `h:` record can also live in the opaque overflow (its payload was
+      // unknown / id-mismatched), so clear that entry too or it would
+      // resurrect on the next collect.
       await recordsStore.deleteOpaque(STREAM_ID, recordId);
     },
     async collectTombstones() {

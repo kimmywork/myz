@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I6（opaque 闭环 / D1 收口）、I7（`ChangeBus` 多上下文刷新）**已实现并验证**（见 §12）；I5c/I6b/I8–I10 剩余部分未开始。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I6（opaque 闭环 / D1 收口）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；I5c/I6b/I9 剩余部分未开始。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -188,13 +188,13 @@ interface MyzTabMap { // SW → CS
 | **I1** | 消息契约表 + 泛型 API + **D3 修复** | `MyzRuntimeMap`/`MyzTabMap`、泛型 `invoke`/`handle`；修复 falsy 解包；特权元数据入契约；清查平铺 payload 调用点 | 无 | 全部注册点编译通过；行为不变；新增 falsy 返回的回归测试 **（已完成，见 §12；调用点迁移见 I1b）** |
 | **I2** | Transport 端口 + `MessageContext` | `Transport` 接口 + 扩展实现（Runtime/Tab 两方向）；`messaging.ts` 降级为 adapter | I1 | 现有 e2e 全绿 |
 | **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 **（已完成，见 §12；设置模型转 I4）** |
-| **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 **（RecordsStore/InboxStateStore/SettingsStore 已完成，见 §12；`BlobStore`/`StagedAssetStore` 转 I4b）** |
+| **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 **（RecordsStore/InboxStateStore/SettingsStore 已完成；`StagedAssetStore` 见 I4b）** |
 | **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 **（RecordsService + InboxService 已完成，见 §12；Settings 由 `SettingsStore` 端口直接承担，Import/SyncOrch 转 I5c）** |
 | **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 **（opaque 闭环已完成，见 §12；显式 `schemaId` + codec 接线转 I6b）** |
 | **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 **（已完成，见 §12；订阅目前接在 dashboard 记录 store，其余表面转后续）** |
-| **I8** | `Scheduler` / `Notifier` 端口化（**移除 JobQueue**） | 端口 + 扩展实现 | I4 | 定时 / 通知行为不变 |
+| **I8** | `Scheduler` / `Notifier` 端口化（**移除 JobQueue**） | 端口 + 扩展实现 | I4 | 定时 / 通知行为不变 **（已完成，见 §12）** |
 | **I9** | Source / Locator 落地（**读时归一化**） | schema + 读路径归一化 + 来源模型进 UI，预留 video / image | I3, I6 | 旧记录可在不重哈希前提下读出；来源分组不退化为「概念」 |
-| **I10** | 宿主无关性验证（**改为 Node/Vitest 集成套件**） | 在 Node 下用 `better-sqlite3`（或内存适配器）跑完整领域服务集成测试 | I2–I9 | **「换宿主只写 adapter」被证明**（core 零改动）；不长期维护半成品桌面壳 |
+| **I10** | 宿主无关性验证（**改为 Node/Vitest 集成套件**） | 在 Node 下用 `better-sqlite3`（或内存适配器）跑完整领域服务集成测试 | I2–I9 | **「换宿主只写 adapter」被证明**（core 零改动）；不长期维护半成品桌面壳 **（已完成，见 §12；用内存适配器）** |
 
 ## 8. 验收标准
 
@@ -319,3 +319,20 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - **inbox dataset** 对远端记录保留 `rawData`，`collect` 优先原样回传（本地记录仍按 `{kind, ...payload}` 重建）。
   - **`ChangeEvent` 增稳定 `id`**，`createChangeBus` 按 id 对双通道投递去重（避免 dashboard 重复刷新）。
   - 测试：core 29、annotator 289 通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
+- **I10 完成（2026-10-19）**：宿主无关性验证（Node/Vitest 集成套件）。
+  - 新增 `packages/core/tests/support/node-host.ts`：用普通 `Map` + 简单 emitter 实现 `RecordsStore` / `InboxStateStore` / `SettingsStore` / `ChangeBus`（无 chrome / IndexedDB / DOM）。
+  - 新增 `packages/core/tests/node-host.test.ts`：在同一套 domain services（Records/Inbox）、读模型 `buildInboxQueue`、关系/backlinks、PayloadCodec、ChangeBus 上端到端跑通，**core 零改动**。
+  - 说明：用内存适配器（计划允许）；桌面/移动宿主可换 SQLite/文件而无需改 core。
+  - 验证：core 31 单测通过；eslint 0。
+- **I8 完成（2026-10-19）**：`Scheduler` / `Notifier` 端口化。
+  - `@myz/core/ports`：`Scheduler`（`every` / `once` / `cancel` / `has` / `onTick`）+ `Notifier`（`setBadge` / `notify`）。
+  - 扩展 `background/runtime.ts`：chrome.alarms / chrome.action / chrome.notifications 实现。
+  - `sync/scheduler.ts`、`inbox/reminder.ts`、`inbox/queue.ts`（badge）改为走端口；**定时/通知行为不变**。
+  - `tests/support/node-host.ts` 增加内存版 Scheduler/Notifier，`node-host.test.ts` 覆盖。
+  - 验证：core 31、annotator 289 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
+  - 说明：按计划**未引入 `JobQueue`**（OCR/ASR 未立项）。
+- **I4b 完成（2026-10-19）**：`StagedAssetStore` 端口化（本地采集缓存）。
+  - `StagedAsset` / `StagedAssetMeta` / `NewStagedAsset` / `StagedAssetKind` 移到 `@myz/core/staged-asset`；新增 `StagedAssetStore` 端口（`save` / `list` / `get` / `remove` / `clear`）。
+  - 扩展 `src/stitch/staged-asset.ts` 改为 re-export core 类型（helpers 保留）；`background/stores.ts` 新增 `stagedAssetStore`（IndexedDB 实现）；`messages/staged-assets.ts` 改走端口。
+  - 测试：`stores.test.ts` 增加 staged asset 契约测试；`node-host.ts` 增加内存实现并由 `node-host.test.ts` 覆盖。
+  - 验证：core 31、annotator 290 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
