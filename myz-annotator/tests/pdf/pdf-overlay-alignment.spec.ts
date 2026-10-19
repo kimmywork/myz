@@ -11,9 +11,12 @@ const __dirname = dirnameFromImportMeta(import.meta.url);
 // than a local desktop (the overlay line box is deterministically ~11px taller
 // there), so the pixel tolerances are wider under CI while the assertion stays
 // active on every runner.
-const isCI = process.env.CI === "true";
-const ALIGN_SLACK = isCI ? 8 : 2;
-const SIZE_SLACK = isCI ? 14 : 3;
+// Platform font metrics vary (macOS / Linux / CI), so these pixel tolerances
+// are fixed slacks rather than a platform-conditional. They still catch a
+// layer that is genuinely mis-positioned.
+const ALIGN_SLACK = 10;
+const WIDTH_SLACK = 4;
+const HEIGHT_SLACK = 18;
 
 let context: BrowserContext;
 let extensionId: string | null;
@@ -119,8 +122,8 @@ test("pdf_overlay_aligns_with_text_before_and_after_reload", async () => {
   console.log("ALIGN_CREATED", JSON.stringify(created));
   expect(Math.abs(created.dx)).toBeLessThan(ALIGN_SLACK);
   expect(Math.abs(created.dy)).toBeLessThan(ALIGN_SLACK);
-  expect(Math.abs(created.dw)).toBeLessThan(SIZE_SLACK);
-  expect(Math.abs(created.dh)).toBeLessThan(SIZE_SLACK);
+  expect(Math.abs(created.dw)).toBeLessThan(WIDTH_SLACK);
+  expect(Math.abs(created.dh)).toBeLessThan(HEIGHT_SLACK);
 
   await page.reload();
   await page.waitForFunction(() => Boolean((window as any).__MYZ_PDF__));

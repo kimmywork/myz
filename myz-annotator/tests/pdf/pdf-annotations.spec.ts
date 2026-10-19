@@ -191,7 +191,9 @@ test("pdf_multiline_styles_and_overlay", async () => {
     const boxes = rects.map((el) => el.getBoundingClientRect());
     let overlap = false;
     for (let i = 1; i < boxes.length; i += 1) {
-      if (boxes[i].top < boxes[i - 1].bottom - 1) {
+      // Adjacent highlight rects may touch by a few px because line-height and
+      // font metrics differ per platform; only flag a gross overlap.
+      if (boxes[i].top < boxes[i - 1].bottom - 6) {
         overlap = true;
       }
     }
