@@ -19,6 +19,7 @@ import {
 } from "@myz/shared/types";
 import { generateRecordId } from "../identity";
 import type { RecordsStore } from "../ports";
+import { RECORD_SCHEMA_ID } from "../record-codecs";
 
 /** Host capabilities injected into record mutations. */
 export interface RecordServiceContext {
@@ -131,6 +132,7 @@ export async function createRecord(
   record.contentType = resolveRecordContentType(record);
   await resolveRecordText(record, ctx);
   applyKindShape(record);
+  record.schemaId ??= RECORD_SCHEMA_ID;
   await store.upsert(record);
   return record;
 }
@@ -157,6 +159,7 @@ export async function updateRecord(
   }) as MyZRecord;
   updated.contentType = resolveRecordContentType(updated);
   applyKindShape(updated);
+  updated.schemaId ??= RECORD_SCHEMA_ID;
   await store.upsert(updated);
   return updated;
 }

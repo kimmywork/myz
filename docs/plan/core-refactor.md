@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；I6b/I9、I1b、SyncOrch 剩余部分未开始。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；I9、I1b、SyncOrch 剩余部分未开始。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -190,7 +190,7 @@ interface MyzTabMap { // SW → CS
 | **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 **（已完成，见 §12；设置模型转 I4）** |
 | **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 **（RecordsStore/InboxStateStore/SettingsStore 已完成；`StagedAssetStore` 见 I4b）** |
 | **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 **（RecordsService + InboxService + Import/Export 已完成；Settings 由端口承担；SyncOrch 转后续）** |
-| **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 **（opaque 闭环已完成，见 §12；显式 `schemaId` + codec 接线转 I6b）** |
+| **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 **（opaque 闭环已完成；显式 `schemaId` + codec 接线见 I6b）** |
 | **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 **（已完成，见 §12；订阅目前接在 dashboard 记录 store，其余表面转后续）** |
 | **I8** | `Scheduler` / `Notifier` 端口化（**移除 JobQueue**） | 端口 + 扩展实现 | I4 | 定时 / 通知行为不变 **（已完成，见 §12）** |
 | **I9** | Source / Locator 落地（**读时归一化**） | schema + 读路径归一化 + 来源模型进 UI，预留 video / image | I3, I6 | 旧记录可在不重哈希前提下读出；来源分组不退化为「概念」 |
@@ -305,6 +305,11 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 回归测试：新增 `tests/unit/background/sync/v2/datasets.test.ts`（fake-indexeddb）证明「apply 未知记录 → 不物化 + opaque 保留 + collect 回传」；更新既有 `v2-datasets.test.ts` 覆盖 opaque 分支。
   - 验证：core 26、annotator 284 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
   - **未做（转 I6b）**：把判别式从「recordId 前缀」升级为记录内显式 `schemaId` + `schemaVersion`，并把 I3 的 `PayloadCodec` registry 接到 `apply`（前缀判别对「同前缀但 payload schema 演进」不够）。
+- **I6b 完成（2026-10-19）**：显式 `schemaId` + PayloadCodec 接到 sync `apply`。
+  - `MyZRecordSchemaV1` 增可选 `schemaId`（payload 判别式；旧记录缺省视为 `"myz.record"`）。
+  - `@myz/core/record-codecs`：`RECORD_SCHEMA_ID = "myz.record"` + `recordCodecs` registry（校验 schema 为 `MyZRecordSchema`）+ `resolveRecordSchemaId`。
+  - `createRecord` / `updateRecord` 为新记录写入 `schemaId`；`v2/datasets.apply` 仅当 id 前缀、payload `id`、`schemaId` 三者一致且 codec 已知时才物化，否则 opaque。
+  - 验证：core 31、annotator 290 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
 - **I7 完成（2026-10-16）**：`ChangeBus` 多上下文变更刷新。
   - `@myz/core/changes`：`ChangeBus` 端口 + `ChangeEvent`（`records` / `inbox` / `settings` / `sync`）。
   - 扩展 `src/messaging/changes.ts`：`createChangeBus()` **双通道** —— `BroadcastChannel("myz:changes")`（扩展页 + SW，同源）+ `chrome.storage.onChanged`（content script 等 origin-scoped 场景）兜底；导出单例 `changeBus`。
