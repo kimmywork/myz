@@ -13,6 +13,7 @@
  * `docs/plan/core-refactor.md`). This file is the single source of truth for
  * both the sender and the handler side.
  */
+import type { ImportStrategy } from "@myz/core/import";
 import type {
   InboxMarkState,
   InboxRelationState,
@@ -22,7 +23,6 @@ import type {
 import type { MyZRecord } from "@myz/shared/types";
 import type { SyncS3Settings, SyncSettings } from "@myz/sync-core/settings";
 import type { BadgeCount } from "@/background/badge.js";
-import type { ImportStrategy } from "@/background/import.js";
 import type { InboxQueueResult } from "@/background/inbox/queue.js";
 import type {
   AccountStatusMessageResult,

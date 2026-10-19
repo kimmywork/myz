@@ -1,9 +1,9 @@
 import { Paperclip } from "@lucide/vue";
+import { ImportStrategy } from "@myz/core/import";
 import { SelectInput, SettingsRow } from "@myz/dashboard-ui";
 import { confirmDestructive } from "@myz/shared/dialogs";
 import { defineComponent, Ref, ref } from "vue";
 import { useHighlightsStore } from "../../stores/highlights.js";
-import { ImportStrategy } from "@/background/import";
 import { ImportSource } from "@/dashboard/utils/import.js";
 
 export default defineComponent({

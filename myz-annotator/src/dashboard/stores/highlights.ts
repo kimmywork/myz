@@ -1,10 +1,10 @@
+import { ImportStrategy } from "@myz/core/import";
 import { sendMessage } from "@myz/shared/messaging";
 import { collectTags } from "@myz/shared/tags";
 import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { computed, reactive, ref, Ref } from "vue";
 import { IMPORT_MAX_BYTES } from "../constants.js";
-import { ImportStrategy } from "@/background/import.js";
 import { downloadFile } from "@/dashboard/utils/download.js";
 import {
   appendImportedTag,

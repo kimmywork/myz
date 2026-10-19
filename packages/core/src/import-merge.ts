@@ -1,12 +1,20 @@
 import type { MyZRecord } from "@myz/shared/types";
+import { generateRecordId } from "./identity.js";
 import {
   applyTimestampFallback,
   buildRecordSignature,
   resolveImportConflict,
   sanitizeImportedHighlight,
   type ImportStrategy,
-} from "../../import.js";
-import { generateUniqueImportId } from "../../storage.js";
+} from "./import.js";
+
+/** Local id generator: pick a fresh record id not already used. */
+function generateUniqueImportId(used: Set<string>): string {
+  let candidate = generateRecordId();
+  while (used.has(candidate)) candidate = generateRecordId();
+  used.add(candidate);
+  return candidate;
+}
 
 export interface ImportMergeResult {
   replacements: Map<string, MyZRecord>;

@@ -1,5 +1,6 @@
 # Workstate
 
+- Core I5c partial done (2026-10-19, on refactor/core-remaining): Import/Export 抽入 core（`@myz/core/import`、`import-merge`、`markdown-export`），删除扩展对应文件；SyncOrch 仍待做。core 31 / annotator 290 单测、vue-tsc 0、eslint 0、build 成功。
 - Core PR #92 merged (2026-10-19): 已 squash 合并为 `1357692`，CI 绿。内容：CodeRabbit 遗留 2 项、I10 Node 宿主验证、I8 Scheduler/Notifier、I4b StagedAssetStore、CI 严格判定修复。master 已同步。剩余（计划 §12）：I5c（Import/SyncOrch）、I6b（显式 schemaId + PayloadCodec）、I9（Source/Locator 落地）、I1b（调用点迁移）。
 - Core I4b done (2026-10-19, merged in #92): `StagedAssetStore` 端口化——`StagedAsset` 类型移入 `@myz/core/staged-asset`，扩展 stores 提供 IndexedDB 实现，message handler 改走端口；契约测试 + node-host 覆盖。core 31 / annotator 290 单测、vue-tsc 0、eslint 0、build 成功。
 - Core I8 done (2026-10-19, on PR #92): `Scheduler`/`Notifier` 端口化——core 新增端口，扩展 `background/runtime.ts` 实现（chrome.alarms/action/notifications）；sync scheduler、inbox reminder、badge 改走端口，行为不变；node-host harness 覆盖。core 31 / annotator 289 单测、vue-tsc 0、eslint 0、build 成功。未引入 JobQueue。
