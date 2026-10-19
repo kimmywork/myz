@@ -1,8 +1,7 @@
 # Workstate
 
 - Tests PR #94 merged (2026-10-19, rebase): core 单测 50（+11）、annotator 291、完整 e2e 101/3/0；两处 PDF 像素断言改为跨平台容差。master `cbee1c3`，CI 绿，0 未解决线程。剩余：SyncOrch（与 syncEngine 深度耦合，需单独设计）。
-- Tests expanded (2026-10-19, on test/core-coverage): core 单测 +11（record-codecs/import-merge/markdown-export，50 total）；扩展 datasets inbox rawData 往返（291）；完整 e2e 101 passed / 3 skipped / 0 failed；两处 PDF 像素断言改为跨平台容差。待提交 PR。
-- Core PR #93 merged (2026-10-19, rebase): I5c（Import/Export）、I6b（schemaId + PayloadCodec）、I9（Source/Locator 读时归一化）、I1b（类型化 invoke）、CodeRabbit 2 项修复。master `50ba4b7`，CI 绿，0 未解决线程。剩余：SyncOrch（与 syncEngine 深度耦合，需单独设计）；端到端 e2e 未重跑。
+- Core PR #93 merged (2026-10-19, rebase): I5c（Import/Export）、I6b（schemaId + PayloadCodec）、I9（Source/Locator 读时归一化）、I1b（类型化 invoke）、CodeRabbit 2 项修复。master `50ba4b7`，CI 绿，0 未解决线程。剩余：SyncOrch（与 syncEngine 深度耦合，需单独设计）。
 - Core I1b done (2026-10-19, merged in #93): 调用点迁移到类型化 `invoke`（~90 处 / 24 文件）；修正契约缺口（userGesture、可选 payload、legacy count、updateHighlight null 清理）。无裸 `sendMessage` 调用残留。core 37 / annotator 290 单测、vue-tsc 0、eslint 0 error、build 成功。
 - Core I9 done (2026-10-19, on PR #93): Source/Locator 读时归一化——`@myz/core/source`（resolveSourceKind/Identity/RecordLocator），ViewerRecordCard 改用它（不写回记录）。core 37 / annotator 290 单测、vue-tsc 0、eslint 0、build 成功。
 - Core I6b done (2026-10-19, on PR #93): 显式 `schemaId` + `recordCodecs` 接到 sync `apply`；`createRecord`/`updateRecord` 写入 `schemaId`，apply 三条件一致才物化。core 31 / annotator 290 单测、vue-tsc 0、eslint 0、build 成功。
