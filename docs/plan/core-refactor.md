@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；I9、I1b、SyncOrch 剩余部分未开始。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I9（Source / Locator 读时归一化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；I1b、SyncOrch 剩余部分未开始。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -193,7 +193,7 @@ interface MyzTabMap { // SW → CS
 | **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 **（opaque 闭环已完成；显式 `schemaId` + codec 接线见 I6b）** |
 | **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 **（已完成，见 §12；订阅目前接在 dashboard 记录 store，其余表面转后续）** |
 | **I8** | `Scheduler` / `Notifier` 端口化（**移除 JobQueue**） | 端口 + 扩展实现 | I4 | 定时 / 通知行为不变 **（已完成，见 §12）** |
-| **I9** | Source / Locator 落地（**读时归一化**） | schema + 读路径归一化 + 来源模型进 UI，预留 video / image | I3, I6 | 旧记录可在不重哈希前提下读出；来源分组不退化为「概念」 |
+| **I9** | Source / Locator 落地（**读时归一化**） | schema + 读路径归一化 + 来源模型进 UI，预留 video / image | I3, I6 | 旧记录可在不重哈希前提下读出；来源分组不退化为「概念」 **（已完成，见 §12）** |
 | **I10** | 宿主无关性验证（**改为 Node/Vitest 集成套件**） | 在 Node 下用 `better-sqlite3`（或内存适配器）跑完整领域服务集成测试 | I2–I9 | **「换宿主只写 adapter」被证明**（core 零改动）；不长期维护半成品桌面壳 **（已完成，见 §12；用内存适配器）** |
 
 ## 8. 验收标准
@@ -346,3 +346,9 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 删除扩展 `background/import.ts`、`background/markdown.ts`、`messages/highlights/import-merge.ts`；相关 import 改为 core。
   - 验证：core 31、annotator 290 单测通过；`vue-tsc -b` 0；eslint 0（仅既有 warnings）；`vite build` 成功。
   - **未做**：`SyncOrch`（与 `syncEngine` 深度耦合）转后续。
+- **I9 完成（2026-10-19）**：Source / Locator 读时归一化落地。
+  - `@myz/core/source`：`resolveSourceKind`（registry + 合成 url 前缀）、`resolveSourceIdentity`（url / fingerprint）、`resolveRecordLocator`（typed `text-range` / `pdf-page-rect` / `epub`，优先级 range→pdf→epub）。
+  - `ViewerRecordCard` 的页码/章节徽标与「在阅读器中打开」改用 `resolveRecordLocator`——**读时归一化，不写回记录、不改变 sync hash**。
+  - 测试：core `source.test.ts`。
+  - 验证：core 37、annotator 290 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
+  - 说明：按决策 §10/2 生命周期保持 record 级；SourceKind 是值对象/registry，不引入 Source 实体；video/image locator 预留。

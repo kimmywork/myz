@@ -8,6 +8,7 @@
  */
 export * from "./identity";
 export * from "./source-kind";
+export * from "./source";
 export * from "./locator";
 export * from "./payload-codec";
 export * from "./lifecycle";

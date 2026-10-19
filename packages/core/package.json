@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./identity": "./src/identity.ts",
     "./source-kind": "./src/source-kind.ts",
+    "./source": "./src/source.ts",
     "./locator": "./src/locator.ts",
     "./payload-codec": "./src/payload-codec.ts",
     "./lifecycle": "./src/lifecycle.ts",
