@@ -27,7 +27,7 @@ adapter interfaces, and object-store client logic.
 - adapters.ts: host boundaries for object stores, datasets, and sync state.
 - schemas/: zod schemas for sync payloads by protocol version (v1 legacy, v2
   device-bound).
-- lock.ts: lease acquisition/renewal (ownership-checked) and release.
+- lock.ts: lease acquisition/renewal (ownership-checked) and release. Cross-device verification resolves the signer's public key from the account roster (S0); `LockPayload` carries `deviceId`. Un-decodable / revoked-signer locks are treated as not-held (fail-open, matching pre-S0 behaviour).
 - gc.ts: archive policy and chunk cleanup.
 - keyset.ts: legacy (v1) secret-derived keyset.
 - deviceKeys.ts: Ed25519+X25519 device keys, ECIES wrap of D, DK wrap of keys.
@@ -50,6 +50,11 @@ adapter interfaces, and object-store client logic.
   explicit tombstones and pending-local retention.
 - accountSync.ts: sync all account datasets (per-stream isolation) over the
   stream client with a pluggable dataset + per-stream state store.
+- orchestrator.ts: host-agnostic account sync orchestrator (`runAccountSync`):
+  lock lifecycle + renewal, `syncAccountStreams`, post-upload GC, result
+  aggregation (`synced`/`locked`/`partial`/`error`), `lockLost`, and
+  unconditional ownership-checked release. No host side effects; timers are
+  injected (`timers` omitted = no renewal).
 - concurrency.ts: bounded-concurrency map helper.
 - streamGc.ts: per-stream GC (prune old manifests, delete unreferenced
   record/tombstone shards).
@@ -82,3 +87,4 @@ Desktop-specific state stores or future knowledge-base datasets must plug in via
 
 - E2EE_SYNC_SPEC.md (design spec and invariants)
 - myz-annotator/AGENTS.md (project-wide rules)
+- `docs/plan/sync-orch.md` — planned host-agnostic orchestrator (`runAccountSync`); S0 (cross-device lock fix) landed in `lock.ts`.

@@ -1,15 +1,27 @@
-import { ed25519 } from "@noble/curves/ed25519"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { createSyncAccount, openSyncAccount } from "../src/account"
+import { generateDeviceKeyPair } from "../src/deviceKeys"
 import { acquireLock, releaseLock, renewLock } from "../src/lock"
+import { addDeviceToRoster } from "../src/roster"
 import { InMemoryObjectStore } from "./helpers/inMemoryStore"
 
 const LOCK_PATH = "account/lock/lease.bin"
 const masterKey = new Uint8Array(32).fill(7)
-const privateKey = ed25519.utils.randomPrivateKey()
-const publicKey = ed25519.getPublicKey(privateKey)
+
+async function singleDevice() {
+  const device = generateDeviceKeyPair()
+  const account = await createSyncAccount({
+    device,
+    accountId: "acct_lock",
+    dataKey: masterKey,
+  })
+  return { device, account }
+}
 
 function lockOptions(
   store: InMemoryObjectStore,
+  account: Awaited<ReturnType<typeof singleDevice>>["account"],
+  device: Awaited<ReturnType<typeof singleDevice>>["device"],
   clientId: string,
   leaseMs?: number,
 ) {
@@ -17,10 +29,11 @@ function lockOptions(
     client: store,
     lockPath: LOCK_PATH,
     masterKey,
-    privateKey,
-    publicKey,
+    privateKey: device.signPrivateKey,
     clientId,
+    deviceId: account.deviceId,
     leaseMs,
+    roster: account.roster,
   }
 }
 
@@ -31,7 +44,10 @@ describe("sync lock ownership", () => {
 
   it("acquires and owner-releases its own lock", async () => {
     const store = new InMemoryObjectStore()
-    const result = await acquireLock(lockOptions(store, "A", 30_000))
+    const { device, account } = await singleDevice()
+    const result = await acquireLock(
+      lockOptions(store, account, device, "A", 30_000),
+    )
     expect(result.acquired).toBe(true)
     expect(store.has(LOCK_PATH)).toBe(true)
 
@@ -39,85 +55,154 @@ describe("sync lock ownership", () => {
       client: store,
       lockPath: LOCK_PATH,
       masterKey,
-      publicKey,
       clientId: "A",
+      roster: account.roster,
     })
     expect(store.has(LOCK_PATH)).toBe(false)
   })
 
-  it("refuses to acquire a lock still held by another client", async () => {
+  it("refuses to acquire a lock still held by another client (same device)", async () => {
     const store = new InMemoryObjectStore()
-    expect((await acquireLock(lockOptions(store, "A", 30_000))).acquired).toBe(
-      true,
-    )
-    expect((await acquireLock(lockOptions(store, "B", 30_000))).acquired).toBe(
-      false,
-    )
+    const { device, account } = await singleDevice()
+    expect(
+      (
+        await acquireLock(lockOptions(store, account, device, "A", 30_000))
+      ).acquired,
+    ).toBe(true)
+    expect(
+      (
+        await acquireLock(lockOptions(store, account, device, "B", 30_000))
+      ).acquired,
+    ).toBe(false)
+  })
+
+  it("refuses to acquire a lock held by another device in the same account", async () => {
+    const store = new InMemoryObjectStore()
+    const hostDevice = generateDeviceKeyPair()
+    const guestDevice = generateDeviceKeyPair()
+    const hostAccount = await createSyncAccount({
+      device: hostDevice,
+      accountId: "acct_lock",
+      dataKey: masterKey,
+    })
+    const { roster } = await addDeviceToRoster({
+      roster: hostAccount.roster,
+      approver: hostDevice,
+      approverDeviceId: hostAccount.deviceId,
+      newDevice: guestDevice,
+      dataKey: masterKey,
+    })
+    const guestAccount = await openSyncAccount({
+      device: guestDevice,
+      roster,
+    })
+
+    const hostOpts = {
+      client: store,
+      lockPath: LOCK_PATH,
+      masterKey,
+      privateKey: hostDevice.signPrivateKey,
+      clientId: "host",
+      deviceId: hostAccount.deviceId,
+      leaseMs: 30_000,
+      roster,
+    }
+    const guestOpts = {
+      client: store,
+      lockPath: LOCK_PATH,
+      masterKey,
+      privateKey: guestDevice.signPrivateKey,
+      clientId: "guest",
+      deviceId: guestAccount.deviceId,
+      leaseMs: 30_000,
+      roster,
+    }
+
+    expect((await acquireLock(hostOpts)).acquired).toBe(true)
+    // Cross-device: guest must NOT steal host's live lock.
+    expect((await acquireLock(guestOpts)).acquired).toBe(false)
   })
 
   it("does not let an expired owner release another client's lock", async () => {
     vi.useFakeTimers()
     const store = new InMemoryObjectStore()
+    const { device, account } = await singleDevice()
 
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"))
-    expect((await acquireLock(lockOptions(store, "A", 1000))).acquired).toBe(
-      true,
-    )
+    expect(
+      (
+        await acquireLock(lockOptions(store, account, device, "A", 1000))
+      ).acquired,
+    ).toBe(true)
 
     vi.setSystemTime(new Date("2026-01-01T00:00:02.000Z"))
-    expect((await acquireLock(lockOptions(store, "B", 30_000))).acquired).toBe(
-      true,
-    )
+    expect(
+      (
+        await acquireLock(lockOptions(store, account, device, "B", 30_000))
+      ).acquired,
+    ).toBe(true)
 
     await releaseLock({
       client: store,
       lockPath: LOCK_PATH,
       masterKey,
-      publicKey,
       clientId: "A",
+      roster: account.roster,
     })
 
     expect(store.has(LOCK_PATH)).toBe(true)
-    expect((await renewLock(lockOptions(store, "B", 30_000))).acquired).toBe(
-      true,
-    )
+    expect(
+      (
+        await renewLock(lockOptions(store, account, device, "B", 30_000))
+      ).acquired,
+    ).toBe(true)
   })
 
   it("renewal extends the lease so a long sync is not stolen", async () => {
     vi.useFakeTimers()
     const store = new InMemoryObjectStore()
+    const { device, account } = await singleDevice()
     const t0 = new Date("2026-01-01T00:00:00.000Z")
 
     vi.setSystemTime(t0)
-    expect((await acquireLock(lockOptions(store, "A", 1000))).acquired).toBe(
-      true,
-    )
+    expect(
+      (
+        await acquireLock(lockOptions(store, account, device, "A", 1000))
+      ).acquired,
+    ).toBe(true)
 
     vi.setSystemTime(new Date(t0.getTime() + 900))
-    const renewed = await renewLock(lockOptions(store, "A", 1000))
+    const renewed = await renewLock(lockOptions(store, account, device, "A", 1000))
     expect(renewed.acquired).toBe(true)
 
     vi.setSystemTime(new Date(t0.getTime() + 1500))
-    expect((await acquireLock(lockOptions(store, "B", 1000))).acquired).toBe(
-      false,
-    )
+    expect(
+      (
+        await acquireLock(lockOptions(store, account, device, "B", 1000))
+      ).acquired,
+    ).toBe(false)
 
     vi.setSystemTime(new Date(t0.getTime() + 2000))
-    expect((await acquireLock(lockOptions(store, "B", 1000))).acquired).toBe(
-      true,
-    )
+    expect(
+      (
+        await acquireLock(lockOptions(store, account, device, "B", 1000))
+      ).acquired,
+    ).toBe(true)
   })
 
   it("rejects renewal by a non-owner", async () => {
     vi.useFakeTimers()
     const store = new InMemoryObjectStore()
+    const { device, account } = await singleDevice()
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"))
-    await acquireLock(lockOptions(store, "A", 30_000))
+    await acquireLock(lockOptions(store, account, device, "A", 30_000))
 
-    const result = await renewLock(lockOptions(store, "C", 30_000))
+    const result = await renewLock(lockOptions(store, account, device, "C", 30_000))
     expect(result.acquired).toBe(false)
-    expect((await renewLock(lockOptions(store, "A", 30_000))).acquired).toBe(
-      true,
-    )
+    expect(
+      (
+        await renewLock(lockOptions(store, account, device, "A", 30_000))
+      ).acquired,
+    ).toBe(true)
   })
 })

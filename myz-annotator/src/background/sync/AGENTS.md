@@ -24,7 +24,7 @@ v2 device-bound account path remains.
 - v2/datasets.ts: highlight stream dataset (`h:<id>`) + opaque preservation.
 - v2/inboxDataset.ts: inbox stream (`status:` / `mark:` / `rel:`).
 - v2/stateStore.ts: per-stream state scoped by `accountId` (anti-rollback).
-- v2/engine.ts: v2 sync orchestration (account streams + account lease).
+- v2/engine.ts: thin host adapter — loads account/settings/device/clientId, calls `runAccountSync` (from `@myz/sync-core/orchestrator`), then applies host side effects (badge, sync state) and maps to `SyncResult`. Lock/GC/aggregation live in sync-core (S0 lock fix + S1 orchestrator).
 - v2/bootstrap.ts: clean-break bootstrap (create account + first sync).
 - v2/pairingSession.ts: same-machine pairing over transferable strings.
 

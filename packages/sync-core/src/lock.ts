@@ -9,8 +9,9 @@ import {
   splitNoncePayload,
   utf8ToBytes,
 } from "./crypto"
+import type { Roster } from "./roster"
 import type { LockPayload } from "./types"
-import { decodeBinaryPayload, encodeBinaryPayload } from "./utils"
+import { base64ToBytes, decodeBinaryPayload, encodeBinaryPayload } from "./utils"
 
 export const DEFAULT_LEASE_MS = 30_000
 
@@ -25,9 +26,10 @@ export interface LockOptions {
   lockPath: string
   masterKey: Uint8Array
   privateKey: Uint8Array
-  publicKey: Uint8Array
   clientId: string
+  deviceId: string
   leaseMs?: number
+  roster: Roster
 }
 
 export async function acquireLock(
@@ -41,7 +43,7 @@ export async function acquireLock(
     const decoded = await decodeLock(
       existing.body,
       options.masterKey,
-      options.publicKey,
+      options.roster,
     )
     const held =
       decoded && Date.parse(decoded.leaseExpiresAt) > Date.now()
@@ -51,6 +53,7 @@ export async function acquireLock(
   }
   const { payload, encrypted } = await buildEncryptedLock(
     options.clientId,
+    options.deviceId,
     options.privateKey,
     options.masterKey,
     leaseMs,
@@ -65,11 +68,12 @@ export async function acquireLock(
 /** Seal a signed lock payload for storage, shared by acquire and renew. */
 async function buildEncryptedLock(
   clientId: string,
+  deviceId: string,
   privateKey: Uint8Array,
   masterKey: Uint8Array,
   leaseMs: number,
 ): Promise<{ payload: LockPayload; encrypted: Uint8Array }> {
-  const payload = await buildLockPayload(clientId, privateKey, leaseMs)
+  const payload = await buildLockPayload(clientId, deviceId, privateKey, leaseMs)
   const encrypted = await encryptLockPayload(payload, masterKey)
   return { payload, encrypted }
 }
@@ -88,13 +92,20 @@ export async function renewLock(
   const decoded = await decodeLock(
     existing.body,
     options.masterKey,
-    options.publicKey,
+    options.roster,
   )
-  if (!decoded || decoded.clientId !== options.clientId) {
+  // Ownership: the lock must belong to this client AND have been signed by
+  // this device (verified against the roster above).
+  if (
+    !decoded ||
+    decoded.clientId !== options.clientId ||
+    decoded.deviceId !== options.deviceId
+  ) {
     return { acquired: false }
   }
   const { payload, encrypted } = await buildEncryptedLock(
     options.clientId,
+    options.deviceId,
     options.privateKey,
     options.masterKey,
     leaseMs,
@@ -118,17 +129,20 @@ export async function releaseLock(options: {
   client: SyncObjectStore
   lockPath: string
   masterKey: Uint8Array
-  publicKey: Uint8Array
   clientId: string
+  roster: Roster
 }): Promise<void> {
   const existing = await options.client.getObject(options.lockPath)
   if (!existing) return
   const decoded = await decodeLock(
     existing.body,
     options.masterKey,
-    options.publicKey,
+    options.roster,
   )
-  if (!decoded || decoded.clientId !== options.clientId) {
+  if (
+    !decoded ||
+    decoded.clientId !== options.clientId
+  ) {
     return
   }
   try {
@@ -142,6 +156,7 @@ export async function releaseLock(options: {
 
 async function buildLockPayload(
   clientId: string,
+  deviceId: string,
   privateKey: Uint8Array,
   leaseMs: number,
 ): Promise<LockPayload> {
@@ -149,6 +164,7 @@ async function buildLockPayload(
   const leaseExpiresAt = new Date(Date.now() + leaseMs).toISOString()
   const payload: Omit<LockPayload, "signature"> = {
     clientId,
+    deviceId,
     leaseExpiresAt,
     issuedAt,
   }
@@ -174,24 +190,32 @@ async function encryptLockPayload(
 async function decodeLock(
   payload: Uint8Array,
   masterKey: Uint8Array,
-  publicKey: Uint8Array,
+  roster: Roster,
 ): Promise<LockPayload | null> {
   try {
     const { nonce, ciphertext } = splitNoncePayload(payload, 12)
     const key = await hkdfSha256(masterKey, utf8ToBytes("lock"), 32)
     const plain = await aesGcmDecrypt(key, nonce, ciphertext)
     const decoded = decodeBinaryPayload(plain) as LockPayload
+    if (!decoded || typeof decoded.deviceId !== "string") return null
+    const signer = roster.devices.find(
+      (device) => device.deviceId === decoded.deviceId,
+    )
+    if (!signer || signer.revokedAt) return null
     const signature = Uint8Array.from(atob(decoded.signature), (c) =>
       c.charCodeAt(0),
     )
     const payloadToVerify: Omit<LockPayload, "signature"> = {
       clientId: decoded.clientId,
+      deviceId: decoded.deviceId,
       leaseExpiresAt: decoded.leaseExpiresAt,
       issuedAt: decoded.issuedAt,
     }
     const verifyBytes = encodeBinaryPayload(payloadToVerify)
     const digest = await sha256(verifyBytes)
-    if (!ed25519.verify(signature, digest, publicKey)) return null
+    if (!ed25519.verify(signature, digest, base64ToBytes(signer.signPub))) {
+      return null
+    }
     return decoded
   } catch {
     return null

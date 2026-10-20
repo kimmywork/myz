@@ -63,6 +63,8 @@ export interface ChunkEnvelope {
 
 export interface LockPayload {
   clientId: string
+  /** Device id of the signer (resolved against the account roster on verify). */
+  deviceId: string
   leaseExpiresAt: string
   issuedAt: string
   signature: string
