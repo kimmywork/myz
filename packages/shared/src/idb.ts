@@ -18,6 +18,7 @@ export interface OpenDatabaseOptions {
     db: IDBDatabase,
     oldVersion: number,
     newVersion: number | null,
+    transaction: IDBTransaction,
   ) => void
 }
 
@@ -40,7 +41,12 @@ export function openDatabase(
   const promise = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(name, options.version)
     request.onupgradeneeded = (event) => {
-      options.upgrade?.(request.result, event.oldVersion, event.newVersion)
+      options.upgrade?.(
+        request.result,
+        event.oldVersion,
+        event.newVersion,
+        request.transaction!,
+      )
     }
     request.onsuccess = () => {
       const db = request.result

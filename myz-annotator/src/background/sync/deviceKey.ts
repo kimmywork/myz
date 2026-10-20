@@ -19,6 +19,12 @@ async function ensureDeviceKey(): Promise<CryptoKey> {
   return key;
 }
 
+let pending: Promise<CryptoKey> | null = null;
+
 export async function getDeviceKey(): Promise<CryptoKey> {
-  return ensureDeviceKey();
+  pending ??= ensureDeviceKey().catch((error) => {
+    pending = null;
+    throw error;
+  });
+  return pending;
 }

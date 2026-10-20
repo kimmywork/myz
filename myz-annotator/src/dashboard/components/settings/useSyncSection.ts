@@ -24,7 +24,6 @@ export function useSyncSection() {
   const isBusy = ref(false);
 
   const lastSyncAt = ref<string | null>(null);
-  const lastManifestVersion = ref(0);
   const hasAccount = ref(false);
   const accountId = ref<string | null>(null);
   const deviceId = ref<string | null>(null);
@@ -63,7 +62,6 @@ export function useSyncSection() {
     try {
       const result = await invoke("myz:syncStatus");
       lastSyncAt.value = result?.lastSyncAt || null;
-      lastManifestVersion.value = result?.lastManifestVersion || 0;
       hasAccount.value = Boolean(result?.hasAccount);
       accountId.value = result?.accountId || null;
       deviceId.value = result?.deviceId || null;
@@ -174,7 +172,6 @@ export function useSyncSection() {
     tone,
     isBusy,
     lastSyncAt,
-    lastManifestVersion,
     hasAccount,
     accountId,
     deviceId,
