@@ -1,5 +1,7 @@
 # Workstate
 
+- Core-refactor doc align + stale alias cleanup (2026-10-20, PR pending): `core-refactor.md` 状态改「已完成」、§12 过时「未做」条目对齐（I1b/I3/I4/I5/I5b/I6/I5c），仅留 I7 可选订阅项；删除 tsconfig 3 个不存在包的 alias；修正 sync-core README 的 ai-core 依赖。annotator 290 单测、vue-tsc、build 绿。
+
 - Removed `@myz/dashboard-core` merged (2026-10-20, PR #99, rebase): D2 零调用 dead code，连同未接线的 `dashboard/host/extension.ts` 删除；清理依赖/alias/tsconfig/AGENTS；`core-refactor.md` D2 关闭。CodeRabbit 2 条文档表述已修复。annotator 290 单测、vue-tsc、build 绿。master `f17d093`。
 
 - SyncOrch review fixes merged (2026-10-20, PR #98, rebase): 锁 412 → `locked`、续租/释放竞态（`settle`）、timers stale alarm + `.catch`、settings NaN 防御、向导保留 tuning、文档/测试清理。CodeRabbit 本轮 rate limited（0 finding）。sync-core 116 用例、annotator 290 单测、build 绿。master `b1f18e3`。

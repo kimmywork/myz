@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I1b（调用点迁移到类型化 `invoke`）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I9（Source / Locator 读时归一化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；SyncOrch 已单独规划并实施（`docs/plan/implemented/sync-orch.md`）；`@myz/dashboard-core`（D2 零调用 dead code）已于 2026-10-20 删除。
+> 状态：**v2，已完成**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I1b（调用点迁移到类型化 `invoke`）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I9（Source / Locator 读时归一化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；SyncOrch 已单独规划并实施（`docs/plan/implemented/sync-orch.md`）；`@myz/dashboard-core`（D2 零调用 dead code）已于 2026-10-20 删除。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 删除 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -38,7 +38,7 @@
 | e | 无已接线的 payload registry（I7 曾按死代码删除）；且 opaque preservation **从未接线** | `packages/shared/src/schemaRegistry.ts`（仅版本字典）、`shards.ts:115` | 「blob ↔ 具体数据」迁移缺失；未知记录会丢（见 D1） |
 | f | 消息名为裸字符串、无契约表；两个 registry 各自单例；响应解包有 falsy bug | `packages/shared/src/messaging.ts:1,27`、`background/messages/handler.ts`、`content/messages/handler.ts` | 拼写仅运行时暴露；`data` 为 `null/false/0/""` 时解包错误 |
 | g | 传输绑死 `chrome.*`，授权与传输混杂且易与注册表脱节 | `background.ts:215`、`background/messages/trustedSender.ts:7-89` | 两个硬编码 `Set<string>` 需人工与 handler 同步 |
-| h | 多上下文一致性只靠「拉」，无推送失效 | `dashboard/stores/highlights.ts:66`；唯一监听 `storage.onChanged` 的是未接线的 `dashboard/host/extension.ts:110` | 多标签读到陈旧数据 |
+| h | 多上下文一致性只靠「拉」，无推送失效 | `dashboard/stores/highlights.ts:66`；唯一监听 `storage.onChanged` 的是未接线的 `dashboard/host/extension.ts:110`（该文件已随 D2 删除） | 多标签读到陈旧数据 |
 | i | 后台只有 `chrome.alarms`，无持久作业队列 | `background/sync/scheduler.ts`、`background/inbox/reminder.ts` | 本轮 YAGNI（见 R2）；Sync v2 已有分片级断点续传 |
 
 **评审补充发现（v2）**
@@ -189,11 +189,11 @@ interface MyzTabMap { // SW → CS
 | --- | --- | --- | --- | --- |
 | **I1** | 消息契约表 + 泛型 API + **D3 修复** | `MyzRuntimeMap`/`MyzTabMap`、泛型 `invoke`/`handle`；修复 falsy 解包；特权元数据入契约；清查平铺 payload 调用点 | 无 | 全部注册点编译通过；行为不变；新增 falsy 返回的回归测试 **（已完成，见 §12；调用点迁移见 I1b）** |
 | **I2** | Transport 端口 + `MessageContext` | `Transport` 接口 + 扩展实现（Runtime/Tab 两方向）；`messaging.ts` 降级为 adapter | I1 | 现有 e2e 全绿 |
-| **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 **（已完成，见 §12；设置模型转 I4）** |
+| **I3** | 建立 `@myz/core` + 领域模型注册表 | Source / Locator / PayloadCodec / Lifecycle / Relation + 迁移纯逻辑（inbox 状态机、`buildQueue`、记录身份、设置模型） | 无 | 单测覆盖状态机与注册表；扩展旧实现并行保留 **（已完成，见 §12）** |
 | **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 **（RecordsStore/InboxStateStore/SettingsStore 已完成；`StagedAssetStore` 见 I4b）** |
-| **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 **（RecordsService + InboxService + Import/Export 已完成；Settings 由端口承担；SyncOrch 转后续）** |
+| **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 **（全部完成；Settings 由 `SettingsStore` 端口承担；SyncOrch 见 `implemented/sync-orch.md`）** |
 | **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 **（opaque 闭环已完成；显式 `schemaId` + codec 接线见 I6b）** |
-| **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 **（已完成，见 §12；订阅目前接在 dashboard 记录 store，其余表面转后续）** |
+| **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 **（已完成，见 §12；inbox/readers/popup 订阅仍未接，非阻塞）** |
 | **I8** | `Scheduler` / `Notifier` 端口化（**移除 JobQueue**） | 端口 + 扩展实现 | I4 | 定时 / 通知行为不变 **（已完成，见 §12）** |
 | **I9** | Source / Locator 落地（**读时归一化**） | schema + 读路径归一化 + 来源模型进 UI，预留 video / image | I3, I6 | 旧记录可在不重哈希前提下读出；来源分组不退化为「概念」 **（已完成，见 §12）** |
 | **I10** | 宿主无关性验证（**改为 Node/Vitest 集成套件**） | 在 Node 下用 `better-sqlite3`（或内存适配器）跑完整领域服务集成测试 | I2–I9 | **「换宿主只写 adapter」被证明**（core 零改动）；不长期维护半成品桌面壳 **（已完成，见 §12；用内存适配器）** |
@@ -265,7 +265,7 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - `myz-annotator/src/messaging/privilege.ts`：特权 / 手势集合改为 `ReadonlySet<MyzRuntimeType>`（原来两个手维护的 `Set<string>`），`trustedSender.ts` 改为引用它（D3-b）。平铺 `{type, ...rest}` 调用点清查：无调用方使用（D3 附带项）。
   - **D3-a 修复**：`packages/shared/src/messaging.ts` 的解包改为按 `"data" in response` 判定（原先 `response.data || response` 会在 `null/false/0/""` 时错误回退整个信封）；补 2 条回归测试。
   - 验证：`vue-tsc -b` 0；shared 94、annotator 276 单测通过；eslint 0；`vite build` 成功。
-  - **遗留（I1b，未做）**：调用点仍走 `@myz/shared/messaging` 的宽松 `sendMessage<Payload, Result>`（45 处），按 §9「先并存、再逐个收敛」渐进迁移到类型化 `invoke`；`sendMessageToTab` 与 `sendMessage` 的返回形状仍不一致。
+  - **后续**：调用点迁移已由 I1b 完成（类型化 `invoke`）；Tab 方向的 `sendMessageToTab` 仍独立于 `Transport.invoke`。
 - **I2 完成（2026-10-16）**：Transport 端口 + `MessageContext`。
   - `packages/shared/src/transport.ts`：宿主无关的 `Transport<M>` 端口（`invoke` / `handle` / `has` / `run`）。
   - `packages/shared/src/messageRegistry.ts`：新增 `MessageContext`（`tabId` / `windowId` / `url` / `trusted`），handler 第二参由裸 `chrome.runtime.MessageSender` 改为 `MessageContext`——**shared 注册表不再引用 chrome**。
@@ -280,33 +280,33 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 迁移：`recordIdForHighlight` / `parseRecordId`（扩展 `background/sync/records.ts` 改为 re-export core，`datasets.ts` 用 `parsed.kind`）；`buildInboxQueue` 读模型（扩展 `background/inbox/queue.ts` 委托，badge 留在扩展）；`setInboxStatus` 用 core `transitionLifecycle`。
   - 测试：`packages/core/tests/` 共 16 用例。
   - 验证：core 16、annotator 276 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
-  - **未做（转后续）**：设置模型迁移（与 `sync-core` + `chrome.storage` 纠缠，随 I4 存储端口一起）；其余 inbox 存储动作（`getInboxStatus`/mark/relation 的持久化）留在扩展，待 I4/I5 收敛。
+  - **后续**：设置由 I4 的 `SettingsStore` 端口承担；inbox 存储动作已由 I5b 的 `InboxService` 收敛。
 - **I4 完成（2026-10-16）**：存储端口 + IndexedDB 实现（含 opaque 溢出表）。
   - `@myz/core/ports`：`RecordsStore`（含 `putOpaque` / `listOpaque` / `deleteOpaque`）、`InboxStateStore`、`SettingsStore<T>` 端口接口（按用例命名，不泄露存储细节）。
   - 扩展：`myz_db` v3→v4 新增 `opaque_records` store（**数据零迁移**，仅新增 store，旧 store 不变）；`background/storage.ts` 增 opaque 读写；新增 `background/stores.ts` 以 IndexedDB 实现三个端口。
   - 契约测试：`tests/unit/background/stores.test.ts`（fake-indexeddb）覆盖 records 增删查 / 按 url 查 / **opaque 往返** + inbox state 往返。
   - 验证：core 16、annotator 280 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
-  - **未做（转后续）**：`BlobStore` / `StagedAssetStore` 端口（需一并把 `StagedAsset` 类型搬到 core）→ I4b；D1 的 opaque **接线到 sync dataset**（`collect` / `apply`）→ I6；设置模型整体搬到 core 仍待做（`SettingsStore` 现为对既有 `readSettings` / `writeSettings` 的薄包装）。
+  - **后续**：`StagedAssetStore` 已由 I4b 落地；`BlobStore` 未单独引入（图片/截图缓存由 `StagedAssetStore` 覆盖）；D1 opaque 接线已由 I6 完成；设置模型按决策由 `SettingsStore` 端口承担，不搬入 core。
 - **I5 完成（2026-10-16，部分）**：`RecordsService` 抽入 core + handler 瘦身 + D3.3 修复。
   - `@myz/core/services/records`：`createRecord` / `updateRecord` / `updateRecordRange` / `removeRecord(s)` / `updateRecordsPatch` / `listRecords` / `getRecordsForUrls` / `listTags` + helpers（`normalizeIds` / `resolveRequestedUrls` / `applyKindShape`）。所有宿主能力（`newId` / `now` / `htmlToMarkdown`）经 `RecordServiceContext` 注入 → **服务保持纯领域 + 存储**。
   - **D3.3 修复**：HTML→Markdown 不再由服务内联反向调用 content script；扩展在 handler 侧注入 `htmlToMarkdown` 端口（绑定 `sendToContentScript`）。
   - `background/messages/highlights.ts` 改为「解码 → 调服务 → 编码」；删除 `highlights/record-helpers.ts`（逻辑移入 core，去重复）。
   - 测试：新增 `packages/core/tests/services-records.test.ts`（内存 store）10 用例；扩展既有 `highlights.test.ts` **原样通过**（行为不变）。
   - 验证：core 26、annotator 280 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
-  - **未做（转 I5b）**：`InboxService`（`background/inbox/actions.ts` 仍直接写存储）、`SettingsService`、`ImportExportService`、`SyncOrch`。
+  - **后续**：`InboxService`（I5b）、`ImportExportService`（I5c）、`SyncOrch`（`implemented/sync-orch.md`）均已完成；`SettingsService` 由 `SettingsStore` 端口承担（见 I5b 说明）。
 - **I5b 完成（2026-10-16）**：`InboxService` 抽入 core。
   - `@myz/core/services/inbox`：`setInboxStatus` / `getInboxStatus` / `setInboxMark` / `addInboxRelation` / `removeInboxRelation` / `listInboxStates`，纯逻辑 over `InboxStateStore`（复用 I3 的 `transitionLifecycle`）。
   - 扩展 `background/inbox/actions.ts` 变为薄包装：调 core service + 本宿主副作用（badge、删除日志、`changeBus` 发布）。
   - 测试：新增 `packages/core/tests/services-inbox.test.ts`（内存 store）3 用例；扩展 `inbox-actions.test.ts` **原样通过**。
   - 验证：core 29、annotator 287 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
-  - **说明**：`SettingsService` 不需要单独服务——`SettingsStore` 端口本身就是 settings 的读写服务。`ImportExportService` / `SyncOrch` 转 I5c（import 依赖 `background/import.ts` 的合并算法；SyncOrch 体量大且与 `syncEngine` 深度耦合）。
+  - **说明**：`SettingsService` 不需要单独服务——`SettingsStore` 端口本身就是 settings 的读写服务。`ImportExportService` 已在 I5c 完成；`SyncOrch` 已在 S0–S4 完成（`docs/plan/implemented/sync-orch.md`）。
 - **I6 完成（2026-10-16，部分）**：opaque 闭环接进 sync dataset（**D1 收口**）。
   - 判别式用 recordId 前缀（`h:` → 可物化；其余 → opaque）；`OpaqueRecord` 增 `streamId`，`RecordsStore.listOpaque(streamId?)` 按流过滤。
   - `v2/datasets.ts`（highlight 流）：`collect` 返回 highlights + 本流 opaque；`apply` 对未知前缀写 `putOpaque`（**原会误存为 highlight**）；`remove` 未知前缀删 opaque。
   - `v2/inboxDataset.ts`（inbox 流）：`apply` 对未知 id 写 opaque（**原为直接丢弃**）；`collect` 回传；`remove` 分类处理。
   - 回归测试：新增 `tests/unit/background/sync/v2/datasets.test.ts`（fake-indexeddb）证明「apply 未知记录 → 不物化 + opaque 保留 + collect 回传」；更新既有 `v2-datasets.test.ts` 覆盖 opaque 分支。
   - 验证：core 26、annotator 284 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
-  - **未做（转 I6b）**：把判别式从「recordId 前缀」升级为记录内显式 `schemaId` + `schemaVersion`，并把 I3 的 `PayloadCodec` registry 接到 `apply`（前缀判别对「同前缀但 payload schema 演进」不够）。
+  - **后续**：显式 `schemaId` + `schemaVersion` 与 `PayloadCodec` registry 已由 I6b 接到 `apply`。
 - **I6b 完成（2026-10-19）**：显式 `schemaId` + PayloadCodec 接到 sync `apply`。
   - `MyZRecordSchemaV1` 增可选 `schemaId`（payload 判别式；旧记录缺省视为 `"myz.record"`）。
   - `@myz/core/record-codecs`：`RECORD_SCHEMA_ID = "myz.record"` + `recordCodecs` registry（校验 schema 为 `MyZRecordSchema`）+ `resolveRecordSchemaId`。
@@ -319,7 +319,7 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 订阅点：dashboard 记录 store（`initialize()` 订阅 `records`/`sync` → 重新加载）。
   - 测试：`tests/unit/messaging/changes.test.ts`（3 用例：BroadcastChannel 跨上下文、storage 兜底、退订）。
   - 验证：core 26、annotator 287 单测通过；`vue-tsc -b` 0；eslint 0 error（仅既有 `max-lines-per-function` warning）；`vite build` 成功。
-  - **未做（转后续）**：inbox/readers/popup 的订阅刷新；基于 `ids` 的增量刷新（当前为整体 reload）；同步过程中逐条发布合流。
+  - **仍未做（非阻塞，可选）**：inbox/readers/popup 的订阅刷新；基于 `ids` 的增量刷新（当前为整体 reload）；同步过程中逐条发布合流。
 - **评审修复（2026-10-16，CodeRabbit PR #91）**：4 条 finding 已全部修复。
   - **opaque 存储键**改为复合 `[streamId, recordId]`，`deleteOpaque(streamId, recordId)`——避免同一 `recordId` 出现在两条流时互相覆盖/误删。
   - **highlight dataset `apply`** 增加 payload 校验：仅当 `recordId` 前缀为 `h:` **且** payload 的 `id` 与之一致时才 `upsert`；否则原样 opaque，避免误物化或改变 `recordId`。
@@ -347,7 +347,7 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - `@myz/core/import`（策略 / 净化 / 冲突 / 签名）、`@myz/core/import-merge`（合并算法；id 生成改为 core 内置）、`@myz/core/markdown-export`（Markdown 导出）。
   - 删除扩展 `background/import.ts`、`background/markdown.ts`、`messages/highlights/import-merge.ts`；相关 import 改为 core。
   - 验证：core 31、annotator 290 单测通过；`vue-tsc -b` 0；eslint 0（仅既有 warnings）；`vite build` 成功。
-  - **未做**：`SyncOrch`（与 `syncEngine` 深度耦合）转后续。
+  - **后续**：`SyncOrch` 已完成（`docs/plan/implemented/sync-orch.md`）。
 - **I9 完成（2026-10-19）**：Source / Locator 读时归一化落地。
   - `@myz/core/source`：`resolveSourceKind`（registry + 合成 url 前缀）、`resolveSourceIdentity`（url / fingerprint）、`resolveRecordLocator`（typed `text-range` / `pdf-page-rect` / `epub`，优先级 range→pdf→epub）。
   - `ViewerRecordCard` 的页码/章节徽标与「在阅读器中打开」改用 `resolveRecordLocator`——**读时归一化，不写回记录、不改变 sync hash**。
