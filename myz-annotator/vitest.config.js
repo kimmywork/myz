@@ -7,7 +7,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@/": "/src/",
-      "@myz/dashboard-core": `${currentDir}../packages/dashboard-core/src`,
       "@myz/dashboard-ui": `${currentDir}../packages/dashboard-ui/src`,
       "@myz/shared": `${currentDir}../packages/shared/src`,
       "@myz/sync-core": `${currentDir}../packages/sync-core/src`,

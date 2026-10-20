@@ -83,7 +83,6 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": resolve(rootDir, "src"),
-      "@myz/dashboard-core": resolve(rootDir, "../packages/dashboard-core/src"),
       "@myz/dashboard-ui": resolve(rootDir, "../packages/dashboard-ui/src"),
       "@myz/sync-core": resolve(rootDir, "../packages/sync-core/src"),
       "@myz/shared": resolve(rootDir, "../packages/shared/src"),

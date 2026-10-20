@@ -17,7 +17,6 @@ This repo is a multi‑module suite (extension + libraries). Keep changes scoped
 - `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).
   - `workflow/video-pipeline/skills/screen-recording-narrator/scripts/` — command/script templates for the video pipeline.
 - `packages/core/` (`@myz/core`) — environment-agnostic domain layer: model registries (record identity, source kind, locator, payload codec, lifecycle, relations) and pure read models (e.g. `buildInboxQueue`). No chrome/DOM/IO; hosts supply storage/transport via ports. Depends on `@myz/shared` (+ `zod`). See `docs/plan/core-refactor.md`.
-- `packages/dashboard-core/` — shared dashboard host contracts (record/settings/theme/sync repositories and host capability presets) for extension, desktop, and mobile-extension adapters.
 - `packages/dashboard-ui/` — shared non-chat dashboard UI building blocks such as app shells, sidebars, and reusable inputs. Prefer wiring app stores into these components from page/container layers instead of re-copying the visuals per host.
 - `packages/sync-core/` — environment-agnostic E2EE sync core: crypto, protocol schemas, manifest/chunk handling, remote repository helpers, adapter interfaces.
 
