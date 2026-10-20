@@ -24,4 +24,5 @@ export interface SyncNowMessageResult {
   ok: boolean;
   status?: string;
   message?: string;
+  partial?: boolean;
 }

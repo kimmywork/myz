@@ -1,7 +1,9 @@
+import { DEFAULT_LEASE_MS } from "@myz/sync-core/lock";
 import {
   runAccountSync,
   type RunAccountSyncResult,
 } from "@myz/sync-core/orchestrator";
+import { DEFAULT_KEEP_MANIFESTS } from "@myz/sync-core/streamGc";
 import { refreshInboxBadge } from "../../inbox/queue";
 import { readSettings } from "../../storage";
 import { loadLocalAccount } from "../accountKeyring";
@@ -12,8 +14,7 @@ import type { SyncResult } from "../syncEngine";
 import { createHighlightDataset } from "./datasets";
 import { createInboxDataset } from "./inboxDataset";
 import { createStreamStateStore } from "./stateStore";
-
-const LOCK_LEASE_MS = 30_000;
+import { syncTimers } from "./timers";
 
 /** Stable-per-install client id used to prove lock ownership. */
 function generateClientId(): string {
@@ -32,8 +33,16 @@ function toSyncResult(result: RunAccountSyncResult): SyncResult {
     };
   }
   if (result.status === "partial") {
-    const failed = result.streams.find((stream) => stream.error);
-    return { ok: false, status: "error", message: failed?.error };
+    const detail = result.streams
+      .filter((stream) => stream.error)
+      .map((stream) => `${stream.streamId}: ${stream.error}`)
+      .join("; ");
+    return {
+      ok: false,
+      status: "error",
+      partial: true,
+      message: `v2 partial (${result.applied} applied; ${detail})`,
+    };
   }
   if (result.status === "locked") {
     return { ok: false, status: "locked" };
@@ -73,12 +82,11 @@ export async function syncAccountNow(): Promise<SyncResult> {
     clientId,
     datasets: [createHighlightDataset(), createInboxDataset()],
     stateStore: createStreamStateStore(account.accountId),
-    lock: { leaseMs: LOCK_LEASE_MS },
-    gc: { keepManifests: 30 },
-    timers: {
-      setInterval: (fn, ms) => setInterval(fn, ms),
-      clearInterval: (handle) => clearInterval(handle as number),
+    lock: { leaseMs: settings.sync.lockLeaseMs ?? DEFAULT_LEASE_MS },
+    gc: {
+      keepManifests: settings.sync.keepManifests ?? DEFAULT_KEEP_MANIFESTS,
     },
+    timers: syncTimers,
   });
 
   // Host side effects only run when the sync reached the remote (parity with

@@ -158,7 +158,16 @@ async function openStoredSync(
   // `s3` came out of stored JSON; the encrypted credential fields are sealed,
   // so the app layer only relies on its non-secret string fields here.
   const opened = await openS3Credentials(s3 as SyncS3Settings);
-  return { enabled: rawSync.enabled === true, s3: opened };
+  return {
+    enabled: rawSync.enabled === true,
+    s3: opened,
+    ...(typeof rawSync.keepManifests === "number"
+      ? { keepManifests: rawSync.keepManifests }
+      : {}),
+    ...(typeof rawSync.lockLeaseMs === "number"
+      ? { lockLeaseMs: rawSync.lockLeaseMs }
+      : {}),
+  };
 }
 
 async function sealSettingsCredentials(settings: Settings): Promise<Settings> {

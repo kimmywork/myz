@@ -64,7 +64,9 @@ export function initializeSyncMessageHandlers() {
 
   registerMessageHandler("myz:syncNow", async () => {
     const result = await syncNow();
-    if (result.ok) {
+    // Publish on partial too: some streams applied records even though the
+    // overall result is `ok: false`.
+    if (result.ok || result.partial) {
       changeBus.publish({ domain: "sync" });
       changeBus.publish({ domain: "records" });
       changeBus.publish({ domain: "inbox" });

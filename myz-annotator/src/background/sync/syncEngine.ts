@@ -6,6 +6,8 @@ export type SyncResult = {
   ok: boolean;
   status: "disabled" | "missing_account" | "locked" | "synced" | "error";
   message?: string;
+  /** True when some streams synced and others failed (partial success). */
+  partial?: boolean;
 };
 
 /**
