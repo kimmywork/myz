@@ -8,6 +8,7 @@ import { registerMessageHandler } from "./handler";
 import { registerAccountHandlers } from "./sync/account.js";
 import { registerPairingHandlers } from "./sync/pairing.js";
 import type { SyncTestConnectionMessageResult } from "./sync/types.js";
+import { changeBus } from "@/messaging/changes";
 
 export type {
   SyncStatusMessageResult,
@@ -61,5 +62,13 @@ export function initializeSyncMessageHandlers() {
     },
   );
 
-  registerMessageHandler("myz:syncNow", async () => syncNow());
+  registerMessageHandler("myz:syncNow", async () => {
+    const result = await syncNow();
+    if (result.ok) {
+      changeBus.publish({ domain: "sync" });
+      changeBus.publish({ domain: "records" });
+      changeBus.publish({ domain: "inbox" });
+    }
+    return result;
+  });
 }

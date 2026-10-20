@@ -71,11 +71,6 @@ export default defineComponent({
             <SettingsRow label="Prefix" hint="可选">
               {input(a.prefix, { placeholder: "myz-sync" })}
             </SettingsRow>
-            <SettingsRow label="同步版本" controlWidth="auto">
-              <span class="text-caption text-muted">
-                {a.lastManifestVersion.value || 0}
-              </span>
-            </SettingsRow>
             <div class="settings__actions">
               <button
                 class="btn"

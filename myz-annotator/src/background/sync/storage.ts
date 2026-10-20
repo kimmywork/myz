@@ -10,7 +10,12 @@ const DB_NAME = "myz_sync_db";
 const DB_VERSION = 3;
 
 /** Creates the v2 stores; drops the legacy v1 `record_state` store. */
-function upgradeSchema(db: IDBDatabase): void {
+function upgradeSchema(
+  db: IDBDatabase,
+  _oldVersion: number,
+  _newVersion: number | null,
+  transaction: IDBTransaction,
+): void {
   if (!db.objectStoreNames.contains("keys")) {
     db.createObjectStore("keys", { keyPath: "id" });
   }
@@ -26,6 +31,10 @@ function upgradeSchema(db: IDBDatabase): void {
   // v1-only store; no longer read or written.
   if (db.objectStoreNames.contains("record_state")) {
     db.deleteObjectStore("record_state");
+  }
+  // v1 keyset record; no longer used.
+  if (db.objectStoreNames.contains("keys")) {
+    transaction.objectStore("keys").delete("active");
   }
 }
 

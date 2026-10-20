@@ -57,7 +57,7 @@ export default defineComponent({
                   if (isJoin) {
                     w.finish();
                   } else {
-                    w.step.value = 4;
+                    w.step.value = 3;
                     w.setStatus("", "info");
                   }
                 }}

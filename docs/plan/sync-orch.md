@@ -15,7 +15,7 @@
 
 **不做**
 - 不改 `sync-core` 的协议/密码学/分片格式。
-- 不改 v1 遗留同步（`sync-plan.ts` / `sync-phases.ts` / `sync-state.ts`）；仅标注 legacy。
+- **v1 遗留同步已删除（2026-10-20）**，本计划不再涉及 v1。
 - 不把 badge / 通知 / ChangeBus / 同步态持久化放进编排器（这些是宿主副作用）。
 
 ## 2. 现状（附证据）
@@ -37,7 +37,7 @@
 | 释放锁 + 停定时器 | `:120-129` | 编排 |
 
 其他相关：
-- v1 回退：`syncEngine.ts:38-129`（无账号时走 v1；`sync-plan.ts:28-38` 定义 `SyncResult`）。
+- v1 回退：**已删除**；`syncEngine.ts` 只做启用/账号检查 + v2 委派。
 - 协议原语：`packages/sync-core/src/{accountSync,lock,streamGc}.ts`。
 - 每流状态：`v2/stateStore.ts`（按 `accountId` 隔离）。
 - 通知/清理：`sync-state.ts:45-57`（chrome.notifications）、`sync-state.ts:30-43`（purge）。
@@ -147,7 +147,7 @@ return mapToSyncResult(result); // status/message 与原 SyncResult 对齐
 保留：
 - `loadLocalAccount` / `loadOrCreateDeviceKeys` / `readSettings` / `S3Client` / datasets / state store。
 - `refreshInboxBadge`、`writeSyncState`、message handler 的 ChangeBus 发布。
-- v1 回退（`syncEngine.syncNow` 在无账号时仍走 legacy）。
+- v1 回退已删除（`syncEngine.syncNow` 只走 v2）。
 
 删除：`v2/engine.ts` 内的锁获取/续租/释放、逐流 GC、结果聚合（移入编排器）。
 
@@ -181,13 +181,13 @@ return mapToSyncResult(result); // status/message 与原 SyncResult 对齐
 - **MV3 SW 生命周期**：`setInterval` 续租在 SW 休眠时不可靠。缓解：`timers` 注入；后续可改为 `chrome.alarms` 续租（宿主提供 `Scheduler`）。
 - **锁释放**：异常路径必须释放；释放失败只告警，不覆盖主错误。
 - **行为对齐**：`SyncResult` 的状态/文案需与旧实现一致（`locked`/`synced`/`error`）。
-- **v1 共存**：两套路径的同步态字段不同，避免互相污染。
+- **v1 共存**：**已消除**（2026-10-20 删除 v1）。
 
 **待决**
 1. 编排器落点：`@myz/sync-core/orchestrator`（推荐）vs `@myz/sync-orch` vs `@myz/core/services/sync`。
 2. 续租定时器是否改为宿主 `Scheduler` 端口（与 I8 对齐）。
 3. 是否把 `gc` 的 `keepManifests` 暴露为用户设置。
-4. v1 删除的迁移截止条件。
+4. v1 删除的迁移截止条件 **（已完成 2026-10-20）**。
 5. `RunAccountSyncResult` 是否要暴露 `applied` 的 per-stream 明细给设置页。
 
 ## 10. 关联文档
