@@ -200,10 +200,12 @@ export function usePopup() {
       rawPageUrl.value = tab.url;
       canonicalPageUrl.value = canonicalUrl(tab.url);
       pageMeta.value = `${truncateText(tab.title || "")} · ${extractHostname(tab.url)}`;
-      await loadHighlights();
+      // Subscribe before the first load: a change that lands while it is in
+      // flight would otherwise be missed and leave stale rows on screen.
       unsubscribe = subscribeRefresh(["records", "sync"], () => {
         void loadHighlights();
       });
+      await loadHighlights();
     } catch (err) {
       console.error("Popup init failed", err);
       error.value = (err as Error)?.message || "初始化失败";

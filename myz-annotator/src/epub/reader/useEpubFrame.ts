@@ -252,18 +252,36 @@ export function useEpubFrame(store: Store) {
   }
 
   let unsubscribe: (() => void) | null = null;
+  let pendingRefresh = false;
+
+  /** Reload + repaint, deferring while an annotation edit is open. */
+  function refreshFromRemote() {
+    if (store.status !== "ready") return;
+    if (activeId.value) {
+      pendingRefresh = true;
+      return;
+    }
+    void store.loadRecords().then(() => {
+      // The user may have opened an annotation while the load was in flight.
+      if (activeId.value) {
+        pendingRefresh = true;
+        return;
+      }
+      pendingRefresh = false;
+      const doc = iframeRef.value?.contentDocument;
+      if (doc) store.applyCurrentChapter(doc);
+    });
+  }
 
   onMounted(() => {
     store.init();
     window.addEventListener("keydown", handleKeydown);
     // Pick up records applied by a sync or another tab, but never clobber an
     // annotation the user is editing.
-    unsubscribe = subscribeRefresh(["records", "sync"], () => {
-      if (store.status !== "ready" || activeId.value) return;
-      void store.loadRecords().then(() => {
-        const doc = iframeRef.value?.contentDocument;
-        if (doc) store.applyCurrentChapter(doc);
-      });
+    unsubscribe = subscribeRefresh(["records", "sync"], refreshFromRemote);
+    // Run a refresh that was deferred while editing once the edit closes.
+    watch(activeId, (id) => {
+      if (!id && pendingRefresh) refreshFromRemote();
     });
     const backdoor = createEpubBackdoor(
       store,
