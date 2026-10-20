@@ -193,7 +193,7 @@ interface MyzTabMap { // SW → CS
 | **I4** | 存储端口 + IndexedDB 实现（**含 opaque 溢出表**） | `RecordsStore` / `SettingsStore` / `BlobStore` / `InboxStateStore` | I3 | 契约测试通过；数据零迁移；opaque 往返测试 **（RecordsStore/InboxStateStore/SettingsStore 已完成；`StagedAssetStore` 见 I4b）** |
 | **I5** | 领域服务 + handler 瘦身 | Records / Inbox / Settings / ImportExport / SyncOrch 服务；handler 变「解码 → 调服务 → 编码」；HTML→Markdown 移出 RecordsService | I2, I4 | 同一单测跑通服务层；e2e 全绿 **（全部完成；Settings 由 `SettingsStore` 端口承担；SyncOrch 见 `implemented/sync-orch.md`）** |
 | **I6** | `schemaId` + payload codec + **opaque 闭环** | 记录带判别式；codec registry 接到 sync `apply`；未知记录本地物化 + collect 回传（**D1**） | I3, I4 | **连续两次同步**后未知 `schemaId` 旧端仍不删；迁移测试 **（opaque 闭环已完成；显式 `schemaId` + codec 接线见 I6b）** |
-| **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 **（已完成，见 §12；inbox/readers/popup 订阅仍未接，非阻塞）** |
+| **I7** | `ChangeBus` + 订阅（**提前到 I5 之后立即做**） | 端口 + 扩展实现（BroadcastChannel + storage.onChanged 双通道）；dashboard / readers 刷新 | I4 | 双标签写入后另一端自动刷新；阅读器/内容层主题与记录刷新 **（已完成，见 §12；inbox/popup/PDF/EPUB 订阅已接入）** |
 | **I8** | `Scheduler` / `Notifier` 端口化（**移除 JobQueue**） | 端口 + 扩展实现 | I4 | 定时 / 通知行为不变 **（已完成，见 §12）** |
 | **I9** | Source / Locator 落地（**读时归一化**） | schema + 读路径归一化 + 来源模型进 UI，预留 video / image | I3, I6 | 旧记录可在不重哈希前提下读出；来源分组不退化为「概念」 **（已完成，见 §12）** |
 | **I10** | 宿主无关性验证（**改为 Node/Vitest 集成套件**） | 在 Node 下用 `better-sqlite3`（或内存适配器）跑完整领域服务集成测试 | I2–I9 | **「换宿主只写 adapter」被证明**（core 零改动）；不长期维护半成品桌面壳 **（已完成，见 §12；用内存适配器）** |
@@ -319,7 +319,8 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 订阅点：dashboard 记录 store（`initialize()` 订阅 `records`/`sync` → 重新加载）。
   - 测试：`tests/unit/messaging/changes.test.ts`（3 用例：BroadcastChannel 跨上下文、storage 兜底、退订）。
   - 验证：core 26、annotator 287 单测通过；`vue-tsc -b` 0；eslint 0 error（仅既有 `max-lines-per-function` warning）；`vite build` 成功。
-  - **仍未做（非阻塞，可选）**：inbox/readers/popup 的订阅刷新；基于 `ids` 的增量刷新（当前为整体 reload）；同步过程中逐条发布合流。
+  - **已完成（2026-10-20）**：inbox / popup / PDF / EPUB 的订阅刷新。新增 `@/messaging/changeRefresh`（`subscribeRefresh`：按 domain 过滤 + 100ms 合并突发）；阅读器在 `status !== "ready"` 或正在编辑（`activeId`）时跳过，避免覆盖未提交的标注。
+  - **不计划**：基于 `ids` 的增量刷新（个人规模下整体 reload 足够，且需要批量取数/删除语义）；同步过程中逐条发布合流（同步结束的单次 `sync` 事件已够，逐条发布只增噪声）。
 - **评审修复（2026-10-16，CodeRabbit PR #91）**：4 条 finding 已全部修复。
   - **opaque 存储键**改为复合 `[streamId, recordId]`，`deleteOpaque(streamId, recordId)`——避免同一 `recordId` 出现在两条流时互相覆盖/误删。
   - **highlight dataset `apply`** 增加 payload 校验：仅当 `recordId` 前缀为 `h:` **且** payload 的 `id` 与之一致时才 `upsert`；否则原样 opaque，避免误物化或改变 `recordId`。
