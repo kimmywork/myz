@@ -32,6 +32,7 @@ export interface LockOptions {
   roster: Roster
 }
 
+/** Acquire the account lease unless another device holds a live one. */
 export async function acquireLock(
   options: LockOptions,
 ): Promise<LockResult> {
@@ -154,6 +155,7 @@ export async function releaseLock(options: {
   }
 }
 
+/** Build a lock payload signed by this device. */
 async function buildLockPayload(
   clientId: string,
   deviceId: string,
@@ -177,6 +179,7 @@ async function buildLockPayload(
   }
 }
 
+/** Encrypt and pack a lock payload with the account master key. */
 async function encryptLockPayload(
   payload: LockPayload,
   masterKey: Uint8Array,
@@ -187,6 +190,11 @@ async function encryptLockPayload(
   return packNoncePayload(nonce, ciphertext)
 }
 
+/**
+ * Decrypt a lock payload and verify it against the roster. Returns `null` when
+ * the payload is unreadable or was signed by an unknown / revoked device, which
+ * callers treat as "not held" (fail-open, matching pre-S0 behaviour).
+ */
 async function decodeLock(
   payload: Uint8Array,
   masterKey: Uint8Array,

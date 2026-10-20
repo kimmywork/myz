@@ -22,6 +22,7 @@ vi.mock("../src/streamGc", () => ({ gcStream: gcStreamMock }))
 
 const DATA_KEY = new Uint8Array(32).fill(7)
 
+/** In-memory dataset that records applied records per stream. */
 function createDataset(streamId: string) {
   const records = new Map<string, StreamRemoteRecord>()
   const dataset: StreamDataset = {
@@ -43,6 +44,7 @@ function createDataset(streamId: string) {
   return { dataset, records }
 }
 
+/** In-memory per-stream state store. */
 function createStateStore(): StreamStateStore {
   const states = new Map<string, StreamStateSnapshot>()
   return {
@@ -55,6 +57,7 @@ function createStateStore(): StreamStateStore {
   }
 }
 
+/** Dataset whose `collect` throws, to exercise per-stream isolation. */
 function failingDataset(streamId: string): StreamDataset {
   return {
     streamId,
@@ -66,6 +69,7 @@ function failingDataset(streamId: string): StreamDataset {
   }
 }
 
+/** A fresh single-device account. */
 async function fixture() {
   const device = generateDeviceKeyPair()
   const account = await createSyncAccount({
@@ -76,6 +80,7 @@ async function fixture() {
   return { device, account }
 }
 
+/** The default account lease path used by `runAccountSync`. */
 function lockPath(accountId: string) {
   return `${accountId}/lock/lease.bin`
 }

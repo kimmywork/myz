@@ -136,7 +136,7 @@ export async function runAccountSync(
 4. `syncAccountStreams(...)`；它本身已按流隔离错误，编排器**不因单流失败中止**。可选透传 `shardCount`/`tombstoneRetentionMs`（现状用默认值，计划有意省略）。
 5. `gc !== false` 时，仅对 `summary.uploaded === true` 的流派生 `streamKey` 并 `gcStream`；GC 错误按真值表 §4.0 处理。
 6. 聚合：任一 `summary.error` → `"partial"`；`syncAccountStreams` 抛错 → `"error"`；GC 错误 → `"error"`（§4.0）；否则 `"synced"`。
-7. `finally`：停续租 + **无条件尝试**释放锁（所有权校验），异常不吞掉主错误。`releaseLock` 本身不抛（`lock.ts:134-140`），编排器不得额外包装。
+7. `finally`：停续租 + **无条件尝试**释放锁（所有权校验），异常不吞掉主错误。`releaseLock` 的 `getObject` 可能因网络/S3 错误抛出，编排器以 `releaseLockQuietly` 吞掉释放异常，保证 `finally` 不覆盖结构化结果。
 8. 返回结构化结果（含每流摘要、`uploadedStreamIds`、`lockLost`）。`now` 仅控制结果时间戳；锁租期判断仍用真实时钟（`lock.ts` 内部 `Date.now()`）。
 
 **不做**：通知、badge、ChangeBus、同步态写盘——由宿主在拿到结果后执行。

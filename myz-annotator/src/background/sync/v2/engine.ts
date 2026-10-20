@@ -15,6 +15,7 @@ import { createStreamStateStore } from "./stateStore";
 
 const LOCK_LEASE_MS = 30_000;
 
+/** Stable-per-install client id used to prove lock ownership. */
 function generateClientId(): string {
   return `client_${Date.now().toString(36)}_${Math.random()
     .toString(36)
