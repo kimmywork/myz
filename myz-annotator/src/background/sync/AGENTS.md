@@ -32,5 +32,5 @@ v2 device-bound account path remains.
 ## References
 
 - `packages/sync-core/` for protocol/crypto/orchestration primitives.
-- `docs/plan/sync-orch.md` for the planned host-agnostic orchestrator.
+- `docs/plan/implemented/sync-orch.md` for the host-agnostic orchestrator design.
 - `myz-annotator/src/background/AGENTS.md` for the background overview.

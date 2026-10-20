@@ -36,7 +36,11 @@ describe("sync lease timers", () => {
 
     expect(fn).toHaveBeenCalledTimes(1);
     expect(every).not.toHaveBeenCalled();
+
+    // The native interval must actually stop (Node returns a Timeout object).
     timers.clearInterval(handle);
+    vi.advanceTimersByTime(15_000);
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it("uses the host scheduler at or above the alarm floor", () => {
@@ -55,6 +59,21 @@ describe("sync lease timers", () => {
 
     timers.clearInterval(handle);
     expect(cancel).toHaveBeenCalledWith("myz-sync-lock");
+  });
+
+  it("clears native timer handles that are objects (Node)", () => {
+    const nativeHandle = { ref: () => {}, unref: () => {} };
+    const clearSpy = vi.fn();
+    vi.stubGlobal("setInterval", vi.fn(() => nativeHandle));
+    vi.stubGlobal("clearInterval", clearSpy);
+
+    const { sched } = fakeScheduler();
+    const timers = createSyncTimers(sched);
+    const handle = timers.setInterval(() => {}, 15_000);
+    timers.clearInterval(handle);
+
+    expect(clearSpy).toHaveBeenCalledWith(nativeHandle);
+    vi.unstubAllGlobals();
   });
 
   it("subscribes to the scheduler once across renewals", () => {

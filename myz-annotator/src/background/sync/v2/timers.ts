@@ -19,6 +19,19 @@ interface AlarmHandle {
   alarm: string;
 }
 
+/**
+ * Distinguish our alarm handle from the host timer id. In browsers the id is a
+ * number, but Node (and some hosts) return an object, so a `typeof === "number"`
+ * check would misclassify native intervals in tests.
+ */
+function isAlarmHandle(handle: unknown): handle is AlarmHandle {
+  return (
+    typeof handle === "object" &&
+    handle !== null &&
+    typeof (handle as AlarmHandle).alarm === "string"
+  );
+}
+
 export function createSyncTimers(sched: Scheduler = scheduler): SyncTimers {
   let handler: (() => void) | null = null;
   let subscribed = false;
@@ -37,12 +50,12 @@ export function createSyncTimers(sched: Scheduler = scheduler): SyncTimers {
       return { alarm: ALARM_NAME } satisfies AlarmHandle;
     },
     clearInterval(handle) {
-      if (typeof handle === "number") {
-        clearInterval(handle);
+      if (isAlarmHandle(handle)) {
+        handler = null;
+        void sched.cancel(handle.alarm);
         return;
       }
-      handler = null;
-      void sched.cancel((handle as AlarmHandle).alarm);
+      clearInterval(handle as number);
     },
   };
 }
