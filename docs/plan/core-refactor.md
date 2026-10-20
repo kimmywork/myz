@@ -1,6 +1,6 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I1b（调用点迁移到类型化 `invoke`）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I9（Source / Locator 读时归一化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；SyncOrch 剩余部分未开始。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I1b（调用点迁移到类型化 `invoke`）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I9（Source / Locator 读时归一化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；SyncOrch 已单独规划（`docs/plan/sync-orch.md`），未实施。
 >
 > §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
@@ -357,3 +357,4 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 迁移约 90 处 `sendMessage<...>()` → `invoke()`（24 个文件）；保留 `chrome.*.sendMessage`、`sendMessageToTab`、`sendToContentScript` 与 `messaging/transport`。
   - 类型化暴露并修正契约缺口：`userGesture` 载荷（syncClearKey/accountClear/pairingInvite/Accept/Approve）、`syncTestConnection` 可选 payload、legacy `count`、以及 `updateHighlight` 的 `null` 清空改为依赖 `kind: CLIP` 时的 `applyKindShape`。
   - 验证：core 37、annotator 290 单测；`vue-tsc -b` 0；eslint 0 error（无 unused）；`vite build` 成功。
+- **SyncOrch 规划（2026-10-20）**：已单独成文 `docs/plan/sync-orch.md`——编排器 `runAccountSync` 契约（锁生命周期、逐流同步、上传流 GC、结果聚合、异常收口）、宿主改造、S1–S6 增量、验收与待决。**尚未实施**。

@@ -1,5 +1,6 @@
 # Workstate
 
+- SyncOrch plan (2026-10-20, doc only): 新增 `docs/plan/sync-orch.md`——宿主无关 `runAccountSync` 契约、宿主改造、S1–S6、验收/风险/待决。**未实施**。下一步建议：S1（sync-core 编排器 + 单测）。
 - Tests PR #94 merged (2026-10-19, rebase): core 单测 50（+11）、annotator 291、完整 e2e 101/3/0；两处 PDF 像素断言改为跨平台容差。master `cbee1c3`，CI 绿，0 未解决线程。剩余：SyncOrch（与 syncEngine 深度耦合，需单独设计）。
 - Core PR #93 merged (2026-10-19, rebase): I5c（Import/Export）、I6b（schemaId + PayloadCodec）、I9（Source/Locator 读时归一化）、I1b（类型化 invoke）、CodeRabbit 2 项修复。master `50ba4b7`，CI 绿，0 未解决线程。剩余：SyncOrch（与 syncEngine 深度耦合，需单独设计）。
 - Core I1b done (2026-10-19, merged in #93): 调用点迁移到类型化 `invoke`（~90 处 / 24 文件）；修正契约缺口（userGesture、可选 payload、legacy count、updateHighlight null 清理）。无裸 `sendMessage` 调用残留。core 37 / annotator 290 单测、vue-tsc 0、eslint 0 error、build 成功。
