@@ -2,7 +2,7 @@
 
 > 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I1b（调用点迁移到类型化 `invoke`）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I9（Source / Locator 读时归一化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；SyncOrch 已单独规划并实施（`docs/plan/implemented/sync-orch.md`）；`@myz/dashboard-core`（D2 零调用 dead code）已于 2026-10-20 删除。
 >
-> §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编并删除 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
+> §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 删除 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
 > 评审修订要点见 §11。v1 的现状诊断经代码核验**全部属实**；v2 修正了 3 个架构级缺陷（D1–D3）、4 个场景错位风险（R1–R4），并对 §10 待决项作出收敛决策。
 >
