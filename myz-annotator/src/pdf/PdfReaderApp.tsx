@@ -1,5 +1,5 @@
 import { storeToRefs } from "pinia";
-import { defineComponent, onBeforeUnmount, onMounted } from "vue";
+import { defineComponent, onBeforeUnmount, onMounted, watch } from "vue";
 import PdfInspector from "./components/PdfInspector.js";
 import PdfLanding from "./components/PdfLanding.js";
 import PdfSelectionToolbar from "./components/PdfSelectionToolbar.js";
@@ -20,16 +20,32 @@ export default defineComponent({
     const { status, error } = storeToRefs(store);
 
     let unsubscribe: (() => void) | null = null;
+    let pendingRefresh = false;
+
+    /** Reload annotations, deferring while an annotation edit is open. */
+    function refreshFromRemote() {
+      if (status.value !== "ready") return;
+      if (store.activeId) {
+        pendingRefresh = true;
+        return;
+      }
+      pendingRefresh = false;
+      void store.reloadAnnotations();
+    }
 
     onMounted(() => {
       void store.init();
       window.addEventListener("keydown", handleKeydown);
       // Pick up records applied by a sync or another tab, but never clobber an
       // annotation the user is editing.
-      unsubscribe = subscribeRefresh(["records", "sync"], () => {
-        if (status.value !== "ready" || store.activeId) return;
-        void store.reloadAnnotations();
-      });
+      unsubscribe = subscribeRefresh(["records", "sync"], refreshFromRemote);
+      // Run a refresh that was deferred while editing once the edit closes.
+      watch(
+        () => store.activeId,
+        (id) => {
+          if (!id && pendingRefresh) refreshFromRemote();
+        },
+      );
     });
     onBeforeUnmount(() => {
       window.removeEventListener("keydown", handleKeydown);
