@@ -1,7 +1,7 @@
-import { syncAccountStreams } from "@myz/sync-core/accountSync";
-import { deriveStreamMasterKey } from "@myz/sync-core/dataKey";
-import { acquireLock, releaseLock, renewLock } from "@myz/sync-core/lock";
-import { gcStream } from "@myz/sync-core/streamGc";
+import {
+  runAccountSync,
+  type RunAccountSyncResult,
+} from "@myz/sync-core/orchestrator";
 import { refreshInboxBadge } from "../../inbox/queue";
 import { readSettings } from "../../storage";
 import { loadLocalAccount } from "../accountKeyring";
@@ -21,9 +21,29 @@ function generateClientId(): string {
     .slice(2, 8)}`;
 }
 
+/** Map the host-agnostic result onto the extension's `SyncResult`. */
+function toSyncResult(result: RunAccountSyncResult): SyncResult {
+  if (result.status === "synced") {
+    return {
+      ok: true,
+      status: "synced",
+      message: `v2 synced (${result.applied} applied)`,
+    };
+  }
+  if (result.status === "partial") {
+    const failed = result.streams.find((stream) => stream.error);
+    return { ok: false, status: "error", message: failed?.error };
+  }
+  if (result.status === "locked") {
+    return { ok: false, status: "locked" };
+  }
+  return { ok: false, status: "error", message: result.error };
+}
+
 /**
- * v2 device-bound sync: sync every stream of the local account, guarded by an
- * account-scoped lease with renewal and ownership-checked release.
+ * v2 device-bound sync: delegate the orchestration (lock, streams, GC,
+ * aggregation) to `@myz/sync-core/orchestrator`, then apply host side effects
+ * (badge refresh, sync-state persistence) and map the result.
  */
 export async function syncAccountNow(): Promise<SyncResult> {
   const account = await loadLocalAccount();
@@ -44,60 +64,29 @@ export async function syncAccountNow(): Promise<SyncResult> {
   const existing = await readSyncState();
   const clientId = existing?.clientId || generateClientId();
   const client = new S3Client(s3);
-  const lockPath = `${account.accountId}/lock/lease.bin`;
 
-  const lock = await acquireLock({
-    client,
-    lockPath,
-    masterKey: account.masterKey,
-    privateKey: pair.signPrivateKey,
-    publicKey: pair.signPublicKey,
+  const result = await runAccountSync({
+    store: client,
+    account,
+    device: pair,
     clientId,
-    leaseMs: LOCK_LEASE_MS,
+    datasets: [createHighlightDataset(), createInboxDataset()],
+    stateStore: createStreamStateStore(account.accountId),
+    lock: { leaseMs: LOCK_LEASE_MS },
+    gc: { keepManifests: 30 },
+    timers: {
+      setInterval: (fn, ms) => setInterval(fn, ms),
+      clearInterval: (handle) => clearInterval(handle as number),
+    },
   });
-  if (!lock.acquired) {
-    return { ok: false, status: "locked" };
+
+  // Host side effects only run when the sync reached the remote (parity with
+  // the pre-orchestrator engine: a thrown sync/GC error skips them).
+  if (result.status !== "synced" && result.status !== "partial") {
+    return toSyncResult(result);
   }
 
-  const interval = setInterval(() => {
-    void renewLock({
-      client,
-      lockPath,
-      masterKey: account.masterKey,
-      privateKey: pair.signPrivateKey,
-      publicKey: pair.signPublicKey,
-      clientId,
-      leaseMs: LOCK_LEASE_MS,
-    }).catch((error) => {
-      console.warn("Failed to renew v2 sync lock", error);
-    });
-  }, LOCK_LEASE_MS / 2);
-
   try {
-    const datasets = [createHighlightDataset(), createInboxDataset()];
-    const result = await syncAccountStreams({
-      store: client,
-      account,
-      device: pair,
-      clientId,
-      datasets,
-      stateStore: createStreamStateStore(account.accountId),
-    });
-    for (const summary of result.streams) {
-      if (!summary.uploaded) continue;
-      const streamKey = await deriveStreamMasterKey(
-        account.masterKey,
-        summary.streamId,
-      );
-      await gcStream({
-        store: client,
-        accountId: account.accountId,
-        streamId: summary.streamId,
-        streamKey,
-        roster: account.roster,
-        keepManifests: 30,
-      });
-    }
     await refreshInboxBadge();
     await writeSyncState({
       id: "state",
@@ -105,24 +94,11 @@ export async function syncAccountNow(): Promise<SyncResult> {
       epoch: account.epoch,
       lastManifestVersion: existing?.lastManifestVersion || 0,
       lastManifestCreatedAt: existing?.lastManifestCreatedAt || null,
-      lastSyncAt: new Date().toISOString(),
+      lastSyncAt: result.finishedAt,
     });
-    const failed = result.streams.find((stream) => stream.error);
-    return {
-      ok: !failed,
-      status: failed ? "error" : "synced",
-      message: failed ? failed.error : `v2 synced (${result.applied} applied)`,
-    };
   } catch (error) {
     return { ok: false, status: "error", message: (error as Error).message };
-  } finally {
-    clearInterval(interval);
-    await releaseLock({
-      client,
-      lockPath,
-      masterKey: account.masterKey,
-      publicKey: pair.signPublicKey,
-      clientId,
-    });
   }
+
+  return toSyncResult(result);
 }

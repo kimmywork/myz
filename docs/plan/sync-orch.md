@@ -1,6 +1,6 @@
 # SyncOrch — 宿主无关的同步编排（计划）
 
-> 状态：**计划中，未实施**。目标是把 v2 账号同步的「编排策略」从扩展宿主中剥离，做成可在扩展 / 桌面 / 移动复用的同步编排器。
+> 状态：**S0/S1/S2 已实施（2026-10-20）**，待 CodeRabbit 评审。目标是把 v2 账号同步的「编排策略」从扩展宿主中剥离，做成可在扩展 / 桌面 / 移动复用的同步编排器。
 >
 > 关联：`docs/plan/core-refactor.md` §12（SyncOrch 为唯一剩余项）、`docs/plan/e2ee-sync-evolution.md`（子流协议，不再改动）、`docs/plan/e2ee-security-hardening.md`（设备绑定/锁/密钥模型）。
 
@@ -9,9 +9,10 @@
 **目标**：把「一次账号同步」的编排（锁生命周期、逐流同步、上传后 GC、结果聚合、异常收口）做成一个**宿主无关**的 `runAccountSync(options)`，宿主只负责：加载账号/设备/设置、提供 `SyncObjectStore` 与数据集、以及 UI/持久化副作用。
 
 **做**
+- **S0**：修复账号级锁的跨设备验签缺陷（roster 范式，`LockPayload` 新增 `deviceId`），使锁真正提供跨设备互斥。
 - 新增 `runAccountSync` 编排器 + 结果类型。
 - 扩展 `v2/engine.ts` 改为薄适配器，删除重复的锁/GC 逻辑。
-- 编排器单测（锁获取/占用/释放、部分失败、仅对已上传流 GC）。
+- 编排器单测（双设备密钥的锁获取/占用/释放、部分失败、仅对已上传流 GC、`lockLost`）。
 
 **不做**
 - 不改 `sync-core` 的协议/密码学/分片格式。
@@ -40,7 +41,7 @@
 - v1 回退：**已删除**；`syncEngine.ts` 只做启用/账号检查 + v2 委派。
 - 协议原语：`packages/sync-core/src/{accountSync,lock,streamGc}.ts`。
 - 每流状态：`v2/stateStore.ts`（按 `accountId` 隔离）。
-- 通知/清理：`sync-state.ts:45-57`（chrome.notifications）、`sync-state.ts:30-43`（purge）。
+- 通知/清理：`refreshInboxBadge` 位于 `background/inbox/queue.ts`；purge 逻辑随 v1 一并删除。
 
 **结论**：协议与密码学已经在 `sync-core`；真正留在扩展的是**编排策略 + 宿主副作用**。SyncOrch 只搬前者。
 
@@ -73,6 +74,9 @@ export interface SyncTimers {
   clearInterval(handle: unknown): void;
 }
 
+// 编排器不内置默认计时器：timers 缺省即「不续租」，宿主必须显式注入。
+// 这样 MV3 / Node / Electron 下语义一致，避免把 setInterval 偷偷塞进 sync-core。
+
 export interface SyncLockOptions {
   leaseMs?: number;          // default 30_000
   renewIntervalMs?: number;  // default leaseMs / 2
@@ -100,6 +104,7 @@ export interface RunAccountSyncResult {
   streams: StreamSyncSummary[];
   uploadedStreamIds: string[];
   error?: string;
+  lockLost?: boolean;
   startedAt: string;
   finishedAt: string;
 }
@@ -109,15 +114,30 @@ export async function runAccountSync(
 ): Promise<RunAccountSyncResult>;
 ```
 
+### 4.0 现状行为真值表（S2 必须对齐）
+
+| 场景 | 现状行为（`v2/engine.ts`） | S2 对齐要求 |
+| --- | --- | --- |
+| GC 抛错 | 中断**后续流**的 GC，整体 `status: "error"`（`engine.ts:86-100,116`） | 对齐；逐流隔离 GC 错误记为后续增量 |
+| badge / 写盘抛错 | 返回 `{ok:false,status:"error",message}`（`engine.ts:101-109,116`） | 宿主侧 try/catch 映射到 `error` 结果 |
+| 单流失败 | `partial` 不存在，一律 `error`，message 取**第一个**失败流 | `partial → error, ok:false`，message 取第一个失败流 |
+| `partial` 可见性 | `messages/sync.ts:67` 用 `result.ok` 门控 ChangeBus → 部分成功不刷新 UI | S3 若暴露 `partial`，必须同时改门控 |
+| 续租丢失 | `renewLock` 返回 `{acquired:false}`，引擎忽略（仅 `.catch` 打日志） | 编排器记录 `lockLost` 并写入结果 |
+| 锁未获取 | `{ok:false,status:"locked"}`，无 message | `locked` 早退：`startedAt/finishedAt` 填充，`applied:0,streams:[]` |
+
+### 4.0b 锁前提（S0）
+
+账号级锁是 v2 路径**唯一的**跨设备互斥（流推送无 CAS、高水位仅读侧守卫）。**S0 先修复** `lock.ts` 的跨设备验签缺陷：按 `streamManifest.ts:115-124` 的 roster 范式，用 roster 中签名者的公钥验签（`LockPayload` 新增 `deviceId`），无法解码的锁 fail-open（与现状一致），签名者被吊销 → 视为未持有。S0 与 S1 同批落地。
+
 **行为**
 1. `startedAt = now()`。
-2. `lock !== false` 时获取账号级锁；未获取到 → `{ status: "locked" }`（不同步、不 GC）。
-3. 获取到锁则启动续租（`timers.setInterval`，默认 `leaseMs/2`）。
-4. `syncAccountStreams(...)`；它本身已按流隔离错误，编排器**不因单流失败中止**。
-5. `gc !== false` 时，仅对 `summary.uploaded === true` 的流派生 `streamKey` 并 `gcStream`。
-6. 聚合：任一 `summary.error` → `"partial"`；`syncAccountStreams` 抛错 → `"error"`；否则 `"synced"`。
-7. `finally`：停续租 + **无条件尝试**释放锁（所有权校验），异常不吞掉主错误。
-8. 返回结构化结果（含每流摘要与 `uploadedStreamIds`）。
+2. `lock !== false` 时获取账号级锁；未获取到 → `{ status: "locked" }`（不同步、不 GC），`startedAt/finishedAt` 填充，`applied:0,streams:[]`。
+3. 获取到锁则启动续租（`timers.setInterval`，默认 `leaseMs/2`）；`renewLock` 返回 `{acquired:false}` 时记录 `lockLost=true`（不中止进行中的流同步）。
+4. `syncAccountStreams(...)`；它本身已按流隔离错误，编排器**不因单流失败中止**。可选透传 `shardCount`/`tombstoneRetentionMs`（现状用默认值，计划有意省略）。
+5. `gc !== false` 时，仅对 `summary.uploaded === true` 的流派生 `streamKey` 并 `gcStream`；GC 错误按真值表 §4.0 处理。
+6. 聚合：任一 `summary.error` → `"partial"`；`syncAccountStreams` 抛错 → `"error"`；GC 错误 → `"error"`（§4.0）；否则 `"synced"`。
+7. `finally`：停续租 + **无条件尝试**释放锁（所有权校验），异常不吞掉主错误。`releaseLock` 本身不抛（`lock.ts:134-140`），编排器不得额外包装。
+8. 返回结构化结果（含每流摘要、`uploadedStreamIds`、`lockLost`）。`now` 仅控制结果时间戳；锁租期判断仍用真实时钟（`lock.ts` 内部 `Date.now()`）。
 
 **不做**：通知、badge、ChangeBus、同步态写盘——由宿主在拿到结果后执行。
 
@@ -135,13 +155,26 @@ const result = await runAccountSync({
   stateStore: createStreamStateStore(account.accountId),
   lock: { leaseMs: LOCK_LEASE_MS },
   gc: { keepManifests: 30 },
+  timers: { setInterval, clearInterval },
 });
 
-if (result.status !== "locked") {
-  await refreshInboxBadge();
-  await writeSyncState({ ...existing, lastSyncAt: result.finishedAt });
+// 宿主副作用：仅在同步真正到达远端时执行（对齐 §4.0 真值表）
+if (result.status === "synced" || result.status === "partial") {
+  try {
+    await refreshInboxBadge();
+    await writeSyncState({
+      id: "state",
+      clientId,
+      epoch: account.epoch,
+      lastManifestVersion: existing?.lastManifestVersion || 0,
+      lastManifestCreatedAt: existing?.lastManifestCreatedAt || null,
+      lastSyncAt: result.finishedAt,
+    });
+  } catch (error) {
+    return { ok: false, status: "error", message: (error as Error).message };
+  }
 }
-return mapToSyncResult(result); // status/message 与原 SyncResult 对齐
+return mapToSyncResult(result); // partial → error, ok:false, message 取第一个失败流
 ```
 
 保留：
@@ -161,8 +194,10 @@ return mapToSyncResult(result); // status/message 与原 SyncResult 对齐
 
 | # | 增量 | 产物 | 依赖 | 验证 |
 | --- | --- | --- | --- | --- |
-| **S1** | 编排器 + 类型 | `sync-core/src/orchestrator.ts`、`orchestrator.test.ts` | 无 | 内存 `SyncObjectStore` + 假数据集：锁获取/占用/释放、partial、仅上传流 GC、异常时仍释放锁 |
-| **S2** | 扩展适配 | `v2/engine.ts` 调用 `runAccountSync`，删除重复锁/GC | S1 | 现有单测 + e2e 绿；`syncNow` 外部行为不变 |
+| **S0** | 跨设备锁修复 | `sync-core/src/lock.ts`、`types.ts`、`lock.test.ts` | 无 | 两套独立设备密钥：B 不得抢 A 的活锁；revoked 设备锁视为未持有；109 个 sync-core 单测全绿 **（已完成）** |
+| **S1** | 编排器 + 类型 | `sync-core/src/orchestrator.ts`、`tests/orchestrator.test.ts` | S0 | 内存 `SyncObjectStore` + 假数据集：锁获取/占用/释放（双设备密钥）、partial、仅上传流 GC、异常时仍释放锁、`lockLost` **（已完成）** |
+| **S1b** | AGENTS 维护 | `sync-core/src/AGENTS.md`、`background/sync/AGENTS.md` | S1 | 文档与实现一致 **（已完成）** |
+| **S2** | 扩展适配 | `v2/engine.ts` 调用 `runAccountSync`，删除重复锁/GC | S1 | 现有单测 + e2e 绿；`syncNow` 外部行为不变 **（已完成）** |
 | **S3** | 结果可观测 | 逐流摘要进入 `SyncResult.message` / 设置页状态（可选） | S2 | 单测/手动验证 |
 | **S4** | 配置化 | `keepManifests` / 锁租约从设置读取（可选） | S2 | 默认不变 |
 | **S5** | legacy 标注 | AGENTS/注释标注 v1 为待删除 | 无 | 文档一致 **（已完成：v1 已删除）** |
@@ -170,6 +205,7 @@ return mapToSyncResult(result); // status/message 与原 SyncResult 对齐
 
 ## 8. 验收标准
 
+- S0 锁单测覆盖：双设备密钥下 B 不得抢 A 的活锁；revoked 设备锁视为未持有；expired → steal；续租丢失 → `lockLost`。
 - 编排器单测覆盖：锁未获取 → `locked`；正常 → `synced`；单流失败 → `partial` 且其它流仍应用；仅 `uploaded` 流触发 GC；抛错时锁仍被释放。
 - 扩展 `v2/engine.ts` 不再包含锁/GC/结果聚合逻辑。
 - `syncNow` 的外部结果（`ok/status/message`）与改造前一致；e2e 全绿。
@@ -184,11 +220,11 @@ return mapToSyncResult(result); // status/message 与原 SyncResult 对齐
 - **v1 共存**：**已消除**（2026-10-20 删除 v1）。
 
 **待决**
-1. 编排器落点：`@myz/sync-core/orchestrator`（推荐）vs `@myz/sync-orch` vs `@myz/core/services/sync`。
-2. 续租定时器是否改为宿主 `Scheduler` 端口（与 I8 对齐）。
-3. 是否把 `gc` 的 `keepManifests` 暴露为用户设置。
+1. 编排器落点：**已关闭** — `@myz/sync-core/orchestrator`（`accountSync.ts` 为先例；通配导出零配置）。
+2. 续租定时器是否改为宿主 `Scheduler` 端口（与 I8 对齐）—— S1 先用注入 `timers`，对齐留作后续。
+3. 是否把 `gc` 的 `keepManifests` 暴露为用户设置（S4 可选）。
 4. v1 删除的迁移截止条件 **（已完成 2026-10-20）**。
-5. `RunAccountSyncResult` 是否要暴露 `applied` 的 per-stream 明细给设置页。
+5. `RunAccountSyncResult` 是否要暴露 `applied` 的 per-stream 明细给设置页 — 建议是，`StreamSyncSummary` 已带 `applied/deleted/error`，成本极低。
 
 ## 10. 关联文档
 
