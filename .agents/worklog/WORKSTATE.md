@@ -1,5 +1,7 @@
 # Workstate
 
+- I7 subscription refresh (2026-10-20, PR pending): 新增 `subscribeRefresh`（domain 过滤 + 100ms 合并）；接入 inbox/popup/PDF/EPUB，阅读器编辑中跳过；ids 增量与逐条发布标记「不计划」。annotator 293 单测、vue-tsc、build 绿。
+
 - Core-refactor doc align + stale alias cleanup merged (2026-10-20, PR #100, rebase): `core-refactor.md` 状态改「已完成」、§12 过时「未做」条目对齐（I1b/I3/I4/I5/I5b/I6/I5c），仅留 I7 可选订阅项；删除 tsconfig 3 个不存在包的 alias；修正 sync-core README 的 ai-core 依赖。CodeRabbit rate limited（0 finding）。annotator 290 单测、vue-tsc、build 绿。master `ea3f7c2`。
 
 - Removed `@myz/dashboard-core` merged (2026-10-20, PR #99, rebase): D2 零调用 dead code，连同未接线的 `dashboard/host/extension.ts` 删除；清理依赖/alias/tsconfig/AGENTS；`core-refactor.md` D2 关闭。CodeRabbit 2 条文档表述已修复。annotator 290 单测、vue-tsc、build 绿。master `f17d093`。

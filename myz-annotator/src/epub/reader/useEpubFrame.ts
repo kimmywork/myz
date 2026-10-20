@@ -12,6 +12,7 @@ import {
   updateCurrentFromScroll,
   type ChapterAnchor,
 } from "./epub-frame.js";
+import { subscribeRefresh } from "@/messaging/changeRefresh";
 
 type Store = ReturnType<typeof useEpubReaderStore>;
 
@@ -250,9 +251,20 @@ export function useEpubFrame(store: Store) {
     }
   }
 
+  let unsubscribe: (() => void) | null = null;
+
   onMounted(() => {
     store.init();
     window.addEventListener("keydown", handleKeydown);
+    // Pick up records applied by a sync or another tab, but never clobber an
+    // annotation the user is editing.
+    unsubscribe = subscribeRefresh(["records", "sync"], () => {
+      if (store.status !== "ready" || activeId.value) return;
+      void store.loadRecords().then(() => {
+        const doc = iframeRef.value?.contentDocument;
+        if (doc) store.applyCurrentChapter(doc);
+      });
+    });
     const backdoor = createEpubBackdoor(
       store,
       () => iframeRef.value?.contentDocument ?? null,
@@ -263,6 +275,7 @@ export function useEpubFrame(store: Store) {
 
   onBeforeUnmount(() => {
     window.removeEventListener("keydown", handleKeydown);
+    unsubscribe?.();
   });
 
   return {

@@ -7,6 +7,7 @@ import PdfSidebar from "./components/PdfSidebar.js";
 import PdfStage from "./components/PdfStage.js";
 import PdfToolbar from "./components/PdfToolbar.js";
 import { useReaderStore, type SidebarTab } from "./stores/reader-store.js";
+import { subscribeRefresh } from "@/messaging/changeRefresh";
 
 /**
  * Reader shell. Owns nothing but composition + the `window.__MYZ_PDF__` test
@@ -18,12 +19,21 @@ export default defineComponent({
     const store = useReaderStore();
     const { status, error } = storeToRefs(store);
 
+    let unsubscribe: (() => void) | null = null;
+
     onMounted(() => {
       void store.init();
       window.addEventListener("keydown", handleKeydown);
+      // Pick up records applied by a sync or another tab, but never clobber an
+      // annotation the user is editing.
+      unsubscribe = subscribeRefresh(["records", "sync"], () => {
+        if (status.value !== "ready" || store.activeId) return;
+        void store.reloadAnnotations();
+      });
     });
     onBeforeUnmount(() => {
       window.removeEventListener("keydown", handleKeydown);
+      unsubscribe?.();
     });
 
     function handleKeydown(event: KeyboardEvent) {

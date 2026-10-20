@@ -12,8 +12,9 @@ import {
   extractHostname,
   truncateText,
 } from "@myz/shared/url";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { getActiveTab, getPageHighlightState } from "./tabs.js";
+import { subscribeRefresh } from "@/messaging/changeRefresh";
 import { invoke } from "@/messaging/invoke";
 import { resolvePdfTargetUrl } from "@/pdf/detect.js";
 
@@ -184,6 +185,8 @@ export function usePopup() {
     });
   }
 
+  let unsubscribe: (() => void) | null = null;
+
   onMounted(async () => {
     try {
       const tab = await getActiveTab();
@@ -198,12 +201,17 @@ export function usePopup() {
       canonicalPageUrl.value = canonicalUrl(tab.url);
       pageMeta.value = `${truncateText(tab.title || "")} · ${extractHostname(tab.url)}`;
       await loadHighlights();
+      unsubscribe = subscribeRefresh(["records", "sync"], () => {
+        void loadHighlights();
+      });
     } catch (err) {
       console.error("Popup init failed", err);
       error.value = (err as Error)?.message || "初始化失败";
       loading.value = false;
     }
   });
+
+  onUnmounted(() => unsubscribe?.());
 
   return {
     highlights,

@@ -163,6 +163,7 @@ export const useReaderStore = defineStore("pdf-reader", () => {
     deleteActive: annotations.deleteActive,
     commitActive: annotations.commitActive,
     savedLabel: annotations.savedLabel,
+    reloadAnnotations: annotations.loadAnnotations,
     focusAnnotation: annotations.focusAnnotation,
     selectTextForTest: annotations.selectTextForTest,
     toggleOutline: outline.toggleOutline,
