@@ -87,4 +87,4 @@ Desktop-specific state stores or future knowledge-base datasets must plug in via
 
 - E2EE_SYNC_SPEC.md (design spec and invariants)
 - myz-annotator/AGENTS.md (project-wide rules)
-- `docs/plan/sync-orch.md` — planned host-agnostic orchestrator (`runAccountSync`); S0 (cross-device lock fix) landed in `lock.ts`.
+- `docs/plan/implemented/sync-orch.md` — host-agnostic orchestrator (`runAccountSync`); S0 cross-device lock fix lives in `lock.ts`.
