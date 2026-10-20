@@ -1,6 +1,6 @@
 # Workstate
 
-- SyncOrch S3/S4 + MV3 renew (2026-10-20, PR pending): S3 `SyncResult.partial` + 逐流明细 + ChangeBus partial 门控；S4 `keepManifests`/`lockLeaseMs` 设置化（clamp + 高级 UI）；MV3 续租适配器（`Scheduler` ≥30s / `setInterval` 回退）。sync-core 113 用例、annotator 289 单测、build 绿。
+- SyncOrch S3/S4 + MV3 renew merged (2026-10-20, PR #97, rebase): S3 `SyncResult.partial` + 逐流明细 + ChangeBus partial 门控；S4 `keepManifests`/`lockLeaseMs` 设置化（clamp + 高级 UI）；MV3 续租适配器（`Scheduler` ≥30s / `setInterval` 回退）。CodeRabbit 2 项（timers 句柄形状判定、计划归档）已修复。计划归档到 `docs/plan/implemented/sync-orch.md`。sync-core 113 用例、annotator 290 单测、build 绿。master `ce42928`。
 
 - SyncOrch S0/S1/S2 merged (2026-10-20, PR #96, rebase): S0 跨设备锁修复（roster 验签 + `LockPayload.deviceId`，修复同账号另一台设备抢活锁导致并发丢写）；S1 `sync-core/orchestrator.ts`（`runAccountSync`，8 用例）；S2 `v2/engine.ts` 收敛为宿主适配器。CodeRabbit 1 轮：修复 `releaseLock` 文档表述 + 补 docstrings（线程已 resolved）。master `c4fce70`，CI 绿，0 未解决线程。剩余可选：S3（partial 进设置页 + ChangeBus 门控）、S4（设置化）、MV3 Scheduler 续租。
 - Legacy v1 sync removed + merged (2026-10-20, PR #95, rebase): v1 keyset 全链路删除（plan/phases/state/chunks/manifest/rotation/gc/records/types/lock/schemas/keyring），设备密钥拆到 `deviceKey`，syncEngine 仅 v2，bootstrap 无 rescue，storage DB v3，v1 消息/UI/迁移步骤移除；CodeRabbit 6 项修复。master `295d5c8`，CI 绿，0 未解决线程。仅剩 v2 设备绑定账号路径。
