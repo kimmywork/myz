@@ -1,6 +1,7 @@
 import { scheduler } from "../runtime";
 import { readSettings } from "../storage";
 import { syncNow } from "./syncEngine";
+import { cancelStaleLockRenewal } from "./v2/timers";
 
 const ALARM_NAME = "myz-sync";
 // Target a 30-minute sync interval but spread devices with ±10 minutes of
@@ -11,6 +12,10 @@ const MIN_DELAY_MINUTES = SYNC_INTERVAL_MINUTES - SYNC_JITTER_MINUTES;
 const MAX_DELAY_MINUTES = SYNC_INTERVAL_MINUTES + SYNC_JITTER_MINUTES;
 
 export function initializeSyncScheduler() {
+  // A previous worker instance may have died mid-sync; its lease-renewal alarm
+  // would otherwise keep waking this worker for a sync that no longer exists.
+  cancelStaleLockRenewal();
+
   scheduler.onTick(async (name) => {
     if (name !== ALARM_NAME) return;
     try {

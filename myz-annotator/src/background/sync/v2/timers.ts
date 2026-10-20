@@ -46,13 +46,13 @@ export function createSyncTimers(sched: Scheduler = scheduler): SyncTimers {
         });
       }
       handler = fn;
-      void sched.every(ALARM_NAME, ms / 60_000);
+      void sched.every(ALARM_NAME, ms / 60_000).catch(() => undefined);
       return { alarm: ALARM_NAME } satisfies AlarmHandle;
     },
     clearInterval(handle) {
       if (isAlarmHandle(handle)) {
         handler = null;
-        void sched.cancel(handle.alarm);
+        void sched.cancel(handle.alarm).catch(() => undefined);
         return;
       }
       clearInterval(handle as number);
@@ -62,3 +62,11 @@ export function createSyncTimers(sched: Scheduler = scheduler): SyncTimers {
 
 /** Process-wide timer adapter passed to `runAccountSync`. */
 export const syncTimers = createSyncTimers();
+
+/**
+ * Cancel a lock-renewal alarm left behind by a terminated worker. Call once at
+ * startup: if the worker died mid-sync, the alarm keeps waking it for nothing.
+ */
+export function cancelStaleLockRenewal(): void {
+  void scheduler.cancel(ALARM_NAME).catch(() => undefined);
+}

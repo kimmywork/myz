@@ -86,15 +86,20 @@ export function normalizeSyncSettings(
     s3: normalizeSyncS3Settings(value.s3),
   }
   if (typeof value.keepManifests === "number") {
-    settings.keepManifests = clampInt(value.keepManifests, 1, 365)
+    if (Number.isFinite(value.keepManifests)) {
+      settings.keepManifests = clampInt(value.keepManifests, 1, 365)
+    }
   }
   if (typeof value.lockLeaseMs === "number") {
-    settings.lockLeaseMs = clampInt(value.lockLeaseMs, 10_000, 300_000)
+    if (Number.isFinite(value.lockLeaseMs)) {
+      settings.lockLeaseMs = clampInt(value.lockLeaseMs, 10_000, 300_000)
+    }
   }
   return settings
 }
 
-/** Round + clamp a numeric setting into its accepted range. */
+/** Round + clamp a numeric setting into its accepted range (NaN → min). */
 function clampInt(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
   return Math.min(max, Math.max(min, Math.round(value)))
 }

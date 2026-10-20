@@ -79,6 +79,15 @@ function emptyBase(): Pick<
   return { applied: 0, streams: [], uploadedStreamIds: [] }
 }
 
+/** Error result for failures that happen before the sync starts. */
+function earlyError(
+  message: string,
+  startedAt: string,
+  finishedAt: string,
+): RunAccountSyncResult {
+  return { ...emptyBase(), status: "error", error: message, startedAt, finishedAt }
+}
+
 /** Sync every dataset, then GC only the streams that actually uploaded. */
 async function syncAndGc(options: RunAccountSyncOptions) {
   const sync = await syncAccountStreams({
@@ -108,21 +117,41 @@ async function syncAndGc(options: RunAccountSyncOptions) {
   return sync
 }
 
-/** Renew periodically; returns a stop function. Losing the lease is reported. */
+interface RenewalHandle {
+  /** Stop scheduling new renewals. */
+  stop(): void
+  /** Wait for an in-flight renewal so release cannot race it. */
+  settle(): Promise<void>
+}
+
+/** Renew periodically; losing the lease is reported through `onLost`. */
 function armRenewal(
   lockOptions: LockOptions,
   timers: SyncTimers,
   renewMs: number,
   onLost: () => void,
-): () => void {
+): RenewalHandle {
+  let pending: Promise<void> | null = null
   const handle = timers.setInterval(() => {
-    void renewLock(lockOptions)
+    // Skip a tick instead of overlapping renewals: the loser of a conditional
+    // write would otherwise be mistaken for "lock lost".
+    if (pending) return
+    const run = renewLock(lockOptions)
       .then((result) => {
         if (!result.acquired) onLost()
       })
       .catch(onLost)
+    pending = run
+    void run.finally(() => {
+      if (pending === run) pending = null
+    })
   }, renewMs)
-  return () => timers.clearInterval(handle)
+  return {
+    stop: () => timers.clearInterval(handle),
+    settle: async () => {
+      if (pending) await pending
+    },
+  }
 }
 
 /**
@@ -169,20 +198,14 @@ export async function runAccountSync(
     : null
 
   let lockLost = false
-  let stopRenewal: (() => void) | null = null
+  let renewal: RenewalHandle | null = null
 
   if (lockOptions) {
     let acquired: Awaited<ReturnType<typeof acquireLock>>
     try {
       acquired = await acquireLock(lockOptions)
     } catch (error) {
-      return {
-        ...emptyBase(),
-        status: "error",
-        error: (error as Error).message,
-        startedAt,
-        finishedAt: now(),
-      }
+      return earlyError((error as Error).message, startedAt, now())
     }
     if (!acquired.acquired) {
       return {
@@ -193,8 +216,10 @@ export async function runAccountSync(
       }
     }
     if (options.timers) {
-      const renewMs = lockConfig?.renewIntervalMs ?? leaseMs / 2
-      stopRenewal = armRenewal(lockOptions, options.timers, renewMs, () => {
+      const requested = lockConfig?.renewIntervalMs ?? leaseMs / 2
+      const renewMs =
+        Number.isFinite(requested) && requested > 0 ? requested : leaseMs / 2
+      renewal = armRenewal(lockOptions, options.timers, renewMs, () => {
         lockLost = true
       })
     }
@@ -224,7 +249,10 @@ export async function runAccountSync(
       finishedAt: now(),
     }
   } finally {
-    stopRenewal?.()
+    renewal?.stop()
+    // Let an in-flight renewal finish first: releasing while it is still
+    // writing can leave a renewed lock behind (delete fails on the new etag).
+    await renewal?.settle()
     if (lockOptions) await releaseLockQuietly(options, lockOptions)
   }
 }

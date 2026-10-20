@@ -24,6 +24,16 @@ describe("sync settings tuning", () => {
     expect(settings.lockLeaseMs).toBeUndefined()
   })
 
+  it("drops non-finite tuning values instead of propagating them", () => {
+    const settings = normalizeSyncSettings({
+      ...base,
+      keepManifests: Number.NaN,
+      lockLeaseMs: Number.NaN,
+    })
+    expect(settings.keepManifests).toBeUndefined()
+    expect(settings.lockLeaseMs).toBeUndefined()
+  })
+
   it("clamps corrupt values into the accepted range", () => {
     const settings = normalizeSyncSettings({
       ...base,

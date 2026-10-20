@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createSyncAccount, openSyncAccount } from "../src/account"
+import type { SyncObjectStore } from "../src/adapters"
 import { generateDeviceKeyPair } from "../src/deviceKeys"
 import { acquireLock, releaseLock, renewLock } from "../src/lock"
 import { addDeviceToRoster } from "../src/roster"
@@ -123,6 +124,45 @@ describe("sync lock ownership", () => {
     expect((await acquireLock(hostOpts)).acquired).toBe(true)
     // Cross-device: guest must NOT steal host's live lock.
     expect((await acquireLock(guestOpts)).acquired).toBe(false)
+  })
+
+  it("treats a conditional-write conflict as a lost race, not an error", async () => {
+    const store = new InMemoryObjectStore()
+    const { device, account } = await singleDevice()
+    const racing: SyncObjectStore = {
+      listObjects: (prefix) => store.listObjects(prefix),
+      getObject: (path) => store.getObject(path),
+      putObject: async () => {
+        throw new Error("S3 put failed: 412")
+      },
+      deleteObject: (path, options) => store.deleteObject(path, options),
+    }
+
+    const result = await acquireLock({
+      ...lockOptions(store, account, device, "A", 30_000),
+      client: racing,
+    })
+    expect(result.acquired).toBe(false)
+  })
+
+  it("propagates non-conflict acquire errors", async () => {
+    const store = new InMemoryObjectStore()
+    const { device, account } = await singleDevice()
+    const failing: SyncObjectStore = {
+      listObjects: (prefix) => store.listObjects(prefix),
+      getObject: (path) => store.getObject(path),
+      putObject: async () => {
+        throw new Error("S3 put failed: 500")
+      },
+      deleteObject: (path, options) => store.deleteObject(path, options),
+    }
+
+    await expect(
+      acquireLock({
+        ...lockOptions(store, account, device, "A", 30_000),
+        client: failing,
+      }),
+    ).rejects.toThrow("500")
   })
 
   it("does not let an expired owner release another client's lock", async () => {
