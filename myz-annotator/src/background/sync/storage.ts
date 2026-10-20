@@ -7,9 +7,9 @@ import {
 } from "@myz/shared/idb";
 
 const DB_NAME = "myz_sync_db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
-/** Creates the key/state stores the first time the sync db is opened. */
+/** Creates the v2 stores; drops the legacy v1 `record_state` store. */
 function upgradeSchema(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains("keys")) {
     db.createObjectStore("keys", { keyPath: "id" });
@@ -20,11 +20,12 @@ function upgradeSchema(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains("deletions")) {
     db.createObjectStore("deletions", { keyPath: "recordId" });
   }
-  if (!db.objectStoreNames.contains("record_state")) {
-    db.createObjectStore("record_state", { keyPath: "recordId" });
-  }
   if (!db.objectStoreNames.contains("stream_state")) {
     db.createObjectStore("stream_state", { keyPath: "streamId" });
+  }
+  // v1-only store; no longer read or written.
+  if (db.objectStoreNames.contains("record_state")) {
+    db.deleteObjectStore("record_state");
   }
 }
 
@@ -68,15 +69,6 @@ export interface DeviceKeyRecord {
   key: CryptoKey;
 }
 
-export interface KeysetRecord {
-  id: "active";
-  keyId: string;
-  createdAt: string;
-  epoch: number;
-  cipher: string;
-  nonce: string;
-}
-
 export interface DeviceKeyPairRecord {
   id: "deviceKeyPair";
   signPub: string;
@@ -96,8 +88,6 @@ export interface SyncStateRecord {
   id: "state";
   clientId: string;
   epoch: number;
-  keyId: string | null;
-  keyUpdatedAt: string | null;
   lastManifestVersion: number;
   lastManifestCreatedAt: string | null;
   lastSyncAt: string | null;
@@ -106,12 +96,6 @@ export interface SyncStateRecord {
 export interface DeletionRecord {
   recordId: string;
   deletedAt: string;
-}
-
-export interface RecordStateRecord {
-  recordId: string;
-  recordHash: string;
-  updatedAt: string;
 }
 
 export interface StreamStateRecord {
@@ -128,18 +112,6 @@ export async function readDeviceKey(): Promise<DeviceKeyRecord | null> {
 
 export async function writeDeviceKey(record: DeviceKeyRecord): Promise<void> {
   return putRecord("keys", record);
-}
-
-export async function readKeysetRecord(): Promise<KeysetRecord | null> {
-  return getRecord<KeysetRecord>("keys", "active");
-}
-
-export async function writeKeysetRecord(record: KeysetRecord): Promise<void> {
-  return putRecord("keys", record);
-}
-
-export async function clearKeysetRecord(): Promise<void> {
-  await deleteRecord("keys", "active");
 }
 
 export async function readDeviceKeyPair(): Promise<DeviceKeyPairRecord | null> {
@@ -196,27 +168,6 @@ export async function clearDeletions(): Promise<void> {
   const records = await listDeletions();
   await Promise.all(
     records.map((record) => deleteRecord("deletions", record.recordId)),
-  );
-}
-
-export async function listRecordStates(): Promise<RecordStateRecord[]> {
-  return getAllRecords<RecordStateRecord>("record_state");
-}
-
-export async function upsertRecordState(
-  record: RecordStateRecord,
-): Promise<void> {
-  return putRecord("record_state", record);
-}
-
-export async function removeRecordState(recordId: string): Promise<void> {
-  await deleteRecord("record_state", recordId);
-}
-
-export async function clearRecordStates(): Promise<void> {
-  const records = await listRecordStates();
-  await Promise.all(
-    records.map((record) => deleteRecord("record_state", record.recordId)),
   );
 }
 

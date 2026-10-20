@@ -27,14 +27,12 @@ import type { InboxQueueResult } from "@/background/inbox/queue.js";
 import type {
   AccountStatusMessageResult,
   SyncNowMessageResult,
-  SyncSetKeyMessageResult,
   SyncStatusMessageResult,
   SyncTestConnectionMessageResult,
 } from "@/background/messages/sync/types.js";
 import type { PublicSettings } from "@/background/settings-public.js";
 import type { Settings } from "@/background/settings.js";
 import type { InboxStateRecord } from "@/background/storage.js";
-import type { LegacyMigrationResult } from "@/background/sync/v2/bootstrap.js";
 import type { acceptPairingInvite } from "@/background/sync/v2/pairingSession.js";
 import type {
   NewStagedAsset,
@@ -167,14 +165,6 @@ export type MyzRuntimeMap = {
     payload: { s3?: Partial<SyncS3Settings> } | undefined;
     result: SyncTestConnectionMessageResult;
   };
-  "myz:syncSetKey": {
-    payload: { secret: string; userGesture?: boolean };
-    result: SyncSetKeyMessageResult;
-  };
-  "myz:syncClearKey": {
-    payload: { userGesture?: boolean };
-    result: SyncNowMessageResult;
-  };
   "myz:syncNow": { payload: void; result: SyncNowMessageResult };
   "myz:syncStatus": { payload: void; result: SyncStatusMessageResult };
   "myz:accountStatus": { payload: void; result: AccountStatusMessageResult };
@@ -187,14 +177,6 @@ export type MyzRuntimeMap = {
       roster: string;
     };
   };
-  "myz:accountMigrateLegacy": {
-    payload: {
-      secret?: string;
-      s3?: Partial<SyncS3Settings>;
-      userGesture?: boolean;
-    };
-    result: LegacyMigrationResult;
-  };
   "myz:accountImport": {
     payload: { roster: string; userGesture?: boolean };
     result: { accountId: string; deviceId: string; epoch: number };
@@ -204,8 +186,8 @@ export type MyzRuntimeMap = {
     result: SyncNowMessageResult;
   };
   "myz:accountBootstrap": {
-    payload: { rescue?: boolean; userGesture?: boolean };
-    result: { accountId: string; rescued: number };
+    payload: { userGesture?: boolean };
+    result: { accountId: string };
   };
   "myz:pairingInvite": {
     payload: { userGesture?: boolean };

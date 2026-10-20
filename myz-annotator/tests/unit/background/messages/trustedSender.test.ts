@@ -37,11 +37,10 @@ describe("trusted sender authorization", () => {
   });
 
   it("marks the sync control messages as privileged", () => {
-    expect(isPrivilegedMessage("myz:syncSetKey")).toBe(true);
-    expect(isPrivilegedMessage("myz:syncClearKey")).toBe(true);
     expect(isPrivilegedMessage("myz:syncUpdateSettings")).toBe(true);
     expect(isPrivilegedMessage("myz:syncNow")).toBe(true);
     expect(isPrivilegedMessage("myz:syncTestConnection")).toBe(true);
+    expect(isPrivilegedMessage("myz:accountCreate")).toBe(true);
     expect(isPrivilegedMessage("myz:getHighlights")).toBe(false);
   });
 
@@ -73,8 +72,6 @@ describe("trusted sender authorization", () => {
     const sender = contentScriptSender();
     expect(isTrustedExtensionPage(sender)).toBe(false);
     for (const type of [
-      "myz:syncSetKey",
-      "myz:syncClearKey",
       "myz:syncUpdateSettings",
       "myz:syncNow",
       "myz:syncTestConnection",
@@ -107,15 +104,12 @@ describe("trusted sender authorization", () => {
 
   it("requires an explicit user gesture for key changes", () => {
     const sender = extensionPageSender();
-    expect(authorize("myz:syncSetKey", {}, sender).ok).toBe(false);
+    expect(authorize("myz:accountCreate", {}, sender).ok).toBe(false);
     expect(
-      authorize("myz:syncClearKey", { userGesture: false }, sender).ok,
+      authorize("myz:accountCreate", { userGesture: false }, sender).ok,
     ).toBe(false);
-    expect(authorize("myz:syncSetKey", { userGesture: true }, sender).ok).toBe(
-      true,
-    );
     expect(
-      authorize("myz:syncClearKey", { userGesture: true }, sender).ok,
+      authorize("myz:accountCreate", { userGesture: true }, sender).ok,
     ).toBe(true);
   });
 

@@ -6,7 +6,7 @@ import {
   type DeviceKeyPair,
 } from "@myz/sync-core/deviceKeys";
 import { utf8ToBytes } from "./crypto";
-import { getDeviceKey } from "./keyring";
+import { getDeviceKey } from "./deviceKey";
 import {
   clearDeviceKeyPair,
   readDeviceKeyPair,

@@ -1,5 +1,4 @@
 import type { Roster } from "@myz/sync-core/roster";
-import type { SyncS3Settings } from "../../settings";
 import { readSettings } from "../../storage";
 import {
   clearLocalAccount,
@@ -7,7 +6,6 @@ import {
   importLocalAccount,
   loadLocalAccount,
 } from "../../sync/accountKeyring";
-import { loadKeyset } from "../../sync/keyring";
 import { clearStreamStates, readSyncState } from "../../sync/storage";
 import {
   base64ToBytes,
@@ -15,34 +13,27 @@ import {
   decodeBinaryPayload,
   encodeBinaryPayload,
 } from "../../sync/utils";
-import {
-  bootstrapV2Account,
-  migrateLegacyRemote,
-} from "../../sync/v2/bootstrap";
+import { bootstrapV2Account } from "../../sync/v2/bootstrap";
 import { registerMessageHandler } from "../handler";
 import type {
   AccountStatusMessageResult,
-  SyncNowMessageResult,
   SyncStatusMessageResult,
 } from "./types.js";
 
-/** Sync/account status + create/import/clear/migrate/bootstrap handlers. */
+/** Sync/account status + create/import/clear/bootstrap handlers. */
 export function registerAccountHandlers() {
   registerMessageHandler("myz:syncStatus", async () => {
     const settings = await readSettings();
     const state = await readSyncState();
-    const keyset = await loadKeyset();
     const account = await loadLocalAccount();
     const result: SyncStatusMessageResult = {
       enabled: Boolean(settings.sync?.enabled),
-      keyId: keyset?.keyId || null,
-      keyUpdatedAt: state?.keyUpdatedAt || null,
-      lastSyncAt: state?.lastSyncAt || null,
-      lastManifestVersion: state?.lastManifestVersion || 0,
+      lastSyncAt: state?.lastSyncAt ?? null,
+      lastManifestVersion: state?.lastManifestVersion ?? 0,
       hasAccount: Boolean(account),
-      accountId: account?.accountId || null,
-      deviceId: account?.deviceId || null,
-      epoch: account?.epoch || 0,
+      accountId: account?.accountId ?? null,
+      deviceId: account?.deviceId ?? null,
+      epoch: account?.epoch ?? 0,
     };
     return result;
   });
@@ -76,15 +67,6 @@ export function registerAccountHandlers() {
   );
 
   registerMessageHandler(
-    "myz:accountMigrateLegacy",
-    async (payload: {
-      secret?: string;
-      s3?: Partial<SyncS3Settings>;
-      userGesture?: boolean;
-    }) => migrateLegacyRemote({ secret: payload?.secret, s3: payload?.s3 }),
-  );
-
-  registerMessageHandler(
     "myz:accountImport",
     async (payload: { roster: string; userGesture?: boolean }) => {
       if (!payload?.roster) throw new Error("Missing roster");
@@ -103,14 +85,14 @@ export function registerAccountHandlers() {
   registerMessageHandler("myz:accountClear", async () => {
     await clearLocalAccount();
     await clearStreamStates();
-    return { ok: true } satisfies SyncNowMessageResult;
+    return { ok: true };
   });
 
   registerMessageHandler(
     "myz:accountBootstrap",
-    async (payload: { rescue?: boolean; userGesture?: boolean }) => {
+    async (payload: { userGesture?: boolean }) => {
       void payload;
-      return bootstrapV2Account({ rescue: payload?.rescue !== false });
+      return bootstrapV2Account();
     },
   );
 }

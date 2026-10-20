@@ -357,4 +357,4 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 迁移约 90 处 `sendMessage<...>()` → `invoke()`（24 个文件）；保留 `chrome.*.sendMessage`、`sendMessageToTab`、`sendToContentScript` 与 `messaging/transport`。
   - 类型化暴露并修正契约缺口：`userGesture` 载荷（syncClearKey/accountClear/pairingInvite/Accept/Approve）、`syncTestConnection` 可选 payload、legacy `count`、以及 `updateHighlight` 的 `null` 清空改为依赖 `kind: CLIP` 时的 `applyKindShape`。
   - 验证：core 37、annotator 290 单测；`vue-tsc -b` 0；eslint 0 error（无 unused）；`vite build` 成功。
-- **SyncOrch 规划（2026-10-20）**：已单独成文 `docs/plan/sync-orch.md`——编排器 `runAccountSync` 契约（锁生命周期、逐流同步、上传流 GC、结果聚合、异常收口）、宿主改造、S1–S6 增量、验收与待决。**尚未实施**。
+- **SyncOrch 规划（2026-10-20）**：已单独成文 `docs/plan/sync-orch.md`——编排器 `runAccountSync` 契约（锁生命周期、逐流同步、上传流 GC、结果聚合、异常收口）、宿主改造、S1–S6 增量、验收与待决。**尚未实施**。**遗留 v1（keyset）同步已于 2026-10-20 整体删除**（v1 模块/消息/UI/迁移步骤/`record_state` 存储），当前只剩 v2 设备绑定账号路径。

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const holder = vi.hoisted(() => ({ key: null as CryptoKey | null }));
 
-vi.mock("@/background/sync/keyring", () => ({
+vi.mock("@/background/sync/deviceKey", () => ({
   getDeviceKey: async () => holder.key,
 }));
 

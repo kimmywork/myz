@@ -38,7 +38,8 @@ This folder contains the MV3 service worker background logic.
 - `myz-annotator/src/background/sync/scheduler.ts`
   - Periodic sync scheduling and orchestration.
 - Core sync logic lives in `packages/sync-core/` (crypto/manifest/chunks/s3/lock/schemas/registry/utils).
-- `myz-annotator/src/background/sync/` contains browser-specific modules (storage, records, deletions, keyring).
+- `myz-annotator/src/background/sync/` contains browser-specific adapters (storage, deviceKey, credentials, deletions, v2 datasets/engine).
+- Legacy v1 (keyset) sync has been removed; only the v2 device-bound account path remains.
 
 ### Constants
 - `myz-annotator/src/background/constants.ts`

@@ -175,8 +175,6 @@ async function getSyncStatus(): Promise<SyncStatus> {
     lastSyncAt: status.lastSyncAt,
     pendingRecords: undefined,
     lastError: null,
-    keyId: status.keyId,
-    keyUpdatedAt: status.keyUpdatedAt,
     lastManifestVersion: status.lastManifestVersion,
   };
 }
@@ -188,16 +186,6 @@ async function testSyncConnection(
     "myz:syncTestConnection",
     config?.s3 ? { s3: config.s3 } : undefined,
   );
-}
-
-async function setSyncSecret(
-  secret: string,
-): Promise<{ keyId: string; keyUpdatedAt: string }> {
-  return invoke("myz:syncSetKey", { secret, userGesture: true });
-}
-
-async function clearSyncSecret(): Promise<void> {
-  await invoke("myz:syncClearKey", { userGesture: true });
 }
 
 async function runSync(_reason?: SyncRunReason): Promise<SyncRunResult> {
@@ -240,8 +228,6 @@ export function createExtensionDashboardHost(): DashboardHost<Settings> {
       updateConfig: updateSyncConfig,
       getStatus: getSyncStatus,
       testConnection: testSyncConnection,
-      setSecret: setSyncSecret,
-      clearSecret: clearSyncSecret,
       runSync,
     },
   };

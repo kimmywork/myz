@@ -22,7 +22,6 @@ export function createAccountActions(
       state.deviceId.value = result?.deviceId || null;
       state.epoch.value = result?.epoch || 0;
       state.lastSyncAt.value = result?.lastSyncAt || null;
-      state.legacyKeysetPresent.value = Boolean(result?.keyId);
     } catch (error) {
       state.setStatus(`读取同步状态失败：${(error as Error).message}`, "error");
     }
@@ -81,35 +80,6 @@ export function createAccountActions(
     }
   }
 
-  async function handleMigrate() {
-    if (state.isBusy.value) return;
-    state.isBusy.value = true;
-    state.setStatus("迁移中…", "info");
-    try {
-      const result = await invoke("myz:accountMigrateLegacy", {
-        secret: state.legacySecret.value.trim() || undefined,
-        s3: state.showOldS3.value ? { ...state.oldS3 } : undefined,
-        userGesture: true,
-      });
-      state.rescuedCount.value = result?.rescued || 0;
-      state.migrationDone.value = true;
-      if (!result?.hasLegacy) {
-        state.setStatus("未检测到旧格式数据，无需迁移", "info");
-      } else {
-        state.setStatus(`已合并 ${result.rescued} 条旧记录`, "success");
-      }
-    } catch (err) {
-      state.setStatus(`迁移失败：${(err as Error).message}`, "error");
-    } finally {
-      state.isBusy.value = false;
-    }
-  }
-
-  function skipMigration() {
-    state.migrationDone.value = true;
-    state.setStatus("未检测到旧格式数据，无需迁移", "info");
-  }
-
   async function handleCreateAccount() {
     if (state.isBusy.value) return;
     state.isBusy.value = true;
@@ -160,8 +130,6 @@ export function createAccountActions(
     persistS3,
     handleTestConnection,
     saveS3AndGo,
-    handleMigrate,
-    skipMigration,
     handleCreateAccount,
     handleSyncNow,
     handleSyncLater,

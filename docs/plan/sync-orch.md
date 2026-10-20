@@ -153,9 +153,9 @@ return mapToSyncResult(result); // status/message 与原 SyncResult 对齐
 
 ## 6. 与 legacy v1 的边界
 
-- `syncEngine.ts` 保留 `settings.sync.enabled` 判断、v2 委派、v1 回退。
-- `sync-plan.ts` / `sync-phases.ts` / `sync-state.ts` / `sync/storage.ts` 的 record-state 部分为 **v1 legacy**；本轮不改，仅在 AGENTS/计划中标注「迁移完成后删除」。
-- 迁移（`v2/bootstrap.ts`）与配对（`v2/pairingSession.ts`）继续由宿主持有，不进入编排器。
+**已完成（2026-10-20）**：v1（keyset）同步已整体删除——`sync-plan` / `sync-phases` / `sync-state` / `chunks` / `manifest` / `rotation` / `gc` / `records` / `types` / `lock` / `schemas` / `keyring`（设备密钥已拆到 `deviceKey.ts`）；v1 消息、设置 UI、迁移步骤、`record_state` 存储一并移除。当前只剩 v2 设备绑定账号路径。
+
+`syncEngine.ts` 保留启用判断 + 账号检查 + v2 委派；迁移与配对继续由宿主持有，不进入编排器。
 
 ## 7. 增量（每步可验证）
 
@@ -165,8 +165,8 @@ return mapToSyncResult(result); // status/message 与原 SyncResult 对齐
 | **S2** | 扩展适配 | `v2/engine.ts` 调用 `runAccountSync`，删除重复锁/GC | S1 | 现有单测 + e2e 绿；`syncNow` 外部行为不变 |
 | **S3** | 结果可观测 | 逐流摘要进入 `SyncResult.message` / 设置页状态（可选） | S2 | 单测/手动验证 |
 | **S4** | 配置化 | `keepManifests` / 锁租约从设置读取（可选） | S2 | 默认不变 |
-| **S5** | legacy 标注 | AGENTS/注释标注 v1 为待删除 | 无 | 文档一致 |
-| **S6** | 删除 v1（迁移完成后） | 移除 `sync-plan/phases/state` 的 v1 路径 | 迁移截止 | e2e + 旧数据挽救流程 |
+| **S5** | legacy 标注 | AGENTS/注释标注 v1 为待删除 | 无 | 文档一致 **（已完成：v1 已删除）** |
+| **S6** | 删除 v1（迁移完成后） | 移除 `sync-plan/phases/state` 的 v1 路径 | 迁移截止 | e2e + 旧数据挽救流程 **（已完成 2026-10-20）** |
 
 ## 8. 验收标准
 
