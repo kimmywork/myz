@@ -80,6 +80,29 @@ describe("v2 highlight dataset adapter", () => {
     });
   });
 
+  it("propagates storage failures instead of falling back to opaque", async () => {
+    mocks.saveHighlight.mockRejectedValue(new Error("idb boom"));
+    const dataset = createHighlightDataset();
+    await expect(
+      dataset.apply({
+        recordId: "h:abc",
+        updatedAt: "2026-02-01T00:00:00.000Z",
+        recordHash: "hash",
+        data: {
+          schemaVersion: RECORD_SCHEMA_VERSION,
+          schemaId: "myz.record",
+          id: "abc",
+          kind: "highlight",
+          text: "t",
+          url: "u",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      }),
+    ).rejects.toThrow("idb boom");
+    expect(mocks.putOpaqueRecord).not.toHaveBeenCalled();
+  });
+
   it("preserves unknown records opaquely and removes them", async () => {
     const dataset = createHighlightDataset();
     await dataset.apply({
