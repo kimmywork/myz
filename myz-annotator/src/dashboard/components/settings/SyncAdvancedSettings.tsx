@@ -5,6 +5,7 @@ import ToggleSwitch from "../ToggleSwitch.jsx";
 import type { SyncSectionApi } from "./useSyncSection.js";
 
 type Ref = { value: string };
+type NumRef = { value: number };
 
 /** Collapsible advanced S3 / legacy-key configuration. */
 export default defineComponent({
@@ -24,6 +25,23 @@ export default defineComponent({
         onInput={(event: InputEvent) =>
           (target.value = (event.target as HTMLInputElement).value)
         }
+      />
+    );
+
+    const numberInput = (
+      target: NumRef,
+      extra: { min?: number; max?: number; step?: number } = {},
+    ) => (
+      <input
+        type="number"
+        min={extra.min}
+        max={extra.max}
+        step={extra.step}
+        value={String(target.value)}
+        onInput={(event: InputEvent) => {
+          const next = Number((event.target as HTMLInputElement).value);
+          if (Number.isFinite(next)) target.value = next;
+        }}
       />
     );
 
@@ -70,6 +88,22 @@ export default defineComponent({
             </SettingsRow>
             <SettingsRow label="Prefix" hint="可选">
               {input(a.prefix, { placeholder: "myz-sync" })}
+            </SettingsRow>
+            <SettingsRow
+              label="保留历史版本"
+              hint="每个流保留的 manifest 数量，默认 30"
+            >
+              {numberInput(a.keepManifests, { min: 1, max: 365 })}
+            </SettingsRow>
+            <SettingsRow
+              label="锁租约（毫秒）"
+              hint="默认 30000；续租间隔为一半，范围 10000–300000"
+            >
+              {numberInput(a.lockLeaseMs, {
+                min: 10_000,
+                max: 300_000,
+                step: 5_000,
+              })}
             </SettingsRow>
             <div class="settings__actions">
               <button

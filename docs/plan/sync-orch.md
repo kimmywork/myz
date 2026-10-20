@@ -1,6 +1,6 @@
 # SyncOrch — 宿主无关的同步编排（计划）
 
-> 状态：**S0/S1/S2 已实施（2026-10-20）**，待 CodeRabbit 评审。目标是把 v2 账号同步的「编排策略」从扩展宿主中剥离，做成可在扩展 / 桌面 / 移动复用的同步编排器。
+> 状态：**S0–S4 + MV3 续租已实施（2026-10-20）**。目标是把 v2 账号同步的「编排策略」从扩展宿主中剥离，做成可在扩展 / 桌面 / 移动复用的同步编排器。
 >
 > 关联：`docs/plan/core-refactor.md` §12（SyncOrch 为唯一剩余项）、`docs/plan/e2ee-sync-evolution.md`（子流协议，不再改动）、`docs/plan/e2ee-security-hardening.md`（设备绑定/锁/密钥模型）。
 
@@ -198,8 +198,9 @@ return mapToSyncResult(result); // partial → error, ok:false, message 取第�
 | **S1** | 编排器 + 类型 | `sync-core/src/orchestrator.ts`、`tests/orchestrator.test.ts` | S0 | 内存 `SyncObjectStore` + 假数据集：锁获取/占用/释放（双设备密钥）、partial、仅上传流 GC、异常时仍释放锁、`lockLost` **（已完成）** |
 | **S1b** | AGENTS 维护 | `sync-core/src/AGENTS.md`、`background/sync/AGENTS.md` | S1 | 文档与实现一致 **（已完成）** |
 | **S2** | 扩展适配 | `v2/engine.ts` 调用 `runAccountSync`，删除重复锁/GC | S1 | 现有单测 + e2e 绿；`syncNow` 外部行为不变 **（已完成）** |
-| **S3** | 结果可观测 | 逐流摘要进入 `SyncResult.message` / 设置页状态（可选） | S2 | 单测/手动验证 |
-| **S4** | 配置化 | `keepManifests` / 锁租约从设置读取（可选） | S2 | 默认不变 |
+| **S3** | 结果可观测 | `SyncResult.partial` + 逐流摘要进 message；ChangeBus 在 partial 时也发布；设置页展示 | S2 | 单测/手动验证 **（已完成）** |
+| **S4** | 配置化 | `keepManifests` / `lockLeaseMs` 进 `SyncSettingsSchema` + 高级设置 UI；默认不变 | S2 | 默认不变 **（已完成）** |
+| **S4b** | MV3 续租 | `v2/timers.ts`：cadence ≥ 30s 走宿主 `Scheduler`（chrome.alarms），否则 `setInterval` | S4 | 适配器单测 **（已完成）** |
 | **S5** | legacy 标注 | AGENTS/注释标注 v1 为待删除 | 无 | 文档一致 **（已完成：v1 已删除）** |
 | **S6** | 删除 v1（迁移完成后） | 移除 `sync-plan/phases/state` 的 v1 路径 | 迁移截止 | e2e + 旧数据挽救流程 **（已完成 2026-10-20）** |
 
@@ -208,23 +209,25 @@ return mapToSyncResult(result); // partial → error, ok:false, message 取第�
 - S0 锁单测覆盖：双设备密钥下 B 不得抢 A 的活锁；revoked 设备锁视为未持有；expired → steal；续租丢失 → `lockLost`。
 - 编排器单测覆盖：锁未获取 → `locked`；正常 → `synced`；单流失败 → `partial` 且其它流仍应用；仅 `uploaded` 流触发 GC；抛错时锁仍被释放。
 - 扩展 `v2/engine.ts` 不再包含锁/GC/结果聚合逻辑。
-- `syncNow` 的外部结果（`ok/status/message`）与改造前一致；e2e 全绿。
+- `syncNow` 的外部结果（`ok/status/message`）与改造前一致；partial 额外带 `partial:true` 与逐流摘要；ChangeBus 在 partial 时也发布。
+- `keepManifests` / `lockLeaseMs` 从设置读取，缺省值不变（30 / 30000）。
+- 续租适配器：cadence ≥ 30s 走 `Scheduler`，否则 `setInterval`；单测覆盖两条路径。
 - `sync-core` 仍不 import 任何领域/宿主模块（保持数据无关）。
 
 ## 9. 风险与待决
 
 **风险**
-- **MV3 SW 生命周期**：`setInterval` 续租在 SW 休眠时不可靠。缓解：`timers` 注入；后续可改为 `chrome.alarms` 续租（宿主提供 `Scheduler`）。
-- **锁释放**：异常路径必须释放；释放失败只告警，不覆盖主错误。
-- **行为对齐**：`SyncResult` 的状态/文案需与旧实现一致（`locked`/`synced`/`error`）。
+- **MV3 SW 生命周期**：`setInterval` 续租在 SW 休眠时不可靠。**已缓解**：`v2/timers.ts` 在 cadence ≥ 30s 时走宿主 `Scheduler`（chrome.alarms，可跨休眠）；低于 30s 回退 `setInterval`，此时同步本身仍维持 SW 存活，SW 一旦死亡同步也随之结束、租约自然过期。
+- **锁释放**：异常路径必须释放；释放失败只告警，不覆盖主错误（`releaseLockQuietly` 吞掉 `getObject` 抛错）。
+- **行为对齐**：`SyncResult` 的 `ok/status/message` 与旧实现一致；partial 以 `ok:false + partial:true` 暴露。
 - **v1 共存**：**已消除**（2026-10-20 删除 v1）。
 
 **待决**
 1. 编排器落点：**已关闭** — `@myz/sync-core/orchestrator`（`accountSync.ts` 为先例；通配导出零配置）。
-2. 续租定时器是否改为宿主 `Scheduler` 端口（与 I8 对齐）—— S1 先用注入 `timers`，对齐留作后续。
-3. 是否把 `gc` 的 `keepManifests` 暴露为用户设置（S4 可选）。
+2. 续租定时器：**已关闭** — 宿主 `Scheduler` 适配器（≥30s） + `setInterval` 回退，见 S4b。
+3. `keepManifests` / `lockLeaseMs` 设置化：**已完成**（S4）。
 4. v1 删除的迁移截止条件 **（已完成 2026-10-20）**。
-5. `RunAccountSyncResult` 是否要暴露 `applied` 的 per-stream 明细给设置页 — 建议是，`StreamSyncSummary` 已带 `applied/deleted/error`，成本极低。
+5. per-stream 明细：**已完成**（S3，进入 `SyncResult.message`）。
 
 ## 10. 关联文档
 

@@ -1,0 +1,51 @@
+import type { Scheduler } from "@myz/core/ports";
+import type { SyncTimers } from "@myz/sync-core/orchestrator";
+import { scheduler } from "../../runtime";
+
+/**
+ * Lease-renewal timers for the orchestrator.
+ *
+ * `chrome.alarms` survives MV3 worker suspension but its minimum period is 30s.
+ * When the requested renewal cadence is at/above that floor we use the host
+ * `Scheduler` port; below it we fall back to `setInterval`, which is safe because
+ * the running sync itself keeps the worker alive (if the worker dies, the sync
+ * dies with it and the lease simply expires).
+ */
+const ALARM_FLOOR_MS = 30_000;
+const ALARM_NAME = "myz-sync-lock";
+
+/** Handle returned for alarm-backed intervals. */
+interface AlarmHandle {
+  alarm: string;
+}
+
+export function createSyncTimers(sched: Scheduler = scheduler): SyncTimers {
+  let handler: (() => void) | null = null;
+  let subscribed = false;
+
+  return {
+    setInterval(fn, ms) {
+      if (ms < ALARM_FLOOR_MS) return setInterval(fn, ms);
+      if (!subscribed) {
+        subscribed = true;
+        sched.onTick((name) => {
+          if (name === ALARM_NAME) handler?.();
+        });
+      }
+      handler = fn;
+      void sched.every(ALARM_NAME, ms / 60_000);
+      return { alarm: ALARM_NAME } satisfies AlarmHandle;
+    },
+    clearInterval(handle) {
+      if (typeof handle === "number") {
+        clearInterval(handle);
+        return;
+      }
+      handler = null;
+      void sched.cancel((handle as AlarmHandle).alarm);
+    },
+  };
+}
+
+/** Process-wide timer adapter passed to `runAccountSync`. */
+export const syncTimers = createSyncTimers();

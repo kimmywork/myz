@@ -19,6 +19,10 @@ export const SyncS3SettingsSchema = z.object({
 export const SyncSettingsSchema = z.object({
   enabled: z.boolean(),
   s3: SyncS3SettingsSchema,
+  /** Number of stream manifests kept by GC (default 30). */
+  keepManifests: z.number().int().min(1).max(365).optional(),
+  /** Account lease duration in ms (default 30_000). */
+  lockLeaseMs: z.number().int().min(10_000).max(300_000).optional(),
 })
 
 export type SyncS3Settings = z.infer<typeof SyncS3SettingsSchema>
@@ -77,8 +81,20 @@ export function normalizeSyncSettings(
   if (!isRecord(value)) {
     return { enabled: false, s3: { ...DEFAULT_S3_SETTINGS } }
   }
-  return {
+  const settings: SyncSettings = {
     enabled: Boolean(value.enabled),
     s3: normalizeSyncS3Settings(value.s3),
   }
+  if (typeof value.keepManifests === "number") {
+    settings.keepManifests = clampInt(value.keepManifests, 1, 365)
+  }
+  if (typeof value.lockLeaseMs === "number") {
+    settings.lockLeaseMs = clampInt(value.lockLeaseMs, 10_000, 300_000)
+  }
+  return settings
+}
+
+/** Round + clamp a numeric setting into its accepted range. */
+function clampInt(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)))
 }

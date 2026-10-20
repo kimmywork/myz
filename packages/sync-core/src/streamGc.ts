@@ -11,7 +11,7 @@ import {
   streamPrefix,
 } from "./streamManifest"
 
-const DEFAULT_KEEP_MANIFESTS = 30
+export const DEFAULT_KEEP_MANIFESTS = 30
 
 export interface StreamGcResult {
   deletedManifests: number

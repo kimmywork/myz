@@ -18,6 +18,9 @@ export function useSyncSection() {
   const secretAccessKey = ref("");
   const sessionToken = ref("");
   const prefix = ref("");
+  // Tuning defaults mirror the sync-core constants (30 manifests / 30s lease).
+  const keepManifests = ref(30);
+  const lockLeaseMs = ref(30_000);
 
   const status = ref("");
   const tone = ref<StatusTone>("info");
@@ -39,6 +42,8 @@ export function useSyncSection() {
     secretAccessKey.value = sync?.s3?.secretAccessKey || "";
     sessionToken.value = sync?.s3?.sessionToken || "";
     prefix.value = sync?.s3?.prefix || "";
+    keepManifests.value = sync?.keepManifests ?? 30;
+    lockLeaseMs.value = sync?.lockLeaseMs ?? 30_000;
   });
 
   function setStatus(message: string, nextTone: StatusTone = "info") {
@@ -77,7 +82,12 @@ export function useSyncSection() {
     setStatus("保存中…", "info");
     try {
       await settingsStore.saveSettings({
-        sync: { enabled: enabled.value, s3: buildS3Payload() },
+        sync: {
+          enabled: enabled.value,
+          s3: buildS3Payload(),
+          keepManifests: keepManifests.value,
+          lockLeaseMs: lockLeaseMs.value,
+        },
       });
       setStatus("设置已保存", "success");
     } catch (error) {
@@ -115,6 +125,8 @@ export function useSyncSection() {
       const result = await invoke("myz:syncNow");
       if (result?.ok) {
         setStatus("同步完成", "success");
+      } else if (result?.partial) {
+        setStatus(result.message || "部分完成", "error");
       } else {
         setStatus(result?.message || "同步失败", "error");
       }
@@ -168,6 +180,8 @@ export function useSyncSection() {
     secretAccessKey,
     sessionToken,
     prefix,
+    keepManifests,
+    lockLeaseMs,
     status,
     tone,
     isBusy,
