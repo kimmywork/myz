@@ -1,6 +1,6 @@
 # Workstate
 
-- Legacy v1 sync removed (2026-10-20, on refactor/drop-legacy-sync): 删除 v1 keyset 全链路（plan/phases/state/chunks/manifest/rotation/gc/records/types/lock/schemas/keyring），拆分 deviceKey，收敛 syncEngine→v2、bootstrap（无 rescue）、storage（DB v3），移除 v1 消息/UI/迁移步骤。unit 286、tsc 0、eslint 0、build 成功；sync e2e 4/4、完整 e2e 98 + 4 flaky/2 skipped。待提交 PR。
+- Legacy v1 sync removed + merged (2026-10-20, PR #95, rebase): v1 keyset 全链路删除（plan/phases/state/chunks/manifest/rotation/gc/records/types/lock/schemas/keyring），设备密钥拆到 `deviceKey`，syncEngine 仅 v2，bootstrap 无 rescue，storage DB v3，v1 消息/UI/迁移步骤移除；CodeRabbit 6 项修复。master `295d5c8`，CI 绿，0 未解决线程。仅剩 v2 设备绑定账号路径。
 - SyncOrch plan (2026-10-20, doc only): 新增 `docs/plan/sync-orch.md`——宿主无关 `runAccountSync` 契约、宿主改造、S1–S6、验收/风险/待决。**未实施**。下一步建议：S1（sync-core 编排器 + 单测）。
 - Tests PR #94 merged (2026-10-19, rebase): core 单测 50（+11）、annotator 291、完整 e2e 101/3/0；两处 PDF 像素断言改为跨平台容差。master `cbee1c3`，CI 绿，0 未解决线程。剩余：SyncOrch（与 syncEngine 深度耦合，需单独设计）。
 - Core PR #93 merged (2026-10-19, rebase): I5c（Import/Export）、I6b（schemaId + PayloadCodec）、I9（Source/Locator 读时归一化）、I1b（类型化 invoke）、CodeRabbit 2 项修复。master `50ba4b7`，CI 绿，0 未解决线程。剩余：SyncOrch（与 syncEngine 深度耦合，需单独设计）。
