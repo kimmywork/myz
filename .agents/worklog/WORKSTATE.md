@@ -1,6 +1,6 @@
 # Workstate
 
-- SyncOrch review fixes (2026-10-20, PR pending): 锁 412 → `locked`、续租/释放竞态（`settle`）、timers stale alarm + `.catch`、settings NaN 防御、向导保留 tuning、文档/测试清理。sync-core 116 用例、annotator 290 单测、build 绿。
+- SyncOrch review fixes merged (2026-10-20, PR #98, rebase): 锁 412 → `locked`、续租/释放竞态（`settle`）、timers stale alarm + `.catch`、settings NaN 防御、向导保留 tuning、文档/测试清理。CodeRabbit 本轮 rate limited（0 finding）。sync-core 116 用例、annotator 290 单测、build 绿。master `b1f18e3`。
 
 - SyncOrch S3/S4 + MV3 renew merged (2026-10-20, PR #97, rebase): S3 `SyncResult.partial` + 逐流明细 + ChangeBus partial 门控；S4 `keepManifests`/`lockLeaseMs` 设置化（clamp + 高级 UI）；MV3 续租适配器（`Scheduler` ≥30s / `setInterval` 回退）。CodeRabbit 2 项（timers 句柄形状判定、计划归档）已修复。计划归档到 `docs/plan/implemented/sync-orch.md`。sync-core 113 用例、annotator 290 单测、build 绿。master `ce42928`。
 
