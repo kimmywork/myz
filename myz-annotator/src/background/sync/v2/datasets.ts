@@ -1,6 +1,6 @@
 import { parseRecordId, recordIdForHighlight } from "@myz/core/identity";
 import { recordCodecs, resolveRecordSchemaId } from "@myz/core/record-codecs";
-import type { MyZRecord } from "@myz/shared/types";
+import { ensureRecordSchemaVersion, type MyZRecord } from "@myz/shared/types";
 import type { StreamDataset } from "@myz/sync-core/accountSync";
 import { recordsStore } from "../../stores";
 import { listDeletions, removeDeletion } from "../storage";
@@ -38,22 +38,33 @@ export function createHighlightDataset(): StreamDataset {
     async apply(record) {
       const parsed = parseRecordId(record.recordId);
       const data = record.data as Partial<MyZRecord> | null | undefined;
-      // Materialize only when the id prefix, payload id, AND the payload's
-      // schema discriminator all agree (an unknown schemaId stays opaque).
       const schemaId = resolveRecordSchemaId(data);
       const codec = recordCodecs.get(schemaId);
-      const isHighlight =
+      // Materialize only when the id prefix, payload id, schema discriminator
+      // AND the payload itself all agree. Unknown or malformed payloads stay
+      // opaque so a newer/broken client cannot corrupt the local store.
+      if (
         parsed?.kind === "highlight" &&
-        !!data &&
+        data &&
         typeof data === "object" &&
         data.id === parsed.id &&
-        !!codec;
-      if (isHighlight) {
-        await recordsStore.upsert({
-          ...(data as MyZRecord),
-          updatedAt: record.updatedAt,
-        });
-        return;
+        codec
+      ) {
+        try {
+          const candidate = ensureRecordSchemaVersion(data as MyZRecord);
+          const materialized = recordCodecs.parse<MyZRecord>(
+            schemaId,
+            candidate,
+            codec.currentVersion,
+          );
+          await recordsStore.upsert({
+            ...materialized,
+            updatedAt: record.updatedAt,
+          });
+          return;
+        } catch {
+          // malformed payload for a known schema → preserve opaquely
+        }
       }
       await recordsStore.putOpaque({
         streamId: STREAM_ID,

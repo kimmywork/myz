@@ -1,4 +1,5 @@
 import "fake-indexeddb/auto";
+import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { recordsStore } from "@/background/stores";
 import { createHighlightDataset } from "@/background/sync/v2/datasets";
@@ -79,12 +80,38 @@ describe("highlight dataset opaque closure (D1)", () => {
     await dataset.apply({
       recordId: "h:real-1",
       updatedAt: NOW,
-      data: { id: "real-1", kind: "highlight", text: "t", url: "u" },
+      data: {
+        schemaVersion: RECORD_SCHEMA_VERSION,
+        schemaId: "myz.record",
+        id: "real-1",
+        kind: "highlight",
+        text: "t",
+        url: "u",
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
       recordHash: "y",
     });
     expect((await recordsStore.listAll()).map((r) => r.id)).toContain("real-1");
     const collected = await dataset.collect();
     expect(collected.find((r) => r.recordId === "h:real-1")).toBeDefined();
+  });
+
+  it("keeps a known-schema but malformed payload opaque", async () => {
+    const dataset = createHighlightDataset();
+    await dataset.apply({
+      recordId: "h:bad-1",
+      updatedAt: NOW,
+      data: { schemaId: "myz.record", id: "bad-1", kind: "highlight" },
+      recordHash: "b",
+    });
+    expect((await recordsStore.listAll()).map((r) => r.id)).not.toContain(
+      "bad-1",
+    );
+    const preserved = (await dataset.collect()).find(
+      (r) => r.recordId === "h:bad-1",
+    );
+    expect(preserved).toBeDefined();
   });
 
   it("deletes an opaque record on remote removal", async () => {
