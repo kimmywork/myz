@@ -310,7 +310,7 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
 - **I6b 完成（2026-10-19）**：显式 `schemaId` + PayloadCodec 接到 sync `apply`。
   - `MyZRecordSchemaV1` 增可选 `schemaId`（payload 判别式；旧记录缺省视为 `"myz.record"`）。
   - `@myz/core/record-codecs`：`RECORD_SCHEMA_ID = "myz.record"` + `recordCodecs` registry（校验 schema 为 `MyZRecordSchema`）+ `resolveRecordSchemaId`。
-  - `createRecord` / `updateRecord` 为新记录写入 `schemaId`；`v2/datasets.apply` 仅当 id 前缀、payload `id`、`schemaId` 三者一致且 codec 已知时才物化，否则 opaque。
+  - `createRecord` / `updateRecord` 为新记录写入 `schemaId`；`v2/datasets.apply` 仅当 id 前缀、payload `id`、`schemaId` 三者一致且 codec **校验通过**（`codec.parse`，含 `migrate`）时才物化；未知或校验失败的 payload 落 opaque。
   - 验证：core 31、annotator 290 单测通过；`vue-tsc -b` 0；eslint 0；`vite build` 成功。
 - **I7 完成（2026-10-16）**：`ChangeBus` 多上下文变更刷新。
   - `@myz/core/changes`：`ChangeBus` 端口 + `ChangeEvent`（`records` / `inbox` / `settings` / `sync`）。

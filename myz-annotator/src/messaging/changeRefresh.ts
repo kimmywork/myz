@@ -28,7 +28,11 @@ export function subscribeRefresh(
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      refresh();
+      try {
+        refresh();
+      } catch (error) {
+        console.warn("MyZ: change refresh failed", error);
+      }
     }, delayMs);
   });
 

@@ -1,3 +1,4 @@
+import { RECORD_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -56,10 +57,24 @@ describe("v2 highlight dataset adapter", () => {
       recordId: "h:abc",
       updatedAt: "2026-02-01T00:00:00.000Z",
       recordHash: "hash",
-      data: { id: "abc", createdAt: "2026-01-01T00:00:00.000Z" },
+      data: {
+        schemaVersion: RECORD_SCHEMA_VERSION,
+        schemaId: "myz.record",
+        id: "abc",
+        kind: "highlight",
+        text: "t",
+        url: "u",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
     });
     expect(mocks.saveHighlight).toHaveBeenCalledWith({
+      schemaVersion: RECORD_SCHEMA_VERSION,
+      schemaId: "myz.record",
       id: "abc",
+      kind: "highlight",
+      text: "t",
+      url: "u",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-02-01T00:00:00.000Z",
     });

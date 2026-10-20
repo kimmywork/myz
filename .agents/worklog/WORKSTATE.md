@@ -1,5 +1,7 @@
 # Workstate
 
+- Review fixes round 2 (2026-10-20, PR pending): `datasets.apply` 接线 `recordCodecs.parse`（非法 payload 落 opaque）、`bootstrap` 检查首次同步结果、`subscribeRefresh` 回调保护。annotator 294 单测、vue-tsc、eslint、build 绿。
+
 - I7 subscription refresh merged (2026-10-20, PR #101, rebase): 新增 `subscribeRefresh`（domain 过滤 + 100ms 合并）；接入 inbox/popup/PDF/EPUB；阅读器编辑中挂起、结束后补刷新（CodeRabbit 3 项竞态修复）；ids 增量与逐条发布标记「不计划」。annotator 293 单测、vue-tsc、build 绿。master `dcd8808`。
 
 - Core-refactor doc align + stale alias cleanup merged (2026-10-20, PR #100, rebase): `core-refactor.md` 状态改「已完成」、§12 过时「未做」条目对齐（I1b/I3/I4/I5/I5b/I6/I5c），仅留 I7 可选订阅项；删除 tsconfig 3 个不存在包的 alias；修正 sync-core README 的 ai-core 依赖。CodeRabbit rate limited（0 finding）。annotator 290 单测、vue-tsc、build 绿。master `ea3f7c2`。

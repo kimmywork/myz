@@ -22,6 +22,12 @@ export async function bootstrapV2Account(): Promise<BootstrapResult> {
     throw new Error("请先配置并启用 S3 同步");
   }
   const account = await createLocalAccount();
-  await syncAccountNow();
+  const result = await syncAccountNow();
+  // Surface a failed first upload instead of reporting a successful bootstrap.
+  // `locked` means another sync already holds the lease; the account exists and
+  // will upload on that sync.
+  if (!result.ok && result.status !== "locked") {
+    throw new Error(result.message || "首次同步失败");
+  }
   return { accountId: account.accountId };
 }
