@@ -39,8 +39,7 @@ Then reference local packages in your app `package.json` (adjust paths as needed
 {
   "dependencies": {
     "@myz/sync-core": "file:vendor/sync/packages/sync-core",
-    "@myz/shared": "file:vendor/sync/packages/shared",
-    "@myz/ai-core": "file:vendor/sync/packages/ai-core"
+    "@myz/shared": "file:vendor/sync/packages/shared"
   }
 }
 ```
@@ -52,7 +51,7 @@ npm install
 ```
 
 Notes:
-- `@myz/sync-core` depends on `@myz/shared` and `@myz/ai-core`.
+- `@myz/sync-core` depends on `@myz/shared`, `@noble/curves`, `fflate` and `zod`.
 - This package currently exports TypeScript source files, so your build tool must transpile TS from dependencies.
 
 ## Install (Clone)
