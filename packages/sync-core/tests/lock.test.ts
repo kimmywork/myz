@@ -8,6 +8,7 @@ import { InMemoryObjectStore } from "./helpers/inMemoryStore"
 const LOCK_PATH = "account/lock/lease.bin"
 const masterKey = new Uint8Array(32).fill(7)
 
+/** One device in a fresh account, with a roster it can verify against. */
 async function singleDevice() {
   const device = generateDeviceKeyPair()
   const account = await createSyncAccount({
@@ -18,6 +19,7 @@ async function singleDevice() {
   return { device, account }
 }
 
+/** Lock options for one client of the given device/account. */
 function lockOptions(
   store: InMemoryObjectStore,
   account: Awaited<ReturnType<typeof singleDevice>>["account"],

@@ -66,10 +66,12 @@ export interface RunAccountSyncResult {
   finishedAt: string
 }
 
+/** Default account-level lease path. */
 function defaultLockPath(accountId: string): string {
   return `${accountId}/lock/lease.bin`
 }
 
+/** Result fields shared by the early-return / error branches. */
 function emptyBase(): Pick<
   RunAccountSyncResult,
   "applied" | "streams" | "uploadedStreamIds"
@@ -123,6 +125,10 @@ function armRenewal(
   return () => timers.clearInterval(handle)
 }
 
+/**
+ * Release the lease without letting a release failure replace the structured
+ * result (the release runs in `finally`).
+ */
 async function releaseLockQuietly(
   options: RunAccountSyncOptions,
   lockOptions: LockOptions,
@@ -136,6 +142,10 @@ async function releaseLockQuietly(
   }).catch(() => undefined)
 }
 
+/**
+ * Run one account sync: lock, per-stream sync, GC of uploaded streams, release.
+ * Never throws for expected failures; inspect `status` / `error` / `lockLost`.
+ */
 export async function runAccountSync(
   options: RunAccountSyncOptions,
 ): Promise<RunAccountSyncResult> {
