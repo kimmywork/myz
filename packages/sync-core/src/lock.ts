@@ -32,6 +32,11 @@ export interface LockOptions {
   roster: Roster
 }
 
+/** S3 conditional-write conflict, i.e. another writer won the race. */
+function isPreconditionFailed(error: unknown): boolean {
+  return error instanceof Error && /\b412\b/.test(error.message)
+}
+
 /** Acquire the account lease unless another device holds a live one. */
 export async function acquireLock(
   options: LockOptions,
@@ -59,10 +64,17 @@ export async function acquireLock(
     options.masterKey,
     leaseMs,
   )
-  await options.client.putObject(options.lockPath, encrypted, {
-    ifMatch: etag,
-    ifNoneMatch: etag ? undefined : "*",
-  })
+  try {
+    await options.client.putObject(options.lockPath, encrypted, {
+      ifMatch: etag,
+      ifNoneMatch: etag ? undefined : "*",
+    })
+  } catch (error) {
+    // Lost the acquire race to another device: report "not acquired" so the
+    // orchestrator maps it to `locked` instead of surfacing an S3 412 error.
+    if (isPreconditionFailed(error)) return { acquired: false }
+    throw error
+  }
   return { acquired: true, leaseExpiresAt: payload.leaseExpiresAt }
 }
 

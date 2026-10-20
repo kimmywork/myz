@@ -23,6 +23,7 @@ function fakeScheduler() {
 describe("sync lease timers", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("uses setInterval below the alarm floor", () => {
@@ -64,7 +65,10 @@ describe("sync lease timers", () => {
   it("clears native timer handles that are objects (Node)", () => {
     const nativeHandle = { ref: () => {}, unref: () => {} };
     const clearSpy = vi.fn();
-    vi.stubGlobal("setInterval", vi.fn(() => nativeHandle));
+    vi.stubGlobal(
+      "setInterval",
+      vi.fn(() => nativeHandle),
+    );
     vi.stubGlobal("clearInterval", clearSpy);
 
     const { sched } = fakeScheduler();
@@ -73,7 +77,6 @@ describe("sync lease timers", () => {
     timers.clearInterval(handle);
 
     expect(clearSpy).toHaveBeenCalledWith(nativeHandle);
-    vi.unstubAllGlobals();
   });
 
   it("subscribes to the scheduler once across renewals", () => {

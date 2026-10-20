@@ -120,7 +120,7 @@ export async function runAccountSync(
 | --- | --- | --- |
 | GC 抛错 | 中断**后续流**的 GC，整体 `status: "error"`（`engine.ts:86-100,116`） | 对齐；逐流隔离 GC 错误记为后续增量 |
 | badge / 写盘抛错 | 返回 `{ok:false,status:"error",message}`（`engine.ts:101-109,116`） | 宿主侧 try/catch 映射到 `error` 结果 |
-| 单流失败 | `partial` 不存在，一律 `error`，message 取**第一个**失败流 | `partial → error, ok:false`，message 取第一个失败流 |
+| 单流失败 | `partial` 不存在，一律 `error`，message 取**第一个**失败流 | `partial → error, ok:false`，message 汇总所有失败流（S3） |
 | `partial` 可见性 | `messages/sync.ts:67` 用 `result.ok` 门控 ChangeBus → 部分成功不刷新 UI | S3 若暴露 `partial`，必须同时改门控 |
 | 续租丢失 | `renewLock` 返回 `{acquired:false}`，引擎忽略（仅 `.catch` 打日志） | 编排器记录 `lockLost` 并写入结果 |
 | 锁未获取 | `{ok:false,status:"locked"}`，无 message | `locked` 早退：`startedAt/finishedAt` 填充，`applied:0,streams:[]` |
@@ -174,7 +174,7 @@ if (result.status === "synced" || result.status === "partial") {
     return { ok: false, status: "error", message: (error as Error).message };
   }
 }
-return mapToSyncResult(result); // partial → error, ok:false, message 取第一个失败流
+return mapToSyncResult(result); // partial → error, ok:false, message 汇总所有失败流
 ```
 
 保留：

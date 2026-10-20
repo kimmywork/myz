@@ -33,8 +33,14 @@ export function createAccountActions(
       state.setStatus(error, "error");
       return false;
     }
+    // Merge the current sync settings so re-running the wizard does not reset
+    // advanced tuning fields (keepManifests / lockLeaseMs).
     await settingsStore.saveSettings({
-      sync: { enabled: true, s3: { ...state.s3 } },
+      sync: {
+        ...settingsStore.settings.sync,
+        enabled: true,
+        s3: { ...state.s3 },
+      },
     });
     return true;
   }
