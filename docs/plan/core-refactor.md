@@ -1,8 +1,8 @@
 # Core 分层重构与再设计（领域核心 / 端口 / 宿主适配器）
 
-> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I1b（调用点迁移到类型化 `invoke`）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I9（Source / Locator 读时归一化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；SyncOrch 已单独规划并实施（`docs/plan/implemented/sync-orch.md`）。
+> 状态：**v2，分阶段实施中**。I1（消息契约表 + 泛型注册表 + D3 falsy 解包修复 + 特权元数据入契约）、I1b（调用点迁移到类型化 `invoke`）、I2（Transport 端口 + `MessageContext`）、I3（`@myz/core` 领域层 + 模型注册表）、I4（存储端口 + IndexedDB 实现 + opaque 溢出表）、I4b（`StagedAssetStore`）、I5（RecordsService + handler 瘦身 + D3.3）、I5b（InboxService）、I5c（Import / Export 服务）、I6（opaque 闭环 / D1 收口）、I6b（显式 `schemaId` + PayloadCodec）、I7（`ChangeBus` 多上下文刷新）、I8（`Scheduler` / `Notifier` 端口化）、I9（Source / Locator 读时归一化）、I10（Node 宿主集成验证）**已实现并验证**（见 §12）；SyncOrch 已单独规划并实施（`docs/plan/implemented/sync-orch.md`）；`@myz/dashboard-core`（D2 零调用 dead code）已于 2026-10-20 删除。
 >
-> §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
+> §10 五项关键决策已于 2026-10-16 **由用户确认锁定**：1 收编并删除 `dashboard-core`、2 生命周期锁 `record` 级、3 解析不进 core、4 砍掉 `JobQueue`、5 读时归一化。
 >
 > 评审修订要点见 §11。v1 的现状诊断经代码核验**全部属实**；v2 修正了 3 个架构级缺陷（D1–D3）、4 个场景错位风险（R1–R4），并对 §10 待决项作出收敛决策。
 >
@@ -62,11 +62,13 @@
 │  端口：RecordsStore · SettingsStore · BlobStore · ReaderProgressStore │
 │        · Scheduler · Notifier · ChangeBus · Transport · Capture       │
 └───────────────────────────┬────────────────────────────────────────┘
-        ┌───────────────────┼────────────────────────┐
-        ▼                   ▼                        ▼
- @myz/sync-core      Host adapters            @myz/dashboard-core
- (数据无关协议)       extension/desktop/mobile  (dashboard 门面，收敛为 core 的薄层)
+        ┌───────────────────┴────────────────────────┐
+        ▼                                            ▼
+ @myz/sync-core                            Host adapters
+ (数据无关协议)                             extension/desktop/mobile
 ```
+
+> `@myz/dashboard-core` 已于 2026-10-20 删除：`createExtensionDashboardHost` 全仓零调用，且其过时 feature flags / v1 `SyncRepository` 与 `@myz/core` 端口形成双门面。
 
 **包结构（目标，决策见 §10/1）**
 
@@ -74,7 +76,7 @@
 | --- | --- | --- |
 | `@myz/shared` | 纯原语：schemas/types/enums/serializer/`highlightRange`/cjk/url/tags + **消息契约表（纯类型）** | 收敛：只留纯的 |
 | `@myz/core`（新） | 领域模型注册表 + 领域服务 + 端口接口 | 新增 |
-| `@myz/dashboard-core` | **演进为 `@myz/core` 的薄 UI 预设层**：只保留纯 UI 宿主能力位（`windowControls`/`touchOptimized` 等），删除过时的 AI/Vector/MCP feature flags 与 v1 `SyncRepository` | 收编，消除双门面 |
+| ~~`@myz/dashboard-core`~~ | **已删除（2026-10-20）**：零调用 dead code；过时 AI/Vector/MCP feature flags 与 v1 `SyncRepository` 不再保留 | 删除，消除双门面 |
 | `@myz/sync-core` | E2EE、数据无关协议 | 不变 |
 | `@myz/dashboard-ui` | 共享 UI | 不变 |
 | `myz-annotator/src/*` | 宿主适配器 + UI + 网页专属（content / readers / capture） | 逐步瘦身 |
@@ -228,7 +230,7 @@ interface MyzTabMap { // SW → CS
 
 | # | 原待决问题 | 决策 | 理由（结合代码与场景） |
 | --- | --- | --- | --- |
-| **1** | `@myz/core` 命名与是否与 `dashboard-core` 合并 | **合并/演进**：收编 `@myz/dashboard-core` 为 `@myz/core`（或使其成为 core 的薄 UI 预设层），删除过时 AI/Vector/MCP feature flags 与 v1 `SyncRepository` | 现状 `createExtensionDashboardHost` **零调用**（dead code），且 `host.ts` 定义已严重滞后于代码与 `future-plan.md`；避免 `RecordRepository` vs `RecordsStore` 双门面 |
+| **1** | `@myz/core` 命名与是否与 `dashboard-core` 合并 | **删除**：`@myz/dashboard-core` 与未接线的 `dashboard/host/extension.ts` 一并移除；将来出现第二个宿主时再按实际需要重建薄契约层 | `createExtensionDashboardHost` **零调用**（dead code），`host.ts` 定义严重滞后且含废弃 AI/Vector/MCP flags 与 v1 `SyncRepository`；保留会形成 `RecordRepository` vs `RecordsStore` 双门面 |
 | **2** | 生命周期是否参数化到 `source` 级 | **只留 `record` 级** | 整页/整书收藏已由 `BOOKMARK` 记录表达；无独立 `Source` 表时 source 级状态会引发父子状态冲突 |
 | **3** | 读者纯解析是否提入 core | **不提入 `@myz/core`**（留在 `myz-annotator/src/{pdf,epub}`，未来跨包复用再单列 `@myz/reader-core`） | `src/epub/parse.ts` 依赖 `DOMParser`（SW / Node 无原生实现），违背 core「零 DOM」硬约束；且属渲染管线 |
 | **4** | `JobQueue` 是否在 I8 落地 | **不落地，也不留空壳**；I8 仅交付 `Scheduler` + `Notifier` 端口；I10 用 Node 集成套件替代半成品桌面壳 | OCR/ASR 未立项；Sync v2 已有分片级断点续传 + 锁续租，`chrome.alarms` 触发即可自愈；避免重蹈 I7 registry 死代码覆辙 |
@@ -241,7 +243,7 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
 **架构级缺陷（必改）**
 
 - **D1（严重）opaque preservation 未接线，未知记录会丢**：`preserveUnknownRecords` 仅被单测调用；`stream-pull.ts:101` 跳过分片、`stream-push.ts:79-120` 重建分片时丢弃本地不认识的记录。→ 落为 §4.3「本地 opaque 物化 + collect 回传」与 I6 的强制验收。
-- **D2（架构冲突）`dashboard-core` 半悬空 + 停在 v1**：`createExtensionDashboardHost` 零调用；含废弃 AI/Vector/MCP flags 与 v1 `SyncRepository`。→ 落为 §3 包结构收编与 §10/1 决策。
+- **D2（架构冲突）`dashboard-core` 半悬空 + 停在 v1**：`createExtensionDashboardHost` 零调用；含废弃 AI/Vector/MCP flags 与 v1 `SyncRepository`。→ **已删除（2026-10-20）**：`packages/dashboard-core` 与 `dashboard/host/extension.ts` 移除，宿主依赖/别名/文档同步清理。
 - **D3（传输层漏洞）**：`messaging.ts:27` falsy 解包 bug + 平铺 payload 兼容 + `saveHighlight` 反向借网页 DOM 转 Markdown。→ 落为 §5 契约分表、I1 修复项、`HtmlToMarkdown` 端口约束。
 
 **场景 / 边界风险（采纳）**
@@ -358,3 +360,4 @@ v1 的 §2 现状诊断 9 条经代码核验**全部属实**。v2 采纳并落�
   - 类型化暴露并修正契约缺口：`userGesture` 载荷（syncClearKey/accountClear/pairingInvite/Accept/Approve）、`syncTestConnection` 可选 payload、legacy `count`、以及 `updateHighlight` 的 `null` 清空改为依赖 `kind: CLIP` 时的 `applyKindShape`。
   - 验证：core 37、annotator 290 单测；`vue-tsc -b` 0；eslint 0 error（无 unused）；`vite build` 成功。
 - **SyncOrch 已实施（2026-10-20）**：`docs/plan/implemented/sync-orch.md`——S0 跨设备锁修复、S1 `runAccountSync` 编排器、S2 扩展薄适配、S3 partial 可观测、S4 `keepManifests`/`lockLeaseMs` 设置化、S4b MV3 续租适配器。**遗留 v1（keyset）同步已于 2026-10-20 整体删除**（v1 模块/消息/UI/迁移步骤/`record_state` 存储），当前只剩 v2 设备绑定账号路径。
+- **D2 关闭：`@myz/dashboard-core` 已删除（2026-10-20）**：`createExtensionDashboardHost` 全仓零调用；删除 `packages/dashboard-core` 与 `myz-annotator/src/dashboard/host/extension.ts`，并清理 `myz-annotator` 的依赖、vite/vitest alias、tsconfig paths 与根 AGENTS 条目。将来出现第二个宿主时按实际需要重建薄契约层。

@@ -19,7 +19,6 @@
   "dependencies": {
     "@lucide/vue": "^1.27.0",
     "@myz/core": "*",
-    "@myz/dashboard-core": "*",
     "@myz/dashboard-ui": "*",
     "@myz/shared": "*",
     "@myz/sync-core": "*",

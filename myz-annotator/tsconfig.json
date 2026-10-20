@@ -12,8 +12,6 @@
       "@myz/dashboard-ai-settings/*": ["../packages/dashboard-ai-settings/src/*"],
       "@myz/dashboard-chat-ui": ["../packages/dashboard-chat-ui/src/index.ts"],
       "@myz/dashboard-chat-ui/*": ["../packages/dashboard-chat-ui/src/*"],
-      "@myz/dashboard-core": ["../packages/dashboard-core/src/index.ts"],
-      "@myz/dashboard-core/*": ["../packages/dashboard-core/src/*"],
       "@myz/dashboard-ui": ["../packages/dashboard-ui/src/index.ts"],
       "@myz/dashboard-ui/*": ["../packages/dashboard-ui/src/*"],
       "@myz/shared": ["../packages/shared/src/index.ts"],
