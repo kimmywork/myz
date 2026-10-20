@@ -114,6 +114,40 @@ describe("highlight dataset opaque closure (D1)", () => {
     expect(preserved).toBeDefined();
   });
 
+  it("clears a stale opaque copy once a valid update lands", async () => {
+    const dataset = createHighlightDataset();
+    await dataset.apply({
+      recordId: "h:dup-1",
+      updatedAt: NOW,
+      data: { schemaId: "myz.record", id: "dup-1", kind: "highlight" },
+      recordHash: "m",
+    });
+
+    await dataset.apply({
+      recordId: "h:dup-1",
+      updatedAt: NOW,
+      data: {
+        schemaVersion: RECORD_SCHEMA_VERSION,
+        schemaId: "myz.record",
+        id: "dup-1",
+        kind: "highlight",
+        text: "t",
+        url: "u",
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+      recordHash: "v",
+    });
+
+    const collected = await dataset.collect();
+    expect(collected.filter((r) => r.recordId === "h:dup-1")).toHaveLength(1);
+    expect(
+      (await recordsStore.listOpaque("highlights")).some(
+        (r) => r.recordId === "h:dup-1",
+      ),
+    ).toBe(false);
+  });
+
   it("deletes an opaque record on remote removal", async () => {
     const dataset = createHighlightDataset();
     await dataset.apply({
