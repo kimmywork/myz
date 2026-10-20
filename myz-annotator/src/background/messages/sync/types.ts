@@ -1,7 +1,5 @@
 export interface SyncStatusMessageResult {
   enabled: boolean;
-  keyId: string | null;
-  keyUpdatedAt: string | null;
   lastSyncAt: string | null;
   lastManifestVersion: number;
   hasAccount: boolean;
@@ -20,11 +18,6 @@ export interface AccountStatusMessageResult {
 export interface SyncTestConnectionMessageResult {
   ok: boolean;
   message?: string;
-}
-
-export interface SyncSetKeyMessageResult {
-  keyId: string;
-  keyUpdatedAt: string;
 }
 
 export interface SyncNowMessageResult {

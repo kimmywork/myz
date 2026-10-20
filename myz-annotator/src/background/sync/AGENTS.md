@@ -1,42 +1,35 @@
-# myz-annotator Background Sync (Adapters)
+# myz-annotator Background Sync
 
-This folder contains MV3-specific sync adapters (storage + orchestration).
-Core protocol/crypto logic lives in `packages/sync-core/`.
+This folder contains MV3-specific sync adapters. Protocol/crypto/orchestration
+primitives live in `packages/sync-core/`.
+
+**Legacy v1 (keyset) sync has been removed.** There is no v1 plan/phases/state,
+no chunk/manifest/rotation/gc, and no v1 keyset or record-state storage. Only the
+v2 device-bound account path remains.
 
 ## Responsibilities
 
-- storage.ts: IndexedDB persistence for sync state/keysets/device key pair.
-- scheduler.ts: chrome.alarms-driven scheduling.
-- records.ts / deletions.ts: local record/deletion wiring.
-- syncEngine.ts: orchestration + notifications (browser-only).
-- keyring.ts: keyset persistence (AAD-bound) built on storage.
+- storage.ts: IndexedDB (`myz_sync_db`, v3) persistence for the device key,
+  device key pair, account roster, sync state, deletions (tombstones) and
+  per-stream state. The v1 `record_state` store is dropped on upgrade.
+- deviceKey.ts: the local non-extractable device key used to wrap the key pair,
+  roster and S3 credentials.
+- deviceKeyring.ts: loads/creates the Ed25519+X25519 device identity.
+- accountKeyring.ts: creates/loads the v2 account (accountId + signed roster).
 - credentials.ts: at-rest encryption of S3 `secretAccessKey`/`sessionToken`.
-- deviceKeyring.ts: loads/creates the local Ed25519+X25519 device identity,
-  private keys wrapped by the non-extractable device key (v2 protocol).
-- accountKeyring.ts: creates/loads the v2 sync account (accountId + signed
-  roster) on top of the device identity.
-- v2/datasets.ts: `StreamDataset` adapters (highlight stream `h:<id>`).
-- v2/inboxDataset.ts: inbox workflow stream (`status:` / `mark:` / `rel:`).
-- v2/stateStore.ts: per-stream sync state (streamVersion/shardHashes/tombstones),
-  scoped by `accountId`; records from another account (or legacy records without
-  an `accountId`) are ignored so joining a new account can't trip the
-  anti-rollback gate with a stale high-water mark.
-- v2/engine.ts: v2 sync orchestration (account streams + account-scoped lease);
-  `syncEngine.syncNow` delegates here when an account exists, else legacy v1.
-- v2/bootstrap.ts: legacy migration + clean-break bootstrap. `migrateLegacyRemote`
-  (rescue-only, optional old secret/S3 override, idempotent) and `cleanupLegacy`
-  (purge old keyset/metadata) are composed by the setup wizard; `bootstrapV2Account`
-  keeps the original atomic legacy path (rescue → create account → upload → purge).
-- v2/pairingSession.ts: same-machine device pairing over transferable strings
-  (offer → response → approve) using the sync-core pairing/SAS + roster. Wraps the
-  `PairingOffer` in an app-layer `PairingInvite` envelope `{ offer, s3? }` that
-  carries only non-sensitive S3 coordinates for prefill. Transferable strings are
-  encoded as **URL-safe base64** (`bytesToBase64Url`) and decoded tolerantly
-  (standard or URL-safe alphabet, whitespace and missing padding all accepted),
-  so a single mangled `+`/`/`/`=` on the way through chat/clipboard no longer
-  breaks pairing.
+- deletions.ts: local deletion log fed to stream tombstones.
+- s3Client.ts: S3 implementation of `SyncObjectStore`.
+- scheduler.ts: `chrome.alarms`-driven sync scheduling.
+- syncEngine.ts: `syncNow` — enabled check + account check, then v2 sync.
+- v2/datasets.ts: highlight stream dataset (`h:<id>`) + opaque preservation.
+- v2/inboxDataset.ts: inbox stream (`status:` / `mark:` / `rel:`).
+- v2/stateStore.ts: per-stream state scoped by `accountId` (anti-rollback).
+- v2/engine.ts: v2 sync orchestration (account streams + account lease).
+- v2/bootstrap.ts: clean-break bootstrap (create account + first sync).
+- v2/pairingSession.ts: same-machine pairing over transferable strings.
 
 ## References
 
-- `packages/sync-core/` for protocol/crypto details.
-- `myz-annotator/src/background/AGENTS.md` for background architecture overview.
+- `packages/sync-core/` for protocol/crypto/orchestration primitives.
+- `docs/plan/sync-orch.md` for the planned host-agnostic orchestrator.
+- `myz-annotator/src/background/AGENTS.md` for the background overview.

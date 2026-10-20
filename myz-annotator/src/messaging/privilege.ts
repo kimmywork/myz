@@ -11,8 +11,6 @@ import type { MyzRuntimeType } from "./contract.js";
 
 export const MYZ_PRIVILEGED_MESSAGES: ReadonlySet<MyzRuntimeType> =
   new Set<MyzRuntimeType>([
-    "myz:syncSetKey",
-    "myz:syncClearKey",
     "myz:syncUpdateSettings",
     "myz:syncNow",
     "myz:syncTestConnection",
@@ -20,7 +18,6 @@ export const MYZ_PRIVILEGED_MESSAGES: ReadonlySet<MyzRuntimeType> =
     "myz:accountImport",
     "myz:accountClear",
     "myz:accountBootstrap",
-    "myz:accountMigrateLegacy",
     "myz:pairingInvite",
     "myz:pairingAccept",
     "myz:pairingApprove",
@@ -40,13 +37,10 @@ export const MYZ_PRIVILEGED_MESSAGES: ReadonlySet<MyzRuntimeType> =
 
 export const MYZ_USER_GESTURE_MESSAGES: ReadonlySet<MyzRuntimeType> =
   new Set<MyzRuntimeType>([
-    "myz:syncSetKey",
-    "myz:syncClearKey",
     "myz:accountCreate",
     "myz:accountImport",
     "myz:accountClear",
     "myz:accountBootstrap",
-    "myz:accountMigrateLegacy",
     "myz:pairingInvite",
     "myz:pairingAccept",
     "myz:pairingApprove",

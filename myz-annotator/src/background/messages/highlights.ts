@@ -1,3 +1,4 @@
+import { recordIdForHighlight } from "@myz/core/identity";
 import { ImportStrategy, normalizeImportStrategy } from "@myz/core/import";
 import { mergeImportedRecords } from "@myz/core/import-merge";
 import { buildMarkdownExport } from "@myz/core/markdown-export";
@@ -25,7 +26,6 @@ import {
 } from "../storage";
 import { recordsStore } from "../stores";
 import { recordHighlightDeletion } from "../sync/deletions";
-import { recordIdForHighlight } from "../sync/records";
 import { sendToContentScript } from "../utils/sendToContentScript";
 import { registerMessageHandler } from "./handler";
 import { changeBus } from "@/messaging/changes";

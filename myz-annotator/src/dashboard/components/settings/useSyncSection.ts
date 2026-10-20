@@ -18,14 +18,11 @@ export function useSyncSection() {
   const secretAccessKey = ref("");
   const sessionToken = ref("");
   const prefix = ref("");
-  const syncSecret = ref("");
 
   const status = ref("");
   const tone = ref<StatusTone>("info");
   const isBusy = ref(false);
 
-  const keyId = ref<string | null>(null);
-  const keyUpdatedAt = ref<string | null>(null);
   const lastSyncAt = ref<string | null>(null);
   const lastManifestVersion = ref(0);
   const hasAccount = ref(false);
@@ -65,8 +62,6 @@ export function useSyncSection() {
   async function refreshSyncStatus() {
     try {
       const result = await invoke("myz:syncStatus");
-      keyId.value = result?.keyId || null;
-      keyUpdatedAt.value = result?.keyUpdatedAt || null;
       lastSyncAt.value = result?.lastSyncAt || null;
       lastManifestVersion.value = result?.lastManifestVersion || 0;
       hasAccount.value = Boolean(result?.hasAccount);
@@ -109,37 +104,6 @@ export function useSyncSection() {
       }
     } catch (error) {
       setStatus(`连接失败：${(error as Error).message}`, "error");
-    } finally {
-      isBusy.value = false;
-    }
-  }
-
-  async function handleSetKey() {
-    if (isBusy.value) return;
-    if (!syncSecret.value.trim()) {
-      setStatus("请输入同步密钥", "error");
-      return;
-    }
-    if (
-      !window.confirm(
-        "更改同步密钥会触发密钥轮换，旧密钥数据将无法继续解密。确定继续？",
-      )
-    ) {
-      setStatus("已取消", "info");
-      return;
-    }
-    isBusy.value = true;
-    setStatus("设置密钥中…", "info");
-    try {
-      await invoke("myz:syncSetKey", {
-        secret: syncSecret.value.trim(),
-        userGesture: true,
-      });
-      syncSecret.value = "";
-      await refreshSyncStatus();
-      setStatus("密钥已更新", "success");
-    } catch (error) {
-      setStatus(`设置密钥失败：${(error as Error).message}`, "error");
     } finally {
       isBusy.value = false;
     }
@@ -206,12 +170,9 @@ export function useSyncSection() {
     secretAccessKey,
     sessionToken,
     prefix,
-    syncSecret,
     status,
     tone,
     isBusy,
-    keyId,
-    keyUpdatedAt,
     lastSyncAt,
     lastManifestVersion,
     hasAccount,
@@ -220,7 +181,6 @@ export function useSyncSection() {
     accountEpoch,
     handleSaveSettings,
     handleTestConnection,
-    handleSetKey,
     handleSyncNow,
     handleClearAccount,
     openSetup,

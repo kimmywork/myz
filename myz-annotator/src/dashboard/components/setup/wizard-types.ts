@@ -9,7 +9,6 @@ export interface SyncStatusResult {
   accountId: string | null;
   deviceId: string | null;
   epoch: number;
-  keyId: string | null;
   lastSyncAt: string | null;
 }
 
@@ -20,13 +19,7 @@ export interface PairingS3Prefill {
   prefix?: string;
 }
 
-export const CREATE_STEPS = [
-  "S3 存储",
-  "迁移旧数据",
-  "创建账号",
-  "首次同步",
-  "完成",
-];
+export const CREATE_STEPS = ["S3 存储", "创建账号", "首次同步", "完成"];
 export const JOIN_STEPS = [
   "S3 存储",
   "获取邀请",

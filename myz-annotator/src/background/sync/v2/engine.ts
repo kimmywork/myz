@@ -103,8 +103,6 @@ export async function syncAccountNow(): Promise<SyncResult> {
       id: "state",
       clientId,
       epoch: account.epoch,
-      keyId: account.accountId,
-      keyUpdatedAt: existing?.keyUpdatedAt || new Date().toISOString(),
       lastManifestVersion: existing?.lastManifestVersion || 0,
       lastManifestCreatedAt: existing?.lastManifestCreatedAt || null,
       lastSyncAt: new Date().toISOString(),

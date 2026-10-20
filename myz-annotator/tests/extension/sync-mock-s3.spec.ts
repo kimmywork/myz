@@ -63,7 +63,7 @@ test("syncs highlights and inbox between two profiles via a mock S3", async () =
     const bootstrap = await send<{ accountId: string }>(
       dashA,
       "myz:accountBootstrap",
-      { rescue: false, userGesture: true },
+      { userGesture: true },
     );
     expect(bootstrap.accountId).toMatch(/^acct_/);
 
@@ -184,11 +184,7 @@ test("first-run wizard: branch B creates an account and syncs", async () => {
     await expect(page.getByText("连接成功")).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: "下一步" }).click();
 
-    // B2: migration is always shown, here with no legacy data.
-    await expect(page.getByText("未检测到旧格式数据，无需迁移")).toBeVisible();
-    await page.getByRole("button", { name: "下一步" }).click();
-
-    // B3: create the account.
+    // B2: create the account.
     await page.getByRole("button", { name: "创建同步账号" }).click();
     await expect(page.getByLabel("Account ID")).toHaveValue(/acct_/, {
       timeout: 10_000,
@@ -253,7 +249,7 @@ test("first-run wizard: authorize branch gates completion on the SAS", async () 
     const bootstrap = await send<{ accountId: string }>(
       hostPage,
       "myz:accountBootstrap",
-      { rescue: false, userGesture: true },
+      { userGesture: true },
     );
     expect(bootstrap.accountId).toMatch(/^acct_/);
 
@@ -321,10 +317,7 @@ test("first-run wizard: branch A joins and uses the prefilled S3 prefix", async 
       sync: { enabled: true, s3: { ...s3Settings(url), prefix: "team-a" } },
     });
     await saveClip(hostPage, "host-seeded-clip");
-    await send(hostPage, "myz:accountBootstrap", {
-      rescue: false,
-      userGesture: true,
-    });
+    await send(hostPage, "myz:accountBootstrap", { userGesture: true });
     const invite = await send<{ offer: string }>(
       hostPage,
       "myz:pairingInvite",

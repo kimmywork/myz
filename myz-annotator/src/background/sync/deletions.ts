@@ -1,6 +1,6 @@
+import { recordIdForHighlight } from "@myz/core/identity";
 import { parseInboxRecordId } from "@myz/shared/inbox";
 import { deleteInboxState, getAllInboxStates } from "../storage";
-import { recordIdForHighlight } from "./records";
 import { upsertDeletion } from "./storage";
 
 /**

@@ -1,6 +1,6 @@
 import type { SyncS3Settings } from "@myz/sync-core/settings";
 import { utf8ToBytes } from "./crypto";
-import { getDeviceKey } from "./keyring";
+import { getDeviceKey } from "./deviceKey";
 import { base64ToBytes, bytesToBase64, toArrayBuffer } from "./utils";
 
 const CREDENTIAL_PREFIX = "enc:v1:";

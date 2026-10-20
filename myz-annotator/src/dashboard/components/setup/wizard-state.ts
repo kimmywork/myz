@@ -29,16 +29,9 @@ export function createWizardState() {
   const deviceId = ref<string | null>(null);
   const epoch = ref(0);
   const lastSyncAt = ref<string | null>(null);
-  const legacyKeysetPresent = ref(false);
 
   const s3 = reactive<S3FormValue>({ ...EMPTY_S3_FORM });
   const s3Tested = ref(false);
-
-  const legacySecret = ref("");
-  const showOldS3 = ref(false);
-  const oldS3 = reactive<S3FormValue>({ ...EMPTY_S3_FORM });
-  const migrationDone = ref(false);
-  const rescuedCount = ref(0);
 
   const createdAccountId = ref("");
   const syncState = ref<SyncState>("idle");
@@ -91,14 +84,8 @@ export function createWizardState() {
     deviceId,
     epoch,
     lastSyncAt,
-    legacyKeysetPresent,
     s3,
     s3Tested,
-    legacySecret,
-    showOldS3,
-    oldS3,
-    migrationDone,
-    rescuedCount,
     createdAccountId,
     syncState,
     pairingInvite,

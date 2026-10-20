@@ -71,35 +71,11 @@ export default defineComponent({
             <SettingsRow label="Prefix" hint="可选">
               {input(a.prefix, { placeholder: "myz-sync" })}
             </SettingsRow>
-            {!a.hasAccount.value ? (
-              <SettingsRow label="同步密钥">
-                {input(a.syncSecret, {
-                  type: "password",
-                  placeholder: "仅保留在本地",
-                })}
-              </SettingsRow>
-            ) : null}
-            {!a.hasAccount.value ? (
-              <SettingsRow label="当前 KeyId" controlWidth="auto">
-                <span class="text-caption text-muted">
-                  {a.keyId.value || "未设置"}
-                </span>
-              </SettingsRow>
-            ) : null}
-            {!a.hasAccount.value ? (
-              <SettingsRow label="同步版本" controlWidth="auto">
-                <span class="text-caption text-muted">
-                  {a.lastManifestVersion.value || 0}
-                </span>
-              </SettingsRow>
-            ) : null}
-            {!a.hasAccount.value ? (
-              <SettingsRow label="密钥更新时间" controlWidth="auto">
-                <span class="text-caption text-muted">
-                  {a.keyUpdatedAt.value || "-"}
-                </span>
-              </SettingsRow>
-            ) : null}
+            <SettingsRow label="同步版本" controlWidth="auto">
+              <span class="text-caption text-muted">
+                {a.lastManifestVersion.value || 0}
+              </span>
+            </SettingsRow>
             <div class="settings__actions">
               <button
                 class="btn"
@@ -117,16 +93,6 @@ export default defineComponent({
               >
                 测试连接
               </button>
-              {!a.hasAccount.value ? (
-                <button
-                  class="btn"
-                  type="button"
-                  disabled={a.isBusy.value}
-                  onClick={a.handleSetKey}
-                >
-                  设置密钥
-                </button>
-              ) : null}
             </div>
           </div>
         </details>
