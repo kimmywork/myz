@@ -1,5 +1,7 @@
 # Workstate
 
+- Host Unification plan (2026-10-22, doc only): 新增 `docs/plan/host-unification.md`——四宿主统一目标、现状证据、`@myz/host`/`app-state`/`reader-core`/`reader-ui` 目标架构、平台矩阵、契约草案、H0–H7、验收/风险/待决。**未实施**。建议先 H0–H4，再以 Web dashboard 验证 H5。
+
 - Review fixes round 2 merged (2026-10-20, PR #102, rebase): `datasets.apply` 接线 `recordCodecs.parse`（非法 payload 落 opaque，存储失败向上抛）、合法物化清理 stale opaque + collect 去重、`bootstrap` 检查首次同步结果、`subscribeRefresh` 回调保护。CodeRabbit 2 项（存储失败传播、重复 recordId）已修复。annotator 296 单测、vue-tsc、eslint、build 绿。master `bf1e620`。
 
 - I7 subscription refresh merged (2026-10-20, PR #101, rebase): 新增 `subscribeRefresh`（domain 过滤 + 100ms 合并）；接入 inbox/popup/PDF/EPUB；阅读器编辑中挂起、结束后补刷新（CodeRabbit 3 项竞态修复）；ids 增量与逐条发布标记「不计划」。annotator 293 单测、vue-tsc、build 绿。master `dcd8808`。
