@@ -23,7 +23,7 @@
     "idb": "^8.0.0",
     "ink": "^7.0.0",
     "ink-text-input": "^6.0.0",
-    "markdown-it": "^14.2.0",
+    "markdown-it": "^14.3.3",
     "pinia": "^3.0.4",
     "playwright-core": "^1.56.0",
     "react": "^19.0.0",
