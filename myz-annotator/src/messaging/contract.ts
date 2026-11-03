@@ -35,6 +35,11 @@ import type { Settings } from "@/background/settings.js";
 import type { InboxStateRecord } from "@/background/storage.js";
 import type { acceptPairingInvite } from "@/background/sync/v2/pairingSession.js";
 import type {
+  AiAskPayload,
+  AiComposePayload,
+  AiComposeResult,
+} from "@/content/ai-compose.js";
+import type {
   NewStagedAsset,
   StagedAsset,
   StagedAssetMeta,
@@ -127,8 +132,17 @@ export type MyzRuntimeMap = {
   "myz:inboxListStates": { payload: void; result: InboxStateRecord[] };
   "myz:inboxQueue": { payload: void; result: InboxQueueResult };
 
-  // ── Search ──────────────────────────────────────────────────────────────
+  // ── Search / external AI ────────────────────────────────────────────────
   "myz:search": { payload: { query: string }; result: { ok: boolean } };
+  /**
+   * Hand a selection to an external AI chat tab (provider from settings). The
+   * background renders the prompt from the user's template, opens/focuses the
+   * chat tab and fills its composer — it never sends the message.
+   */
+  "myz:askAi": {
+    payload: AiAskPayload;
+    result: AiComposeResult;
+  };
 
   // ── Capture cache (staged assets) ───────────────────────────────────────
   "myz:stageAsset": {
@@ -233,6 +247,8 @@ export type MyzTabMap = {
     payload: { srcUrl?: string } | undefined;
     result: { ok: boolean };
   };
+  /** Fill the DeepSeek chat composer (the AI tab side of `myz:askAi`). */
+  "myz:aiCompose": { payload: AiComposePayload; result: AiComposeResult };
 };
 
 export type MyzRuntimeType = keyof MyzRuntimeMap;

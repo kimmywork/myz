@@ -1,6 +1,7 @@
 import { test, expect, BrowserContext, Page } from "@playwright/test";
 import { Server } from "node:http";
 import path from "node:path";
+import { openTabProbe, setAiSettings } from "../helpers/ai-chat-harness.js";
 import { launchExtension } from "../helpers/launch-extension.js";
 import { dirnameFromImportMeta } from "../helpers/runtime.js";
 import { createStaticServer } from "../helpers/static-server.js";
@@ -74,12 +75,43 @@ test("content_toolbar_translates_between_capture_and_search", async () => {
     timeout: 8000,
   });
 
-  // The actions run 划线 / 摘录 / 截取 / 翻译 / 搜索: translation sits between
-  // the capture and search buttons.
+  // The AI hand-off is opt-in (off by default), so the capture toolbar ships
+  // with five actions; the sixth appears only after it is enabled in settings.
   const labels = await page.$$eval(".myz-annotator-toolbar button", (buttons) =>
     buttons.map((button) => button.getAttribute("aria-label")),
   );
   expect(labels).toEqual(["划线", "摘录", "截取", "翻译", "搜索"]);
+
+  const probe = await openTabProbe(context);
+  await setAiSettings(probe, { enabled: true });
+  await probe.close();
+  await page.reload();
+
+  const reloadedBox = await page.locator("#para-1").boundingBox();
+  if (!reloadedBox)
+    throw new Error("Could not find the paragraph after reload");
+  await page.mouse.move(reloadedBox.x + 10, reloadedBox.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(
+    reloadedBox.x + reloadedBox.width - 10,
+    reloadedBox.y + 10,
+  );
+  await page.mouse.up();
+  await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
+    timeout: 8000,
+  });
+  const enabledLabels = await page.$$eval(
+    ".myz-annotator-toolbar button",
+    (buttons) => buttons.map((button) => button.getAttribute("aria-label")),
+  );
+  expect(enabledLabels).toEqual([
+    "划线",
+    "摘录",
+    "截取",
+    "翻译",
+    "使用 DeepSeek 解读",
+    "搜索",
+  ]);
 
   await page.locator('button[aria-label="翻译"]').click();
   const popover = page.locator(".translation-popover");

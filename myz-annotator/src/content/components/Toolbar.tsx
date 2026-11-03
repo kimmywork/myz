@@ -4,9 +4,11 @@ import {
   IconHighlightPaint,
   IconLanguages,
   IconSearch,
+  IconSparkles,
 } from "@myz/shared/icons";
 import { selectionBlocks } from "@myz/shared/selectionBlocks";
 import { defineComponent } from "vue";
+import { useAiStore } from "@/content/stores/ai-store.js";
 import { useToolbarStore } from "@/content/stores/toolbar-store.js";
 import ConnectedTranslationPopover from "@/reader/ConnectedTranslationPopover.js";
 import { createChromeStorageTranslationCache } from "@/reader/translate/storage.js";
@@ -16,6 +18,7 @@ export default defineComponent({
   name: "MyZToolbar",
   setup() {
     const store = useToolbarStore();
+    const ai = useAiStore();
     // Content scripts share the host page's origin, so translations must not
     // be cached in the page's IndexedDB; use extension storage instead.
     const translation = useTranslation({
@@ -65,6 +68,11 @@ export default defineComponent({
       store.handleSearchClick();
     };
 
+    const handleAskAi = (event: Event) => {
+      event.preventDefault();
+      store.handleAskAiClick();
+    };
+
     return () => (
       <>
         <div
@@ -89,6 +97,16 @@ export default defineComponent({
           <button type="button" aria-label="翻译" onClick={handleTranslate}>
             <IconLanguages size={16} aria-hidden="true" />
           </button>
+          {ai.enabled ? (
+            <button
+              type="button"
+              aria-label={`使用 ${ai.providerLabel} 解读`}
+              title={`使用 ${ai.providerLabel} 解读`}
+              onClick={handleAskAi}
+            >
+              <IconSparkles size={16} aria-hidden="true" />
+            </button>
+          ) : null}
           <button type="button" aria-label="搜索" onClick={handleSearch}>
             <IconSearch size={16} aria-hidden="true" />
           </button>

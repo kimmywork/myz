@@ -4,6 +4,7 @@ import HighlightViewerPage from "./pages/HighlightViewerPage.jsx";
 import InboxPage from "./pages/InboxPage.jsx";
 import ReadersPage from "./pages/ReadersPage.jsx";
 import HighlightPreferencesPage from "./pages/settings/highlight/HighlightPreferencesPage.jsx";
+import SettingsAiPage from "./pages/settings/SettingsAiPage.jsx";
 import SettingsAppearancePage from "./pages/settings/SettingsAppearancePage.jsx";
 import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx";
 import SettingsInboxPage from "./pages/settings/SettingsInboxPage.jsx";
@@ -51,6 +52,11 @@ const routes = [
         path: "inbox",
         name: "settings-inbox",
         component: SettingsInboxPage,
+      },
+      {
+        path: "ai",
+        name: "settings-ai",
+        component: SettingsAiPage,
       },
       {
         path: "sync",

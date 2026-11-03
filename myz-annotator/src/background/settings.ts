@@ -1,6 +1,7 @@
 import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { type SettingsSchemaVersion } from "@myz/shared/versioning";
 import type { SyncS3Settings, SyncSettings } from "@myz/sync-core/settings";
+import type { AiSettings } from "@/ai/settings.js";
 
 export type { SyncS3Settings, SyncSettings };
 
@@ -17,6 +18,8 @@ export interface Settings {
   inboxEnabled?: boolean;
   /** Daily Inbox cleanup reminder; enabled by default. */
   inboxReminderEnabled?: boolean;
+  /** Toolbar → external AI chat hand-off (provider, prompt template). */
+  ai?: AiSettings;
 }
 
 export interface SettingsBundle {

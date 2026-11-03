@@ -19,6 +19,7 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY, STORAGE_KEY } from "./constants.js";
 import { SettingsRegistry } from "./settings/registry.js";
 import type { Settings, SettingsBundle } from "./settings.js";
 import { openS3Credentials, sealS3Credentials } from "./sync/credentials.js";
+import { normalizeAiSettings } from "@/ai/settings.js";
 import type { StagedAsset } from "@/stitch/staged-asset.js";
 
 const DB_NAME = "myz_db";
@@ -131,6 +132,7 @@ function normalizeSettings<T extends Settings>(settings: T): T {
   settings.syncSetupSeen = settings.syncSetupSeen === true;
   settings.inboxEnabled = settings.inboxEnabled !== false;
   settings.inboxReminderEnabled = settings.inboxReminderEnabled !== false;
+  settings.ai = normalizeAiSettings(settings.ai);
 
   return settings;
 }

@@ -1,6 +1,7 @@
 import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { DEFAULT_S3_SETTINGS } from "@myz/sync-core/settings";
 import type { Settings } from "./settings.js";
+import { DEFAULT_AI_SETTINGS } from "@/ai/settings.js";
 
 export const STORAGE_KEY = "myz::highlights";
 export const SETTINGS_KEY = "myz::settings";
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   syncSetupSeen: false,
   inboxEnabled: true,
   inboxReminderEnabled: true,
+  ai: { ...DEFAULT_AI_SETTINGS },
   // E2EE sync
   sync: {
     enabled: false,

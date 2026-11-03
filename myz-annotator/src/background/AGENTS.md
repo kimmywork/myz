@@ -12,6 +12,7 @@ This folder contains the MV3 service worker background logic.
   - `search.ts` — Search handlers (`chrome.search.query`).
   - `sync.ts` — E2EE sync message handlers.
   - `inbox.ts` — Inbox workflow status/mark/relation handlers.
+  - `ask-ai.ts` — `myz:askAi`: provider + prompt template from settings, resolve/focus the chat tab (new chat when needed, Split View beside the source page on Chrome 155+), system-notify when the chat site needs a login, and deliver the composed prompt to `myz:aiCompose`.
   - `handler.ts` — Central message router that delegates to the above modules.
 
 ### Inbox (shared by background + UI)
