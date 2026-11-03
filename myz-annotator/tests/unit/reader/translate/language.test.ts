@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  TARGET_LANGUAGE_OPTIONS,
   baseLanguage,
   isSameLanguage,
   languageLabel,
   normalizeLanguageTag,
+  normalizeTargetLanguage,
   resolveTargetLanguage,
+  targetLanguageLabel,
 } from "@/reader/translate/language.js";
 
 describe("normalizeLanguageTag", () => {
@@ -72,5 +75,22 @@ describe("baseLanguage / languageLabel", () => {
     expect(languageLabel("zh")).toBe("中文");
     expect(languageLabel("zh-Hant")).toBe("繁体中文");
     expect(languageLabel("")).toBe("未知语言");
+  });
+});
+
+describe("bilingual target languages", () => {
+  it("normalizes a known target and falls back to the UI default", () => {
+    expect(normalizeTargetLanguage("zh-CN")).toBe("zh");
+    expect(normalizeTargetLanguage("zh-Hant")).toBe("zh-Hant");
+    expect(normalizeTargetLanguage("en-US")).toBe("en");
+    expect(normalizeTargetLanguage("xx")).toBe("zh");
+    expect(normalizeTargetLanguage("")).toBe("zh");
+  });
+
+  it("labels the offered targets", () => {
+    expect(targetLanguageLabel("zh")).toBe("简体中文");
+    expect(targetLanguageLabel("zh-Hant")).toBe("繁體中文");
+    expect(targetLanguageLabel("ja")).toBe("日本語");
+    expect(TARGET_LANGUAGE_OPTIONS.length).toBeGreaterThan(5);
   });
 });

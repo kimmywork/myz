@@ -54,6 +54,20 @@ export function createEpubBackdoor(
     },
     getMarkCount: () =>
       getDoc()?.querySelectorAll(".myz-highlight").length ?? 0,
+    toggleBilingual: () => store.toggleBilingual(),
+    setBilingualTarget: (tag: string) => store.setBilingualTarget(tag),
+    getBilingualState: () => ({
+      enabled: store.bilingualEnabled,
+      phase: store.bilingualPhase,
+      sourceLanguage: store.bilingualSource,
+      targetLanguage: store.bilingualTarget,
+      error: store.bilingualError,
+      translated: store.bilingualTranslated,
+      blocks: document.querySelectorAll(".myz-bilingual__block").length,
+      doneBlocks: document.querySelectorAll(
+        '.myz-bilingual__block[data-state="done"]',
+      ).length,
+    }),
     getState: () => ({
       status: store.status,
       title: store.title,

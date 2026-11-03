@@ -24,7 +24,7 @@ export default defineComponent({
     const frame = useEpubFrame(store);
 
     return () => (
-      <div class="epub-app">
+      <div class={"epub-app" + (store.bilingualEnabled ? " is-bilingual" : "")}>
         {status.value === "ready" ? <EpubToolbar /> : null}
 
         {status.value === "ready" ? (

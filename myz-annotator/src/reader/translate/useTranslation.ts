@@ -8,16 +8,15 @@
  */
 
 import { computed, ref } from "vue";
-import { createBrowserTranslationEngine } from "./browser-engine.js";
 import type { TranslationCache } from "./cache.js";
-import { resolveTargetLanguage } from "./language.js";
+import { resolveTranslationEngine } from "./engine-provider.js";
+import { resolveTargetLanguage, uiLanguage } from "./language.js";
 import {
   TranslationError,
   translateText,
   type TranslationPhase,
 } from "./service.js";
 import { createIndexedDbTranslationCache } from "./storage.js";
-import type { TranslationEngine } from "./types.js";
 
 export type TranslationStatus = TranslationPhase | "idle" | "done" | "error";
 
@@ -38,48 +37,6 @@ export interface UseTranslationOptions {
   cache?: TranslationCache;
 }
 
-interface TranslationGlobals {
-  __MYZ_TRANSLATE_ENGINE__?: TranslationEngine | null;
-}
-
-/** Fresh browser engine per page, torn down on unload. */
-let sharedEngine: TranslationEngine | null = null;
-
-function defaultEngine(): TranslationEngine | null {
-  if (!sharedEngine) {
-    sharedEngine = createBrowserTranslationEngine();
-  }
-  return sharedEngine;
-}
-
-/** A test may publish `window.__MYZ_TRANSLATE_ENGINE__` (null = unsupported). */
-function overrideEngine(): TranslationEngine | null | undefined {
-  const globals = globalThis as TranslationGlobals;
-  return Object.prototype.hasOwnProperty.call(
-    globals,
-    "__MYZ_TRANSLATE_ENGINE__",
-  )
-    ? globals.__MYZ_TRANSLATE_ENGINE__
-    : undefined;
-}
-
-function currentUiLanguage(): string {
-  const chromeApi = (
-    globalThis as {
-      chrome?: { i18n?: { getUILanguage?: () => string } };
-    }
-  ).chrome?.i18n;
-  try {
-    const value = chromeApi?.getUILanguage?.();
-    if (value) {
-      return value;
-    }
-  } catch {
-    // Fall through to navigator.
-  }
-  return globalThis.navigator?.language ?? "zh";
-}
-
 function messageForError(error: unknown): string {
   if (error instanceof TranslationError) {
     if (error.code === "aborted") {
@@ -88,13 +45,6 @@ function messageForError(error: unknown): string {
     return error.message;
   }
   return "翻译失败，请重试";
-}
-
-if (typeof window !== "undefined") {
-  window.addEventListener("pagehide", () => {
-    sharedEngine?.destroy();
-    sharedEngine = null;
-  });
 }
 
 export function useTranslation(options: UseTranslationOptions = {}) {
@@ -127,7 +77,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
 
   function reset() {
     sourceLanguage.value = "";
-    targetLanguage.value = resolveTargetLanguage(currentUiLanguage());
+    targetLanguage.value = resolveTargetLanguage(uiLanguage());
     status.value = "idle";
     downloadProgress.value = 0;
     translation.value = "";
@@ -140,8 +90,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     controller?.abort();
     controller = new AbortController();
     const signal = controller.signal;
-    const override = overrideEngine();
-    const engine = override === undefined ? defaultEngine() : override;
+    const engine = resolveTranslationEngine();
     if (!engine) {
       status.value = "error";
       errorMessage.value = "当前浏览器不支持端上翻译";

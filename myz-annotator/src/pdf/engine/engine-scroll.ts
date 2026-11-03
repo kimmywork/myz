@@ -25,8 +25,10 @@ export function createPageTracker(ctx: PdfEngineContext, deps: ScrollDeps) {
       rect.left + rect.width / 2,
       rect.top + rect.height / 2,
     );
-    const under = hit?.closest<HTMLElement>(".pdf-page");
-    if (under?.dataset.page) return Number(under.dataset.page);
+    const row = hit?.closest<HTMLElement>(".pdf-page-row");
+    if (row?.dataset.page) return Number(row.dataset.page);
+    const sheet = hit?.closest<HTMLElement>(".pdf-page");
+    if (sheet?.dataset.page) return Number(sheet.dataset.page);
     const middle = rect.top + ctx.stage.clientHeight / 2;
     const elements = pageElements(ctx);
     for (const el of elements) {

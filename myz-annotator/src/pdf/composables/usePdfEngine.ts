@@ -21,6 +21,12 @@ export interface PdfEngine {
   zoomIn(): void;
   zoomOut(): void;
   zoomPercent(): string;
+  /** Current render scale (1 = CSS px per PDF pt). */
+  getScale(): number;
+  /** Applies a render scale and rebuilds the page list. */
+  setScale(scale: number): void;
+  /** Picks the largest scale at which `columns` page-widths fit the stage. */
+  fitColumns(columns: number): Promise<void>;
   pageElements(): HTMLElement[];
   setAfterRender(cb: (pageEl: HTMLElement) => void): void;
   getDoc(): PdfDocument | null;
@@ -104,15 +110,54 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
     ctx.stage.replaceChildren();
     const base = await getPageSize(ctx.doc, 1, state.scale.value);
     for (let index = 1; index <= state.pages.value; index += 1) {
+      // One row per page so the bracketed translation column sits beside the
+      // page (对照翻译) while the page keeps its own box for rendering/eviction.
+      const row = document.createElement("div");
+      row.className = "pdf-page-row";
+      row.dataset.page = String(index);
       const el = document.createElement("div");
       el.className = "pdf-page";
       el.dataset.page = String(index);
       el.style.width = `${base.width}px`;
       el.style.height = `${base.height}px`;
-      ctx.stage.append(el);
+      const column = document.createElement("div");
+      column.className = "pdf-bilingual";
+      column.dataset.page = String(index);
+      column.style.width = `${base.width}px`;
+      row.append(el, column);
+      ctx.stage.append(row);
     }
     queue.observePages();
     await goToPage(preservePage);
+  }
+
+  function setScale(next: number) {
+    if (!ctx.doc || state.status.value !== "ready") return;
+    const clamped = Math.min(
+      ZOOM_LEVELS[ZOOM_LEVELS.length - 1],
+      Math.max(ZOOM_LEVELS[0], next),
+    );
+    if (Math.abs(clamped - state.scale.value) < 0.005) return;
+    state.scale.value = clamped;
+    void buildPages(state.page.value);
+  }
+
+  /**
+   * Scales the pages so `columns` side-by-side copies fit the stage width. The
+   * bilingual mode uses this with 2 (its mirrored column), so the reader never
+   * has to scroll sideways to compare.
+   */
+  async function fitColumns(columns: number) {
+    if (!ctx.doc || !ctx.stage || state.status.value !== "ready") return;
+    const page = await ctx.doc.getPage(1);
+    const width = page.getViewport({ scale: 1 }).width;
+    if (!width) return;
+    const available = Math.max(
+      240,
+      ctx.stage.clientWidth - 32 - (columns > 1 ? 16 : 0),
+    );
+    const target = Math.round((available / columns / width) * 100) / 100;
+    setScale(target);
   }
 
   function zoomStep(direction: "in" | "out") {
@@ -125,9 +170,7 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
         : ([...sorted]
             .reverse()
             .find((level) => level < state.scale.value - 1e-6) ?? sorted[0]);
-    if (target === state.scale.value) return;
-    state.scale.value = target;
-    void buildPages(state.page.value);
+    setScale(target);
   }
 
   function attachStage(el: HTMLElement | null) {
@@ -173,6 +216,9 @@ export function usePdfEngine(state: ReaderState): PdfEngine {
     zoomIn: () => zoomStep("in"),
     zoomOut: () => zoomStep("out"),
     zoomPercent: () => `${Math.round(state.scale.value * 100)}%`,
+    getScale: () => state.scale.value,
+    setScale,
+    fitColumns,
     pageElements: () => pageElements(ctx),
     setAfterRender(cb) {
       ctx.afterRender = cb;

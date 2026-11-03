@@ -9,13 +9,28 @@ import {
 import { storeToRefs } from "pinia";
 import { defineComponent } from "vue";
 import { useReaderStore } from "../stores/reader-store.js";
+import BilingualControl from "@/reader/BilingualControl.js";
 
 export default defineComponent({
   name: "PdfToolbar",
   setup() {
     const store = useReaderStore();
-    const { status, page, pages, label, annotations, sidebarOpen } =
-      storeToRefs(store);
+    const {
+      status,
+      page,
+      pages,
+      label,
+      annotations,
+      sidebarOpen,
+      bilingualEnabled,
+      bilingualPhase,
+      bilingualSource,
+      bilingualTarget,
+      bilingualError,
+      bilingualProgress,
+      bilingualTranslated,
+      bilingualHasTarget,
+    } = storeToRefs(store);
 
     return () => (
       <header class="reader-toolbar">
@@ -84,6 +99,22 @@ export default defineComponent({
           >
             <Plus size={16} aria-hidden="true" />
           </button>
+          <BilingualControl
+            enabled={bilingualEnabled.value}
+            phase={bilingualPhase.value}
+            sourceLanguage={bilingualSource.value}
+            targetLanguage={bilingualTarget.value}
+            error={bilingualError.value}
+            downloadPercent={Math.round(bilingualProgress.value * 100)}
+            translated={bilingualTranslated.value}
+            hasTarget={bilingualHasTarget.value}
+            disabled={status.value !== "ready"}
+            onEnable={store.enableBilingual}
+            onToggle={store.toggleBilingual}
+            onSelectTarget={store.setBilingualTarget}
+            onRedetect={store.redetectBilingual}
+            onRetry={store.retryBilingual}
+          />
           <button type="button" onClick={store.openLocal}>
             <FolderOpen size={16} aria-hidden="true" />
             打开本地 PDF

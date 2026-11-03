@@ -24,6 +24,9 @@ export default defineComponent({
           srcdoc={props.chapterHtml}
           onLoad={props.onLoad}
         />
+        <div class="epub-bilingual" aria-live="off">
+          <div class="epub-bilingual__content" />
+        </div>
       </div>
     );
   },

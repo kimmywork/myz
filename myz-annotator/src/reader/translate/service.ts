@@ -84,6 +84,12 @@ export interface TranslateRequest {
   /** Paragraph blocks captured from the document, preserving structure. */
   blocks?: string[];
   targetLanguage?: string;
+  /**
+   * Skips language detection when the caller already knows the source (a
+   * multi-batch caller such as the bilingual reader detects once and then
+   * passes the result to every following batch).
+   */
+  sourceLanguage?: string;
   engine: TranslationEngine;
   cache?: TranslationCache | null;
   hasher?: TextHasher;
@@ -91,6 +97,13 @@ export interface TranslateRequest {
   /** Override the chunk size (tests); production uses the default. */
   maxChunkLength?: number;
   onProgress?: (progress: TranslationProgress) => void;
+  /** Fires once the resolved language pair is known, before any chunk. */
+  onLanguages?: (languages: {
+    sourceLanguage: string;
+    targetLanguage: string;
+  }) => void;
+  /** Fires as soon as a whole block is translated, for incremental layouts. */
+  onBlock?: (block: TranslationBlockResult, index: number) => void;
 }
 
 function isAbort(error: unknown): boolean {
@@ -161,10 +174,9 @@ export async function translateText(
     totalChunks: 0,
   });
 
-  const sourceLanguage = await detectSourceLanguage(
-    request,
-    blocks.join("\n\n"),
-  );
+  const knownSource = normalizeLanguageTag(request.sourceLanguage);
+  const sourceLanguage =
+    knownSource || (await detectSourceLanguage(request, blocks.join("\n\n")));
   const targetLanguage =
     normalizeLanguageTag(request.targetLanguage) || resolveTargetLanguage();
 
@@ -190,6 +202,7 @@ export async function translateText(
       `暂不支持 ${languageLabel(sourceLanguage)} → ${languageLabel(targetLanguage)}`,
     );
   }
+  request.onLanguages?.({ sourceLanguage, targetLanguage });
 
   const blockChunks = blocks.map((block) =>
     splitIntoChunks(block, request.maxChunkLength ?? DEFAULT_CHUNK_LENGTH),
@@ -280,6 +293,13 @@ export async function translateText(
         throw new TranslationError("failed", "翻译失败，请重试");
       }
     }
+    request.onBlock?.(
+      {
+        source: blocks[blockIndex],
+        translation: joinTranslations(targetLanguage, blockParts[blockIndex]),
+      },
+      blockIndex,
+    );
   }
 
   return {

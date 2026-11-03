@@ -1,4 +1,5 @@
 @import "./translation-popover.css";
+@import "./bilingual.css";
 
 .selection-toolbar {
   position: fixed;
