@@ -16,7 +16,10 @@ const groups = [
   },
   {
     title: "采集",
-    items: [{ label: "Inbox", to: "/settings/inbox" }],
+    items: [
+      { label: "Inbox", to: "/settings/inbox" },
+      { label: "AI 解读", to: "/settings/ai" },
+    ],
   },
   {
     title: "数据",

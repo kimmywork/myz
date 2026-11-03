@@ -1,6 +1,8 @@
 import { RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { Ref, ref } from "vue";
+import type { AiComposeResult } from "../ai-compose";
+import { askAiAboutSelection } from "../ask-ai";
 import { stageCapturedImage } from "../capture-media";
 import { serializeRangeToHtml, waitForNextPaint } from "../html";
 import { cropAndDownloadSelection, getSelectionBoundingRect } from "../image";
@@ -19,7 +21,7 @@ export interface ToolbarStore {
   toolbarRange: Range | null;
   scrollUpdateHandle: number | null;
   handleScreenshotClick(): Promise<void>;
-  handleSendSelectionToAi(): Promise<void>;
+  handleAskAiClick(): Promise<void>;
   handleAnnotateClick(): void;
   handleClipClick(): void;
   handleSearchClick(): Promise<void>;
@@ -27,6 +29,31 @@ export interface ToolbarStore {
 
 const TOOLBAR_MIN_VIEWPORT_GAP = 12;
 const TOOLBAR_VERTICAL_OFFSET_RATIO = 1.5; // Keep in sync with CSS translateY percentage.
+
+/**
+ * User-facing toast for an AI hand-off attempt (null = stay silent).
+ * `login-required` is announced by the background instead: by the time the
+ * result arrives the chat tab is already in front, so a toast on this page
+ * would be invisible.
+ */
+function describeAiResult(result: AiComposeResult): string | null {
+  if (result.ok) {
+    const skipped = result.skipped ?? 0;
+    return skipped > 0
+      ? `已填入对话，${skipped} 张图片未能附加，请检查后发送`
+      : "已填入新对话，请检查后发送";
+  }
+  switch (result.reason) {
+    case "composer-missing":
+      return "未找到对话输入框，请确认对话页已加载完成";
+    case "provider-unavailable":
+      return "设置里的 AI 服务暂未支持，请换一个后重试";
+    case "timeout":
+      return "对话页响应超时，请手动打开对话页后重试";
+    default:
+      return null;
+  }
+}
 
 function toCropRect(rect: Partial<CropRect> | null): CropRect | null {
   if (!rect) return null;
@@ -150,6 +177,27 @@ export const useToolbarStore = defineStore("toolbar", () => {
     }
   }
 
+  /**
+   * Hand the selection to the configured AI chat: the background renders the
+   * prompt, opens (or focuses) the chat tab and fills its composer, so the only
+   * feedback here is a toast. The toolbar hides immediately — the user is about
+   * to switch tabs (or a split pane appears next to this page).
+   */
+  async function handleAskAiClick() {
+    hide();
+    try {
+      const result = await askAiAboutSelection();
+      if (!result) return;
+      const message = describeAiResult(result);
+      if (message) {
+        notificationStore.notify({ message });
+      }
+    } catch (error) {
+      console.error("AI hand-off failed", error);
+      notificationStore.notify({ message: "发送到 AI 对话失败，请稍后重试" });
+    }
+  }
+
   async function handleSearchClick() {
     const selection = window.getSelection();
     const query = selection?.toString().trim() || "";
@@ -249,6 +297,7 @@ export const useToolbarStore = defineStore("toolbar", () => {
     toolbarRange,
     scrollUpdateHandle,
     handleScreenshotClick,
+    handleAskAiClick,
     handleAnnotateClick,
     handleClipClick,
     handleSearchClick,

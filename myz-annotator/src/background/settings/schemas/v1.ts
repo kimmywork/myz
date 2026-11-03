@@ -2,6 +2,7 @@ import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { SETTINGS_SCHEMA_VERSION } from "@myz/shared/versioning";
 import { SyncSettingsSchema } from "@myz/sync-core/settings";
 import { z } from "zod";
+import { AiSettingsSchema } from "@/ai/settings.js";
 
 export const SettingsSchemaVersionV1 = SETTINGS_SCHEMA_VERSION;
 
@@ -15,6 +16,7 @@ export const SettingsSchemaV1 = z.object({
   syncSetupSeen: z.boolean().optional(),
   inboxEnabled: z.boolean().optional(),
   inboxReminderEnabled: z.boolean().optional(),
+  ai: AiSettingsSchema.optional(),
 });
 
 export const SettingsBundleSchemaV1 = z.object({

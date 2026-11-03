@@ -1,5 +1,7 @@
+import { clearAiSessionsForTab } from "./background/ai/session.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
 import { initializeInboxReminder } from "./background/inbox/reminder.js";
+import { initializeAskAiMessageHandlers } from "./background/messages/ask-ai.js";
 import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
 import { handleMessage, hasHandler } from "./background/messages/handler.js";
 import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
@@ -174,6 +176,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+// Drop "keep talking to this conversation" memory when either side is closed.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void clearAiSessionsForTab(tabId);
+});
+
 chrome.runtime.onMessage.addListener((msg, sender) => {
   // Content notifies when zen mode state changed (e.g., via shortcuts or internal toggles)
   if (msg && msg.type === "myz:zenModeStateChanged") {
@@ -183,6 +190,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 });
 
 initializeCaptureMessageHandlers();
+initializeAskAiMessageHandlers();
 initializeHighlightMessageHandlers();
 initializeInboxMessageHandlers();
 initializeSearchMessageHandlers();

@@ -2,6 +2,7 @@ import { COLOR_SCHEMES, HIGHLIGHT_STYLES } from "@myz/shared/types";
 import { normalizeSyncSettings } from "@myz/sync-core/settings";
 import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
+import { normalizeAiSettings } from "@/ai/settings.js";
 import { DEFAULT_SETTINGS } from "@/background/constants.js";
 import { Settings } from "@/background/settings.js";
 import {
@@ -36,6 +37,7 @@ export const useSettingsStore = defineStore("settings", () => {
       }
       Object.assign(settings, {
         dashboardView: result.dashboardView || settings.dashboardView,
+        ai: normalizeAiSettings(result.ai),
         colorScheme: Object.values(COLOR_SCHEMES).includes(
           result.colorScheme as COLOR_SCHEMES,
         )
@@ -80,6 +82,9 @@ export const useSettingsStore = defineStore("settings", () => {
         }
         if ("sync" in updated) {
           settings.sync = normalizeSyncSettings(updated.sync);
+        }
+        if ("ai" in updated) {
+          settings.ai = normalizeAiSettings(updated.ai);
         }
       }
       setTimedStatus(settingsStatus, "设置已保存", 3000);

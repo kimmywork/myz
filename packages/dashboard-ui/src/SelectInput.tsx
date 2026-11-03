@@ -5,6 +5,8 @@ import type { PropType } from "vue"
 export interface SelectOption {
   value: string
   label: string
+  /** Render as an unselectable option (e.g. a not-yet-supported choice). */
+  disabled?: boolean
 }
 
 /**
@@ -62,7 +64,11 @@ export default defineComponent({
           }
         >
           {props.options.map((option) => (
-            <option value={option.value} key={option.value}>
+            <option
+              value={option.value}
+              key={option.value}
+              disabled={option.disabled}
+            >
               {option.label}
             </option>
           ))}
