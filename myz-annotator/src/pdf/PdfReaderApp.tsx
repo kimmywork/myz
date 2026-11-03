@@ -88,6 +88,20 @@ export default defineComponent({
       openLocal: store.openLocal,
       zoomIn: store.zoomIn,
       zoomOut: store.zoomOut,
+      toggleBilingual: store.toggleBilingual,
+      setBilingualTarget: store.setBilingualTarget,
+      getBilingualState: () => ({
+        enabled: store.bilingualEnabled,
+        phase: store.bilingualPhase,
+        sourceLanguage: store.bilingualSource,
+        targetLanguage: store.bilingualTarget,
+        error: store.bilingualError,
+        translated: store.bilingualTranslated,
+        blocks: document.querySelectorAll(".myz-bilingual__block").length,
+        doneBlocks: document.querySelectorAll(
+          '.myz-bilingual__block[data-state="done"]',
+        ).length,
+      }),
       selectText: store.selectTextForTest,
       createAnnotation: store.createAnnotation,
       patchActive: store.patchActive,
@@ -127,7 +141,11 @@ export default defineComponent({
 
     return () => (
       <div
-        class={"reader-app" + (status.value === "landing" ? " is-landing" : "")}
+        class={
+          "reader-app" +
+          (status.value === "landing" ? " is-landing" : "") +
+          (store.bilingualEnabled ? " is-bilingual" : "")
+        }
       >
         {status.value !== "landing" ? (
           <>

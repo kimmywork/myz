@@ -8,6 +8,7 @@ import { ref, watch } from "vue";
 import { loadHighlightPreferences } from "../../reader/load-preferences.js";
 import { countPageAnnotations } from "../annotations.js";
 import { usePdfAnnotations } from "../composables/usePdfAnnotations.js";
+import { usePdfBilingual } from "../composables/usePdfBilingual.js";
 import { usePdfDocument } from "../composables/usePdfDocument.js";
 import { usePdfEngine } from "../composables/usePdfEngine.js";
 import { usePdfOutline } from "../composables/usePdfOutline.js";
@@ -45,7 +46,18 @@ export const useReaderStore = defineStore("pdf-reader", () => {
     getCurrent: engine.getCurrent,
     goToPage: engine.goToPage,
   });
-  engine.setAfterRender((el) => annotations.renderPage(el));
+  const bilingual = usePdfBilingual({
+    getStage: engine.getStage,
+    view: {
+      getScale: engine.getScale,
+      setScale: engine.setScale,
+      fit: (columns) => void engine.fitColumns(columns),
+    },
+  });
+  engine.setAfterRender((el) => {
+    annotations.renderPage(el);
+    bilingual.pageRendered(el);
+  });
 
   const outline = usePdfOutline(state, {
     goToPage: engine.goToPage,
@@ -63,6 +75,12 @@ export const useReaderStore = defineStore("pdf-reader", () => {
   });
 
   watch([state.sidebarOpen, state.sidebarTab], persistSidebarPrefs);
+
+  // A document opened while the bilingual mode is already on has to make room
+  // for the mirrored column.
+  watch(state.status, (next) => {
+    if (next === "ready") bilingual.fit();
+  });
 
   function persistSidebarPrefs() {
     try {
@@ -106,9 +124,11 @@ export const useReaderStore = defineStore("pdf-reader", () => {
   function attachStage(el: HTMLElement | null) {
     engine.attachStage(el);
     annotations.attachStage(el);
+    bilingual.attach();
   }
 
   function detachStage() {
+    bilingual.detach();
     engine.detachStage();
     annotations.detachStage();
   }
@@ -148,6 +168,19 @@ export const useReaderStore = defineStore("pdf-reader", () => {
     ...state,
     styleOptions: STYLE_OPTIONS,
     colorPalette,
+    bilingualEnabled: bilingual.enabled,
+    bilingualPhase: bilingual.phase,
+    bilingualSource: bilingual.sourceLanguage,
+    bilingualTarget: bilingual.targetLanguage,
+    bilingualError: bilingual.error,
+    bilingualProgress: bilingual.downloadProgress,
+    bilingualTranslated: bilingual.translated,
+    bilingualHasTarget: bilingual.hasTarget,
+    enableBilingual: () => bilingual.setEnabled(true),
+    toggleBilingual: bilingual.toggle,
+    setBilingualTarget: bilingual.setTargetLanguage,
+    redetectBilingual: bilingual.redetect,
+    retryBilingual: bilingual.retry,
     activeRecord: annotations.activeRecord,
     highlightCounts: annotations.highlightCounts,
     highlightGroups: annotations.highlightGroups,

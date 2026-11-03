@@ -1,0 +1,339 @@
+/*
+ * Bilingual (对照翻译) reading mode.
+ *
+ * PDF paints one row per page: the original sheet plus a same-width
+ * translation column. EPUB splits the stage into the chapter frame and a
+ * mirrored column. Both columns are painted by `bilingual-pane.ts`, so the
+ * block rules are shared; only the container geometry differs.
+ */
+
+/* ---------- PDF: page row ---------- */
+
+.pdf-page-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.pdf-bilingual {
+  display: none;
+  position: relative;
+  flex-shrink: 0;
+  min-height: 1px;
+  background: #ffffff;
+  box-shadow: var(--myz-shadow);
+}
+
+.reader-app.is-bilingual .pdf-bilingual {
+  display: block;
+}
+
+/* ---------- Transparent column over the chapter iframe ---------- */
+
+.epub-bilingual {
+  display: none;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--myz-well);
+  border-left: 1px solid var(--myz-well-border);
+}
+
+.epub-app.is-bilingual .epub-bilingual {
+  display: block;
+}
+
+.epub-app.is-bilingual .epub-frame {
+  width: auto;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.epub-bilingual__content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+
+/* ---------- Translated blocks (shared) ---------- */
+
+.myz-bilingual__block {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0;
+  font-family: var(--myz-read);
+  line-height: 1.55;
+  letter-spacing: var(--myz-read-tracking);
+  color: #141413;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  border-radius: var(--myz-r-sm);
+}
+
+.myz-bilingual__block.is-heading {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.myz-bilingual__block[data-state="pending"] {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--myz-well-border) 70%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200px 100%;
+  background-repeat: no-repeat;
+  animation: myz-bilingual-shimmer 1.2s linear infinite;
+}
+
+@keyframes myz-bilingual-shimmer {
+  from {
+    background-position: -200px 0;
+  }
+  to {
+    background-position: calc(100% + 200px) 0;
+  }
+}
+
+.epub-bilingual .myz-bilingual__block {
+  padding: 0 var(--myz-read-gutter);
+  color: var(--myz-well-text);
+}
+
+/* ---------- Toolbar control + language menu ---------- */
+
+.myz-bilingual-control {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.myz-bilingual-control > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--myz-hit-compact);
+  padding: 6px 10px;
+  border: 1px solid var(--myz-well-border);
+  background: var(--myz-well-control-bg);
+  color: var(--myz-well-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.myz-bilingual-control > button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.myz-bilingual-control > button:not(:disabled):hover {
+  border-color: var(--myz-accent);
+}
+
+.myz-bilingual-control > button > svg {
+  flex-shrink: 0;
+}
+
+.myz-bilingual-control > .myz-bilingual-control__toggle {
+  border-radius: var(--myz-r) 0 0 var(--myz-r);
+}
+
+.myz-bilingual-control > .myz-bilingual-control__toggle.is-active {
+  border-color: var(--myz-accent);
+  background: color-mix(
+    in srgb,
+    var(--myz-accent) 14%,
+    var(--myz-well-control-bg)
+  );
+}
+
+.myz-bilingual-control > .myz-bilingual-control__caret {
+  width: 28px;
+  padding: 0;
+  border-left: 0;
+  border-radius: 0 var(--myz-r) var(--myz-r) 0;
+}
+
+.myz-bilingual-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 45;
+  width: min(272px, calc(100vw - 24px));
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  background: var(--myz-well-chrome);
+  color: var(--myz-well-text);
+  border: 1px solid var(--myz-well-border);
+  border-radius: var(--myz-r-lg);
+  box-shadow: var(--myz-shadow);
+  animation: myz-bilingual-fade var(--myz-motion-med) var(--myz-ease-out);
+}
+
+@keyframes myz-bilingual-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.myz-bilingual-menu__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.myz-bilingual-menu__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.myz-bilingual-menu__pair {
+  font-size: 11px;
+  color: var(--myz-well-muted);
+}
+
+.myz-bilingual-menu__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.myz-bilingual-menu__label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--myz-well-muted);
+}
+
+.myz-bilingual-menu__list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+
+.myz-bilingual-menu__option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--myz-r-sm);
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.myz-bilingual-menu__option:hover {
+  background: var(--myz-well-control-bg);
+}
+
+.myz-bilingual-menu__option.is-selected {
+  color: var(--myz-accent-text);
+  font-weight: 600;
+}
+
+.myz-bilingual-menu__option .is-hidden {
+  visibility: hidden;
+}
+
+.myz-bilingual-menu__option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myz-bilingual-menu__refresh {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.myz-bilingual-menu__status {
+  margin: 0;
+  font-size: 11px;
+  color: var(--myz-well-muted);
+}
+
+.myz-bilingual-menu__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--myz-well-text);
+  background: color-mix(in srgb, var(--myz-mark-2) 18%, transparent);
+  border-radius: var(--myz-r-sm);
+}
+
+.myz-bilingual-menu__error button {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--myz-well-border);
+  border-radius: var(--myz-r-sm);
+  background: var(--myz-well-control-bg);
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.myz-bilingual-alert {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 44;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 6px 10px;
+  background: var(--myz-well-chrome);
+  color: var(--myz-well-text);
+  border: 1px solid var(--myz-well-border);
+  border-radius: var(--myz-r);
+  box-shadow: var(--myz-shadow);
+  font-size: 12px;
+}
+
+.myz-bilingual-alert__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myz-bilingual-alert__retry {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--myz-well-border);
+  border-radius: var(--myz-r-sm);
+  background: var(--myz-well-control-bg);
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}

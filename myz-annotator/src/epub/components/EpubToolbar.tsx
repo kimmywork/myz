@@ -2,14 +2,27 @@ import { Menu } from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { defineComponent } from "vue";
 import { useEpubReaderStore } from "../stores/reader-store.js";
+import BilingualControl from "@/reader/BilingualControl.js";
 
 /** EPUB top bar: sidebar toggle, chapter paging, title, progress, open local. */
 export default defineComponent({
   name: "EpubToolbar",
   setup() {
     const store = useEpubReaderStore();
-    const { title, spineIndex, spineCount, progressPercent } =
-      storeToRefs(store);
+    const {
+      title,
+      spineIndex,
+      spineCount,
+      progressPercent,
+      bilingualEnabled,
+      bilingualPhase,
+      bilingualSource,
+      bilingualTarget,
+      bilingualError,
+      bilingualProgress,
+      bilingualTranslated,
+      bilingualHasTarget,
+    } = storeToRefs(store);
 
     return () => (
       <header class="epub-toolbar">
@@ -47,6 +60,21 @@ export default defineComponent({
           {title.value}
         </div>
         <span class="epub-pager">{progressPercent.value}%</span>
+        <BilingualControl
+          enabled={bilingualEnabled.value}
+          phase={bilingualPhase.value}
+          sourceLanguage={bilingualSource.value}
+          targetLanguage={bilingualTarget.value}
+          error={bilingualError.value}
+          downloadPercent={Math.round(bilingualProgress.value * 100)}
+          translated={bilingualTranslated.value}
+          hasTarget={bilingualHasTarget.value}
+          onEnable={store.enableBilingual}
+          onToggle={store.toggleBilingual}
+          onSelectTarget={store.setBilingualTarget}
+          onRedetect={store.redetectBilingual}
+          onRetry={store.retryBilingual}
+        />
         <button
           type="button"
           class="epub-btn"

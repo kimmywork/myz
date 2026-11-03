@@ -18,6 +18,7 @@ import { createEpubOpen } from "../reader/epub-open.js";
 import { createLoadPreferences } from "../reader/epub-preferences.js";
 import { createEpubProgress } from "../reader/epub-progress.js";
 import { clamp, type EpubReaderStatus } from "../reader/reader-types.js";
+import { useEpubBilingual } from "../reader/useEpubBilingual.js";
 import type { EpubSourceRef } from "../source.js";
 import type { EpubProgress } from "../storage.js";
 import { findTocPath } from "../toc.js";
@@ -81,6 +82,7 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     chapterHtml,
     tokenKey: () => `${effectiveTheme.value}|${scheme.value}`,
   });
+  const bilingual = useEpubBilingual();
   const progress = createEpubProgress({
     book,
     sourceRef,
@@ -226,6 +228,23 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     lastColor,
     lastStyle,
     init,
+    bilingualEnabled: bilingual.enabled,
+    bilingualPhase: bilingual.phase,
+    bilingualSource: bilingual.sourceLanguage,
+    bilingualTarget: bilingual.targetLanguage,
+    bilingualError: bilingual.error,
+    bilingualProgress: bilingual.downloadProgress,
+    bilingualTranslated: bilingual.translated,
+    bilingualHasTarget: bilingual.hasTarget,
+    enableBilingual: () => bilingual.setEnabled(true),
+    toggleBilingual: bilingual.toggle,
+    setBilingualTarget: bilingual.setTargetLanguage,
+    redetectBilingual: bilingual.redetect,
+    retryBilingual: bilingual.retry,
+    setBilingualFrame: bilingual.setFrame,
+    syncBilingualScroll: bilingual.syncScroll,
+    refreshBilingual: bilingual.refresh,
+    clearBilingual: bilingual.clear,
     openLocal: opener.openLocal,
     openUrl: opener.openUrl,
     openRecent: opener.openRecent,

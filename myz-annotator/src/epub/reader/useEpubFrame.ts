@@ -33,6 +33,7 @@ export function useEpubFrame(store: Store) {
   let chapterAnchors: ChapterAnchor[] = [];
   let attachedWindow: Window | null = null;
   let scrollHandler: (() => void) | null = null;
+  let frameObserver: ResizeObserver | null = null;
 
   function handleSelection(doc: Document, frame: HTMLIFrameElement) {
     const selection = doc.getSelection();
@@ -170,6 +171,7 @@ export function useEpubFrame(store: Store) {
       const height = doc.documentElement.scrollHeight - frame.clientHeight;
       if (height > 0) store.setProgression(win.scrollY / height);
       updateCurrentFromScroll(chapterAnchors, store);
+      store.syncBilingualScroll();
     };
     win.addEventListener("scroll", scrollHandler, { passive: true });
 
@@ -185,11 +187,19 @@ export function useEpubFrame(store: Store) {
       handleSelection(doc, frame);
     });
     doc.addEventListener("click", (event) => handleHighlightClick(event));
+    // Sidebar toggles and the bilingual column itself change the frame width,
+    // which reflows the chapter: re-measure blocks once the layout settles.
+    frameObserver?.disconnect();
+    if (typeof ResizeObserver !== "undefined") {
+      frameObserver = new ResizeObserver(() => store.refreshBilingual());
+      frameObserver.observe(frame);
+    }
     window.setTimeout(() => {
       store.applyCurrentChapter(doc);
       chapterAnchors = collectChapterAnchors(doc, store);
       updateCurrentFromScroll(chapterAnchors, store);
       store.expandTocPath(store.currentTocHref);
+      store.setBilingualFrame(doc, win);
       if (pendingFocusId) {
         const id = pendingFocusId;
         pendingFocusId = null;
@@ -205,6 +215,7 @@ export function useEpubFrame(store: Store) {
       selectionToolbar.value = null;
       activeId.value = null;
       pendingRange.value = null;
+      store.clearBilingual();
     },
   );
 
@@ -293,6 +304,8 @@ export function useEpubFrame(store: Store) {
 
   onBeforeUnmount(() => {
     window.removeEventListener("keydown", handleKeydown);
+    frameObserver?.disconnect();
+    frameObserver = null;
     unsubscribe?.();
   });
 

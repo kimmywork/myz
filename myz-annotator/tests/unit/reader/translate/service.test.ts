@@ -222,6 +222,46 @@ describe("translateText", () => {
     expect(outcome.translation).toBe("[Heading]\n\n[Body one.]\n\n[Body two.]");
   });
 
+  it("reports the language pair and each finished block", async () => {
+    const languages: { sourceLanguage: string; targetLanguage: string }[] = [];
+    const blocks: { source: string; translation: string }[] = [];
+    const outcome = await translateText({
+      blocks: ["First.", "Second."],
+      targetLanguage: "zh",
+      engine: createEngine(),
+      hasher: async (text) => `h-${text}`,
+      onLanguages: (pair) => languages.push(pair),
+      onBlock: (block) => blocks.push(block),
+    });
+
+    expect(languages).toEqual([{ sourceLanguage: "en", targetLanguage: "zh" }]);
+    expect(blocks).toEqual([
+      { source: "First.", translation: "[First.]" },
+      { source: "Second.", translation: "[Second.]" },
+    ]);
+    expect(outcome.translation).toBe("[First.]\n\n[Second.]");
+  });
+
+  it("skips detection when the caller already knows the source", async () => {
+    const detect = vi.fn(async () => [
+      { detectedLanguage: "de", confidence: 0.9 },
+    ]);
+    const translate = vi.fn(
+      async (_s: string, _t: string, text: string) => `[${text}]`,
+    );
+    const outcome = await translateText({
+      text: "Hello there.",
+      sourceLanguage: "en",
+      targetLanguage: "zh",
+      engine: createEngine({ detect, translate }),
+      hasher: async (text) => `h-${text}`,
+    });
+
+    expect(detect).not.toHaveBeenCalled();
+    expect(outcome.sourceLanguage).toBe("en");
+    expect(outcome.translation).toBe("[Hello there.]");
+  });
+
   it("is a TranslationError subclass with a message", async () => {
     const error = await translateText({
       text: "",
