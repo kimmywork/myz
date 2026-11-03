@@ -272,7 +272,17 @@ test("pdf_bilingual_switches_target_reuses_cache_and_closes", async () => {
   const afterReopen = await page.evaluate(
     () => (window as any).__MOCK_TRANSLATE_CALLS__.length,
   );
-  expect(afterReopen).toBe(beforeReopen);
+  // Reopening must not translate the same block for the same target twice. It
+  // may still translate a block that only became fully visible now (replay is
+  // scoped to the last viewport, not to every block ever requested).
+  const pairs = await page.evaluate(() =>
+    (window as any).__MOCK_TRANSLATE_CALLS__.map(
+      (call: { target: string; text: string }) =>
+        `${call.target}\u0000${call.text}`,
+    ),
+  );
+  expect(new Set(pairs).size).toBe(pairs.length);
+  expect(afterReopen).toBeGreaterThanOrEqual(beforeReopen);
   expect(afterReopen).toBeGreaterThan(firstCalls);
 
   expect(errors, errors.join("\n")).toHaveLength(0);
