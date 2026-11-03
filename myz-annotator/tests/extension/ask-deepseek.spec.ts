@@ -262,6 +262,24 @@ test("settings_control_the_button_and_the_prompt_template", async () => {
   );
   expect(labels).toEqual(["划线", "摘录", "截取", "翻译", "搜索"]);
 
+  // The handler enforces the opt-out as well: a page loaded while the feature
+  // was on can still post the message itself.
+  const rejected = await probe.evaluate(async () => {
+    const api = chrome as unknown as {
+      runtime: {
+        sendMessage: (message: unknown) => Promise<{
+          data?: { ok?: boolean; reason?: string };
+        }>;
+      };
+    };
+    const response = await api.runtime.sendMessage({
+      type: "myz:askAi",
+      payload: { text: "stale page", url: "https://example.com" },
+    });
+    return response?.data ?? null;
+  });
+  expect(rejected?.reason).toBe("disabled");
+
   // Enabled with a custom template: the prompt is rendered by the background
   // from stored settings, not hard-coded in the content script.
   await setAiSettings(probe, {

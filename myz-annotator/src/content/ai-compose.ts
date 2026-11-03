@@ -57,6 +57,8 @@ export interface AiComposeResult {
     | "composer-missing"
     | "empty-payload"
     | "provider-unavailable"
+    /** The user turned the feature off after this page loaded. */
+    | "disabled"
     /** Still on the old conversation; the background must navigate first. */
     | "not-ready"
     | "timeout";

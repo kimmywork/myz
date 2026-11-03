@@ -105,6 +105,8 @@ export function createBilingualSession(
   const translations = new Map<string, string>();
   /** Every block ever requested, so a retry/re-target can replay them. */
   const known = new Map<string, string>();
+  /** Keys of the most recent request (the visible window). */
+  let lastRequestKeys: string[] = [];
   const queue: BilingualSegment[] = [];
   const queued = new Set<string>();
   const listeners = new Set<(event: BilingualEvent) => void>();
@@ -157,13 +159,15 @@ export function createBilingualSession(
     queued.clear();
   }
 
+  /**
+   * Re-runs the most recent `request()` — i.e. the blocks the reader is looking
+   * at — rather than every block requested since the page opened. Replaying the
+   * whole history sends chapters/pages the user has scrolled past long ago into
+   * one serial batch, delaying the visible column.
+   */
   function replay(): void {
-    request(
-      [...known.entries()].map(([key, text]) => ({
-        key,
-        text,
-      })),
-    );
+    const keys = lastRequestKeys.length ? lastRequestKeys : [...known.keys()];
+    request(keys.map((key) => ({ key, text: known.get(key) ?? "" })));
   }
 
   async function pump(): Promise<void> {
@@ -260,16 +264,23 @@ export function createBilingualSession(
     // Remember every requested block first: a request that arrives while the
     // engine is not resolvable yet must still be replayable by `retry()`.
     const fresh: BilingualSegment[] = [];
+    const requested: string[] = [];
     for (const segment of segments) {
       const text = (segment?.text || "").replace(/\s+/g, " ").trim();
       if (!text || !segment.key) {
         continue;
       }
       known.set(segment.key, text);
+      requested.push(segment.key);
       if (translations.has(cacheKey(segment.key)) || queued.has(segment.key)) {
         continue;
       }
       fresh.push({ key: segment.key, text });
+    }
+    // Remember the window even when everything is already translated: a later
+    // target switch must replay exactly this viewport.
+    if (requested.length) {
+      lastRequestKeys = requested;
     }
     if (!fresh.length) {
       return;

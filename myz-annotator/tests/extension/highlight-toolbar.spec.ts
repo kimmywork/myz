@@ -100,6 +100,10 @@ test("content_toolbar_translates_between_capture_and_search", async () => {
   await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
     timeout: 8000,
   });
+  // The AI store reads settings asynchronously, so wait for the extra button.
+  await expect(page.locator(".myz-annotator-toolbar button")).toHaveCount(6, {
+    timeout: 8000,
+  });
   const enabledLabels = await page.$$eval(
     ".myz-annotator-toolbar button",
     (buttons) => buttons.map((button) => button.getAttribute("aria-label")),
