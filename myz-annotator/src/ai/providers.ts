@@ -95,7 +95,10 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProvider> = {
 export const AI_PROVIDER_IDS = Object.keys(AI_PROVIDERS) as AiProviderId[];
 
 export function isAiProviderId(value: unknown): value is AiProviderId {
-  return typeof value === "string" && value in AI_PROVIDERS;
+  return (
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(AI_PROVIDERS, value)
+  );
 }
 
 /** Resolve a provider id, falling back to the default for unknown values. */

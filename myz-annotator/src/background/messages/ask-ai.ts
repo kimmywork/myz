@@ -62,8 +62,6 @@ interface SplitViewTabs {
   createSplit?: (tabIds: number[]) => Promise<number>;
 }
 
-let lastLoginNoticeAt = 0;
-
 export function initializeAskAiMessageHandlers() {
   registerMessageHandler(
     "myz:askAi",
@@ -78,6 +76,12 @@ export function initializeAskAiMessageHandlers() {
       }
 
       const ai = normalizeAiSettings((await readSettings()).ai);
+      // The toolbar hides the button on reload, but a page that was loaded while
+      // the feature was on keeps its button: check the switch here so a stale
+      // page cannot hand content to a third party after the user opted out.
+      if (!ai.enabled) {
+        return { ok: false, reason: "disabled" };
+      }
       const provider = getAiProvider(ai.provider);
       if (!provider.available) {
         return { ok: false, reason: "provider-unavailable" };
@@ -107,11 +111,12 @@ export function initializeAskAiMessageHandlers() {
         await navigateToNewChat(tab.id, provider);
         result = await deliver(tab.id, payloadForTab);
       }
-      if (result.reason === "login-required") {
-        await notifyLoginRequired(provider);
-      }
       if (result.ok) {
         await rememberSession(source, tab);
+      } else {
+        // The chat tab is in front when this resolves, so the source-page toast
+        // is invisible: failures need a system notification.
+        await notifyFailure(provider, result);
       }
       return result;
     },
@@ -120,20 +125,36 @@ export function initializeAskAiMessageHandlers() {
 
 /**
  * The chat tab is already in front when this fires, so a page toast would be
- * invisible: use a system notification instead (throttled).
+ * invisible: use a system notification instead (throttled per reason).
  */
-async function notifyLoginRequired(provider: AiProvider): Promise<void> {
+const FAILURE_MESSAGES: Partial<Record<string, string>> = {
+  "login-required": "请先在标签页登录，然后重新选中内容再试。",
+  "composer-missing": "没找到对话输入框，请确认页面已加载完成后重试。",
+  "provider-unavailable": "设置里的 AI 服务暂不可用，请换一个后重试。",
+  timeout: "对话页响应超时，请手动打开对话页后重试。",
+};
+
+const lastFailureNoticeAt = new Map<string, number>();
+
+async function notifyFailure(
+  provider: AiProvider,
+  result: AiComposeResult,
+): Promise<void> {
+  const reason = result.reason ?? "timeout";
+  const detail = FAILURE_MESSAGES[reason];
+  if (!detail) return;
   const now = Date.now();
-  if (now - lastLoginNoticeAt < LOGIN_NOTICE_COOLDOWN_MS) return;
-  lastLoginNoticeAt = now;
+  const last = lastFailureNoticeAt.get(reason) ?? 0;
+  if (now - last < LOGIN_NOTICE_COOLDOWN_MS) return;
+  lastFailureNoticeAt.set(reason, now);
   try {
     await notifier.notify({
-      id: "myz-ai-login",
-      title: `MyZ：需要登录 ${provider.label}`,
-      message: `请先在 ${provider.label} 标签页登录，然后重新选中内容再试。`,
+      id: `myz-ai-${reason}`,
+      title: `MyZ：${provider.label} 解读未完成`,
+      message: detail,
     });
   } catch (error) {
-    console.debug("MyZ: login notification failed", error);
+    console.debug("MyZ: AI failure notification failed", error);
   }
 }
 

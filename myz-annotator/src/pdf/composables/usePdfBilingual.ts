@@ -28,9 +28,14 @@ export function usePdfBilingual(deps: {
   let restoreScale: number | null = null;
 
   function fit() {
-    if (controller.enabled.value) {
-      deps.view.fit(2);
+    if (!controller.enabled.value) return;
+    // Capture the pre-fit scale here as well: when the mode starts enabled from
+    // saved preferences the watcher never fires, so this is the only place that
+    // sees the reader's original zoom.
+    if (restoreScale === null) {
+      restoreScale = deps.view.getScale();
     }
+    deps.view.fit(2);
   }
 
   watch(controller.enabled, (enabled) => {

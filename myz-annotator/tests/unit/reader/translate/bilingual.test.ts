@@ -95,6 +95,31 @@ describe("createBilingualSession", () => {
     expect(session.snapshot().targetLanguage).toBe("ja");
   });
 
+  it("replays only the latest viewport after a target change", async () => {
+    const translate = vi.fn(
+      async (_source: string, target: string, text: string) =>
+        `[${target}]${text}`,
+    );
+    const session = createBilingualSession({
+      engine: createEngine({ translate }),
+      cache: createMemoryTranslationCache(),
+    });
+
+    // First viewport, then the user scrolls far away: the old blocks must not
+    // be re-sent when the target language changes.
+    session.request([ALPHA]);
+    await waitFor(() => session.translationFor("Alpha") === "[zh]Alpha");
+    session.request([BETA]);
+    await waitFor(() => session.translationFor("Beta") === "[zh]Beta");
+    translate.mockClear();
+
+    session.setTargetLanguage("ja");
+    await waitFor(() => session.translationFor("Beta") === "[ja]Beta");
+    const translatedTexts = translate.mock.calls.map((call) => call[2]);
+    expect(translatedTexts).toContain("Beta");
+    expect(translatedTexts).not.toContain("Alpha");
+  });
+
   it("re-detects and retranslates when asked", async () => {
     let detections = 0;
     const detect = vi.fn(async () => [

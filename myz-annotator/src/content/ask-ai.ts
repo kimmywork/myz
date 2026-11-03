@@ -68,9 +68,18 @@ export async function askAiAboutSelection(): Promise<AiComposeResult | null> {
 export async function captureSelectionScreenshot(
   range: Range,
 ): Promise<AiComposeImage[]> {
-  if (!selectionHasImage(range)) return [];
+  const images = selectedImages(range);
+  if (!images.length) return [];
+  // Clamp to the viewport and require the visible part to actually cover one of
+  // the selected images: a selection that runs from on-screen text down to an
+  // image below the fold would otherwise crop a band of unrelated page content.
   const rect = toCropRect(getSelectionBoundingRect(range));
-  if (!rect) return [];
+  const crop = rect ? clampToViewport(rect) : null;
+  if (!crop) return [];
+  const coversImage = images.some((image) =>
+    rectsOverlap(image.getBoundingClientRect(), crop),
+  );
+  if (!coversImage) return [];
 
   const selection = window.getSelection();
   const saved: Range[] = [];
@@ -85,7 +94,7 @@ export async function captureSelectionScreenshot(
     // The overlay toolbar is already hidden by the caller, so it stays out of
     // the shot; the helper also waits for the next paint.
     const screenshot = await captureVisiblePngWithThrottle();
-    const { canvas } = await cropToCanvas(screenshot, rect, viewport);
+    const { canvas } = await cropToCanvas(screenshot, crop, viewport);
     return [{ dataUrl: canvas.toDataURL("image/png"), mime: "image/png" }];
   } finally {
     selection?.removeAllRanges();
@@ -99,10 +108,36 @@ export async function captureSelectionScreenshot(
   }
 }
 
+/** Visible images the selection covers. */
+export function selectedImages(range: Range): HTMLImageElement[] {
+  return Array.from(document.images).filter(
+    (image) => isVisible(image) && intersects(range, image),
+  );
+}
+
 /** True when a visible image element intersects the selection. */
 export function selectionHasImage(range: Range): boolean {
-  return Array.from(document.images).some(
-    (image) => isVisible(image) && intersects(range, image),
+  return selectedImages(range).length > 0;
+}
+
+/** Clip a selection rectangle to what is actually on screen. */
+function clampToViewport(rect: CropRect): CropRect | null {
+  const left = Math.max(0, rect.left);
+  const top = Math.max(0, rect.top);
+  const right = Math.min(window.innerWidth, rect.left + rect.width);
+  const bottom = Math.min(window.innerHeight, rect.top + rect.height);
+  const width = right - left;
+  const height = bottom - top;
+  if (width < MIN_CROP_EDGE || height < MIN_CROP_EDGE) return null;
+  return { left, top, width, height };
+}
+
+function rectsOverlap(rect: DOMRect, crop: CropRect): boolean {
+  return (
+    rect.right > crop.left &&
+    rect.left < crop.left + crop.width &&
+    rect.bottom > crop.top &&
+    rect.top < crop.top + crop.height
   );
 }
 

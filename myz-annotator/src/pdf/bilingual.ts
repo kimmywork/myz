@@ -264,6 +264,10 @@ export function createPdfBilingualLayer(
     detach,
     sync,
     pageRendered(pageEl) {
+      // Pages are rebuilt on every zoom/scale change; drop the panes of the
+      // replaced elements here instead of leaking one per rendered page until
+      // the next full `sync()`.
+      disposePanes(true);
       paneFor(pageEl);
       requestVisible();
     },

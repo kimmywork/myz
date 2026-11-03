@@ -18,7 +18,7 @@
 | 会话 | `/a/chat/s/<id>` | `/c/<id>`（另有 `/c/local`、`/c/guest`） |
 | 登录页 | `/sign_in`、`/login` | `/auth?action=signin`（`/auth` 路径） |
 
-因此「是否新对话」只看 pathname 是否为根；会话 URL 一律视为旧会话 → 导航回根路径开新对话。
+因此「是否新对话」看 `provider.newChatPaths`：根路径，加上 Qwen 的草稿路由（`/c/new-chat`、`/c/local`、`/c/guest`）。其余（如 `/a/chat/s/<id>`、`/c/<id>`）一律视为旧会话 → 切到新对话。
 
 ## 输入框
 

@@ -33,8 +33,7 @@ export const DEFAULT_AI_PROMPT_TEMPLATE = [
 /** Shown in place of the excerpt when the selection only contains images. */
 export const AI_IMAGE_ONLY_PLACEHOLDER = "（见随附图片）";
 
-const TEXT_PATTERN = /\{\s*text\s*\}/gi;
-const URL_PATTERN = /\{\s*url\s*\}/gi;
+const PLACEHOLDER_PATTERN = /\{\s*(text|url)\s*\}/gi;
 const TEXT_TEST = /\{\s*text\s*\}/i;
 const URL_TEST = /\{\s*url\s*\}/i;
 
@@ -61,9 +60,11 @@ export function renderAiPrompt({ template, text, url }: AiPromptInput): string {
   const hasText = TEXT_TEST.test(source);
   const hasUrl = URL_TEST.test(source);
 
-  let prompt = source
-    .replace(TEXT_PATTERN, () => excerpt)
-    .replace(URL_PATTERN, () => url);
+  // One pass: a second pass would also rewrite placeholders that arrive *with
+  // the inserted value* (a selection containing `{url}` would become the URL).
+  let prompt = source.replace(PLACEHOLDER_PATTERN, (_match, key: string) =>
+    key.toLowerCase() === "text" ? excerpt : url,
+  );
   if (!hasText) prompt += `\n\n${excerpt}`;
   if (!hasUrl) prompt += `\n\n${url}`;
   return prompt.trim();

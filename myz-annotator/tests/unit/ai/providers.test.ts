@@ -6,6 +6,7 @@ import {
 } from "../../../src/ai/prompt";
 import {
   getAiProvider,
+  isAiProviderId,
   isProviderLoginUrl,
   isProviderNewChatUrl,
   providerForUrl,
@@ -28,6 +29,13 @@ describe("AI provider registry", () => {
     expect(providerForUrl("https://chat.deepseek.com.evil.test/")).toBeNull();
     expect(providerForUrl("https://example.com/")).toBeNull();
     expect(providerForUrl(undefined)).toBeNull();
+  });
+
+  it("ignores object prototype keys", () => {
+    expect(isAiProviderId("deepseek")).toBe(true);
+    expect(isAiProviderId("constructor")).toBe(false);
+    expect(isAiProviderId("__proto__")).toBe(false);
+    expect(isAiProviderId("toString")).toBe(false);
   });
 
   it("falls back to the default provider for unknown ids", () => {
@@ -128,6 +136,16 @@ describe("prompt template", () => {
         url: "https://x",
       }),
     ).toBe("解释 abc\n\nhttps://x");
+  });
+
+  it("does not re-substitute placeholders that arrive with the excerpt", () => {
+    expect(
+      renderAiPrompt({
+        template: "snippet: {TEXT}",
+        text: "use {url} inside the template",
+        url: "https://example.com",
+      }),
+    ).toBe("snippet: use {url} inside the template\n\nhttps://example.com");
   });
 
   it("uses an image placeholder for image-only selections", () => {
