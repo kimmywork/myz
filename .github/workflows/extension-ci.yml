@@ -2,7 +2,11 @@ name: myz-annotator CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
+    paths:
+      - "myz-annotator/**"
+      - "packages/**"
+      - ".github/workflows/extension-ci.yml"
   pull_request:
     paths:
       - "myz-annotator/**"
@@ -59,3 +63,129 @@ jobs:
         with:
           name: playwright-test-results
           path: myz-annotator/test-results
+
+      # Only a green push to master feeds the nightly pre-release.
+      - name: Upload built extension
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: myz-annotator/dist
+          retention-days: 3
+
+  # Nightly pre-release: only on master, only after the tests pass. Version is
+  # `<package.json version>.<yyyyMMdd>-<last merged PR>` (e.g. 0.6.6.20261103-105).
+  pre-release:
+    name: Nightly pre-release (master)
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Download built extension
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: myz-annotator/dist
+
+      - name: Compose the nightly version
+        id: version
+        run: |
+          set -euo pipefail
+          pkg=$(node -p "require('./myz-annotator/package.json').version")
+          # The most recently merged PR is what this build belongs to; its merge
+          # date + number make the nightly identifiable. `sort_by` keeps the
+          # choice deterministic even if the list order changes.
+          pr=$(gh pr list --state merged --base master --limit 20 \
+            --json number,mergedAt --jq 'sort_by(.mergedAt) | last | .number')
+          merged_at=$(gh pr list --state merged --base master --limit 20 \
+            --json number,mergedAt --jq 'sort_by(.mergedAt) | last | .mergedAt')
+          if [ -z "$pr" ] || [ -z "$merged_at" ]; then
+            echo "No merged PR found; cannot derive the nightly version." >&2
+            exit 1
+          fi
+          # Node (not `date -d`) keeps this portable: it runs on the host too.
+          date_tag=$(node -p "new Date('$merged_at').toISOString().slice(0,10).replace(/-/g,'')")
+          display="${pkg}.${date_tag}-${pr}"
+          # Chrome only accepts 1-4 dot-separated integers (each 0-65535) in
+          # `version`, so the date lives in `version_name` (shown in
+          # chrome://extensions) and the manifest keeps a monotonic number: the
+          # PR number increases with every merge and keeps updates ordered.
+          numeric="${pkg}.${pr}"
+          {
+            echo "pkg=$pkg"
+            echo "pr=$pr"
+            echo "date=$date_tag"
+            echo "display=$display"
+            echo "numeric=$numeric"
+            echo "tag=nightly-${date_tag}-${pr}"
+            echo "zip=myz-annotator-${display}.zip"
+          } >> "$GITHUB_OUTPUT"
+          echo "Nightly version: $display (manifest version $numeric)"
+
+      - name: Stamp the extension version
+        env:
+          NUMERIC_VERSION: ${{ steps.version.outputs.numeric }}
+          DISPLAY_VERSION: ${{ steps.version.outputs.display }}
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const file = "myz-annotator/dist/manifest.json";
+          const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+          manifest.version = process.env.NUMERIC_VERSION;
+          manifest.version_name = process.env.DISPLAY_VERSION;
+          fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+          // Chrome rejects anything that is not 1-4 dot-separated integers in
+          // 0..65535: fail the job here rather than shipping a nightly that
+          // cannot be loaded.
+          const parts = String(manifest.version).split(".");
+          const valid =
+            parts.length >= 1 &&
+            parts.length <= 4 &&
+            parts.every((part) => /^\d+$/.test(part) && Number(part) <= 65535);
+          if (!valid) {
+            throw new Error(`Invalid Chrome version: ${manifest.version}`);
+          }
+          console.log(`${manifest.name} ${manifest.version} (${manifest.version_name})`);
+          NODE
+
+      # `dist/` is what Chrome loads: manifest.json must sit at the zip root.
+      - name: Pack the extension
+        run: |
+          set -euo pipefail
+          zip="${{ steps.version.outputs.zip }}"
+          (cd myz-annotator/dist && zip -qr "../../$zip" .)
+          ls -lh "$zip"
+          unzip -l "$zip" | sed -n '1,6p'
+
+      - name: Publish the nightly pre-release
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          DISPLAY: ${{ steps.version.outputs.display }}
+          ZIP: ${{ steps.version.outputs.zip }}
+          PR: ${{ steps.version.outputs.pr }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; replacing its asset."
+            gh release upload "$TAG" "$ZIP" --clobber
+            exit 0
+          fi
+          gh release create "$TAG" "$ZIP" \
+            --title "Nightly ${DISPLAY}" \
+            --notes "master 自动构建：${DISPLAY}（最近合并的 PR #${PR}）。未签名的开发版，仅供测试，请勿用于正式分发。" \
+            --prerelease \
+            --latest=false \
+            --target master
