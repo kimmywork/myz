@@ -52,6 +52,9 @@ Other modules: check each module's `package.json` for scripts.
 
 ## Testing Notes
 - myz-annotator Playwright runs against built output; run `npm run build` first.
+- Sync tests do not use a hand-written S3 mock: they run against `fakes3`
+  (`fakes3-sdk`, `auth: true` verifies SigV4) and use `@aws-sdk/client-s3` as an
+  independent oracle. See `docs/knowledges/s3-client.md`.
 
 ## Code Quality
 - `npm run jscpd` runs JSCPD (Copy/Paste Detector) to find duplicate code across the repo.
