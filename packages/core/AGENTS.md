@@ -41,4 +41,4 @@ through ports. Depends on `@myz/shared` and `zod`.
 - Keep it free of host APIs; import only `@myz/shared/*` (and `zod`).
 - Prefer pure functions and small registries over classes/state.
 - Register model kinds/prefixes here so sync keys stay frozen domain vocabulary.
-- See `docs/plan/core-refactor.md` for the target architecture and increments.
+- See `docs/plan/implemented/core-refactor.md` for the target architecture and increments.

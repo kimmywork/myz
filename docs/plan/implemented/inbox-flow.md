@@ -4,7 +4,7 @@
 >
 > 本版落实三项决定：
 > 1. Inbox **默认启用、可关闭**；关闭后新采集直接进入文库（等价现状）。
-> 2. 工作流状态作为**独立子流**记录同步（`<accountId>/streams/inbox/`），与主流高亮物理隔离、各自按 recordId 做 latest-write-wins，消除“整条记录互相覆盖”的同步冲突；子流协议与优化见 `docs/plan/e2ee-sync-evolution.md`。
+> 2. 工作流状态作为**独立子流**记录同步（`<accountId>/streams/inbox/`），与主流高亮物理隔离、各自按 recordId 做 latest-write-wins，消除“整条记录互相覆盖”的同步冲突；子流协议与优化见 `docs/plan/implemented/e2ee-sync-evolution.md`。
 > 3. 本计划**不再包含任何 AI / 自动化 / 基于统计或分词的归类与关联**。相关方案与实验结果已移到 `docs/research/omni-inbox/inbox-enrichments.md`，本版只呈现记录自带的确定性信息。
 > 4. **总增量顺序**：安全 quick wins（QW1–QW5）→ 安全密钥模型（设备绑定 D/roster/按设备签名，clean break）→ sync 子流（`e2ee-sync-evolution.md` I2–I6）→ 本文 Inbox 状态与 UI。各计划的“第二轮 review 修复决议”记录具体修正。
 
@@ -55,7 +55,7 @@ Inbox 不替代文库。保留后的记录仍由文库负责完整查看、编�
 - 合并规则：同 recordId 取 `updatedAt` 最大者，相等时比 recordHash；**没有字段级合并**；删除是“最新 manifest 中缺席”的硬删（`packages/sync-core/src/E2EE_SYNC_SPEC.md`）。
 - 因此只要把 `inbox.status` 挂在同一条 `MyZRecord` 上，任何一次“标记 / 保留 / 归档 / 稍后”都会 bump 该记录的 `updatedAt` 并整条重传；此时另一端对同一记录的正文、批注或标签编辑会被整条覆盖（反之亦然）。“先读最新再写”只能缩小在线窗口，离线跨设备仍会丢。
 
-结论：**状态必须与正文物理隔离并独立同步**，放进独立子流（`<accountId>/streams/inbox/`）。这样状态写入只动子流记录，正文编辑只动主流记录，二者互不覆盖；子流的协议契约与同步优化见 `docs/plan/e2ee-sync-evolution.md`。
+结论：**状态必须与正文物理隔离并独立同步**，放进独立子流（`<accountId>/streams/inbox/`）。这样状态写入只动子流记录，正文编辑只动主流记录，二者互不覆盖；子流的协议契约与同步优化见 `docs/plan/implemented/e2ee-sync-evolution.md`。
 
 ### 2.3 自动语义能力的边界
 
@@ -65,7 +65,7 @@ Inbox 不替代文库。保留后的记录仍由文库负责完整查看、编�
 
 ### 3.1 状态与存储
 
-Inbox 状态是记录的用户工作流元数据，但它**既不写入 `MyZRecord`，也不进入主流 manifest**，而是作为**独立子流**中的记录（子流协议见 `docs/plan/e2ee-sync-evolution.md`）：
+Inbox 状态是记录的用户工作流元数据，但它**既不写入 `MyZRecord`，也不进入主流 manifest**，而是作为**独立子流**中的记录（子流协议见 `docs/plan/implemented/e2ee-sync-evolution.md`）：
 
 ```ts
 type InboxStatus = "pending" | "snoozed" | "kept" | "archived"
@@ -104,7 +104,7 @@ type InboxRelationState = { targetId: string; relatedIds: string[]; changedAt: s
 - 历史记录没有 `status:` 状态记录时视为 `kept`（从未处理），不产生待处理内容。
 - Inbox 启用后，新的网页、PDF、EPUB 采集写入 `pending`；采集入口的“直接入文库”写 `status=kept`（含 `handledAt`）。
 - 导入默认视为 `kept`（从未处理）；导入 UI 可显式“导入到 Inbox”写 `pending`。
-- 采用 clean break（无向前兼容）：所有端升级到新账号/格式版本；总顺序见顶部与 `docs/plan/e2ee-sync-evolution.md`。
+- 采用 clean break（无向前兼容）：所有端升级到新账号/格式版本；总顺序见顶部与 `docs/plan/implemented/e2ee-sync-evolution.md`。
 
 ### 3.3 状态迁移
 
@@ -131,7 +131,7 @@ mark: / 逐边 rel: 记录与 status 独立，可作用于任意状态
 - **删除**：删除正文记录时写入对应状态记录的墓碑；压实与孤儿清理由子流 GC 负责。
 - **标签与正文编辑**仍发生在正文记录上，沿用现有整条 LWW（与今天一致，不是新引入的回归）。Inbox 里的打标签/改正文动作仍可能与其他端的正文编辑竞争；首版接受这一点，只有状态相关元数据（status / mark / rel）走子流。
 - **设置不同步**：“是否启用 Inbox”属于本地设置，按设备生效；一个设备关闭 Inbox 时不会为采集写 `pending`，但其他设备写入的状态记录仍会同步过来。
-- **依赖**：本节依赖 `docs/plan/e2ee-sync-evolution.md` 的 I2–I6；在该计划落地前，Inbox 状态只能本地生效，不能跨设备同步。
+- **依赖**：本节依赖 `docs/plan/implemented/e2ee-sync-evolution.md` 的 I2–I6；在该计划落地前，Inbox 状态只能本地生效，不能跨设备同步。
 
 ### 3.5 启用与关闭
 
@@ -260,7 +260,7 @@ Inbox 只呈现记录自身或确定性计算得出的信息，不做模型或�
 ## 9. 待审核决定
 
 - 状态是否采用“缺省 `kept` + 仅必要的 `status:` 记录”模型；本提案推荐是。这使历史迁移为零成本，代价是 `pending` 采集多写一条状态记录。
-- 状态走独立子流而非主流；协议细节以 `docs/plan/e2ee-sync-evolution.md` 为准；本提案推荐是。
+- 状态走独立子流而非主流；协议细节以 `docs/plan/implemented/e2ee-sync-evolution.md` 为准；本提案推荐是。
 - 标签与关联的归属：标签继续放正文记录（沿用现有 LWW），状态相关元数据放子流；本提案推荐是，并接受标签编辑仍可能与正文编辑竞争。
 - `marked` / `relatedIds` 是否进入首版：本提案推荐进入，且各用独立 recordId；`relatedIds` 只做手动关联，不做推断。
 - 每日提醒的默认状态：默认开启、可关闭；本提案推荐是。

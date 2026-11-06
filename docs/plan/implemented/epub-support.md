@@ -112,6 +112,6 @@ E1 先解决"源与打开"，且把 schema/url 定死，后面不再返工。E2 
 ## 关联文档
 
 - `docs/research/design-system/design-system.md` — §1/§2 路线、§4.16 阅读设置、§4.22 阅读器组件、§6 EPUB 场景。
-- `docs/plan/pdf-support.md` — PDF 阅读器实现与视觉验证约定。
+- `docs/plan/implemented/pdf-support.md` — PDF 阅读器实现与视觉验证约定。
 - `packages/shared/src/serializer.ts` — range 序列化/还原。
 - `myz-annotator/src/pdf/{source,storage,open}.ts` — 本地文件与打开管线样板。

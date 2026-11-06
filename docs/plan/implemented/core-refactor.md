@@ -8,8 +8,8 @@
 >
 > 关联文档：
 > - `docs/plan/future-plan.md` — 产品收敛决策（无云 AI、不存文档正文、无统计聚类）；本文的多条护栏沿用其结论。
-> - `docs/plan/e2ee-sync-evolution.md` — 子流/分片协议；本文不改动其协议，只把「数据判别」接到 `apply` 侧。
-> - `docs/plan/inbox-flow.md` — Inbox 状态模型；本文把它泛化为通用生命周期。
+> - `docs/plan/implemented/e2ee-sync-evolution.md` — 子流/分片协议；本文不改动其协议，只把「数据判别」接到 `apply` 侧。
+> - `docs/plan/implemented/inbox-flow.md` — Inbox 状态模型；本文把它泛化为通用生命周期。
 
 ## 1. 目标与范围
 

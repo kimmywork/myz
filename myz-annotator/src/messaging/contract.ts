@@ -10,7 +10,7 @@
  *
  * Message keys are host-internal and never a cross-host wire protocol: the
  * cross-host discriminator is the record `schemaId` (see
- * `docs/plan/core-refactor.md`). This file is the single source of truth for
+ * `docs/plan/implemented/core-refactor.md`). This file is the single source of truth for
  * both the sender and the handler side.
  */
 import type { ImportStrategy } from "@myz/core/import";

@@ -1,7 +1,7 @@
 # Future Plan — 探索结论与暂缓方向
 
 > 本文记录 MyZ 扩展能力探索中**已达成但暂缓**的方向、结论与理由，避免后续重复讨论。
-> 当前 P0 为 PDF 阅读与摘录，见 `docs/plan/pdf-support.md`。
+> 当前 P0 为 PDF 阅读与摘录，见 `docs/plan/implemented/pdf-support.md`。
 
 ## 背景与产品定位
 
@@ -9,14 +9,14 @@
 
 > MyZ = 低摩擦采集 + 结构化查看 + 轻量重现的本地高亮工具。
 
-目标用户：个人知识工作者/学习者本人（单用户）。**本地优先**；不依赖云端 AI。此前“全程无 AI”是收敛期约束，现针对 Inbox 提出可选端侧模型的实验方案，见 `docs/plan/inbox-flow.md`。
+目标用户：个人知识工作者/学习者本人（单用户）。**本地优先**；不依赖云端 AI。此前“全程无 AI”是收敛期约束，现针对 Inbox 提出可选端侧模型的实验方案，见 `docs/plan/implemented/inbox-flow.md`。
 
 ## 已确认的总原则
 
 - **AI 不作为全局默认依赖**：历史收敛决策排除 AI；Inbox 实验提案允许用户主动启用端侧 embedding/小模型，云端 AI 仍不在提案范围内。
 - **标签只是标记**，不应升级为集合，也不作为集合的绑定依据。
 - **奥卡姆优先**：不引入用户难以同时维持的新概念；能被"标签 + 筛选视图 + 时间"近似表达的能力，不额外造对象。
-- **当前落地阶段**：集合、自动发现聚合、backlinks、复习调度状态机仍暂缓；**独立 Inbox 已实现**（采集处理队列，见 [`docs/plan/inbox-flow.md`](inbox-flow.md) §11）。
+- **当前落地阶段**：集合、自动发现聚合、backlinks、复习调度状态机仍暂缓；**独立 Inbox 已实现**（采集处理队列，见 [`docs/plan/implemented/inbox-flow.md`](implemented/inbox-flow.md) §11）。
 - **顺序**：先解决技术确定、需求高频的 PDF（P0），其余方向按需后置。
 
 ## 用户视角审视结论（收敛依据）
@@ -83,7 +83,7 @@
 ### 7. 采集面扩展
 **现状事实**：截图目前是 `cropAndDownloadSelection`，**裁切后直接下载，不落库成 MyZRecord**（`src/content/stores/toolbar-store.ts`）。
 **候选及状态**：
-- **PDF**：P0 已立项，见 `docs/plan/pdf-support.md`。
+- **PDF**：P0 已立项，见 `docs/plan/implemented/pdf-support.md`。
 - **截图入库**：补齐"只下载不落库"缺口；形态未定。
 - **图片 OCR 文本化**：让截图内文字可搜索；未定。
 - **视频/音频时间戳**：按时间戳存片段；未定。
@@ -92,7 +92,7 @@
 ### 8. Inbox
 **历史结论（收敛期）**：不做独立 Inbox；仅保留最近采集等派生视图。理由是 Inbox 没有明确 triage 目的地，容易退化成“最近添加”并积压。
 
-**现状（2026-10）**：Inbox 已实现为现有记录之上的采集处理队列（不是第二套文库）：新采集进入 `pending`，可标记 / 稍后 / 保留入文库 / 归档 / 删除。**首版不做 enrichments**（关键词 / 代表句 / 重复 / 端侧模型已移出，背景见 `docs/research/omni-inbox/inbox-enrichments.md`）。完整状态模型、迁移规则、同步边界与验收见 [`docs/plan/inbox-flow.md`](inbox-flow.md)（§11 实施状态）。
+**现状（2026-10）**：Inbox 已实现为现有记录之上的采集处理队列（不是第二套文库）：新采集进入 `pending`，可标记 / 稍后 / 保留入文库 / 归档 / 删除。**首版不做 enrichments**（关键词 / 代表句 / 重复 / 端侧模型已移出，背景见 `docs/research/omni-inbox/inbox-enrichments.md`）。完整状态模型、迁移规则、同步边界与验收见 [`docs/plan/implemented/inbox-flow.md`](implemented/inbox-flow.md)（§11 实施状态）。
 
 ---
 
@@ -105,7 +105,7 @@
 6. 标签治理/保存视图/全文索引是否有独立价值。
 
 ## 关联文档
-- `docs/plan/pdf-support.md` — P0 PDF 阅读与摘录增量计划。
-- `docs/plan/inbox-flow.md` — Inbox 采集处理队列（已实现，见 §11 实施状态）。
+- `docs/plan/implemented/pdf-support.md` — P0 PDF 阅读与摘录增量计划。
+- `docs/plan/implemented/inbox-flow.md` — Inbox 采集处理队列（已实现，见 §11 实施状态）。
 - `docs/plan/bundled-annotation.md` — 网站预置注解方向（未纳入本阶段）。
 - `docs/plan/new-viewer.md` — 查看器与页面聚合（已实现）。

@@ -100,7 +100,7 @@
 
 # v0.4.1 Dashboard 路由与导入增强
 
-- 重构了 Dashboard（docs/plan/vuerouter-refactoring.md）。
+- 重构了 Dashboard（docs/plan/implemented/vuerouter-refactoring.md）。
 - 设置页面加入了 sidebar。
 - 加入了 Dashboard 的聊天页面。
 - 加入了 RainDrop 和 Chrome 书签的导入支持。

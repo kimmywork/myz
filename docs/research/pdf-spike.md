@@ -1,6 +1,6 @@
 # PDF Spike 技术验证结论（INC-1）
 
-> 对应计划：`docs/plan/pdf-support.md` 的 INC-1。结论：**GO**。
+> 对应计划：`docs/plan/implemented/pdf-support.md` 的 INC-1。结论：**GO**。
 
 ## 环境
 - `pdfjs-dist@6.3.289`（新增依赖，钉定版本）。

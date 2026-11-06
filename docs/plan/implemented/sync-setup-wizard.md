@@ -1,10 +1,10 @@
 # Sync Setup Wizard（独立全屏设置向导）
 
-> 状态：**已实现**（v0.6.5，2026-10-09）。实现见 `.agents/worklog/2026-10.md`（2026-10-09）与 CHANGELOG v0.6.5。
+> 状态：**已实现**（v0.6.5，2026-10-09）。实现见 `.agents/worklog/2026-10-09.md`与 CHANGELOG v0.6.5。
 >
 > 关联：
-> - 安全/密钥模型：`docs/plan/e2ee-security-hardening.md`（KM1–KM5、roster、D、按设备签名）。
-> - 子流/协议：`docs/plan/e2ee-sync-evolution.md`（流与 manifest）。
+> - 安全/密钥模型：`docs/plan/implemented/e2ee-security-hardening.md`（KM1–KM5、roster、D、按设备签名）。
+> - 子流/协议：`docs/plan/implemented/e2ee-sync-evolution.md`（流与 manifest）。
 > - 现状实现：`packages/sync-core/src/{pairing.ts,account.ts,roster.ts,deviceKeys.ts}`、`myz-annotator/src/background/sync/v2/{pairingSession.ts,bootstrap.ts,engine.ts}`、`myz-annotator/src/background/sync/accountKeyring.ts`。
 > - 消息面：`myz-annotator/src/background/messages/sync.ts`（`accountStatus/accountCreate/accountImport/accountClear/accountBootstrap/pairingInvite/pairingAccept/pairingApprove`）。
 > - 现有 UI：`myz-annotator/src/dashboard/components/settings/SyncSection.tsx`、`src/dashboard/router.ts`、`src/dashboard/pages/settings/*`。

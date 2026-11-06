@@ -1,6 +1,6 @@
 # Inbox 自动 enrichments 与语义聚合（暂缓方案）
 
-> 来源：从 `docs/plan/inbox-flow.md` v0.2 移出（2026-09-28）。
+> 来源：从 `docs/plan/implemented/inbox-flow.md` v0.2 移出（2026-09-28）。
 >
 > 状态：**暂缓，不进入 Inbox 首版**。本文保留方案细节与实验结果，供后续评估；当前 Inbox 决定完全不依赖 AI / 自动化 / 统计与分词的归类与关联，只呈现记录自带的确定性信息。
 
@@ -100,4 +100,4 @@ type InboxEnrichment = {
 
 ## 5. 参考
 
-- 旧计划：`docs/plan/inbox-flow.md` v0.2（已移除 §5 / §6）
+- 旧计划：`docs/plan/implemented/inbox-flow.md` v0.2（已移除 §5 / §6）

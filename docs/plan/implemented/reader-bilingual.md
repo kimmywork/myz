@@ -102,7 +102,7 @@ createBilingualSession ── events ─►│ bilingual-pane │（绝对定位
 
 ## 关联文档
 
-- `docs/plan/reader-translation.md` — 选区翻译（同一翻译核心、同一缓存）。
+- `docs/plan/implemented/reader-translation.md` — 选区翻译（同一翻译核心、同一缓存）。
 - `myz-annotator/src/reader/translate/bilingual.ts`、`src/reader/bilingual-pane.ts`、`src/reader/BilingualControl.tsx`。
 - `myz-annotator/src/pdf/bilingual.ts`、`src/epub/bilingual.ts`。
 - `myz-annotator/src/reader/bilingual.css` — 双栏与菜单样式。

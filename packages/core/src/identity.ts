@@ -3,7 +3,7 @@
  *
  * Synced record ids carry a kind prefix (`h:<id>` for highlights today) so one
  * sync stream can hold heterogeneous record kinds. This is frozen domain
- * vocabulary (see `docs/plan/core-refactor.md` §4.1): a new record kind adds a
+ * vocabulary (see `docs/plan/implemented/core-refactor.md` §4.1): a new record kind adds a
  * prefix here and nowhere else.
  */
 

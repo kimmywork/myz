@@ -2,7 +2,7 @@
 
 > 状态：**已审核通过并实施**（第二轮 review 修复见 §10）。完成情况见文末「实施状态」。
 >
-> 配套文档：`docs/plan/e2ee-sync-evolution.md`（流化/可扩展/性能与协议演进）。本计划负责**安全模型**：设备绑定、密钥派生强化、抗回滚、轮换完整性、本地密钥与凭证保护、消息授权、锁正确性、完整性校验。
+> 配套文档：`docs/plan/implemented/e2ee-sync-evolution.md`（流化/可扩展/性能与协议演进）。本计划负责**安全模型**：设备绑定、密钥派生强化、抗回滚、轮换完整性、本地密钥与凭证保护、消息授权、锁正确性、完整性校验。
 >
 > **关键顺序约束**：设备绑定会改变数据加密根（由 A 派生改为随机数据密钥 D + 设备公钥包裹）与 manifest 签名主体，因此**必须在冻结子流 v1 的密钥/协议格式之前定案**；否则子流格式会再改一次。
 
@@ -206,7 +206,7 @@ manifest 由发布设备的 Ed25519 签名；接收方用 roster 中已授权设
 
 ## 10. 第二轮 review 修复决议（2026-09-28）
 
-- **0.1 顺序**：与 evolution 统一：QW 安全 → KM 密钥模型 → evolution 子流 → inbox UI；总顺序见 `docs/plan/inbox-flow.md` 顶部。clean break 已消除“旧端并存”验收。
+- **0.1 顺序**：与 evolution 统一：QW 安全 → KM 密钥模型 → evolution 子流 → inbox UI；总顺序见 `docs/plan/implemented/inbox-flow.md` 顶部。clean break 已消除“旧端并存”验收。
 - **0.2 术语**：S3 根统一为 `accountId`；`keyId` 仅用于 chunk envelope/chainHeads 等密码学字段。
 - **3.1 QR**：§4 已要求二维码含 `accountId` + D1 `signPub` 指纹，作为 D2 的寻址与信任锚。
 - **3.2/3.3 index/锚**：§4 已要求 `index.bin` 与请求对象签名，anti-rollback 只依赖签名 roster 的单调版本，未签名对象不再承载安全语义。

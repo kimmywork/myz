@@ -2,9 +2,9 @@
 
 > 状态：**已审核通过并实施**（第二轮 review 修复见 §9）。完成情况见文末「实施状态」。
 >
-> 与 `docs/plan/inbox-flow.md` 配套：Inbox 的状态同步依赖本计划的子流（side stream）能力；本文同时纳入现有同步的确认优化项（打包 chunk、并发拉取、锁所有权、协议演进、回滚防护、死代码清理）。
+> 与 `docs/plan/implemented/inbox-flow.md` 配套：Inbox 的状态同步依赖本计划的子流（side stream）能力；本文同时纳入现有同步的确认优化项（打包 chunk、并发拉取、锁所有权、协议演进、回滚防护、死代码清理）。
 >
-> 安全模型（设备绑定、密钥派生、抗回滚、轮换、本地密钥与凭证保护、消息授权）见 `docs/plan/e2ee-security-hardening.md`。**该文档会改变数据加密根与 manifest 签名主体，必须先于本文的子流 v1 格式冻结定案。**
+> 安全模型（设备绑定、密钥派生、抗回滚、轮换、本地密钥与凭证保护、消息授权）见 `docs/plan/implemented/e2ee-security-hardening.md`。**该文档会改变数据加密根与 manifest 签名主体，必须先于本文的子流 v1 格式冻结定案。**
 
 ## 1. 目标
 
@@ -188,11 +188,11 @@ tombstone shard 解密后:
 - **回滚防护**：是否纳入威胁模型（决定主流是否也强制）。
 - **主流锁修复**：与旧客户端混跑时，旧端的无条件释放仍存在，需评估是否可接受。
 - **工作量**：I2–I6 是对 sync-core 的实质重构（非“机制现成”），需按增量逐步验证。
-- **顺序**：`docs/plan/e2ee-security-hardening.md` 的密钥模型（设备绑定/数据密钥 D/按设备签名）会改动子流密钥与签名来源，需先于子流 v1 格式定案；否则子流格式会二次返工。
+- **顺序**：`docs/plan/implemented/e2ee-security-hardening.md` 的密钥模型（设备绑定/数据密钥 D/按设备签名）会改动子流密钥与签名来源，需先于子流 v1 格式定案；否则子流格式会二次返工。
 
 ## 8. 与 inbox-flow 的关系
 
-`inbox-flow.md` §3.4 的状态同步依赖本计划的子流能力；总顺序（含安全密钥模型）见 `docs/plan/inbox-flow.md` 顶部“总增量顺序”。主计划不重复描述协议细节，以本文为准。
+`inbox-flow.md` §3.4 的状态同步依赖本计划的子流能力；总顺序（含安全密钥模型）见 `docs/plan/implemented/inbox-flow.md` 顶部“总增量顺序”。主计划不重复描述协议细节，以本文为准。
 
 ## 9. 第二轮 review 修复决议（2026-09-28）
 

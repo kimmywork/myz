@@ -66,7 +66,7 @@
    `myz-annotator/src/background/settings/schemas/v1.ts` 是普通 `z.object`（未知键会被剥离），默认值在 `background/constants.ts`，文档在 `docs/knowledges/schemas/settings/v1.md`。新增字段必须同时改这三处，否则读回时被丢弃。
 
 9. **既有验证资产**：`npm run build`、`npm run test:playwright`、`npx playwright test tests/pdf`（22 项）、`npm run jscpd`、`npm run jscpd:check`。PDF 侧测试依赖 `reader-*`/`pdf-*` class 与 `window.__MYZ_PDF__` 后门。
-   `docs/plan/pdf-support.md` 已有「视觉验证约定」：稳定画面用 `toHaveScreenshot` 建基线，含字体/网络不确定因素的改存产物供人工核对，产物不污染默认 e2e。
+   `docs/plan/implemented/pdf-support.md` 已有「视觉验证约定」：稳定画面用 `toHaveScreenshot` 建基线，含字体/网络不确定因素的改存产物供人工核对，产物不污染默认 e2e。
 
 ## 假设
 
@@ -233,7 +233,7 @@ INC-1 先解决「一套名字、一个真源」，并在命名阶段消除宿�
 
 ## 风险
 
-1. **e2e 依赖 class 与截图**：PDF 的 `reader-*`/`pdf-*` 与 `window.__MYZ_PDF__` 必须兼容；外观改动会移动截图基线，需按 `docs/plan/pdf-support.md` 的视觉验证约定更新。
+1. **e2e 依赖 class 与截图**：PDF 的 `reader-*`/`pdf-*` 与 `window.__MYZ_PDF__` 必须兼容；外观改动会移动截图基线，需按 `docs/plan/implemented/pdf-support.md` 的视觉验证约定更新。
 2. **`jscpd` 阈值**：抽公共 class（列表行、状态组件、侧栏）可能触发重复，每增量跑 `npm run jscpd`。
 3. **状态组件跨宿主**：空/加载/错在 dashboard、popup、PDF 三处出现，先抽共享再铺开，避免三份实现。
 4. **阴影移除影响层级**：去掉非浮层阴影后要确认深色下分组/卡片的边界仍清楚（靠 `--myz-line` 与抬高低色）。
@@ -311,12 +311,12 @@ INC-8 是全局底座，先做避免每页重复改。INC-9 状态组件跨三�
 ## 本轮验证约定
 
 - 每增量至少：`npm run build`、`npm run lint`、相关单测；涉及 UI 的加 `test:playwright` / `npx playwright test tests/pdf`。
-- 稳定画面用 `toHaveScreenshot` 建基线；不稳定画面存产物人工核对（沿用 `docs/plan/pdf-support.md`）。
+- 稳定画面用 `toHaveScreenshot` 建基线；不稳定画面存产物人工核对（沿用 `docs/plan/implemented/pdf-support.md`）。
 - 合并前跑 `npm run check:design-tokens`、`npm run check:tailwind-keys`、`npm run jscpd`。
 - 外观矩阵：四方案 × 深浅共 8 组，重点宿主各截一组。
 
 ## 关联文档
 
 - `docs/research/design-system/design-system.md` — 设计系统规范（Token、组件、规则）。
-- `docs/plan/pdf-support.md` — PDF 阅读器实现现状与视觉验证约定。
+- `docs/plan/implemented/pdf-support.md` — PDF 阅读器实现现状与视觉验证约定。
 - `docs/knowledges/schemas/settings/v1.md` — 设置 schema。

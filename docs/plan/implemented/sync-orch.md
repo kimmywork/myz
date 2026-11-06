@@ -2,7 +2,7 @@
 
 > 状态：**S0–S4 + MV3 续租已实施（2026-10-20）**。目标是把 v2 账号同步的「编排策略」从扩展宿主中剥离，做成可在扩展 / 桌面 / 移动复用的同步编排器。
 >
-> 关联：`docs/plan/core-refactor.md` §12（SyncOrch 为唯一剩余项）、`docs/plan/e2ee-sync-evolution.md`（子流协议，不再改动）、`docs/plan/e2ee-security-hardening.md`（设备绑定/锁/密钥模型）。
+> 关联：`docs/plan/implemented/core-refactor.md` §12（SyncOrch 为唯一剩余项）、`docs/plan/implemented/e2ee-sync-evolution.md`（子流协议，不再改动）、`docs/plan/implemented/e2ee-security-hardening.md`（设备绑定/锁/密钥模型）。
 
 ## 1. 目标与范围
 
@@ -231,6 +231,6 @@ return mapToSyncResult(result); // partial → error, ok:false, message 汇总�
 
 ## 10. 关联文档
 
-- `docs/plan/core-refactor.md` — 分层重构与端口；§12 SyncOrch 为最后一项。
-- `docs/plan/e2ee-sync-evolution.md` — 子流协议与 GC/锁修复。
-- `docs/plan/e2ee-security-hardening.md` — 设备绑定、锁职责、轮换。
+- `docs/plan/implemented/core-refactor.md` — 分层重构与端口；§12 SyncOrch 为最后一项。
+- `docs/plan/implemented/e2ee-sync-evolution.md` — 子流协议与 GC/锁修复。
+- `docs/plan/implemented/e2ee-security-hardening.md` — 设备绑定、锁职责、轮换。

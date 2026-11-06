@@ -12,7 +12,7 @@ import type { MyZRecord } from "@myz/shared/types";
 /**
  * A synced record we could not materialize (unknown `schemaId` or record-id
  * prefix). It is kept verbatim and handed back to sync so it is never dropped
- * (opaque preservation; see `docs/plan/core-refactor.md` D1).
+ * (opaque preservation; see `docs/plan/implemented/core-refactor.md` D1).
  */
 export interface OpaqueRecord {
   /** Stream the record arrived on, so collect routes it back to the same one. */

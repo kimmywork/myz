@@ -17,7 +17,7 @@ This repo is a multi‑module suite (extension + libraries). Keep changes scoped
 - `docs/` — internal docs. See `docs/AGENTS.md` for structure (knowledges/legal/plan/research).
 - `workflow/` — automation workflows and pipelines (e.g., `workflow/video-pipeline`).
   - `workflow/video-pipeline/skills/screen-recording-narrator/scripts/` — command/script templates for the video pipeline.
-- `packages/core/` (`@myz/core`) — environment-agnostic domain layer: model registries (record identity, source kind, locator, payload codec, lifecycle, relations) and pure read models (e.g. `buildInboxQueue`). No chrome/DOM/IO; hosts supply storage/transport via ports. Depends on `@myz/shared` (+ `zod`). See `docs/plan/core-refactor.md`.
+- `packages/core/` (`@myz/core`) — environment-agnostic domain layer: model registries (record identity, source kind, locator, payload codec, lifecycle, relations) and pure read models (e.g. `buildInboxQueue`). No chrome/DOM/IO; hosts supply storage/transport via ports. Depends on `@myz/shared` (+ `zod`). See `docs/plan/implemented/core-refactor.md`.
 - `packages/dashboard-ui/` — shared non-chat dashboard UI building blocks such as app shells, sidebars, and reusable inputs. Prefer wiring app stores into these components from page/container layers instead of re-copying the visuals per host.
 - `packages/sync-core/` — environment-agnostic E2EE sync core: crypto, protocol schemas, manifest/chunk handling, remote repository helpers, adapter interfaces.
 
@@ -61,6 +61,6 @@ Other modules: check each module's `package.json` for scripts.
 - Configuration lives in `.jscpd.json` at the root — adjust thresholds there as needed.
 
 ## Worklog
-- Current state: `.agents/worklog/WORKSTATE.md`
-- Entries: `.agents/worklog/YYYY-MM.md` (monthly rotation)
-- Format: ISO timestamp, then what changed and why (one entry per logical change)
+- Current state: `.agents/workstate.md` — compact snapshot (focus, status, recent, next); replace stale content instead of appending history.
+- Entries: `.agents/worklog/YYYY-MM-DD.md` — one file per day; append same-day entries to the same file.
+- Format: ISO timestamp heading (`## YYYY-MM-DDTHH:MM:SS+08:00`), then what changed and why (one entry per logical change).

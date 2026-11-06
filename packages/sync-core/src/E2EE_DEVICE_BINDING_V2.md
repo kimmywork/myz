@@ -1,8 +1,8 @@
 # E2EE Device-Binding Model (Protocol v2)
 
 This document records the **clean-break** device-bound model required by
-`docs/plan/e2ee-security-hardening.md` (§3–§5) and the stream/sharded format
-required by `docs/plan/e2ee-sync-evolution.md`. It is schema-first: the zod
+`docs/plan/implemented/e2ee-security-hardening.md` (§3–§5) and the stream/sharded format
+required by `docs/plan/implemented/e2ee-sync-evolution.md`. It is schema-first: the zod
 schemas in `schemas/v2.ts` and the modules below are the source of truth.
 
 The v2 protocol **never reuses** `SYNC_PROTOCOL_VERSION` (“1.0.0”); the new

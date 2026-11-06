@@ -4,7 +4,7 @@
 >
 > 目标：Extension / Desktop / Web / Mobile 共享领域、同步、状态与 UI 原语；宿主只提供平台能力（capture / file / window / keychain / scheduler / notifier / transport）。
 >
-> 关联：`docs/plan/core-refactor.md`（已完成）、`docs/plan/implemented/sync-orch.md`、`packages/dashboard-ui`、D2（`@myz/dashboard-core` 已删除）。
+> 关联：`docs/plan/implemented/core-refactor.md`（已完成）、`docs/plan/implemented/sync-orch.md`、`packages/dashboard-ui`、D2（`@myz/dashboard-core` 已删除）。
 
 ## 1. 目标与非目标
 
@@ -215,7 +215,7 @@ export interface HostServices {
 
 ## 10. 关联文档
 
-- `docs/plan/core-refactor.md` — 领域层/端口/宿主适配器的既有决策。
+- `docs/plan/implemented/core-refactor.md` — 领域层/端口/宿主适配器的既有决策。
 - `docs/plan/implemented/sync-orch.md` — 同步编排器与锁。
 - `packages/dashboard-ui` — 共享展示层。
 - `packages/core/tests/support/node-host.ts` — 宿主无关性验证。

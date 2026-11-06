@@ -20,7 +20,7 @@ export interface PayloadCodec<T = unknown> {
   /**
    * Materialize unknown payloads opaquely instead of resolving a schema.
    * Required so an unrecognized `schemaId` is preserved, never dropped
-   * (see `docs/plan/core-refactor.md` D1).
+   * (see `docs/plan/implemented/core-refactor.md` D1).
    */
 }
 
