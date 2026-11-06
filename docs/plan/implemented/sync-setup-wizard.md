@@ -208,7 +208,7 @@
 - **I3（分支 A）**：S3（含邀请预填）+ 邀请 + 响应/短码 + 导入 + 同步（可稍后）。
 - **I4（分支 C）**：邀请 + 响应 + 批准 + 回传配对串。
 - **I5（设置页状态卡 + 高级）**。
-- **I6（e2e）**：扩展 `tests/extension/sync-mock-s3.spec.ts`——用 mock S3 跑 B（新建+迁移+同步）与 A/C（跨 profile 配对）的向导路径；断言各步校验与 SAS 门禁。
+- **I6（e2e）**：扩展 `tests/extension/sync-s3-transport.spec.ts`——用校验 SigV4 的 fakes3 跑 B（新建+迁移+同步）与 A/C（跨 profile 配对）的向导路径；断言各步校验与 SAS 门禁。
 
 ## 11. 验收标准
 - 首次进入加密同步自动进入向导；再次进入不自动弹。

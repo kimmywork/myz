@@ -212,7 +212,7 @@ tombstone shard 解密后:
 
 - **I1 完成**（`c7e717a`）：`lock.ts` 续租 + 所有权校验释放 + `If-Match`；`syncEngine` 每 15s 续租。
 - **I2–I8 完成**：流参数化与 `SyncDatasetAdapter` 接线（I2）、Inbox 子流（I3）、`jumpConsistentHash` 分片 + 打包 chunk（I4）、有界并发 IO（I5）、墓碑/opaque/`<=` 版本解析/`minReaderVersion`/`streamVersion` high-water（I6）、删除死 registry（I7）、按流 GC（I8）。核心见 `packages/sync-core/src/{streamClient,streamManifest,streamMerge,streamGc,shards,jumpHash,accountSync}.ts`。
-- **端到端**：双 profile mock S3 e2e（`tests/extension/sync-mock-s3.spec.ts`）。
+- **端到端**：双 profile e2e：@myz/sync-core/s3Client 直连 fakes3（`auth: true` 校验 SigV4，`tests/extension/sync-s3-transport.spec.ts`）。
 - 依赖：KM3 传输（同机配对已接 UI；S3 邮箱 crypto 已实现未接 UI）与 KM4 接线均已完成，见 `e2ee-security-hardening.md §12`。
 
 ## 11. 删除传播与墓碑生命周期（2026-10-08 补充）

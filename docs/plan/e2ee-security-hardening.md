@@ -238,10 +238,10 @@ manifest 由发布设备的 Ed25519 签名；接收方用 roster 中已授权设
 - **阶段 B（KM1–KM7）完成**：v2 协议（`SYNC_PROTOCOL_VERSION_V2 = "2.0.0"`）；设备密钥与本地 DK 包裹；roster（签名 genesis / 加入 / 撤销+轮换 / 验签 / 单调推进）；`deviceEnrollment`（S3 设备邮箱 crypto）与 `pairing`（同机 ECDH + SAS）；`account` 账户模型与按设备签名；PBKDF2 ≥600k；`highWater` 抗回滚；**KM5** clean-break 引导与一次性旧远端挽救（`v2/bootstrap.ts`）。
   - **未接 UI**：异地 S3 设备邮箱（crypto 已实现并单测；当前同机配对可用，手动转串）。
   - **KM7 轮换清理**：由「新 epoch 重加密覆盖同路径 + 按流 GC」实现，无独立旧 epoch 目录需清理。
-- **阶段 C/D 完成**：见 `e2ee-sync-evolution.md §10`、`inbox-flow.md §11`；端到端见双 profile mock S3 e2e（`tests/extension/sync-mock-s3.spec.ts`）。
+- **阶段 C/D 完成**：见 `e2ee-sync-evolution.md §10`、`inbox-flow.md §11`；端到端见双 profile e2e：@myz/sync-core/s3Client 直连 fakes3（`auth: true` 校验 SigV4，`tests/extension/sync-s3-transport.spec.ts`）。
 - 现网状态与已知限制见 `docs/reviews/UX-ASSESSMENT-2026-09-29.md §5`。
 
 ### 12.1 实施修正（有证据，不改变决策意图）
 
-- **QW1 sender 判定**：§5.6/§10 要求 `sender.tab === undefined`。e2e 证据（双 profile mock S3，见 `myz-annotator/tests/extension/sync-mock-s3.spec.ts`）表明：在**标签页中打开的扩展页面**（options/dashboard）同样带有 `sender.tab`，按 `tab === undefined` 会误拒受信页面，导致 `syncSetKey/accountBootstrap` 等正常操作失败。实现改为按 `sender.url` 以 `chrome-extension://<id>/` 开头判定（content script 的 `sender.url` 为宿主页 URL，仍被拒），并加回归测试；QW1 的验收（content script 被拒、扩展页面通过）据此满足。
+- **QW1 sender 判定**：§5.6/§10 要求 `sender.tab === undefined`。e2e 证据（双 profile + fakes3，见 `myz-annotator/tests/extension/sync-s3-transport.spec.ts`）表明：在**标签页中打开的扩展页面**（options/dashboard）同样带有 `sender.tab`，按 `tab === undefined` 会误拒受信页面，导致 `syncSetKey/accountBootstrap` 等正常操作失败。实现改为按 `sender.url` 以 `chrome-extension://<id>/` 开头判定（content script 的 `sender.url` 为宿主页 URL，仍被拒），并加回归测试；QW1 的验收（content script 被拒、扩展页面通过）据此满足。
 - **QW4 endpoint**：允许 loopback（`localhost`/`127.0.0.1`/`[::1]`）HTTP 以便本地 mock/开发；其余仍强制 HTTPS。
