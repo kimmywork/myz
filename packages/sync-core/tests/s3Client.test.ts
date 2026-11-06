@@ -111,6 +111,24 @@ describe("S3Client listObjects", () => {
     ])
   })
 
+  it("keeps unparseable entities verbatim instead of throwing", async () => {
+    // A remote store is a trust boundary: out-of-range code points and unknown
+    // named entities must not abort the listing.
+    const xml =
+      `<ListBucketResult><Contents><Key>a/&#x110000;&nbsp;</Key></Contents>` +
+      `</ListBucketResult>`
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(xml, { status: 200 })),
+    )
+
+    const objects = await client().listObjects("a/")
+
+    expect(objects.map((object) => object.key)).toEqual([
+      "a/&#x110000;&nbsp;",
+    ])
+  })
+
   it("follows continuation tokens until the listing is complete", async () => {
     const urls: string[] = []
     const pages = [
