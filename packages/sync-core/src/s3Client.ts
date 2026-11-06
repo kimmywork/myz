@@ -359,9 +359,13 @@ function decodeXmlEntities(value: string): string {
       if (body.startsWith("#")) {
         const hex = body[1] === "x" || body[1] === "X"
         const codePoint = Number.parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10)
-        return Number.isFinite(codePoint)
-          ? String.fromCodePoint(codePoint)
-          : entity
+        // The listing comes from the remote store: never let a hostile entity
+        // (e.g. `&#x110000;`) make String.fromCodePoint throw.
+        const valid =
+          Number.isInteger(codePoint) &&
+          codePoint >= 0 &&
+          codePoint <= 0x10ffff
+        return valid ? String.fromCodePoint(codePoint) : entity
       }
       return XML_ENTITIES[body] ?? entity
     },
