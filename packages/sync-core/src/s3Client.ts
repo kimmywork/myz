@@ -79,16 +79,25 @@ export class S3Client {
 
   async listObjects(prefix: string): Promise<S3ObjectInfo[]> {
     const listPrefix = this.buildKey(prefix)
-    const url = `${this.endpoint}/${this.bucket}?list-type=2&prefix=${encodeURIComponent(
-      listPrefix,
-    )}`
-    const response = await this.fetchSigned("GET", url)
-    if (!response.ok) {
-      if (response.status === 404) return []
-      throw new Error(`S3 list failed: ${response.status}`)
-    }
-    const text = await response.text()
-    return parseListObjects(text)
+    const objects: S3ObjectInfo[] = []
+    let continuationToken: string | undefined
+    do {
+      // S3 pages listings at 1000 keys; follow IsTruncated so callers never
+      // silently work on a partial view (e.g. picking an old stream manifest).
+      const url = `${this.endpoint}/${this.bucket}?${buildListQuery(
+        listPrefix,
+        continuationToken,
+      )}`
+      const response = await this.fetchSigned("GET", url)
+      if (!response.ok) {
+        if (response.status === 404) return []
+        throw new Error(`S3 list failed: ${response.status}`)
+      }
+      const page = parseListObjects(await response.text())
+      objects.push(...page.objects)
+      continuationToken = page.nextContinuationToken
+    } while (continuationToken)
+    return objects
   }
 
   async getObject(
@@ -270,43 +279,119 @@ function toAmzDate(date: Date) {
 
 function canonicalizeQuery(params: URLSearchParams) {
   const entries = Array.from(params.entries()).sort(([a], [b]) =>
-    a.localeCompare(b),
+    a < b ? -1 : a > b ? 1 : 0,
   )
   return entries
-    .map(
-      ([key, value]) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
-    )
+    .map(([key, value]) => `${uriEncode(key)}=${uriEncode(value)}`)
     .join("&")
 }
 
+/**
+ * SigV4's URI encoding: everything but `A-Z a-z 0-9 - . _ ~` is percent-encoded,
+ * which is stricter than `encodeURIComponent` (it also escapes `!'()*`). URLs
+ * are built with the same encoder the signature uses, so the bytes sent match
+ * the bytes signed.
+ */
+function uriEncode(value: string) {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+}
+
+/**
+ * The path is signed exactly as it is sent: percent-encode each segment, but do
+ * not re-encode escapes that are already there (`%20` must stay `%20`, not
+ * become `%2520`) — S3, unlike the other AWS services, does not double-encode.
+ */
 function canonicalizePath(pathname: string) {
-  return pathname
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/")
+  return pathname.split("/").map(decodePathSegment).map(uriEncode).join("/")
+}
+
+function decodePathSegment(segment: string) {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
 }
 
 function encodePath(path: string) {
-  return path
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/")
+  return path.split("/").map(uriEncode).join("/")
 }
 
-function parseListObjects(xml: string): S3ObjectInfo[] {
-  const results: S3ObjectInfo[] = []
-  const regex =
-    /<Contents>[\s\S]*?<Key>([^<]+)<\/Key>[\s\S]*?<LastModified>([^<]+)<\/LastModified>[\s\S]*?<ETag>([^<]+)<\/ETag>[\s\S]*?<Size>([^<]+)<\/Size>[\s\S]*?<\/Contents>/g
-  let match = regex.exec(xml)
-  while (match) {
-    results.push({
-      key: match[1],
-      lastModified: match[2],
-      etag: match[3],
-      size: Number(match[4]),
-    })
-    match = regex.exec(xml)
+function buildListQuery(prefix: string, continuationToken?: string) {
+  const query = [`list-type=2`, `prefix=${uriEncode(prefix)}`]
+  if (continuationToken) {
+    query.push(`continuation-token=${uriEncode(continuationToken)}`)
   }
-  return results
+  return query.join("&")
 }
+
+const CONTENTS_BLOCK = /<Contents>([\s\S]*?)<\/Contents>/g
+const TRUNCATED_FLAG = /<IsTruncated>\s*true\s*<\/IsTruncated>/i
+const NEXT_TOKEN = /<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/
+
+/**
+ * S3-compatible stores (AWS, MinIO, R2, fakes3) are free to serialise the
+ * children of `<Contents>` in any order, so each field is matched on its own
+ * instead of assuming Key → LastModified → ETag → Size.
+ */
+const CONTENTS_TAGS = {
+  key: /<Key>([\s\S]*?)<\/Key>/,
+  lastModified: /<LastModified>([\s\S]*?)<\/LastModified>/,
+  etag: /<ETag>([\s\S]*?)<\/ETag>/,
+  size: /<Size>([\s\S]*?)<\/Size>/,
+} as const
+
+const XML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+}
+
+function decodeXmlEntities(value: string): string {
+  return value.replace(
+    /&(#x[0-9a-fA-F]+|#[0-9]+|[a-zA-Z]+);/g,
+    (entity, body: string) => {
+      if (body.startsWith("#")) {
+        const hex = body[1] === "x" || body[1] === "X"
+        const codePoint = Number.parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10)
+        return Number.isFinite(codePoint)
+          ? String.fromCodePoint(codePoint)
+          : entity
+      }
+      return XML_ENTITIES[body] ?? entity
+    },
+  )
+}
+
+function tagText(block: string, pattern: RegExp): string | undefined {
+  const match = pattern.exec(block)
+  return match ? decodeXmlEntities(match[1]) : undefined
+}
+
+function parseListObjects(xml: string): {
+  objects: S3ObjectInfo[]
+  nextContinuationToken?: string
+} {
+  const objects: S3ObjectInfo[] = []
+  for (const [, block] of xml.matchAll(CONTENTS_BLOCK)) {
+    const key = tagText(block, CONTENTS_TAGS.key)
+    if (key === undefined) continue
+    const size = tagText(block, CONTENTS_TAGS.size)
+    objects.push({
+      key,
+      lastModified: tagText(block, CONTENTS_TAGS.lastModified),
+      etag: tagText(block, CONTENTS_TAGS.etag),
+      size: size === undefined ? undefined : Number(size),
+    })
+  }
+  const nextContinuationToken = TRUNCATED_FLAG.test(xml)
+    ? tagText(xml, NEXT_TOKEN)
+    : undefined
+  return { objects, nextContinuationToken }
+}
+
