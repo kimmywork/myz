@@ -7,9 +7,6 @@
  */
 import type { CropRect } from "./image";
 
-/** Blurred ambient border around the card, in CSS pixels. */
-const SCREENSHOT_BORDER_CSS = 8;
-
 /**
  * Card corner radius, in CSS pixels. The same width of page background is
  * captured around the selection before rounding, so the arc only cuts through
@@ -17,29 +14,29 @@ const SCREENSHOT_BORDER_CSS = 8;
  */
 const SCREENSHOT_RADIUS_CSS = 12;
 
-const BACKDROP_BLUR_FACTOR = 0.6;
+/** Drop-shadow breathing room around the card, in CSS pixels. */
+const SCREENSHOT_MARGIN_CSS = 20;
 
-/** Relative luminance at/below which the backdrop counts as "dark". */
-const DARK_LUMINANCE = 0.12;
+/** Card shadow blur / vertical offset, in CSS pixels. */
+const CARD_SHADOW_BLUR_CSS = 14;
+const CARD_SHADOW_OFFSET_Y_CSS = 4;
 
-/** Relative luminance at/above which the backdrop counts as "light". */
-const LIGHT_LUMINANCE = 0.45;
+const CARD_HAIRLINE_LIGHT = "rgba(0, 0, 0, 0.10)";
+const CARD_HAIRLINE_DARK = "rgba(255, 255, 255, 0.16)";
+const CARD_SHADOW_LIGHT = "rgba(0, 0, 0, 0.16)";
+const CARD_SHADOW_DARK = "rgba(0, 0, 0, 0.55)";
 
-/**
- * Dark surfaces have no headroom left to darken, so the ambient border is
- * slightly lightened and lifted instead. Light surfaces keep the original
- * gentle dim.
- */
-const BACKDROP_DARK_BRIGHTNESS = 1;
-const BACKDROP_DARK_LIFT = 0.12;
-const BACKDROP_LIGHT_BRIGHTNESS = 0.9;
+/** Relative luminance below which the card switches to its dark treatment. */
+const CARD_DARK_LUMINANCE = 0.18;
 
 interface ExpandedCrop {
   canvas: HTMLCanvasElement;
   /** Corner radius in device pixels. */
   radius: number;
-  /** Ambient border width in device pixels. */
-  border: number;
+  /** Shadow margin in device pixels. */
+  margin: number;
+  /** Capture scale (device pixels per CSS pixel). */
+  scale: number;
   /** Median relative luminance of the captured background, 0…1. */
   luminance: number;
 }
@@ -213,8 +210,9 @@ export function cropExpandedSelection(
 ): ExpandedCrop {
   const scaleX = image.width / viewport.width;
   const scaleY = image.height / viewport.height;
-  const radius = devicePx(SCREENSHOT_RADIUS_CSS, (scaleX + scaleY) / 2);
-  const border = devicePx(SCREENSHOT_BORDER_CSS, (scaleX + scaleY) / 2);
+  const scale = (scaleX + scaleY) / 2;
+  const radius = devicePx(SCREENSHOT_RADIUS_CSS, scale);
+  const margin = Math.max(8, Math.round(SCREENSHOT_MARGIN_CSS * scale));
   const sx = Math.floor(rect.left * scaleX);
   const sy = Math.floor(rect.top * scaleY);
   const sw = Math.max(1, Math.floor(rect.width * scaleX));
@@ -279,77 +277,79 @@ export function cropExpandedSelection(
   }
 
   const luminance = paintFlatBackgroundRing(ctx, width, height, radius, sw, sh);
-  return { canvas, radius, border, luminance };
+  return { canvas, radius, margin, scale, luminance };
+}
+
+export interface CardStyle {
+  /** 1px inner border colour. */
+  hairline: string;
+  shadowColor: string;
 }
 
 /**
- * Pick the ambient border treatment from the backdrop luminance. Dark pages
- * cannot be darkened any further, so the border is lightened and lifted;
- * light pages keep the original soft dim.
+ * Pick the card treatment from the backdrop luminance. Both a hairline and a
+ * drop shadow are theme-aware: dark pages need a light rim because a dark
+ * shadow alone disappears into the page.
  */
-export function resolveBackdropStyle(luminance: number): {
-  brightness: number;
-  lift: number;
-} {
-  const t = Math.max(
-    0,
-    Math.min(
-      1,
-      (luminance - DARK_LUMINANCE) / (LIGHT_LUMINANCE - DARK_LUMINANCE),
-    ),
-  );
-  const smooth = t * t * (3 - 2 * t);
+export function resolveCardStyle(luminance: number): CardStyle {
+  const dark = luminance < CARD_DARK_LUMINANCE;
   return {
-    brightness:
-      BACKDROP_LIGHT_BRIGHTNESS +
-      (BACKDROP_DARK_BRIGHTNESS - BACKDROP_LIGHT_BRIGHTNESS) * (1 - smooth),
-    lift: BACKDROP_DARK_LIFT * (1 - smooth),
+    hairline: dark ? CARD_HAIRLINE_DARK : CARD_HAIRLINE_LIGHT,
+    shadowColor: dark ? CARD_SHADOW_DARK : CARD_SHADOW_LIGHT,
   };
 }
 
 /**
- * Turn the expanded crop into the final card: rounded corners plus a rounded,
- * blurred and dimmed ambient border. Both the card and the border are clipped
- * to concentric rounded rectangles (radius and radius + border).
+ * Turn the expanded crop into the final card: rounded corners, a 1px adaptive
+ * hairline and a soft drop shadow. The shadow gets its own margin so it is
+ * never clipped, while the area outside it stays transparent.
  */
 export function decorateSelection(
   base: HTMLCanvasElement,
   radius: number,
-  border: number,
+  margin: number,
+  scale: number,
   luminance: number,
 ): HTMLCanvasElement {
   const w = base.width;
   const h = base.height;
-  const width = w + border * 2;
-  const height = h + border * 2;
+  const width = w + margin * 2;
+  const height = h + margin * 2;
   const out = document.createElement("canvas");
   out.width = width;
   out.height = height;
   const ctx = out.getContext("2d");
   if (!ctx) return base;
 
-  const style = resolveBackdropStyle(luminance);
-  // Blurred copy of the card fills the outer rounded frame.
-  const blur = Math.max(3, Math.round(border * BACKDROP_BLUR_FACTOR));
+  const style = resolveCardStyle(luminance);
+  const shadowBlur = Math.max(2, Math.round(CARD_SHADOW_BLUR_CSS * scale));
+  const shadowOffsetY = Math.max(
+    1,
+    Math.round(CARD_SHADOW_OFFSET_Y_CSS * scale),
+  );
+  const strokeWidth = Math.max(1, Math.round(scale));
+
+  // Soft drop shadow behind the card silhouette.
   ctx.save();
-  roundedRectPath(ctx, 0, 0, width, height, radius + border);
-  ctx.clip();
-  ctx.filter = `blur(${blur}px) brightness(${style.brightness.toFixed(3)})`;
-  ctx.drawImage(base, 0, 0, width, height);
-  ctx.filter = "none";
-  if (style.lift > 0) {
-    // Multiplicative brightness cannot lighten pure black, so dark backdrops
-    // get an additive white lift on top of the blurred border.
-    ctx.fillStyle = `rgba(255, 255, 255, ${style.lift.toFixed(3)})`;
-    ctx.fillRect(0, 0, width, height);
-  }
+  ctx.shadowColor = style.shadowColor;
+  ctx.shadowBlur = shadowBlur;
+  ctx.shadowOffsetY = shadowOffsetY;
+  ctx.fillStyle = "#000";
+  roundedRectPath(ctx, margin, margin, w, h, radius);
+  ctx.fill();
   ctx.restore();
 
-  // Crisp, rounded card on top.
+  // Crisp, rounded card.
   ctx.save();
-  roundedRectPath(ctx, border, border, w, h, radius);
+  roundedRectPath(ctx, margin, margin, w, h, radius);
   ctx.clip();
-  ctx.drawImage(base, border, border);
+  ctx.drawImage(base, margin, margin);
+
+  // Inner hairline (the outer half of a 2× stroke is clipped away).
+  ctx.strokeStyle = style.hairline;
+  ctx.lineWidth = strokeWidth * 2;
+  roundedRectPath(ctx, margin, margin, w, h, radius);
+  ctx.stroke();
   ctx.restore();
   return out;
 }

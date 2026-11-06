@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { Ref, ref } from "vue";
 import type { AiComposeResult } from "../ai-compose";
 import { askAiAboutSelection } from "../ask-ai";
-import { stageCapturedImage } from "../capture-media";
+import { stageCapturedImage, copyImageToClipboard } from "../capture-media";
 import { serializeRangeToHtml, waitForNextPaint } from "../html";
 import { cropAndDownloadSelection, getSelectionBoundingRect } from "../image";
 import type { CropRect } from "../image";
@@ -149,6 +149,15 @@ export const useToolbarStore = defineStore("toolbar", () => {
       const cropped = await cropAndDownloadSelection(result.dataUrl, rect, {
         width: window.innerWidth,
         height: window.innerHeight,
+      });
+      // Copy the final card (not the expansion-only staging copy) so pasting
+      // matches the downloaded image.
+      const copied = await copyImageToClipboard(
+        cropped.decorated.dataUrl,
+        "image/png",
+      );
+      notificationStore.notify({
+        message: copied ? "截图已复制到剪贴板" : "截图已保存，复制到剪贴板失败",
       });
       // Download happens inside cropAndDownloadSelection; stage the
       // expansion-only copy so later stitching is not affected by the

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   relativeLuminance,
-  resolveBackdropStyle,
+  resolveCardStyle,
 } from "../../../src/content/screenshot-decoration";
 
-describe("screenshot backdrop luminance", () => {
+describe("screenshot card theme", () => {
   it("maps sRGB extremes to WCAG relative luminance", () => {
     expect(relativeLuminance({ r: 0, g: 0, b: 0 })).toBeCloseTo(0, 5);
     expect(relativeLuminance({ r: 255, g: 255, b: 255 })).toBeCloseTo(1, 5);
@@ -14,25 +14,20 @@ describe("screenshot backdrop luminance", () => {
     );
   });
 
-  it("lightens and lifts dark backdrops instead of darkening them", () => {
-    const dark = resolveBackdropStyle(0);
-    expect(dark.brightness).toBeCloseTo(1, 3);
-    expect(dark.lift).toBeCloseTo(0.12, 3);
+  it("uses a light hairline and stronger shadow on dark pages", () => {
+    const dark = resolveCardStyle(0);
+    expect(dark.hairline).toContain("255, 255, 255");
+    expect(dark.shadowColor).toContain("0, 0, 0, 0.55");
   });
 
-  it("keeps the gentle dim for light backdrops", () => {
-    const light = resolveBackdropStyle(1);
-    expect(light.brightness).toBeCloseTo(0.9, 3);
-    expect(light.lift).toBe(0);
+  it("uses a dark hairline and softer shadow on light pages", () => {
+    const light = resolveCardStyle(1);
+    expect(light.hairline).toContain("0, 0, 0");
+    expect(light.shadowColor).toContain("0, 0, 0, 0.16");
   });
 
-  it("transitions monotonically between dark and light", () => {
-    const samples = [0, 0.1, 0.2, 0.3, 0.45, 0.7, 1].map(resolveBackdropStyle);
-    for (let i = 1; i < samples.length; i += 1) {
-      expect(samples[i].brightness).toBeLessThanOrEqual(
-        samples[i - 1].brightness,
-      );
-      expect(samples[i].lift).toBeLessThanOrEqual(samples[i - 1].lift);
-    }
+  it("switches treatment around the dark luminance threshold", () => {
+    expect(resolveCardStyle(0.17).hairline).toBe(resolveCardStyle(0).hairline);
+    expect(resolveCardStyle(0.19).hairline).toBe(resolveCardStyle(1).hairline);
   });
 });
