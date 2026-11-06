@@ -125,7 +125,8 @@ export async function cropAndDownloadSelection(
   const decorated = decorateSelection(
     expanded.canvas,
     expanded.radius,
-    expanded.border,
+    expanded.margin,
+    expanded.scale,
     expanded.luminance,
   );
   const dataUrlOut = decorated.toDataURL("image/png");

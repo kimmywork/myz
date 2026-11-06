@@ -366,20 +366,23 @@ async function makeThumb(dataUrl: string): Promise<string> {
   }
 }
 
-async function copyImageToClipboard(
+/** Best-effort image clipboard write; returns whether it succeeded. */
+export async function copyImageToClipboard(
   dataUrl: string,
   mime: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
-      return;
+      return false;
     }
     const blob = await (await fetch(dataUrl)).blob();
     const type = blob.type || mime;
     await navigator.clipboard.write([new ClipboardItem({ [type]: blob })]);
+    return true;
   } catch (error) {
     // Needs a live user gesture / focused document; not every capture has one.
     console.debug("MyZ: clipboard image write failed", error);
+    return false;
   }
 }
 

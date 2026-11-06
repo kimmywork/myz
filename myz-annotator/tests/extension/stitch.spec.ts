@@ -88,6 +88,10 @@ test("stitch_editor_imports_cache_and_switches_modes", async () => {
 test("selection_screenshot_stages_and_names", async () => {
   const stitch = await harness.openStitch();
   await send(stitch, "myz:clearStagedAssets");
+  const origin = new URL(harness.serverUrl()).origin;
+  await harness
+    .context()
+    .grantPermissions(["clipboard-read", "clipboard-write"], { origin });
 
   const page = await harness.context().newPage();
   await page.goto(`${harness.serverUrl()}/myz-test.html`);
@@ -131,6 +135,12 @@ test("selection_screenshot_stages_and_names", async () => {
   expect(Number(list[0].width)).toBeGreaterThan(Math.round(selectedWidth) + 16);
   expect(decorated.width).toBeGreaterThan(Number(list[0].width));
   expect(decorated.height).toBeGreaterThan(Number(list[0].height));
+
+  const clipboardTypes = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read();
+    return items.flatMap((item) => item.types);
+  });
+  expect(clipboardTypes.some((type) => type.startsWith("image/"))).toBe(true);
 });
 
 test("video_frame_button_captures_current_frame", async () => {
