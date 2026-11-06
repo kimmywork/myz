@@ -7,6 +7,7 @@
 - 下载与分享使用卡片版；图片缓存区仍保存仅扩张的版本，避免圆角与边框影响后续拼接。
 - 选区截图恢复写入系统剪贴板：复制最终卡片，并提示成功或失败。
 - 内部：截图装饰管线拆到 `src/content/screenshot-decoration.ts`，新增亮度映射单测与剪贴板 e2e 断言。
+- 依赖升级：`markdown-it` 14.3.3、`vite` 7.3.7、`vitest` 4.1.12、`zod` 4.6.7；通过 overrides 将 `@typescript-eslint/typescript-estree` 的 `minimatch` 提到 11.0.5，`npm audit` 0 vulnerabilities。
 
 # v0.6.6 图片拼接与合成、捕获增强
 

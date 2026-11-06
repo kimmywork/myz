@@ -26,7 +26,7 @@
     "defuddle": "^0.19.2",
     "dompurify": "^3.4.12",
     "fflate": "*",
-    "markdown-it": "^14.3.0",
+    "markdown-it": "^14.3.3",
     "pdfjs-dist": "^6.3.289"
   }
 }
