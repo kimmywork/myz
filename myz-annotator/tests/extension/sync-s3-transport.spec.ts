@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
+import { startFakeS3 } from "../helpers/fake-s3.js";
 import { launchExtension } from "../helpers/launch-extension.js";
-import { createMockS3Server } from "../helpers/mock-s3-server.js";
 import { dirnameFromImportMeta, send } from "../helpers/runtime.js";
 
 const __dirname = dirnameFromImportMeta(import.meta.url);
@@ -21,20 +21,9 @@ async function saveClip(page: Page, text: string): Promise<{ id: string }> {
   });
 }
 
-const s3Settings = (endpoint: string) => ({
-  endpoint,
-  region: "us-east-1",
-  bucket: "myz",
-  accessKeyId: "AKIAMOCK",
-  secretAccessKey: "mock-secret",
-  sessionToken: "",
-  prefix: "",
-});
-
-test("syncs highlights and inbox between two profiles via a mock S3", async () => {
+test("syncs highlights and inbox between two profiles via an S3-compatible server", async () => {
   test.setTimeout(120_000);
-  const mock = createMockS3Server();
-  const { server, url } = await mock.listen(0);
+  const fake = await startFakeS3();
   const deviceA = await launchExtension(extensionPath);
   const deviceB = await launchExtension(extensionPath);
 
@@ -50,7 +39,7 @@ test("syncs highlights and inbox between two profiles via a mock S3", async () =
     await dashB.goto(dashUrl(deviceB.extensionId!));
     await dashB.waitForSelector(".app-shell", { timeout: 10_000 });
 
-    const s3 = s3Settings(url);
+    const s3 = fake.s3Settings();
     await send(dashA, "myz:updateSettings", {
       sync: { enabled: true, s3 },
     });
@@ -146,14 +135,14 @@ test("syncs highlights and inbox between two profiles via a mock S3", async () =
   } finally {
     await deviceA.context.close();
     await deviceB.context.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await fake.stop();
   }
 });
 
 test("first-run wizard: branch B creates an account and syncs", async () => {
   test.setTimeout(120_000);
-  const mock = createMockS3Server();
-  const { server, url } = await mock.listen(0);
+  const fake = await startFakeS3();
+  const url = fake.endpoint;
   const device = await launchExtension(extensionPath);
 
   try {
@@ -178,8 +167,8 @@ test("first-run wizard: branch B creates an account and syncs", async () => {
     await page.getByLabel("Endpoint").fill(url);
     await page.getByLabel("Region").fill("us-east-1");
     await page.getByLabel("Bucket").fill("myz");
-    await page.getByLabel("Access Key ID").fill("AKIAMOCK");
-    await page.getByLabel("Secret Key").fill("mock-secret");
+    await page.getByLabel("Access Key ID").fill(fake.accessKeyId);
+    await page.getByLabel("Secret Key").fill(fake.secretAccessKey);
     await page.getByRole("button", { name: "测试连接" }).click();
     await expect(page.getByText("连接成功")).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: "下一步" }).click();
@@ -208,11 +197,17 @@ test("first-run wizard: branch B creates an account and syncs", async () => {
       "myz:syncStatus",
     );
     expect(status.lastSyncAt).toBeTruthy();
-    expect(
-      Array.from(mock.objects.keys()).some((key) =>
-        key.startsWith(`${accountId}/`),
-      ),
-    ).toBe(true);
+    const accountKeys = await fake.listKeys(`${accountId}/`);
+    expect(accountKeys.length).toBeGreaterThan(0);
+
+    // What landed in the bucket is E2EE ciphertext: the clip text must not
+    // appear in any object the AWS SDK can read back.
+    const decoder = new TextDecoder();
+    for (const key of accountKeys) {
+      const body = await fake.readObject(key);
+      expect(body).not.toBeNull();
+      expect(decoder.decode(body!)).not.toContain("wizard-uploaded-clip");
+    }
 
     // B5: done.
     await expect(page.getByText("账号已建立并完成首次同步")).toBeVisible();
@@ -226,14 +221,13 @@ test("first-run wizard: branch B creates an account and syncs", async () => {
     await expect(page.getByText("已建立")).toBeVisible();
   } finally {
     await device.context.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await fake.stop();
   }
 });
 
 test("first-run wizard: authorize branch gates completion on the SAS", async () => {
   test.setTimeout(120_000);
-  const mock = createMockS3Server();
-  const { server, url } = await mock.listen(0);
+  const fake = await startFakeS3();
   const host = await launchExtension(extensionPath);
   const guest = await launchExtension(extensionPath);
 
@@ -244,7 +238,7 @@ test("first-run wizard: authorize branch gates completion on the SAS", async () 
     await hostPage.goto(dashUrl(host.extensionId!));
     await hostPage.waitForSelector(".app-shell", { timeout: 10_000 });
     await send(hostPage, "myz:updateSettings", {
-      sync: { enabled: true, s3: s3Settings(url) },
+      sync: { enabled: true, s3: fake.s3Settings() },
     });
     const bootstrap = await send<{ accountId: string }>(
       hostPage,
@@ -294,14 +288,14 @@ test("first-run wizard: authorize branch gates completion on the SAS", async () 
   } finally {
     await host.context.close();
     await guest.context.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await fake.stop();
   }
 });
 
 test("first-run wizard: branch A joins and uses the prefilled S3 prefix", async () => {
   test.setTimeout(120_000);
-  const mock = createMockS3Server();
-  const { server, url } = await mock.listen(0);
+  const fake = await startFakeS3();
+  const url = fake.endpoint;
   const host = await launchExtension(extensionPath);
   const guest = await launchExtension(extensionPath);
 
@@ -314,7 +308,7 @@ test("first-run wizard: branch A joins and uses the prefilled S3 prefix", async 
     await hostPage.goto(dashUrl(host.extensionId!));
     await hostPage.waitForSelector(".app-shell", { timeout: 10_000 });
     await send(hostPage, "myz:updateSettings", {
-      sync: { enabled: true, s3: { ...s3Settings(url), prefix: "team-a" } },
+      sync: { enabled: true, s3: fake.s3Settings("team-a") },
     });
     await saveClip(hostPage, "host-seeded-clip");
     await send(hostPage, "myz:accountBootstrap", { userGesture: true });
@@ -333,8 +327,8 @@ test("first-run wizard: branch A joins and uses the prefilled S3 prefix", async 
     await guestPage.getByLabel("Endpoint").fill(url);
     await guestPage.getByLabel("Region").fill("us-east-1");
     await guestPage.getByLabel("Bucket").fill("myz");
-    await guestPage.getByLabel("Access Key ID").fill("AKIAMOCK");
-    await guestPage.getByLabel("Secret Key").fill("mock-secret");
+    await guestPage.getByLabel("Access Key ID").fill(fake.accessKeyId);
+    await guestPage.getByLabel("Secret Key").fill(fake.secretAccessKey);
     await guestPage.getByRole("button", { name: "测试连接" }).click();
     await expect(guestPage.getByText("连接成功")).toBeVisible({
       timeout: 10_000,
@@ -387,6 +381,6 @@ test("first-run wizard: branch A joins and uses the prefilled S3 prefix", async 
   } finally {
     await host.context.close();
     await guest.context.close();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await fake.stop();
   }
 });
