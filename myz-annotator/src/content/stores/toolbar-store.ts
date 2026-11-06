@@ -150,10 +150,11 @@ export const useToolbarStore = defineStore("toolbar", () => {
         width: window.innerWidth,
         height: window.innerHeight,
       });
-      // Keep a copy in the capture cache as well (the download already
-      // happened inside cropAndDownloadSelection).
+      // Download happens inside cropAndDownloadSelection; stage the
+      // expansion-only copy so later stitching is not affected by the
+      // rounded corners or the ambient border.
       await stageCapturedImage({
-        ...cropped,
+        ...cropped.staged,
         sourceKind: "screenshot",
         sourceUrl: window.location.href,
         download: false,

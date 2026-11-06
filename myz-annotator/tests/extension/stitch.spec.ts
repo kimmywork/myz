@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import fs from "node:fs";
 import {
   makePngDataUrl,
   send,
@@ -8,6 +9,15 @@ import {
 } from "../helpers/stitch-harness.js";
 
 const harness = setupStitchHarness();
+
+/** PNG stores the frame size as big-endian u32 at bytes 16 and 20. */
+function readPngSize(filePath: string): { width: number; height: number } {
+  const buffer = fs.readFileSync(filePath);
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
 
 function stagePng(
   page: Page,
@@ -92,15 +102,35 @@ test("selection_screenshot_stages_and_names", async () => {
   await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
     timeout: 5000,
   });
+  const selectedWidth = await page.evaluate(() => {
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return 0;
+    const rects = Array.from(selection.getRangeAt(0).getClientRects()).filter(
+      (rect) => rect.width && rect.height,
+    );
+    if (!rects.length) return 0;
+    return (
+      Math.max(...rects.map((rect) => rect.right)) -
+      Math.min(...rects.map((rect) => rect.left))
+    );
+  });
   const [download] = await Promise.all([
     page.waitForEvent("download", { timeout: 10000 }),
     page.click('.myz-annotator-toolbar button[aria-label="截取"]'),
   ]);
   expect(download.suggestedFilename()).toMatch(/^myz-screenshot-.+\.png$/);
+  const downloadPath = await download.path();
+  if (!downloadPath) throw new Error("Downloaded screenshot has no path");
+  const decorated = readPngSize(downloadPath);
 
   const list = await waitForStagedCount(stitch, 1);
   expect(list[0].sourceKind).toBe("screenshot");
   expect(String(list[0].name)).toMatch(/^myz-screenshot-.+\.png$/);
+  // The staged copy is expansion-only: wider than the selected text, and
+  // smaller than the downloaded card (which adds the ambient border).
+  expect(Number(list[0].width)).toBeGreaterThan(Math.round(selectedWidth) + 16);
+  expect(decorated.width).toBeGreaterThan(Number(list[0].width));
+  expect(decorated.height).toBeGreaterThan(Number(list[0].height));
 });
 
 test("video_frame_button_captures_current_frame", async () => {
