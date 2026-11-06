@@ -19,7 +19,12 @@ adapter interfaces, and object-store client logic.
   standard and URL-safe alphabets (whitespace/padding tolerant) and throws
   descriptive errors on truncated/invalid input instead of a raw DOMException;
   deflate/JSON binary payload codecs.
-- s3Client.ts: REST calls (GET/PUT/HEAD/LIST/DELETE) with signing; HTTPS-only.
+- s3Client.ts: REST calls (GET/PUT/HEAD/LIST/DELETE) with SigV4 signing; HTTPS-only
+  (loopback HTTP for local tests). Listings decode `<Contents>` field-order
+  agnostically and follow `IsTruncated`/`NextContinuationToken`; the canonical
+  path is signed exactly as sent (no double percent-encoding). Verified against
+  fakes3 with signature checking (`myz-annotator/tests/transport/s3-client.spec.ts`);
+  see `docs/knowledges/s3-client.md` for why the runtime stays hand-written.
 - manifest.ts: manifest build/parse, signature verify.
 - chunks.ts: chunk pack/unpack, chunkId derivation, encrypt/decrypt.
 - remote.ts: shared remote repository helpers for version/manifest/chunk reads
