@@ -49,6 +49,23 @@ export function parseCsvRows(text: string): string[][] {
   return rows;
 }
 
+/**
+ * Removes and normalizes the header row of a parsed CSV. Importers use the
+ * lower-cased names + column index map; the remaining `rows` are data.
+ */
+export function readCsvHeader(rows: string[][]): {
+  headerMap: Map<string, number>;
+  rows: string[][];
+} {
+  const header = rows.shift() || [];
+  return {
+    headerMap: new Map(
+      header.map((item, index) => [item.trim().toLowerCase(), index]),
+    ),
+    rows,
+  };
+}
+
 /** Accepts epoch seconds/millis or a parseable date string. */
 export function normalizeTimestamp(value: string, fallback: string): string {
   if (!value) return fallback;

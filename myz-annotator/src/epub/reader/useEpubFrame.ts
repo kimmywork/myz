@@ -3,7 +3,7 @@ import {
   RECORD_KINDS,
   type MyZRecord,
 } from "@myz/shared/types";
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch, type Ref } from "vue";
 import type { useEpubReaderStore } from "../stores/reader-store.js";
 import { createEpubBackdoor } from "./epub-backdoor.js";
 import {
@@ -15,6 +15,99 @@ import {
 import { subscribeRefresh } from "@/messaging/changeRefresh";
 
 type Store = ReturnType<typeof useEpubReaderStore>;
+
+interface FrameState {
+  selectionToolbar: Ref<{
+    top: number;
+    left: number;
+    bottom: number;
+  } | null>;
+  activeId: Ref<string | null>;
+  pendingRange: Ref<Range | null>;
+}
+
+/** Publishes the iframe selection to the reader toolbar. */
+function handleFrameSelection(
+  state: FrameState,
+  doc: Document,
+  frame: HTMLIFrameElement,
+): void {
+  const selection = doc.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    state.selectionToolbar.value = null;
+    state.pendingRange.value = null;
+    return;
+  }
+  const range = selection.getRangeAt(0);
+  if (!range.toString().trim()) {
+    state.selectionToolbar.value = null;
+    state.pendingRange.value = null;
+    return;
+  }
+  state.pendingRange.value = range;
+  state.selectionToolbar.value = framePoint(
+    frame,
+    range.getBoundingClientRect(),
+  );
+  state.activeId.value = null;
+}
+
+/** Scrolls the chapter frame so a highlight is centered. */
+function scrollFrameToHighlight(
+  iframeRef: Ref<HTMLIFrameElement | null>,
+  id: string,
+): void {
+  const doc = iframeRef.value?.contentDocument;
+  const el = doc?.querySelector(`.myz-highlight[data-highlight-id="${id}"]`);
+  el?.scrollIntoView({ block: "center" });
+}
+
+/** Opens the record's chapter if needed, then reveals its highlight. */
+function focusFrameRecord(
+  store: Store,
+  state: FrameState,
+  focus: { id: string | null },
+  iframeRef: Ref<HTMLIFrameElement | null>,
+  record: MyZRecord,
+): void {
+  const target = record.epubLocator?.spineIndex ?? 0;
+  if (target !== store.spineIndex) {
+    focus.id = record.id;
+    store.goToChapter(target);
+    return;
+  }
+  state.activeId.value = record.id;
+  scrollFrameToHighlight(iframeRef, record.id);
+}
+
+/** Handles in-chapter links and highlight selection clicks. */
+function handleFrameHighlightClick(
+  store: Store,
+  state: FrameState,
+  event: Event,
+): void {
+  const anchor = (event.target as Element | null)?.closest?.("a[href]");
+  if (anchor) {
+    const internalHref = anchor.getAttribute("data-epub-href");
+    const href = anchor.getAttribute("href") || "";
+    if (internalHref) {
+      event.preventDefault();
+      store.openInternalHref(internalHref);
+      return;
+    }
+    if (/^https?:/i.test(href)) {
+      event.preventDefault();
+      chrome.tabs.create({ url: href });
+      return;
+    }
+  }
+  const target = (event.target as Element | null)?.closest?.(".myz-highlight");
+  const id = target?.getAttribute("data-highlight-id");
+  if (!target || !id) return;
+  state.activeId.value = id;
+  state.selectionToolbar.value = null;
+  state.pendingRange.value = null;
+}
 
 /**
  * Owns the EPUB iframe document lifecycle: frame events, scroll tracking,
@@ -29,72 +122,12 @@ export function useEpubFrame(store: Store) {
   } | null>(null);
   const activeId = ref<string | null>(null);
   const pendingRange = ref<Range | null>(null);
-  let pendingFocusId: string | null = null;
+  const state: FrameState = { selectionToolbar, activeId, pendingRange };
+  const focus: { id: string | null } = { id: null };
   let chapterAnchors: ChapterAnchor[] = [];
   let attachedWindow: Window | null = null;
   let scrollHandler: (() => void) | null = null;
   let frameObserver: ResizeObserver | null = null;
-
-  function handleSelection(doc: Document, frame: HTMLIFrameElement) {
-    const selection = doc.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      selectionToolbar.value = null;
-      pendingRange.value = null;
-      return;
-    }
-    const range = selection.getRangeAt(0);
-    if (!range.toString().trim()) {
-      selectionToolbar.value = null;
-      pendingRange.value = null;
-      return;
-    }
-    pendingRange.value = range;
-    selectionToolbar.value = framePoint(frame, range.getBoundingClientRect());
-    activeId.value = null;
-  }
-
-  function scrollToHighlight(id: string) {
-    const doc = iframeRef.value?.contentDocument;
-    const el = doc?.querySelector(`.myz-highlight[data-highlight-id="${id}"]`);
-    el?.scrollIntoView({ block: "center" });
-  }
-
-  function focusRecord(record: MyZRecord) {
-    const target = record.epubLocator?.spineIndex ?? 0;
-    if (target !== store.spineIndex) {
-      pendingFocusId = record.id;
-      store.goToChapter(target);
-      return;
-    }
-    activeId.value = record.id;
-    scrollToHighlight(record.id);
-  }
-
-  function handleHighlightClick(event: Event) {
-    const anchor = (event.target as Element | null)?.closest?.("a[href]");
-    if (anchor) {
-      const internalHref = anchor.getAttribute("data-epub-href");
-      const href = anchor.getAttribute("href") || "";
-      if (internalHref) {
-        event.preventDefault();
-        store.openInternalHref(internalHref);
-        return;
-      }
-      if (/^https?:/i.test(href)) {
-        event.preventDefault();
-        chrome.tabs.create({ url: href });
-        return;
-      }
-    }
-    const target = (event.target as Element | null)?.closest?.(
-      ".myz-highlight",
-    );
-    const id = target?.getAttribute("data-highlight-id");
-    if (!target || !id) return;
-    activeId.value = id;
-    selectionToolbar.value = null;
-    pendingRange.value = null;
-  }
 
   function repaint() {
     const doc = iframeRef.value?.contentDocument;
@@ -175,8 +208,12 @@ export function useEpubFrame(store: Store) {
     };
     win.addEventListener("scroll", scrollHandler, { passive: true });
 
-    doc.addEventListener("mouseup", () => handleSelection(doc, frame));
-    doc.addEventListener("keyup", () => handleSelection(doc, frame));
+    doc.addEventListener("mouseup", () =>
+      handleFrameSelection(state, doc, frame),
+    );
+    doc.addEventListener("keyup", () =>
+      handleFrameSelection(state, doc, frame),
+    );
     doc.addEventListener("selectionchange", () => {
       const selection = doc.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString().trim()) {
@@ -184,9 +221,11 @@ export function useEpubFrame(store: Store) {
         pendingRange.value = null;
         return;
       }
-      handleSelection(doc, frame);
+      handleFrameSelection(state, doc, frame);
     });
-    doc.addEventListener("click", (event) => handleHighlightClick(event));
+    doc.addEventListener("click", (event) =>
+      handleFrameHighlightClick(store, state, event),
+    );
     // Sidebar toggles and the bilingual column itself change the frame width,
     // which reflows the chapter: re-measure blocks once the layout settles.
     frameObserver?.disconnect();
@@ -200,11 +239,11 @@ export function useEpubFrame(store: Store) {
       updateCurrentFromScroll(chapterAnchors, store);
       store.expandTocPath(store.currentTocHref);
       store.setBilingualFrame(doc, win);
-      if (pendingFocusId) {
-        const id = pendingFocusId;
-        pendingFocusId = null;
+      if (focus.id) {
+        const id = focus.id;
+        focus.id = null;
         activeId.value = id;
-        scrollToHighlight(id);
+        scrollFrameToHighlight(iframeRef, id);
       }
     }, 0);
   }
@@ -315,7 +354,8 @@ export function useEpubFrame(store: Store) {
     activeId,
     pendingRange,
     handleFrameLoad,
-    focusRecord,
+    focusRecord: (record: MyZRecord) =>
+      focusFrameRecord(store, state, focus, iframeRef, record),
     saveActive,
     deleteActive,
     clearSelection,

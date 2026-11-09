@@ -1,12 +1,6 @@
 import { SOURCE_TYPES } from "@myz/shared/types";
 import { buildPdfSourceUrl } from "@myz/shared/url";
-import {
-  fingerprintBytes,
-  readHandle,
-  type FilePicker,
-  type PermissionCapableHandle,
-} from "../reader/local-file.js";
-import { createReaderSource } from "../reader/source.js";
+import { createLocalFileSource, createReaderSource } from "../reader/source.js";
 import { getFileHandle, putFileHandle } from "./storage";
 
 export type PdfSourceRef =
@@ -45,49 +39,14 @@ export function titleFromPdfUrl(url: string): string {
   }
 }
 
-export async function pickLocalPdf(): Promise<{
-  ref: PdfSourceRef;
-  bytes: ArrayBuffer;
-} | null> {
-  const picker = (window as unknown as { showOpenFilePicker?: FilePicker })
-    .showOpenFilePicker;
-  if (!picker) {
-    throw new Error("当前浏览器不支持打开本地文件");
-  }
-  const [handle] = await picker({
-    types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }],
-  });
-  if (!handle) {
-    return null;
-  }
-  const bytes = await readHandle(handle);
-  const fingerprint = await fingerprintBytes(bytes);
-  await putFileHandle(fingerprint.hash, handle);
-  return {
-    ref: {
-      kind: "local",
-      fingerprint: fingerprint.hash,
-      title: handle.name || "本地 PDF",
-    },
-    bytes,
-  };
-}
+const localFiles = createLocalFileSource<PdfSourceRef>({
+  description: "PDF",
+  accept: { "application/pdf": [".pdf"] },
+  defaultTitle: "本地 PDF",
+  getFileHandle,
+  putFileHandle,
+  makeRef: (fingerprint, title) => ({ kind: "local", fingerprint, title }),
+});
 
-export async function restoreLocalPdf(
-  fingerprint: string,
-  title?: string,
-): Promise<{ ref: PdfSourceRef; bytes: ArrayBuffer } | null> {
-  const handle = await getFileHandle<PermissionCapableHandle>(fingerprint);
-  if (!handle) {
-    return null;
-  }
-  const bytes = await readHandle(handle);
-  return {
-    ref: {
-      kind: "local",
-      fingerprint,
-      title: title || handle.name || "本地 PDF",
-    },
-    bytes,
-  };
-}
+export const pickLocalPdf = localFiles.pickLocal;
+export const restoreLocalPdf = localFiles.restoreLocal;

@@ -1,6 +1,6 @@
 import { RECORD_KINDS, type MyZRecord } from "@myz/shared/types";
 import { normalizeRecord, parseTags } from "../records.js";
-import { normalizeTimestamp, parseCsvRows } from "./csv.js";
+import { normalizeTimestamp, parseCsvRows, readCsvHeader } from "./csv.js";
 
 export function parseRaindropHighlights(value: string): string[] {
   if (!value) return [];
@@ -17,13 +17,10 @@ export function parseRaindropHighlights(value: string): string[] {
 }
 
 export function parseRaindropCsv(text: string): MyZRecord[] {
-  const rows = parseCsvRows(text);
-  if (!rows.length) return [];
+  const parsed = parseCsvRows(text);
+  if (!parsed.length) return [];
 
-  const header = rows.shift() || [];
-  const headerMap = new Map(
-    header.map((item, index) => [item.trim().toLowerCase(), index]),
-  );
+  const { headerMap, rows } = readCsvHeader(parsed);
 
   const urlIndex = headerMap.get("url");
   if (urlIndex === undefined) throw new Error("CSV 缺少 url 列");

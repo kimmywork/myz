@@ -291,7 +291,8 @@
   border-radius: var(--myz-r-sm);
 }
 
-.myz-bilingual-menu__error button {
+.myz-bilingual-menu__error button,
+.myz-bilingual-alert__retry {
   flex-shrink: 0;
   padding: 2px 8px;
   border: 1px solid var(--myz-well-border);
@@ -325,15 +326,4 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.myz-bilingual-alert__retry {
-  flex-shrink: 0;
-  padding: 2px 8px;
-  border: 1px solid var(--myz-well-border);
-  border-radius: var(--myz-r-sm);
-  background: var(--myz-well-control-bg);
-  color: inherit;
-  font-size: 12px;
-  cursor: pointer;
 }

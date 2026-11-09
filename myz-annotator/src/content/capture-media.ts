@@ -11,12 +11,14 @@
  * A copy is always downloaded (existing behaviour) and staged; the clipboard
  * write is best-effort because it needs a live user gesture.
  */
+import { createLogger } from "@myz/shared/logger";
 import {
   captureVisiblePngWithThrottle,
   cropToCanvas,
   downloadImage,
 } from "./image";
 import { useNotificationStore } from "./stores/notification-store";
+import { isVisible } from "./utils/visibility";
 import { invoke } from "@/messaging/invoke";
 import { buildSimpleName, buildVideoName } from "@/stitch/filename";
 import {
@@ -24,6 +26,8 @@ import {
   estimateDataUrlBytes,
   type StagedAssetKind,
 } from "@/stitch/staged-asset";
+
+const log = createLogger("capture");
 
 interface CapturedPayload {
   dataUrl: string;
@@ -84,7 +88,7 @@ export async function capturePageImage(srcUrl?: string): Promise<void> {
     });
     notify.notify({ message: "已保存到图片缓存区" });
   } catch (error) {
-    console.error("MyZ: capturePageImage failed", error);
+    log.error("MyZ: capturePageImage failed", error);
     notify.notify({ message: "图片保存失败" });
   }
 }
@@ -115,7 +119,7 @@ export async function captureVideoFrame(srcUrl?: string): Promise<void> {
     });
     notify.notify({ message: "已截取当前视频帧" });
   } catch (error) {
-    console.error("MyZ: captureVideoFrame failed", error);
+    log.error("MyZ: captureVideoFrame failed", error);
     notify.notify({ message: "视频截帧失败" });
   }
 }
@@ -133,7 +137,7 @@ export async function stageCapturedImage(
     try {
       downloadImage(input.dataUrl, name);
     } catch (error) {
-      console.warn("MyZ: download failed", error);
+      log.warn("MyZ: download failed", error);
     }
   }
   if (input.copy) {
@@ -154,7 +158,7 @@ export async function stageCapturedImage(
     });
     return result?.id ?? null;
   } catch (error) {
-    console.warn("MyZ: staging failed", error);
+    log.warn("MyZ: staging failed", error);
     return null;
   }
 }
@@ -176,7 +180,7 @@ async function fetchViaBackground(
       mime: result.mime || mimeFromDataUrl(result.dataUrl),
     };
   } catch (error) {
-    console.debug("MyZ: background fetch failed", error);
+    log.debug("MyZ: background fetch failed", error);
     return null;
   }
 }
@@ -200,7 +204,7 @@ async function drawUrlToPayload(
     };
   } catch (error) {
     // Tainted canvas (cross-origin without CORS) — fall back to a tab crop.
-    console.debug("MyZ: canvas draw tainted", error);
+    log.debug("MyZ: canvas draw tainted", error);
     return null;
   }
 }
@@ -218,7 +222,7 @@ function drawVideoToPayload(video: HTMLVideoElement): CapturedPayload | null {
       mime: "image/png",
     };
   } catch (error) {
-    console.debug("MyZ: video frame tainted", error);
+    log.debug("MyZ: video frame tainted", error);
     return null;
   }
 }
@@ -249,7 +253,7 @@ async function cropElementFromViewport(
       mime: "image/png",
     };
   } catch (error) {
-    console.debug("MyZ: viewport crop failed", error);
+    log.debug("MyZ: viewport crop failed", error);
     return null;
   }
 }
@@ -265,7 +269,7 @@ function findImageElement(srcUrl?: string): HTMLImageElement | null {
     if (match) return match;
   }
   const visible = images.filter(
-    (image) => image.naturalWidth > 0 && isVisible(image),
+    (image) => image.naturalWidth > 0 && isVisible(image, { inViewport: true }),
   );
   return visible.sort((a, b) => elementArea(b) - elementArea(a))[0] ?? null;
 }
@@ -286,23 +290,10 @@ function findVideoElement(srcUrl?: string): HTMLVideoElement | null {
   );
   if (playing) return playing;
   const visible = videos.filter(
-    (video) => video.videoWidth > 0 && isVisible(video),
+    (video) => video.videoWidth > 0 && isVisible(video, { inViewport: true }),
   );
   return (
     visible.sort((a, b) => elementArea(b) - elementArea(a))[0] ?? videos[0]
-  );
-}
-
-function isVisible(element: Element): boolean {
-  const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return false;
-  const style = window.getComputedStyle(element);
-  if (style.visibility === "hidden" || style.display === "none") return false;
-  return (
-    rect.bottom > 0 &&
-    rect.right > 0 &&
-    rect.top < window.innerHeight &&
-    rect.left < window.innerWidth
   );
 }
 
@@ -381,7 +372,7 @@ export async function copyImageToClipboard(
     return true;
   } catch (error) {
     // Needs a live user gesture / focused document; not every capture has one.
-    console.debug("MyZ: clipboard image write failed", error);
+    log.debug("MyZ: clipboard image write failed", error);
     return false;
   }
 }

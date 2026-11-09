@@ -1,4 +1,5 @@
 import { ImportStrategy } from "@myz/core/import";
+import { createLogger } from "@myz/shared/logger";
 import { collectTags } from "@myz/shared/tags";
 import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { defineStore } from "pinia";
@@ -17,6 +18,8 @@ import {
 import { setTimedStatus } from "@/dashboard/utils/setTimedStatus.js";
 import { changeBus } from "@/messaging/changes";
 import { invoke } from "@/messaging/invoke";
+
+const log = createLogger("highlights");
 
 export type MessageTone = "info" | "error" | "success";
 
@@ -75,7 +78,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
         : [];
       highlights.value = normalized;
     } catch (error) {
-      console.error("Failed to load highlights", error);
+      log.error("Failed to load highlights", error);
       highlights.value = [];
       throw error;
     } finally {
@@ -114,7 +117,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
       await navigator.clipboard.writeText(markdown);
       setTimedStatus(operationStatus, "已复制到剪贴板", 2000);
     } catch (error) {
-      console.error("复制失败", error);
+      log.error("复制失败", error);
       setTimedStatus(operationStatus, "复制失败", 2000);
     }
   }
@@ -124,7 +127,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
       await invoke("myz:removeHighlight", { id });
       highlights.value = highlights.value.filter((item) => item.id !== id);
     } catch (error) {
-      console.error("删除失败", error);
+      log.error("删除失败", error);
       setTimedStatus(operationStatus, `删除失败：${(error as Error).message}`);
     }
   }
@@ -159,7 +162,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
       });
       applyUpdatedRecord(updated);
     } catch (error) {
-      console.error("降级失败", error);
+      log.error("降级失败", error);
       setTimedStatus(operationStatus, `降级失败：${(error as Error).message}`);
     }
   }
@@ -184,7 +187,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
         );
       }
     } catch (error) {
-      console.error("导出失败", error);
+      log.error("导出失败", error);
       setTimedStatus(operationStatus, `导出失败：${(error as Error).message}`);
     }
   }

@@ -7,6 +7,8 @@
  * rewritten, because re-serializing them would change their sync hash.
  */
 
+import { createKindRegistry, type KindRegistry } from "./kind-registry";
+
 export type LocatorKind =
   | "text-range"
   | "pdf-page-rect"
@@ -28,29 +30,13 @@ export const BUILTIN_LOCATOR_KINDS: readonly LocatorKindDef[] = [
   { kind: "image-region", reserved: true },
 ];
 
-export interface LocatorKindRegistry {
-  register(def: LocatorKindDef): void;
-  get(kind: string): LocatorKindDef | undefined;
-  list(): LocatorKindDef[];
-}
+export type LocatorKindRegistry = KindRegistry<LocatorKindDef>;
 
+/** Builds a locator-kind registry seeded with the built-in kinds. */
 export function createLocatorKindRegistry(
   initial: readonly LocatorKindDef[] = BUILTIN_LOCATOR_KINDS,
 ): LocatorKindRegistry {
-  const byKind = new Map<string, LocatorKindDef>(
-    initial.map((def) => [def.kind, def]),
-  );
-  return {
-    register(def) {
-      byKind.set(def.kind, def);
-    },
-    get(kind) {
-      return byKind.get(kind);
-    },
-    list() {
-      return [...byKind.values()];
-    },
-  };
+  return createKindRegistry(initial);
 }
 
 /** A position inside a source, discriminated by kind. */

@@ -25,41 +25,41 @@ export default defineComponent({
     } = storeToRefs(store);
 
     return () => (
-      <header class="epub-toolbar">
+      <header class="reader-toolbar">
         <button
           type="button"
-          class="epub-icon-btn"
+          class="reader-icon-btn"
           aria-label="切换目录"
           title="目录"
           onClick={() => (store.sidebarOpen = !store.sidebarOpen)}
         >
           <Menu size={16} aria-hidden="true" />
         </button>
-        <div class="epub-toolbar__group">
+        <div class="reader-toolbar__group">
           <button
             type="button"
-            class="epub-btn"
+            class="reader-btn"
             disabled={spineIndex.value <= 0}
             onClick={() => store.goToChapter(spineIndex.value - 1)}
           >
             上一章
           </button>
-          <span class="epub-pager">
+          <span class="reader-pager">
             {spineIndex.value + 1} / {spineCount.value}
           </span>
           <button
             type="button"
-            class="epub-btn"
+            class="reader-btn"
             disabled={spineIndex.value >= spineCount.value - 1}
             onClick={() => store.goToChapter(spineIndex.value + 1)}
           >
             下一章
           </button>
         </div>
-        <div class="epub-toolbar__title" title={title.value}>
+        <div class="reader-toolbar__title" title={title.value}>
           {title.value}
         </div>
-        <span class="epub-pager">{progressPercent.value}%</span>
+        <span class="reader-pager">{progressPercent.value}%</span>
         <BilingualControl
           enabled={bilingualEnabled.value}
           phase={bilingualPhase.value}
@@ -77,7 +77,7 @@ export default defineComponent({
         />
         <button
           type="button"
-          class="epub-btn"
+          class="reader-btn"
           onClick={() => void store.openLocal()}
         >
           打开本地 EPUB

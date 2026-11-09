@@ -13,6 +13,7 @@
  *
  * The composer is only filled, never submitted — the user reviews and sends.
  */
+import { isVisible } from "./utils/visibility";
 import {
   getAiProvider,
   isProviderLoginUrl,
@@ -170,7 +171,7 @@ function clickNewChatControl(provider: AiProvider): boolean {
   for (const selector of provider.newChatControl ?? []) {
     const control = Array.from(
       document.querySelectorAll<HTMLElement>(selector),
-    ).find(isVisible);
+    ).find((element) => isVisible(element));
     if (control) {
       control.click();
       return true;
@@ -280,13 +281,6 @@ function findThinkToggle(
 
 // ── Composer discovery ──────────────────────────────────────────────────────
 
-function isVisible(element: Element): boolean {
-  const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return false;
-  const style = getComputedStyle(element);
-  return style.visibility !== "hidden" && style.display !== "none";
-}
-
 /**
  * The composer is the largest visible text area on the chat page: it sits at
  * the bottom of the viewport, while other inputs (search, rename) are small.
@@ -296,7 +290,7 @@ export function findComposer(): HTMLElement | null {
     document.querySelectorAll<HTMLElement>(
       'textarea, [contenteditable="true"], [role="textbox"]',
     ),
-  ).filter(isVisible);
+  ).filter((element) => isVisible(element));
   if (!candidates.length) return null;
   const area = (element: HTMLElement) => {
     const rect = element.getBoundingClientRect();

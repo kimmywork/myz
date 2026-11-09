@@ -38,7 +38,8 @@ export default defineComponent({
           <button
             type="button"
             class={
-              "reader-sidebar-toggle" + (sidebarOpen.value ? " is-active" : "")
+              "reader-icon-btn reader-sidebar-toggle" +
+              (sidebarOpen.value ? " is-active" : "")
             }
             aria-label="切换导航侧栏"
             title="目录 / 划线"
@@ -49,6 +50,7 @@ export default defineComponent({
           </button>
           <button
             type="button"
+            class="reader-btn"
             aria-label="上一页"
             title="上一页"
             disabled={page.value <= 1 || status.value !== "ready"}
@@ -61,6 +63,7 @@ export default defineComponent({
           </span>
           <button
             type="button"
+            class="reader-btn"
             aria-label="下一页"
             title="下一页"
             disabled={page.value >= pages.value || status.value !== "ready"}
@@ -78,7 +81,7 @@ export default defineComponent({
         <div class="reader-toolbar__group">
           <button
             type="button"
-            class="reader-zoom"
+            class="reader-icon-btn"
             aria-label="缩小"
             title="缩小"
             disabled={status.value !== "ready"}
@@ -91,7 +94,7 @@ export default defineComponent({
           </span>
           <button
             type="button"
-            class="reader-zoom"
+            class="reader-icon-btn"
             aria-label="放大"
             title="放大"
             disabled={status.value !== "ready"}
@@ -115,7 +118,7 @@ export default defineComponent({
             onRedetect={store.redetectBilingual}
             onRetry={store.retryBilingual}
           />
-          <button type="button" onClick={store.openLocal}>
+          <button type="button" class="reader-btn" onClick={store.openLocal}>
             <FolderOpen size={16} aria-hidden="true" />
             打开本地 PDF
           </button>

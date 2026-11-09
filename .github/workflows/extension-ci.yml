@@ -1,19 +1,80 @@
 name: myz-annotator CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ "master" ]
     paths:
       - "myz-annotator/**"
       - "packages/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".jscpd.json"
+      - "eslint.config.base.js"
       - ".github/workflows/extension-ci.yml"
   pull_request:
     paths:
       - "myz-annotator/**"
       - "packages/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".jscpd.json"
+      - "eslint.config.base.js"
       - ".github/workflows/extension-ci.yml"
 
 jobs:
+  quality:
+    name: Lint, unit tests, duplication
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # Workspaces: a single install at the repo root covers every package.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check extension version
+        run: npm run check:version
+
+      - name: Unit tests (annotator)
+        working-directory: myz-annotator
+        run: npm run test:dev
+
+      # @myz/shared, @myz/core, @myz/sync-core and @myz/dashboard-ui keep their
+      # own Vitest suites; `--if-present` skips workspaces without a test script.
+      - name: Unit tests (packages)
+        run: npm test --workspaces --if-present
+
+      - name: Lint (annotator)
+        working-directory: myz-annotator
+        run: npx eslint --ext .js,.jsx,.ts,.tsx src
+
+      - name: Lint (packages)
+        run: |
+          npm run lint --workspace @myz/shared --if-present
+          npm run lint --workspace @myz/core --if-present
+          npm run lint --workspace @myz/sync-core --if-present
+          npm run lint --workspace @myz/dashboard-ui --if-present
+
+      - name: Duplicate code scan
+        run: npm run jscpd
+
+      - name: Design token checks
+        run: |
+          npm run check:design-tokens
+          npm run check:tailwind-keys
+
   build-and-test:
     name: Build and test myz-annotator
     runs-on: ubuntu-latest
@@ -28,13 +89,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+          cache: npm
 
       # The repo is an npm workspaces monorepo: the extension's build toolchain
       # (vue-tsc / vite / typescript) lives in the ROOT package.json, so the
       # install must run at the repo root, not inside myz-annotator.
       - name: Install dependencies
         working-directory: .
-        run: npm install
+        run: npm ci
 
       - name: Build myz-annotator
         working-directory: myz-annotator
@@ -77,7 +139,7 @@ jobs:
   # `<package.json version>.<yyyyMMdd>-<last merged PR>` (e.g. 0.6.6.20261103-105).
   pre-release:
     name: Nightly pre-release (master)
-    needs: build-and-test
+    needs: [build-and-test, quality]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:

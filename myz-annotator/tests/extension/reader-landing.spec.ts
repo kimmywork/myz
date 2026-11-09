@@ -41,6 +41,6 @@ test("epub_reader_landing_has_no_toolbar", async () => {
   await page.waitForFunction(() => Boolean((window as any).__MYZ_EPUB__));
   await expect(page.locator(".reader-landing")).toBeVisible();
   await expect(page.getByRole("button", { name: "返回文库" })).toBeVisible();
-  await expect(page.locator(".epub-toolbar")).toHaveCount(0);
+  await expect(page.locator(".reader-toolbar")).toHaveCount(0);
   await page.close();
 });

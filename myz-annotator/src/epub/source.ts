@@ -1,12 +1,6 @@
 import { SOURCE_TYPES } from "@myz/shared/types";
 import { buildEpubSourceUrl } from "@myz/shared/url";
-import {
-  fingerprintBytes,
-  readHandle,
-  type FilePicker,
-  type PermissionCapableHandle,
-} from "../reader/local-file.js";
-import { createReaderSource } from "../reader/source.js";
+import { createLocalFileSource, createReaderSource } from "../reader/source.js";
 import { getFileHandle, putFileHandle } from "./storage";
 
 export type EpubSourceRef = {
@@ -37,54 +31,14 @@ export const supportsFileSystemAccess = source.supportsFileSystemAccess;
  */
 export const ensureLocalEpubPermission = source.ensurePermission;
 
-export async function pickLocalEpub(): Promise<{
-  ref: EpubSourceRef;
-  bytes: ArrayBuffer;
-} | null> {
-  const picker = (window as unknown as { showOpenFilePicker?: FilePicker })
-    .showOpenFilePicker;
-  if (!picker) {
-    throw new Error("当前浏览器不支持打开本地文件");
-  }
-  const [handle] = await picker({
-    types: [
-      {
-        description: "EPUB",
-        accept: { "application/epub+zip": [".epub"] },
-      },
-    ],
-  });
-  if (!handle) {
-    return null;
-  }
-  const bytes = await readHandle(handle);
-  const fingerprint = await fingerprintBytes(bytes);
-  await putFileHandle(fingerprint.hash, handle);
-  return {
-    ref: {
-      kind: "local",
-      fingerprint: fingerprint.hash,
-      title: handle.name || "本地 EPUB",
-    },
-    bytes,
-  };
-}
+const localFiles = createLocalFileSource<EpubSourceRef>({
+  description: "EPUB",
+  accept: { "application/epub+zip": [".epub"] },
+  defaultTitle: "本地 EPUB",
+  getFileHandle,
+  putFileHandle,
+  makeRef: (fingerprint, title) => ({ kind: "local", fingerprint, title }),
+});
 
-export async function restoreLocalEpub(
-  fingerprint: string,
-  title?: string,
-): Promise<{ ref: EpubSourceRef; bytes: ArrayBuffer } | null> {
-  const handle = await getFileHandle<PermissionCapableHandle>(fingerprint);
-  if (!handle) {
-    return null;
-  }
-  const bytes = await readHandle(handle);
-  return {
-    ref: {
-      kind: "local",
-      fingerprint,
-      title: title || handle.name || "本地 EPUB",
-    },
-    bytes,
-  };
-}
+export const pickLocalEpub = localFiles.pickLocal;
+export const restoreLocalEpub = localFiles.restoreLocal;

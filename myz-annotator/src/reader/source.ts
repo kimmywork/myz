@@ -9,9 +9,12 @@
 import { SOURCE_TYPES } from "@myz/shared/types";
 import {
   ensureReadPermission,
+  fingerprintBytes,
   isPermissionError as isLocalFilePermissionError,
   localFilePermissionError,
+  readHandle,
   supportsFileSystemAccess as supportsLocalFileSystemAccess,
+  type FilePicker,
   type PermissionCapableHandle,
 } from "./local-file.js";
 
@@ -82,4 +85,83 @@ export function createReaderSource<Ref>(
     isPermissionError,
     ensurePermission,
   };
+}
+
+export interface LocalFileSourceOptions<Ref> {
+  /** Human label shown by the native file picker. */
+  description: string;
+  /** Mime → extension map for the native file picker. */
+  accept: Record<string, string[]>;
+  /** Fallback title when the handle has no name. */
+  defaultTitle: string;
+  /** Reads a stored handle for a fingerprint. */
+  getFileHandle: (key: string) => Promise<PermissionCapableHandle | undefined>;
+  /** Persists a picked handle under its fingerprint. */
+  putFileHandle: (
+    key: string,
+    handle: PermissionCapableHandle,
+  ) => Promise<void>;
+  /** Maps a fingerprint + file name to the reader's local source ref. */
+  makeRef: (fingerprint: string, title: string) => Ref;
+}
+
+export interface LocalFileSource<Ref> {
+  pickLocal(): Promise<{ ref: Ref; bytes: ArrayBuffer } | null>;
+  restoreLocal(
+    fingerprint: string,
+    title?: string,
+  ): Promise<{ ref: Ref; bytes: ArrayBuffer } | null>;
+}
+
+/**
+ * Shared "open a local file" flow for the PDF and EPUB readers: show the native
+ * picker, read + fingerprint the bytes, persist the handle, and rebuild the ref.
+ * Re-opening a stored file only needs the fingerprint and an optional title.
+ */
+export function createLocalFileSource<Ref>(
+  options: LocalFileSourceOptions<Ref>,
+): LocalFileSource<Ref> {
+  const { description, accept, defaultTitle, getFileHandle, putFileHandle } =
+    options;
+
+  async function pickLocal(): Promise<{
+    ref: Ref;
+    bytes: ArrayBuffer;
+  } | null> {
+    const picker = (window as unknown as { showOpenFilePicker?: FilePicker })
+      .showOpenFilePicker;
+    if (!picker) {
+      throw new Error("当前浏览器不支持打开本地文件");
+    }
+    const [handle] = await picker({
+      types: [{ description, accept }],
+    });
+    if (!handle) {
+      return null;
+    }
+    const bytes = await readHandle(handle);
+    const fingerprint = await fingerprintBytes(bytes);
+    await putFileHandle(fingerprint.hash, handle);
+    return {
+      ref: options.makeRef(fingerprint.hash, handle.name || defaultTitle),
+      bytes,
+    };
+  }
+
+  async function restoreLocal(
+    fingerprint: string,
+    title?: string,
+  ): Promise<{ ref: Ref; bytes: ArrayBuffer } | null> {
+    const handle = await getFileHandle(fingerprint);
+    if (!handle) {
+      return null;
+    }
+    const bytes = await readHandle(handle);
+    return {
+      ref: options.makeRef(fingerprint, title || handle.name || defaultTitle),
+      bytes,
+    };
+  }
+
+  return { pickLocal, restoreLocal };
 }

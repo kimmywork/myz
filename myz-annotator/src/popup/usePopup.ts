@@ -1,5 +1,6 @@
 import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
 import { normalizeWhitespace } from "@myz/shared/highlightUtils";
+import { createLogger } from "@myz/shared/logger";
 import { recordToMarkdown } from "@myz/shared/recordDisplay";
 import {
   RECORD_KINDS,
@@ -17,6 +18,8 @@ import { getActiveTab, getPageHighlightState } from "./tabs.js";
 import { subscribeRefresh } from "@/messaging/changeRefresh";
 import { invoke } from "@/messaging/invoke";
 import { resolvePdfTargetUrl } from "@/pdf/detect.js";
+
+const log = createLogger("popup");
 
 /** State + data/actions for the popup. View lives in App.tsx. */
 export function usePopup() {
@@ -85,7 +88,7 @@ export function usePopup() {
         : [];
       error.value = "";
     } catch (err) {
-      console.error("Failed to load highlights", err);
+      log.error("Failed to load highlights", err);
       error.value = (err as Error)?.message || "加载失败";
       highlights.value = [];
     } finally {
@@ -104,10 +107,10 @@ export function usePopup() {
       { type: "myz:scrollToHighlight", payload: { id } },
       (response) => {
         if (chrome.runtime.lastError) {
-          console.warn("无法定位划线", chrome.runtime.lastError.message);
+          log.warn("无法定位划线", chrome.runtime.lastError.message);
           return;
         }
-        if (!response?.ok) console.warn("划线不存在", id);
+        if (!response?.ok) log.warn("划线不存在", id);
       },
     );
   }
@@ -116,7 +119,7 @@ export function usePopup() {
     try {
       await navigator.clipboard.writeText(recordToMarkdown(record));
     } catch (err) {
-      console.error("复制失败", err);
+      log.error("复制失败", err);
     }
   }
 
@@ -127,7 +130,7 @@ export function usePopup() {
       highlights.value = highlights.value.filter((item) => item.id !== id);
       notifyContentScript("myz:refreshHighlights");
     } catch (err) {
-      console.error("删除失败", err);
+      log.error("删除失败", err);
     }
   }
 
@@ -150,7 +153,7 @@ export function usePopup() {
         notifyContentScript("myz:refreshHighlights");
       }
     } catch (err) {
-      console.error("降级失败", err);
+      log.error("降级失败", err);
     }
   }
 
@@ -207,7 +210,7 @@ export function usePopup() {
       });
       await loadHighlights();
     } catch (err) {
-      console.error("Popup init failed", err);
+      log.error("Popup init failed", err);
       error.value = (err as Error)?.message || "初始化失败";
       loading.value = false;
     }

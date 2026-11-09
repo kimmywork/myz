@@ -156,24 +156,16 @@ async function detectSourceLanguage(
   return detected;
 }
 
-export async function translateText(
+interface TranslationPair {
+  sourceLanguage: string;
+  targetLanguage: string;
+}
+
+/** Detects/validates the language pair once, before any chunk is touched. */
+async function resolveTranslationPair(
   request: TranslateRequest,
-): Promise<TranslationOutcome> {
-  const blocks = request.blocks?.length
-    ? request.blocks.map((block) => block.trim()).filter(Boolean)
-    : splitIntoBlocks((request.text ?? "").trim());
-  if (!blocks.length) {
-    throw new TranslationError("failed", "没有可翻译的文字");
-  }
-  const signal = request.signal;
-  throwIfAborted(signal);
-
-  request.onProgress?.({
-    phase: "detecting",
-    completedChunks: 0,
-    totalChunks: 0,
-  });
-
+  blocks: string[],
+): Promise<TranslationPair> {
   const knownSource = normalizeLanguageTag(request.sourceLanguage);
   const sourceLanguage =
     knownSource || (await detectSourceLanguage(request, blocks.join("\n\n")));
@@ -203,6 +195,130 @@ export async function translateText(
     );
   }
   request.onLanguages?.({ sourceLanguage, targetLanguage });
+  return { sourceLanguage, targetLanguage };
+}
+
+interface BlockContext {
+  request: TranslateRequest;
+  sourceLanguage: string;
+  targetLanguage: string;
+  results: TranslationChunkResult[];
+  blockParts: string[][];
+  totalChunks: number;
+  signal?: AbortSignal;
+  emit: (progress: Partial<TranslationProgress>) => void;
+}
+
+/** Translates one chunk and maps engine failures to `TranslationError`. */
+async function translateChunk(
+  engine: TranslationEngine,
+  sourceLanguage: string,
+  targetLanguage: string,
+  chunk: string,
+  signal: AbortSignal | undefined,
+  onDownload: (loaded: number) => void,
+): Promise<string> {
+  try {
+    await engine.ensureTranslator(sourceLanguage, targetLanguage, {
+      onProgress: onDownload,
+    });
+    return await engine.translate(
+      sourceLanguage,
+      targetLanguage,
+      chunk,
+      signal,
+    );
+  } catch (error) {
+    if (isAbort(error) || signal?.aborted) {
+      throw new TranslationError("aborted", "翻译已取消");
+    }
+    const message = (error as Error)?.message || "";
+    const name = (error as { name?: string })?.name || "";
+    if (/notallowed|user activation|activation/i.test(`${name} ${message}`)) {
+      throw new TranslationError(
+        "activation",
+        "需要点按才会开始翻译，请再点一次",
+      );
+    }
+    if (/quota|too long|maximum/i.test(message)) {
+      throw new TranslationError("quota", "这段文字太长，请分段翻译");
+    }
+    throw new TranslationError("failed", "翻译失败，请重试");
+  }
+}
+
+/** Cache-first translation of every chunk in one source block. */
+async function translateBlockChunks(
+  ctx: BlockContext,
+  blockIndex: number,
+  chunks: string[],
+): Promise<void> {
+  const { request, sourceLanguage, targetLanguage, results, blockParts } = ctx;
+  for (const chunk of chunks) {
+    throwIfAborted(ctx.signal);
+    const key = await buildCacheKey(
+      sourceLanguage,
+      targetLanguage,
+      chunk,
+      request.hasher,
+    );
+    const cached = request.cache ? await request.cache.get(key) : undefined;
+    if (typeof cached === "string" && cached) {
+      results.push({ source: chunk, translation: cached, cached: true });
+      blockParts[blockIndex].push(cached);
+      ctx.emit({
+        phase: "cached",
+        completedChunks: results.length,
+        totalChunks: ctx.totalChunks,
+      });
+      continue;
+    }
+    const translation = await translateChunk(
+      request.engine,
+      sourceLanguage,
+      targetLanguage,
+      chunk,
+      ctx.signal,
+      (loaded) =>
+        ctx.emit({
+          phase: "downloading",
+          loaded,
+          completedChunks: results.length,
+          totalChunks: ctx.totalChunks,
+        }),
+    );
+    results.push({ source: chunk, translation, cached: false });
+    blockParts[blockIndex].push(translation);
+    await request.cache?.set(key, translation);
+    ctx.emit({
+      completedChunks: results.length,
+      totalChunks: ctx.totalChunks,
+    });
+  }
+}
+
+export async function translateText(
+  request: TranslateRequest,
+): Promise<TranslationOutcome> {
+  const blocks = request.blocks?.length
+    ? request.blocks.map((block) => block.trim()).filter(Boolean)
+    : splitIntoBlocks((request.text ?? "").trim());
+  if (!blocks.length) {
+    throw new TranslationError("failed", "没有可翻译的文字");
+  }
+  const signal = request.signal;
+  throwIfAborted(signal);
+
+  request.onProgress?.({
+    phase: "detecting",
+    completedChunks: 0,
+    totalChunks: 0,
+  });
+
+  const { sourceLanguage, targetLanguage } = await resolveTranslationPair(
+    request,
+    blocks,
+  );
 
   const blockChunks = blocks.map((block) =>
     splitIntoChunks(block, request.maxChunkLength ?? DEFAULT_CHUNK_LENGTH),
@@ -232,67 +348,19 @@ export async function translateText(
     });
   };
 
-  for (let blockIndex = 0; blockIndex < blockChunks.length; blockIndex += 1) {
-    for (const chunk of blockChunks[blockIndex]) {
-      throwIfAborted(signal);
-      const key = await buildCacheKey(
-        sourceLanguage,
-        targetLanguage,
-        chunk,
-        request.hasher,
-      );
-      const cached = request.cache ? await request.cache.get(key) : undefined;
-      if (typeof cached === "string" && cached) {
-        results.push({ source: chunk, translation: cached, cached: true });
-        blockParts[blockIndex].push(cached);
-        emit({
-          phase: "cached",
-          completedChunks: results.length,
-          totalChunks,
-        });
-        continue;
-      }
+  const context: BlockContext = {
+    request,
+    sourceLanguage,
+    targetLanguage,
+    results,
+    blockParts,
+    totalChunks,
+    signal,
+    emit,
+  };
 
-      try {
-        await request.engine.ensureTranslator(sourceLanguage, targetLanguage, {
-          onProgress: (loaded) =>
-            emit({
-              phase: "downloading",
-              loaded,
-              completedChunks: results.length,
-              totalChunks,
-            }),
-        });
-        const translation = await request.engine.translate(
-          sourceLanguage,
-          targetLanguage,
-          chunk,
-          signal,
-        );
-        results.push({ source: chunk, translation, cached: false });
-        blockParts[blockIndex].push(translation);
-        await request.cache?.set(key, translation);
-        emit({ completedChunks: results.length, totalChunks });
-      } catch (error) {
-        if (isAbort(error) || signal?.aborted) {
-          throw new TranslationError("aborted", "翻译已取消");
-        }
-        const message = (error as Error)?.message || "";
-        const name = (error as { name?: string })?.name || "";
-        if (
-          /notallowed|user activation|activation/i.test(`${name} ${message}`)
-        ) {
-          throw new TranslationError(
-            "activation",
-            "需要点按才会开始翻译，请再点一次",
-          );
-        }
-        if (/quota|too long|maximum/i.test(message)) {
-          throw new TranslationError("quota", "这段文字太长，请分段翻译");
-        }
-        throw new TranslationError("failed", "翻译失败，请重试");
-      }
-    }
+  for (let blockIndex = 0; blockIndex < blockChunks.length; blockIndex += 1) {
+    await translateBlockChunks(context, blockIndex, blockChunks[blockIndex]);
     request.onBlock?.(
       {
         source: blocks[blockIndex],

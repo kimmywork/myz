@@ -13,6 +13,48 @@ interface SelectionEventDeps {
   redraw: () => void;
 }
 
+/**
+ * Resolves the selection that a mouse-up implies (triple-click paragraph or a
+ * snapped drag) and schedules the caller's recompute. Kept at module scope so
+ * the event factory stays a thin binder.
+ */
+function applyMouseUpSelection(
+  event: MouseEvent,
+  start: { x: number; y: number } | null,
+  getStage: () => HTMLElement | null,
+  applySelection: () => void,
+): void {
+  const stage = getStage();
+  if (!stage) {
+    window.setTimeout(applySelection, 0);
+    return;
+  }
+  const startPage = start ? pageAtPoint(stage, start.x, start.y) : null;
+  // Triple-click selects the whole block (paragraph) under the pointer.
+  if (event.detail === 3) {
+    const page = pageAtPoint(stage, event.clientX, event.clientY) ?? startPage;
+    if (page && selectBlockAtPoint(page, event.clientX, event.clientY)) {
+      window.setTimeout(applySelection, 0);
+      return;
+    }
+  } else if (event.detail === 1 && !event.shiftKey && start && startPage) {
+    // Snap a drag to the geometry-derived lines/blocks so overshooting a
+    // paragraph does not bleed into the next one.
+    const endPage = pageAtPoint(stage, event.clientX, event.clientY);
+    if (endPage === startPage) {
+      const snapped = selectByDrag(startPage, start, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (snapped) {
+        window.setTimeout(applySelection, 0);
+        return;
+      }
+    }
+  }
+  window.setTimeout(applySelection, 0);
+}
+
 /** Mouse/keyboard selection handling bound to the PDF stage. */
 export function createSelectionEvents(
   state: ReaderState,
@@ -35,36 +77,9 @@ export function createSelectionEvents(
 
   function handleMouseUp(event: MouseEvent) {
     if ((event.target as HTMLElement)?.closest(".pdf-annotation")) return;
-    const stage = deps.getStage();
     const start = dragStart;
     dragStart = null;
-    if (stage) {
-      const startPage = start ? pageAtPoint(stage, start.x, start.y) : null;
-      // Triple-click selects the whole block (paragraph) under the pointer.
-      if (event.detail === 3) {
-        const page =
-          pageAtPoint(stage, event.clientX, event.clientY) ?? startPage;
-        if (page && selectBlockAtPoint(page, event.clientX, event.clientY)) {
-          window.setTimeout(deps.applySelection, 0);
-          return;
-        }
-      } else if (event.detail === 1 && !event.shiftKey && start && startPage) {
-        // Snap a drag to the geometry-derived lines/blocks so overshooting a
-        // paragraph does not bleed into the next one.
-        const endPage = pageAtPoint(stage, event.clientX, event.clientY);
-        if (endPage === startPage) {
-          const snapped = selectByDrag(startPage, start, {
-            x: event.clientX,
-            y: event.clientY,
-          });
-          if (snapped) {
-            window.setTimeout(deps.applySelection, 0);
-            return;
-          }
-        }
-      }
-    }
-    window.setTimeout(deps.applySelection, 0);
+    applyMouseUpSelection(event, start, deps.getStage, deps.applySelection);
   }
 
   function handleClick(event: MouseEvent) {

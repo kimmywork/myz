@@ -69,12 +69,13 @@ export type ResolvedLocator =
  * Source-specific reader anchor: PDF page / EPUB chapter. PDF/EPUB records also
  * carry a generic `range`, so reader actions must use these fields first.
  */
-export function resolveReaderLocator(
-  record: Partial<MyZRecord>,
-):
-  | { kind: "pdf-page-rect"; value: NonNullable<MyZRecord["pdfLocator"]> }
-  | { kind: "epub"; value: NonNullable<MyZRecord["epubLocator"]> }
-  | null {
+type ReaderLocator = Exclude<ResolvedLocator, { kind: "text-range" }>;
+
+/**
+ * The PDF/EPUB half of `resolveRecordLocator`, reused by `resolveReaderLocator`
+ * so the precedence cannot drift between the two read paths.
+ */
+function readerLocatorOf(record: Partial<MyZRecord>): ReaderLocator | null {
   if (record?.pdfLocator != null) {
     return { kind: "pdf-page-rect", value: record.pdfLocator };
   }
@@ -82,6 +83,12 @@ export function resolveReaderLocator(
     return { kind: "epub", value: record.epubLocator };
   }
   return null;
+}
+
+export function resolveReaderLocator(
+  record: Partial<MyZRecord>,
+): ReaderLocator | null {
+  return readerLocatorOf(record);
 }
 
 /**
@@ -94,11 +101,5 @@ export function resolveRecordLocator(
   if (record?.range != null) {
     return { kind: "text-range", value: record.range };
   }
-  if (record?.pdfLocator != null) {
-    return { kind: "pdf-page-rect", value: record.pdfLocator };
-  }
-  if (record?.epubLocator != null) {
-    return { kind: "epub", value: record.epubLocator };
-  }
-  return null;
+  return readerLocatorOf(record);
 }

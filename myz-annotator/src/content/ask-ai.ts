@@ -7,6 +7,7 @@
  * the user's template in settings, so the content script never needs the
  * template (and a settings change applies without reloading the page).
  */
+import { createLogger } from "@myz/shared/logger";
 import { selectionBlocks } from "@myz/shared/selectionBlocks";
 import type {
   AiAskPayload,
@@ -20,7 +21,10 @@ import {
   cropToCanvas,
   getSelectionBoundingRect,
 } from "./image";
+import { isVisible } from "./utils/visibility";
 import { invoke } from "@/messaging/invoke";
+
+const log = createLogger("ask-ai");
 
 const MIN_CROP_EDGE = 4;
 
@@ -43,7 +47,7 @@ export async function askAiAboutSelection(): Promise<AiComposeResult | null> {
   const range = selection.getRangeAt(0).cloneRange();
   const text = selectionText(range);
   const images = await captureSelectionScreenshot(range).catch((error) => {
-    console.warn("MyZ: selection screenshot failed", error);
+    log.warn("MyZ: selection screenshot failed", error);
     return [] as AiComposeImage[];
   });
   if (!text && !images.length) {
@@ -102,7 +106,7 @@ export async function captureSelectionScreenshot(
       try {
         selection?.addRange(savedRange);
       } catch (error) {
-        console.debug("MyZ: selection restore failed", error);
+        log.debug("MyZ: selection restore failed", error);
       }
     });
   }
@@ -154,13 +158,6 @@ function toCropRect(rect: Partial<CropRect> | null): CropRect | null {
   }
   if (width < MIN_CROP_EDGE || height < MIN_CROP_EDGE) return null;
   return { left, top, width, height };
-}
-
-function isVisible(element: Element): boolean {
-  const rect = element.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return false;
-  const style = getComputedStyle(element);
-  return style.visibility !== "hidden" && style.display !== "none";
 }
 
 function intersects(range: Range, node: Node): boolean {
