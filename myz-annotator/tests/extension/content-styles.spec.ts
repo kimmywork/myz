@@ -301,3 +301,184 @@ test("clicked-highlight_toolbar_is_fixed_dark_while_the_panel_follows_theme", as
   );
   expect(bg).toBe("rgb(20, 20, 19)");
 });
+
+test("compact_inspector_matches_the_capture_bar_geometry", async () => {
+  // Create one highlight on #para-2, then select text on #para-1 so both the
+  // capture bar and the compact inspector exist in the same document.
+  const para = page.locator("#para-2");
+  const box = await para.boundingBox();
+  if (!box) throw new Error("no paragraph box");
+  await page.mouse.move(box.x + 10, box.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 160, box.y + 10);
+  await page.mouse.up();
+  await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
+    timeout: 8000,
+  });
+  await page.click('.myz-annotator-toolbar button[aria-label="划线"]');
+  await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
+    timeout: 8000,
+  });
+  await page.click(".myz-annotator-modal .myz-btn-primary");
+  await page.waitForSelector("#para-2 .myz-highlight", { timeout: 5000 });
+
+  const first = page.locator("#para-1");
+  const firstBox = await first.boundingBox();
+  if (!firstBox) throw new Error("no #para-1 box");
+  await page.mouse.move(firstBox.x + 10, firstBox.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(firstBox.x + 160, firstBox.y + 10);
+  await page.mouse.up();
+  await page.waitForSelector(".myz-annotator-toolbar:not(.myz-hidden)", {
+    timeout: 8000,
+  });
+
+  await page.locator("#para-2 .myz-highlight").first().click();
+  await page.waitForSelector(".myz-inspector--toolbar:not(.myz-hidden)", {
+    timeout: 5000,
+  });
+
+  const readStyles = () =>
+    page.evaluate(() => {
+      const shadow = document.querySelector("[data-myz-host='1']")?.shadowRoot;
+      const toolbar = shadow?.querySelector(
+        ".myz-annotator-toolbar",
+      ) as HTMLElement | null;
+      const inspector = shadow?.querySelector(
+        ".myz-inspector--toolbar",
+      ) as HTMLElement | null;
+      if (!toolbar || !inspector) return null;
+
+      const boxOf = (el: HTMLElement) => {
+        const cs = getComputedStyle(el);
+        return {
+          backgroundColor: cs.backgroundColor,
+          borderRadius: cs.borderRadius,
+          paddingTop: cs.paddingTop,
+          paddingRight: cs.paddingRight,
+          paddingBottom: cs.paddingBottom,
+          paddingLeft: cs.paddingLeft,
+          gap: cs.gap,
+          boxShadow: cs.boxShadow,
+          borderTopWidth: cs.borderTopWidth,
+        };
+      };
+      const buttonOf = (el: HTMLElement) => {
+        const cs = getComputedStyle(el);
+        const svg = el.querySelector("svg");
+        const svgStyle = svg ? getComputedStyle(svg) : null;
+        return {
+          width: cs.width,
+          height: cs.height,
+          backgroundColor: cs.backgroundColor,
+          borderTopWidth: cs.borderTopWidth,
+          borderRadius: cs.borderRadius,
+          color: cs.color,
+          svgWidth: svgStyle?.width ?? null,
+          svgHeight: svgStyle?.height ?? null,
+        };
+      };
+
+      const editButton = inspector.querySelector(
+        ".myz-inspector__icon-btn--edit",
+      ) as HTMLElement;
+      const deleteButton = inspector.querySelector(
+        ".myz-inspector__icon-btn--delete",
+      ) as HTMLElement;
+
+      return {
+        toolbar: boxOf(toolbar),
+        inspector: boxOf(inspector),
+        toolbarButton: buttonOf(toolbar.querySelector("button") as HTMLElement),
+        inspectorButton: buttonOf(editButton),
+        inspectorDeleteColor: getComputedStyle(deleteButton).color,
+      };
+    });
+
+  const light = await readStyles();
+  expect(light).not.toBeNull();
+  // A1: the compact bar is the capture bar, computed style by computed style.
+  expect(light!.inspector).toEqual(light!.toolbar);
+  expect(light!.inspector.borderTopWidth).toBe("0px");
+  // A2: same button primitive.
+  expect(light!.inspectorButton).toEqual(light!.toolbarButton);
+  expect(light!.inspectorButton.width).toBe("32px");
+  expect(light!.inspectorButton.height).toBe("32px");
+  expect(light!.inspectorButton.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+  expect(light!.inspectorButton.borderTopWidth).toBe("0px");
+  expect(light!.inspectorButton.borderRadius).toBe("999px");
+  expect(light!.inspectorButton.svgWidth).toBe("16px");
+  expect(light!.inspectorButton.svgHeight).toBe("16px");
+  expect(light!.inspectorButton.color).toBe("rgb(245, 244, 237)");
+  // The delete icon keeps the readable fixed-dark error red.
+  expect(light!.inspectorDeleteColor).toBe("rgb(224, 138, 138)");
+
+  // A3: hover and focus-visible states of the shared button primitive.
+  await page.hover(".myz-inspector__icon-btn--edit");
+  // The background transitions in; poll instead of sampling the first frame.
+  await expect
+    .poll(
+      () =>
+        page.$eval(
+          ".myz-inspector__icon-btn--edit",
+          (el) => getComputedStyle(el).backgroundColor,
+        ),
+      { timeout: 2000 },
+    )
+    .toBe("rgb(48, 48, 46)");
+
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  const focusRing = await page.evaluate(() => {
+    const shadow = document.querySelector("[data-myz-host='1']")?.shadowRoot;
+    const el = shadow?.activeElement as HTMLElement | null;
+    if (!el) return null;
+    const cs = getComputedStyle(el);
+    return {
+      outlineStyle: cs.outlineStyle,
+      outlineWidth: cs.outlineWidth,
+      outlineColor: cs.outlineColor,
+      outlineOffset: cs.outlineOffset,
+    };
+  });
+  expect(focusRing).toEqual({
+    outlineStyle: "solid",
+    outlineWidth: "2px",
+    outlineColor: "rgb(245, 244, 237)",
+    outlineOffset: "2px",
+  });
+
+  // The fixed-dark bar stays identical in dark mode.
+  const ext = await context.newPage();
+  await ext.goto(`chrome-extension://${extensionId}/src/popup/popup.html`);
+  await ext.evaluate(async () => {
+    await new Promise<void>((resolve) =>
+      chrome.storage.local.set({ "myz:theme": "dark" }, () => resolve()),
+    );
+  });
+  await page.waitForFunction(() => {
+    const host = document.querySelector("[data-myz-host='1']");
+    const mount = host?.shadowRoot?.querySelector(
+      "[data-myz-mount]",
+    ) as HTMLElement | null;
+    return mount?.dataset.theme === "dark";
+  });
+  // Park the pointer away from the button so the resting colours are read;
+  // the hover background fades out, so wait for the transition to finish.
+  await page.mouse.move(4, 4);
+  await expect
+    .poll(
+      () =>
+        page.$eval(
+          ".myz-inspector__icon-btn--edit",
+          (el) => getComputedStyle(el).backgroundColor,
+        ),
+      { timeout: 2000 },
+    )
+    .toBe("rgba(0, 0, 0, 0)");
+  const dark = await readStyles();
+  expect(dark).not.toBeNull();
+  expect(dark!.inspector).toEqual(dark!.toolbar);
+  expect(dark!.inspectorButton).toEqual(dark!.toolbarButton);
+  await ext.close();
+});

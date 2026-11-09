@@ -7,6 +7,9 @@ import { invoke } from "@/messaging/invoke";
 
 type FocusAction = "keep" | "archive" | "snooze" | "delete" | "mark";
 
+/** Undo notices keep the same 6s window as the content-layer delete toast. */
+const UNDO_WINDOW_MS = 6000;
+
 /** Mutations, drag/drop, undo, batch and focus-mode actions. */
 export function useInboxActions(data: InboxData) {
   let undoTimer: ReturnType<typeof setTimeout> | null = null;
@@ -27,7 +30,7 @@ export function useInboxActions(data: InboxData) {
     undoTimer = setTimeout(() => {
       data.undo.value = null;
       undoTimer = null;
-    }, 5000);
+    }, UNDO_WINDOW_MS);
   }
 
   async function revertUndo() {

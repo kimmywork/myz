@@ -19,7 +19,11 @@ export {
   deleteUnreachableHighlights,
   buildHighlightStateSnapshot,
 } from "./highlight/cache.js";
-export { applyHighlight, rebuildHighlightRange } from "./highlight/apply.js";
+export {
+  applyHighlight,
+  rebuildHighlightRange,
+  removeHighlightFromDom,
+} from "./highlight/apply.js";
 export {
   markHighlightForReapply,
   removeHighlightFromPending,

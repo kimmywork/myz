@@ -11,6 +11,9 @@ function buildToastStyle(visible: boolean): HTMLAttributes["style"] {
     color: "var(--myz-overlay-text)",
     fontSize: "13px",
     boxShadow: "var(--myz-shadow)",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
     opacity: visible ? "1" : "0",
     transform: visible ? "translateY(0)" : "translateY(-6px)",
     transition:
@@ -60,8 +63,27 @@ export default defineComponent({
               style={buildToastStyle(toast.visible)}
               role="status"
               aria-live="polite"
+              onMouseenter={() => store.pause(toast.id)}
+              onMouseleave={() => store.resume(toast.id)}
+              onFocusin={() => store.pause(toast.id)}
+              onFocusout={(event: FocusEvent) => {
+                const next = event.relatedTarget as Node | null;
+                const current = event.currentTarget as HTMLElement;
+                if (!next || !current.contains(next)) {
+                  store.resume(toast.id);
+                }
+              }}
             >
-              {toast.message}
+              <span class="myz-toast__message">{toast.message}</span>
+              {toast.action ? (
+                <button
+                  type="button"
+                  class="myz-toast__action"
+                  onClick={() => store.triggerAction(toast.id)}
+                >
+                  {toast.action.label}
+                </button>
+              ) : null}
             </div>
           ))}
         </div>

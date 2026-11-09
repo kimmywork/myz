@@ -12,7 +12,6 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { resolveHighlightColor } from "../apply-highlight.js";
 import {
-  deleteHighlight,
   getFromHighlightCache,
   updateExistingHighlight,
 } from "../highlight-state.js";
@@ -159,13 +158,6 @@ export const useInspectorStore = defineStore("inspector", () => {
     });
   }
 
-  function deleteRecord() {
-    if (record.value.id) {
-      deleteHighlight(record.value.id);
-    }
-    hide();
-  }
-
   function edit() {
     const id = inspectingId.value;
     if (!id) {
@@ -214,7 +206,6 @@ export const useInspectorStore = defineStore("inspector", () => {
     inspectingId: computed(() => inspectingId.value),
     showRecord,
     hide,
-    deleteRecord,
     edit,
     copy,
     save,

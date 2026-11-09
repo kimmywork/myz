@@ -1,5 +1,5 @@
 import { TagInput } from "@myz/dashboard-ui";
-import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
+import ConfirmPopover from "@myz/shared/components/ConfirmPopover";
 import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import { IconClose, IconEdit, IconTrash } from "@myz/shared/icons";
 import { storeToRefs } from "pinia";
@@ -12,6 +12,7 @@ import {
   nextTick,
   watch,
 } from "vue";
+import { useInspectorDelete } from "../composables/useInspectorDelete.js";
 import { useInspectorStore } from "@/content/stores/inspector-store.js";
 import { useModalStore } from "@/content/stores/modal-store.js";
 
@@ -23,23 +24,33 @@ export default defineComponent({
     const { visible, record, inspectorAnchor, noteDraft, tagsDraft, dirty } =
       storeToRefs(store);
     const inspectorRef = ref<HTMLElement | null>(null);
+    const deleteButtonRef = ref<HTMLElement | null>(null);
     const inspectorHeight = ref(0);
     const inspectorFontSize = ref(16);
     let resizeObserver: ResizeObserver | null = null;
     let focusTrap: FocusTrap | null = null;
 
+    function activateInspectorTrap(initialFocus?: HTMLElement | null) {
+      if (confirmOpen.value || !inspectorRef.value) return;
+      focusTrap?.deactivate();
+      focusTrap = createFocusTrap(inspectorRef.value, {
+        onEscape: () => store.hide(),
+        initialFocus,
+      });
+      focusTrap.activate();
+    }
+
+    function deactivateInspectorTrap() {
+      focusTrap?.deactivate();
+      focusTrap = null;
+    }
+
     watch(visible, async (isVisible) => {
       if (isVisible) {
         await nextTick();
-        if (inspectorRef.value) {
-          focusTrap = createFocusTrap(inspectorRef.value, {
-            onEscape: () => store.hide(),
-          });
-          focusTrap.activate();
-        }
+        activateInspectorTrap();
       } else {
-        focusTrap?.deactivate();
-        focusTrap = null;
+        deactivateInspectorTrap();
       }
     });
 
@@ -49,6 +60,18 @@ export default defineComponent({
       return value;
     });
     const hasNote = computed(() => noteText.value.length > 0);
+
+    const deleteFlow = useInspectorDelete({
+      inspectorRef,
+      deleteButtonRef,
+      isVisible: visible,
+      currentRecordId: () => record.value.id,
+      hasNote: () => hasNote.value,
+      hide: () => store.hide(),
+      suspendFocusTrap: deactivateInspectorTrap,
+      resumeFocusTrap: (initialFocus) => activateInspectorTrap(initialFocus),
+    });
+    const { confirmOpen, confirmStyle } = deleteFlow;
 
     const inspectorStyle = computed(() => {
       const anchor = inspectorAnchor.value;
@@ -111,104 +134,120 @@ export default defineComponent({
     onBeforeUnmount(() => {
       resizeObserver?.disconnect();
       resizeObserver = null;
-      focusTrap?.deactivate();
-      focusTrap = null;
+      deactivateInspectorTrap();
+      deleteFlow.dispose();
     });
 
     return () => (
-      <aside
-        class={[
-          "myz-inspector",
-          visible.value ? "" : "myz-hidden",
-          hasNote.value ? "" : "myz-inspector--toolbar",
-        ]}
-        style={inspectorStyle.value}
-        ref={inspectorRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="标注详情"
-        onKeydown={(event: KeyboardEvent) => {
-          if (event.key === "Escape" && visible.value) {
-            event.stopPropagation();
-            store.hide();
-          }
-        }}
-      >
-        {hasNote.value ? (
-          <div class="myz-inspector__body">
-            <blockquote class="myz-inspector__quote">
-              {record.value.text}
-            </blockquote>
-            <label class="myz-annotator-field myz-inspector__note-field">
-              <span class="myz-inspector__label">批注</span>
-              <textarea
-                class="myz-inspector__note-input"
-                rows="3"
-                value={noteDraft.value}
-                onInput={(event: Event) => {
-                  store.noteDraft = (event.target as HTMLTextAreaElement).value;
+      <>
+        <aside
+          class={[
+            "myz-inspector",
+            visible.value ? "" : "myz-hidden",
+            hasNote.value ? "" : "myz-inspector--toolbar",
+          ]}
+          style={inspectorStyle.value}
+          ref={inspectorRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="标注详情"
+          onKeydown={(event: KeyboardEvent) => {
+            if (event.key === "Escape" && visible.value && !confirmOpen.value) {
+              event.stopPropagation();
+              store.hide();
+            }
+          }}
+        >
+          {hasNote.value ? (
+            <div class="myz-inspector__body">
+              <blockquote class="myz-inspector__quote">
+                {record.value.text}
+              </blockquote>
+              <label class="myz-annotator-field myz-inspector__note-field">
+                <span class="myz-inspector__label">批注</span>
+                <textarea
+                  class="myz-inspector__note-input"
+                  rows="3"
+                  value={noteDraft.value}
+                  onInput={(event: Event) => {
+                    store.noteDraft = (
+                      event.target as HTMLTextAreaElement
+                    ).value;
+                  }}
+                />
+              </label>
+              <div class="myz-inspector__tags">
+                <TagInput
+                  modelValue={tagsDraft.value}
+                  options={modalStore.knownTags}
+                  placeholder="添加标签"
+                  allowNew={true}
+                  variant="content"
+                  onUpdate:modelValue={(value: string[]) => {
+                    store.tagsDraft = Array.isArray(value) ? value : [];
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <div class="myz-inspector__actions">
+            {hasNote.value ? (
+              <button
+                type="button"
+                class="myz-inspector__save"
+                disabled={!dirty.value}
+                onClick={() => void store.save()}
+              >
+                保存
+              </button>
+            ) : null}
+            <div class="myz-inspector__icon-group">
+              <button
+                type="button"
+                class="myz-inspector__icon-btn myz-inspector__icon-btn--edit"
+                aria-label="编辑划线与样式"
+                onClick={() => {
+                  store.edit();
+                  store.hide();
                 }}
-              />
-            </label>
-            <div class="myz-inspector__tags">
-              <TagInput
-                modelValue={tagsDraft.value}
-                options={modalStore.knownTags}
-                placeholder="添加标签"
-                allowNew={true}
-                variant="content"
-                onUpdate:modelValue={(value: string[]) => {
-                  store.tagsDraft = Array.isArray(value) ? value : [];
-                }}
-              />
+              >
+                <IconEdit size={16} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                ref={deleteButtonRef}
+                class="myz-inspector__icon-btn myz-inspector__icon-btn--delete"
+                aria-label="删除划线"
+                data-myz-confirm-anchor="1"
+                onClick={deleteFlow.handleDelete}
+              >
+                <IconTrash size={16} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                class="myz-inspector__icon-btn myz-inspector__icon-btn--close"
+                aria-label="关闭"
+                onClick={() => store.hide()}
+              >
+                <IconClose size={16} aria-hidden="true" />
+              </button>
             </div>
           </div>
-        ) : null}
+        </aside>
 
-        <div class="myz-inspector__actions">
-          {hasNote.value ? (
-            <button
-              type="button"
-              class="myz-inspector__save"
-              disabled={!dirty.value}
-              onClick={() => void store.save()}
-            >
-              保存
-            </button>
-          ) : null}
-          <div class="myz-inspector__icon-group">
-            <button
-              type="button"
-              class="myz-inspector__icon-btn myz-inspector__icon-btn--edit"
-              aria-label="编辑划线与样式"
-              onClick={() => {
-                store.edit();
-                store.hide();
-              }}
-            >
-              <IconEdit size={16} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              class="myz-inspector__icon-btn myz-inspector__icon-btn--delete"
-              aria-label="删除划线"
-              onClick={() => {
-                if (confirmDestructive(DELETE_CONFIRM)) store.deleteRecord();
-              }}
-            >
-              <IconTrash size={16} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              class="myz-inspector__icon-btn myz-inspector__icon-btn--close"
-              aria-label="关闭"
-              onClick={() => store.hide()}
-            >
-              <IconClose size={16} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      </aside>
+        {confirmOpen.value && confirmStyle.value ? (
+          <ConfirmPopover
+            style={confirmStyle.value}
+            title="删除划线？"
+            message="这条划线带有批注，删除后批注一起消失。"
+            confirmLabel="删除"
+            cancelLabel="取消"
+            onConfirm={deleteFlow.handleConfirm}
+            onCancel={() => void deleteFlow.closeConfirm()}
+          />
+        ) : null}
+      </>
     );
   },
 });
