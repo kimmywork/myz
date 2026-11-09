@@ -39,7 +39,12 @@ export async function updateExistingHighlight(update: Partial<MyZRecord>) {
   }
 }
 
-export async function deleteHighlight(id: string) {
+/**
+ * Deletes a highlight from storage and the live DOM.
+ * Resolves `false` (instead of throwing) when the storage write failed, so
+ * deferred-delete callers can restore the record and tell the user.
+ */
+export async function deleteHighlight(id: string): Promise<boolean> {
   const inspectorStore = useInspectorStore();
   try {
     await invoke("myz:removeHighlight", { id });
@@ -49,8 +54,10 @@ export async function deleteHighlight(id: string) {
     removeHighlightFromDom(id);
     if (inspectorStore.isInspecting(id)) inspectorStore.hide();
     updateHighlightIndicators();
+    return true;
   } catch (error) {
     console.error("Failed to delete highlight", error);
+    return false;
   }
 }
 

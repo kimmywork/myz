@@ -68,6 +68,9 @@ test("apply_highlight_style_applies_dom_change and highlight_persists_after_relo
   await page.waitForSelector(".myz-annotator-modal:not(.myz-hidden)", {
     timeout: 8000,
   });
+  // A note makes the inspector open the full panel, whose delete goes through
+  // the in-page confirmation popup (see inspector-delete.spec.ts).
+  await page.fill(".myz-annotator-modal textarea", "persistence note");
   await page.click(".myz-annotator-modal .myz-btn-primary");
 
   // After saving, a .myz-highlight element should appear
@@ -121,8 +124,13 @@ test("remove_highlight_updates_dom_and_storage", async () => {
     timeout: 8000,
   });
 
-  // Click delete button in inspector
+  // Click delete button in inspector: annotated records ask for confirmation
+  // in the page, not through the native dialog.
   await page.click(".myz-inspector .myz-inspector__icon-btn--delete");
+  await page.waitForSelector(".myz-confirm .myz-btn-danger", {
+    timeout: 5000,
+  });
+  await page.click(".myz-confirm .myz-btn-danger");
 
   // Inspector should hide and highlight should be removed
   await page.waitForSelector(".myz-highlight", {
