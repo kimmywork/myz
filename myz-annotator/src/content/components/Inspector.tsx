@@ -176,35 +176,37 @@ export default defineComponent({
               保存
             </button>
           ) : null}
-          <button
-            type="button"
-            class="myz-inspector__icon-btn myz-inspector__icon-btn--edit"
-            aria-label="编辑划线与样式"
-            onClick={() => {
-              store.edit();
-              store.hide();
-            }}
-          >
-            <IconEdit size={18} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class="myz-inspector__icon-btn myz-inspector__icon-btn--delete"
-            aria-label="删除划线"
-            onClick={() => {
-              if (confirmDestructive(DELETE_CONFIRM)) store.deleteRecord();
-            }}
-          >
-            <IconTrash size={18} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class="myz-inspector__icon-btn myz-inspector__icon-btn--close"
-            aria-label="关闭"
-            onClick={() => store.hide()}
-          >
-            <IconClose size={16} aria-hidden="true" />
-          </button>
+          <div class="myz-inspector__icon-group">
+            <button
+              type="button"
+              class="myz-inspector__icon-btn myz-inspector__icon-btn--edit"
+              aria-label="编辑划线与样式"
+              onClick={() => {
+                store.edit();
+                store.hide();
+              }}
+            >
+              <IconEdit size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="myz-inspector__icon-btn myz-inspector__icon-btn--delete"
+              aria-label="删除划线"
+              onClick={() => {
+                if (confirmDestructive(DELETE_CONFIRM)) store.deleteRecord();
+              }}
+            >
+              <IconTrash size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="myz-inspector__icon-btn myz-inspector__icon-btn--close"
+              aria-label="关闭"
+              onClick={() => store.hide()}
+            >
+              <IconClose size={16} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </aside>
     );

@@ -401,6 +401,7 @@
 
 .myz-btn-danger:hover {
   color: var(--myz-error);
+  background: var(--myz-error-bg);
 }
 
 /* ── Inspector：高亮后的编辑浮层，跟随主题 ───────────────────────── */
@@ -423,55 +424,55 @@
   animation: myz-fade-in var(--myz-motion-med) var(--myz-ease-out);
 }
 
-/* Compact variant (click an existing highlight, no note): a fixed-dark bar
-   like the capture toolbar, independent of the theme. The full panel below
-   keeps following the theme. */
+/* Compact variant (click an existing highlight, no note): the capture
+   toolbar's pill, pixel for pixel — same geometry, same button primitive and
+   the same boundary — so both floating bars read as one family. The full
+   panel below keeps following the theme. */
 .myz-inspector--toolbar {
   width: fit-content;
   min-width: 0;
   max-width: none;
+  gap: 4px;
+  padding: 4px;
+  border: 0;
   border-radius: var(--myz-r-pill);
   background: var(--myz-overlay);
   color: var(--myz-overlay-text);
-  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.35),
     0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 
 .myz-inspector--toolbar .myz-inspector__icon-btn {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--myz-overlay-text);
-}
-
-.myz-inspector--toolbar .myz-inspector__icon-btn--edit {
-  background: var(--myz-accent);
-  border-color: var(--myz-accent);
-  color: var(--myz-on-accent);
-}
-
-.myz-inspector--toolbar .myz-inspector__icon-btn--edit:hover {
-  background: var(--myz-accent-hover);
-}
-
-.myz-inspector--toolbar .myz-inspector__icon-btn--delete {
+  border: 0;
+  border-radius: var(--myz-r-pill);
   background: transparent;
-  color: var(--myz-error);
-}
-
-.myz-inspector--toolbar .myz-inspector__icon-btn--close {
-  background: rgba(255, 255, 255, 0.12);
   color: var(--myz-overlay-text);
 }
 
-.myz-inspector--toolbar .myz-inspector__icon-btn--close:hover {
+.myz-inspector--toolbar .myz-inspector__icon-btn:hover {
   background: var(--myz-overlay-hover);
 }
 
 .myz-inspector--toolbar .myz-inspector__icon-btn:focus-visible {
   outline: 2px solid var(--myz-overlay-text);
   outline-offset: 2px;
+}
+
+/* The theme's --myz-error (#b53333) only reaches 3.06:1 on --myz-overlay, so
+   fixed-dark surfaces use the dark-tier red instead. */
+.myz-inspector--toolbar .myz-inspector__icon-btn--delete,
+.myz-inspector--toolbar .myz-inspector__icon-btn--delete:hover {
+  color: #e08a8a;
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn--delete:hover {
+  background: var(--myz-overlay-hover);
+}
+
+.myz-inspector--toolbar .myz-inspector__icon-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .myz-inspector__header {
@@ -648,20 +649,30 @@
 .myz-inspector__actions {
   padding: 10px 12px 12px;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   border-top: 1px solid var(--myz-line);
 }
 
 .myz-inspector--toolbar .myz-inspector__actions {
-  padding: 6px 8px;
+  padding: 0;
+  gap: 4px;
   justify-content: center;
   border-top: none;
 }
 
+/* Shape, size and states shared by the three actions (edit / delete / close).
+   The panel follows the theme; the compact bar overrides only colour. */
+.myz-inspector__icon-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .myz-inspector__icon-btn {
   appearance: none;
-  border: 1px solid var(--myz-control-border);
+  border: none;
   background: transparent;
   color: var(--myz-text);
   border-radius: var(--myz-r);
@@ -678,6 +689,12 @@
 
 .myz-inspector__icon-btn svg {
   display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.myz-inspector__icon-btn:hover {
+  background: var(--myz-surface-2);
 }
 
 .myz-inspector__icon-btn:focus-visible {
@@ -685,33 +702,13 @@
   outline-offset: 2px;
 }
 
-.myz-inspector__icon-btn--edit {
-  background: var(--myz-accent);
-  border-color: var(--myz-accent);
-  color: var(--myz-on-accent);
-}
-
-.myz-inspector__icon-btn--edit:hover {
-  background: var(--myz-accent-hover);
-}
-
 .myz-inspector__icon-btn--delete {
-  background: transparent;
   color: var(--myz-error);
 }
 
 .myz-inspector__icon-btn--delete:hover {
+  background: var(--myz-surface-2);
   color: var(--myz-error);
-}
-
-.myz-inspector__icon-btn--close {
-  background: var(--myz-control-bg);
-  color: var(--myz-text);
-}
-
-.myz-inspector__icon-btn--close:hover {
-  border-color: var(--myz-accent);
-  color: var(--myz-accent-text);
 }
 
 /* ── 提示条 §4.15：固定深色 ──────────────────────────────────────── */
