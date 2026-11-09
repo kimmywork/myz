@@ -18,10 +18,12 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
 
 let minimumLevel: LogLevel = "debug";
 
+/** Sets the minimum level emitted by loggers created afterwards. */
 export function setLogLevel(level: LogLevel): void {
   minimumLevel = level;
 }
 
+/** Returns the current minimum log level. */
 export function getLogLevel(): LogLevel {
   return minimumLevel;
 }
@@ -33,6 +35,7 @@ export interface Logger {
   error(...args: unknown[]): void;
 }
 
+/** Creates a logger that prefixes every message with `[myz:<scope>]`. */
 export function createLogger(scope: string): Logger {
   const write = (level: LogLevel, args: unknown[]): void => {
     if (LEVEL_ORDER[level] < LEVEL_ORDER[minimumLevel]) {

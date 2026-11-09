@@ -8,6 +8,7 @@ import {
   type RenderSlot,
 } from "./engine-context.js";
 
+/** Orders queued renders by priority, then distance from the current page. */
 function sortQueue(ctx: PdfEngineContext) {
   const currentPage = ctx.state.page.value;
   ctx.queue.sort(
@@ -18,6 +19,7 @@ function sortQueue(ctx: PdfEngineContext) {
   );
 }
 
+/** Resolves waiters and clears in-flight bookkeeping for a page. */
 function finishRender(ctx: PdfEngineContext, pageNumber: number) {
   const resolve = ctx.waiters.get(pageNumber);
   ctx.waiters.delete(pageNumber);
@@ -25,6 +27,7 @@ function finishRender(ctx: PdfEngineContext, pageNumber: number) {
   resolve?.();
 }
 
+/** Starts renders up to the concurrency limit (or one for the focus page). */
 function pumpQueue(ctx: PdfEngineContext) {
   if (!ctx.doc || !ctx.stage) return;
   // While the page at the viewport centre is still unrendered, render it
@@ -96,6 +99,7 @@ function pumpQueue(ctx: PdfEngineContext) {
   }
 }
 
+/** Queues a page once and returns the shared completion promise. */
 function ensureRendered(
   ctx: PdfEngineContext,
   pageNumber: number,
@@ -117,6 +121,7 @@ function ensureRendered(
   return promise;
 }
 
+/** Observes page placeholders with the stage as root. */
 function observePages(ctx: PdfEngineContext) {
   if (!ctx.stage) return;
   ctx.observer = new IntersectionObserver(

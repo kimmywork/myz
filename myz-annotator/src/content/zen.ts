@@ -218,13 +218,14 @@ async function captureZenBatch(
 }
 
 export async function captureZenTargetFull() {
+  const target = getZenTargetElement();
+  if (!target) return;
+  const geometry = measureZenCapture(target);
+  const { viewport, rows, cols, dpr } = geometry;
+  const suspended = await suspendSelection();
+  const originalScroll = { x: window.scrollX, y: window.scrollY };
+
   try {
-    const target = getZenTargetElement();
-    if (!target) return;
-    const geometry = measureZenCapture(target);
-    const { viewport, rows, cols, dpr } = geometry;
-    const suspended = await suspendSelection();
-    const originalScroll = { x: window.scrollX, y: window.scrollY };
     const maxColsPerImage = Math.max(
       1,
       Math.floor(MAX_CAPTURE_DIM / Math.ceil(viewport.width * dpr)),
@@ -255,11 +256,14 @@ export async function captureZenTargetFull() {
         });
       }
     }
-    window.scrollTo(originalScroll.x, originalScroll.y);
-    restoreSelection(suspended);
   } catch (e) {
     console.error("captureZenTargetFull failed", e);
     throw e;
+  } finally {
+    // A failed tile must not leave the page scrolled away or the user's
+    // selection cleared.
+    window.scrollTo(originalScroll.x, originalScroll.y);
+    restoreSelection(suspended);
   }
 }
 
@@ -392,6 +396,7 @@ const ZEN_PRINT_CSS = `
 }
 `;
 
+/** Builds the injected Zen-mode stylesheet from the current palette. */
 function buildZenCss(): string {
   // Pure CSS approach: hide everything except the marked target, its
   // descendants, and explicitly marked ancestors. Avoid :has() for broader

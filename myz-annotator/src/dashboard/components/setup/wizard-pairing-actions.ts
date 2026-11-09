@@ -6,6 +6,7 @@ interface PairingDeps {
   loadStatus: () => Promise<void>;
 }
 
+/** Copies text and shows a transient confirmation label. */
 async function copyText(state: WizardState, label: string, text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -18,6 +19,7 @@ async function copyText(state: WizardState, label: string, text: string) {
   }
 }
 
+/** Accepts a pairing invite and pre-fills the S3 coordinates. */
 async function acceptInvite(state: WizardState, deps: PairingDeps) {
   if (state.isBusy.value) return;
   if (!state.pairingInviteInput.value.trim()) {
@@ -56,6 +58,7 @@ async function acceptInvite(state: WizardState, deps: PairingDeps) {
   }
 }
 
+/** Imports the pairing roster after the SAS check. */
 async function importAccount(state: WizardState, deps: PairingDeps) {
   if (state.isBusy.value) return;
   if (!state.sasConfirmed.value) {
@@ -86,6 +89,7 @@ async function importAccount(state: WizardState, deps: PairingDeps) {
   }
 }
 
+/** Generates an invite for a new device. */
 async function generateInvite(state: WizardState) {
   if (state.isBusy.value) return;
   state.isBusy.value = true;
@@ -101,6 +105,7 @@ async function generateInvite(state: WizardState) {
   }
 }
 
+/** Approves a device response and refreshes the status. */
 async function approve(state: WizardState, deps: PairingDeps) {
   if (state.isBusy.value) return;
   if (!state.pairingResponseInput.value.trim()) {

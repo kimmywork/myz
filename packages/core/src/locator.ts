@@ -32,6 +32,7 @@ export const BUILTIN_LOCATOR_KINDS: readonly LocatorKindDef[] = [
 
 export type LocatorKindRegistry = KindRegistry<LocatorKindDef>;
 
+/** Builds a locator-kind registry seeded with the built-in kinds. */
 export function createLocatorKindRegistry(
   initial: readonly LocatorKindDef[] = BUILTIN_LOCATOR_KINDS,
 ): LocatorKindRegistry {

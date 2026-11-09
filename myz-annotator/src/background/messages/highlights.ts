@@ -57,6 +57,7 @@ function htmlToMarkdown(html: string, tabId?: number): Promise<string> {
   ).then((result) => result.markdown);
 }
 
+/** Registers read-only record queries (URL, all, tags, export). */
 function registerReadHandlers() {
   registerMessageHandler(
     "myz:getHighlightsForUrl",
@@ -82,6 +83,7 @@ function registerReadHandlers() {
   });
 }
 
+/** Registers create/update record handlers and preference persistence. */
 function registerSaveHandlers() {
   registerMessageHandler(
     "myz:saveHighlight",
@@ -142,6 +144,7 @@ function registerSaveHandlers() {
   );
 }
 
+/** Registers delete + bulk patch handlers, including tombs. */
 function registerDeleteHandlers() {
   registerMessageHandler(
     "myz:removeHighlight",
@@ -184,6 +187,7 @@ function registerDeleteHandlers() {
   );
 }
 
+/** Registers the action badge/title update handler. */
 function registerBadgeHandler() {
   registerMessageHandler(
     "myz:updateBadge",
@@ -223,6 +227,7 @@ function registerBadgeHandler() {
   );
 }
 
+/** Registers the JSON import handler with its merge strategy. */
 function registerImportHandler() {
   registerMessageHandler(
     "myz:importHighlights",

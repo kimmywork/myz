@@ -114,10 +114,12 @@ interface SessionState {
   listeners: Set<(event: BilingualEvent) => void>;
 }
 
+/** Scopes a block key to the current target language. */
 function cacheKey(state: SessionState, key: string): string {
   return `${state.target}\u0000${key}`;
 }
 
+/** Delivers an event to every subscriber, isolating pane failures. */
 function emit(state: SessionState, event: BilingualEvent): void {
   for (const listener of [...state.listeners]) {
     try {
@@ -128,6 +130,7 @@ function emit(state: SessionState, event: BilingualEvent): void {
   }
 }
 
+/** Counts translated blocks for the current target language. */
 function translatedCount(state: SessionState): number {
   let total = 0;
   for (const key of state.translations.keys()) {
@@ -138,6 +141,7 @@ function translatedCount(state: SessionState): number {
   return total;
 }
 
+/** Builds the public snapshot of session state. */
 function snapshot(state: SessionState): BilingualSnapshot {
   return {
     phase: state.phase,
@@ -150,6 +154,7 @@ function snapshot(state: SessionState): BilingualSnapshot {
   };
 }
 
+/** Publishes the current snapshot to subscribers. */
 function publish(state: SessionState): void {
   emit(state, { type: "state", snapshot: snapshot(state) });
 }
@@ -215,6 +220,7 @@ function batchHandlers(state: SessionState, gen: number, keys: string[]) {
   };
 }
 
+/** Runs queued batches serially with generation-based cancellation. */
 async function pump(state: SessionState): Promise<void> {
   if (state.running || state.disposed) {
     return;
@@ -268,6 +274,7 @@ async function pump(state: SessionState): Promise<void> {
   }
 }
 
+/** Queues newly requested blocks and remembers the viewport. */
 function request(state: SessionState, segments: BilingualSegment[]): void {
   if (state.disposed) {
     return;
@@ -324,6 +331,7 @@ function request(state: SessionState, segments: BilingualSegment[]): void {
   void pump(state);
 }
 
+/** Cancels in-flight work and resets the session to idle. */
 function cancel(state: SessionState): void {
   abortInFlight(state);
   state.phase = "idle";
@@ -332,6 +340,7 @@ function cancel(state: SessionState): void {
   publish(state);
 }
 
+/** Switches target language, resets translations and replays the viewport. */
 function setTargetLanguage(state: SessionState, tag: string): void {
   const next = normalizeLanguageTag(tag) || resolveTargetLanguage();
   if (next === state.target) {
@@ -348,6 +357,7 @@ function setTargetLanguage(state: SessionState, tag: string): void {
   void pump(state);
 }
 
+/** Clears detection + translations and replays the viewport. */
 function redetect(state: SessionState): void {
   abortInFlight(state);
   state.detected = "";
@@ -366,6 +376,7 @@ function redetect(state: SessionState): void {
   void pump(state);
 }
 
+/** Replays the viewport after an error. */
 function retry(state: SessionState): void {
   if (state.phase !== "error") {
     return;
@@ -377,6 +388,7 @@ function retry(state: SessionState): void {
   void pump(state);
 }
 
+/** Creates an incremental, serial bilingual translation session. */
 export function createBilingualSession(
   options: BilingualSessionOptions,
 ): BilingualSession {

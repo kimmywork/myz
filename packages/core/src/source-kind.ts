@@ -44,6 +44,7 @@ export const BUILTIN_SOURCE_KINDS: readonly SourceKindDef[] = [
 
 export type SourceKindRegistry = KindRegistry<SourceKindDef>;
 
+/** Builds a source-kind registry seeded with the built-in kinds. */
 export function createSourceKindRegistry(
   initial: readonly SourceKindDef[] = BUILTIN_SOURCE_KINDS,
 ): SourceKindRegistry {

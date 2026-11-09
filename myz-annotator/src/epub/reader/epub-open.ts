@@ -26,6 +26,7 @@ interface OpenDeps {
   persistProgress: () => Promise<void>;
 }
 
+/** Parses bytes and installs the book, restoring position and records. */
 async function openBytes(
   deps: OpenDeps,
   bytes: ArrayBuffer,
@@ -60,6 +61,7 @@ async function openBytes(
   }
 }
 
+/** Shows the native picker and opens the selected EPUB. */
 async function openLocal(deps: OpenDeps) {
   deps.status.value = "loading";
   try {
@@ -75,6 +77,7 @@ async function openLocal(deps: OpenDeps) {
   }
 }
 
+/** Downloads an EPUB URL into the shared `openBytes` flow. */
 async function openUrl(
   deps: OpenDeps,
   url: string,
@@ -96,6 +99,7 @@ async function openUrl(
   }
 }
 
+/** Re-opens a stored local file from the reader's recent list. */
 async function openRecent(deps: OpenDeps, entry: EpubProgress) {
   if (!entry.fingerprint) return;
   deps.status.value = "loading";
@@ -116,6 +120,7 @@ async function openRecent(deps: OpenDeps, entry: EpubProgress) {
   }
 }
 
+/** Re-opens the local file referenced by `?fp=` in the reader URL. */
 async function openFromQuery(deps: OpenDeps) {
   const params = new URLSearchParams(window.location.search);
   const fingerprint = params.get("fp");

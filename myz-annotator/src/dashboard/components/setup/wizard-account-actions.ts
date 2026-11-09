@@ -5,10 +5,12 @@ import { invoke } from "@/messaging/invoke";
 
 type SettingsStore = ReturnType<typeof useSettingsStore>;
 
+/** Copies the saved S3 settings into the wizard form. */
 function s3FromSettings(state: WizardState, settingsStore: SettingsStore) {
   Object.assign(state.s3, toS3Form(settingsStore.settings.sync?.s3));
 }
 
+/** Loads account/device status into the wizard state. */
 async function loadSyncStatus(state: WizardState) {
   try {
     const result = await invoke("myz:syncStatus");
@@ -22,6 +24,7 @@ async function loadSyncStatus(state: WizardState) {
   }
 }
 
+/** Validates and saves the S3 form without resetting tuning fields. */
 async function persistS3(
   state: WizardState,
   settingsStore: SettingsStore,
@@ -43,6 +46,7 @@ async function persistS3(
   return true;
 }
 
+/** Tests the S3 form and records the result on the wizard state. */
 async function testConnection(state: WizardState) {
   const error = validateS3Form(state.s3);
   if (error) {
@@ -69,6 +73,7 @@ async function testConnection(state: WizardState) {
   }
 }
 
+/** Persists S3 settings and advances to the requested step. */
 async function saveS3AndGo(
   state: WizardState,
   persist: () => Promise<boolean>,
@@ -88,6 +93,7 @@ async function saveS3AndGo(
   }
 }
 
+/** Creates the account and refreshes the wizard status. */
 async function createAccount(
   state: WizardState,
   loadStatus: () => Promise<void>,
@@ -107,6 +113,7 @@ async function createAccount(
   }
 }
 
+/** Runs the first sync and updates the wizard status. */
 async function syncNow(state: WizardState, loadStatus: () => Promise<void>) {
   if (state.isBusy.value) return;
   state.isBusy.value = true;
@@ -130,6 +137,7 @@ async function syncNow(state: WizardState, loadStatus: () => Promise<void>) {
   }
 }
 
+/** Marks the first sync as deferred. */
 function syncLater(state: WizardState) {
   state.syncState.value = "later";
   state.setStatus("已保存，可稍后在设置页同步", "warn");

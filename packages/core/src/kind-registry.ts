@@ -8,6 +8,7 @@ export interface KindRegistry<Def extends { kind: string }> {
   list(): Def[];
 }
 
+/** Creates a kind registry, optionally seeded with definitions. */
 export function createKindRegistry<Def extends { kind: string }>(
   initial: readonly Def[] = [],
 ): KindRegistry<Def> {

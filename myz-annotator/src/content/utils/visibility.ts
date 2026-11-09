@@ -13,6 +13,7 @@ export interface VisibilityOptions {
   minHeight?: number;
 }
 
+/** Returns whether an element is rendered, optionally requiring it to be in the viewport. */
 export function isVisible(
   element: Element,
   options: VisibilityOptions = {},

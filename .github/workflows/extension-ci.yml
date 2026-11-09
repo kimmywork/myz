@@ -1,16 +1,29 @@
 name: myz-annotator CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ "master" ]
     paths:
       - "myz-annotator/**"
       - "packages/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".jscpd.json"
+      - "eslint.config.base.js"
       - ".github/workflows/extension-ci.yml"
   pull_request:
     paths:
       - "myz-annotator/**"
       - "packages/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".jscpd.json"
+      - "eslint.config.base.js"
       - ".github/workflows/extension-ci.yml"
 
 jobs:

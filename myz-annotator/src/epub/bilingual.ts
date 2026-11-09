@@ -132,6 +132,7 @@ function deltaInPixels(event: WheelEvent, viewport: Window): number {
   return event.deltaY;
 }
 
+/** Forwards a wheel gesture to the chapter frame. */
 function handleWheel(ctx: EpubLayerContext, event: WheelEvent): void {
   if (!ctx.win) {
     return;
@@ -140,6 +141,7 @@ function handleWheel(ctx: EpubLayerContext, event: WheelEvent): void {
   event.preventDefault();
 }
 
+/** Binds the wheel listener to the current scroll host (idempotent). */
 function attachHost(
   ctx: EpubLayerContext,
   options: EpubBilingualLayerOptions,
@@ -153,11 +155,13 @@ function attachHost(
   ctx.host?.addEventListener("wheel", ctx.handleWheel, { passive: false });
 }
 
+/** Removes the wheel listener from the current scroll host. */
 function detachHost(ctx: EpubLayerContext): void {
   ctx.host?.removeEventListener("wheel", ctx.handleWheel);
   ctx.host = null;
 }
 
+/** Lazily creates the mirrored column for this chapter. */
 function ensurePane(
   ctx: EpubLayerContext,
   options: EpubBilingualLayerOptions,
@@ -172,6 +176,7 @@ function ensurePane(
   return ctx.pane;
 }
 
+/** Requests translations for blocks fully inside the frame viewport. */
 function requestVisible(
   ctx: EpubLayerContext,
   options: EpubBilingualLayerOptions,
@@ -186,6 +191,7 @@ function requestVisible(
   );
 }
 
+/** Mirrors the frame scroll offset and requests visible blocks. */
 function syncScroll(
   ctx: EpubLayerContext,
   options: EpubBilingualLayerOptions,
@@ -200,6 +206,7 @@ function syncScroll(
   requestVisible(ctx, options);
 }
 
+/** Re-measures the chapter blocks and repaints the column. */
 function refresh(
   ctx: EpubLayerContext,
   options: EpubBilingualLayerOptions,

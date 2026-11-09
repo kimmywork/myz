@@ -80,6 +80,7 @@ interface PaneContext {
   elementsByKey: Map<string, HTMLElement[]>;
 }
 
+/** Applies the source block's geometry to a translated block element. */
 function applyGeometry(el: HTMLElement, block: BilingualBlock): void {
   el.style.minHeight = `${Math.max(0, block.height)}px`;
   if (typeof block.left === "number") {
@@ -144,6 +145,7 @@ function layoutFlow(ctx: PaneContext, container: HTMLElement): void {
   )}px`;
 }
 
+/** Recomputes positions/heights for the current layout mode. */
 function layout(ctx: PaneContext): void {
   const container = ctx.options.container();
   if (!container) {
@@ -159,6 +161,7 @@ function layout(ctx: PaneContext): void {
   }
 }
 
+/** Mirrors translation-session events onto the rendered blocks. */
 function applySessionEvent(ctx: PaneContext, event: BilingualEvent): void {
   if (event.type === "reset") {
     for (const { el } of ctx.rendered) {
@@ -192,6 +195,7 @@ function applySessionEvent(ctx: PaneContext, event: BilingualEvent): void {
   layout(ctx);
 }
 
+/** Rebuilds the column for a new block set. */
 function render(ctx: PaneContext, next: BilingualBlock[]): void {
   const container = ctx.options.container();
   if (!container) {
@@ -225,6 +229,7 @@ function render(ctx: PaneContext, next: BilingualBlock[]): void {
   layout(ctx);
 }
 
+/** Requests translations for blocks accepted by the predicate. */
 function requestVisible(
   ctx: PaneContext,
   predicate: (block: BilingualBlock) => boolean,
@@ -249,6 +254,7 @@ function requestVisible(
   }
 }
 
+/** Drops every rendered block and resets the container height. */
 function clearPane(ctx: PaneContext): void {
   const container = ctx.options.container();
   ctx.blocks = [];
@@ -260,6 +266,7 @@ function clearPane(ctx: PaneContext): void {
   }
 }
 
+/** Creates a pane that paints translated blocks into a container. */
 export function createBilingualPane(
   options: BilingualPaneOptions,
 ): BilingualPane {

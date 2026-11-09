@@ -143,6 +143,7 @@ interface PdfLayerContext {
   handleScroll: () => void;
 }
 
+/** Disposes panes, optionally only those whose page was replaced. */
 function disposePanes(ctx: PdfLayerContext, connectedOnly: boolean): void {
   for (const [pageEl, pane] of [...ctx.panes]) {
     if (connectedOnly && pageEl.isConnected) {
@@ -153,6 +154,7 @@ function disposePanes(ctx: PdfLayerContext, connectedOnly: boolean): void {
   }
 }
 
+/** Returns (and lazily builds) the mirrored column for a page. */
 function paneFor(
   ctx: PdfLayerContext,
   options: PdfBilingualLayerOptions,
@@ -180,6 +182,7 @@ function paneFor(
   return pane;
 }
 
+/** Requests translations for blocks inside the stage viewport. */
 function requestVisible(
   ctx: PdfLayerContext,
   options: PdfBilingualLayerOptions,
@@ -211,6 +214,7 @@ function requestVisible(
   }
 }
 
+/** Binds the scroll listener to the current stage (idempotent). */
 function attach(ctx: PdfLayerContext, options: PdfBilingualLayerOptions): void {
   const current = options.getStage();
   if (!current || ctx.stage === current) {
@@ -221,6 +225,7 @@ function attach(ctx: PdfLayerContext, options: PdfBilingualLayerOptions): void {
   ctx.stage.addEventListener("scroll", ctx.handleScroll, { passive: true });
 }
 
+/** Removes the scroll listener and cancels a pending frame. */
 function detach(ctx: PdfLayerContext): void {
   if (ctx.stage) {
     ctx.stage.removeEventListener("scroll", ctx.handleScroll);
@@ -232,6 +237,7 @@ function detach(ctx: PdfLayerContext): void {
   }
 }
 
+/** Builds missing panes for painted pages and requests visible blocks. */
 function sync(ctx: PdfLayerContext, options: PdfBilingualLayerOptions): void {
   const current = options.getStage();
   if (!current) {

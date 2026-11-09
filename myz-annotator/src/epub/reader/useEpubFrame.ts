@@ -26,6 +26,7 @@ interface FrameState {
   pendingRange: Ref<Range | null>;
 }
 
+/** Publishes the iframe selection to the reader toolbar. */
 function handleFrameSelection(
   state: FrameState,
   doc: Document,
@@ -51,6 +52,7 @@ function handleFrameSelection(
   state.activeId.value = null;
 }
 
+/** Scrolls the chapter frame so a highlight is centered. */
 function scrollFrameToHighlight(
   iframeRef: Ref<HTMLIFrameElement | null>,
   id: string,
@@ -60,6 +62,7 @@ function scrollFrameToHighlight(
   el?.scrollIntoView({ block: "center" });
 }
 
+/** Opens the record's chapter if needed, then reveals its highlight. */
 function focusFrameRecord(
   store: Store,
   state: FrameState,
@@ -77,6 +80,7 @@ function focusFrameRecord(
   scrollFrameToHighlight(iframeRef, record.id);
 }
 
+/** Handles in-chapter links and highlight selection clicks. */
 function handleFrameHighlightClick(
   store: Store,
   state: FrameState,
