@@ -220,6 +220,8 @@ test("确认后延迟提交：撤销窗口内刷新仍在，窗口后刷新消�
   await expect(deleteToast).toHaveCount(0, {
     timeout: WINDOW_MS + 3000,
   });
+  // The commit takes its own toast down; no dead "撤销" stays clickable.
+  await expect(page.locator(".myz-toast__action")).toHaveCount(0);
   await page.reload({ waitUntil: "load" });
   await page.waitForSelector("[data-myz-host='1']", {
     state: "attached",
@@ -227,6 +229,37 @@ test("确认后延迟提交：撤销窗口内刷新仍在，窗口后刷新消�
   });
   await expect(page.locator("#para-1 .myz-highlight")).toHaveCount(0, {
     timeout: 3000,
+  });
+});
+
+test("悬停撤销按钮会冻结提交，超过窗口也不删", async () => {
+  await createHighlight("#para-2", "悬停暂停");
+  await openInspector("#para-2");
+  await page.click(".myz-inspector__icon-btn--delete");
+  await page.locator(".myz-confirm .myz-btn-danger").click();
+
+  const toast = page.locator(".myz-toast").filter({ hasText: "已删除划线" });
+  await expect(toast).toHaveCount(1);
+  // Wait for the "已保存" toast to finish: when it disappears the stack shifts
+  // up, which would move the pointer off the undo button and resume early.
+  await expect(page.locator(".myz-toast")).toHaveCount(1);
+  await toast.locator(".myz-toast__action").hover();
+
+  // Well past the window: the toast must still be there and the write held,
+  // otherwise the visible undo button would do nothing.
+  await page.waitForTimeout(WINDOW_MS + 1500);
+  await expect(toast).toHaveCount(1);
+
+  await toast.locator(".myz-toast__action").click();
+  await expect(toast).toHaveCount(0, { timeout: 1000 });
+  await expect(page.locator("#para-2 .myz-highlight")).toHaveCount(1, {
+    timeout: 1000,
+  });
+
+  // Storage never saw the delete, so the record survives a reload.
+  await page.reload({ waitUntil: "load" });
+  await expect(page.locator("#para-2 .myz-highlight")).toHaveCount(1, {
+    timeout: 8000,
   });
 });
 

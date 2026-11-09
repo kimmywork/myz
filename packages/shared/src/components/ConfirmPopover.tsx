@@ -63,10 +63,11 @@ export default defineComponent({
       const panel = panelRef.value
       if (!panel) return
       if (event.composedPath().includes(panel)) return
-      const target = event.target as Element | null
-      // The trigger re-opens the popup from its own click; ignore it so the
-      // popup does not flicker shut and open again.
-      if (target?.closest?.("[data-myz-confirm-anchor]")) return
+      // `event.target` is retargeted to the shadow host here, so look at the
+      // real origin inside the open shadow root instead. The trigger re-opens
+      // the popup from its own click; ignoring it avoids a close/open flicker.
+      const origin = event.composedPath()[0] as Element | null
+      if (origin?.closest?.("[data-myz-confirm-anchor]")) return
       event.preventDefault()
       cancel()
     }

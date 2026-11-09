@@ -22,6 +22,7 @@ function buildToastStyle(visible: boolean): HTMLAttributes["style"] {
   };
 }
 
+/** Fixed-dark toast stack; each notice can carry one text action. */
 export default defineComponent({
   name: "MyZNotifications",
   setup() {

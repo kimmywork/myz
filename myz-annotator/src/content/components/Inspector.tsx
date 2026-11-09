@@ -16,6 +16,12 @@ import { useInspectorDelete } from "../composables/useInspectorDelete.js";
 import { useInspectorStore } from "@/content/stores/inspector-store.js";
 import { useModalStore } from "@/content/stores/modal-store.js";
 
+/**
+ * Floating inspector for a clicked highlight: the compact three-button bar when
+ * the record has no note, the full editable panel when it has one. The delete
+ * confirmation popup renders as its sibling so the panel's `overflow: hidden`
+ * cannot clip it.
+ */
 export default defineComponent({
   name: "MyZInspector",
   setup() {

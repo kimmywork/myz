@@ -101,6 +101,51 @@ describe("createPendingDelete", () => {
     expect(restore).toHaveBeenCalledTimes(1);
   });
 
+  it("pause 冻结提交计时器，超过窗口也不提交", async () => {
+    const commit = vi.fn(async () => true);
+    const controller = createPendingDelete({ commit, restore: () => true });
+
+    controller.schedule(recordOf("g"));
+    await vi.advanceTimersByTimeAsync(PENDING_DELETE_WINDOW_MS / 2);
+    controller.pause("g");
+
+    // Hovering the undo button far longer than the window must not commit.
+    await vi.advanceTimersByTimeAsync(PENDING_DELETE_WINDOW_MS * 3);
+    expect(commit).not.toHaveBeenCalled();
+    expect(controller.has("g")).toBe(true);
+
+    controller.resume("g");
+    await vi.advanceTimersByTimeAsync(PENDING_DELETE_WINDOW_MS / 2 - 1);
+    expect(commit).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(commit).toHaveBeenCalledWith("g");
+  });
+
+  it("重复 pause 不重复扣减剩余时间", async () => {
+    const commit = vi.fn(async () => true);
+    const controller = createPendingDelete({ commit, restore: () => true });
+
+    controller.schedule(recordOf("h"));
+    await vi.advanceTimersByTimeAsync(1000);
+    controller.pause("h");
+    controller.pause("h");
+    controller.resume("h");
+    await vi.advanceTimersByTimeAsync(PENDING_DELETE_WINDOW_MS - 1000 - 1);
+    expect(commit).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(commit).toHaveBeenCalled();
+  });
+
+  it("对不存在的 id pause/resume 是 no-op", async () => {
+    const commit = vi.fn(async () => true);
+    const controller = createPendingDelete({ commit, restore: () => true });
+
+    expect(() => controller.pause("missing")).not.toThrow();
+    expect(() => controller.resume("missing")).not.toThrow();
+    await vi.advanceTimersByTimeAsync(PENDING_DELETE_WINDOW_MS);
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it("dispose 清掉定时器且不提交", async () => {
     const commit = vi.fn(async () => true);
     const controller = createPendingDelete({
