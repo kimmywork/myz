@@ -136,154 +136,163 @@ export interface PdfBilingualLayer {
   dispose(): void;
 }
 
+interface PdfLayerContext {
+  panes: Map<HTMLElement, BilingualPane>;
+  stage: HTMLElement | null;
+  raf: number;
+  handleScroll: () => void;
+}
+
+function disposePanes(ctx: PdfLayerContext, connectedOnly: boolean): void {
+  for (const [pageEl, pane] of [...ctx.panes]) {
+    if (connectedOnly && pageEl.isConnected) {
+      continue;
+    }
+    pane.dispose();
+    ctx.panes.delete(pageEl);
+  }
+}
+
+function paneFor(
+  ctx: PdfLayerContext,
+  options: PdfBilingualLayerOptions,
+  pageEl: HTMLElement,
+): BilingualPane | null {
+  const existing = ctx.panes.get(pageEl);
+  if (existing) {
+    return existing;
+  }
+  const paneEl =
+    pageEl.parentElement?.querySelector<HTMLElement>(".pdf-bilingual");
+  if (!paneEl) {
+    return null;
+  }
+  const pane = createBilingualPane({
+    container: () => paneEl,
+    session: options.session,
+    // Fixed, page-relative positions: a two-column page or a label beside a
+    // figure must stay interleaved rather than collapse into one column.
+    mode: "anchored",
+    minHeight: () => pageEl.getBoundingClientRect().height,
+  });
+  pane.render(collectPdfBlocks(pageEl));
+  ctx.panes.set(pageEl, pane);
+  return pane;
+}
+
+function requestVisible(
+  ctx: PdfLayerContext,
+  options: PdfBilingualLayerOptions,
+): void {
+  const current = options.getStage();
+  if (!current) {
+    return;
+  }
+  const stageRect = current.getBoundingClientRect();
+  const pages = Array.from(current.querySelectorAll<HTMLElement>(".pdf-page"));
+  for (const pageEl of pages) {
+    const pane = ctx.panes.get(pageEl);
+    if (!pane) {
+      continue;
+    }
+    const pageRect = pageEl.getBoundingClientRect();
+    if (
+      pageRect.bottom < stageRect.top - 4 ||
+      pageRect.top > stageRect.bottom + 4
+    ) {
+      continue;
+    }
+    pane.requestVisible((block) => {
+      const top = pageRect.top + block.top;
+      return (
+        top >= stageRect.top - 2 && top + block.height <= stageRect.bottom + 2
+      );
+    });
+  }
+}
+
+function attach(ctx: PdfLayerContext, options: PdfBilingualLayerOptions): void {
+  const current = options.getStage();
+  if (!current || ctx.stage === current) {
+    return;
+  }
+  detach(ctx);
+  ctx.stage = current;
+  ctx.stage.addEventListener("scroll", ctx.handleScroll, { passive: true });
+}
+
+function detach(ctx: PdfLayerContext): void {
+  if (ctx.stage) {
+    ctx.stage.removeEventListener("scroll", ctx.handleScroll);
+  }
+  ctx.stage = null;
+  if (ctx.raf !== 0) {
+    window.cancelAnimationFrame(ctx.raf);
+    ctx.raf = 0;
+  }
+}
+
+function sync(ctx: PdfLayerContext, options: PdfBilingualLayerOptions): void {
+  const current = options.getStage();
+  if (!current) {
+    return;
+  }
+  disposePanes(ctx, true);
+  const pages = Array.from(current.querySelectorAll<HTMLElement>(".pdf-page"));
+  for (const pageEl of pages) {
+    // Placeholders without a text layer have nothing to translate yet.
+    if (!pageEl.querySelector(".textLayer span")) {
+      continue;
+    }
+    paneFor(ctx, options, pageEl);
+  }
+  requestVisible(ctx, options);
+}
+
 export function createPdfBilingualLayer(
   options: PdfBilingualLayerOptions,
 ): PdfBilingualLayer {
-  const panes = new Map<HTMLElement, BilingualPane>();
-  let stage: HTMLElement | null = null;
-  let raf = 0;
-
-  function disposePanes(connectedOnly: boolean): void {
-    for (const [pageEl, pane] of [...panes]) {
-      if (connectedOnly && pageEl.isConnected) {
-        continue;
-      }
-      pane.dispose();
-      panes.delete(pageEl);
+  const ctx: PdfLayerContext = {
+    panes: new Map(),
+    stage: null,
+    raf: 0,
+    handleScroll: () => {},
+  };
+  ctx.handleScroll = () => {
+    if (ctx.raf !== 0) {
+      return;
     }
-  }
-
-  function paneFor(pageEl: HTMLElement): BilingualPane | null {
-    const existing = panes.get(pageEl);
-    if (existing) {
-      return existing;
-    }
-    const paneEl =
-      pageEl.parentElement?.querySelector<HTMLElement>(".pdf-bilingual");
-    if (!paneEl) {
-      return null;
-    }
-    const pane = createBilingualPane({
-      container: () => paneEl,
-      session: options.session,
-      // Fixed, page-relative positions: a two-column page or a label beside a
-      // figure must stay interleaved rather than collapse into one column.
-      mode: "anchored",
-      minHeight: () => pageEl.getBoundingClientRect().height,
+    ctx.raf = window.requestAnimationFrame(() => {
+      ctx.raf = 0;
+      requestVisible(ctx, options);
     });
-    pane.render(collectPdfBlocks(pageEl));
-    panes.set(pageEl, pane);
-    return pane;
-  }
-
-  function requestVisible(): void {
-    const current = options.getStage();
-    if (!current) {
-      return;
-    }
-    const stageRect = current.getBoundingClientRect();
-    const pages = Array.from(
-      current.querySelectorAll<HTMLElement>(".pdf-page"),
-    );
-    for (const pageEl of pages) {
-      const pane = panes.get(pageEl);
-      if (!pane) {
-        continue;
-      }
-      const pageRect = pageEl.getBoundingClientRect();
-      if (
-        pageRect.bottom < stageRect.top - 4 ||
-        pageRect.top > stageRect.bottom + 4
-      ) {
-        continue;
-      }
-      pane.requestVisible((block) => {
-        const top = pageRect.top + block.top;
-        return (
-          top >= stageRect.top - 2 && top + block.height <= stageRect.bottom + 2
-        );
-      });
-    }
-  }
-
-  function handleScroll(): void {
-    if (raf !== 0) {
-      return;
-    }
-    raf = window.requestAnimationFrame(() => {
-      raf = 0;
-      requestVisible();
-    });
-  }
-
-  function attach(): void {
-    const current = options.getStage();
-    if (!current) {
-      return;
-    }
-    if (stage === current) {
-      return;
-    }
-    detach();
-    stage = current;
-    stage.addEventListener("scroll", handleScroll, { passive: true });
-  }
-
-  function detach(): void {
-    if (stage) {
-      stage.removeEventListener("scroll", handleScroll);
-    }
-    stage = null;
-    if (raf !== 0) {
-      window.cancelAnimationFrame(raf);
-      raf = 0;
-    }
-  }
-
-  function sync(): void {
-    const current = options.getStage();
-    if (!current) {
-      return;
-    }
-    disposePanes(true);
-    const pages = Array.from(
-      current.querySelectorAll<HTMLElement>(".pdf-page"),
-    );
-    for (const pageEl of pages) {
-      // Placeholders without a text layer have nothing to translate yet.
-      if (!pageEl.querySelector(".textLayer span")) {
-        continue;
-      }
-      paneFor(pageEl);
-    }
-    requestVisible();
-  }
+  };
 
   return {
-    attach,
-    detach,
-    sync,
+    attach: () => attach(ctx, options),
+    detach: () => detach(ctx),
+    sync: () => sync(ctx, options),
     pageRendered(pageEl) {
       // Pages are rebuilt on every zoom/scale change; drop the panes of the
       // replaced elements here instead of leaking one per rendered page until
       // the next full `sync()`.
-      disposePanes(true);
-      paneFor(pageEl);
-      requestVisible();
+      disposePanes(ctx, true);
+      paneFor(ctx, options, pageEl);
+      requestVisible(ctx, options);
     },
-    requestVisible,
+    requestVisible: () => requestVisible(ctx, options),
     clear() {
-      for (const pane of panes.values()) {
+      for (const pane of ctx.panes.values()) {
         pane.dispose();
       }
-      panes.clear();
+      ctx.panes.clear();
     },
     dispose() {
-      detach();
-      for (const pane of panes.values()) {
+      detach(ctx);
+      for (const pane of ctx.panes.values()) {
         pane.dispose();
       }
-      panes.clear();
+      ctx.panes.clear();
     },
   };
 }

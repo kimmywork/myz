@@ -3,6 +3,7 @@ import {
   PDF_SOURCE_URL_PREFIX,
   SOURCE_TYPES,
 } from "@myz/shared/types";
+import { createKindRegistry, type KindRegistry } from "./kind-registry";
 
 /** How a source kind is identified across hosts and devices. */
 export type SourceIdentityScheme = "url" | "fingerprint";
@@ -41,29 +42,12 @@ export const BUILTIN_SOURCE_KINDS: readonly SourceKindDef[] = [
   },
 ];
 
-export interface SourceKindRegistry {
-  register(def: SourceKindDef): void;
-  get(kind: string): SourceKindDef | undefined;
-  list(): SourceKindDef[];
-}
+export type SourceKindRegistry = KindRegistry<SourceKindDef>;
 
 export function createSourceKindRegistry(
   initial: readonly SourceKindDef[] = BUILTIN_SOURCE_KINDS,
 ): SourceKindRegistry {
-  const byKind = new Map<string, SourceKindDef>(
-    initial.map((def) => [def.kind, def]),
-  );
-  return {
-    register(def) {
-      byKind.set(def.kind, def);
-    },
-    get(kind) {
-      return byKind.get(kind);
-    },
-    list() {
-      return [...byKind.values()];
-    },
-  };
+  return createKindRegistry(initial);
 }
 
 /** Shared registry with the built-in web/pdf/epub kinds pre-registered. */

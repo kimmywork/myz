@@ -21,6 +21,8 @@
     "./tags": "./src/tags.ts",
     "./dialogs": "./src/dialogs.ts",
     "./focusTrap": "./src/focusTrap.ts",
+    "./logger": "./src/logger.ts",
+    "./rovingFocus": "./src/rovingFocus.ts",
     "./inbox": "./src/inbox.ts",
     "./messaging": "./src/messaging.ts",
     "./serializer": "./src/serializer.ts",

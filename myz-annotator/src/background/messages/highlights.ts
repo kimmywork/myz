@@ -57,7 +57,7 @@ function htmlToMarkdown(html: string, tabId?: number): Promise<string> {
   ).then((result) => result.markdown);
 }
 
-export function initializeHighlightMessageHandlers() {
+function registerReadHandlers() {
   registerMessageHandler(
     "myz:getHighlightsForUrl",
     async (payload: { url?: string; aliases?: string[] }) => {
@@ -67,6 +67,22 @@ export function initializeHighlightMessageHandlers() {
     },
   );
 
+  registerMessageHandler("myz:getAllHighlights", async () =>
+    listRecords(recordsStore),
+  );
+
+  registerMessageHandler("myz:getAllTags", async () => listTags(recordsStore));
+
+  registerMessageHandler("myz:export", async () => {
+    const highlights = await listRecords(recordsStore);
+    return {
+      json: JSON.stringify(highlights, null, 2),
+      markdown: buildMarkdownExport(highlights),
+    };
+  });
+}
+
+function registerSaveHandlers() {
   registerMessageHandler(
     "myz:saveHighlight",
     async (payload: SaveHighlightMessagePayload, ctx: MessageContext) => {
@@ -124,7 +140,9 @@ export function initializeHighlightMessageHandlers() {
       return updated;
     },
   );
+}
 
+function registerDeleteHandlers() {
   registerMessageHandler(
     "myz:removeHighlight",
     async (payload: { id?: string }) => {
@@ -164,21 +182,9 @@ export function initializeHighlightMessageHandlers() {
       return { updated };
     },
   );
+}
 
-  registerMessageHandler("myz:getAllHighlights", async () =>
-    listRecords(recordsStore),
-  );
-
-  registerMessageHandler("myz:getAllTags", async () => listTags(recordsStore));
-
-  registerMessageHandler("myz:export", async () => {
-    const highlights = await listRecords(recordsStore);
-    return {
-      json: JSON.stringify(highlights, null, 2),
-      markdown: buildMarkdownExport(highlights),
-    };
-  });
-
+function registerBadgeHandler() {
   registerMessageHandler(
     "myz:updateBadge",
     async (
@@ -215,7 +221,9 @@ export function initializeHighlightMessageHandlers() {
       return { success: true };
     },
   );
+}
 
+function registerImportHandler() {
   registerMessageHandler(
     "myz:importHighlights",
     async (payload: { records?: MyZRecord[]; strategy?: ImportStrategy }) => {
@@ -246,4 +254,12 @@ export function initializeHighlightMessageHandlers() {
       };
     },
   );
+}
+
+export function initializeHighlightMessageHandlers() {
+  registerReadHandlers();
+  registerSaveHandlers();
+  registerDeleteHandlers();
+  registerBadgeHandler();
+  registerImportHandler();
 }

@@ -111,114 +111,147 @@ export interface EpubBilingualLayer {
   dispose(): void;
 }
 
+interface EpubLayerContext {
+  doc: Document | null;
+  win: Window | null;
+  pane: BilingualPane | null;
+  blocks: BilingualBlock[];
+  host: HTMLElement | null;
+  /** Stable listener identity so re-binding the host can remove the old one. */
+  handleWheel: (event: WheelEvent) => void;
+}
+
+/** Wheel deltas arrive in lines/pages on some platforms. */
+function deltaInPixels(event: WheelEvent, viewport: Window): number {
+  if (event.deltaMode === 1) {
+    return event.deltaY * 16;
+  }
+  if (event.deltaMode === 2) {
+    return event.deltaY * viewport.innerHeight;
+  }
+  return event.deltaY;
+}
+
+function handleWheel(ctx: EpubLayerContext, event: WheelEvent): void {
+  if (!ctx.win) {
+    return;
+  }
+  ctx.win.scrollBy({ top: deltaInPixels(event, ctx.win), behavior: "auto" });
+  event.preventDefault();
+}
+
+function attachHost(
+  ctx: EpubLayerContext,
+  options: EpubBilingualLayerOptions,
+): void {
+  const next = options.scrollHost();
+  if (next === ctx.host) {
+    return;
+  }
+  ctx.host?.removeEventListener("wheel", ctx.handleWheel);
+  ctx.host = next;
+  ctx.host?.addEventListener("wheel", ctx.handleWheel, { passive: false });
+}
+
+function detachHost(ctx: EpubLayerContext): void {
+  ctx.host?.removeEventListener("wheel", ctx.handleWheel);
+  ctx.host = null;
+}
+
+function ensurePane(
+  ctx: EpubLayerContext,
+  options: EpubBilingualLayerOptions,
+): BilingualPane {
+  if (!ctx.pane) {
+    ctx.pane = createBilingualPane({
+      container: options.container,
+      session: options.session,
+      gap: 6,
+    });
+  }
+  return ctx.pane;
+}
+
+function requestVisible(
+  ctx: EpubLayerContext,
+  options: EpubBilingualLayerOptions,
+): void {
+  if (!ctx.win) {
+    return;
+  }
+  const top = ctx.win.scrollY;
+  const bottom = top + ctx.win.innerHeight;
+  ensurePane(ctx, options).requestVisible(
+    (block) => block.top >= top - 2 && block.top + block.height <= bottom + 2,
+  );
+}
+
+function syncScroll(
+  ctx: EpubLayerContext,
+  options: EpubBilingualLayerOptions,
+): void {
+  if (!ctx.win) {
+    return;
+  }
+  const content = options.container();
+  if (content) {
+    content.style.transform = `translateY(${-ctx.win.scrollY}px)`;
+  }
+  requestVisible(ctx, options);
+}
+
+function refresh(
+  ctx: EpubLayerContext,
+  options: EpubBilingualLayerOptions,
+): void {
+  if (!ctx.doc || !ctx.win) {
+    return;
+  }
+  ctx.blocks = collectEpubBlocks(ctx.doc, ctx.win);
+  ensurePane(ctx, options).render(ctx.blocks);
+  syncScroll(ctx, options);
+}
+
 export function createEpubBilingualLayer(
   options: EpubBilingualLayerOptions,
 ): EpubBilingualLayer {
-  let doc: Document | null = null;
-  let win: Window | null = null;
-  let pane: BilingualPane | null = null;
-  let blocks: BilingualBlock[] = [];
-  let host: HTMLElement | null = null;
-
-  /** Wheel deltas arrive in lines/pages on some platforms. */
-  function deltaInPixels(event: WheelEvent, viewport: Window): number {
-    if (event.deltaMode === 1) {
-      return event.deltaY * 16;
-    }
-    if (event.deltaMode === 2) {
-      return event.deltaY * viewport.innerHeight;
-    }
-    return event.deltaY;
-  }
-
-  function handleWheel(event: WheelEvent): void {
-    if (!win) {
-      return;
-    }
-    win.scrollBy({ top: deltaInPixels(event, win), behavior: "auto" });
-    event.preventDefault();
-  }
-
-  function attachHost(): void {
-    const next = options.scrollHost();
-    if (next === host) {
-      return;
-    }
-    host?.removeEventListener("wheel", handleWheel);
-    host = next;
-    host?.addEventListener("wheel", handleWheel, { passive: false });
-  }
-
-  function detachHost(): void {
-    host?.removeEventListener("wheel", handleWheel);
-    host = null;
-  }
-
-  function ensurePane(): BilingualPane {
-    if (!pane) {
-      pane = createBilingualPane({
-        container: options.container,
-        session: options.session,
-        gap: 6,
-      });
-    }
-    return pane;
-  }
-
-  function requestVisible(): void {
-    if (!win) {
-      return;
-    }
-    const top = win.scrollY;
-    const bottom = top + win.innerHeight;
-    ensurePane().requestVisible(
-      (block) => block.top >= top - 2 && block.top + block.height <= bottom + 2,
-    );
-  }
-
-  function syncScroll(): void {
-    if (!win) {
-      return;
-    }
-    const content = options.container();
-    if (content) {
-      content.style.transform = `translateY(${-win.scrollY}px)`;
-    }
-    requestVisible();
-  }
-
-  function refresh(): void {
-    if (!doc || !win) {
-      return;
-    }
-    blocks = collectEpubBlocks(doc, win);
-    ensurePane().render(blocks);
-    syncScroll();
-  }
+  const ctx: EpubLayerContext = {
+    doc: null,
+    win: null,
+    pane: null,
+    blocks: [],
+    host: null,
+    handleWheel: () => {},
+  };
+  ctx.handleWheel = (event) => handleWheel(ctx, event);
 
   return {
     bind(nextDoc, nextWin) {
-      doc = nextDoc;
-      win = nextWin;
-      attachHost();
+      ctx.doc = nextDoc;
+      ctx.win = nextWin;
+      attachHost(ctx, options);
     },
     refresh() {
-      attachHost();
-      refresh();
+      attachHost(ctx, options);
+      refresh(ctx, options);
     },
-    syncScroll,
-    requestVisible,
+    syncScroll() {
+      syncScroll(ctx, options);
+    },
+    requestVisible() {
+      requestVisible(ctx, options);
+    },
     clear() {
-      blocks = [];
-      pane?.clear();
+      ctx.blocks = [];
+      ctx.pane?.clear();
     },
     dispose() {
-      detachHost();
-      pane?.dispose();
-      pane = null;
-      blocks = [];
-      doc = null;
-      win = null;
+      detachHost(ctx);
+      ctx.pane?.dispose();
+      ctx.pane = null;
+      ctx.blocks = [];
+      ctx.doc = null;
+      ctx.win = null;
     },
   };
 }

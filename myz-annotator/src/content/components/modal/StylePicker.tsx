@@ -1,5 +1,6 @@
 import type { LucideIcon } from "@lucide/vue";
 import { highlightStyleIconMap } from "@myz/shared/icons";
+import { handleRovingRadioKeydown } from "@myz/shared/rovingFocus";
 import {
   HIGHLIGHT_STYLE_OPTIONS,
   HIGHLIGHT_STYLES,
@@ -27,31 +28,10 @@ export default defineComponent({
 
     /** Arrow-key roving focus across the radiogroup (A11Y1). */
     function onKeydown(event: KeyboardEvent) {
-      const handled = [
-        "ArrowRight",
-        "ArrowDown",
-        "ArrowLeft",
-        "ArrowUp",
-        "Home",
-        "End",
-      ];
-      if (!handled.includes(event.key)) return;
-      const buttons = Array.from(
-        groupRef.value?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [],
-      );
-      const count = buttons.length;
-      if (!count) return;
-      event.preventDefault();
-      const current = buttons.indexOf(event.target as HTMLElement);
-      let next = current < 0 ? 0 : current;
-      if (event.key === "Home") next = 0;
-      else if (event.key === "End") next = count - 1;
-      else if (event.key === "ArrowRight" || event.key === "ArrowDown")
-        next = (current + 1 + count) % count;
-      else next = (current - 1 + count) % count;
-      const [value] = styleOptions[next];
-      if (value) props.onSelect(value);
-      buttons[next]?.focus();
+      handleRovingRadioKeydown(groupRef.value, event, (index) => {
+        const [value] = styleOptions[index];
+        if (value) props.onSelect(value);
+      });
     }
 
     return () => (

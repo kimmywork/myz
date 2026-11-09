@@ -22,6 +22,11 @@ If you see code that can be improved, refactor it without hesitation. Clean and 
 
 All new modules and functions should be well-documented with comments explaining their purpose and usage.
 
+## Logging
+
+- Use `createLogger(scope)` from `@myz/shared/logger` for new modules instead of bare `console.*`. It prefixes messages with `[myz:<scope>]` and respects a runtime level floor (`setLogLevel`).
+- Keep expected recoverable paths (permission probes, optional API absence) at `debug`/`warn`; reserve `error` for failures worth surfacing in a bug report.
+
 ## Framework specific guidelines
 
 - For Vue components, use the Composition API and JSX syntax.

@@ -114,6 +114,22 @@ export function createBaseConfig(options = {}) {
       },
     },
     {
+      // Pinia stores / Vue composables are composition roots like `setup()`:
+      // they own state plus the actions that read it. Keep the strict 80-line
+      // limit for plain modules, where long functions are usually a smell.
+      files: [
+        "**/stores/**/*.ts",
+        "**/composables/**/*.ts",
+        "**/use*.ts",
+      ],
+      rules: {
+        "max-lines-per-function": [
+          "warn",
+          { max: 250, skipBlankLines: true, skipComments: true },
+        ],
+      },
+    },
+    {
       // Tests/specs may run a little longer than production modules.
       files: [
         "**/*.test.ts",

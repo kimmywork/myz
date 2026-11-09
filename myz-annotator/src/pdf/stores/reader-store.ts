@@ -6,6 +6,7 @@ import {
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import { loadHighlightPreferences } from "../../reader/load-preferences.js";
+import { bilingualStoreBindings } from "../../reader/translate/useBilingual.js";
 import { countPageAnnotations } from "../annotations.js";
 import { usePdfAnnotations } from "../composables/usePdfAnnotations.js";
 import { usePdfBilingual } from "../composables/usePdfBilingual.js";
@@ -168,19 +169,7 @@ export const useReaderStore = defineStore("pdf-reader", () => {
     ...state,
     styleOptions: STYLE_OPTIONS,
     colorPalette,
-    bilingualEnabled: bilingual.enabled,
-    bilingualPhase: bilingual.phase,
-    bilingualSource: bilingual.sourceLanguage,
-    bilingualTarget: bilingual.targetLanguage,
-    bilingualError: bilingual.error,
-    bilingualProgress: bilingual.downloadProgress,
-    bilingualTranslated: bilingual.translated,
-    bilingualHasTarget: bilingual.hasTarget,
-    enableBilingual: () => bilingual.setEnabled(true),
-    toggleBilingual: bilingual.toggle,
-    setBilingualTarget: bilingual.setTargetLanguage,
-    redetectBilingual: bilingual.redetect,
-    retryBilingual: bilingual.retry,
+    ...bilingualStoreBindings(bilingual),
     activeRecord: annotations.activeRecord,
     highlightCounts: annotations.highlightCounts,
     highlightGroups: annotations.highlightGroups,

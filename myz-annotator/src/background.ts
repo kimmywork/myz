@@ -1,3 +1,4 @@
+import { createLogger } from "@myz/shared/logger";
 import { clearAiSessionsForTab } from "./background/ai/session.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
 import { initializeInboxReminder } from "./background/inbox/reminder.js";
@@ -15,13 +16,15 @@ import { initializeSyncScheduler } from "./background/sync/scheduler.js";
 import { toMessageContext } from "./messaging/context.js";
 import { resolvePdfTargetUrl } from "./pdf/detect.js";
 
+const log = createLogger("background");
+
 async function ensureContextMenus() {
   try {
     // Remove existing if present to avoid duplicate id error
     try {
       await chrome.contextMenus.remove("myz-zen-mode");
     } catch (error) {
-      console.warn("Failed to remove existing zen-mode menu", error);
+      log.warn("Failed to remove existing zen-mode menu", error);
     }
     chrome.contextMenus.create({
       id: "myz-zen-mode",
@@ -32,7 +35,7 @@ async function ensureContextMenus() {
     try {
       await chrome.contextMenus.remove("myz-zen-capture");
     } catch (error) {
-      console.warn("Failed to remove existing zen-capture menu", error);
+      log.warn("Failed to remove existing zen-capture menu", error);
     }
     chrome.contextMenus.create({
       id: "myz-zen-capture",
@@ -43,7 +46,7 @@ async function ensureContextMenus() {
     try {
       await chrome.contextMenus.remove("myz-open-pdf");
     } catch (error) {
-      console.warn("Failed to remove existing open-pdf menu", error);
+      log.warn("Failed to remove existing open-pdf menu", error);
     }
     chrome.contextMenus.create({
       id: "myz-open-pdf",
@@ -53,7 +56,7 @@ async function ensureContextMenus() {
     try {
       await chrome.contextMenus.remove("myz-save-image");
     } catch (error) {
-      console.warn("Failed to remove existing save-image menu", error);
+      log.warn("Failed to remove existing save-image menu", error);
     }
     chrome.contextMenus.create({
       id: "myz-save-image",
@@ -63,7 +66,7 @@ async function ensureContextMenus() {
     try {
       await chrome.contextMenus.remove("myz-capture-video-frame");
     } catch (error) {
-      console.warn("Failed to remove existing video-frame menu", error);
+      log.warn("Failed to remove existing video-frame menu", error);
     }
     chrome.contextMenus.create({
       id: "myz-capture-video-frame",
@@ -73,7 +76,7 @@ async function ensureContextMenus() {
     try {
       await chrome.contextMenus.remove("myz-open-stitch");
     } catch (error) {
-      console.warn("Failed to remove existing open-stitch menu", error);
+      log.warn("Failed to remove existing open-stitch menu", error);
     }
     chrome.contextMenus.create({
       id: "myz-open-stitch",
@@ -81,7 +84,7 @@ async function ensureContextMenus() {
       contexts: ["page", "selection"],
     });
   } catch (error) {
-    console.warn("Context menu creation failed", error);
+    log.warn("Context menu creation failed", error);
   }
 }
 
@@ -210,7 +213,7 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
     if (!hasHandler(message.type)) {
-      console.warn("Unknown message type", message.type);
+      log.warn("Unknown message type", message.type);
       return false;
     }
     // Support both {type, payload} and {type, ...rest} formats
@@ -227,7 +230,7 @@ chrome.runtime.onMessage.addListener(
       toMessageContext(sender),
     );
     if (!authorization.ok) {
-      console.warn("Rejected privileged message", message.type);
+      log.warn("Rejected privileged message", message.type);
       sendResponse({ ok: false, error: authorization.error });
       return true;
     }
@@ -235,11 +238,11 @@ chrome.runtime.onMessage.addListener(
       handleMessage(message.type, payload, toMessageContext(sender))
         .then((result) => sendResponse({ ok: true, data: result }))
         .catch((error) => {
-          console.error("Handler error", message.type, error);
+          log.error("Handler error", message.type, error);
           sendResponse({ ok: false, error: error.message || String(error) });
         });
     } catch (error) {
-      console.error("Handler exception", message.type, error);
+      log.error("Handler exception", message.type, error);
       sendResponse({
         ok: false,
         error: (error as Error).message || String(error),

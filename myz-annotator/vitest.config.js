@@ -18,9 +18,13 @@ export default defineConfig({
       "**/node_modules/**",
       "**/dist/**",
       "./temp/**",
+      // Playwright suites (extension / spike / pdf / transport) are run by
+      // `npm run test:playwright`, not Vitest. `tests/transport` used to leak
+      // into `npm run test:dev` because it was missing here.
       "tests/extension/**",
       "tests/spike/**",
       "tests/pdf/**",
+      "tests/transport/**",
     ],
   },
 });

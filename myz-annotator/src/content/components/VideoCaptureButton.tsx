@@ -1,6 +1,7 @@
 import { IconCamera } from "@myz/shared/icons";
 import { defineComponent, onBeforeUnmount, onMounted, ref } from "vue";
 import { captureVideoFrame } from "../capture-media";
+import { isVisible } from "../utils/visibility";
 
 /** Must match the `.myz-video-capture` size in shadow.css. */
 const BUTTON_SIZE = 36;
@@ -16,19 +17,6 @@ interface Target {
   video: HTMLVideoElement;
   top: number;
   left: number;
-}
-
-function isVisible(element: Element): boolean {
-  const rect = element.getBoundingClientRect();
-  if (rect.width < 40 || rect.height < 40) return false;
-  const style = getComputedStyle(element);
-  if (style.visibility === "hidden" || style.display === "none") return false;
-  return (
-    rect.bottom > 0 &&
-    rect.right > 0 &&
-    rect.top < window.innerHeight &&
-    rect.left < window.innerWidth
-  );
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -67,7 +55,10 @@ export default defineComponent({
       let best: HTMLVideoElement | null = null;
       let bestArea = Infinity;
       for (const video of videos) {
-        if (!isVisible(video)) continue;
+        if (
+          !isVisible(video, { inViewport: true, minWidth: 40, minHeight: 40 })
+        )
+          continue;
         const rect = video.getBoundingClientRect();
         if (
           x >= rect.left &&

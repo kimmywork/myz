@@ -19,6 +19,65 @@ interface HighlightDeps {
   lastStyle: Ref<HIGHLIGHT_STYLES>;
 }
 
+/** Builds the save payload for a fresh EPUB selection, or null for empty text. */
+function buildCreatePayload(
+  deps: HighlightDeps,
+  range: Range,
+  kind: RECORD_KINDS,
+): Partial<MyZRecord> | null {
+  const text = range.toString().trim();
+  if (!text || !deps.sourceKey.value) return null;
+  const payload: Partial<MyZRecord> = {
+    url: deps.sourceKey.value,
+    sourceUrl: deps.sourceKey.value,
+    title: deps.title.value,
+    text,
+    html: "",
+    note: "",
+    tags: [],
+    hostname: "",
+    kind,
+    contentType: CONTENT_TYPES.PLAIN,
+    epubLocator: {
+      spineIndex: deps.spineIndex.value,
+      progression: deps.progression.value,
+      textQuote: text,
+    },
+  };
+  if (kind === RECORD_KINDS.HIGHLIGHT) {
+    payload.color = deps.lastColor.value;
+    payload.style = deps.lastStyle.value;
+    // `serializeRange` unwraps existing marks first so paths index the
+    // original DOM; we repaint from `records` afterwards.
+    payload.range = serializeRange(range, new Map(), () => {}) ?? undefined;
+  }
+  return payload;
+}
+
+/** Merges an edit into the fields an EPUB record is allowed to change. */
+function buildUpdatePayload(
+  deps: HighlightDeps,
+  current: MyZRecord,
+  patch: {
+    note?: string;
+    tags?: string[];
+    color?: string;
+    style?: HIGHLIGHT_STYLES;
+  },
+): Partial<MyZRecord> {
+  const payload: Partial<MyZRecord> = {
+    id: current.id,
+    kind: current.kind,
+    note: patch.note ?? current.note ?? "",
+    tags: patch.tags ?? current.tags ?? [],
+  };
+  if (current.kind === RECORD_KINDS.HIGHLIGHT) {
+    payload.color = patch.color ?? current.color ?? deps.lastColor.value;
+    payload.style = patch.style ?? current.style ?? deps.lastStyle.value;
+  }
+  return payload;
+}
+
 /** Load / create / patch / delete EPUB highlights and repaint the chapter. */
 export function createEpubHighlights(deps: HighlightDeps) {
   async function loadRecords() {
@@ -51,32 +110,8 @@ export function createEpubHighlights(deps: HighlightDeps) {
   }
 
   async function createHighlight(range: Range, kind: RECORD_KINDS) {
-    const text = range.toString().trim();
-    if (!text || !deps.sourceKey.value) return;
-    const payload: Partial<MyZRecord> = {
-      url: deps.sourceKey.value,
-      sourceUrl: deps.sourceKey.value,
-      title: deps.title.value,
-      text,
-      html: "",
-      note: "",
-      tags: [],
-      hostname: "",
-      kind,
-      contentType: CONTENT_TYPES.PLAIN,
-      epubLocator: {
-        spineIndex: deps.spineIndex.value,
-        progression: deps.progression.value,
-        textQuote: text,
-      },
-    };
-    if (kind === RECORD_KINDS.HIGHLIGHT) {
-      payload.color = deps.lastColor.value;
-      payload.style = deps.lastStyle.value;
-      // `serializeRange` unwraps existing marks first so paths index the
-      // original DOM; we repaint from `records` afterwards.
-      payload.range = serializeRange(range, new Map(), () => {}) ?? undefined;
-    }
+    const payload = buildCreatePayload(deps, range, kind);
+    if (!payload) return;
     try {
       const saved = await invoke("myz:saveHighlight", payload);
       if (saved) deps.records.value = [...deps.records.value, saved];
@@ -112,17 +147,10 @@ export function createEpubHighlights(deps: HighlightDeps) {
   ) {
     const current = getRecord(id);
     if (!current) return;
-    const payload: Partial<MyZRecord> = {
-      id,
-      kind: current.kind,
-      note: patch.note ?? current.note ?? "",
-      tags: patch.tags ?? current.tags ?? [],
-    };
-    if (current.kind === RECORD_KINDS.HIGHLIGHT) {
-      payload.color = patch.color ?? current.color ?? deps.lastColor.value;
-      payload.style = patch.style ?? current.style ?? deps.lastStyle.value;
-    }
-    const updated = await invoke("myz:updateHighlight", payload);
+    const updated = await invoke(
+      "myz:updateHighlight",
+      buildUpdatePayload(deps, current, patch),
+    );
     if (updated) {
       deps.records.value = deps.records.value.map((record) =>
         record.id === id ? updated : record,

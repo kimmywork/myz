@@ -15,7 +15,12 @@
 
 import type { TextHasher, TranslationCache } from "./cache.js";
 import { normalizeLanguageTag, resolveTargetLanguage } from "./language.js";
-import { TranslationError, translateText } from "./service.js";
+import {
+  TranslationError,
+  translateText,
+  type TranslationBlockResult,
+  type TranslationProgress,
+} from "./service.js";
 import type { TranslationEngine } from "./types.js";
 
 export type BilingualPhase =
@@ -86,297 +91,332 @@ function isAbort(error: unknown): boolean {
   return error instanceof TranslationError && error.code === "aborted";
 }
 
+interface SessionState {
+  options: BilingualSessionOptions;
+  engine: TranslationEngine | null;
+  target: string;
+  detected: string;
+  phase: BilingualPhase;
+  error: string;
+  download: number;
+  generation: number;
+  running: boolean;
+  disposed: boolean;
+  abort: AbortController | null;
+  /** `target\u0000key` → translation, so a target switch never leaks across. */
+  translations: Map<string, string>;
+  /** Every block ever requested, so a retry/re-target can replay them. */
+  known: Map<string, string>;
+  /** Keys of the most recent request (the visible window). */
+  lastRequestKeys: string[];
+  queue: BilingualSegment[];
+  queued: Set<string>;
+  listeners: Set<(event: BilingualEvent) => void>;
+}
+
+function cacheKey(state: SessionState, key: string): string {
+  return `${state.target}\u0000${key}`;
+}
+
+function emit(state: SessionState, event: BilingualEvent): void {
+  for (const listener of [...state.listeners]) {
+    try {
+      listener(event);
+    } catch {
+      // A broken pane must not break translation for the others.
+    }
+  }
+}
+
+function translatedCount(state: SessionState): number {
+  let total = 0;
+  for (const key of state.translations.keys()) {
+    if (key.startsWith(`${state.target}\u0000`)) {
+      total += 1;
+    }
+  }
+  return total;
+}
+
+function snapshot(state: SessionState): BilingualSnapshot {
+  return {
+    phase: state.phase,
+    sourceLanguage: state.detected,
+    targetLanguage: state.target,
+    error: state.error,
+    translated: translatedCount(state),
+    pending: state.queued.size,
+    downloadProgress: state.download,
+  };
+}
+
+function publish(state: SessionState): void {
+  emit(state, { type: "state", snapshot: snapshot(state) });
+}
+
+function abortInFlight(state: SessionState): void {
+  state.generation += 1;
+  state.abort?.abort();
+  state.abort = null;
+  state.queue.length = 0;
+  state.queued.clear();
+}
+
+/**
+ * Re-runs the most recent `request()` — i.e. the blocks the reader is looking
+ * at — rather than every block requested since the page opened. Replaying the
+ * whole history sends chapters/pages the user has scrolled past long ago into
+ * one serial batch, delaying the visible column.
+ */
+function replay(state: SessionState): void {
+  const keys = state.lastRequestKeys.length
+    ? state.lastRequestKeys
+    : [...state.known.keys()];
+  request(
+    state,
+    keys.map((key) => ({ key, text: state.known.get(key) ?? "" })),
+  );
+}
+
+/**
+ * Callbacks for one serial batch. `gen` pins them to the session generation:
+ * a target-language change or cancel makes every later callback a no-op.
+ */
+function batchHandlers(state: SessionState, gen: number, keys: string[]) {
+  const current = () => gen === state.generation;
+  return {
+    onLanguages: (languages: {
+      sourceLanguage: string;
+      targetLanguage: string;
+    }) => {
+      if (!current()) return;
+      state.detected = languages.sourceLanguage;
+      state.target = languages.targetLanguage;
+      publish(state);
+    },
+    onProgress: (progress: TranslationProgress) => {
+      if (!current()) return;
+      state.phase =
+        progress.phase !== "cached" ? progress.phase : "translating";
+      if (typeof progress.loaded === "number") {
+        state.download = progress.loaded;
+      }
+      publish(state);
+    },
+    onBlock: (block: TranslationBlockResult, index: number) => {
+      if (!current()) return;
+      const key = keys[index];
+      if (!key) return;
+      state.translations.set(cacheKey(state, key), block.translation);
+      state.phase = "translating";
+      emit(state, { type: "block", key, translation: block.translation });
+      publish(state);
+    },
+  };
+}
+
+async function pump(state: SessionState): Promise<void> {
+  if (state.running || state.disposed) {
+    return;
+  }
+  state.running = true;
+  try {
+    while (state.queue.length > 0 && !state.disposed) {
+      const batch = state.queue.splice(0, state.queue.length);
+      batch.forEach((segment) => state.queued.delete(segment.key));
+      const gen = state.generation;
+      const keys = batch.map((segment) => segment.key);
+      const controller = new AbortController();
+      state.abort = controller;
+      try {
+        await translateText({
+          blocks: batch.map((segment) => segment.text),
+          targetLanguage: state.target,
+          // Detection runs once: the pair is reused for every later batch.
+          sourceLanguage: state.detected || undefined,
+          engine: state.engine as TranslationEngine,
+          cache: state.options.cache,
+          hasher: state.options.hasher,
+          signal: controller.signal,
+          ...batchHandlers(state, gen, keys),
+        });
+        if (gen !== state.generation) {
+          continue;
+        }
+        state.phase = "ready";
+        state.error = "";
+        state.download = 0;
+        publish(state);
+      } catch (caught) {
+        if (gen !== state.generation || isAbort(caught)) {
+          continue;
+        }
+        state.phase = "error";
+        state.error = messageFor(caught) || "翻译失败，请重试";
+        publish(state);
+      } finally {
+        if (state.abort === controller) {
+          state.abort = null;
+        }
+      }
+    }
+  } finally {
+    state.running = false;
+    if (state.queue.length > 0 && !state.disposed) {
+      void pump(state);
+    }
+  }
+}
+
+function request(state: SessionState, segments: BilingualSegment[]): void {
+  if (state.disposed) {
+    return;
+  }
+  // Remember every requested block first: a request that arrives while the
+  // engine is not resolvable yet must still be replayable by `retry()`.
+  const fresh: BilingualSegment[] = [];
+  const requested: string[] = [];
+  for (const segment of segments) {
+    const text = (segment?.text || "").replace(/\s+/g, " ").trim();
+    if (!text || !segment.key) {
+      continue;
+    }
+    state.known.set(segment.key, text);
+    requested.push(segment.key);
+    if (
+      state.translations.has(cacheKey(state, segment.key)) ||
+      state.queued.has(segment.key)
+    ) {
+      continue;
+    }
+    fresh.push({ key: segment.key, text });
+  }
+  // Remember the window even when everything is already translated: a later
+  // target switch must replay exactly this viewport.
+  if (requested.length) {
+    state.lastRequestKeys = requested;
+  }
+  if (!fresh.length) {
+    return;
+  }
+  if (state.options.engineProvider) {
+    state.engine = state.options.engineProvider();
+  }
+  if (!state.engine) {
+    state.phase = "error";
+    state.error = "当前浏览器不支持端上翻译";
+    publish(state);
+    return;
+  }
+  for (const segment of fresh) {
+    state.queued.add(segment.key);
+    state.queue.push(segment);
+  }
+  state.error = "";
+  if (
+    state.phase === "idle" ||
+    state.phase === "error" ||
+    state.phase === "ready"
+  ) {
+    state.phase = "detecting";
+  }
+  publish(state);
+  void pump(state);
+}
+
+function cancel(state: SessionState): void {
+  abortInFlight(state);
+  state.phase = "idle";
+  state.error = "";
+  state.download = 0;
+  publish(state);
+}
+
+function setTargetLanguage(state: SessionState, tag: string): void {
+  const next = normalizeLanguageTag(tag) || resolveTargetLanguage();
+  if (next === state.target) {
+    return;
+  }
+  abortInFlight(state);
+  state.target = next;
+  state.phase = "detecting";
+  state.error = "";
+  state.download = 0;
+  emit(state, { type: "reset" });
+  publish(state);
+  replay(state);
+  void pump(state);
+}
+
+function redetect(state: SessionState): void {
+  abortInFlight(state);
+  state.detected = "";
+  const prefix = `${state.target}\u0000`;
+  for (const key of [...state.translations.keys()]) {
+    if (key.startsWith(prefix)) {
+      state.translations.delete(key);
+    }
+  }
+  state.phase = "detecting";
+  state.error = "";
+  state.download = 0;
+  emit(state, { type: "reset" });
+  publish(state);
+  replay(state);
+  void pump(state);
+}
+
+function retry(state: SessionState): void {
+  if (state.phase !== "error") {
+    return;
+  }
+  state.phase = "detecting";
+  state.error = "";
+  publish(state);
+  replay(state);
+  void pump(state);
+}
+
 export function createBilingualSession(
   options: BilingualSessionOptions,
 ): BilingualSession {
-  let engine = options.engine;
-  let target =
-    normalizeLanguageTag(options.targetLanguage) || resolveTargetLanguage();
-  let detected = "";
-  let phase: BilingualPhase = "idle";
-  let error = "";
-  let download = 0;
-  let generation = 0;
-  let running = false;
-  let disposed = false;
-  let abort: AbortController | null = null;
-
-  /** `target\u0000key` → translation, so a target switch never leaks across. */
-  const translations = new Map<string, string>();
-  /** Every block ever requested, so a retry/re-target can replay them. */
-  const known = new Map<string, string>();
-  /** Keys of the most recent request (the visible window). */
-  let lastRequestKeys: string[] = [];
-  const queue: BilingualSegment[] = [];
-  const queued = new Set<string>();
-  const listeners = new Set<(event: BilingualEvent) => void>();
-
-  function cacheKey(key: string): string {
-    return `${target}\u0000${key}`;
-  }
-
-  function emit(event: BilingualEvent): void {
-    for (const listener of [...listeners]) {
-      try {
-        listener(event);
-      } catch {
-        // A broken pane must not break translation for the others.
-      }
-    }
-  }
-
-  function translatedCount(): number {
-    let total = 0;
-    for (const key of translations.keys()) {
-      if (key.startsWith(`${target}\u0000`)) {
-        total += 1;
-      }
-    }
-    return total;
-  }
-
-  function snapshot(): BilingualSnapshot {
-    return {
-      phase,
-      sourceLanguage: detected,
-      targetLanguage: target,
-      error,
-      translated: translatedCount(),
-      pending: queued.size,
-      downloadProgress: download,
-    };
-  }
-
-  function publish(): void {
-    emit({ type: "state", snapshot: snapshot() });
-  }
-
-  function abortInFlight(): void {
-    generation += 1;
-    abort?.abort();
-    abort = null;
-    queue.length = 0;
-    queued.clear();
-  }
-
-  /**
-   * Re-runs the most recent `request()` — i.e. the blocks the reader is looking
-   * at — rather than every block requested since the page opened. Replaying the
-   * whole history sends chapters/pages the user has scrolled past long ago into
-   * one serial batch, delaying the visible column.
-   */
-  function replay(): void {
-    const keys = lastRequestKeys.length ? lastRequestKeys : [...known.keys()];
-    request(keys.map((key) => ({ key, text: known.get(key) ?? "" })));
-  }
-
-  async function pump(): Promise<void> {
-    if (running || disposed) {
-      return;
-    }
-    running = true;
-    try {
-      while (queue.length > 0 && !disposed) {
-        const batch = queue.splice(0, queue.length);
-        batch.forEach((segment) => queued.delete(segment.key));
-        const gen = generation;
-        const keys = batch.map((segment) => segment.key);
-        const controller = new AbortController();
-        abort = controller;
-        try {
-          await translateText({
-            blocks: batch.map((segment) => segment.text),
-            targetLanguage: target,
-            // Detection runs once: the pair is reused for every later batch.
-            sourceLanguage: detected || undefined,
-            engine: engine as TranslationEngine,
-            cache: options.cache,
-            hasher: options.hasher,
-            signal: controller.signal,
-            onLanguages: (languages) => {
-              if (gen !== generation) {
-                return;
-              }
-              detected = languages.sourceLanguage;
-              target = languages.targetLanguage;
-              publish();
-            },
-            onProgress: (progress) => {
-              if (gen !== generation) {
-                return;
-              }
-              if (progress.phase !== "cached") {
-                phase = progress.phase;
-              } else {
-                phase = "translating";
-              }
-              if (typeof progress.loaded === "number") {
-                download = progress.loaded;
-              }
-              publish();
-            },
-            onBlock: (block, index) => {
-              if (gen !== generation) {
-                return;
-              }
-              const key = keys[index];
-              if (!key) {
-                return;
-              }
-              translations.set(cacheKey(key), block.translation);
-              phase = "translating";
-              emit({ type: "block", key, translation: block.translation });
-              publish();
-            },
-          });
-          if (gen !== generation) {
-            continue;
-          }
-          phase = "ready";
-          error = "";
-          download = 0;
-          publish();
-        } catch (caught) {
-          if (gen !== generation || isAbort(caught)) {
-            continue;
-          }
-          phase = "error";
-          error = messageFor(caught) || "翻译失败，请重试";
-          publish();
-        } finally {
-          if (abort === controller) {
-            abort = null;
-          }
-        }
-      }
-    } finally {
-      running = false;
-      if (queue.length > 0 && !disposed) {
-        void pump();
-      }
-    }
-  }
-
-  function request(segments: BilingualSegment[]): void {
-    if (disposed) {
-      return;
-    }
-    // Remember every requested block first: a request that arrives while the
-    // engine is not resolvable yet must still be replayable by `retry()`.
-    const fresh: BilingualSegment[] = [];
-    const requested: string[] = [];
-    for (const segment of segments) {
-      const text = (segment?.text || "").replace(/\s+/g, " ").trim();
-      if (!text || !segment.key) {
-        continue;
-      }
-      known.set(segment.key, text);
-      requested.push(segment.key);
-      if (translations.has(cacheKey(segment.key)) || queued.has(segment.key)) {
-        continue;
-      }
-      fresh.push({ key: segment.key, text });
-    }
-    // Remember the window even when everything is already translated: a later
-    // target switch must replay exactly this viewport.
-    if (requested.length) {
-      lastRequestKeys = requested;
-    }
-    if (!fresh.length) {
-      return;
-    }
-    if (options.engineProvider) {
-      engine = options.engineProvider();
-    }
-    if (!engine) {
-      phase = "error";
-      error = "当前浏览器不支持端上翻译";
-      publish();
-      return;
-    }
-    for (const segment of fresh) {
-      queued.add(segment.key);
-      queue.push(segment);
-    }
-    error = "";
-    if (phase === "idle" || phase === "error" || phase === "ready") {
-      phase = "detecting";
-    }
-    publish();
-    void pump();
-  }
-
-  function cancel(): void {
-    abortInFlight();
-    phase = "idle";
-    error = "";
-    download = 0;
-    publish();
-  }
-
-  function setTargetLanguage(tag: string): void {
-    const next = normalizeLanguageTag(tag) || resolveTargetLanguage();
-    if (next === target) {
-      return;
-    }
-    abortInFlight();
-    target = next;
-    phase = "detecting";
-    error = "";
-    download = 0;
-    emit({ type: "reset" });
-    publish();
-    replay();
-    void pump();
-  }
-
-  function redetect(): void {
-    abortInFlight();
-    detected = "";
-    const prefix = `${target}\u0000`;
-    for (const key of [...translations.keys()]) {
-      if (key.startsWith(prefix)) {
-        translations.delete(key);
-      }
-    }
-    phase = "detecting";
-    error = "";
-    download = 0;
-    emit({ type: "reset" });
-    publish();
-    replay();
-    void pump();
-  }
-
-  function retry(): void {
-    if (phase !== "error") {
-      return;
-    }
-    phase = "detecting";
-    error = "";
-    publish();
-    replay();
-    void pump();
-  }
+  const state: SessionState = {
+    options,
+    engine: options.engine,
+    target:
+      normalizeLanguageTag(options.targetLanguage) || resolveTargetLanguage(),
+    detected: "",
+    phase: "idle",
+    error: "",
+    download: 0,
+    generation: 0,
+    running: false,
+    disposed: false,
+    abort: null,
+    translations: new Map(),
+    known: new Map(),
+    lastRequestKeys: [],
+    queue: [],
+    queued: new Set(),
+    listeners: new Set(),
+  };
 
   return {
-    request,
-    cancel,
-    setTargetLanguage,
-    redetect,
-    retry,
-    translationFor(key) {
-      return translations.get(cacheKey(key));
-    },
-    snapshot,
+    request: (segments) => request(state, segments),
+    cancel: () => cancel(state),
+    setTargetLanguage: (tag) => setTargetLanguage(state, tag),
+    redetect: () => redetect(state),
+    retry: () => retry(state),
+    translationFor: (key) => state.translations.get(cacheKey(state, key)),
+    snapshot: () => snapshot(state),
     subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      state.listeners.add(listener);
+      return () => state.listeners.delete(listener);
     },
     dispose() {
-      disposed = true;
-      abortInFlight();
-      listeners.clear();
+      state.disposed = true;
+      abortInFlight(state);
+      state.listeners.clear();
     },
   };
 }

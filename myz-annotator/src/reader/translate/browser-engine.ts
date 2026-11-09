@@ -50,20 +50,23 @@ export function isBrowserTranslationSupported(): boolean {
   return Boolean(globalThis.Translator);
 }
 
-export function createBrowserTranslationEngine(): TranslationEngine | null {
-  const translatorApi = globalThis.Translator;
-  const detectorApi = globalThis.LanguageDetector;
-  if (!translatorApi) {
-    return null;
-  }
+interface TranslatorFactory {
+  create(options: {
+    sourceLanguage: string;
+    targetLanguage: string;
+    monitor?: (monitor: EventTarget) => void;
+  }): Promise<TranslatorInstance>;
+}
 
-  const translators = new Map<string, Promise<TranslatorInstance>>();
-
-  const ensureTranslator: TranslationEngine["ensureTranslator"] = async (
-    sourceLanguage,
-    targetLanguage,
-    options,
-  ) => {
+/**
+ * Creates the cached `ensureTranslator` implementation. A failed creation is
+ * evicted so a retry does not reuse the rejected promise.
+ */
+function createEnsureTranslator(
+  translatorApi: TranslatorFactory,
+  translators: Map<string, Promise<TranslatorInstance>>,
+): TranslationEngine["ensureTranslator"] {
+  return async (sourceLanguage, targetLanguage, options) => {
     const key = pairKey(sourceLanguage, targetLanguage);
     let pending = translators.get(key);
     if (!pending) {
@@ -92,6 +95,17 @@ export function createBrowserTranslationEngine(): TranslationEngine | null {
     }
     await pending;
   };
+}
+
+export function createBrowserTranslationEngine(): TranslationEngine | null {
+  const translatorApi = globalThis.Translator;
+  const detectorApi = globalThis.LanguageDetector;
+  if (!translatorApi) {
+    return null;
+  }
+
+  const translators = new Map<string, Promise<TranslatorInstance>>();
+  const ensureTranslator = createEnsureTranslator(translatorApi, translators);
 
   return {
     async availability(sourceLanguage, targetLanguage) {

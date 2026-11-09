@@ -1,4 +1,5 @@
 import { IconPencil } from "@myz/shared/icons";
+import { handleRovingRadioKeydown } from "@myz/shared/rovingFocus";
 import { colorName } from "@myz/shared/types";
 import { defineComponent, ref } from "vue";
 import type { PropType } from "vue";
@@ -23,30 +24,7 @@ export default defineComponent({
 
     /** Arrow-key roving focus across the radiogroup (A11Y1). */
     function onKeydown(event: KeyboardEvent) {
-      const handled = [
-        "ArrowRight",
-        "ArrowDown",
-        "ArrowLeft",
-        "ArrowUp",
-        "Home",
-        "End",
-      ];
-      if (!handled.includes(event.key)) return;
-      const buttons = Array.from(
-        groupRef.value?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [],
-      );
-      const count = buttons.length;
-      if (!count) return;
-      event.preventDefault();
-      const current = buttons.indexOf(event.target as HTMLElement);
-      let next = current < 0 ? 0 : current;
-      if (event.key === "Home") next = 0;
-      else if (event.key === "End") next = count - 1;
-      else if (event.key === "ArrowRight" || event.key === "ArrowDown")
-        next = (current + 1 + count) % count;
-      else next = (current - 1 + count) % count;
-      props.onSelect(next);
-      buttons[next]?.focus();
+      handleRovingRadioKeydown(groupRef.value, event, props.onSelect);
     }
 
     return () => (

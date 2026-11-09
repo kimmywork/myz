@@ -84,109 +84,167 @@ export function toggleZenMode(): "on" | "off" | "error" {
   return ok ? "on" : "error";
 }
 
+/** Chrome caps canvas dimensions; larger captures are stitched in batches. */
+const MAX_CAPTURE_DIM = 16384;
+const MAX_CAPTURE_AREA = MAX_CAPTURE_DIM * MAX_CAPTURE_DIM;
+
+interface ZenCaptureGeometry {
+  left: number;
+  top: number;
+  totalWidth: number;
+  totalHeight: number;
+  viewport: { width: number; height: number };
+  rows: number;
+  cols: number;
+  dpr: number;
+}
+
+function measureZenCapture(target: Element): ZenCaptureGeometry {
+  const rect = target.getBoundingClientRect();
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  const totalWidth = Math.max(
+    Math.ceil(target.scrollWidth || 0),
+    Math.ceil(rect.width),
+  );
+  const totalHeight = Math.max(
+    Math.ceil(target.scrollHeight || 0),
+    Math.ceil(rect.height),
+  );
+  return {
+    left: Math.max(0, Math.floor(rect.left + window.scrollX)),
+    top: Math.max(0, Math.floor(rect.top + window.scrollY)),
+    totalWidth,
+    totalHeight,
+    viewport,
+    rows: Math.max(1, Math.ceil(totalHeight / viewport.height)),
+    cols: Math.max(1, Math.ceil(totalWidth / viewport.width)),
+    dpr: window.devicePixelRatio || 1,
+  };
+}
+
+interface CapturedSelection {
+  selection: Selection | null;
+  ranges: Range[];
+}
+
+/** Clears the page selection so it does not paint into the screenshots. */
+async function suspendSelection(): Promise<CapturedSelection> {
+  const selection = window.getSelection();
+  const ranges: Range[] = [];
+  if (selection && !selection.isCollapsed) {
+    for (let index = 0; index < selection.rangeCount; index += 1) {
+      ranges.push(selection.getRangeAt(index).cloneRange());
+    }
+    selection.removeAllRanges();
+    await waitForNextPaint();
+  }
+  return { selection, ranges };
+}
+
+function restoreSelection(state: CapturedSelection): void {
+  const { selection, ranges } = state;
+  if (!selection || !ranges.length) return;
+  try {
+    ranges.forEach((range) => {
+      try {
+        selection.addRange(range);
+      } catch (error) {
+        // A range may be detached after the capture scroll; skip it.
+        console.debug("MyZ: failed to restore capture selection range", error);
+      }
+    });
+  } catch (error) {
+    console.debug("MyZ: failed to restore capture selection", error);
+  }
+}
+
+/** Scrolls through one viewport batch and returns the stitched canvas. */
+async function captureZenBatch(
+  geometry: ZenCaptureGeometry,
+  rowStart: number,
+  colStart: number,
+  rowsInBatch: number,
+  colsInBatch: number,
+): Promise<HTMLCanvasElement> {
+  const { left, top, totalWidth, totalHeight, viewport, dpr } = geometry;
+  const batchPixelW = Math.ceil(colsInBatch * viewport.width * dpr);
+  const batchPixelH = Math.ceil(rowsInBatch * viewport.height * dpr);
+  const areaOk = batchPixelW * batchPixelH <= MAX_CAPTURE_AREA;
+  const stitched = document.createElement("canvas");
+  stitched.width = areaOk
+    ? batchPixelW
+    : Math.min(batchPixelW, MAX_CAPTURE_DIM);
+  stitched.height = areaOk
+    ? batchPixelH
+    : Math.min(batchPixelH, MAX_CAPTURE_DIM);
+  const ctx = stitched.getContext("2d");
+
+  for (let r = 0; r < rowsInBatch; r++) {
+    for (let c = 0; c < colsInBatch; c++) {
+      const globalRow = rowStart + r;
+      const globalCol = colStart + c;
+      const tileLeftAbs = left + globalCol * viewport.width;
+      const tileTopAbs = top + globalRow * viewport.height;
+      window.scrollTo(tileLeftAbs, tileTopAbs);
+      await waitForNextPaint();
+      const dataUrl = await captureVisiblePngWithThrottle();
+      if (!dataUrl) continue;
+      // Account for scroll clamping at edges by using actual offsets.
+      const vx = Math.max(0, tileLeftAbs - window.scrollX);
+      const vy = Math.max(0, tileTopAbs - window.scrollY);
+      const remainingW = totalWidth - globalCol * viewport.width;
+      const remainingH = totalHeight - globalRow * viewport.height;
+      const tileW = Math.min(viewport.width - vx, remainingW);
+      const tileH = Math.min(viewport.height - vy, remainingH);
+      const { canvas } = await cropToCanvas(
+        dataUrl,
+        { left: vx, top: vy, width: tileW, height: tileH } as DOMRect,
+        viewport,
+      );
+      ctx?.drawImage(
+        canvas,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+        Math.floor(c * viewport.width * dpr),
+        Math.floor(r * viewport.height * dpr),
+        Math.floor(tileW * dpr),
+        Math.floor(tileH * dpr),
+      );
+    }
+  }
+  return stitched;
+}
+
 export async function captureZenTargetFull() {
   try {
     const target = getZenTargetElement();
     if (!target) return;
-    const rect = target.getBoundingClientRect();
-    const elementAbsLeft = Math.max(0, Math.floor(rect.left + window.scrollX));
-    const elementAbsTop = Math.max(0, Math.floor(rect.top + window.scrollY));
-    const totalWidth = Math.max(
-      Math.ceil(target.scrollWidth || 0),
-      Math.ceil(rect.width),
-    );
-    const totalHeight = Math.max(
-      Math.ceil(target.scrollHeight || 0),
-      Math.ceil(rect.height),
-    );
-    const viewport = {
-      width: window.innerWidth,
-      height: window.innerHeight,
-    };
-    const rows = Math.max(1, Math.ceil(totalHeight / viewport.height));
-    const cols = Math.max(1, Math.ceil(totalWidth / viewport.width));
-    const dpr2 = window.devicePixelRatio || 1;
-    const MAX_DIM = 16384; // device pixels
-    const MAX_AREA = 16384 * 16384;
-
-    // Preserve and clear selection to avoid highlight artifacts in screenshots
-    const selection = window.getSelection();
-    const storedRanges: Range[] = [];
-    if (selection && !selection.isCollapsed) {
-      for (let index = 0; index < selection.rangeCount; index += 1) {
-        storedRanges.push(selection.getRangeAt(index).cloneRange());
-      }
-      selection.removeAllRanges();
-      await waitForNextPaint();
-    }
-
+    const geometry = measureZenCapture(target);
+    const { viewport, rows, cols, dpr } = geometry;
+    const suspended = await suspendSelection();
     const originalScroll = { x: window.scrollX, y: window.scrollY };
     const maxColsPerImage = Math.max(
       1,
-      Math.floor(MAX_DIM / Math.ceil(viewport.width * dpr2)),
+      Math.floor(MAX_CAPTURE_DIM / Math.ceil(viewport.width * dpr)),
     );
     const maxRowsPerImage = Math.max(
       1,
-      Math.floor(MAX_DIM / Math.ceil(viewport.height * dpr2)),
+      Math.floor(MAX_CAPTURE_DIM / Math.ceil(viewport.height * dpr)),
     );
 
     for (let rowStart = 0; rowStart < rows; rowStart += maxRowsPerImage) {
       const rowsInBatch = Math.min(maxRowsPerImage, rows - rowStart);
       for (let colStart = 0; colStart < cols; colStart += maxColsPerImage) {
         const colsInBatch = Math.min(maxColsPerImage, cols - colStart);
-        const batchPixelW = Math.ceil(colsInBatch * viewport.width * dpr2);
-        const batchPixelH = Math.ceil(rowsInBatch * viewport.height * dpr2);
-        const areaOk = batchPixelW * batchPixelH <= MAX_AREA;
-        const canvasW = areaOk ? batchPixelW : Math.min(batchPixelW, MAX_DIM);
-        const canvasH = areaOk ? batchPixelH : Math.min(batchPixelH, MAX_DIM);
-        const stitched = document.createElement("canvas");
-        stitched.width = canvasW;
-        stitched.height = canvasH;
-        const ctx = stitched.getContext("2d");
-
-        for (let r = 0; r < rowsInBatch; r++) {
-          for (let c = 0; c < colsInBatch; c++) {
-            const globalRow = rowStart + r;
-            const globalCol = colStart + c;
-            const tileLeftAbs = elementAbsLeft + globalCol * viewport.width;
-            const tileTopAbs = elementAbsTop + globalRow * viewport.height;
-            window.scrollTo(tileLeftAbs, tileTopAbs);
-            await waitForNextPaint();
-            const dataUrl = await captureVisiblePngWithThrottle();
-            if (!dataUrl) continue;
-            // Account for scroll clamping at edges by using actual offsets
-            const actualLeft = window.scrollX;
-            const actualTop = window.scrollY;
-            const expectedLeft = tileLeftAbs;
-            const expectedTop = tileTopAbs;
-            const vx = Math.max(0, expectedLeft - actualLeft);
-            const vy = Math.max(0, expectedTop - actualTop);
-            const remainingW = totalWidth - globalCol * viewport.width;
-            const remainingH = totalHeight - globalRow * viewport.height;
-            const tileW = Math.min(viewport.width - vx, remainingW);
-            const tileH = Math.min(viewport.height - vy, remainingH);
-            const { canvas } = await cropToCanvas(
-              dataUrl,
-              { left: vx, top: vy, width: tileW, height: tileH } as DOMRect,
-              viewport,
-            );
-            const destX = Math.floor(c * viewport.width * dpr2);
-            const destY = Math.floor(r * viewport.height * dpr2);
-            const destW = Math.floor(tileW * dpr2);
-            const destH = Math.floor(tileH * dpr2);
-            ctx?.drawImage(
-              canvas,
-              0,
-              0,
-              canvas.width,
-              canvas.height,
-              destX,
-              destY,
-              destW,
-              destH,
-            );
-          }
-        }
+        const stitched = await captureZenBatch(
+          geometry,
+          rowStart,
+          colStart,
+          rowsInBatch,
+          colsInBatch,
+        );
         await stageCapturedImage({
           dataUrl: stitched.toDataURL("image/png"),
           width: stitched.width,
@@ -198,25 +256,7 @@ export async function captureZenTargetFull() {
       }
     }
     window.scrollTo(originalScroll.x, originalScroll.y);
-
-    // Restore selection if cleared
-    if (selection && storedRanges.length) {
-      try {
-        storedRanges.forEach((storedRange) => {
-          try {
-            selection.addRange(storedRange);
-          } catch (error) {
-            // A range may be detached after the capture scroll; skip it.
-            console.debug(
-              "MyZ: failed to restore capture selection range",
-              error,
-            );
-          }
-        });
-      } catch (error) {
-        console.debug("MyZ: failed to restore capture selection", error);
-      }
-    }
+    restoreSelection(suspended);
   } catch (e) {
     console.error("captureZenTargetFull failed", e);
     throw e;
@@ -254,14 +294,10 @@ function readZenPalette() {
   };
 }
 
-function buildZenCss(): string {
-  // Pure CSS approach: hide everything except the marked target, its descendants,
-  // and explicitly marked ancestors. Avoid :has() for broader compatibility.
-  //
-  // §4.16 专注阅读: read serif + read tiers. The host page cannot receive
-  // `:root` variables without polluting it, so the resolved scheme values are
-  // inlined here.
-  const palette = readZenPalette();
+type ZenPalette = ReturnType<typeof readZenPalette>;
+
+/** Page shell: background, the "hide everything else" rule and the target box. */
+function zenLayoutCss(palette: ZenPalette): string {
   return `
 html.myz-zen-enabled, html.myz-zen-enabled body {
   background: ${palette.bg} !important;
@@ -293,6 +329,12 @@ html.myz-zen-enabled .myz-zen-target-keep {
   margin: 0 auto !important;
   padding: 24px !important;
 }
+`;
+}
+
+/** Content typography: media, links, inline code and code blocks. */
+function zenContentCss(palette: ZenPalette): string {
+  return `
 html.myz-zen-enabled .myz-zen-target-keep img, html.myz-zen-enabled .myz-zen-target-keep video, html.myz-zen-enabled .myz-zen-target-keep svg {
   max-width: 100% !important;
   height: auto !important;
@@ -332,6 +374,11 @@ html.myz-zen-enabled .myz-zen-target-keep pre code {
     width: 100% !important;
   }
 }
+`;
+}
+
+/** Print: only the article, black on white, without page chrome. */
+const ZEN_PRINT_CSS = `
 @media print {
   html.myz-zen-enabled body *:not(.myz-zen-target-keep):not(.myz-zen-target-keep *):not(.myz-zen-ancestor-keep) {
     display: none !important;
@@ -344,4 +391,12 @@ html.myz-zen-enabled .myz-zen-target-keep pre code {
   }
 }
 `;
+
+function buildZenCss(): string {
+  // Pure CSS approach: hide everything except the marked target, its
+  // descendants, and explicitly marked ancestors. Avoid :has() for broader
+  // compatibility. §4.16 专注阅读: read serif + read tiers; the host page cannot
+  // receive `:root` variables without polluting it, so values are inlined.
+  const palette = readZenPalette();
+  return `${zenLayoutCss(palette)}${zenContentCss(palette)}${ZEN_PRINT_CSS}`;
 }

@@ -22,6 +22,28 @@ import { resolveTranslationEngine } from "./engine-provider.js";
 import { normalizeTargetLanguage } from "./language.js";
 import { createIndexedDbTranslationCache } from "./storage.js";
 
+/**
+ * Flattens the bilingual controller onto the field names the PDF / EPUB reader
+ * stores expose. Both stores spread this so the toolbar contract lives here.
+ */
+export function bilingualStoreBindings(controller: BilingualController) {
+  return {
+    bilingualEnabled: controller.enabled,
+    bilingualPhase: controller.phase,
+    bilingualSource: controller.sourceLanguage,
+    bilingualTarget: controller.targetLanguage,
+    bilingualError: controller.error,
+    bilingualProgress: controller.downloadProgress,
+    bilingualTranslated: controller.translated,
+    bilingualHasTarget: controller.hasTarget,
+    enableBilingual: () => controller.setEnabled(true),
+    toggleBilingual: controller.toggle,
+    setBilingualTarget: controller.setTargetLanguage,
+    redetectBilingual: controller.redetect,
+    retryBilingual: controller.retry,
+  };
+}
+
 export interface BilingualController {
   enabled: Ref<boolean>;
   targetLanguage: Ref<string>;

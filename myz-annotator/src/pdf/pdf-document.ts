@@ -243,6 +243,155 @@ function syncTextLayerWidths(
  * Note: pdf.js v6 sizes the text layer from `--total-scale-factor`, not the
  * legacy `--scale-factor`; both are set for compatibility.
  */
+type PdfPage = Awaited<ReturnType<PdfDocument["getPage"]>>;
+type PdfViewport = ReturnType<PdfPage["getViewport"]>;
+
+interface CancelableTask {
+  cancel(): void;
+  promise: Promise<void>;
+}
+
+interface LayerHandle {
+  cancel(): void;
+  done: Promise<void>;
+}
+
+/** Applies the page box and the pdf.js v6 scale custom properties. */
+function preparePageElement(
+  pageEl: HTMLElement,
+  pageNumber: number,
+  viewport: PdfViewport,
+): void {
+  pageEl.dataset.page = String(pageNumber);
+  pageEl.style.width = `${viewport.width}px`;
+  pageEl.style.height = `${viewport.height}px`;
+  pageEl.style.setProperty("--total-scale-factor", String(viewport.scale));
+  pageEl.style.setProperty("--scale-factor", String(viewport.scale));
+}
+
+/** Device-pixel transform shared by the preview and full-resolution renders. */
+function renderTransform(): {
+  outputScale: number;
+  transform: number[] | undefined;
+} {
+  const outputScale = Math.min(window.devicePixelRatio || 1, MAX_OUTPUT_SCALE);
+  return {
+    outputScale,
+    transform:
+      outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
+  };
+}
+
+/** The text and annotation layers layered above the page canvas. */
+function createLayerElements(): {
+  textLayer: HTMLDivElement;
+  overlay: HTMLDivElement;
+} {
+  const textLayer = document.createElement("div");
+  textLayer.className = "textLayer";
+  const overlay = document.createElement("div");
+  overlay.className = "pdf-overlayLayer";
+  return { textLayer, overlay };
+}
+
+/** Creates the low-resolution preview canvas and starts its render task. */
+function startPreview(
+  page: PdfPage,
+  viewport: PdfViewport,
+  scale: number,
+  outputScale: number,
+  transform: number[] | undefined,
+): { canvas: HTMLCanvasElement; task: CancelableTask } {
+  const previewViewport = page.getViewport({
+    scale: scale * PREVIEW_SCALE_FACTOR,
+  });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.floor(previewViewport.width * outputScale);
+  canvas.height = Math.floor(previewViewport.height * outputScale);
+  canvas.style.width = `${viewport.width}px`;
+  canvas.style.height = `${viewport.height}px`;
+  const task = page.render({
+    canvas,
+    viewport: previewViewport,
+    transform,
+  }) as unknown as CancelableTask;
+  return { canvas, task };
+}
+
+/** Starts the background full-resolution upgrade; failures keep the preview. */
+function startFullUpgrade(
+  page: PdfPage,
+  viewport: PdfViewport,
+  outputScale: number,
+  transform: number[] | undefined,
+  previewCanvas: HTMLCanvasElement,
+  shouldUpgrade: () => boolean,
+): LayerHandle {
+  let task: CancelableTask | null = null;
+  const done = (async () => {
+    if (!shouldUpgrade()) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.floor(viewport.width * outputScale);
+    canvas.height = Math.floor(viewport.height * outputScale);
+    canvas.style.width = `${viewport.width}px`;
+    canvas.style.height = `${viewport.height}px`;
+    task = page.render({
+      canvas,
+      viewport,
+      transform,
+    }) as unknown as CancelableTask;
+    await task.promise;
+    task = null;
+    if (!previewCanvas.isConnected) return;
+    previewCanvas.replaceWith(canvas);
+  })().catch(() => {
+    // Cancelled or failed: keep the preview.
+  });
+  return { cancel: () => task?.cancel(), done };
+}
+
+/** Builds the resolution-independent text layer for a rendered page. */
+function startTextLayer(
+  page: PdfPage,
+  viewport: PdfViewport,
+  container: HTMLElement,
+  isCanceled: () => boolean,
+): LayerHandle {
+  let layer: { cancel(): void } | null = null;
+  const done = (async () => {
+    const textContent = await page.getTextContent();
+    if (isCanceled()) throw new PdfRenderCancelled();
+    const textItems = textContent.items as Array<{
+      str?: string;
+      width?: number;
+    }>;
+    if (!textItems.some((item) => item.str)) return;
+    const textLayer = new pdfjsLib.TextLayer({
+      textContentSource: textContent,
+      container,
+      viewport,
+    });
+    layer = textLayer;
+    await textLayer.render();
+    layer = null;
+    if (isCanceled()) throw new PdfRenderCancelled();
+    await document.fonts?.ready;
+    syncTextLayerWidths(textLayer, textItems, viewport.scale);
+  })();
+  return { cancel: () => layer?.cancel(), done };
+}
+
+/**
+ * Renders a single PDF page into the given placeholder element
+ * (canvas + text layer + overlay layer).
+ *
+ * Returns a handle with a `cancel()` so callers can abandon work for pages
+ * that scrolled away or were torn down (zoom/rebuild). A cancelled render
+ * rejects with `PdfRenderCancelled`; all other errors are genuine failures.
+ *
+ * Note: pdf.js v6 sizes the text layer from `--total-scale-factor`, not the
+ * legacy `--scale-factor`; both are set for compatibility.
+ */
 export function renderPageInto(
   pageEl: HTMLElement,
   doc: PdfDocument,
@@ -250,9 +399,9 @@ export function renderPageInto(
   scale = 1.5,
   shouldUpgrade: () => boolean = () => true,
 ): PageRenderHandle {
-  let previewTask: { cancel: () => void; promise: Promise<void> } | null = null;
-  let fullTask: { cancel: () => void; promise: Promise<void> } | null = null;
-  let textLayer: { cancel: () => void } | null = null;
+  let previewTask: CancelableTask | null = null;
+  let fullUpgrade: LayerHandle | null = null;
+  let textLayer: LayerHandle | null = null;
   let canceled = false;
 
   let settleFull: () => void = () => {};
@@ -267,101 +416,47 @@ export function renderPageInto(
         throw new PdfRenderCancelled();
       }
       const viewport = page.getViewport({ scale });
-      const outputScale = Math.min(
-        window.devicePixelRatio || 1,
-        MAX_OUTPUT_SCALE,
-      );
-      const transform =
-        outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined;
+      const { outputScale, transform } = renderTransform();
 
-      pageEl.dataset.page = String(pageNumber);
-      pageEl.style.width = `${viewport.width}px`;
-      pageEl.style.height = `${viewport.height}px`;
-      pageEl.style.setProperty("--total-scale-factor", String(viewport.scale));
-      pageEl.style.setProperty("--scale-factor", String(viewport.scale));
-
-      const textLayerEl = document.createElement("div");
-      textLayerEl.className = "textLayer";
-      const overlayEl = document.createElement("div");
-      overlayEl.className = "pdf-overlayLayer";
+      preparePageElement(pageEl, pageNumber, viewport);
+      const { textLayer: textLayerEl, overlay: overlayEl } =
+        createLayerElements();
 
       // Phase 1: low-resolution preview so the page is visible immediately.
       // The page's operator list is built once and reused by the upgrade.
-      const previewViewport = page.getViewport({
-        scale: scale * PREVIEW_SCALE_FACTOR,
-      });
-      const previewCanvas = document.createElement("canvas");
-      previewCanvas.width = Math.floor(previewViewport.width * outputScale);
-      previewCanvas.height = Math.floor(previewViewport.height * outputScale);
-      previewCanvas.style.width = `${viewport.width}px`;
-      previewCanvas.style.height = `${viewport.height}px`;
-      previewTask = page.render({
-        canvas: previewCanvas,
-        viewport: previewViewport,
+      const preview = startPreview(
+        page,
+        viewport,
+        scale,
+        outputScale,
         transform,
-      });
+      );
+      previewTask = preview.task;
       await previewTask.promise;
       previewTask = null;
       if (canceled) {
         throw new PdfRenderCancelled();
       }
-      pageEl.replaceChildren(previewCanvas, textLayerEl, overlayEl);
+      pageEl.replaceChildren(preview.canvas, textLayerEl, overlayEl);
 
       // Phase 2: full-resolution upgrade in the background, only while the page
       // is still wanted (and not evicted).
-      void (async () => {
-        try {
-          if (!shouldUpgrade()) {
-            return;
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.floor(viewport.width * outputScale);
-          canvas.height = Math.floor(viewport.height * outputScale);
-          canvas.style.width = `${viewport.width}px`;
-          canvas.style.height = `${viewport.height}px`;
-          fullTask = page.render({ canvas, viewport, transform });
-          await fullTask.promise;
-          fullTask = null;
-          if (canceled || !previewCanvas.isConnected) {
-            return;
-          }
-          previewCanvas.replaceWith(canvas);
-        } catch {
-          // Cancelled or failed: keep the preview.
-        } finally {
-          settleFull();
-        }
-      })();
+      fullUpgrade = startFullUpgrade(
+        page,
+        viewport,
+        outputScale,
+        transform,
+        preview.canvas,
+        shouldUpgrade,
+      );
+      void fullUpgrade.done.finally(settleFull);
 
-      // The text layer is resolution-independent; build it after the preview.
-      const textContent = await page.getTextContent();
-      if (canceled) {
-        throw new PdfRenderCancelled();
-      }
-      const textItems = textContent.items as Array<{
-        str?: string;
-        width?: number;
-      }>;
-      if (textItems.some((item) => item.str)) {
-        const layer = new pdfjsLib.TextLayer({
-          textContentSource: textContent,
-          container: textLayerEl,
-          viewport,
-        });
-        textLayer = layer;
-        const textTask = layer.render();
-        await textTask;
-        textLayer = null;
-        if (canceled) {
-          throw new PdfRenderCancelled();
-        }
-        await document.fonts?.ready;
-        syncTextLayerWidths(layer, textItems, viewport.scale);
-      }
+      textLayer = startTextLayer(page, viewport, textLayerEl, () => canceled);
+      await textLayer.done;
 
       return { width: viewport.width, height: viewport.height };
     } catch (err) {
-      (fullTask as { cancel: () => void } | null)?.cancel();
+      fullUpgrade?.cancel();
       textLayer?.cancel();
       settleFull();
       if (canceled) {
@@ -380,7 +475,7 @@ export function renderPageInto(
       }
       canceled = true;
       previewTask?.cancel();
-      fullTask?.cancel();
+      fullUpgrade?.cancel();
       textLayer?.cancel();
     },
   };

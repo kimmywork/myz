@@ -11,6 +11,7 @@ import {
 import { buildEpubSourceUrl } from "@myz/shared/url";
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
+import { bilingualStoreBindings } from "../../reader/translate/useBilingual.js";
 import { resolveHref, type EpubBook } from "../parse.js";
 import { createChapterRenderer } from "../reader/chapter-renderer.js";
 import { createEpubHighlights } from "../reader/epub-highlights.js";
@@ -228,19 +229,7 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     lastColor,
     lastStyle,
     init,
-    bilingualEnabled: bilingual.enabled,
-    bilingualPhase: bilingual.phase,
-    bilingualSource: bilingual.sourceLanguage,
-    bilingualTarget: bilingual.targetLanguage,
-    bilingualError: bilingual.error,
-    bilingualProgress: bilingual.downloadProgress,
-    bilingualTranslated: bilingual.translated,
-    bilingualHasTarget: bilingual.hasTarget,
-    enableBilingual: () => bilingual.setEnabled(true),
-    toggleBilingual: bilingual.toggle,
-    setBilingualTarget: bilingual.setTargetLanguage,
-    redetectBilingual: bilingual.redetect,
-    retryBilingual: bilingual.retry,
+    ...bilingualStoreBindings(bilingual),
     setBilingualFrame: bilingual.setFrame,
     syncBilingualScroll: bilingual.syncScroll,
     refreshBilingual: bilingual.refresh,
