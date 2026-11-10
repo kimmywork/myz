@@ -62,9 +62,27 @@
   --myz-r-pill: 999px;
 
   /* 密度 */
+  --myz-hit-dense: 28px;
   --myz-hit-compact: 32px;
   --myz-hit-regular: 36px;
   --myz-hit-touch: 44px;
+
+  /* 工作区密度（§3.6）：行高与行内边距由行密度决定，不跟着按钮高度走 */
+  --myz-row-h: 56px;
+  --myz-row-h-dense: 40px;
+  --myz-row-h-touch: 64px;
+  --myz-row-pad-x: 12px;
+
+  /* 工作区骨架（§4.27）：固定区宽与可拖区间，clamp 边界必须可查 */
+  --myz-rail-w: 48px;
+  --myz-nav-w: 240px;
+  --myz-nav-w-min: 200px;
+  --myz-nav-w-max: 320px;
+  --myz-panel-w: 280px;
+  --myz-panel-w-min: 260px;
+  --myz-panel-w-max: 380px;
+  --myz-header-h: 48px;
+  --myz-statusbar-h: 28px;
 
   /* 动效 */
   --myz-motion-fast: 120ms;

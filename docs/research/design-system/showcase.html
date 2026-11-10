@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyZ 0.7 · 设计目标态 showcase</title>
+
+<!--
+  内联兜底：万一 tokens.css 没跟着一起走（拷走单个文件的情况），页面仍然可读，
+  只有浅色一套。正常情况下下面的 <link> 会覆盖这些值，颜色仍然只有一处来源。
+-->
+<style>
+  :root {
+    --myz-bg: #f5f4ed;
+    --myz-surface: #faf9f5;
+    --myz-surface-2: #eceae0;
+    --myz-text: #141413;
+    --myz-muted: #6b6a64;
+    --myz-line: #ddd9cc;
+    --myz-accent: #1b365d;
+    --myz-accent-text: #1b365d;
+    --myz-on-accent: #faf9f5;
+    --myz-tag-bg: #e4ecf5;
+    --myz-tag-fg: #1b365d;
+    --myz-control-bg: #ffffff;
+    --myz-control-border: #ccc6b4;
+    --myz-info: #1b365d;
+    --myz-info-bg: #e4ecf5;
+    --myz-error: #8d2f2f;
+    --myz-error-bg: #f7e3e3;
+    --myz-clip: #6b6a64;
+    --myz-clip-bg: #eceae0;
+    --myz-r-xs: 4px;
+    --myz-r-sm: 6px;
+    --myz-r: 8px;
+    --myz-r-lg: 12px;
+    --myz-r-pill: 999px;
+    --myz-hit-dense: 28px;
+    --myz-hit-compact: 32px;
+    --myz-hit-regular: 36px;
+    --myz-hit-touch: 44px;
+    --myz-row-h: 56px;
+    --myz-row-h-dense: 40px;
+    --myz-row-pad-x: 12px;
+    --myz-rail-w: 48px;
+    --myz-nav-w: 240px;
+    --myz-nav-w-min: 200px;
+    --myz-nav-w-max: 320px;
+    --myz-panel-w: 280px;
+    --myz-panel-w-min: 260px;
+    --myz-panel-w-max: 380px;
+    --myz-header-h: 48px;
+    --myz-statusbar-h: 28px;
+    --myz-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    --myz-read: Newsreader, "Noto Serif SC", serif;
+    --myz-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  }
+</style>
+
+<!-- 真 token：与产品同一份文件，不复制数值 -->
+<link rel="stylesheet" href="../../../packages/shared/src/theme/tokens.css">
+
+<style>
+  /* ── 页面骨架（这一页自己的排版，不是产品的一部分） ───────────── */
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--myz-bg);
+    color: var(--myz-text);
+    font-family: var(--myz-sans);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .page { max-width: 1320px; margin: 0 auto; padding: 40px 32px 80px; }
+  .hero h1 { font-family: var(--myz-read); font-size: 32px; font-weight: 600; line-height: 1.2; margin: 0 0 8px; }
+  .hero p { margin: 0; color: var(--myz-muted); max-width: 62ch; }
+  .tagline {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-bottom: 16px; padding: 4px 8px;
+    border: 1px solid var(--myz-control-border); border-radius: var(--myz-r-pill);
+    color: var(--myz-accent-text); background: var(--myz-tag-bg);
+    font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  }
+  section { margin-top: 48px; }
+  section > h2 {
+    font-size: 17px; font-weight: 600; margin: 0 0 4px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  section > h2 .num {
+    font-family: var(--myz-mono); font-size: 12px; color: var(--myz-muted); font-weight: 400;
+  }
+  section > .lede { margin: 0 0 20px; color: var(--myz-muted); font-size: 13px; max-width: 78ch; }
+  code, .mono { font-family: var(--myz-mono); font-size: 12px; }
+  .hint { color: var(--myz-muted); font-size: 12px; }
+
+  /* ── 通用原子（照产品规范写，不引入新值） ─────────────────────── */
+  .pill {
+    display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
+    border-radius: var(--myz-r-sm); font-size: 11px; font-weight: 600;
+    white-space: nowrap; line-height: 1;
+  }
+  .pill--info { background: var(--myz-info-bg); color: var(--myz-info); }
+  .pill--muted { background: var(--myz-surface-2); color: var(--myz-muted); }
+  .pill--type { background: var(--myz-tag-bg); color: var(--myz-tag-fg); }
+  .pill--danger { background: var(--myz-error-bg); color: var(--myz-error); }
+  .pill--count { background: transparent; color: var(--myz-muted); border: 1px solid var(--myz-line); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    white-space: nowrap; flex: 0 0 auto;
+    height: var(--myz-hit-compact); padding: 0 12px;
+    border: 1px solid var(--myz-control-border); border-radius: var(--myz-r);
+    background: var(--myz-control-bg); color: var(--myz-text);
+    font: 600 13px/1 var(--myz-sans); cursor: pointer;
+    transition: border-color 120ms, color 120ms;
+  }
+  .btn:hover { border-color: var(--myz-accent); color: var(--myz-accent-text); }
+  .btn:focus-visible { outline: 2px solid var(--myz-accent); outline-offset: 2px; }
+  .btn--dense { height: var(--myz-hit-dense); padding: 0 8px; font-size: 12px; }
+  .btn--form { height: var(--myz-hit-regular); }
+  .btn--touch { height: var(--myz-hit-touch); }
+  .btn--primary { background: var(--myz-accent); border-color: transparent; color: var(--myz-on-accent); }
+  .btn--primary:hover { color: var(--myz-on-accent); }
+  .btn--ghost { background: transparent; border-color: transparent; color: var(--myz-muted); }
+  .btn--danger { background: transparent; border-color: transparent; color: var(--myz-error); }
+  .btn--danger:hover { border-color: transparent; color: var(--myz-error); }
+  .btn[disabled] { opacity: .45; pointer-events: none; }
+
+  /* ── ① 旧 vs 新：同一段 Inbox，480 高 ─────────────────────────── */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .panel {
+    border: 1px solid var(--myz-line); border-radius: var(--myz-r-lg);
+    background: var(--myz-surface); overflow: hidden;
+  }
+  .panel__head {
+    display: flex; align-items: center; gap: 8px;
+    height: 44px; padding: 0 12px;
+    border-bottom: 1px solid var(--myz-line); background: var(--myz-surface-2);
+    font-size: 13px; font-weight: 600;
+  }
+  .panel__head .verdict { margin-left: auto; font-size: 11px; font-weight: 600; }
+  .panel__head .verdict--bad { color: var(--myz-error); }
+  .panel__head .verdict--good { color: var(--myz-accent-text); }
+  .viewport { height: 480px; overflow: hidden; position: relative; }
+  .viewport::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 48px;
+    background: linear-gradient(to bottom, transparent, var(--myz-surface));
+    pointer-events: none;
+  }
+  .panel__foot {
+    display: flex; justify-content: space-between; gap: 12px;
+    white-space: nowrap;
+    padding: 8px 12px; border-top: 1px solid var(--myz-line);
+    font-size: 12px; color: var(--myz-muted); background: var(--myz-surface-2);
+  }
+
+  /* 旧：每行一张卡片 + 12 间隙 + 常驻动作条 */
+  .old-row {
+    margin: 12px; padding: 12px;
+    border: 1px solid var(--myz-line); border-radius: var(--myz-r-lg);
+    background: var(--myz-surface);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .old-row__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .old-row__text {
+    font-family: var(--myz-read); font-size: 14px; line-height: 1.55;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .old-row__src { font-size: 12px; color: var(--myz-muted); }
+  .old-row__actions {
+    display: flex; align-items: center; gap: 4px;
+    padding-top: 12px; border-top: 1px solid var(--myz-line);
+  }
+  .old-row__actions .btn { margin-left: 0; }
+  .old-row__actions .btn--danger { margin-left: auto; }
+
+  /* 新：flush 行，56 高，动作 hover/选中才出现 */
+  .new-list { background: var(--myz-surface); }
+  .row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    height: var(--myz-row-h);
+    padding: 0 var(--myz-row-pad-x);
+    border-bottom: 1px solid var(--myz-line);
+    cursor: default;
+  }
+  .row:last-child { border-bottom: 0; }
+  .row::before {
+    content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+    border-radius: var(--myz-r-xs); background: var(--row-mark, transparent);
+  }
+  .row:hover, .row.is-selected { background: var(--myz-surface-2); }
+  .row.is-selected::before { background: var(--myz-accent); }
+  .row__check { display: flex; align-items: center; justify-content: center; height: var(--myz-hit-compact); }
+  .row__check input { width: 16px; height: 16px; margin: 0; accent-color: var(--myz-accent); cursor: pointer; }
+  .row__body { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .row__top { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .row__text {
+    font-size: 14px; line-height: 1.5; color: var(--myz-text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .row__meta {
+    font-size: 12px; line-height: 1.4; color: var(--myz-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .row__meta b { font-weight: 600; color: var(--myz-muted); }
+  .row__actions {
+    display: flex; align-items: center; gap: 2px;
+    opacity: 0; transition: opacity 120ms;
+  }
+  .row:hover .row__actions,
+  .row:focus-within .row__actions,
+  .row.is-selected .row__actions { opacity: 1; }
+  .row__actions .btn--dense { min-width: var(--myz-hit-dense); padding: 0 6px; }
+
+  /* ── ② 工作区骨架 ─────────────────────────────────────────────── */
+  .shell-frame {
+    border: 1px solid var(--myz-line); border-radius: var(--myz-r-lg);
+    overflow: hidden; background: var(--myz-bg);
+  }
+  .shell {
+    --nav-w: var(--myz-nav-w);
+    --panel-w: var(--myz-panel-w);
+    color: var(--myz-text);
+    background: var(--myz-bg);
+    display: grid;
+    grid-template-columns: var(--myz-rail-w) var(--nav-w) 6px minmax(0, 1fr) 6px var(--panel-w);
+    height: 620px;
+    font-size: 13px;
+  }
+  .shell.is-static .handle { cursor: default; }
+  .shell.is-static .handle::after { display: none; }
+
+  .rail {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 8px 0; background: var(--myz-surface);
+    border-right: 1px solid var(--myz-line);
+  }
+  .rail__btn {
+    position: relative;
+    width: var(--myz-hit-compact); height: var(--myz-hit-compact);
+    display: flex; align-items: center; justify-content: center;
+    border: 0; border-radius: var(--myz-r); background: transparent;
+    color: var(--myz-muted); cursor: pointer; font-size: 15px;
+  }
+  .rail__btn svg { width: 20px; height: 20px; display: block; }
+  .rail__btn:hover { background: var(--myz-surface-2); color: var(--myz-text); }
+  .rail__btn:focus-visible { outline: 2px solid var(--myz-accent); outline-offset: 2px; }
+  .rail__btn.is-active { background: var(--myz-surface-2); color: var(--myz-accent-text); }
+  .rail__btn.is-active::before {
+    content: ""; position: absolute; left: -8px; top: 6px; bottom: 6px;
+    width: 2px; border-radius: 2px; background: var(--myz-accent);
+  }
+  .rail__spacer { flex: 1; }
+
+  .nav {
+    display: flex; flex-direction: column; min-width: 0; min-height: 0;
+    background: var(--myz-surface); overflow: hidden;
+  }
+  .nav__group { padding: 24px 8px 0; }
+  .nav__item + .nav__item { margin-top: 2px; }
+  .nav__group:first-child { padding-top: 12px; }
+  .nav__title {
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--myz-muted); padding: 0 10px; margin-bottom: 6px;
+  }
+  .nav__item {
+    display: flex; align-items: center; gap: 8px;
+    height: var(--myz-hit-compact); padding: 0 8px;
+    border-radius: var(--myz-r-sm); color: var(--myz-text);
+    font-size: 13px; cursor: pointer; border: 0; background: transparent;
+    width: 100%; text-align: left;
+  }
+  .nav__item:hover { background: var(--myz-surface-2); }
+  .nav__item.is-active { background: var(--myz-surface-2); color: var(--myz-accent-text); }
+  .nav__item .count { margin-left: auto; font-size: 12px; color: var(--myz-muted); }
+  .nav__item.is-drop-target {
+    box-shadow: inset 2px 0 0 var(--myz-line);
+  }
+  .nav__item.is-drop-target:hover { box-shadow: inset 2px 0 0 var(--myz-accent); }
+
+  .handle {
+    position: relative; cursor: col-resize; background: transparent;
+    border: 0; padding: 0; height: 100%;
+  }
+  .handle::after {
+    content: ""; position: absolute; inset: 0 2px;
+    border-radius: 2px; background: transparent; transition: background 120ms;
+  }
+  .handle:hover::after, .handle.is-dragging::after { background: var(--myz-accent); opacity: .3; }
+  .handle:focus-visible { outline: 2px solid var(--myz-accent); outline-offset: -1px; }
+
+  .main { display: flex; flex-direction: column; min-width: 0; background: var(--myz-bg); }
+  .header {
+    display: flex; align-items: center; gap: 8px;
+    height: var(--myz-header-h); padding: 0 16px; flex: 0 0 auto;
+    background: var(--myz-surface); border-bottom: 1px solid var(--myz-line);
+  }
+  .header { min-width: 0; }
+  .header__title { font-size: 17px; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
+  .header__count {
+    font-size: 12px; color: var(--myz-muted); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto;
+  }
+  .header__right { margin-left: auto; display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+  .header__readout {
+    font-family: var(--myz-mono); font-size: 11px; color: var(--myz-muted);
+    padding: 2px 6px; border: 1px solid var(--myz-line); border-radius: var(--myz-r-xs);
+    white-space: nowrap; flex: 0 0 auto;
+  }
+  .search {
+    height: var(--myz-hit-compact); width: clamp(110px, 16vw, 180px); min-width: 90px; padding: 0 8px;
+    border: 1px solid var(--myz-line); border-radius: var(--myz-r);
+    background: var(--myz-control-bg); color: var(--myz-text); font-size: 13px;
+    font-family: var(--myz-sans);
+  }
+  .search:focus { outline: 2px solid var(--myz-accent); outline-offset: 1px; border-color: transparent; }
+
+  .batchbar {
+    display: none; align-items: center; gap: 8px;
+    height: 44px; padding: 0 var(--myz-row-pad-x); flex: 0 0 auto;
+    background: var(--myz-surface-2); border-bottom: 1px solid var(--myz-line);
+  }
+  .batchbar.is-on { display: flex; }
+  .batchbar__count { font-size: 12px; color: var(--myz-muted); }
+  .batchbar__sep { width: 1px; height: 20px; background: var(--myz-line); margin: 0 4px; }
+  .batchbar__right { margin-left: auto; }
+
+  .list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .statusbar {
+    display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+    height: var(--myz-statusbar-h); padding: 0 12px;
+    background: var(--myz-surface); border-top: 1px solid var(--myz-line);
+    font-size: 11px; color: var(--myz-muted);
+  }
+  .statusbar__bar {
+    width: 120px; height: 3px; border-radius: 2px; background: var(--myz-line); overflow: hidden;
+  }
+  .statusbar__bar i { display: block; height: 100%; width: 62%; background: var(--myz-accent); }
+
+  .panel-r {
+    display: flex; flex-direction: column; min-width: 0;
+    background: var(--myz-surface); border-left: 1px solid var(--myz-line);
+    overflow: hidden;
+  }
+  .panel-r__head {
+    display: flex; align-items: center; gap: 4px;
+    height: 40px; padding: 0 12px; flex: 0 0 auto;
+    border-bottom: 1px solid var(--myz-line);
+  }
+  .panel-r__head .spacer { flex: 1; }
+  .panel-r__body { padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  .panel-r__excerpt {
+    font-family: var(--myz-read); font-size: 14px; line-height: 1.55; margin: 0;
+  }
+  .panel-r__label {
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--myz-muted);
+  }
+  .panel-r__note {
+    font-size: 13px; color: var(--myz-text); margin: 0;
+    padding-left: 8px; border-left: 2px solid var(--myz-line);
+  }
+  .panel-r__meta { font-size: 12px; color: var(--myz-muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+  /* ── ③ 组件区 ─────────────────────────────────────────────────── */
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card {
+    border: 1px solid var(--myz-line); border-radius: var(--myz-r-lg);
+    background: var(--myz-surface); padding: 16px;
+  }
+  .card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; }
+  .stack { display: flex; flex-direction: column; gap: 8px; }
+  .row-of { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .swatch-note { font-size: 11px; color: var(--myz-muted); font-family: var(--myz-mono); }
+
+  .dark-wrap { background: var(--myz-bg); color: var(--myz-text); padding: 0; }
+  [data-theme="dark"] .panel,
+  [data-theme="dark"] .card,
+  [data-theme="dark"] .shell-frame { border-color: var(--myz-line); }
+  [data-theme="dark"] .old-row { border-color: var(--myz-line); }
+
+  .foot { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--myz-line); color: var(--myz-muted); font-size: 12px; }
+  .foot p { margin: 0 0 6px; }
+
+  @media (max-width: 1199px) {
+    /* 规范 §3.6：< 1200 右栏改覆盖式；静态 demo 直接收起 */
+    .shell { grid-template-columns: var(--myz-rail-w) var(--nav-w) 6px minmax(0, 1fr); }
+    .shell > .panel-r,
+    .shell > .handle[aria-label="调整右栏宽度"] { display: none; }
+  }
+  @media (max-width: 1100px) {
+    .compare { grid-template-columns: 1fr; }
+    .grid3 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 860px) {
+    .page { padding: 24px 16px 64px; }
+    .shell { grid-template-columns: var(--myz-rail-w) minmax(0, 1fr); height: 560px; }
+    .shell > .nav, .shell > .handle, .shell > .panel-r { display: none; }
+    .shell.is-static { grid-template-columns: var(--myz-rail-w) minmax(0, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="tagline">0.7 设计目标态 · 不是现状</div>
+    <h1>MyZ 工作区</h1>
+    <p>这一页是 0.7 的设计目标，用来对比「改造前 / 改造后」和试骨架手感。配色、圆角、字号层级都没换——换的是密度、骨架和列表行的形态。下面所有颜色都来自产品同一份 <code>tokens.css</code>。</p>
+  </header>
+
+  <!-- ① 旧 vs 新 -->
+  <section>
+    <h2><span class="num">01</span>同一段 Inbox，两边可视区都是 480 高</h2>
+    <p class="lede">左边是现在的做法：每行一张带边框圆角的卡片、12 的行间隙、底部一条常驻动作栏，实测行高 151。右边是目标：无卡片的 flush 行、行间 1px 分隔、动作只在悬停或选中时出现，行高 56。内容一样，480 高的区域里左边看全 2 条，右边 8 条只占 448。</p>
+    <div class="compare">
+      <div class="panel">
+        <div class="panel__head">
+          改造前
+          <span class="verdict verdict--bad">480 高 · 看全 2 条 · 行 151</span>
+        </div>
+        <div class="viewport" id="old-viewport"></div>
+        <div class="panel__foot">
+          <span>实测：行 151 · 卡片 + 圆角 + 12 间隙</span>
+          <span class="mono">动作常驻</span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel__head">
+          改造后
+          <span class="verdict verdict--good">8 条占 448 · 看全 8 条 · 行 56</span>
+        </div>
+        <div class="viewport">
+          <div class="new-list" id="new-viewport"></div>
+        </div>
+        <div class="panel__foot">
+          <span>实测：行 56 · 8 条共 448 · 行间 1px</span>
+          <span class="mono">悬停出动作</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 可拖的骨架 -->
+  <section>
+    <h2><span class="num">02</span>工作区骨架（边栏真的能拖）</h2>
+    <p class="lede">拖动导航栏右缘或右栏左缘试试：导航 200–320、右栏 260–380，宽度记在本地。也可以用键盘——手柄聚焦后 ←/→ 调 8、Home 复位、Enter 折叠。选中行会亮起批量条，按 Esc 清空。</p>
+    <div class="shell-frame">
+      <div class="shell" id="shell-light"></div>
+    </div>
+    <p class="hint">rail 48 恒在 · header 48 吸顶 · 行 56 · 批量条按需 44 · 状态条只在有后台任务时出现</p>
+  </section>
+
+  <!-- ③ 深色 -->
+  <section>
+    <h2><span class="num">03</span>深色同一屏</h2>
+    <p class="lede">同一份 DOM、同一套 token，只换 <code>data-theme="dark"</code>。这里不可交互，用来看层级和对比。</p>
+    <div data-theme="dark" class="dark-wrap">
+      <div class="shell-frame">
+        <div class="shell is-static" id="shell-dark"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ 组件 -->
+  <section>
+    <h2><span class="num">04</span>组件与状态</h2>
+    <p class="lede">状态 pill 统一成一处；按钮四档高度由行密度决定，不再按「这是哪个面」决定。</p>
+    <div class="grid3">
+      <div class="card">
+        <h3>状态 pill（§4.29）</h3>
+        <div class="stack">
+          <div class="row-of"><span class="pill pill--info">待处理</span><span class="swatch-note">info</span></div>
+          <div class="row-of"><span class="pill pill--muted">稍后处理</span><span class="swatch-note">surface-2 / muted</span></div>
+          <div class="row-of"><span class="pill pill--type">划线</span><span class="swatch-note">tag</span></div>
+          <div class="row-of"><span class="pill pill--danger">失败</span><span class="swatch-note">error</span></div>
+          <div class="row-of"><span class="pill pill--count">12</span><span class="swatch-note">计数</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>按钮四档</h3>
+        <div class="stack">
+          <div class="row-of"><button class="btn btn--dense">28 紧凑</button><span class="swatch-note">行内 / 工具条</span></div>
+          <div class="row-of"><button class="btn">32 标准</button><span class="swatch-note">列表 / 导航</span></div>
+          <div class="row-of"><button class="btn btn--form">36 表单</button><span class="swatch-note">输入 / 主操作</span></div>
+          <div class="row-of"><button class="btn btn--touch">44 触控</button><span class="swatch-note">窄屏</span></div>
+          <div class="row-of"><button class="btn btn--primary">主操作</button><button class="btn" disabled>禁用</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>列表行三态</h3>
+        <div class="stack" style="gap:0;border:1px solid var(--myz-line);border-radius:var(--myz-r)">
+          <div class="row" style="--row-mark:var(--myz-info)">
+            <span class="row__check"></span>
+            <span class="row__body">
+              <span class="row__top"><span class="pill pill--type">划线</span><span class="row__text">默认态：只有 1px 分隔</span></span>
+              <span class="row__meta">悬停才出现动作</span>
+            </span>
+            <span class="row__actions"><button class="btn btn--dense btn--ghost">保留</button></span>
+          </div>
+          <div class="row" style="--row-mark:var(--myz-info);background:var(--myz-surface-2)">
+            <span class="row__check"></span>
+            <span class="row__body">
+              <span class="row__top"><span class="pill pill--muted">稍后</span><span class="row__text">悬停态：底变 surface-2</span></span>
+              <span class="row__meta">色条不变</span>
+            </span>
+            <span class="row__actions"><button class="btn btn--dense btn--danger">删除</button></span>
+          </div>
+          <div class="row is-selected">
+            <span class="row__check"></span>
+            <span class="row__body">
+              <span class="row__top"><span class="pill pill--info">待处理</span><span class="row__text">选中态：色条换强调色</span></span>
+              <span class="row__meta">动作常显</span>
+            </span>
+            <span class="row__actions"><button class="btn btn--dense btn--danger">删除</button></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <p><strong>这一页不是现状。</strong>它是 0.7 的设计目标态，对应 <code>docs/research/design-system/design-system.md</code> v0.6 的 §2.5、§3.6、§4.20、§4.25、§4.27–4.29。</p>
+    <p>配色方案、圆角、字号九级都没改；改的是密度、四区骨架、列表行形态、批量条与状态 pill。</p>
+    <p>待确认：stitch 降级后的形态、素材页的「存为记录」、中文 14px 在 56 行高下的实际观感。</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── 数据：一段真实的 Inbox ──────────────────────────────────── */
+  var ROWS = [
+    { kind: "划线", state: "待处理", tone: "info", text: "本地优先的应用最难的不是同步，是让用户在断网时不觉得功能少了。", host: "少数派", time: "11-09 14:22", tag: "#阅读", mark: "var(--myz-info)" },
+    { kind: "摘录", state: "待处理", tone: "info", text: "设计系统不是一套颜色，是一组决定的记录。", host: "个人博客", time: "11-09 11:05", tag: "#设计", mark: "var(--myz-info)" },
+    { kind: "划线", state: "稍后处理", tone: "muted", text: "MHTML 保留的是渲染结果，DOM 快照保留的是结构。", host: "MDN", time: "11-08 20:31", tag: "", mark: "var(--myz-muted)" },
+    { kind: "收藏", state: "已标记", tone: "muted", text: "Chrome 内置模型没有 embedding 接口。", host: "developer.chrome.com", time: "11-08 09:12", tag: "", mark: "var(--myz-accent)" },
+    { kind: "划线", state: "待处理", tone: "info", text: "把「删除」做成确认加撤销，等于拦了两次。", host: "设计系统", time: "11-07 18:40", tag: "#设计", mark: "var(--myz-info)" },
+    { kind: "摘录", state: "待处理", tone: "info", text: "侧栏可调的意义是让用户决定这一屏看几件事。", host: "Notion 博客", time: "11-07 10:02", tag: "", mark: "var(--myz-info)" },
+    { kind: "划线", state: "稍后处理", tone: "muted", text: "Vue 的 JSX 里没有 Radix，只有手写的 focus trap。", host: "GitHub", time: "11-06 22:15", tag: "", mark: "var(--myz-muted)" },
+    { kind: "划线", state: "待处理", tone: "info", text: "快照就是那一刻的页，之后不再变。", host: "arXiv", time: "11-06 15:44", tag: "#阅读", mark: "var(--myz-info)" }
+  ];
+
+  var NAV = [
+    { title: "队列", items: [
+      { label: "待处理", count: 12, active: true },
+      { label: "稍后处理", count: 3 },
+      { label: "已标记", count: 1 },
+      { label: "已归档", count: 48 }
+    ]},
+    { title: "标签", items: [
+      { label: "#阅读", count: 8, drop: true },
+      { label: "#设计", count: 5, drop: true },
+      { label: "#待读", count: 2, drop: true }
+    ]}
+  ];
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  /* ── ① 旧：卡片行 ───────────────────────────────────────────── */
+  function renderOld() {
+    var host = document.getElementById("old-viewport");
+    ROWS.slice(0, 3).forEach(function (r) {
+      var row = el("div", "old-row");
+      var meta = el("div", "old-row__meta");
+      meta.appendChild(el("span", "pill pill--type", r.kind));
+      meta.appendChild(el("span", "pill pill--" + r.tone, r.state));
+      if (r.tag) meta.appendChild(el("span", "pill pill--muted", r.tag));
+      row.appendChild(meta);
+
+      row.appendChild(el("div", "old-row__text", r.text));
+      row.appendChild(el("div", "old-row__src", r.host + " · " + r.time));
+
+      var actions = el("div", "old-row__actions");
+      actions.appendChild(el("button", "btn btn--dense", "保留"));
+      actions.appendChild(el("button", "btn btn--dense", "归档"));
+      actions.appendChild(el("button", "btn btn--dense", "稍后"));
+      var del = el("button", "btn btn--dense btn--danger", "删除");
+      actions.appendChild(del);
+      row.appendChild(actions);
+      host.appendChild(row);
+    });
+  }
+
+  /* ── ① 新：flush 行 ─────────────────────────────────────────── */
+  function newRow(r, index, interactive) {
+    var row = el("div", "row");
+    row.style.setProperty("--row-mark", r.mark);
+    row.dataset.index = String(index);
+
+    var check = el("label", "row__check");
+    if (interactive) {
+      var input = el("input");
+      input.type = "checkbox";
+      input.className = "pick";
+      input.setAttribute("aria-label", "选择这条记录");
+      check.appendChild(input);
+    }
+    row.appendChild(check);
+
+    var body = el("span", "row__body");
+    var top = el("span", "row__top");
+    top.appendChild(el("span", "pill pill--type", r.kind));
+    top.appendChild(el("span", "pill pill--" + r.tone, r.state));
+    top.appendChild(el("span", "row__text", r.text));
+    body.appendChild(top);
+
+    var meta = el("span", "row__meta");
+    var b = el("b", null, r.host);
+    meta.appendChild(b);
+    meta.appendChild(document.createTextNode(" · " + r.time + (r.tag ? " · " + r.tag : "")));
+    body.appendChild(meta);
+    row.appendChild(body);
+
+    var actions = el("span", "row__actions");
+    actions.appendChild(el("button", "btn btn--dense btn--ghost", "保留"));
+    actions.appendChild(el("button", "btn btn--dense btn--danger", "删除"));
+    row.appendChild(actions);
+    return row;
+  }
+
+  function renderNew(target) {
+    ROWS.forEach(function (r, i) { target.appendChild(newRow(r, i, false)); });
+  }
+
+  /* ── ② 骨架 ─────────────────────────────────────────────────── */
+  var ICON_PATHS = {
+    library: '<path d="M4 19.5V5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2Z"/><path d="M8 7h8M8 11h6"/>',
+    inbox: '<path d="M3 12h4l2 3h6l2-3h4"/><path d="M5 5h14l2 7v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5l2-7Z"/>',
+    reader: '<path d="M12 6c-1.6-1.4-3.6-2-6-2v14c2.4 0 4.4.6 6 2 1.6-1.4 3.6-2 6-2V4c-2.4 0-4.4.6-6 2Z"/><path d="M12 6v14"/>',
+    media: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 17 5-5 4 4 3-3 4 4"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
+    theme: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18Z" fill="currentColor" stroke="none"/>'
+  };
+  var RAIL = [
+    { key: "library", label: "文库" },
+    { key: "inbox", label: "Inbox", active: true },
+    { key: "reader", label: "阅读" },
+    { key: "media", label: "素材" },
+    { key: "settings", label: "设置" }
+  ];
+  function svgIcon(path) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
+  }
+
+  function buildShell(root, interactive) {
+    root.innerHTML = "";
+    root.style.setProperty("--nav-w", "var(--myz-nav-w)");
+    root.style.setProperty("--panel-w", "var(--myz-panel-w)");
+
+    /* rail */
+    var rail = el("div", "rail");
+    RAIL.forEach(function (item) {
+      var b = el("button", "rail__btn" + (item.active ? " is-active" : ""));
+      b.type = "button";
+      b.setAttribute("aria-label", item.label);
+      b.innerHTML = svgIcon(ICON_PATHS[item.key]);
+      rail.appendChild(b);
+    });
+    rail.appendChild(el("div", "rail__spacer"));
+    var themeBtn = el("button", "rail__btn");
+    themeBtn.type = "button";
+    themeBtn.setAttribute("aria-label", "切换深浅色");
+    themeBtn.innerHTML = svgIcon(ICON_PATHS.theme);
+    themeBtn.addEventListener("click", function () {
+      /* 只切换这一个壳的深浅，不动整页 */
+      var isDark = root.getAttribute("data-theme") === "dark";
+      root.setAttribute("data-theme", isDark ? "light" : "dark");
+    });
+    rail.appendChild(themeBtn);
+    root.appendChild(rail);
+
+    /* nav */
+    var nav = el("div", "nav");
+    NAV.forEach(function (group) {
+      var g = el("div", "nav__group");
+      g.appendChild(el("div", "nav__title", group.title));
+      group.items.forEach(function (item) {
+        var b = el("button", "nav__item" + (item.active ? " is-active" : ""), null);
+        b.type = "button";
+        b.appendChild(el("span", null, item.label));
+        b.appendChild(el("span", "count", String(item.count)));
+        if (item.drop) b.classList.add("is-drop-target");
+        g.appendChild(b);
+      });
+      nav.appendChild(g);
+    });
+    root.appendChild(nav);
+
+    /* nav handle */
+    var navHandle = el("button", "handle");
+    navHandle.type = "button";
+    navHandle.setAttribute("aria-label", "调整导航栏宽度");
+    navHandle.setAttribute("role", "separator");
+    navHandle.setAttribute("aria-orientation", "vertical");
+    root.appendChild(navHandle);
+
+    /* main */
+    var main = el("div", "main");
+    var header = el("div", "header");
+    header.appendChild(el("div", "header__title", "Inbox"));
+    header.appendChild(el("div", "header__count", "待处理 12 · 积压 3 天"));
+    var right = el("div", "header__right");
+    var readout = el("span", "header__readout", "240 / 280");
+    var search = el("input", "search");
+    search.type = "search";
+    search.placeholder = "搜索原文、批注、标题、标签";
+    search.setAttribute("aria-label", "搜索");
+    right.appendChild(readout);
+    right.appendChild(search);
+    right.appendChild(el("button", "btn", "列表"));
+    right.appendChild(el("button", "btn", "专注"));
+    header.appendChild(right);
+    main.appendChild(header);
+
+    /* batch bar */
+    var batch = el("div", "batchbar");
+    var all = el("input");
+    all.type = "checkbox";
+    all.className = "pick-all";
+    all.setAttribute("aria-label", "全选当前视图");
+    var count = el("span", "batchbar__count", "已选 0");
+    batch.appendChild(all);
+    batch.appendChild(count);
+    batch.appendChild(el("span", "batchbar__sep"));
+    ["保留", "归档", "稍后"].forEach(function (label) {
+      batch.appendChild(el("button", "btn btn--dense", label));
+    });
+    var rightSide = el("span", "batchbar__right");
+    var del = el("button", "btn btn--dense btn--danger", "删除");
+    var cancel = el("button", "btn btn--dense btn--ghost", "取消选择");
+    rightSide.appendChild(del);
+    rightSide.appendChild(cancel);
+    batch.appendChild(rightSide);
+    main.appendChild(batch);
+
+    /* list */
+    var list = el("div", "list");
+    ROWS.forEach(function (r, i) { list.appendChild(newRow(r, i, true)); });
+    main.appendChild(list);
+
+    /* status bar */
+    var status = el("div", "statusbar");
+    status.appendChild(el("span", null, "正在生成页面快照 3/5"));
+    var bar = el("span", "statusbar__bar");
+    bar.appendChild(el("i"));
+    status.appendChild(bar);
+    status.appendChild(el("span", null, "62%"));
+    main.appendChild(status);
+
+    root.appendChild(main);
+
+    /* panel handle */
+    var panelHandle = el("button", "handle");
+    panelHandle.type = "button";
+    panelHandle.setAttribute("aria-label", "调整右栏宽度");
+    panelHandle.setAttribute("role", "separator");
+    panelHandle.setAttribute("aria-orientation", "vertical");
+    root.appendChild(panelHandle);
+
+    /* right panel */
+    var panel = el("div", "panel-r");
+    var phead = el("div", "panel-r__head");
+    phead.appendChild(el("span", "pill pill--type", "划线"));
+    phead.appendChild(el("span", "pill pill--info", "待处理"));
+    phead.appendChild(el("span", "spacer"));
+    phead.appendChild(el("button", "btn btn--dense btn--ghost", "×"));
+    panel.appendChild(phead);
+
+    var pbody = el("div", "panel-r__body");
+    pbody.appendChild(el("div", "panel-r__label", "原文"));
+    pbody.appendChild(el("p", "panel-r__excerpt", "本地优先的应用最难的不是同步，是让用户在断网时不觉得功能少了。"));
+    pbody.appendChild(el("div", "panel-r__label", "批注"));
+    pbody.appendChild(el("p", "panel-r__note", "所以快照要走本地存储，同步只走元数据。"));
+    pbody.appendChild(el("div", "panel-r__label", "标签"));
+    var chips = el("div", "chips");
+    chips.appendChild(el("span", "pill pill--muted", "#阅读"));
+    chips.appendChild(el("span", "pill pill--muted", "#待处理"));
+    pbody.appendChild(chips);
+    pbody.appendChild(el("div", "panel-r__label", "来源"));
+    pbody.appendChild(el("div", "panel-r__meta", "少数派 · 11-09 14:22 · 同页还有 4 条"));
+    panel.appendChild(pbody);
+    root.appendChild(panel);
+
+    if (!interactive) return;
+
+    var cs = getComputedStyle(document.documentElement);
+    function tokenPx(name) {
+      var raw = cs.getPropertyValue(name).trim();
+      return parseFloat(raw) || 0;
+    }
+    var NAV_MIN = tokenPx("--myz-nav-w-min") || 200;
+    var NAV_MAX = tokenPx("--myz-nav-w-max") || 320;
+    var PANEL_MIN = tokenPx("--myz-panel-w-min") || 260;
+    var PANEL_MAX = tokenPx("--myz-panel-w-max") || 380;
+    var NAV_DEFAULT = tokenPx("--myz-nav-w") || 240;
+    var PANEL_DEFAULT = tokenPx("--myz-panel-w") || 280;
+
+    function current(varName, fallback) {
+      var v = parseFloat(root.style.getPropertyValue(varName));
+      return isNaN(v) ? fallback : v;
+    }
+    var ariaSyncs = [];
+    function setWidth(varName, value) {
+      root.style.setProperty(varName, value + "px");
+      updateReadout();
+      ariaSyncs.forEach(function (fn) { fn(); });
+    }
+    function updateReadout() {
+      var navW = Math.round(current("--nav-w", NAV_DEFAULT));
+      var panelW = Math.round(current("--panel-w", PANEL_DEFAULT));
+      readout.textContent = (navW === 0 ? "导航收起" : navW) +
+        " / " + (panelW === 0 ? "右栏收起" : panelW);
+      readout.title = "导航栏宽 / 右栏宽（可拖）";
+    }
+
+    function bindHandle(handle, opts) {
+      var dragging = false;
+      var startX = 0;
+      var startW = 0;
+
+      function syncAria() {
+        var w = Math.round(current(opts.varName, opts.fallback));
+        handle.setAttribute("aria-valuenow", String(w));
+        handle.setAttribute("aria-valuemin", String(opts.min));
+        handle.setAttribute("aria-valuemax", String(opts.max));
+        handle.setAttribute("aria-valuetext", opts.label + " " + w + " 像素");
+      }
+      ariaSyncs.push(syncAria);
+      syncAria();
+
+      /* 监听挂在 window 上而不是靠 pointer capture：指针一旦离开 6px 的手柄，
+         capture 在某些环境里不可靠，光标到主区就收不到 move 了。 */
+      function onMove(e) {
+        if (!dragging) return;
+        var delta = opts.invert ? startX - e.clientX : e.clientX - startX;
+        var next = Math.min(opts.max, Math.max(opts.min, startW + delta));
+        setWidth(opts.varName, next);
+      }
+      function stop() {
+        if (!dragging) return;
+        dragging = false;
+        handle.classList.remove("is-dragging");
+        document.body.style.cursor = "";
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", stop);
+        window.removeEventListener("pointercancel", stop);
+      }
+
+      handle.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        dragging = true;
+        startX = e.clientX;
+        startW = current(opts.varName, opts.fallback);
+        handle.classList.add("is-dragging");
+        document.body.style.cursor = "col-resize";
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", stop);
+        window.addEventListener("pointercancel", stop);
+        e.preventDefault();
+      });
+
+      handle.addEventListener("dblclick", function () {
+        setWidth(opts.varName, opts.fallback);
+      });
+      handle.addEventListener("keydown", function (e) {
+        var step = 8;
+        var widening = opts.invert ? e.key === "ArrowLeft" : e.key === "ArrowRight";
+        var narrowing = opts.invert ? e.key === "ArrowRight" : e.key === "ArrowLeft";
+        if (widening || narrowing) {
+          e.preventDefault();
+          var next = current(opts.varName, opts.fallback) + (widening ? step : -step);
+          setWidth(opts.varName, Math.min(opts.max, Math.max(opts.min, next)));
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          setWidth(opts.varName, opts.fallback);
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          var now = current(opts.varName, opts.fallback);
+          setWidth(opts.varName, now > 0 ? 0 : opts.fallback);
+        }
+      });
+    }
+
+    bindHandle(navHandle, { varName: "--nav-w", min: NAV_MIN, max: NAV_MAX, fallback: NAV_DEFAULT, label: "导航栏宽" });
+    bindHandle(panelHandle, { varName: "--panel-w", min: PANEL_MIN, max: PANEL_MAX, fallback: PANEL_DEFAULT, invert: true, label: "右栏宽" });
+    updateReadout();
+
+    /* 默认选中两条：批量条是这一版的重点，不选就看不见 */
+    function preselect() {
+      var first = list.querySelectorAll(".pick");
+      for (var i = 0; i < Math.min(2, first.length); i++) first[i].checked = true;
+    }
+
+    /* 选择态 */
+    var picks = list.querySelectorAll(".pick");
+    function refresh() {
+      var checked = list.querySelectorAll(".pick:checked");
+      batch.classList.toggle("is-on", checked.length > 0);
+      count.textContent = "已选 " + checked.length;
+      all.checked = checked.length === picks.length && picks.length > 0;
+      all.indeterminate = checked.length > 0 && checked.length < picks.length;
+      Array.prototype.forEach.call(picks, function (p) {
+        p.closest(".row").classList.toggle("is-selected", p.checked);
+      });
+    }
+    Array.prototype.forEach.call(picks, function (p) {
+      p.addEventListener("change", refresh);
+    });
+    all.addEventListener("change", function () {
+      Array.prototype.forEach.call(picks, function (p) { p.checked = all.checked; });
+      refresh();
+    });
+    preselect();
+    refresh();
+
+    cancel.addEventListener("click", function () {
+      Array.prototype.forEach.call(picks, function (p) { p.checked = false; });
+      refresh();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      if (!batch.classList.contains("is-on")) return;
+      Array.prototype.forEach.call(picks, function (p) { p.checked = false; });
+      refresh();
+    });
+  }
+
+  renderOld();
+  renderNew(document.getElementById("new-viewport"));
+  buildShell(document.getElementById("shell-light"), true);
+  buildShell(document.getElementById("shell-dark"), false);
+})();
+</script>
+</body>
+</html>
