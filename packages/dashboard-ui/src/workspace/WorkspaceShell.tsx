@@ -1,4 +1,12 @@
-import { computed, defineComponent, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue"
 import type { PropType } from "vue"
 import ResizeHandle from "./ResizeHandle.js"
 import {
@@ -30,8 +38,9 @@ export default defineComponent({
     /** Narrow-screen nav drawer is controlled by the page that fills it. */
     navOpen: { type: Boolean, default: false },
     onCloseNav: Function as PropType<() => void>,
-    /** Rendered above the scrolling main area (48px, §4.27). */
+    /** Right detail panel (§4.27); below 1200 it becomes an overlay. */
     panelOpen: { type: Boolean, default: false },
+    onClosePanel: Function as PropType<() => void>,
   },
   setup(props, { slots }) {
     const storage = browserWidthStorage()
@@ -62,6 +71,33 @@ export default defineComponent({
     })
 
     const hasPanel = computed(() => Boolean(props.panelOpen && slots.panel))
+    const panelRef = ref<HTMLElement | null>(null)
+    let panelReturnFocus: HTMLElement | null = null
+
+    // Overlay panels take focus; the inline panel must not steal it.
+    watch(
+      () => props.panelOpen,
+      async (open) => {
+        const narrow =
+          typeof window !== "undefined" &&
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(max-width: 1199px)").matches
+        if (open) {
+          if (!narrow) return
+          panelReturnFocus =
+            document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null
+          await nextTick()
+          panelRef.value?.focus()
+        } else {
+          if (panelReturnFocus?.isConnected) {
+            panelReturnFocus.focus()
+          }
+          panelReturnFocus = null
+        }
+      },
+    )
     const navCollapsed = computed(() => navWidth.value === 0)
 
     const style = computed(() => ({
@@ -72,7 +108,12 @@ export default defineComponent({
     }))
 
     function onKeydown(event: KeyboardEvent) {
-      if (event.key === "Escape" && props.navOpen) {
+      if (event.key !== "Escape") return
+      if (props.panelOpen) {
+        props.onClosePanel?.()
+        return
+      }
+      if (props.navOpen) {
         props.onCloseNav?.()
       }
     }
@@ -162,9 +203,21 @@ export default defineComponent({
                   }}
                 />
               </div>
-              <aside class="myz-workspace__panel" data-testid="workspace-panel">
+              <aside
+                ref={panelRef}
+                class="myz-workspace__panel"
+                data-testid="workspace-panel"
+                role="complementary"
+                aria-label="详情"
+                tabindex={-1}
+              >
                 {slots.panel?.()}
               </aside>
+              <div
+                class="myz-workspace__panel-backdrop"
+                onClick={() => props.onClosePanel?.()}
+                aria-hidden="true"
+              />
             </>
           ) : null}
           {slots.bottomNav ? (
