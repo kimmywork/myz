@@ -48,14 +48,24 @@ export default defineComponent({
     )
 
     const dropdownPosition = computed(() => {
-      if (!triggerRef.value) {
+      if (!triggerRef.value || typeof window === "undefined") {
         return { top: 0, left: 0 }
       }
       const rect = triggerRef.value.getBoundingClientRect()
-      return {
-        top: rect.bottom + 8,
-        left: rect.right - 144, // align right edge with button (w-36 = 144px)
-      }
+      const menuWidth = 144 // w-36
+      const menuHeight = 112 // three 32px options + padding
+      const margin = 8
+      // The toggle can sit in the rail footer (bottom-left), so the menu
+      // flips above the trigger and clamps inside the viewport.
+      const top =
+        rect.bottom + margin + menuHeight > window.innerHeight
+          ? Math.max(margin, rect.top - margin - menuHeight)
+          : rect.bottom + margin
+      const left = Math.min(
+        Math.max(margin, rect.right - menuWidth),
+        window.innerWidth - margin - menuWidth,
+      )
+      return { top, left }
     })
 
     const sizeClass = computed(() =>
