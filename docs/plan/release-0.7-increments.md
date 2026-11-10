@@ -12,7 +12,7 @@
 1. **一个增量 = 一个分支 + 一个 PR**，目标分支 `master`。分支名 `feat/0.7-iN-<slug>`，合并后立即删除。
 2. 开工：`git fetch origin && git switch -c feat/0.7-iN-<slug> origin/master`。
 3. 合入前必绿：`myz-annotator` 下 `npm run lint`、`npm run build`、`npm run test:dev`；涉及 UI 或行为的再加 `npm run test:e2e`；根目录 `npm run jscpd:check`（新代码不制造重复）。设计与 token 相关的加 `npm run check:design-tokens`。合入后 `master` 的 CI 不能变红。
-4. **不搭顺风车**：增量之外的顺手重构、命名统一、依赖升级，一律不开。发现了就记进 `PARKING_LOT` 或在群里说，不塞进当前 PR。
+4. **不搭顺风车**：增量之外的顺手重构、命名统一、依赖升级，一律不开。发现了记进仓库根的 `PARKING_LOT.md`（I1 建），不塞进当前 PR。
 5. 每个 PR 描述固定四段：本增量做了什么 / 不做什么 / 怎么验 / 合入后用户能看到什么。
 6. 每个增量都要能**单独回滚**：不留下「删了旧代码但新代码靠后一个增量」的中间态。
 
@@ -27,7 +27,7 @@
 | I3 | 列表行与密度（Inbox + 文库） | I2 | 2–3 天 | 一屏条目翻倍，不再每行一张卡片 |
 | I4 | 删除统一（撤销 / 确认两条轴） | I3 | 2–3 天 | 删除不再弹系统灰框，可撤销 |
 | I5 | 批量（文库）+ 阅读页删除动作 | I4 | 2–3 天 | 几百条能一次处理；阅读页能删单条 |
-| I6 | 素材页 | I3 | 2–3 天 | dashboard 里能看到截图 |
+| I6 | 素材页 | I3、I4、I5 | 2–3 天 | dashboard 里能看到截图 |
 | I7 | 截图 / 视频帧存为记录 | I6 | 3–4 天 | 截图变成可检索、可带上下文的记录 |
 | I8 | 快照 v1：采集 → 存储 → 最小回看 | I3 | 4–5 天 | 查看器里多一个「快照」视图 |
 | I9 | 快照 v2：锚点、截断、版本 | I8 | 3–4 天 | 高亮能在快照上定位；快照有日期与占用说明 |
@@ -48,6 +48,7 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 - `docs/plan/future-plan.md` 顶部标注「已否决方向的结论集，不是 backlog」。
 - `docs/plan/host-unification.md` 顶部标注「0.7 之后；1.x 第一件事」。
 - 同步修掉文档里指向这些旧路径的引用（`rg -n "new-viewer|bundled-annotation|future-plan" docs README*`）。
+- 建一个最小的 `PARKING_LOT.md`（仓库根）：一行说明用途 + 一行格式（日期 / 来源增量 / 一句话 / 状态），给后面的增量一个放「顺手发现」的地方。
 
 **不做什么**：不改任何代码；不重写这几份文档的内容。
 
@@ -67,7 +68,7 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 
 **做什么**
 - `packages/dashboard-ui` 新增 `WorkspaceShell`、`NavRail`、`ResizeHandle`；宽度状态存本地（不同步）。
-- 新增 token（按 `docs/research/design-system/design-system.md` v0.6 §3.6）：`--myz-rail-w`、`--myz-nav-w`、`--myz-header-h`。
+- **消费** #114 已加进 master 的 token（`packages/shared/src/theme/tokens.css:65-84`：`--myz-rail-w`、`--myz-nav-w`、`--myz-nav-w-min/max`、`--myz-header-h`、`--myz-row-h*`、`--myz-hit-dense` 等），**不重复声明**。发现缺的才补，并同步写进设计系统。
 - 先套到 **Inbox 与文库两页**；行样式一行不动。
 - 拖拽：nav 200–320、双击复位、`role="separator"` + `aria-valuenow`、`←/→` 调 8px、`Home` 复位、`Enter` 折叠。
 - 断点：`< 900` 抽屉、`< 640` 底部导航（沿用现有 900 断点）。
@@ -154,7 +155,7 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 - 手测：文库 500 条时全选只选当前页，计数显示正确。
 - `npm run test:dev` 覆盖「选择态随视图切换清空」的行为。
 
-**动到的模块**：`packages/dashboard-ui`、`myz-annotator/src/dashboard/pages/{highlights,readers}`、导出逻辑 `background/messages/highlights.ts`（批量导出复用现有 `myz:export`，不新写）。
+**动到的模块**：`packages/dashboard-ui`、`myz-annotator/src/dashboard/pages/{highlights,readers}`、`myz-annotator/src/messaging/contract.ts` 与 `background/messages/highlights.ts`——**批量导出要改契约**：`myz:export` 现在是 `payload: void`、导出全部记录（`contract.ts:91`、`highlights.ts:77-83`），改成可选 `ids?: string[]`，不传 = 全部（保持现有行为），传了就只导选中的。这不是「不新写」，是向后兼容的契约扩展，PR 里要写明并补一条契约测试。
 
 **用户可见**：文库能一次处理几百条；阅读页能删掉某一本。
 
@@ -180,14 +181,19 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 
 **用户可见**：dashboard 里能看到、能删掉截图，不用再去 popup 里找。
 
-**依赖 / 规模**：I3 / 2–3 天。
+**依赖 / 规模**：I3、I4、I5 / 2–3 天。
 
 ---
 
 ### I7 · 截图 / 视频帧存为记录
 
 **做什么**
-- 记录 schema 增加附件引用（`kind = clip`）。**PR 里必须写清**：走新 schema 版本还是 `schemaId` payload codec，旧记录如何兼容，同步与导出如何处理。
+- **记录 schema 的兼容方案（已定，不留到写 PR 时决定）**：在现有 `myz.record` codec 上加**可选字段**（附件引用 = `assetId` + `mime` + 宽高），**不新增 `schemaId`、不升 `currentVersion`**。
+  - 判据一：加可选字段向后兼容。`MyZRecordSchema` 是 `.passthrough()`（`packages/shared/src/schemas/records/v1.ts:39`），老客户端解析时保留未知字段，不报错。
+  - 判据二：读改写是合并、不是重建。`updateRecord` / `updateRecordsPatch` 都是 `{ ...existing, ...patch }`（`packages/core/src/services/records.ts:154-159`、`:217-222`）；存储层读原对象、写只补 `schemaVersion`（`myz-annotator/src/background/storage.ts:180-183`、`:198-200`）。所以 0.6.6 用户改标签再同步，附件字段还在。
+  - 判据三：新 `schemaId` 反而更糟。老客户端遇到不认识的 `schemaId` 只能不物化（`packages/core/src/ports.ts:13-17`、`packages/core/src/payload-codec.ts:20-23`），整条记录对 0.6.6 用户不可见——比「看得见记录、看不见图」更差。
+  - `currentVersion + 1` 只用于破坏性变更（字段改名、删字段、改类型）；加可选字段不动版本号。
+  - **开工第一件事：实测旧客户端回写不丢字段（半天）**——用 0.6.6 的构建造库，导入一条带附件字段的记录 → 改标签 → 导出，确认字段还在。这条不能只靠读代码推断。
 - context 默认带三项、不给关：来源页 URL + 标题、文字上下文（有选区取选区，否则取最近文本块前后约 200 字）、视频时间戳 `mm:ss`（深链 `?t=`）。
 - 批注可选、默认收起。
 - 批量「存为记录」：context 取公共部分，缺失留空，不逐张补。
@@ -202,7 +208,7 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 - 导出后打开 JSON：`attachmentsMissing: {count, ids}` 存在且数量正确。
 - 换设备模拟（清本地 store 后加载记录）：显示「图片在本机」，不崩、不空白。
 
-**动到的模块**：`packages/shared`（schema + 类型）、`packages/core`（payload codec，若走这条）、`myz-annotator/src/dashboard/pages`（素材页动作 + 记录卡）、`background/messages/highlights.ts`（导出清单）、`packages/sync-core`（若不兼容则必须显式声明）。
+**动到的模块**：`packages/shared`（schema + 类型，加可选字段）、`packages/core`（codec 复用现有 `myz.record`，不新建）、`myz-annotator/src/dashboard/pages`（素材页动作 + 记录卡）、`background/messages/highlights.ts`（导出清单）、`packages/sync-core`（不动：`data: unknown` 原样携带）。
 
 **用户可见**：截图变成一条能搜、能带上下文、能和划线一起看的记录。
 
@@ -319,7 +325,7 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 
 ## 5. 风险
 
-1. **I7 动数据模型**。它是 0.7 唯一改记录 schema 的增量；若 schema 方案在 PR 评审时还没定，宁可推迟 I7，也不要带着不确定的 schema 合入。
+1. **I7 动数据模型**。它是 0.7 唯一改记录 schema 的增量。兼容方案已定（加可选字段、不升版本），但「0.6.6 回写不丢字段」是推断出来的，必须用那半天实测确认；确认不通过就退回「附件只存素材页、不挂记录」，不要硬上。
 2. **I8 的存储预算是新子系统**。上限数值必须有实测依据；「先拍一个数字」会在用户机器上变成淘汰或爆盘。
 3. **I4 的边界语义**是上一轮对抗分析指出的最大隐患，四条用例不能省。
 4. **I2/I3/I10 改同一批页面**，合并顺序不能乱；并行时不要碰同一个文件。
