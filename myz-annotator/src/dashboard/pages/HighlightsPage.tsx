@@ -1,5 +1,7 @@
 import { PageSidebar } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
+import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
+import type { WorkspacePageControls } from "../components/DashboardWorkspaceLayout.jsx";
 import HighlightsPane from "../components/HighlightsPane.jsx";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
@@ -10,41 +12,43 @@ export default defineComponent({
   setup() {
     const uiStore = useUIStore();
     const highlightsStore = useHighlightsStore();
-    const layoutClasses = () =>
-      [
-        "flex flex-col gap-6 min-[900px]:flex-row",
-        uiStore.pageSidebarOpen ? "min-[900px]:items-stretch" : "",
-      ].join(" ");
+
     return () => (
-      <>
-        {highlightsStore.operationStatus ? (
-          <p
-            class="mb-2 text-caption text-muted"
-            role="status"
-            aria-live="polite"
-          >
-            {highlightsStore.operationStatus}
-          </p>
-        ) : null}
-        <div class={layoutClasses()}>
-          {uiStore.pageSidebarOpen ? (
-            <div class="min-[900px]:w-[264px] min-[900px]:flex-shrink-0">
-              <PageSidebar
-                groups={uiStore.pageGroups}
-                activePageUrl={uiStore.pageFilter}
-                fixedHeight={Boolean(uiStore.pageSidebarOpen)}
-                formatDateTime={formatDateTime}
-                onToggle={uiStore.togglePageSidebar}
-                onClear={uiStore.clearPageFilter}
-                onSelect={uiStore.setPageFilter}
-              />
+      <DashboardWorkspaceLayout>
+        {{
+          nav: ({ closeNav }: WorkspacePageControls) => (
+            <PageSidebar
+              groups={uiStore.pageGroups}
+              activePageUrl={uiStore.pageFilter}
+              flush
+              fixedHeight
+              formatDateTime={formatDateTime}
+              onClear={() => {
+                uiStore.clearPageFilter();
+                closeNav();
+              }}
+              onSelect={(url) => {
+                uiStore.setPageFilter(url);
+                closeNav();
+              }}
+            />
+          ),
+          default: ({ openNav }: WorkspacePageControls) => (
+            <div class="flex min-h-0 flex-col gap-3 p-4">
+              {highlightsStore.operationStatus ? (
+                <p
+                  class="text-caption text-muted"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {highlightsStore.operationStatus}
+                </p>
+              ) : null}
+              <HighlightsPane onOpenNav={openNav} />
             </div>
-          ) : null}
-          <div class="min-w-0 flex-1">
-            <HighlightsPane />
-          </div>
-        </div>
-      </>
+          ),
+        }}
+      </DashboardWorkspaceLayout>
     );
   },
 });

@@ -22,7 +22,6 @@ export function useInboxData() {
   const selected = ref<Set<string>>(new Set());
   const focusMode = ref(false);
   const focusIndex = ref(0);
-  const sidebarOpen = ref(false);
   const status = ref("");
   const undo = ref<UndoState | null>(null);
   const tagQuery = ref("");
@@ -169,7 +168,6 @@ export function useInboxData() {
     selected,
     focusMode,
     focusIndex,
-    sidebarOpen,
     status,
     undo,
     tagQuery,

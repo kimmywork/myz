@@ -88,17 +88,16 @@ test("infinite_scroll_loads_more", async () => {
     (els) => els.length,
   );
 
-  const sentinel = await dash.$('.scroll-sentinel[data-role="sentinel"]');
-  if (!sentinel) {
-    expect(initialCount).toBeGreaterThanOrEqual(total);
-    return;
-  }
+  // First page is 24 of 60, so more must remain and the sentinel must exist.
+  // A missing sentinel means pagination silently stopped: fail, don't pass.
+  expect(initialCount).toBeLessThan(total);
+  const sentinel = await dash.$('[data-role="sentinel"]');
+  expect(sentinel).toBeTruthy();
 
   await dash.evaluate(() => {
-    const root = document.querySelector(".main");
-    const sentinel = document.querySelector(
-      '.scroll-sentinel[data-role="sentinel"]',
-    );
+    // The workspace shell scrolls its main column, not the document.
+    const root = document.querySelector(".myz-workspace__body");
+    const sentinel = document.querySelector('[data-role="sentinel"]');
     if (sentinel && root) {
       sentinel.scrollIntoView({ block: "end" });
       root.scrollTop = root.scrollHeight;

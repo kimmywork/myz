@@ -15,6 +15,7 @@ export default defineComponent({
     const route = useRoute();
     const { effectiveTheme } = useThemePreference();
     const fullscreen = computed(() => Boolean(route.meta?.fullscreen));
+    const workspace = computed(() => Boolean(route.meta?.workspace));
 
     onMounted(async () => {
       try {
@@ -34,6 +35,11 @@ export default defineComponent({
     return () =>
       fullscreen.value ? (
         <div class="app-shell min-h-screen bg-bg text-text transition-colors">
+          <RouterView />
+        </div>
+      ) : workspace.value ? (
+        // Workspace pages draw the four-region shell themselves (§4.27).
+        <div class="app-shell h-screen overflow-hidden bg-bg text-text transition-colors">
           <RouterView />
         </div>
       ) : (

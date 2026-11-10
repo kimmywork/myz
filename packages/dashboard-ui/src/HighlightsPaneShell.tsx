@@ -15,7 +15,6 @@ export default defineComponent({
     summaryText: { type: String, required: true },
     pageFilter: { type: String, default: "" },
     currentPageLabel: { type: String, default: "" },
-    pageSidebarOpen: { type: Boolean, default: false },
     stickyLayout: { type: Boolean, default: false },
     view: {
       type: String as PropType<"cards" | "list">,
@@ -136,6 +135,7 @@ export default defineComponent({
               全部记录
             </h2>
             <p class="text-compact text-muted">{props.summaryText}</p>
+            {slots.search ? <div class="pt-2">{slots.search()}</div> : null}
             {props.pageFilter ? (
               <div class="flex flex-wrap items-center gap-2 text-caption text-muted">
                 <span>页面筛选：</span>
@@ -223,10 +223,10 @@ export default defineComponent({
 
             <button
               type="button"
-              class="inline-flex h-8 items-center rounded-control border border-line px-3 text-compact font-semibold text-muted transition hover:border-accent hover:text-accent-text dark:border-line dark:text-text"
+              class="inline-flex h-8 items-center rounded-control border border-line px-3 text-compact font-semibold text-muted transition hover:border-accent hover:text-accent-text min-[900px]:hidden dark:border-line dark:text-text"
               onClick={() => props.onTogglePageSidebar?.()}
             >
-              {props.pageSidebarOpen ? "收起页面" : "页面筛选"}
+              页面筛选
             </button>
             <div class="relative" ref={exportMenuRef}>
               <button

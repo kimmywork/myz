@@ -26,6 +26,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** Flush variant for the workspace nav column (§4.27): no card chrome. */
+    flush: {
+      type: Boolean,
+      default: false,
+    },
     emptyLabel: {
       type: String,
       default: "暂无可用页面",
@@ -40,6 +45,9 @@ export default defineComponent({
   },
   setup(props) {
     const sidebarClasses = computed(() => {
+      if (props.flush) {
+        return "flex h-full min-h-0 w-full flex-col overflow-hidden bg-surface p-3"
+      }
       const classes = [
         "w-full max-w-[264px] rounded-panel border border-line bg-surface p-4 dark:border-line dark:bg-surface",
       ]
@@ -50,7 +58,12 @@ export default defineComponent({
     })
 
     const groupsClasses = computed(() =>
-      ["space-y-2", props.fixedHeight ? "flex-1 overflow-y-auto pr-1" : ""]
+      [
+        "space-y-2",
+        props.fixedHeight || props.flush
+          ? "flex-1 min-h-0 overflow-y-auto pr-1"
+          : "",
+      ]
         .filter(Boolean)
         .join(" "),
     )
@@ -80,13 +93,15 @@ export default defineComponent({
             </h3>
             <p class="text-caption text-muted">按最近添加排序</p>
           </div>
-          <button
-            type="button"
-            class="inline-flex h-8 items-center rounded-control border border-line px-3 text-caption text-muted transition hover:border-accent hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg dark:border-line dark:text-muted dark:hover:text-accent-text"
-            onClick={() => props.onToggle?.()}
-          >
-            收起
-          </button>
+          {props.flush ? null : (
+            <button
+              type="button"
+              class="inline-flex h-8 items-center rounded-control border border-line px-3 text-caption text-muted transition hover:border-accent hover:text-accent-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg dark:border-line dark:text-muted dark:hover:text-accent-text"
+              onClick={() => props.onToggle?.()}
+            >
+              收起
+            </button>
+          )}
         </header>
 
         <div class="mt-3 flex min-h-0 flex-col gap-2">

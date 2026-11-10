@@ -1,5 +1,12 @@
 import { Monitor, Moon, Sun } from "@lucide/vue"
-import { computed, defineComponent, nextTick, ref, Teleport } from "vue"
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  Teleport,
+} from "vue"
 import { useThemePreference } from "../theme"
 
 const OPTIONS = [
@@ -47,23 +54,80 @@ export default defineComponent({
       getEffectiveOption(mode.value, effectiveTheme.value),
     )
 
-    const dropdownPosition = computed(() => {
-      if (!triggerRef.value) {
-        return { top: 0, left: 0 }
+    // `getBoundingClientRect()` is not reactive, so the position is measured
+    // when the menu opens (and re-measured if the viewport moves under it),
+    // never cached from a render pass.
+    const dropdownPos = ref({ top: 0, left: 0 })
+
+    function attachPositionListeners() {
+      window.addEventListener("resize", handleViewportChange)
+      window.addEventListener("scroll", handleViewportChange, true)
+    }
+
+    function detachPositionListeners() {
+      window.removeEventListener("resize", handleViewportChange)
+      window.removeEventListener("scroll", handleViewportChange, true)
+    }
+
+    /**
+     * Measures the trigger and stores the menu position. Returns false when
+     * the trigger is not laid out (hidden rail): opening there would put the
+     * menu in the top-left corner.
+     */
+    function measurePosition(): boolean {
+      const el = triggerRef.value
+      if (!el || typeof window === "undefined") {
+        return false
       }
-      const rect = triggerRef.value.getBoundingClientRect()
-      return {
-        top: rect.bottom + 8,
-        left: rect.right - 144, // align right edge with button (w-36 = 144px)
+      const rect = el.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) {
+        return false
       }
-    })
+      const menuWidth = 144 // w-36
+      // Three 32px options + list padding (py-1 top and bottom) + border.
+      // Keep this in sync with OPTIONS if the menu ever gains an entry.
+      const menuHeight = 112
+      const margin = 8
+      // The toggle can sit in the rail footer (bottom-left), so the menu
+      // flips above the trigger and clamps inside the viewport.
+      const top =
+        rect.bottom + margin + menuHeight > window.innerHeight
+          ? Math.max(margin, rect.top - margin - menuHeight)
+          : rect.bottom + margin
+      const left = Math.min(
+        Math.max(margin, rect.right - menuWidth),
+        window.innerWidth - margin - menuWidth,
+      )
+      dropdownPos.value = { top, left }
+      return true
+    }
+
+    function closeMenu() {
+      menuOpen.value = false
+      detachPositionListeners()
+    }
+
+    function handleViewportChange() {
+      if (!menuOpen.value) {
+        return
+      }
+      if (!measurePosition()) {
+        // The trigger went away (e.g. the rail hid at <640); close instead
+        // of leaving the menu pinned to a stale position.
+        closeMenu()
+      }
+    }
 
     const sizeClass = computed(() =>
       props.size === "sm" ? "px-2.5 py-1 text-tag" : "px-3 py-1.5 text-caption",
     )
 
     function toggleMenu() {
-      menuOpen.value = !menuOpen.value
+      if (menuOpen.value) {
+        closeMenu()
+        return
+      }
+      void openMenu()
     }
 
     function optionButtons(): HTMLElement[] {
@@ -74,7 +138,11 @@ export default defineComponent({
     }
 
     async function openMenu() {
+      if (!measurePosition()) {
+        return
+      }
       menuOpen.value = true
+      attachPositionListeners()
       await nextTick()
       const buttons = optionButtons()
       const active = menuRef.value?.querySelector<HTMLElement>(
@@ -103,12 +171,12 @@ export default defineComponent({
       )
       if (event.key === "Escape") {
         event.preventDefault()
-        menuOpen.value = false
+        closeMenu()
         triggerRef.value?.focus()
         return
       }
       if (event.key === "Tab") {
-        menuOpen.value = false
+        closeMenu()
         return
       }
       let next = current
@@ -124,8 +192,12 @@ export default defineComponent({
 
     function choose(option: (typeof OPTIONS)[number]) {
       setTheme(option.value as ThemeMode)
-      menuOpen.value = false
+      closeMenu()
     }
+
+    onBeforeUnmount(() => {
+      detachPositionListeners()
+    })
 
     return () => {
       const { class: className, ...restAttrs } = attrs
@@ -135,7 +207,7 @@ export default defineComponent({
         : `inline-flex items-center gap-1.5 rounded-pill border border-control-border text-text transition hover:border-accent hover:text-accent-text ${sizeClass.value}`
 
       const Icon = activeOption.value.Icon
-      const pos = dropdownPosition.value
+      const pos = dropdownPos.value
 
       return (
         <span class="relative inline-flex">

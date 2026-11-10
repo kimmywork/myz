@@ -9,12 +9,14 @@ export default defineComponent({
   name: "InboxSidebar",
   props: {
     api: { type: Object as PropType<InboxApi>, required: true },
+    /** Called after a queue/tag selection so the mobile drawer can close. */
+    onNavigate: { type: Function as PropType<() => void>, default: undefined },
   },
   setup(props) {
     return () => {
       const a = props.api;
       return (
-        <aside class="flex w-full flex-col gap-4 min-[900px]:w-60 min-[900px]:shrink-0">
+        <aside class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
           <div class="rounded-panel border border-line bg-surface p-3 dark:border-line">
             <div class="mb-2 text-tag font-semibold uppercase tracking-wide text-muted">
               队列
@@ -30,7 +32,7 @@ export default defineComponent({
                     onClick={() => {
                       a.activeTab.value = tab.key;
                       a.selected.value = new Set();
-                      a.sidebarOpen.value = false;
+                      props.onNavigate?.();
                     }}
                     class={[
                       "flex w-full items-center justify-between rounded-control px-3 py-2 text-compact font-medium transition",
@@ -84,7 +86,7 @@ export default defineComponent({
                       onDragend={a.endDrag}
                       onClick={() => {
                         a.activeTag.value = active ? null : tag;
-                        a.sidebarOpen.value = false;
+                        props.onNavigate?.();
                       }}
                       onDragover={(event: DragEvent) => event.preventDefault()}
                       onDrop={(event: DragEvent) => a.onDropOnTag(event, tag)}
