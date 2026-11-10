@@ -6,6 +6,11 @@ import HighlightListRow from "./HighlightListRow"
 import type { HighlightGroupSection, HighlightItemAction } from "./highlightMeta"
 import StatePanel from "./StatePanel"
 
+/**
+ * Record list by date (§4.20). Cards stay as they are (default view); the list
+ * view is the same flush row layout as the Inbox: one outer frame per date,
+ * rows separated by 1px, no card per record.
+ */
 export default defineComponent({
   name: "HighlightGroups",
   props: {
@@ -69,11 +74,52 @@ export default defineComponent({
         )
       }
 
+      const sentinel = props.hasMore ? (
+        <div
+          ref={(value) => props.setSentinelRef?.(value as HTMLDivElement | null)}
+          class="h-8 w-full"
+          data-role="sentinel"
+        />
+      ) : null
+
+      const sharedPropsFor = (item: MyZRecord) => ({
+        record: item,
+        formatInline: props.formatInline,
+        formatDateTime: props.formatDateTime,
+        renderHighlight: props.renderHighlight,
+        formatNote: props.formatNote,
+        onAction: props.onAction,
+      })
+
+      if (props.view === "list") {
+        return (
+          <section class="highlight-groups space-y-4" data-view="list">
+            {props.groups.map((group) => (
+              <section key={group.date}>
+                <h3 class="mb-2 px-1 text-tag font-semibold uppercase tracking-wide text-muted">
+                  {group.date} · 共 {group.stats.total} 条{group.detailText || ""}
+                </h3>
+                <div
+                  class="overflow-hidden rounded-panel border border-line bg-surface"
+                  role="listbox"
+                  aria-label={`${group.date} 的记录`}
+                >
+                  {group.items.map((item) => (
+                    <HighlightListRow
+                      key={item.id}
+                      {...sharedPropsFor(item)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+            {sentinel}
+          </section>
+        )
+      }
+
       return (
-        <section
-          class="highlight-groups space-y-6"
-          data-view={props.view}
-        >
+        <section class="highlight-groups space-y-6" data-view="cards">
           {props.groups.map((group) => (
             <section
               key={group.date}
@@ -82,38 +128,14 @@ export default defineComponent({
               <h3 class="text-tag font-semibold uppercase tracking-wide text-muted">
                 {group.date} · 共 {group.stats.total} 条{group.detailText || ""}
               </h3>
-              <div
-                class={[
-                  props.view === "cards"
-                    ? "space-y-3 columns-1 gap-3 sm:columns-2 xl:columns-3"
-                    : "space-y-3",
-                ].join(" ")}
-              >
-                {group.items.map((item) => {
-                  const sharedProps = {
-                    record: item,
-                    formatInline: props.formatInline,
-                    formatDateTime: props.formatDateTime,
-                    renderHighlight: props.renderHighlight,
-                    formatNote: props.formatNote,
-                    onAction: props.onAction,
-                  };
-                  return props.view === "cards" ? (
-                    <HighlightCard key={item.id} {...sharedProps} />
-                  ) : (
-                    <HighlightListRow key={item.id} {...sharedProps} />
-                  );
-                })}
+              <div class="space-y-3 columns-1 gap-3 sm:columns-2 xl:columns-3">
+                {group.items.map((item) => (
+                  <HighlightCard key={item.id} {...sharedPropsFor(item)} />
+                ))}
               </div>
             </section>
           ))}
-          {props.hasMore ? (
-            <div
-              ref={(value) => props.setSentinelRef?.(value as HTMLDivElement | null)}
-              class="h-8 w-full"
-              data-role="sentinel"
-            />
-          ) : null}
+          {sentinel}
         </section>
       )
     }

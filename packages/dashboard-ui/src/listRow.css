@@ -141,3 +141,9 @@
     min-height: var(--myz-row-h-touch);
   }
 }
+
+/* Library row actions reuse HighlightActions; keep them at 28px. */
+.myz-row-actions a,
+.myz-row-actions button {
+  padding: 6px;
+}
