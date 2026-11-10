@@ -14,8 +14,18 @@ import SetupPage from "./pages/SetupPage.jsx";
 
 const routes = [
   { path: "/", redirect: "/highlights" },
-  { path: "/highlights", name: "highlights", component: HighlightsPage },
-  { path: "/inbox", name: "inbox", component: InboxPage },
+  {
+    path: "/highlights",
+    name: "highlights",
+    component: HighlightsPage,
+    meta: { workspace: true },
+  },
+  {
+    path: "/inbox",
+    name: "inbox",
+    component: InboxPage,
+    meta: { workspace: true },
+  },
   {
     path: "/highlights/:id",
     name: "highlight-viewer",

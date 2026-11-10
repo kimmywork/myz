@@ -1,4 +1,5 @@
 import { computed, defineComponent, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import type { PropType } from "vue"
 import ResizeHandle from "./ResizeHandle.js"
 import {
   NAV_WIDTH_DEFAULT,
@@ -16,12 +17,6 @@ import {
 } from "./width.js"
 import "./workspace.css"
 
-export interface WorkspaceSlotProps {
-  navOpen: boolean
-  openNav: () => void
-  closeNav: () => void
-}
-
 /**
  * The four-region workspace shell (§4.27): rail / nav / main / panel.
  *
@@ -32,6 +27,9 @@ export interface WorkspaceSlotProps {
 export default defineComponent({
   name: "WorkspaceShell",
   props: {
+    /** Narrow-screen nav drawer is controlled by the page that fills it. */
+    navOpen: { type: Boolean, default: false },
+    onCloseNav: Function as PropType<() => void>,
     /** Rendered above the scrolling main area (48px, §4.27). */
     panelOpen: { type: Boolean, default: false },
   },
@@ -55,7 +53,6 @@ export default defineComponent({
         PANEL_WIDTH_MAX,
       ),
     )
-    const navOpen = ref(false)
 
     watch(navWidth, (value) => {
       writeStoredWidth(storage, NAV_WIDTH_STORAGE_KEY, value)
@@ -74,17 +71,9 @@ export default defineComponent({
       "--ws-panel-w": `${Math.round(panelWidth.value)}px`,
     }))
 
-    function openNav() {
-      navOpen.value = true
-    }
-
-    function closeNav() {
-      navOpen.value = false
-    }
-
     function onKeydown(event: KeyboardEvent) {
-      if (event.key === "Escape" && navOpen.value) {
-        closeNav()
+      if (event.key === "Escape" && props.navOpen) {
+        props.onCloseNav?.()
       }
     }
 
@@ -96,11 +85,6 @@ export default defineComponent({
     })
 
     return () => {
-      const current: WorkspaceSlotProps = {
-        navOpen: navOpen.value,
-        openNav,
-        closeNav,
-      }
       return (
         <div
           class={[
@@ -113,11 +97,12 @@ export default defineComponent({
         >
           <div class="myz-workspace__rail-slot">{slots.rail?.()}</div>
           <div
-            class={["myz-workspace__nav", navOpen.value ? "is-open" : ""].join(
-              " ",
-            )}
+            class={[
+              "myz-workspace__nav",
+              props.navOpen ? "is-open" : "",
+            ].join(" ")}
             data-testid="workspace-nav"
-            inert={navCollapsed.value && !navOpen.value ? true : undefined}
+            inert={navCollapsed.value && !props.navOpen ? true : undefined}
           >
             {slots.nav?.()}
           </div>
@@ -147,7 +132,7 @@ export default defineComponent({
             {slots.header ? (
               <div class="myz-workspace__header">{slots.header()}</div>
             ) : null}
-            <div class="myz-workspace__body">{slots.default?.(current)}</div>
+            <div class="myz-workspace__body">{slots.default?.()}</div>
             {slots.statusbar ? (
               <div class="myz-workspace__statusbar">{slots.statusbar()}</div>
             ) : null}
@@ -185,10 +170,10 @@ export default defineComponent({
           {slots.bottomNav ? (
             <div class="myz-workspace__bottom">{slots.bottomNav()}</div>
           ) : null}
-          {navOpen.value ? (
+          {props.navOpen ? (
             <div
               class="myz-workspace__backdrop"
-              onClick={closeNav}
+              onClick={() => props.onCloseNav?.()}
               aria-hidden="true"
             />
           ) : null}

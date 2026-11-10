@@ -271,3 +271,23 @@
     border-top: 1px solid var(--myz-line);
   }
 }
+
+/* ── rail footer: compact theme toggle ────────────────────────────── */
+.myz-workspace__rail .myz-workspace__theme {
+  justify-content: center;
+  width: var(--myz-hit-compact);
+  height: var(--myz-hit-compact);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--myz-r);
+}
+
+.myz-workspace__rail .myz-workspace__theme:hover {
+  background: var(--myz-surface-2);
+  color: var(--myz-text);
+}
+
+.myz-workspace__rail .myz-workspace__theme .text-xs {
+  display: none;
+}
