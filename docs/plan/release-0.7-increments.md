@@ -42,18 +42,19 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 
 ### I1 · 文档债清理
 
+> 状态：**已完成**（2026-11-10）：查看器计划归档并改状态行、注解方向挪 `research/`、两份计划加了顶部定位、`PARKING_LOT.md` 已建。
+
 **做什么**
-- `docs/plan/new-viewer.md`：先核对状态行（查看器上一条/下一条、上一页/下一页、滚到底切下一条、页面侧栏均已实现），再归档到 `docs/plan/implemented/` 并修正状态行。
-- `docs/plan/bundled-annotation.md` → `docs/research/`。
-- `docs/plan/future-plan.md` 顶部标注「已否决方向的结论集，不是 backlog」。
-- `docs/plan/host-unification.md` 顶部标注「0.7 之后；1.x 第一件事」。
-- 同步修掉文档里指向这些旧路径的引用（`rg -n "new-viewer|bundled-annotation|future-plan" docs README*`）。
-- 建一个最小的 `PARKING_LOT.md`（仓库根）：一行说明用途 + 一行格式（日期 / 来源增量 / 一句话 / 状态），给后面的增量一个放「顺手发现」的地方。
+- `new-viewer.md`（原在 `docs/plan/`）：核对状态行后归档到 `docs/plan/implemented/`，状态改为「已实现」。
+- `bundled-annotation.md`（原在 `docs/plan/`）→ `docs/research/`。
+- 两份计划的顶部定位：`future-plan` 标「结论集，不是 backlog」；`host-unification` 标「0.7 之后；1.x 第一件事」。
+- 修掉文档里指向旧位置的引用。
+- 建一个最小的 `PARKING_LOT.md`（仓库根）：一行说明用途 + 一行格式（日期 / 来源增量 / 一句话 / 状态）。
 
 **不做什么**：不改任何代码；不重写这几份文档的内容。
 
 **验收**
-- `rg -n "docs/plan/new-viewer|docs/plan/bundled-annotation" docs` → 0 处失效引用。
+- `rg -n "docs/plan/new-viewer|docs/plan/bundled-annotation" docs -g '!release-0.7-increments.md'` → 输出为空（排除本文件，因为它自己就写着这两条旧路径）。
 - `git log --follow` 能看到移动记录（用 `git mv`，不要删了重建）。
 
 **动到的模块**：`docs/`。

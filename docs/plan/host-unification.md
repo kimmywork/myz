@@ -1,6 +1,6 @@
 # Host Unification — 多宿主统一体验（计划）
 
-> 状态：**计划中，未实施**。
+> 状态：**计划中，未实施；排在 0.7 之后，是 1.x 的第一件事**（2026-11-10 定）。0.7 期间不改动本计划的任何部分。
 >
 > 目标：Extension / Desktop / Web / Mobile 共享领域、同步、状态与 UI 原语；宿主只提供平台能力（capture / file / window / keychain / scheduler / notifier / transport）。
 >

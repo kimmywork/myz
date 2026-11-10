@@ -1,6 +1,7 @@
 # Future Plan — 探索结论与暂缓方向
 
 > 本文记录 MyZ 扩展能力探索中**已达成但暂缓**的方向、结论与理由，避免后续重复讨论。
+> **定位（2026-11-10）**：这是已否决/暂缓方向的**结论集，不是 backlog**。排版本范围时不要把它当候选清单逐条重评——要重启某个方向，另开一份计划。
 > 当前 P0 为 PDF 阅读与摘录，见 `docs/plan/implemented/pdf-support.md`。
 
 ## 背景与产品定位
@@ -107,5 +108,5 @@
 ## 关联文档
 - `docs/plan/implemented/pdf-support.md` — P0 PDF 阅读与摘录增量计划。
 - `docs/plan/implemented/inbox-flow.md` — Inbox 采集处理队列（已实现，见 §11 实施状态）。
-- `docs/plan/bundled-annotation.md` — 网站预置注解方向（未纳入本阶段）。
-- `docs/plan/new-viewer.md` — 查看器与页面聚合（已实现）。
+- `docs/research/bundled-annotation.md` — 网站预置注解方向（未纳入本阶段）。
+- `docs/plan/implemented/new-viewer.md` — 查看器与页面聚合（已实现）。
