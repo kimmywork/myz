@@ -68,6 +68,8 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 
 ### I2 · 工作区骨架：壳 + 图标栏 + 可拖导航
 
+> 状态：**已实现**（2026-11-10）：`WorkspaceShell` / `NavRail` / `ResizeHandle` 已落 `packages/dashboard-ui`，Inbox 与文库已套壳（rail + 可拖 nav + 抽屉 + `<640` 底部导航），panel 拖拽与宽度变量已实现、内容接线留 I3。
+
 **做什么**
 - `packages/dashboard-ui` 新增 `WorkspaceShell`、`NavRail`、`ResizeHandle`；宽度状态存本地（不同步）。
 - **消费** #114 已加进 master 的 token（`packages/shared/src/theme/tokens.css:65-84`：`--myz-rail-w`、`--myz-nav-w`、`--myz-nav-w-min/max`、`--myz-header-h`、`--myz-row-h*`、`--myz-hit-dense` 等），**不重复声明**。发现缺的才补，并同步写进设计系统。

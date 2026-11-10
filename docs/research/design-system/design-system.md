@@ -1472,7 +1472,7 @@ Inbox 是新采集内容的处理队列，不是文库副本，也不是按时�
 
 **0.7 待落地（按依赖排序）**
 
-1. `packages/dashboard-ui` 新增 `WorkspaceShell` / `ResizeHandle` / `NavRail` / `NavList` —— 先让所有页面装进新骨架，不碰内容。
+1. **已落地（I2）**：`packages/dashboard-ui` 新增 `WorkspaceShell` / `NavRail` / `ResizeHandle`（+ `QuickSearch` 从顶栏抽出复用），rail + 可拖 nav（200–320，宽度写本地）已接到 Inbox 与文库；panel 的 260–380 拖拽与宽度变量已实现、内容接线留给 I3，header / statusbar / 底部导航槽位已就位（底部导航 < 640 已生效）；阅读、设置、查看器仍用旧顶栏，由 I10 收口。
 2. `ListRow` / `StatusPill` —— 先改 Inbox，再改文库；验收：两处行高 56、无卡片边框、800 高列表区 ≥ 14 行。
 3. `Button` / `Dialog` —— 吃掉 `.btn`（54 处调用）与 6 处 native confirm。
 4. 逐页收口：设置、素材、阅读、查看器、页面快照、popup、内容浮层。
