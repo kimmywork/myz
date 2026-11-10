@@ -54,9 +54,8 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 **不做什么**：不改任何代码；不重写这几份文档的内容。
 
 **验收**
-- 全仓 `rg` 不再有指向旧位置的链接（归档位置与历史记录除外）。
+- `rg -n "docs/plan/new-viewer|docs/plan/bundled-annotation" docs` → 0 处失效引用。
 - `git log --follow` 能看到移动记录（用 `git mv`，不要删了重建）。
-- `PARKING_LOT.md` 在仓库根存在且格式行可用。
 
 **动到的模块**：`docs/`。
 
