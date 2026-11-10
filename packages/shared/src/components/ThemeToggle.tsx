@@ -53,7 +53,9 @@ export default defineComponent({
       }
       const rect = triggerRef.value.getBoundingClientRect()
       const menuWidth = 144 // w-36
-      const menuHeight = 112 // three 32px options + padding
+      // Three 32px options + list padding (py-1 top and bottom) + border.
+      // Keep this in sync with OPTIONS if the menu ever gains an entry.
+      const menuHeight = 112
       const margin = 8
       // The toggle can sit in the rail footer (bottom-left), so the menu
       // flips above the trigger and clamps inside the viewport.
