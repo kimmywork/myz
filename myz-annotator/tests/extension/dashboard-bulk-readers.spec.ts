@@ -88,11 +88,11 @@ test("infinite_scroll_loads_more", async () => {
     (els) => els.length,
   );
 
+  // First page is 24 of 60, so more must remain and the sentinel must exist.
+  // A missing sentinel means pagination silently stopped: fail, don't pass.
+  expect(initialCount).toBeLessThan(total);
   const sentinel = await dash.$('[data-role="sentinel"]');
-  if (!sentinel) {
-    expect(initialCount).toBeGreaterThanOrEqual(total);
-    return;
-  }
+  expect(sentinel).toBeTruthy();
 
   await dash.evaluate(() => {
     // The workspace shell scrolls its main column, not the document.
