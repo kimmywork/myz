@@ -93,3 +93,29 @@ test("workspace_shell_breakpoints_900_and_640", async () => {
   await expect(dash).toHaveURL(/#\/highlights/);
   await expect(dash.locator('[data-testid="workspace-shell"]')).toBeVisible();
 });
+
+test("theme_menu_measures_at_open_after_the_rail_was_hidden", async () => {
+  const dash = await harness.open("/inbox");
+  await dash.waitForSelector('[data-testid="workspace-shell"]');
+
+  // Mount below 640 so the rail (and the toggle) first exist at zero size.
+  await dash.setViewportSize({ width: 620, height: 800 });
+  await dash.reload();
+  await dash.waitForSelector('[data-testid="workspace-shell"]');
+  await expect(dash.locator('[data-testid="rail-inbox"]')).toBeHidden();
+
+  // Widening again must not reuse a rect cached while the rail was hidden.
+  await dash.setViewportSize({ width: 1200, height: 800 });
+  await expect(dash.locator('[data-testid="rail-inbox"]')).toBeVisible();
+  await dash.locator("button.myz-workspace__theme").click();
+
+  const menu = dash.locator('[role="listbox"]');
+  await expect(menu).toBeVisible();
+  const box = await menu.boundingBox();
+  const viewport = dash.viewportSize();
+  if (!box || !viewport) throw new Error("menu or viewport missing");
+  expect(box.x).toBeGreaterThan(0);
+  expect(box.y).toBeGreaterThan(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+});
