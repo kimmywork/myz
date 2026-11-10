@@ -1,10 +1,12 @@
 import {
   HighlightGroups,
   HighlightsPaneShell,
+  QuickSearch,
   type HighlightItemAction,
 } from "@myz/dashboard-ui";
 import type { MyZRecord } from "@myz/shared/types";
 import { computed, defineComponent, nextTick, watch } from "vue";
+import type { PropType } from "vue";
 import { useRouter } from "vue-router";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
 import { useHighlightsStore } from "../stores/highlights.js";
@@ -14,11 +16,14 @@ import { openPdfRecordInReader } from "@/reader/open.js";
 
 export default defineComponent({
   name: "HighlightsPane",
-  setup() {
+  props: {
+    /** Opens the workspace nav drawer below 900px (§4.27). */
+    onOpenNav: { type: Function as PropType<() => void>, default: undefined },
+  },
+  setup(props) {
     const highlightsStore = useHighlightsStore();
     const uiStore = useUIStore();
     const router = useRouter();
-    const stickyLayout = computed(() => Boolean(uiStore.pageSidebarOpen));
 
     const { sentinelRef, stop, restart } = useInfiniteScroll({
       onIntersect: () => uiStore.loadMore(),
@@ -95,19 +100,28 @@ export default defineComponent({
         summaryText={uiStore.summaryText}
         pageFilter={uiStore.pageFilter}
         currentPageLabel={currentPageLabel.value}
-        pageSidebarOpen={uiStore.pageSidebarOpen}
-        stickyLayout={stickyLayout.value}
+        stickyLayout={false}
         view={uiStore.view}
         pageSortMode={uiStore.pageSortMode}
         onSetView={uiStore.setView}
         onSetPageSortMode={uiStore.setPageSortMode}
-        onTogglePageSidebar={uiStore.togglePageSidebar}
+        onTogglePageSidebar={props.onOpenNav}
         onClearPageFilter={uiStore.clearPageFilter}
         onExport={(format) => {
           void highlightsStore.handleExport(format);
         }}
       >
         {{
+          search: () => (
+            <QuickSearch
+              class="max-w-xs"
+              quickSearch={uiStore.quickSearch}
+              availableTags={highlightsStore.availableTags}
+              availableSites={highlightsStore.availableSites}
+              onApplyQuickSearch={uiStore.applyQuickSearch}
+              onResetFilters={uiStore.resetFilters}
+            />
+          ),
           default: () => (
             <HighlightGroups
               loading={highlightsStore.loadingHighlights}

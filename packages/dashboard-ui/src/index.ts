@@ -1,6 +1,7 @@
 export { default as DashboardAppShell } from "./DashboardAppShell"
 export { default as DashboardNavbarShell } from "./DashboardNavbarShell"
 export type { DashboardNavbarTab } from "./DashboardNavbarShell"
+export { default as QuickSearch } from "./QuickSearch"
 export { default as PageSidebar } from "./PageSidebar"
 export type { PageSidebarGroup } from "./PageSidebar"
 export { default as TagInput } from "./TagInput"

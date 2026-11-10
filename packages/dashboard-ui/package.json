@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./DashboardAppShell": "./src/DashboardAppShell.tsx",
     "./PageSidebar": "./src/PageSidebar.tsx",
+  "./QuickSearch": "./src/QuickSearch.tsx",
     "./TagInput": "./src/TagInput.tsx",
     "./WorkspaceShell": "./src/workspace/WorkspaceShell.tsx",
     "./NavRail": "./src/workspace/NavRail.tsx",

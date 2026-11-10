@@ -57,12 +57,14 @@ export default defineComponent({
         tabs={tabs.map(({ key, label, to }) => ({ key, label, to }))}
         activeKey={activeKey.value}
         isHighlightsRoute={isHighlightsRoute.value}
-        quickSearch={uiStore.quickSearch}
-        availableTags={highlightsStore.availableTags}
-        availableSites={highlightsStore.availableSites}
+        search={{
+          quickSearch: uiStore.quickSearch,
+          availableTags: highlightsStore.availableTags,
+          availableSites: highlightsStore.availableSites,
+          onApplyQuickSearch: uiStore.applyQuickSearch,
+          onResetFilters: uiStore.resetFilters,
+        }}
         tabAriaLabelByKey={{ settings: "打开设置" }}
-        onApplyQuickSearch={uiStore.applyQuickSearch}
-        onResetFilters={uiStore.resetFilters}
         renderThemeToggle={() => (
           <ThemeToggle variant="switch" aria-label="切换日夜模式" />
         )}

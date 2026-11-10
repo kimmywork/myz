@@ -30,7 +30,6 @@ export const useUIStore = defineStore("ui", () => {
   const highlightsStore = useHighlightsStore();
 
   const view: Ref<"cards" | "list"> = ref("cards");
-  const pageSidebarOpen = ref(false);
   const pageFilter = ref("");
   const pageSortMode: Ref<PageSortMode> = ref("time");
   const quickSearch = ref("");
@@ -170,10 +169,6 @@ export const useUIStore = defineStore("ui", () => {
     if (persist) persistDashboardView(nextView);
   }
 
-  function togglePageSidebar() {
-    pageSidebarOpen.value = !pageSidebarOpen.value;
-  }
-
   function setPageFilter(nextUrl: string) {
     pageFilter.value = nextUrl;
     updateRenderedCount();
@@ -229,7 +224,6 @@ export const useUIStore = defineStore("ui", () => {
   return {
     view,
     filters,
-    pageSidebarOpen,
     pageFilter,
     pageSortMode,
     quickSearch,
@@ -244,7 +238,6 @@ export const useUIStore = defineStore("ui", () => {
     resetFilters,
     applyQuickSearch,
     setView,
-    togglePageSidebar,
     setPageFilter,
     clearPageFilter,
     setPageSortMode,

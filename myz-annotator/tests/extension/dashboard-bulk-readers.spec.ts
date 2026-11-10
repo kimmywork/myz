@@ -88,17 +88,16 @@ test("infinite_scroll_loads_more", async () => {
     (els) => els.length,
   );
 
-  const sentinel = await dash.$('.scroll-sentinel[data-role="sentinel"]');
+  const sentinel = await dash.$('[data-role="sentinel"]');
   if (!sentinel) {
     expect(initialCount).toBeGreaterThanOrEqual(total);
     return;
   }
 
   await dash.evaluate(() => {
-    const root = document.querySelector(".main");
-    const sentinel = document.querySelector(
-      '.scroll-sentinel[data-role="sentinel"]',
-    );
+    // The workspace shell scrolls its main column, not the document.
+    const root = document.querySelector(".myz-workspace__body");
+    const sentinel = document.querySelector('[data-role="sentinel"]');
     if (sentinel && root) {
       sentinel.scrollIntoView({ block: "end" });
       root.scrollTop = root.scrollHeight;

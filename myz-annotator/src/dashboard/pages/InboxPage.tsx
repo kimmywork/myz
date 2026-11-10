@@ -1,9 +1,8 @@
-import { WorkspaceShell } from "@myz/dashboard-ui";
 import { IconSearch } from "@myz/shared/icons";
 import { formatDateTime } from "@myz/shared/recordDisplay";
-import { defineComponent, ref } from "vue";
-import DashboardBottomNav from "../components/DashboardBottomNav.jsx";
-import DashboardRail from "../components/DashboardRail.jsx";
+import { defineComponent } from "vue";
+import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
+import type { WorkspacePageControls } from "../components/DashboardWorkspaceLayout.jsx";
 import InboxList from "./inbox/InboxList.jsx";
 import InboxSidebar from "./inbox/InboxSidebar.jsx";
 import { useInboxQueue } from "./inbox/useInboxQueue.js";
@@ -12,19 +11,14 @@ export default defineComponent({
   name: "InboxPage",
   setup() {
     const a = useInboxQueue();
-    const navOpen = ref(false);
 
     return () => (
-      <WorkspaceShell
-        navOpen={navOpen.value}
-        onCloseNav={() => (navOpen.value = false)}
-      >
+      <DashboardWorkspaceLayout>
         {{
-          rail: () => <DashboardRail />,
-          nav: () => (
-            <InboxSidebar api={a} onNavigate={() => (navOpen.value = false)} />
+          nav: ({ closeNav }: WorkspacePageControls) => (
+            <InboxSidebar api={a} onNavigate={closeNav} />
           ),
-          default: () => (
+          default: ({ openNav }: WorkspacePageControls) => (
             <section class="flex min-h-0 flex-col gap-4 p-4">
               <header class="flex flex-wrap items-end justify-between gap-3">
                 <div>
@@ -40,7 +34,7 @@ export default defineComponent({
                   <button
                     class="btn min-[900px]:hidden"
                     type="button"
-                    onClick={() => (navOpen.value = true)}
+                    onClick={openNav}
                   >
                     筛选 / 标签
                   </button>
@@ -159,9 +153,8 @@ export default defineComponent({
               </div>
             </section>
           ),
-          bottomNav: () => <DashboardBottomNav />,
         }}
-      </WorkspaceShell>
+      </DashboardWorkspaceLayout>
     );
   },
 });
