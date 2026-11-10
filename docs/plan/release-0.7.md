@@ -177,10 +177,12 @@ S1 与 S2 可并行（S2 不依赖新组件即可开工，但最终要换到新 
 
 ## 7. 文档债（0.7 开工前清）
 
-- `docs/plan/new-viewer.md`：状态行写「部分实现」，但查看器的滚动切下一条与 highlights 页第三布局均已实现——核对后归档进 `implemented/` 并修状态行。
-- `docs/plan/bundled-annotation.md`：纯概念、零实现，挪 `docs/research/`。
-- `docs/plan/future-plan.md`：不是计划，是已否决方向的结论集，标注清楚，不当 backlog 用。
-- `docs/plan/host-unification.md`：标注「0.7 之后」，1.x 的第一件事。
+> 2026-11-10 已清（增量 I1）。
+
+- `new-viewer` → 归档到 `docs/plan/implemented/`，状态行改为「已实现」。
+- `bundled-annotation` → 挪到 `docs/research/`（概念方向，不是计划）。
+- `future-plan` → 顶部标注「结论集，不是 backlog」。
+- `host-unification` → 标注「0.7 之后；1.x 第一件事」。
 
 ## 8. 参考
 
