@@ -54,7 +54,7 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 **不做什么**：不改任何代码；不重写这几份文档的内容。
 
 **验收**
-- `rg -n "docs/plan/new-viewer|docs/plan/bundled-annotation" docs` → 0 处失效引用。
+- `rg -n "docs/plan/new-viewer|docs/plan/bundled-annotation" docs -g '!release-0.7-increments.md'` → 输出为空（排除本文件，因为它自己就写着这两条旧路径）。
 - `git log --follow` 能看到移动记录（用 `git mv`，不要删了重建）。
 
 **动到的模块**：`docs/`。
