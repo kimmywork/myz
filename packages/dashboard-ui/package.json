@@ -6,7 +6,11 @@
     ".": "./src/index.ts",
     "./DashboardAppShell": "./src/DashboardAppShell.tsx",
     "./PageSidebar": "./src/PageSidebar.tsx",
-    "./TagInput": "./src/TagInput.tsx"
+    "./TagInput": "./src/TagInput.tsx",
+    "./WorkspaceShell": "./src/workspace/WorkspaceShell.tsx",
+    "./NavRail": "./src/workspace/NavRail.tsx",
+    "./ResizeHandle": "./src/workspace/ResizeHandle.tsx",
+    "./workspace/width": "./src/workspace/width.ts"
   },
   "dependencies": {
     "@lucide/vue": "^1.27.0",

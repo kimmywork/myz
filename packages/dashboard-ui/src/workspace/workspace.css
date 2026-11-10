@@ -1,0 +1,273 @@
+/* Workspace shell (§3.6 / §4.27). Widths come from tokens; the only local
+   variables are the two live column widths the resize handles write. */
+
+.myz-workspace {
+  --ws-nav-w: var(--myz-nav-w);
+  --ws-panel-w: var(--myz-panel-w);
+  display: grid;
+  grid-template-columns: var(--myz-rail-w) var(--ws-nav-w) 4px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--myz-bg);
+  color: var(--myz-text);
+}
+
+.myz-workspace.is-panel-open {
+  grid-template-columns:
+    var(--myz-rail-w) var(--ws-nav-w) 4px minmax(0, 1fr) 4px
+    var(--ws-panel-w);
+}
+
+/* ── rail ─────────────────────────────────────────────────────────── */
+.myz-workspace__rail-slot {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.myz-workspace__rail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+  padding: 8px 0;
+  overflow: hidden;
+  background: var(--myz-surface);
+  border-right: 1px solid var(--myz-line);
+}
+
+.myz-workspace__rail-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--myz-hit-compact);
+  height: var(--myz-hit-compact);
+  border-radius: var(--myz-r);
+  color: var(--myz-muted);
+  transition: color var(--myz-motion-fast) var(--myz-ease-out),
+    background var(--myz-motion-fast) var(--myz-ease-out);
+}
+
+.myz-workspace__rail-link svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.myz-workspace__rail-link:hover {
+  background: var(--myz-surface-2);
+  color: var(--myz-text);
+}
+
+.myz-workspace__rail-link:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: 2px;
+}
+
+.myz-workspace__rail-link.is-active {
+  background: var(--myz-surface-2);
+  color: var(--myz-accent-text);
+}
+
+.myz-workspace__rail-link.is-active::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: -8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--myz-accent);
+}
+
+.myz-workspace__rail-spacer {
+  flex: 1;
+}
+
+/* ── nav ──────────────────────────────────────────────────────────── */
+.myz-workspace__nav {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--myz-surface);
+  border-right: 1px solid var(--myz-line);
+}
+
+.myz-workspace__nav-handle,
+.myz-workspace__panel-handle {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── resize handle: 4px visible, 12px hit area ────────────────────── */
+.myz-workspace__handle {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+
+.myz-workspace__handle::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+  z-index: 1;
+}
+
+.myz-workspace__handle::after {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background var(--myz-motion-fast) var(--myz-ease-out);
+}
+
+.myz-workspace__handle:hover::after,
+.myz-workspace__handle:active::after {
+  background: var(--myz-accent);
+  opacity: 0.3;
+}
+
+.myz-workspace__handle:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: -1px;
+}
+
+/* ── main ─────────────────────────────────────────────────────────── */
+.myz-workspace__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--myz-bg);
+}
+
+.myz-workspace__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  height: var(--myz-header-h);
+  min-width: 0;
+  padding: 0 16px;
+  background: var(--myz-surface);
+  border-bottom: 1px solid var(--myz-line);
+}
+
+.myz-workspace__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.myz-workspace__statusbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  height: var(--myz-statusbar-h);
+  padding: 0 12px;
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--myz-muted);
+  background: var(--myz-surface);
+  border-top: 1px solid var(--myz-line);
+}
+
+/* ── panel ────────────────────────────────────────────────────────── */
+.myz-workspace__panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--myz-surface);
+  border-left: 1px solid var(--myz-line);
+}
+
+/* ── bottom bar: only below 640 ───────────────────────────────────── */
+.myz-workspace__bottom {
+  display: none;
+}
+
+/* ── breakpoints: 1200 / 900 / 640 ────────────────────────────────── */
+@media (max-width: 1199px) {
+  /* The inline panel needs room; below 1200 it becomes an overlay drawer
+     (content wiring lands with the panel itself). */
+  .myz-workspace.is-panel-open {
+    grid-template-columns:
+      var(--myz-rail-w) var(--ws-nav-w) 4px minmax(0, 1fr);
+  }
+
+  .myz-workspace__panel,
+  .myz-workspace__panel-handle {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .myz-workspace,
+  .myz-workspace.is-panel-open {
+    grid-template-columns: var(--myz-rail-w) minmax(0, 1fr);
+  }
+
+  .myz-workspace__nav {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: var(--myz-nav-w);
+    height: 100vh;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform var(--myz-motion-med) var(--myz-ease-out),
+      visibility var(--myz-motion-med) var(--myz-ease-out);
+  }
+
+  .myz-workspace__nav.is-open {
+    visibility: visible;
+    transform: none;
+  }
+
+  .myz-workspace__nav-handle {
+    display: none;
+  }
+
+  .myz-workspace__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: color-mix(in srgb, var(--myz-overlay) 40%, transparent);
+  }
+}
+
+@media (max-width: 639px) {
+  .myz-workspace,
+  .myz-workspace.is-panel-open {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .myz-workspace__rail-slot {
+    display: none;
+  }
+
+  .myz-workspace__bottom {
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+    background: var(--myz-surface);
+    border-top: 1px solid var(--myz-line);
+  }
+}
