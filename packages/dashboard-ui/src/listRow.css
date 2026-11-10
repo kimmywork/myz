@@ -39,6 +39,11 @@
   border-radius: var(--myz-r-xs);
 }
 
+/* Selected detail row: the tone bar switches to the accent colour (§4.20). */
+.myz-list-row.is-active .myz-list-row__bar {
+  background: var(--myz-accent);
+}
+
 .myz-list-row__bar--info {
   background: var(--myz-info);
 }
@@ -97,6 +102,10 @@
   white-space: nowrap;
 }
 
+/* Actions are icon-only 28px buttons (§4.20) that stay in flow and only
+   become visible on hover, focus, selection or an open detail. They remain
+   clickable while invisible, so a pointer that reaches them has already
+   revealed them. */
 .myz-list-row__actions {
   display: flex;
   flex: 0 0 auto;
@@ -113,10 +122,17 @@
   opacity: 1;
 }
 
-/* Touch / narrow screens keep actions visible (§4.20). */
+/* Touch / narrow screens keep actions visible (§4.20); they collapse to
+   icon-only buttons so the title still has room. */
 @media (hover: none), (max-width: 639px) {
   .myz-list-row__actions {
     opacity: 1;
+  }
+
+  .myz-list-row .myz-list-row__snooze {
+    width: 28px;
+    padding: 0;
+    color: transparent;
   }
 }
 

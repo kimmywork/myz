@@ -27,7 +27,13 @@ export default defineComponent({
     active: { type: Boolean, default: false },
     disabled: { type: Boolean, default: false },
     tone: { type: String as PropType<ListRowTone>, default: "neutral" },
+    /** Rows can be drag sources (Inbox tag drop targets). */
+    draggable: { type: Boolean, default: false },
     onOpen: Function as PropType<() => void>,
+    onDragstart: Function as PropType<(event: DragEvent) => void>,
+    onDragend: Function as PropType<(event: DragEvent) => void>,
+    onDragover: Function as PropType<(event: DragEvent) => void>,
+    onDrop: Function as PropType<(event: DragEvent) => void>,
     renderActions: Function as PropType<() => VNodeChild>,
   },
   setup(props, { slots }) {
@@ -41,6 +47,8 @@ export default defineComponent({
     function onActivate(event: MouseEvent) {
       if (props.disabled) return
       if (isInteractive(event.target)) return
+      // Focus the row so an overlay panel can restore focus to it on close.
+      ;(event.currentTarget as HTMLElement | null)?.focus?.()
       props.onOpen?.()
     }
 
@@ -66,8 +74,13 @@ export default defineComponent({
         aria-selected={props.active}
         aria-disabled={props.disabled || undefined}
         tabindex={props.disabled ? -1 : 0}
+        draggable={props.draggable || undefined}
         onClick={onActivate}
         onKeydown={onKeydown}
+        onDragstart={props.onDragstart}
+        onDragend={props.onDragend}
+        onDragover={props.onDragover}
+        onDrop={props.onDrop}
       >
         {props.tone === "none" ? null : (
           <span
