@@ -112,10 +112,30 @@ test("theme_menu_measures_at_open_after_the_rail_was_hidden", async () => {
   const menu = dash.locator('[role="listbox"]');
   await expect(menu).toBeVisible();
   const box = await menu.boundingBox();
+  const trigger = await dash
+    .locator("button.myz-workspace__theme")
+    .boundingBox();
   const viewport = dash.viewportSize();
-  if (!box || !viewport) throw new Error("menu or viewport missing");
-  expect(box.x).toBeGreaterThan(0);
-  expect(box.y).toBeGreaterThan(0);
+  if (!box || !trigger || !viewport) {
+    throw new Error("menu, trigger or viewport missing");
+  }
+
+  // Anchor to the trigger: immediately below it or flipped immediately above
+  // (the flip reserves a fixed menu height, so allow a few px of slack). A
+  // stale or zero rect puts the menu at (8, 8) — hundreds of px from the
+  // button — which is why the old `x > 0` + viewport assertions passed on
+  // the bug too.
+  const gapBelow = box.y - (trigger.y + trigger.height);
+  const gapAbove = trigger.y - (box.y + box.height);
+  const anchored =
+    (gapBelow >= 0 && gapBelow <= 24) || (gapAbove >= 0 && gapAbove <= 24);
+  expect(anchored).toBe(true);
+  // Horizontally overlapping the trigger.
+  expect(box.x).toBeLessThan(trigger.x + trigger.width);
+  expect(trigger.x).toBeLessThan(box.x + box.width);
+  // Still fully inside the viewport.
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
 });
