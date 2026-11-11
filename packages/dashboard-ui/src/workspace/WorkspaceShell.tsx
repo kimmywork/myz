@@ -8,6 +8,8 @@ import {
   watch,
 } from "vue"
 import type { PropType } from "vue"
+import { createFocusTrap } from "@myz/shared/focusTrap"
+import type { FocusTrap } from "@myz/shared/focusTrap"
 import ResizeHandle from "./ResizeHandle.js"
 import {
   NAV_WIDTH_DEFAULT,
@@ -72,32 +74,40 @@ export default defineComponent({
 
     const hasPanel = computed(() => Boolean(props.panelOpen && slots.panel))
     const panelRef = ref<HTMLElement | null>(null)
-    let panelReturnFocus: HTMLElement | null = null
+    const isNarrow = ref(false)
+    let mediaQuery: MediaQueryList | null = null
+    let panelTrap: FocusTrap | null = null
 
-    // Overlay panels take focus; the inline panel must not steal it.
-    watch(
-      () => props.panelOpen,
-      async (open) => {
-        const narrow =
-          typeof window !== "undefined" &&
-          typeof window.matchMedia === "function" &&
-          window.matchMedia("(max-width: 1199px)").matches
-        if (open) {
-          if (!narrow) return
-          panelReturnFocus =
-            document.activeElement instanceof HTMLElement
-              ? document.activeElement
-              : null
-          await nextTick()
-          panelRef.value?.focus()
-        } else {
-          if (panelReturnFocus?.isConnected) {
-            panelReturnFocus.focus()
-          }
-          panelReturnFocus = null
-        }
-      },
-    )
+    function syncNarrow() {
+      isNarrow.value = Boolean(mediaQuery?.matches)
+    }
+
+    function teardownPanelTrap() {
+      panelTrap?.deactivate()
+      panelTrap = null
+    }
+
+    // Below 1200 the panel is an overlay dialog: trap Tab inside it and
+    // restore focus to the row on close (§4.8). The inline panel never
+    // steals focus.
+    async function setupPanelTrap() {
+      if (!props.panelOpen || !isNarrow.value) {
+        teardownPanelTrap()
+        return
+      }
+      await nextTick()
+      const el = panelRef.value
+      if (!el) return
+      teardownPanelTrap()
+      panelTrap = createFocusTrap(el, {
+        onEscape: () => props.onClosePanel?.(),
+      })
+      panelTrap.activate()
+    }
+
+    watch([() => props.panelOpen, isNarrow], () => {
+      void setupPanelTrap()
+    })
     const navCollapsed = computed(() => navWidth.value === 0)
 
     const style = computed(() => ({
@@ -120,9 +130,16 @@ export default defineComponent({
 
     onMounted(() => {
       window.addEventListener("keydown", onKeydown)
+      if (typeof window.matchMedia === "function") {
+        mediaQuery = window.matchMedia("(max-width: 1199px)")
+        syncNarrow()
+        mediaQuery.addEventListener("change", syncNarrow)
+      }
     })
     onBeforeUnmount(() => {
       window.removeEventListener("keydown", onKeydown)
+      mediaQuery?.removeEventListener("change", syncNarrow)
+      teardownPanelTrap()
     })
 
     return () => {
@@ -207,7 +224,10 @@ export default defineComponent({
                 ref={panelRef}
                 class="myz-workspace__panel"
                 data-testid="workspace-panel"
-                role="complementary"
+                role={isNarrow && props.panelOpen ? "dialog" : "complementary"}
+                aria-modal={
+                  isNarrow && props.panelOpen ? "true" : undefined
+                }
                 aria-label="详情"
                 tabindex={-1}
               >

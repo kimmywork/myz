@@ -62,7 +62,7 @@ export default defineComponent({
         <div
           class="overflow-hidden rounded-panel border border-line bg-surface"
           data-testid="inbox-list"
-          role="listbox"
+          role="list"
           aria-label="Inbox 队列"
         >
           {a.visibleItems.value.map((item) => (

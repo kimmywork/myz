@@ -11,8 +11,9 @@ export type ListRowTone = "info" | "neutral" | "tag" | "danger" | "clip" | "none
  * keyboard focus, selection or active detail; they stay visible on touch.
  *
  * The row itself is not a `<button>` because it contains buttons; it is a
- * focusable `article` with option semantics, and clicks on interactive
- * children do not trigger `onOpen`.
+ * focusable `article` inside a plain list (not a listbox: there is no roving
+ * tabindex or arrow-key selection), and clicks on interactive children do not
+ * trigger `onOpen`.
  */
 export default defineComponent({
   name: "ListRow",
@@ -70,8 +71,8 @@ export default defineComponent({
         ]
           .filter(Boolean)
           .join(" ")}
-        role="option"
-        aria-selected={props.active}
+        role="listitem"
+        aria-current={props.active ? "true" : undefined}
         aria-disabled={props.disabled || undefined}
         tabindex={props.disabled ? -1 : 0}
         draggable={props.draggable || undefined}

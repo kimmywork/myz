@@ -101,7 +101,7 @@ export default defineComponent({
                 </h3>
                 <div
                   class="overflow-hidden rounded-panel border border-line bg-surface"
-                  role="listbox"
+                  role="list"
                   aria-label={`${group.date} 的记录`}
                 >
                   {group.items.map((item) => (

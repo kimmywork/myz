@@ -31,7 +31,7 @@ describe("ListRow", () => {
     expect(host.querySelector(".myz-list-row__meta")?.textContent).toContain(
       "sspai.com",
     )
-    expect(host.querySelector('[role="option"]')).toBeTruthy()
+    expect(host.querySelector('[role="listitem"]')).toBeTruthy()
     cleanup()
   })
 
@@ -46,7 +46,7 @@ describe("ListRow", () => {
     expect(row?.classList.contains("is-active")).toBe(true)
     expect(row?.classList.contains("is-selected")).toBe(true)
     expect(row?.classList.contains("is-disabled")).toBe(true)
-    expect(row?.getAttribute("aria-selected")).toBe("true")
+    expect(row?.getAttribute("aria-current")).toBe("true")
     expect(row?.getAttribute("tabindex")).toBe("-1")
     expect(host.querySelector(".myz-list-row__bar--clip")).toBeTruthy()
     cleanup()

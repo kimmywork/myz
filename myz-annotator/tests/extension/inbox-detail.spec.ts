@@ -98,6 +98,19 @@ test("panel_is_an_overlay_below_1200_and_a_bottom_sheet_below_640", async () => 
   expect(Math.round(wideBox.x + wideBox.width)).toBeGreaterThanOrEqual(1096);
   expect(wideBox.height).toBeGreaterThanOrEqual(890);
   await expect(dash.locator(".myz-workspace__panel-backdrop")).toBeVisible();
+  await expect(panel).toHaveAttribute("role", "dialog");
+  await expect(panel).toHaveAttribute("aria-modal", "true");
+  // Tab must stay inside the overlay dialog.
+  for (let i = 0; i < 8; i += 1) {
+    await dash.keyboard.press("Tab");
+  }
+  expect(
+    await dash.evaluate(() =>
+      Boolean(
+        document.activeElement?.closest('[data-testid="workspace-panel"]'),
+      ),
+    ),
+  ).toBe(true);
   await dash.keyboard.press("Escape");
   await expect(panel).toBeHidden();
 
