@@ -14,6 +14,7 @@ export * from "./payload-codec";
 export * from "./lifecycle";
 export * from "./relations";
 export * from "./inbox";
+export * from "./delete-session";
 export * from "./ports";
 export * from "./staged-asset";
 export * from "./import";

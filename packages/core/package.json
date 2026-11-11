@@ -12,6 +12,7 @@
     "./lifecycle": "./src/lifecycle.ts",
     "./relations": "./src/relations.ts",
     "./inbox": "./src/inbox.ts",
+    "./delete-session": "./src/delete-session.ts",
     "./ports": "./src/ports.ts",
     "./staged-asset": "./src/staged-asset.ts",
     "./import": "./src/import.ts",

@@ -1,0 +1,183 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  DELETE_UNDO_WINDOW_MS,
+  createDeleteSession,
+} from "../src/delete-session"
+
+interface Item {
+  id: string
+}
+
+function setup(overrides: Record<string, unknown> = {}) {
+  const ports = {
+    getId: (item: Item) => item.id,
+    queue: vi.fn(async () => true),
+    commit: vi.fn(async () => true),
+    cancel: vi.fn(async () => {}),
+    restore: vi.fn(),
+    onCommitted: vi.fn(),
+    onCommitFailed: vi.fn(),
+    onUndone: vi.fn(),
+    ...overrides,
+  }
+  const session = createDeleteSession<Item>(ports)
+  return { ports, session }
+}
+
+async function flushPromises() {
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+describe("createDeleteSession", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("persists the intent first, then commits when the window ends", async () => {
+    const { ports, session } = setup()
+    const items = [{ id: "a" }, { id: "b" }]
+
+    expect(await session.schedule(items)).toBe(true)
+    expect(ports.queue).toHaveBeenCalledTimes(1)
+    expect(ports.queue.mock.calls[0][0]).toEqual(["a", "b"])
+    expect(ports.queue.mock.calls[0][1]).toBe(
+      Date.now() + DELETE_UNDO_WINDOW_MS,
+    )
+    expect(ports.commit).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.commit).toHaveBeenCalledTimes(1)
+    expect(ports.commit.mock.calls[0][0]).toEqual(["a", "b"])
+    expect(ports.onCommitted).toHaveBeenCalledWith(["a", "b"])
+    expect(session.pendingIds()).toEqual([])
+  })
+
+  it("commits on host teardown instead of dropping the delete", async () => {
+    const { ports, session } = setup()
+    await session.schedule([{ id: "a" }])
+
+    session.dispose()
+    await flushPromises()
+
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
+    expect(ports.restore).not.toHaveBeenCalled()
+  })
+
+  it("commits on route change via flushAll", async () => {
+    const { ports, session } = setup()
+    await session.schedule([{ id: "a" }])
+
+    await session.flushAll()
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
+    expect(session.pendingIds()).toEqual([])
+  })
+
+  it("restores the rows and cancels the intent when the commit fails", async () => {
+    const { ports, session } = setup({
+      commit: vi.fn(async () => false),
+    })
+    const items = [{ id: "a" }, { id: "b" }]
+    await session.schedule(items)
+
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+
+    expect(ports.restore).toHaveBeenCalledWith(items)
+    expect(ports.onCommitFailed).toHaveBeenCalledWith(items)
+    expect(ports.cancel).toHaveBeenCalledWith(["a", "b"])
+  })
+
+  it("treats a throwing commit as a failure", async () => {
+    const { ports, session } = setup({
+      commit: vi.fn(async () => {
+        throw new Error("offline")
+      }),
+    })
+    await session.schedule([{ id: "a" }])
+
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.restore).toHaveBeenCalled()
+    expect(ports.onCommitFailed).toHaveBeenCalled()
+  })
+
+  it("deletes a batch with one commit call and restores all on failure", async () => {
+    const { ports, session } = setup({
+      commit: vi.fn(async () => false),
+    })
+    const items = [{ id: "a" }, { id: "b" }, { id: "c" }]
+    await session.schedule(items)
+
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+
+    expect(ports.commit).toHaveBeenCalledTimes(1)
+    expect(ports.commit.mock.calls[0][0]).toEqual(["a", "b", "c"])
+    expect(ports.restore).toHaveBeenCalledWith(items)
+  })
+
+  it("undo cancels the intent, restores the rows and never commits", async () => {
+    const { ports, session } = setup()
+    const items = [{ id: "a" }]
+    await session.schedule(items)
+
+    expect(await session.undo()).toBe(true)
+    expect(ports.cancel).toHaveBeenCalledWith(["a"])
+    expect(ports.restore).toHaveBeenCalledWith(items)
+    expect(ports.onUndone).toHaveBeenCalledWith(items)
+
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.commit).not.toHaveBeenCalled()
+  })
+
+  it("keeps the rows visible when the intent cannot be persisted", async () => {
+    const { ports, session } = setup({
+      queue: vi.fn(async () => false),
+    })
+
+    expect(await session.schedule([{ id: "a" }])).toBe(false)
+    expect(ports.restore).not.toHaveBeenCalled()
+    expect(ports.commit).not.toHaveBeenCalled()
+    expect(session.pendingIds()).toEqual([])
+  })
+
+  it("pauses and resumes the countdown", async () => {
+    const { ports, session } = setup()
+    await session.schedule([{ id: "a" }])
+
+    await vi.advanceTimersByTimeAsync(2000)
+    session.pause()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(ports.commit).not.toHaveBeenCalled()
+
+    session.resume()
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS - 2000)
+    expect(ports.commit).toHaveBeenCalledTimes(1)
+  })
+
+  it("flushes an earlier group before showing a new undo affordance", async () => {
+    const { ports, session } = setup()
+    await session.schedule([{ id: "a" }])
+    await session.schedule([{ id: "b" }])
+
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
+    expect(ports.commit).toHaveBeenCalledTimes(1)
+    expect(session.pendingIds()).toEqual(["b"])
+  })
+
+  it("falls back to committing when the cancel call fails on undo", async () => {
+    const { ports, session } = setup({
+      cancel: vi.fn(async () => {
+        throw new Error("offline")
+      }),
+    })
+    await session.schedule([{ id: "a" }])
+
+    expect(await session.undo()).toBe(false)
+    await flushPromises()
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
+    expect(ports.restore).not.toHaveBeenCalled()
+  })
+})
