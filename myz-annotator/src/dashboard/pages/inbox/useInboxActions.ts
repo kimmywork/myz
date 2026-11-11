@@ -102,9 +102,9 @@ export function useInboxActions(data: InboxData) {
     await data.load();
   }
 
-  async function remove(item: InboxQueueItem) {
+  function remove(item: InboxQueueItem) {
     clearUndo();
-    await deleteStore.remove([item.record], { reload: () => data.load() });
+    deleteStore.requestDelete([item.record], { reload: () => data.load() });
     data.status.value = "已删除";
   }
 
