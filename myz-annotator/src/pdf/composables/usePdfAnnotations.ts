@@ -17,6 +17,7 @@ import { sourceKeyOf, sourceTypeOf, type PdfSourceRef } from "../source.js";
 import type { ReaderState } from "../stores/state.js";
 import { invoke } from "@/messaging/invoke";
 import { useReaderDelete } from "@/reader/delete-flow";
+import { withoutPendingDeletes } from "@/reader/pending-deletes";
 
 export interface AnnotationsDeps {
   pageElements: () => HTMLElement[];
@@ -69,9 +70,10 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
       const records = await invoke("myz:getHighlightsForUrl", {
         url: sourceKeyOf(current),
       });
-      state.annotations.value = (records || [])
+      const normalized = (records || [])
         .map((record) => normalizeRecord(record))
         .filter((record): record is MyZRecord => Boolean(record));
+      state.annotations.value = await withoutPendingDeletes(normalized);
     } catch (err) {
       console.error("Failed to load annotations", err);
       state.annotations.value = [];

@@ -8,6 +8,7 @@ import {
 import type { ComputedRef, Ref } from "vue";
 import { applyHighlights, type EpubHighlightRecord } from "../highlights.js";
 import { invoke } from "@/messaging/invoke";
+import { withoutPendingDeletes } from "@/reader/pending-deletes";
 
 interface HighlightDeps {
   records: Ref<MyZRecord[]>;
@@ -90,7 +91,8 @@ export function createEpubHighlights(deps: HighlightDeps) {
         url: deps.sourceKey.value,
         aliases: [deps.sourceKey.value],
       });
-      deps.records.value = Array.isArray(list) ? (list as MyZRecord[]) : [];
+      const records = Array.isArray(list) ? (list as MyZRecord[]) : [];
+      deps.records.value = await withoutPendingDeletes(records);
     } catch {
       deps.records.value = [];
     }

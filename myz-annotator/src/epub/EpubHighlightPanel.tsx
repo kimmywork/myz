@@ -200,6 +200,11 @@ export default defineComponent({
               type="button"
               class="reader-inspector__delete"
               onClick={() => {
+                // Only a note needs the guard; plain marks get the undo toast.
+                if (!(props.record?.note || "").trim()) {
+                  props.onDelete?.();
+                  return;
+                }
                 void confirmDestructive(
                   "这条划线带有批注，删除后批注一起消失。",
                   {
