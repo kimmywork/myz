@@ -11,3 +11,6 @@
 - 2026-11-10 · I1（CodeRabbit review）· Range 顺序在混合标签名下排序错误：`sorting.ts` 的 `comparePathSegments` 对不同标签名按字母比较（`h2` 会排到前面的 `p` 之前），未按文档位置排序。· 待评估
 - 2026-11-10 · I2 · 旧顶栏 `DashboardNavbarShell` 的 `isHighlightsRoute` 搜索分支已成死代码（文库不再走旧壳），连同该 prop 一起待 I10 收口时删除。· 待评估
 - 2026-11-10 · I2 · `HighlightsPaneShell` 的 `stickyLayout` prop 现在恒传 false（壳接管滚动后不再需要内层定高），是死参数，待 I3 接线右栏时顺手清掉。· 待评估
+- 2026-11-11 · I5 · 收件箱的批量选择条是内联实现（`InboxPage`），没有复用新的共享 `SelectionBar`；I10 视觉收口时可统一。· 待评估
+- 2026-11-11 · I5 · `myz:importHighlights` 的 `replace` 策略是「同 id 覆盖」，不是清空重来，命名容易误解（写 e2e 时踩到）；可考虑改名或补文档。· 待评估
+- 2026-11-11 · I5 · 阅读页「从列表移除」的撤销窗口是页面内存级，离开页面即提交（与 I4「关页面即提交」一致）；若以后要跨页面撤销需持久化，先不做。· 待评估
