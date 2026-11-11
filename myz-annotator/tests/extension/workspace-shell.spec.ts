@@ -109,7 +109,8 @@ test("theme_menu_measures_at_open_after_the_rail_was_hidden", async () => {
   await expect(dash.locator('[data-testid="rail-inbox"]')).toBeVisible();
   await dash.locator("button.myz-workspace__theme").click();
 
-  const menu = dash.locator('[role="listbox"]');
+  // The Inbox list is also a listbox now; name the theme menu explicitly.
+  const menu = dash.getByRole("listbox", { name: "主题" });
   await expect(menu).toBeVisible();
   const box = await menu.boundingBox();
   const trigger = await dash

@@ -235,6 +235,7 @@ export default defineComponent({
             <Teleport to="body">
               <div
                 role="listbox"
+                aria-label="主题"
                 ref={menuRef}
                 onKeydown={onMenuKeydown}
                 class="fixed z-[9999] w-36 overflow-hidden rounded-panel border border-control-border bg-surface py-1 shadow-float"
