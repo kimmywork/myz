@@ -72,7 +72,11 @@ export default defineComponent({
                 deleteStore.requestDelete([record], {
                   event,
                   reload: () => highlightsStore.refreshHighlights(),
-                  afterSchedule: () => a.backToList(),
+                  afterSchedule: () => {
+                    // This navigation is ours; keep the undo window alive.
+                    deleteStore.markDeleteNavigation();
+                    a.backToList();
+                  },
                 });
               }}
             >

@@ -189,6 +189,37 @@ export const useDeleteStore = defineStore("delete", () => {
     message.value = "";
   }
 
+  let suppressNextRouteFlush = false;
+  let suppressTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearSuppression() {
+    if (suppressTimer) {
+      clearTimeout(suppressTimer);
+      suppressTimer = null;
+    }
+    suppressNextRouteFlush = false;
+  }
+
+  /**
+   * Marks the programmatic navigation that follows a viewer delete. Only the
+   * very next route change is skipped; a 1s fallback clears the mark so it can
+   * never swallow a real user navigation.
+   */
+  function markDeleteNavigation() {
+    clearSuppression();
+    suppressNextRouteFlush = true;
+    suppressTimer = setTimeout(clearSuppression, 1000);
+  }
+
+  /** Router hook: skip the delete-triggered navigation, flush everything else. */
+  function flushOnRouteChange() {
+    if (suppressNextRouteFlush) {
+      clearSuppression();
+      return;
+    }
+    flush();
+  }
+
   /** Page teardown: commits; the durable intent covers a killed page. */
   function teardown() {
     session.dispose();
@@ -210,6 +241,8 @@ export const useDeleteStore = defineStore("delete", () => {
     pause,
     resume,
     flush,
+    markDeleteNavigation,
+    flushOnRouteChange,
     teardown,
   };
 });

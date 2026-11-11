@@ -26,7 +26,7 @@ export default defineComponent({
 
     onMounted(async () => {
       // Route change commits pending deletes instead of dropping them.
-      stopAfterEach = router.afterEach(() => deleteStore.flush());
+      stopAfterEach = router.afterEach(() => deleteStore.flushOnRouteChange());
       window.addEventListener("pagehide", deleteStore.teardown);
       try {
         await Promise.all([
