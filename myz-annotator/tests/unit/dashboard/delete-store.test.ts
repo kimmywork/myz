@@ -59,6 +59,18 @@ describe("delete store removeNow", () => {
     expect(store.isPending("r1")).toBe(true);
   });
 
+  it("clears a stale failure message after a successful retry", async () => {
+    mockBackend({ committed: false, cancelled: true });
+    const store = useDeleteStore();
+    await store.removeNow([record]);
+    expect(store.message).toBe("删除失败，记录已恢复");
+
+    mockBackend({ committed: true, cancelled: true });
+    await store.removeNow([record]);
+    expect(store.message).toBe("");
+    expect(store.isPending("r1")).toBe(false);
+  });
+
   it("clears the pending row after a successful commit", async () => {
     mockBackend({ committed: true, cancelled: true });
     const store = useDeleteStore();

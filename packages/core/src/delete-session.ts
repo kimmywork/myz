@@ -112,6 +112,8 @@ export function createDeleteSession<T>(
   const windowMs = ports.windowMs ?? DELETE_UNDO_WINDOW_MS
   const now = ports.now ?? (() => Date.now())
   const groups: PendingGroup<T>[] = []
+  /** Ids whose queue() call is still in flight (dedupe across a tick). */
+  const queueing = new Set<string>()
 
   function detach(group: PendingGroup<T>) {
     if (group.timer) {
@@ -176,20 +178,31 @@ export function createDeleteSession<T>(
     options: { flushPrevious?: boolean } = {},
   ): Promise<boolean> {
     if (!items.length) return true
-    // Never create a second group for a record that is already pending.
+    // A record that is already pending must not get a second group (its
+    // current undo affordance stays valid).
     const alreadyPending = pendingIdSet()
-    const fresh = items.filter((item) => !alreadyPending.has(ports.getId(item)))
-    if (!fresh.length) return true
+    const candidates = items.filter(
+      (item) => !alreadyPending.has(ports.getId(item)),
+    )
+    if (!candidates.length) return true
     // One undo affordance at a time by default; content toasts keep one group
     // per record and pass `flushPrevious: false`.
     if (options.flushPrevious !== false) await flushAll()
+    // Also dedupe against a queue() call that has not resolved yet.
+    const fresh = candidates.filter(
+      (item) => !queueing.has(ports.getId(item)),
+    )
+    if (!fresh.length) return true
     const ids = fresh.map(ports.getId)
+    ids.forEach((id) => queueing.add(id))
     const dueAt = now() + windowMs
     let queued = false
     try {
       queued = await ports.queue(ids, dueAt)
     } catch {
       queued = false
+    } finally {
+      ids.forEach((id) => queueing.delete(id))
     }
     if (!queued) return false
     const group: PendingGroup<T> = {
@@ -211,13 +224,23 @@ export function createDeleteSession<T>(
       ? groups.find((candidate) => sameIds(candidate.ids, ids))
       : groups[groups.length - 1]
     if (!group) return false
-    detach(group)
+    const remaining = group.timer
+      ? Math.max(0, group.remaining - (now() - group.startedAt))
+      : group.remaining
+    if (group.timer) {
+      clearTimeout(group.timer)
+      group.timer = null
+    }
     let cancelled = false
     try {
       cancelled = await ports.cancel(group.ids)
     } catch {
-      cancelled = false
+      // Unknown outcome (message failed): keep the group retryable instead of
+      // pretending the delete committed.
+      arm(group, remaining)
+      return false
     }
+    detach(group)
     if (!cancelled) {
       // The alarm/drain already committed it: do not pretend the rows are back.
       detach(group)

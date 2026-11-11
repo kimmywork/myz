@@ -24,6 +24,11 @@ async function openViewer(dash: import("@playwright/test").Page, id: string) {
   await dash.waitForSelector('button:has-text("删除")', { timeout: 8000 });
 }
 
+async function pendingIds(dash: import("@playwright/test").Page) {
+  const result = await send<{ ids: string[] }>(dash, "myz:listPendingDeletes");
+  return result.ids;
+}
+
 async function present(dash: import("@playwright/test").Page, id: string) {
   const records = await send<Array<{ id: string }>>(
     dash,
@@ -61,6 +66,10 @@ test("viewer_delete_commits_when_the_user_navigates_away", async () => {
   await dash.locator('[data-testid="rail-inbox"]').click();
   await expect(dash).toHaveURL(/#\/inbox/);
   await expect(dash.getByTestId("undo-bar")).toHaveCount(0);
+  // The intent must be gone before the filtered read can be trusted.
+  await expect
+    .poll(() => pendingIds(dash), { timeout: 8000 })
+    .not.toContain(id);
   await expect.poll(() => present(dash, id), { timeout: 8000 }).toBe(false);
 });
 
@@ -75,5 +84,8 @@ test("viewer_delete_commits_when_the_window_expires", async () => {
   await expect(dash.getByTestId("undo-bar")).toHaveCount(0, {
     timeout: 9000,
   });
+  await expect
+    .poll(() => pendingIds(dash), { timeout: 8000 })
+    .not.toContain(id);
   await expect.poll(() => present(dash, id), { timeout: 8000 }).toBe(false);
 });

@@ -145,6 +145,7 @@ export const useDeleteStore = defineStore("delete", () => {
       const next = new Set(pendingIds.value);
       ids.forEach((id) => next.delete(id));
       pendingIds.value = next;
+      message.value = "";
       refresh();
       return;
     }

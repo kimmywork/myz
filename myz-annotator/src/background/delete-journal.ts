@@ -8,12 +8,14 @@
  *
  * Every read-modify-write runs on one serial chain: two deletes arriving in the
  * same tick must both keep their intent instead of overwriting each other.
- * A missing intent is never treated as success on its own — the records are
- * checked in storage first, and finished there when the intent was lost.
+ * A missing intent is never treated as success on its own — storage is checked
+ * first, and a cancelled intent is distinguishable from a lost one.
  */
 export interface DeleteJournalEntry {
   ids: string[];
   dueAt: number;
+  /** The user undid this intent; a late commit must not delete the records. */
+  cancelled?: boolean;
 }
 
 export interface DeleteJournalDeps {
@@ -27,35 +29,33 @@ export interface DeleteJournalDeps {
   anyPresent: (ids: readonly string[]) => Promise<boolean>;
   /** Removes tombstones when an intent is cancelled (undo). */
   clearDeletions: (ids: readonly string[]) => Promise<void>;
-  /** Ids whose record delete succeeded but whose tombstone still needs writing. */
-  readTombstoneBacklog: () => Promise<string[]>;
-  writeTombstoneBacklog: (ids: string[]) => Promise<void>;
-  /** Reports a tombstone that could not even be queued for retry. */
+  /** Reports a tombstone that is still pending after a failed write. */
   onTombstoneFailure?: (ids: readonly string[]) => void;
   now?: () => number;
 }
 
 export interface DeleteJournal {
-  /** Persists an intent; `false` when it could not be stored. */
   queue: (ids: readonly string[], dueAt: number) => Promise<boolean>;
-  /** Drops the intent; `false` when it was already committed or never existed. */
+  /** Marks the intent cancelled; `false` when it was already committed. */
   cancel: (ids: readonly string[]) => Promise<boolean>;
-  /**
-   * Commits one intent. When the intent is gone it checks storage: already
-   * deleted counts as success, still present is finished here (or fails).
-   */
   commit: (ids: readonly string[]) => Promise<boolean>;
-  /** Every pending id, expired or not. */
   pendingIds: () => Promise<string[]>;
-  /** Commits every intent whose deadline has passed. */
   drainExpired: () => Promise<void>;
 }
+
+/** How long a cancelled marker is kept to make late commits no-ops. */
+const CANCELLED_TTL_MS = 60_000;
 
 function sameIds(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false;
   const sortedLeft = [...left].sort();
   const sortedRight = [...right].sort();
   return sortedLeft.every((id, index) => id === sortedRight[index]);
+}
+
+interface DeleteOutcome {
+  removed: boolean;
+  tombstonesPending: boolean;
 }
 
 /**
@@ -67,10 +67,6 @@ function sameIds(left: readonly string[], right: readonly string[]): boolean {
 export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
   const now = deps.now ?? (() => Date.now());
 
-  /**
-   * One serial chain for every read-modify-write. A failing task must not
-   * break the chain for the next one.
-   */
   let tail: Promise<unknown> = Promise.resolve();
   function serialize<T>(task: () => Promise<T>): Promise<T> {
     const run = tail.then(task, task);
@@ -99,11 +95,16 @@ export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
 
   async function cancelImpl(ids: readonly string[]): Promise<boolean> {
     const entries = await deps.read();
-    const next = entries.filter((entry) => !sameIds(entry.ids, ids));
-    if (next.length === entries.length) return false;
+    const entry = entries.find((candidate) => sameIds(candidate.ids, ids));
+    if (!entry || entry.cancelled) return false;
+    // Keep a cancelled marker so a commit that races with this undo is a
+    // no-op instead of deleting the restored record.
+    const next = entries.map((candidate) =>
+      candidate === entry
+        ? { ids: entry.ids, dueAt: now(), cancelled: true }
+        : candidate,
+    );
     await deps.write(next);
-    // The intent may have been cancelled after a partial commit; never leave a
-    // tombstone behind for a record the user just restored.
     try {
       await deps.clearDeletions(ids);
     } catch {
@@ -117,11 +118,11 @@ export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
    * live in different databases, so a failed record delete must not leave a
    * publishable tombstone for a row the UI is about to restore.
    */
-  async function deleteRecords(ids: readonly string[]): Promise<boolean> {
+  async function deleteRecords(ids: readonly string[]): Promise<DeleteOutcome> {
     try {
       await deps.removeRecords([...ids]);
     } catch {
-      return false;
+      return { removed: false, tombstonesPending: false };
     }
     const failed: string[] = [];
     for (const id of ids) {
@@ -132,58 +133,62 @@ export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
       }
     }
     if (failed.length) {
-      try {
-        const backlog = await deps.readTombstoneBacklog();
-        const merged = Array.from(new Set([...backlog, ...failed]));
-        await deps.writeTombstoneBacklog(merged);
-      } catch {
-        // Local delete succeeded; report so the failure is not silent.
-        deps.onTombstoneFailure?.(failed);
-      }
+      deps.onTombstoneFailure?.(failed);
     }
-    return true;
-  }
-
-  /** Retries tombstones whose record delete already succeeded. */
-  async function retryTombstonesImpl(): Promise<void> {
-    const backlog = await deps.readTombstoneBacklog();
-    if (!backlog.length) return;
-    const failed: string[] = [];
-    for (const id of backlog) {
-      try {
-        await deps.recordDeletion(id);
-      } catch {
-        failed.push(id);
-      }
-    }
-    await deps.writeTombstoneBacklog(failed);
+    return { removed: true, tombstonesPending: failed.length > 0 };
   }
 
   async function commitImpl(ids: readonly string[]): Promise<boolean> {
-    await retryTombstonesImpl();
     const entries = await deps.read();
     const entry = entries.find((candidate) => sameIds(candidate.ids, ids));
     if (!entry) {
       // The intent was lost (overwritten or never persisted). Success is only
       // honest when storage agrees the records are gone; otherwise finish the
       // delete here so the UI's "deleted" matches storage.
-      const stillThere = await deps.anyPresent(ids);
-      if (!stillThere) return true;
-      return deleteRecords(ids);
+      if (!(await deps.anyPresent(ids))) return true;
+      const outcome = await deleteRecords(ids);
+      return outcome.removed;
     }
-    const removed = await deleteRecords(entry.ids);
-    if (!removed) {
-      // Keep the intent so the next drain retries; the UI restores the rows.
-      return false;
+    if (entry.cancelled) {
+      // The user undid it; a late commit must not delete the records.
+      return true;
     }
-    await deps.write(entries.filter((candidate) => candidate !== entry));
+    const outcome = await deleteRecords(entry.ids);
+    if (!outcome.removed) return false;
+    if (outcome.tombstonesPending) {
+      // Keep the intent as the durable retry marker for the missing tombstones;
+      // the records are already gone, so the UI may treat this as success.
+      return true;
+    }
+    try {
+      await deps.write(entries.filter((candidate) => candidate !== entry));
+    } catch {
+      // Records and tombstones are done; leave the intent so the next drain
+      // retries the cleanup instead of reporting the deletion as undone.
+    }
     return true;
   }
 
+  async function pruneCancelled(entries: DeleteJournalEntry[]) {
+    const cutoff = now() - CANCELLED_TTL_MS;
+    const kept = entries.filter(
+      (entry) => !(entry.cancelled && entry.dueAt <= cutoff),
+    );
+    if (kept.length !== entries.length) {
+      try {
+        await deps.write(kept);
+      } catch {
+        /* Best-effort; the next drain tries again. */
+      }
+    }
+    return kept;
+  }
+
   async function drainExpiredImpl(): Promise<void> {
-    await retryTombstonesImpl();
-    const entries = await deps.read();
-    const due = entries.filter((entry) => entry.dueAt <= now());
+    const entries = await pruneCancelled(await deps.read());
+    const due = entries.filter(
+      (entry) => !entry.cancelled && entry.dueAt <= now(),
+    );
     for (const entry of due) {
       await commitImpl(entry.ids);
     }
@@ -196,7 +201,9 @@ export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
     pendingIds: () =>
       serialize(async () => {
         const entries = await deps.read();
-        return entries.flatMap((entry) => entry.ids);
+        return entries
+          .filter((entry) => !entry.cancelled)
+          .flatMap((entry) => entry.ids);
       }),
     drainExpired: () => serialize(drainExpiredImpl),
   };

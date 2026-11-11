@@ -202,7 +202,7 @@ describe("createDeleteSession", () => {
     expect(ports.onUndoUnavailable).toHaveBeenCalledWith([{ id: "a" }])
   })
 
-  it("treats a throwing cancel as 'already committed' too", async () => {
+  it("keeps a group retryable when the cancel call throws", async () => {
     const { ports, session } = setup({
       cancel: vi.fn(async () => {
         throw new Error("offline")
@@ -212,6 +212,24 @@ describe("createDeleteSession", () => {
 
     expect(await session.undo()).toBe(false)
     expect(ports.restore).not.toHaveBeenCalled()
+    // The outcome is unknown, so the group stays pending and can be undone
+    // again or committed later.
+    expect(session.pendingIds()).toEqual(["a"])
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
+  })
+
+  it("dedupes two schedules for one record in the same tick", async () => {
+    const { ports, session } = setup()
+    const [first, second] = await Promise.all([
+      session.schedule([{ id: "a" }]),
+      session.schedule([{ id: "a" }]),
+    ])
+
+    expect(first).toBe(true)
+    expect(second).toBe(true)
+    expect(ports.queue).toHaveBeenCalledTimes(1)
+    expect(session.pendingIds()).toEqual(["a"])
   })
 
   it("ignores a second schedule for an already pending record", async () => {
