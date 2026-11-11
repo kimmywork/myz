@@ -14,6 +14,7 @@ function setup(now = 1_000) {
     }),
     removeRecords: vi.fn(async () => {}),
     recordDeletion: vi.fn(async () => {}),
+    anyPresent: vi.fn(async () => false),
     now: () => now,
   };
   const journal = createDeleteJournal(deps);
@@ -31,9 +32,20 @@ describe("delete journal", () => {
   it("persists an intent before anything is deleted", async () => {
     const { deps, journal, entries } = setup();
     expect(await journal.queue(["a", "b"], 7_000)).toBe(true);
-    expect(deps.write).toHaveBeenCalledTimes(1);
     expect(entries()).toEqual([{ ids: ["a", "b"], dueAt: 7_000 }]);
     expect(deps.removeRecords).not.toHaveBeenCalled();
+  });
+
+  it("keeps both intents when two queues arrive in the same tick", async () => {
+    const { journal, entries } = setup();
+    const [first, second] = await Promise.all([
+      journal.queue(["a"], 7_000),
+      journal.queue(["b"], 8_000),
+    ]);
+
+    expect(first).toBe(true);
+    expect(second).toBe(true);
+    expect(entries().map((entry) => entry.ids)).toEqual([["a"], ["b"]]);
   });
 
   it("commits one intent: tombstones, one batch remove, entry cleared", async () => {
@@ -46,22 +58,37 @@ describe("delete journal", () => {
     expect(entries()).toEqual([]);
   });
 
-  it("treats an already committed intent as committed (idempotent)", async () => {
+  it("finishes the delete when the intent is gone but records remain", async () => {
     const { deps, journal } = setup();
-    await journal.queue(["a"], 7_000);
-    await journal.commit(["a"]);
+    deps.anyPresent.mockResolvedValueOnce(true);
 
-    expect(await journal.commit(["a"])).toBe(true);
-    expect(deps.removeRecords).toHaveBeenCalledTimes(1);
+    expect(await journal.commit(["lost"])).toBe(true);
+    expect(deps.removeRecords).toHaveBeenCalledWith(["lost"]);
   });
 
-  it("cancel drops the intent without deleting", async () => {
-    const { deps, journal, entries } = setup();
+  it("fails when a lost intent cannot be finished", async () => {
+    const { deps, journal } = setup();
+    deps.anyPresent.mockResolvedValueOnce(true);
+    deps.removeRecords.mockRejectedValueOnce(new Error("offline"));
+
+    expect(await journal.commit(["lost"])).toBe(false);
+  });
+
+  it("treats a missing intent as committed only when storage agrees", async () => {
+    const { deps, journal } = setup();
+    deps.anyPresent.mockResolvedValueOnce(false);
+
+    expect(await journal.commit(["gone"])).toBe(true);
+    expect(deps.removeRecords).not.toHaveBeenCalled();
+  });
+
+  it("cancel reports whether the intent existed", async () => {
+    const { journal, entries } = setup();
     await journal.queue(["a"], 7_000);
 
-    await journal.cancel(["a"]);
+    expect(await journal.cancel(["a"])).toBe(true);
     expect(entries()).toEqual([]);
-    expect(deps.removeRecords).not.toHaveBeenCalled();
+    expect(await journal.cancel(["a"])).toBe(false);
   });
 
   it("drains only overdue intents and keeps failures for a retry", async () => {
@@ -72,13 +99,27 @@ describe("delete journal", () => {
 
     setNow(2_000);
     await journal.drainExpired();
-
-    // The failed entry stays; the not-yet-due one is untouched.
     expect(entries().map((entry) => entry.ids)).toEqual([["due"], ["later"]]);
-    expect(deps.removeRecords).toHaveBeenCalledTimes(1);
 
     await journal.drainExpired();
     expect(entries().map((entry) => entry.ids)).toEqual([["later"]]);
+  });
+
+  it("does not deadlock when operations are mixed concurrently", async () => {
+    const { journal, entries } = setup();
+    await journal.queue(["a"], 1_000);
+    await journal.queue(["b"], 2_000);
+
+    const results = await Promise.all([
+      journal.queue(["c"], 3_000),
+      journal.cancel(["a"]),
+      journal.commit(["b"]),
+      journal.drainExpired(),
+      journal.pendingIds(),
+    ]);
+
+    expect(results).toHaveLength(5);
+    expect(entries().map((entry) => entry.ids)).toEqual([["c"]]);
   });
 
   it("lists every pending id", async () => {

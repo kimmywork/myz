@@ -35,8 +35,7 @@ export function initializeDeleteJournalMessageHandlers(): void {
     async (payload: { ids?: string[] }) => {
       const ids = normalizeIds(payload?.ids);
       if (!ids.length) return { ok: false };
-      await deleteJournal.cancel(ids);
-      return { ok: true };
+      return { ok: await deleteJournal.cancel(ids) };
     },
   );
 

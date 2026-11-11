@@ -6,8 +6,10 @@
  * rows; the background commits it when the window ends, and drains overdue
  * intents on startup / alarm so closing the page still deletes the records.
  *
- * Storage and record deletion are injected so this stays testable without
- * chrome or IndexedDB.
+ * Every read-modify-write runs on one serial chain: two deletes arriving in the
+ * same tick must both keep their intent instead of overwriting each other.
+ * A missing intent is never treated as success on its own — the records are
+ * checked in storage first, and finished there when the intent was lost.
  */
 export interface DeleteJournalEntry {
   ids: string[];
@@ -21,15 +23,20 @@ export interface DeleteJournalDeps {
   removeRecords: (ids: string[]) => Promise<void>;
   /** Records the sync deletion tombstone. */
   recordDeletion: (id: string) => Promise<void>;
+  /** True when at least one of these records still exists in storage. */
+  anyPresent: (ids: readonly string[]) => Promise<boolean>;
   now?: () => number;
 }
 
 export interface DeleteJournal {
   /** Persists an intent; `false` when it could not be stored. */
   queue: (ids: readonly string[], dueAt: number) => Promise<boolean>;
-  /** Drops the intent for this exact id set (undo / failed commit). */
-  cancel: (ids: readonly string[]) => Promise<void>;
-  /** Commits one intent. Idempotent: an unknown id set counts as committed. */
+  /** Drops the intent; `false` when it was already committed or never existed. */
+  cancel: (ids: readonly string[]) => Promise<boolean>;
+  /**
+   * Commits one intent. When the intent is gone it checks storage: already
+   * deleted counts as success, still present is finished here (or fails).
+   */
   commit: (ids: readonly string[]) => Promise<boolean>;
   /** Every pending id, expired or not. */
   pendingIds: () => Promise<string[]>;
@@ -47,13 +54,27 @@ function sameIds(left: readonly string[], right: readonly string[]): boolean {
 /**
  * Creates the journal over injected storage and record ports.
  *
- * @param deps Persistence and deletion ports.
+ * @param deps Persistence, presence check and deletion ports.
  * @returns The journal API used by message handlers and the drain alarm.
  */
 export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
   const now = deps.now ?? (() => Date.now());
 
-  async function queue(
+  /**
+   * One serial chain for every read-modify-write. A failing task must not
+   * break the chain for the next one.
+   */
+  let tail: Promise<unknown> = Promise.resolve();
+  function serialize<T>(task: () => Promise<T>): Promise<T> {
+    const run = tail.then(task, task);
+    tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  async function queueImpl(
     ids: readonly string[],
     dueAt: number,
   ): Promise<boolean> {
@@ -69,25 +90,39 @@ export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
     }
   }
 
-  async function cancel(ids: readonly string[]): Promise<void> {
+  async function cancelImpl(ids: readonly string[]): Promise<boolean> {
     const entries = await deps.read();
     const next = entries.filter((entry) => !sameIds(entry.ids, ids));
-    if (next.length !== entries.length) {
-      await deps.write(next);
+    if (next.length === entries.length) return false;
+    await deps.write(next);
+    return true;
+  }
+
+  async function deleteRecords(ids: readonly string[]): Promise<boolean> {
+    try {
+      for (const id of ids) {
+        await deps.recordDeletion(id);
+      }
+      await deps.removeRecords([...ids]);
+      return true;
+    } catch {
+      return false;
     }
   }
 
-  async function commit(ids: readonly string[]): Promise<boolean> {
+  async function commitImpl(ids: readonly string[]): Promise<boolean> {
     const entries = await deps.read();
     const entry = entries.find((candidate) => sameIds(candidate.ids, ids));
-    // Already committed (a drain won the race) — report success.
-    if (!entry) return true;
-    try {
-      for (const id of entry.ids) {
-        await deps.recordDeletion(id);
-      }
-      await deps.removeRecords(entry.ids);
-    } catch {
+    if (!entry) {
+      // The intent was lost (overwritten or never persisted). Success is only
+      // honest when storage agrees the records are gone; otherwise finish the
+      // delete here so the UI's "deleted" matches storage.
+      const stillThere = await deps.anyPresent(ids);
+      if (!stillThere) return true;
+      return deleteRecords(ids);
+    }
+    const removed = await deleteRecords(entry.ids);
+    if (!removed) {
       // Keep the intent so the next drain retries; the UI restores the rows.
       return false;
     }
@@ -95,18 +130,23 @@ export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
     return true;
   }
 
-  async function pendingIds(): Promise<string[]> {
-    const entries = await deps.read();
-    return entries.flatMap((entry) => entry.ids);
-  }
-
-  async function drainExpired(): Promise<void> {
+  async function drainExpiredImpl(): Promise<void> {
     const entries = await deps.read();
     const due = entries.filter((entry) => entry.dueAt <= now());
     for (const entry of due) {
-      await commit(entry.ids);
+      await commitImpl(entry.ids);
     }
   }
 
-  return { queue, cancel, commit, pendingIds, drainExpired };
+  return {
+    queue: (ids, dueAt) => serialize(() => queueImpl(ids, dueAt)),
+    cancel: (ids) => serialize(() => cancelImpl(ids)),
+    commit: (ids) => serialize(() => commitImpl(ids)),
+    pendingIds: () =>
+      serialize(async () => {
+        const entries = await deps.read();
+        return entries.flatMap((entry) => entry.ids);
+      }),
+    drainExpired: () => serialize(drainExpiredImpl),
+  };
 }

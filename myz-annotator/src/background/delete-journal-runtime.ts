@@ -2,6 +2,7 @@
  * Chrome wiring for the deferred-delete journal: IndexedDB records, sync
  * tombstones and `chrome.storage.local` intents.
  */
+import { recordsStore } from "./stores.js";
 import { createDeleteJournal } from "./delete-journal.js";
 import {
   deleteHighlights,
@@ -15,6 +16,12 @@ export const deleteJournal = createDeleteJournal({
   write: writeDeleteJournal,
   removeRecords: deleteHighlights,
   recordDeletion: recordHighlightDeletion,
+  anyPresent: async (ids) => {
+    for (const id of ids) {
+      if (await recordsStore.get(id)) return true;
+    }
+    return false;
+  },
 });
 
 /** Commits overdue intents; awaited by read paths before they render. */
