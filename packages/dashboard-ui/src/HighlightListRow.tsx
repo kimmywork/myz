@@ -40,10 +40,22 @@ export default defineComponent({
           title={title}
           meta={meta}
           tone={isClip.value ? "clip" : "tag"}
+          selected={props.selected}
           onOpen={() => props.onAction?.("view", record)}
           data-id={record.id}
         >
           {{
+            leading: () =>
+              props.onToggleSelect ? (
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 shrink-0"
+                  checked={props.selected}
+                  onChange={() => props.onToggleSelect?.(record)}
+                  aria-label="选择这条记录"
+                  data-testid="select-record"
+                />
+              ) : null,
             badges: () => (
               <span
                 class={[

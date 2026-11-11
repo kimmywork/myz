@@ -2,6 +2,7 @@ import {
   HighlightGroups,
   HighlightsPaneShell,
   QuickSearch,
+  SelectionBar,
   type HighlightItemAction,
 } from "@myz/dashboard-ui";
 import type { MyZRecord } from "@myz/shared/types";
@@ -9,6 +10,10 @@ import { computed, defineComponent, nextTick, watch } from "vue";
 import type { PropType } from "vue";
 import { useRouter } from "vue-router";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
+import {
+  libraryViewKey,
+  useLibrarySelection,
+} from "../composables/useLibrarySelection.js";
 import { useDeleteStore } from "../stores/delete.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
@@ -30,6 +35,30 @@ export default defineComponent({
     const { sentinelRef, stop, restart } = useInfiniteScroll({
       onIntersect: () => uiStore.loadMore(),
     });
+
+    // Selection belongs to the view: filters / search / page filter clear it.
+    // Cards↔list is not part of the key — same records, different paint.
+    const viewKey = computed(() =>
+      libraryViewKey({
+        quickSearch: uiStore.quickSearch,
+        search: uiStore.filters.search,
+        site: uiStore.filters.site,
+        tags: uiStore.filters.tags,
+        from: uiStore.filters.from,
+        to: uiStore.filters.to,
+        pageFilter: uiStore.pageFilter,
+      }),
+    );
+    const selection = useLibrarySelection(viewKey);
+    const visibleIds = computed(() =>
+      uiStore.visibleHighlights.map((record) => record.id),
+    );
+    watch(
+      () => highlightsStore.highlights,
+      (records) => {
+        selection.prune(new Set(records.map((record) => record.id)));
+      },
+    );
 
     const currentPageLabel = computed(() => {
       if (!uiStore.pageFilter) {
@@ -132,25 +161,38 @@ export default defineComponent({
             />
           ),
           default: () => (
-            <HighlightGroups
-              loading={highlightsStore.loadingHighlights}
-              view={uiStore.view}
-              groups={uiStore.groupedHighlights.map((group) => ({
-                ...group,
-                items: group.items.filter(
-                  (item) => !deleteStore.isPending(item.id),
-                ),
-              }))}
-              hasMore={uiStore.hasMoreHighlights}
-              setSentinelRef={(value) => {
-                sentinelRef.value = value as Element | null;
-              }}
-              formatInline={uiStore.formatInline}
-              formatDateTime={uiStore.formatDateTime}
-              renderHighlight={uiStore.renderHighlight}
-              formatNote={uiStore.formatNote}
-              onAction={handleAction}
-            />
+            <div class="space-y-3">
+              {selection.count.value > 0 ? (
+                <SelectionBar
+                  count={selection.count.value}
+                  total={uiStore.filteredHighlights.length}
+                  allSelected={selection.isAllSelected(visibleIds.value)}
+                  onToggleAll={() => selection.toggleAll(visibleIds.value)}
+                  onClear={selection.clear}
+                />
+              ) : null}
+              <HighlightGroups
+                loading={highlightsStore.loadingHighlights}
+                view={uiStore.view}
+                groups={uiStore.groupedHighlights.map((group) => ({
+                  ...group,
+                  items: group.items.filter(
+                    (item) => !deleteStore.isPending(item.id),
+                  ),
+                }))}
+                hasMore={uiStore.hasMoreHighlights}
+                setSentinelRef={(value) => {
+                  sentinelRef.value = value as Element | null;
+                }}
+                formatInline={uiStore.formatInline}
+                formatDateTime={uiStore.formatDateTime}
+                renderHighlight={uiStore.renderHighlight}
+                formatNote={uiStore.formatNote}
+                onAction={handleAction}
+                selectedIds={selection.selectedIds.value}
+                onToggleSelect={(record) => selection.toggle(record.id)}
+              />
+            </div>
           ),
         }}
       </HighlightsPaneShell>

@@ -26,22 +26,37 @@ export default defineComponent({
       if (isClip.value) {
         classes.push("border-clip/40")
       }
+      if (props.selected) {
+        classes.push("ring-2 ring-accent")
+      }
       return classes.join(" ")
     })
 
     return () => (
       <article class={`${cardClasses.value} break-inside-avoid`} data-id={props.record!.id} data-kind={kind.value}>
         <div class="flex items-center justify-between gap-4">
-          <span
-            class={[
-              "inline-flex items-center gap-1.5 rounded-tag px-2 py-1 text-tag font-semibold uppercase tracking-wide",
-              isClip.value
-                ? "bg-clip-bg text-clip"
-                : "bg-tag-bg text-tag-fg",
-            ].join(" ")}
-          >
-            <KindIcon size={14} />
-          </span>
+          <div class="flex min-w-0 items-center gap-2">
+            {props.onToggleSelect ? (
+              <input
+                type="checkbox"
+                class="h-4 w-4 shrink-0"
+                checked={props.selected}
+                onChange={() => props.onToggleSelect?.(props.record!)}
+                aria-label="选择这条记录"
+                data-testid="select-record"
+              />
+            ) : null}
+            <span
+              class={[
+                "inline-flex items-center gap-1.5 rounded-tag px-2 py-1 text-tag font-semibold uppercase tracking-wide",
+                isClip.value
+                  ? "bg-clip-bg text-clip"
+                  : "bg-tag-bg text-tag-fg",
+              ].join(" ")}
+            >
+              <KindIcon size={14} />
+            </span>
+          </div>
           <div class="flex flex-col items-end text-caption text-muted">
             <span
               class="max-w-[120px] truncate text-muted"
