@@ -25,6 +25,9 @@ vi.mock("@/background/storage", () => ({
     mockPersistHighlightPreferences(...args),
   generateId: (...args: unknown[]) => mockGenerateId(...args),
   readSettings: async () => ({ inboxEnabled: false }),
+  readDeleteJournal: async () => [],
+  writeDeleteJournal: async () => {},
+  deleteHighlights: async () => {},
 }));
 
 vi.mock("@/background/sync/deletions", () => ({

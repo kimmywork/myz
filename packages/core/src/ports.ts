@@ -30,6 +30,8 @@ export interface RecordsStore {
   listAll(): Promise<MyZRecord[]>;
   upsert(record: MyZRecord): Promise<void>;
   remove(id: string): Promise<void>;
+  /** Removes several records in one transaction (batch delete atomicity). */
+  removeMany(ids: string[]): Promise<void>;
   /** Opaque preservation (D1): keep unknown synced records verbatim. */
   putOpaque(record: OpaqueRecord): Promise<void>;
   /** Opaque records, optionally filtered to one stream. */

@@ -15,6 +15,7 @@ import type { Settings } from "./settings.js";
 import {
   clearStagedAssets,
   deleteHighlight,
+  deleteHighlights,
   deleteInboxState,
   deleteOpaqueRecord,
   deleteStagedAsset,
@@ -42,6 +43,7 @@ export const recordsStore: RecordsStore = {
     await saveHighlight(record);
   },
   remove: (id) => deleteHighlight(id),
+  removeMany: (ids) => deleteHighlights(ids),
   putOpaque: (record) => putOpaqueRecord(record),
   listOpaque: (streamId) => listOpaqueRecords(streamId),
   deleteOpaque: (streamId, recordId) => deleteOpaqueRecord(streamId, recordId),

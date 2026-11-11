@@ -6,7 +6,6 @@ import {
   createRecord,
   getRecordsForUrls,
   listRecords,
-  listTags,
   normalizeIds,
   removeRecord,
   removeRecords,
@@ -16,8 +15,10 @@ import {
   updateRecordsPatch,
 } from "@myz/core/services/records";
 import type { MessageContext } from "@myz/shared/messageRegistry";
+import { collectTags } from "@myz/shared/tags";
 import { MyZRecord, RECORD_KINDS } from "@myz/shared/types";
 import { normalizeBadgeCounts, BadgeCount, buildActionTitle } from "../badge";
+import { withoutPendingDeletes } from "../delete-journal-runtime.js";
 import { getInboxStatus, setInboxStatus } from "../inbox/actions";
 import {
   generateId,
@@ -64,18 +65,22 @@ function registerReadHandlers() {
     async (payload: { url?: string; aliases?: string[] }) => {
       const urls = resolveRequestedUrls(payload);
       if (!urls.length) return [];
-      return getRecordsForUrls(recordsStore, urls);
+      return withoutPendingDeletes(await getRecordsForUrls(recordsStore, urls));
     },
   );
 
   registerMessageHandler("myz:getAllHighlights", async () =>
-    listRecords(recordsStore),
+    withoutPendingDeletes(await listRecords(recordsStore)),
   );
 
-  registerMessageHandler("myz:getAllTags", async () => listTags(recordsStore));
+  registerMessageHandler("myz:getAllTags", async () =>
+    collectTags(await withoutPendingDeletes(await listRecords(recordsStore))),
+  );
 
   registerMessageHandler("myz:export", async () => {
-    const highlights = await listRecords(recordsStore);
+    const highlights = await withoutPendingDeletes(
+      await listRecords(recordsStore),
+    );
     return {
       json: JSON.stringify(highlights, null, 2),
       markdown: buildMarkdownExport(highlights),

@@ -86,6 +86,19 @@ export type MyzRuntimeMap = {
     payload: { ids?: string[]; patch?: Partial<MyZRecord> };
     result: { updated: number };
   };
+  "myz:queuePendingDelete": {
+    payload: { ids?: string[]; dueAt?: number };
+    result: { ok: boolean };
+  };
+  "myz:cancelPendingDelete": {
+    payload: { ids?: string[] };
+    result: { ok: boolean };
+  };
+  "myz:commitPendingDelete": {
+    payload: { ids?: string[] };
+    result: { committed: boolean };
+  };
+  "myz:listPendingDeletes": { payload: void; result: { ids: string[] } };
   "myz:getAllHighlights": { payload: void; result: MyZRecord[] };
   "myz:getAllTags": { payload: void; result: string[] };
   "myz:export": { payload: void; result: { json: string; markdown: string } };

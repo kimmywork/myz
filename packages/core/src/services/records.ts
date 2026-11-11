@@ -189,14 +189,16 @@ export async function removeRecord(
   await store.remove(id);
 }
 
-/** Remove several records; returns how many ids were attempted. */
+/**
+ * Remove several records atomically; returns how many ids were attempted.
+ * The store performs the deletes in one transaction, so a batch is all or
+ * nothing (§4.30).
+ */
 export async function removeRecords(
   store: RecordsStore,
   ids: string[],
 ): Promise<number> {
-  for (const id of ids) {
-    await store.remove(id);
-  }
+  await store.removeMany(ids);
   return ids.length;
 }
 
