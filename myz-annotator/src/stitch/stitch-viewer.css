@@ -1,5 +1,6 @@
 /* Stitch editor page stylesheet: plugin tokens + the ported stitch-web UI. */
 @import "@myz/shared/theme/tokens.css";
+@import "@myz/shared/theme/confirm.css";
 @import "./stitch-app.css";
 
 /* Staging picker (new surface, not part of the original stitch-web). */

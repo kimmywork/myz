@@ -1,3 +1,5 @@
+import { UndoBar } from "@myz/dashboard-ui";
+import ConfirmHost from "@myz/shared/components/ConfirmHost";
 import { selectionBlocks } from "@myz/shared/selectionBlocks";
 import { RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
@@ -25,6 +27,7 @@ export default defineComponent({
 
     return () => (
       <div class={"epub-app" + (store.bilingualEnabled ? " is-bilingual" : "")}>
+        <ConfirmHost />
         {status.value === "ready" ? <EpubToolbar /> : null}
 
         {status.value === "ready" ? (
@@ -67,6 +70,16 @@ export default defineComponent({
 
         {status.value === "error" ? (
           <p class="epub-status epub-status--error">{error.value}</p>
+        ) : null}
+
+        {frame.deleteMessage.value ? (
+          <UndoBar
+            variant="toast"
+            message={frame.deleteMessage.value}
+            onUndo={frame.undoDelete}
+            onPause={frame.pauseDelete}
+            onResume={frame.resumeDelete}
+          />
         ) : null}
 
         {frame.selectionToolbar.value ? (

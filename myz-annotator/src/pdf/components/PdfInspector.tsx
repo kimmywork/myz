@@ -1,6 +1,6 @@
 import { Check, Trash2, X } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
-import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
+import { confirmDestructive } from "@myz/shared/dialogs";
 import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import { colorName, RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
@@ -29,18 +29,26 @@ export default defineComponent({
     const inspectorRef = ref<HTMLElement | null>(null);
     let focusTrap: FocusTrap | null = null;
 
+    async function activateInspectorTrap() {
+      await nextTick();
+      if (!inspectorRef.value) return;
+      focusTrap?.deactivate();
+      focusTrap = createFocusTrap(inspectorRef.value, {
+        onEscape: () => (store.activeId = null),
+      });
+      focusTrap.activate();
+    }
+
+    function suspendInspectorTrap() {
+      focusTrap?.deactivate();
+      focusTrap = null;
+    }
+
     watch(activeRecord, async (record) => {
       if (record) {
-        await nextTick();
-        if (inspectorRef.value) {
-          focusTrap = createFocusTrap(inspectorRef.value, {
-            onEscape: () => (store.activeId = null),
-          });
-          focusTrap.activate();
-        }
+        await activateInspectorTrap();
       } else {
-        focusTrap?.deactivate();
-        focusTrap = null;
+        suspendInspectorTrap();
       }
     });
 
@@ -155,8 +163,23 @@ export default defineComponent({
             <button
               type="button"
               class="reader-inspector__delete"
-              onClick={() => {
-                if (confirmDestructive(DELETE_CONFIRM)) store.deleteActive();
+              onClick={async () => {
+                const annotated = Boolean(
+                  (store.activeRecord?.note || "").trim(),
+                );
+                if (
+                  annotated &&
+                  !(await confirmDestructive(
+                    "这条划线带有批注，删除后批注一起消失。",
+                    {
+                      title: "删除划线？",
+                      confirmLabel: "删除",
+                    },
+                  ))
+                ) {
+                  return;
+                }
+                void store.requestDeleteActive();
               }}
             >
               <Trash2 size={14} aria-hidden="true" />

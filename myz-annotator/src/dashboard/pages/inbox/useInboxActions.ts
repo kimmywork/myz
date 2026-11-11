@@ -3,6 +3,7 @@ import type { UndoState } from "./inbox-types.js";
 import { snoozeTarget } from "./inbox-utils.js";
 import type { InboxData } from "./useInboxData.js";
 import type { InboxQueueItem } from "@/background/messages/inbox";
+import { useDeleteStore } from "@/dashboard/stores/delete";
 import { invoke } from "@/messaging/invoke";
 
 type FocusAction = "keep" | "archive" | "snooze" | "delete" | "mark";
@@ -12,6 +13,7 @@ const UNDO_WINDOW_MS = 6000;
 
 /** Mutations, drag/drop, undo, batch and focus-mode actions. */
 export function useInboxActions(data: InboxData) {
+  const deleteStore = useDeleteStore();
   let undoTimer: ReturnType<typeof setTimeout> | null = null;
   let dragTargetIds: string[] = [];
   let dragTagName: string | null = null;
@@ -100,11 +102,9 @@ export function useInboxActions(data: InboxData) {
     await data.load();
   }
 
-  async function remove(item: InboxQueueItem) {
-    if (!window.confirm("删除后不可撤销，确定删除？")) return;
-    await invoke("myz:removeHighlight", { id: item.record.id });
+  function remove(item: InboxQueueItem) {
     clearUndo();
-    await data.load();
+    deleteStore.requestDelete([item.record], { reload: () => data.load() });
     data.status.value = "已删除";
   }
 
@@ -228,12 +228,11 @@ export function useInboxActions(data: InboxData) {
       data.selected.value.has(item.targetId),
     );
     if (!chosen.length) return;
-    if (!window.confirm(`删除 ${chosen.length} 条记录？删除不可撤销。`)) return;
-    await invoke("myz:removeRecordsByIds", {
-      ids: chosen.map((item) => item.record.id),
-    });
+    deleteStore.requestDelete(
+      chosen.map((item) => item.record),
+      { reload: () => data.load() },
+    );
     data.selected.value = new Set();
-    await data.load();
     data.status.value = `已删除（${chosen.length}）`;
   }
 

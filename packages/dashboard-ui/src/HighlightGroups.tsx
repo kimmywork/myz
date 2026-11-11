@@ -41,7 +41,9 @@ export default defineComponent({
       type: Function as PropType<(value: string) => string>,
       required: true,
     },
-    onAction: Function as PropType<(action: HighlightItemAction, record: MyZRecord) => void>,
+    onAction: Function as PropType<
+      (action: HighlightItemAction, record: MyZRecord, event?: MouseEvent) => void
+    >,
     loadingLabel: {
       type: String,
       default: "正在加载…",

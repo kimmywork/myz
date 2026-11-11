@@ -8,6 +8,7 @@
  */
 
 @import "@myz/shared/theme/tokens.css";
+@import "@myz/shared/theme/confirm.css";
 @import "./page.css";
 @import "../../reader/translation-popover.css";
 
@@ -709,52 +710,6 @@
 .myz-inspector__icon-btn--delete:hover {
   background: var(--myz-surface-2);
   color: var(--myz-error);
-}
-
-/* ── 删除确认 popup §4.18：页面内、无遮罩、跟随主题 ───────────────── */
-.myz-confirm {
-  position: fixed;
-  z-index: 2147483647;
-  width: 240px;
-  padding: 14px;
-  border-radius: var(--myz-r-lg);
-  background: var(--myz-surface);
-  color: var(--myz-text);
-  border: 1px solid var(--myz-line);
-  box-shadow: var(--myz-shadow);
-  font-family: var(--myz-sans);
-}
-
-.myz-confirm__title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--myz-text);
-}
-
-.myz-confirm__message {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--myz-muted);
-}
-
-.myz-confirm__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.myz-confirm__actions button {
-  appearance: none;
-  height: var(--myz-hit-compact);
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: var(--myz-r);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 /* ── 提示条 §4.15：固定深色 ──────────────────────────────────────── */

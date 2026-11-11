@@ -16,6 +16,8 @@ import type { PdfDocument } from "../pdf-document.js";
 import { sourceKeyOf, sourceTypeOf, type PdfSourceRef } from "../source.js";
 import type { ReaderState } from "../stores/state.js";
 import { invoke } from "@/messaging/invoke";
+import { useReaderDelete } from "@/reader/delete-flow";
+import { withoutPendingDeletes } from "@/reader/pending-deletes";
 
 export interface AnnotationsDeps {
   pageElements: () => HTMLElement[];
@@ -68,9 +70,10 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
       const records = await invoke("myz:getHighlightsForUrl", {
         url: sourceKeyOf(current),
       });
-      state.annotations.value = (records || [])
+      const normalized = (records || [])
         .map((record) => normalizeRecord(record))
         .filter((record): record is MyZRecord => Boolean(record));
+      state.annotations.value = await withoutPendingDeletes(normalized);
     } catch (err) {
       console.error("Failed to load annotations", err);
       state.annotations.value = [];
@@ -181,6 +184,32 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     redrawOverlays();
   }
 
+  const deleteFlow = useReaderDelete();
+
+  function removeAnnotationLocal(id: string) {
+    state.annotations.value = state.annotations.value.filter(
+      (item) => item.id !== id,
+    );
+    if (state.activeId.value === id) state.activeId.value = null;
+    redrawOverlays();
+  }
+
+  /** UI delete: no note → undo toast; a note is confirmed by the caller. */
+  async function requestDeleteActive() {
+    const record = activeRecord.value;
+    if (!record) return;
+    if ((record.note || "").trim()) {
+      await deleteActive();
+      return;
+    }
+    await deleteFlow.remove(record, {
+      removeUi: (target) => removeAnnotationLocal(target.id),
+      restoreUi: () => {
+        void loadAnnotations();
+      },
+    });
+  }
+
   function commitActive() {
     const record = activeRecord.value;
     if (!record) return;
@@ -271,6 +300,12 @@ export function usePdfAnnotations(state: ReaderState, deps: AnnotationsDeps) {
     createAnnotation,
     patchActive,
     deleteActive,
+    requestDeleteActive,
+    deleteMessage: deleteFlow.message,
+    undoDelete: deleteFlow.undo,
+    pauseDelete: deleteFlow.pause,
+    resumeDelete: deleteFlow.resume,
+    disposeDelete: deleteFlow.dispose,
     commitActive,
     savedLabel,
     focusAnnotation,

@@ -4,6 +4,7 @@
    inspector, states) is shared with the PDF reader. */
 @layer theme, base, utilities;
 @import "../reader/reader-viewer-base.css";
+@import "@myz/shared/theme/confirm.css";
 
 .epub-app {
   display: flex;

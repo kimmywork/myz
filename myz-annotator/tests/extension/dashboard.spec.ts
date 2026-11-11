@@ -33,10 +33,15 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
   const deleteBtn = await card?.$('button[title="删除"]');
   expect(deleteBtn).toBeTruthy();
   await deleteBtn?.click();
+  // This record carries a note, so §4.30 asks for confirmation first.
+  await dash.waitForSelector(".myz-confirm", { timeout: 5000 });
+  await dash.click(".myz-confirm .myz-btn-danger");
   await dash.waitForSelector(cardSelector, {
     state: "detached",
     timeout: 5000,
   });
+  // Confirmation replaces undo for annotated records (§4.30).
+  await expect(dash.getByTestId("undo-bar")).toHaveCount(0);
 
   const exportResult = await send<{ markdown?: string }>(dash, "myz:export");
   expect(exportResult?.markdown || "").not.toContain("dashboard snippet");
@@ -278,6 +283,9 @@ test("import_through_settings_ui_uploads_real_files", async () => {
   await dash.setInputFiles('input[type="file"]', jsonFile);
   await dash.selectOption('[data-testid="import-strategy"]', "overwrite");
   await dash.click('button:has-text("开始导入")');
+  // Overwrite asks with the themed popover, not the native dialog.
+  await dash.waitForSelector(".myz-confirm", { timeout: 5000 });
+  await dash.click('.myz-confirm button:has-text("确定")');
 
   await dash.waitForFunction(
     () => {

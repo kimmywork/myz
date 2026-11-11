@@ -1,3 +1,4 @@
+import { confirmDestructive } from "@myz/shared/dialogs";
 import { onMounted, ref, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import { useSettingsStore } from "../../stores/settings.js";
@@ -141,9 +142,9 @@ export function useSyncSection() {
   async function handleClearAccount() {
     if (isBusy.value) return;
     if (
-      !window.confirm(
+      !(await confirmDestructive(
         "解除本机的同步账号？本机数据保留，但需要重新配对才能再同步。",
-      )
+      ))
     ) {
       return;
     }

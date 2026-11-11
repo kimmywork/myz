@@ -74,6 +74,9 @@ export function createNodeHost(
       async remove(id) {
         records.delete(id);
       },
+      async removeMany(ids) {
+        for (const id of ids) records.delete(id);
+      },
       async putOpaque(record) {
         opaque.set(`${record.streamId}:${record.recordId}`, record);
       },

@@ -1,8 +1,10 @@
-import { PageSidebar } from "@myz/dashboard-ui";
+import { PageSidebar, UndoBar } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
 import type { WorkspacePageControls } from "../components/DashboardWorkspaceLayout.jsx";
+import DeleteConfirmPopover from "../components/DeleteConfirmPopover.jsx";
 import HighlightsPane from "../components/HighlightsPane.jsx";
+import { useDeleteStore } from "../stores/delete.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
 import { formatDateTime } from "@/dashboard/utils/records.js";
@@ -12,6 +14,7 @@ export default defineComponent({
   setup() {
     const uiStore = useUIStore();
     const highlightsStore = useHighlightsStore();
+    const deleteStore = useDeleteStore();
 
     return () => (
       <DashboardWorkspaceLayout>
@@ -35,6 +38,14 @@ export default defineComponent({
           ),
           default: ({ openNav }: WorkspacePageControls) => (
             <div class="flex min-h-0 flex-col gap-3 p-4">
+              {deleteStore.message ? (
+                <UndoBar
+                  message={deleteStore.message}
+                  onUndo={deleteStore.undo}
+                  onPause={deleteStore.pause}
+                  onResume={deleteStore.resume}
+                />
+              ) : null}
               {highlightsStore.operationStatus ? (
                 <p
                   class="text-caption text-muted"
@@ -45,6 +56,7 @@ export default defineComponent({
                 </p>
               ) : null}
               <HighlightsPane onOpenNav={openNav} />
+              <DeleteConfirmPopover />
             </div>
           ),
         }}

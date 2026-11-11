@@ -188,6 +188,23 @@ export async function deleteHighlight(id: string) {
   return idbDelete(db, "highlights", id);
 }
 
+/**
+ * Deletes several records in one IndexedDB transaction, so a batch delete is
+ * all or nothing (§4.30).
+ */
+export async function deleteHighlights(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const db = await getDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("highlights", "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+    const store = tx.objectStore("highlights");
+    for (const id of ids) store.delete(id);
+  });
+}
+
 export async function getHighlightsForUrl(url: string): Promise<MyZRecord[]> {
   const db = await getDB();
   return withStore<MyZRecord[]>(db, "highlights", "readonly", (store) =>
@@ -368,4 +385,31 @@ export async function deleteOpaqueRecord(
 ): Promise<void> {
   const db = await getDB();
   return idbDelete(db, "opaque_records", [streamId, recordId]);
+}
+
+/** Durable intent for a deferred delete (§4.30 teardown guarantee). */
+export interface DeleteJournalEntry {
+  ids: string[];
+  dueAt: number;
+}
+
+const DELETE_JOURNAL_KEY = "myz_delete_journal";
+
+export async function readDeleteJournal(): Promise<DeleteJournalEntry[]> {
+  const stored = await chrome.storage.local.get(DELETE_JOURNAL_KEY);
+  const raw = stored[DELETE_JOURNAL_KEY];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (entry): entry is DeleteJournalEntry =>
+      Boolean(entry) &&
+      Array.isArray((entry as DeleteJournalEntry).ids) &&
+      (entry as DeleteJournalEntry).ids.every((id) => typeof id === "string") &&
+      typeof (entry as DeleteJournalEntry).dueAt === "number",
+  );
+}
+
+export async function writeDeleteJournal(
+  entries: DeleteJournalEntry[],
+): Promise<void> {
+  await chrome.storage.local.set({ [DELETE_JOURNAL_KEY]: entries });
 }

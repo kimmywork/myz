@@ -1,5 +1,6 @@
 import { BookOpen, LayoutGrid } from "@lucide/vue";
 import { StatePanel } from "@myz/dashboard-ui";
+import ConfirmHost from "@myz/shared/components/ConfirmHost";
 import ThemeToggle from "@myz/shared/components/ThemeToggle";
 import { IconFileText, IconSettings } from "@myz/shared/icons";
 import { defineComponent } from "vue";
@@ -18,6 +19,7 @@ export default defineComponent({
     const popup = usePopup();
     return () => (
       <div class="flex flex-col gap-4">
+        <ConfirmHost />
         <header class="popup-header rounded-panel border border-line bg-surface p-4 dark:border-line dark:bg-surface">
           <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-2">

@@ -5,6 +5,7 @@
 @plugin "@tailwindcss/typography";
 /* Shared base layer (focus rings, reduced motion, base type) — D10. */
 @import "../styles/app-base.css";
+@import "@myz/shared/theme/confirm.css";
 
 @layer base {
   *,

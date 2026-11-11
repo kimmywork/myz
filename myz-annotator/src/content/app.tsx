@@ -1,3 +1,4 @@
+import ConfirmHost from "@myz/shared/components/ConfirmHost";
 import { defineComponent } from "vue";
 import Inspector from "./components/Inspector";
 import Modal from "./components/Modal";
@@ -10,6 +11,7 @@ export default defineComponent({
   setup() {
     return () => (
       <div>
+        <ConfirmHost />
         <Modal />
         <Inspector />
         <Toolbar />

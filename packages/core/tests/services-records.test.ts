@@ -34,6 +34,9 @@ function memoryStore(seed: MyZRecord[] = []): RecordsStore {
     async remove(id) {
       map.delete(id);
     },
+    async removeMany(ids) {
+      for (const id of ids) map.delete(id);
+    },
     async putOpaque(record) {
       opaque.set(record.recordId, record);
     },

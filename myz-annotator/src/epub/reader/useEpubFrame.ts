@@ -13,6 +13,7 @@ import {
   type ChapterAnchor,
 } from "./epub-frame.js";
 import { subscribeRefresh } from "@/messaging/changeRefresh";
+import { useReaderDelete } from "@/reader/delete-flow";
 
 type Store = ReturnType<typeof useEpubReaderStore>;
 
@@ -160,12 +161,29 @@ export function useEpubFrame(store: Store) {
     repaint();
   }
 
+  const deleteFlow = useReaderDelete();
+
   async function deleteActive() {
     const id = activeId.value;
     if (!id) return;
+    const record = store.getRecord(id);
+    if (!record) return;
     activeId.value = null;
-    await store.deleteRecord(id);
-    repaint();
+    // Annotated records were confirmed by the panel and get no undo.
+    if ((record.note || "").trim()) {
+      await store.deleteRecord(id);
+      repaint();
+      return;
+    }
+    await deleteFlow.remove(record, {
+      removeUi: (target: MyZRecord) => {
+        store.removeRecordLocal(target.id);
+        repaint();
+      },
+      restoreUi: () => {
+        void store.loadRecords().then(() => repaint());
+      },
+    });
   }
 
   function scrollToFragment(fragment: string): boolean {
@@ -358,6 +376,11 @@ export function useEpubFrame(store: Store) {
       focusFrameRecord(store, state, focus, iframeRef, record),
     saveActive,
     deleteActive,
+    deleteMessage: deleteFlow.message,
+    undoDelete: deleteFlow.undo,
+    pauseDelete: deleteFlow.pause,
+    resumeDelete: deleteFlow.resume,
+    disposeDelete: deleteFlow.dispose,
     clearSelection,
     createFromSelection,
   };

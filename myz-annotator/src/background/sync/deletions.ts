@@ -1,7 +1,7 @@
 import { recordIdForHighlight } from "@myz/core/identity";
 import { parseInboxRecordId } from "@myz/shared/inbox";
 import { deleteInboxState, getAllInboxStates } from "../storage";
-import { upsertDeletion } from "./storage";
+import { removeDeletion, upsertDeletion } from "./storage";
 
 /**
  * Record a highlight deletion as an explicit tombstone (the new format never
@@ -42,4 +42,16 @@ async function recordInboxDeletionsForTarget(
   }
   await deleteInboxState(statusId);
   await deleteInboxState(markId);
+}
+
+/**
+ * Removes the tombstones written for a highlight delete (used when the user
+ * undoes before/while the intent is cancelled). Leaves relation tombstones
+ * alone: those belong to records that were not restored.
+ */
+export async function clearHighlightDeletion(id: string): Promise<void> {
+  const targetId = recordIdForHighlight(id);
+  await removeDeletion(targetId);
+  await removeDeletion(`status:${targetId}`);
+  await removeDeletion(`mark:${targetId}`);
 }

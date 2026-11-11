@@ -1,3 +1,5 @@
+import { UndoBar } from "@myz/dashboard-ui";
+import ConfirmHost from "@myz/shared/components/ConfirmHost";
 import { storeToRefs } from "pinia";
 import { defineComponent, onBeforeUnmount, onMounted, watch } from "vue";
 import PdfInspector from "./components/PdfInspector.js";
@@ -48,6 +50,7 @@ export default defineComponent({
       );
     });
     onBeforeUnmount(() => {
+      store.disposeDelete();
       window.removeEventListener("keydown", handleKeydown);
       unsubscribe?.();
     });
@@ -147,6 +150,7 @@ export default defineComponent({
           (store.bilingualEnabled ? " is-bilingual" : "")
         }
       >
+        <ConfirmHost />
         {status.value !== "landing" ? (
           <>
             <PdfToolbar />
@@ -156,6 +160,16 @@ export default defineComponent({
           </>
         ) : null}
         <PdfStage />
+
+        {store.deleteMessage ? (
+          <UndoBar
+            variant="toast"
+            message={store.deleteMessage}
+            onUndo={store.undoDelete}
+            onPause={store.pauseDelete}
+            onResume={store.resumeDelete}
+          />
+        ) : null}
 
         {status.value === "loading" ? (
           <p class="reader-status">加载中…</p>

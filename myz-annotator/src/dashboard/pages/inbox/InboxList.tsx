@@ -1,6 +1,7 @@
 import { StatePanel } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
+import { useDeleteStore } from "../../stores/delete.js";
 import InboxFocusView from "./InboxFocusView.jsx";
 import InboxRow from "./InboxRow.jsx";
 import type { InboxApi } from "./useInboxQueue.js";
@@ -12,6 +13,7 @@ export default defineComponent({
     api: { type: Object as PropType<InboxApi>, required: true },
   },
   setup(props) {
+    const deleteStore = useDeleteStore();
     return () => {
       const a = props.api;
       if (a.loading.value) {
@@ -65,9 +67,11 @@ export default defineComponent({
           role="list"
           aria-label="Inbox 队列"
         >
-          {a.visibleItems.value.map((item) => (
-            <InboxRow key={item.targetId} api={a} item={item} />
-          ))}
+          {a.visibleItems.value
+            .filter((item) => !deleteStore.isPending(item.record.id))
+            .map((item) => (
+              <InboxRow key={item.targetId} api={a} item={item} />
+            ))}
           {a.visibleCount.value < a.tabItems.value.length ? (
             <div ref={a.sentinelRef} class="h-1" aria-hidden="true" />
           ) : null}

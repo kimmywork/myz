@@ -20,7 +20,11 @@ interface HighlightItemProps {
   formatDateTime?: (value: string) => string
   renderHighlight?: (record: MyZRecord) => string
   formatNote?: (value: string) => string
-  onAction?: (action: HighlightItemAction, record: MyZRecord) => void
+  onAction?: (
+    action: HighlightItemAction,
+    record: MyZRecord,
+    event?: MouseEvent,
+  ) => void
 }
 
 export const highlightItemProps = {
@@ -44,7 +48,9 @@ export const highlightItemProps = {
     type: Function as PropType<(value: string) => string>,
     required: true,
   },
-  onAction: Function as PropType<(action: HighlightItemAction, record: MyZRecord) => void>,
+  onAction: Function as PropType<
+      (action: HighlightItemAction, record: MyZRecord, event?: MouseEvent) => void
+    >,
 }
 
 export function useHighlightItem(props: HighlightItemProps) {

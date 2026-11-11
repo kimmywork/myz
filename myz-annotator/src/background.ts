@@ -1,9 +1,11 @@
 import { createLogger } from "@myz/shared/logger";
 import { clearAiSessionsForTab } from "./background/ai/session.js";
 import { DEFAULT_SETTINGS, SETTINGS_KEY } from "./background/constants.js";
+import { drainDeleteJournal } from "./background/delete-journal-runtime.js";
 import { initializeInboxReminder } from "./background/inbox/reminder.js";
 import { initializeAskAiMessageHandlers } from "./background/messages/ask-ai.js";
 import { initializeCaptureMessageHandlers } from "./background/messages/capture.js";
+import { initializeDeleteJournalMessageHandlers } from "./background/messages/delete-journal.js";
 import { handleMessage, hasHandler } from "./background/messages/handler.js";
 import { initializeHighlightMessageHandlers } from "./background/messages/highlights.js";
 import { initializeInboxMessageHandlers } from "./background/messages/inbox.js";
@@ -12,6 +14,7 @@ import { initializeSettingsMessageHandlers } from "./background/messages/setting
 import { initializeStagedAssetMessageHandlers } from "./background/messages/staged-assets.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
 import { authorizeMessage } from "./background/messages/trustedSender.js";
+import { scheduler } from "./background/runtime.js";
 import { initializeSyncScheduler } from "./background/sync/scheduler.js";
 import { toMessageContext } from "./messaging/context.js";
 import { resolvePdfTargetUrl } from "./pdf/detect.js";
@@ -201,6 +204,15 @@ initializeSettingsMessageHandlers();
 initializeStagedAssetMessageHandlers();
 initializeSyncMessageHandlers();
 initializeSyncScheduler();
+initializeDeleteJournalMessageHandlers();
+
+// Commit overdue deletes as soon as the worker starts, and keep draining
+// while it is alive (the alarm is the durable backstop after a page close).
+void drainDeleteJournal();
+void scheduler.every("myz:delete-journal", 1);
+scheduler.onTick((name) => {
+  if (name === "myz:delete-journal") void drainDeleteJournal();
+});
 initializeInboxReminder();
 
 chrome.runtime.onMessage.addListener(

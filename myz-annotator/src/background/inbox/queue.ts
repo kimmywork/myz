@@ -1,4 +1,5 @@
 import { buildInboxQueue, type InboxQueueResult } from "@myz/core/inbox";
+import { withoutPendingDeletes } from "../delete-journal-runtime.js";
 import { notifier } from "../runtime";
 import { getAllHighlights, getAllInboxStates } from "../storage";
 
@@ -17,7 +18,7 @@ export async function buildQueue(): Promise<InboxQueueResult> {
     getAllHighlights(),
     getAllInboxStates(),
   ]);
-  return buildInboxQueue(highlights, states);
+  return buildInboxQueue(await withoutPendingDeletes(highlights), states);
 }
 
 /** Show a single "1" badge while the Inbox has pending items. */

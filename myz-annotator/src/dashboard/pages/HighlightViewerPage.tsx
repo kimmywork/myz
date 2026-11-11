@@ -1,5 +1,6 @@
 import { StatePanel } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
+import DeleteConfirmPopover from "../components/DeleteConfirmPopover.jsx";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useHighlightViewer } from "./highlight-viewer/useHighlightViewer.js";
 import ViewerEditPanel from "./highlight-viewer/ViewerEditPanel.jsx";
@@ -51,6 +52,7 @@ export default defineComponent({
           </div>
 
           <ViewerFooter api={a} />
+          <DeleteConfirmPopover />
         </section>
       );
     };
