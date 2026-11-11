@@ -190,3 +190,26 @@ test("bulk_delete_undoes_the_batch_in_place", async () => {
   // Same records back under their original date groups, in the same order.
   expect(orderAfter).toEqual(orderBefore);
 });
+
+test("bulk_tag_applies_to_every_selected_record", async () => {
+  const dash = await harness.open("/highlights");
+  await openLibrary(dash, 6);
+
+  const checkboxes = dash.locator('[data-testid="select-record"]');
+  await checkboxes.nth(0).check();
+  await checkboxes.nth(1).check();
+
+  const bar = dash.getByTestId("selection-bar");
+  await bar.getByLabel("要添加的标签").fill("bulk-tag");
+  await bar.getByRole("button", { name: "打标签" }).click();
+
+  await expect(dash.getByText("已为 2 条加上标签「bulk-tag」")).toBeVisible();
+  const records = await send<Array<{ tags?: string[] }>>(
+    dash,
+    "myz:getAllHighlights",
+  );
+  expect(
+    records.filter((entry) => (entry.tags || []).includes("bulk-tag")),
+  ).toHaveLength(2);
+  await expect(bar).toHaveCount(0);
+});

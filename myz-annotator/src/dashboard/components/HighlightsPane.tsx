@@ -6,7 +6,7 @@ import {
   type HighlightItemAction,
 } from "@myz/dashboard-ui";
 import type { MyZRecord } from "@myz/shared/types";
-import { computed, defineComponent, nextTick, watch } from "vue";
+import { computed, defineComponent, nextTick, ref, watch } from "vue";
 import type { PropType } from "vue";
 import { useRouter } from "vue-router";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
@@ -77,6 +77,24 @@ export default defineComponent({
     const selectedRecords = computed(() =>
       highlightsStore.highlights.filter((record) => selection.has(record.id)),
     );
+
+    const bulkTag = ref("");
+
+    async function applyBulkTag() {
+      const tag = bulkTag.value.trim();
+      if (!tag || !selectedRecords.value.length) return;
+      const applied = await highlightsStore.addTagToRecords(
+        selectedRecords.value,
+        tag,
+      );
+      highlightsStore.setOperationStatus(
+        applied
+          ? `已为 ${applied} 条加上标签「${tag}」`
+          : `这些记录已经有标签「${tag}」`,
+      );
+      bulkTag.value = "";
+      selection.clear();
+    }
 
     /** One group, one undo bar: the whole batch is undone by one click. */
     function deleteSelected() {
@@ -198,13 +216,43 @@ export default defineComponent({
                 >
                   {{
                     actions: () => (
-                      <button
-                        type="button"
-                        class="btn btn-small btn-danger"
-                        onClick={deleteSelected}
-                      >
-                        批量删除
-                      </button>
+                      <>
+                        <datalist id="library-bulk-tags">
+                          {highlightsStore.availableTags.map((tag) => (
+                            <option key={tag} value={tag} />
+                          ))}
+                        </datalist>
+                        <input
+                          type="text"
+                          list="library-bulk-tags"
+                          class="h-8 w-28 rounded-control border border-line bg-surface px-2 text-caption text-text"
+                          placeholder="标签"
+                          aria-label="要添加的标签"
+                          value={bulkTag.value}
+                          onInput={(event: Event) =>
+                            (bulkTag.value = (
+                              event.target as HTMLInputElement
+                            ).value)
+                          }
+                          onKeydown={(event: KeyboardEvent) => {
+                            if (event.key === "Enter") void applyBulkTag();
+                          }}
+                        />
+                        <button
+                          type="button"
+                          class="btn btn-small"
+                          onClick={() => void applyBulkTag()}
+                        >
+                          打标签
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-small btn-danger"
+                          onClick={deleteSelected}
+                        >
+                          批量删除
+                        </button>
+                      </>
                     ),
                   }}
                 </SelectionBar>
