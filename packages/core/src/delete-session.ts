@@ -46,9 +46,16 @@ export interface DeleteSession<T> {
    * Queues one group and arms its countdown. Resolves `false` when the intent
    * could not be persisted (the caller must keep the rows visible).
    */
-  schedule: (items: readonly T[]) => Promise<boolean>
-  /** Cancels the newest pending group and restores it. */
-  undo: () => Promise<boolean>
+  schedule: (
+    items: readonly T[],
+    options?: { flushPrevious?: boolean },
+  ) => Promise<boolean>
+  /**
+   * Cancels a pending group and restores it. Without ids the newest group is
+   * undone; with ids the group carrying exactly those ids is undone (content
+   * toasts keep one group per record).
+   */
+  undo: (ids?: readonly string[]) => Promise<boolean>
   /** Freezes the newest countdown (undo affordance hovered/focused). */
   pause: () => void
   /** Resumes a paused countdown. */
@@ -78,6 +85,13 @@ interface PendingGroup<T> {
 }
 
 let nextGroupId = 0
+
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false
+  const sortedLeft = [...left].sort()
+  const sortedRight = [...right].sort()
+  return sortedLeft.every((id, index) => id === sortedRight[index])
+}
 
 /**
  * Creates one delete session.
@@ -136,10 +150,14 @@ export function createDeleteSession<T>(
     ports.onCommitFailed?.(group.items)
   }
 
-  async function schedule(items: readonly T[]): Promise<boolean> {
+  async function schedule(
+    items: readonly T[],
+    options: { flushPrevious?: boolean } = {},
+  ): Promise<boolean> {
     if (!items.length) return true
-    // One undo affordance at a time: an earlier group is accepted as-is.
-    await flushAll()
+    // One undo affordance at a time by default; content toasts keep one group
+    // per record and pass `flushPrevious: false`.
+    if (options.flushPrevious !== false) await flushAll()
     const ids = items.map(ports.getId)
     const dueAt = now() + windowMs
     let queued = false
@@ -163,8 +181,10 @@ export function createDeleteSession<T>(
     return true
   }
 
-  async function undo(): Promise<boolean> {
-    const group = groups[groups.length - 1]
+  async function undo(ids?: readonly string[]): Promise<boolean> {
+    const group = ids
+      ? groups.find((candidate) => sameIds(candidate.ids, ids))
+      : groups[groups.length - 1]
     if (!group) return false
     detach(group)
     try {

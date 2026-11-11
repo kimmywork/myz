@@ -167,6 +167,29 @@ describe("createDeleteSession", () => {
     expect(session.pendingIds()).toEqual(["b"])
   })
 
+  it("keeps several groups when flushPrevious is false and undoes by id", async () => {
+    const { ports, session } = setup()
+    await session.schedule([{ id: "a" }], { flushPrevious: false })
+    await session.schedule([{ id: "b" }], { flushPrevious: false })
+
+    expect(ports.commit).not.toHaveBeenCalled()
+    expect(session.pendingIds().sort()).toEqual(["a", "b"])
+
+    expect(await session.undo(["a"])).toBe(true)
+    expect(ports.restore).toHaveBeenCalledWith([{ id: "a" }])
+    expect(session.pendingIds()).toEqual(["b"])
+
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.commit).toHaveBeenCalledTimes(1)
+    expect(ports.commit).toHaveBeenCalledWith(["b"])
+  })
+
+  it("returns false when undoing an unknown id set", async () => {
+    const { session } = setup()
+    await session.schedule([{ id: "a" }])
+    expect(await session.undo(["missing"])).toBe(false)
+  })
+
   it("falls back to committing when the cancel call fails on undo", async () => {
     const { ports, session } = setup({
       cancel: vi.fn(async () => {
