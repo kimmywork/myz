@@ -1,3 +1,4 @@
+import { UndoToast } from "@myz/dashboard-ui";
 import { storeToRefs } from "pinia";
 import { defineComponent, onBeforeUnmount, onMounted, watch } from "vue";
 import PdfInspector from "./components/PdfInspector.js";
@@ -48,6 +49,7 @@ export default defineComponent({
       );
     });
     onBeforeUnmount(() => {
+      store.disposeDelete();
       window.removeEventListener("keydown", handleKeydown);
       unsubscribe?.();
     });
@@ -156,6 +158,15 @@ export default defineComponent({
           </>
         ) : null}
         <PdfStage />
+
+        {store.deleteMessage ? (
+          <UndoToast
+            message={store.deleteMessage}
+            onUndo={store.undoDelete}
+            onPause={store.pauseDelete}
+            onResume={store.resumeDelete}
+          />
+        ) : null}
 
         {status.value === "loading" ? (
           <p class="reader-status">加载中…</p>

@@ -126,6 +126,11 @@ export function createEpubHighlights(deps: HighlightDeps) {
 
   async function deleteRecord(id: string) {
     await invoke("myz:removeHighlight", { id });
+    removeRecordLocal(id);
+  }
+
+  /** Takes the record out of the live list without touching storage. */
+  function removeRecordLocal(id: string) {
     deps.records.value = deps.records.value.filter(
       (record) => record.id !== id,
     );
@@ -165,6 +170,7 @@ export function createEpubHighlights(deps: HighlightDeps) {
     applyCurrentChapter,
     createHighlight,
     deleteRecord,
+    removeRecordLocal,
     getRecord,
     updateRecord,
   };

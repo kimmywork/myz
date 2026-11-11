@@ -156,7 +156,11 @@ export default defineComponent({
               type="button"
               class="reader-inspector__delete"
               onClick={() => {
-                if (confirmDestructive(DELETE_CONFIRM)) store.deleteActive();
+                const annotated = Boolean(
+                  (store.activeRecord?.note || "").trim(),
+                );
+                if (annotated && !confirmDestructive(DELETE_CONFIRM)) return;
+                void store.requestDeleteActive();
               }}
             >
               <Trash2 size={14} aria-hidden="true" />

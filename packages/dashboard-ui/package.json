@@ -9,6 +9,7 @@
     "./ListRow": "./src/ListRow.tsx",
     "./StatusPill": "./src/StatusPill.tsx",
     "./UndoBar": "./src/UndoBar.tsx",
+    "./UndoToast": "./src/UndoToast.tsx",
     "./QuickSearch": "./src/QuickSearch.tsx",
     "./TagInput": "./src/TagInput.tsx",
     "./WorkspaceShell": "./src/workspace/WorkspaceShell.tsx",

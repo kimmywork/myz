@@ -248,6 +248,7 @@ export const useEpubReaderStore = defineStore("epub-reader", () => {
     applyCurrentChapter: highlights.applyCurrentChapter,
     createHighlight: highlights.createHighlight,
     deleteRecord: highlights.deleteRecord,
+    removeRecordLocal: highlights.removeRecordLocal,
     getRecord: highlights.getRecord,
     updateRecord: highlights.updateRecord,
   };
