@@ -1,4 +1,5 @@
 import { UndoBar } from "@myz/dashboard-ui";
+import ConfirmHost from "@myz/shared/components/ConfirmHost";
 import { storeToRefs } from "pinia";
 import { defineComponent, onBeforeUnmount, onMounted, watch } from "vue";
 import PdfInspector from "./components/PdfInspector.js";
@@ -149,6 +150,7 @@ export default defineComponent({
           (store.bilingualEnabled ? " is-bilingual" : "")
         }
       >
+        <ConfirmHost />
         {status.value !== "landing" ? (
           <>
             <PdfToolbar />

@@ -52,7 +52,8 @@ export default defineComponent({
 
     async function clearAll() {
       if (!staging.items.length) return;
-      if (!confirmDestructive("清空缓存区的全部图片？此操作不可撤销。")) return;
+      if (!(await confirmDestructive("清空缓存区的全部图片？此操作不可撤销。")))
+        return;
       await staging.clearStaged();
       clearSelection();
     }

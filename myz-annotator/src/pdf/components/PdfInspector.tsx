@@ -1,6 +1,6 @@
 import { Check, Trash2, X } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
-import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
+import { confirmDestructive } from "@myz/shared/dialogs";
 import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import { colorName, RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
@@ -155,11 +155,22 @@ export default defineComponent({
             <button
               type="button"
               class="reader-inspector__delete"
-              onClick={() => {
+              onClick={async () => {
                 const annotated = Boolean(
                   (store.activeRecord?.note || "").trim(),
                 );
-                if (annotated && !confirmDestructive(DELETE_CONFIRM)) return;
+                if (
+                  annotated &&
+                  !(await confirmDestructive(
+                    "这条划线带有批注，删除后批注一起消失。",
+                    {
+                      title: "删除划线？",
+                      confirmLabel: "删除",
+                    },
+                  ))
+                ) {
+                  return;
+                }
                 void store.requestDeleteActive();
               }}
             >

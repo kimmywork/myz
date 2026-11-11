@@ -1,6 +1,6 @@
 import { X } from "@lucide/vue";
 import { TagInput } from "@myz/dashboard-ui";
-import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs";
+import { confirmDestructive } from "@myz/shared/dialogs";
 import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import {
   colorName,
@@ -200,7 +200,15 @@ export default defineComponent({
               type="button"
               class="reader-inspector__delete"
               onClick={() => {
-                if (confirmDestructive(DELETE_CONFIRM)) props.onDelete?.();
+                void confirmDestructive(
+                  "这条划线带有批注，删除后批注一起消失。",
+                  {
+                    title: "删除划线？",
+                    confirmLabel: "删除",
+                  },
+                ).then((confirmed) => {
+                  if (confirmed) props.onDelete?.();
+                });
               }}
             >
               删除

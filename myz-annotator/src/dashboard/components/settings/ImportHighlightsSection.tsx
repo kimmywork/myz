@@ -22,7 +22,9 @@ export default defineComponent({
       const file = fileInput?.files?.[0];
       if (
         importStrategy.value === "overwrite" &&
-        !confirmDestructive("覆盖策略会用导入内容替换已有重复记录，确定继续？")
+        !(await confirmDestructive(
+          "覆盖策略会用导入内容替换已有重复记录，确定继续？",
+        ))
       ) {
         return;
       }

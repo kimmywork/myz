@@ -70,7 +70,9 @@ export default defineComponent({
     }
 
     function handleDelete() {
-      if (confirmDestructive(DELETE_CONFIRM)) store.deleteRecord();
+      void confirmDestructive(DELETE_CONFIRM).then((confirmed) => {
+        if (confirmed) store.deleteRecord();
+      });
     }
 
     function handleSelectColor(index: number) {

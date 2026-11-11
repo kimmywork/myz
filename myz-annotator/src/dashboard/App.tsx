@@ -1,5 +1,6 @@
 import { DashboardAppShell } from "@myz/dashboard-ui";
 import "@myz/shared/colorScheme";
+import ConfirmHost from "@myz/shared/components/ConfirmHost";
 import { useThemePreference } from "@myz/shared/theme";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
@@ -49,24 +50,29 @@ export default defineComponent({
     return () =>
       fullscreen.value ? (
         <div class="app-shell min-h-screen bg-bg text-text transition-colors">
+          <ConfirmHost />
           <RouterView />
         </div>
       ) : workspace.value ? (
         // Workspace pages draw the four-region shell themselves (§4.27).
         <div class="app-shell h-screen overflow-hidden bg-bg text-text transition-colors">
+          <ConfirmHost />
           <RouterView />
         </div>
       ) : (
-        <DashboardAppShell
-          theme={effectiveTheme.value}
-          outerWidthClass="mx-auto flex w-full flex-col gap-6 lg:w-5/6 lg:max-w-[1400px]"
-          mainClass="flex flex-col gap-6"
-        >
-          {{
-            navbar: () => <DashboardNavbar />,
-            default: () => <RouterView />,
-          }}
-        </DashboardAppShell>
+        <>
+          <ConfirmHost />
+          <DashboardAppShell
+            theme={effectiveTheme.value}
+            outerWidthClass="mx-auto flex w-full flex-col gap-6 lg:w-5/6 lg:max-w-[1400px]"
+            mainClass="flex flex-col gap-6"
+          >
+            {{
+              navbar: () => <DashboardNavbar />,
+              default: () => <RouterView />,
+            }}
+          </DashboardAppShell>
+        </>
       );
   },
 });

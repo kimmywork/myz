@@ -124,7 +124,7 @@ export function usePopup() {
   }
 
   async function deleteHighlight(id: string) {
-    if (!confirmDestructive(DELETE_CONFIRM)) return;
+    if (!(await confirmDestructive(DELETE_CONFIRM))) return;
     try {
       await invoke("myz:removeHighlight", { id });
       highlights.value = highlights.value.filter((item) => item.id !== id);

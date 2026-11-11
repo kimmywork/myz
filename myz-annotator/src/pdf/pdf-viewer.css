@@ -3,6 +3,7 @@
 /* Shared viewer boilerplate (theme/utilities imports, :root, html/body, #app,
    focus rules) lives in reader-viewer-base.css (D10). */
 @import "../reader/reader-viewer-base.css";
+@import "@myz/shared/theme/confirm.css";
 
 .reader-app {
   position: relative;

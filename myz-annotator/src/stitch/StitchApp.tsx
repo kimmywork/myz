@@ -6,6 +6,7 @@ import {
   SquareStack,
   Trash2,
 } from "@lucide/vue";
+import ConfirmHost from "@myz/shared/components/ConfirmHost";
 import { confirmDestructive } from "@myz/shared/dialogs";
 import {
   computed,
@@ -77,14 +78,18 @@ export default defineComponent({
 
     function clearAll() {
       if (!store.assets.length) return;
-      if (!confirmDestructive("清空当前所有图片？此操作不可撤销。")) return;
-      store.clear();
+      void confirmDestructive("清空当前所有图片？此操作不可撤销。").then(
+        (confirmed) => {
+          if (confirmed) store.clear();
+        },
+      );
     }
 
     return () => {
       const editing = phase.value === "edit";
       return (
         <div class="app">
+          <ConfirmHost />
           <header class="appbar">
             <div class="appbar-inner">
               <div class="brand">

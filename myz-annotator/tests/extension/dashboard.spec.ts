@@ -283,6 +283,9 @@ test("import_through_settings_ui_uploads_real_files", async () => {
   await dash.setInputFiles('input[type="file"]', jsonFile);
   await dash.selectOption('[data-testid="import-strategy"]', "overwrite");
   await dash.click('button:has-text("开始导入")');
+  // Overwrite asks with the themed popover, not the native dialog.
+  await dash.waitForSelector(".myz-confirm", { timeout: 5000 });
+  await dash.click('.myz-confirm button:has-text("确定")');
 
   await dash.waitForFunction(
     () => {
