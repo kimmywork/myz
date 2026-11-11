@@ -30,7 +30,7 @@ function seed(count: number) {
   });
 }
 
-async function openLibrary(dash: Page, count: number) {
+async function resetRecords(dash: Page) {
   // The import strategy only de-duplicates by id, so clear first: the counts in
   // this spec are absolute ("共 N"), not "at least N".
   const existing = await send<Array<{ id: string }>>(
@@ -42,6 +42,10 @@ async function openLibrary(dash: Page, count: number) {
       ids: existing.map((record) => record.id),
     });
   }
+}
+
+async function openLibrary(dash: Page, count: number) {
+  await resetRecords(dash);
   await send(dash, "myz:importHighlights", {
     records: seed(count),
     strategy: "replace",
@@ -112,4 +116,77 @@ test("switching_cards_and_list_keeps_the_selection", async () => {
   await expect(dash.getByTestId("selection-bar")).toContainText(
     "已选 2（共 10）",
   );
+});
+
+function record(id: string, ageMs: number, note = "") {
+  const text = `record ${id}`;
+  const url = `https://example.com/${id}`;
+  return {
+    id,
+    url,
+    sourceUrl: url,
+    title: text,
+    text,
+    html: `<p>${text}</p>`,
+    note,
+    tags: [],
+    hostname: "example.com",
+    kind: "clip",
+    createdAt: new Date(Date.now() - ageMs).toISOString(),
+  };
+}
+
+test("bulk_delete_undoes_the_batch_in_place", async () => {
+  const dash = await harness.open("/highlights");
+  await resetRecords(dash);
+  const hour = 3_600_000;
+  const day = 24 * hour;
+  await send(dash, "myz:importHighlights", {
+    records: [
+      record("keep-1", hour),
+      record("keep-2", 2 * hour),
+      record("keep-3", 3 * hour),
+      record("keep-4", 4 * hour),
+      record("keep-5", 5 * hour),
+      record("batch-a", 5 * day, "annotated batch"),
+      record("batch-b", 3 * day),
+      record("batch-c", 2 * day),
+    ],
+    strategy: "replace",
+  });
+  await dash.reload();
+
+  const rows = dash.locator('[data-view="cards"] article[data-id]');
+  await expect(rows).toHaveCount(8);
+  const orderBefore = await rows.evaluateAll((elements) =>
+    elements.map((element) => element.getAttribute("data-id")),
+  );
+
+  for (const id of ["batch-a", "batch-b", "batch-c"]) {
+    await dash
+      .locator(`[data-id="${id}"] [data-testid="select-record"]`)
+      .check();
+  }
+  const bar = dash.getByTestId("selection-bar");
+  await expect(bar).toContainText("已选 3（共 8）");
+
+  await bar.getByRole("button", { name: "批量删除" }).click();
+
+  // One group: the whole batch leaves together and one bar undoes it.
+  await expect(dash.getByTestId("undo-bar")).toContainText(
+    "已删除 3 条（含 1 条带批注）",
+  );
+  await expect(rows).toHaveCount(5);
+
+  await dash
+    .getByTestId("undo-bar")
+    .getByRole("button", { name: "撤销" })
+    .click();
+
+  await expect(rows).toHaveCount(8);
+  const orderAfter = await rows.evaluateAll((elements) =>
+    elements.map((element) => element.getAttribute("data-id")),
+  );
+  // Same records back under their original date groups, in the same order.
+  expect(orderAfter).toEqual(orderBefore);
 });

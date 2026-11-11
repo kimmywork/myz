@@ -59,6 +59,32 @@ export default defineComponent({
         selection.prune(new Set(records.map((record) => record.id)));
       },
     );
+    // A record with a pending delete leaves the selection too (the row is
+    // hidden until the window ends); undo brings the row back unselected.
+    watch(
+      () => deleteStore.pendingIds,
+      (pending) => {
+        selection.prune(
+          new Set(
+            highlightsStore.highlights
+              .map((record) => record.id)
+              .filter((id) => !pending.has(id)),
+          ),
+        );
+      },
+    );
+
+    const selectedRecords = computed(() =>
+      highlightsStore.highlights.filter((record) => selection.has(record.id)),
+    );
+
+    /** One group, one undo bar: the whole batch is undone by one click. */
+    function deleteSelected() {
+      if (!selectedRecords.value.length) return;
+      deleteStore.requestDelete(selectedRecords.value, {
+        reload: () => highlightsStore.refreshHighlights(),
+      });
+    }
 
     const currentPageLabel = computed(() => {
       if (!uiStore.pageFilter) {
@@ -169,7 +195,19 @@ export default defineComponent({
                   allSelected={selection.isAllSelected(visibleIds.value)}
                   onToggleAll={() => selection.toggleAll(visibleIds.value)}
                   onClear={selection.clear}
-                />
+                >
+                  {{
+                    actions: () => (
+                      <button
+                        type="button"
+                        class="btn btn-small btn-danger"
+                        onClick={deleteSelected}
+                      >
+                        批量删除
+                      </button>
+                    ),
+                  }}
+                </SelectionBar>
               ) : null}
               <HighlightGroups
                 loading={highlightsStore.loadingHighlights}
