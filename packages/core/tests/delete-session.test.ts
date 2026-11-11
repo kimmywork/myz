@@ -219,6 +219,33 @@ describe("createDeleteSession", () => {
     expect(ports.commit).toHaveBeenCalledWith(["a"])
   })
 
+  it("keeps a paused group paused when the cancel call throws", async () => {
+    const { ports, session } = setup({
+      cancel: vi.fn(async () => {
+        throw new Error("offline")
+      }),
+    })
+    await session.schedule([{ id: "a" }])
+    await vi.advanceTimersByTimeAsync(2_000)
+    session.pause()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(ports.commit).not.toHaveBeenCalled()
+
+    expect(await session.undo()).toBe(false)
+    expect(ports.restore).not.toHaveBeenCalled()
+    expect(session.pendingIds()).toEqual(["a"])
+
+    // The undo attempt must not restart the frozen countdown.
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.commit).not.toHaveBeenCalled()
+
+    // Resuming later still commits after the time that was left when paused.
+    session.resume()
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS - 2_000)
+    expect(ports.commit).toHaveBeenCalledTimes(1)
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
+  })
+
   it("dedupes two schedules for one record in the same tick", async () => {
     const { ports, session } = setup()
     const [first, second] = await Promise.all([

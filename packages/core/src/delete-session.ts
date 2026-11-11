@@ -224,7 +224,10 @@ export function createDeleteSession<T>(
       ? groups.find((candidate) => sameIds(candidate.ids, ids))
       : groups[groups.length - 1]
     if (!group) return false
-    const remaining = group.timer
+    // A paused group has no timer; remember that so a failed cancel does not
+    // restart a countdown the user had frozen.
+    const wasRunning = group.timer !== null
+    const remaining = wasRunning
       ? Math.max(0, group.remaining - (now() - group.startedAt))
       : group.remaining
     if (group.timer) {
@@ -236,8 +239,10 @@ export function createDeleteSession<T>(
       cancelled = await ports.cancel(group.ids)
     } catch {
       // Unknown outcome (message failed): keep the group retryable instead of
-      // pretending the delete committed.
-      arm(group, remaining)
+      // pretending the delete committed. Only re-arm a countdown that was
+      // running before the undo attempt; a paused group stays paused so the
+      // undo affordance cannot expire under the pointer.
+      if (wasRunning) arm(group, remaining)
       return false
     }
     detach(group)
