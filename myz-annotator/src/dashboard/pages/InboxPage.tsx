@@ -1,8 +1,11 @@
+import { UndoBar } from "@myz/dashboard-ui";
+import ConfirmPopover from "@myz/shared/components/ConfirmPopover";
 import { IconSearch } from "@myz/shared/icons";
 import { formatDateTime } from "@myz/shared/recordDisplay";
 import { defineComponent } from "vue";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
 import type { WorkspacePageControls } from "../components/DashboardWorkspaceLayout.jsx";
+import { useDeleteStore } from "../stores/delete.js";
 import InboxDetailPanel from "./inbox/InboxDetailPanel.jsx";
 import InboxList from "./inbox/InboxList.jsx";
 import InboxSidebar from "./inbox/InboxSidebar.jsx";
@@ -12,6 +15,7 @@ export default defineComponent({
   name: "InboxPage",
   setup() {
     const a = useInboxQueue();
+    const deleteStore = useDeleteStore();
 
     return () => (
       <DashboardWorkspaceLayout
@@ -65,6 +69,15 @@ export default defineComponent({
                   </button>
                 </div>
               </header>
+
+              {deleteStore.message ? (
+                <UndoBar
+                  message={deleteStore.message}
+                  onUndo={deleteStore.undo}
+                  onPause={deleteStore.pause}
+                  onResume={deleteStore.resume}
+                />
+              ) : null}
 
               <div class="min-w-0 space-y-3">
                 <div class="relative min-w-0">
@@ -166,6 +179,21 @@ export default defineComponent({
 
                 <InboxList api={a} />
               </div>
+
+              {deleteStore.confirmOpen ? (
+                <ConfirmPopover
+                  style={{
+                    top: `${deleteStore.confirmPosition.top}px`,
+                    left: `${deleteStore.confirmPosition.left}px`,
+                  }}
+                  title="删除记录？"
+                  message="这条记录带有批注，删除后批注一起消失。"
+                  confirmLabel="删除"
+                  cancelLabel="取消"
+                  onConfirm={deleteStore.confirmDelete}
+                  onCancel={deleteStore.cancelDelete}
+                />
+              ) : null}
             </section>
           ),
         }}

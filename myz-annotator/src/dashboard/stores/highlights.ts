@@ -122,16 +122,6 @@ export const useHighlightsStore = defineStore("highlights", () => {
     }
   }
 
-  async function deleteHighlight(id: string) {
-    try {
-      await invoke("myz:removeHighlight", { id });
-      highlights.value = highlights.value.filter((item) => item.id !== id);
-    } catch (error) {
-      log.error("删除失败", error);
-      setTimedStatus(operationStatus, `删除失败：${(error as Error).message}`);
-    }
-  }
-
   function applyUpdatedRecord(updated: MyZRecord) {
     const normalized = normalizeRecord(updated);
     if (!normalized) {
@@ -274,7 +264,6 @@ export const useHighlightsStore = defineStore("highlights", () => {
     loadHighlights,
     refreshHighlights,
     copyHighlight,
-    deleteHighlight,
     downgradeHighlight,
     applyUpdatedRecord,
     handleExport,

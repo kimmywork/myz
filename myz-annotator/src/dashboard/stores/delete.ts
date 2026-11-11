@@ -1,0 +1,187 @@
+import {
+  DELETE_UNDO_WINDOW_MS,
+  createDeleteSession,
+} from "@myz/core/delete-session";
+import type { MyZRecord } from "@myz/shared/types";
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import { invoke } from "@/messaging/invoke";
+
+/** Reload callback so a restored delete reappears in the current list. */
+type Reload = () => void | Promise<void>;
+
+interface DeleteRequestOptions {
+  reload?: Reload;
+  /** Click position, so the annotated-record confirm sits at the trigger. */
+  event?: MouseEvent;
+  /** Runs once the intent is queued (e.g. the viewer returns to the list). */
+  afterSchedule?: () => void;
+}
+
+/**
+ * Dashboard-wide delete flow (§4.30): one session, one inline undo bar and one
+ * annotated-record confirmation, shared by Inbox, the library and the viewer.
+ */
+export const useDeleteStore = defineStore("delete", () => {
+  const message = ref("");
+  const confirmOpen = ref(false);
+  const confirmPosition = ref({ top: 0, left: 0 });
+  const pendingRecords = ref<MyZRecord[]>([]);
+  /** Rows removed from the lists now, while the commit waits for the window. */
+  const pendingIds = ref<Set<string>>(new Set());
+  let reloadFn: Reload | null = null;
+  let pendingAfterSchedule: (() => void) | null = null;
+
+  function refresh() {
+    void reloadFn?.();
+  }
+
+  const session = createDeleteSession<MyZRecord>({
+    getId: (record) => record.id,
+    windowMs: DELETE_UNDO_WINDOW_MS,
+    queue: async (ids, dueAt) =>
+      (await invoke("myz:queuePendingDelete", { ids: [...ids], dueAt })).ok,
+    commit: async (ids) =>
+      (await invoke("myz:commitPendingDelete", { ids: [...ids] })).committed,
+    cancel: async (ids) => {
+      await invoke("myz:cancelPendingDelete", { ids: [...ids] });
+    },
+    restore: (records) => {
+      message.value = "";
+      const next = new Set(pendingIds.value);
+      records.forEach((record) => next.delete(record.id));
+      pendingIds.value = next;
+      refresh();
+    },
+    onCommitted: (ids) => {
+      message.value = "";
+      const next = new Set(pendingIds.value);
+      ids.forEach((id) => next.delete(id));
+      pendingIds.value = next;
+    },
+    onCommitFailed: () => {
+      message.value = "删除失败，记录已恢复";
+      refresh();
+    },
+    onUndone: () => {
+      message.value = "";
+    },
+  });
+
+  function labelFor(records: readonly MyZRecord[]): string {
+    const annotated = records.filter((record) =>
+      (record.note || "").trim(),
+    ).length;
+    const base = `已删除 ${records.length} 条`;
+    return annotated ? `${base}（含 ${annotated} 条带批注）` : base;
+  }
+
+  async function remove(
+    records: readonly MyZRecord[],
+    options: DeleteRequestOptions = {},
+  ): Promise<boolean> {
+    if (!records.length) return false;
+    reloadFn = options.reload ?? reloadFn;
+    const queued = await session.schedule(records);
+    if (!queued) {
+      message.value = "删除失败，记录已恢复";
+      return false;
+    }
+    const next = new Set(pendingIds.value);
+    records.forEach((record) => next.add(record.id));
+    pendingIds.value = next;
+    message.value = labelFor(records);
+    options.afterSchedule?.();
+    return true;
+  }
+
+  /**
+   * Entry point for every dashboard delete. A single annotated record asks for
+   * confirmation; everything else (including mixed batches) goes straight to
+   * the undo bar, with the cost written into its copy.
+   */
+  function requestDelete(
+    records: readonly MyZRecord[],
+    options: DeleteRequestOptions = {},
+  ) {
+    if (!records.length) return;
+    const annotated = records.filter((record) => (record.note || "").trim());
+    if (records.length === 1 && annotated.length === 1) {
+      pendingRecords.value = [...records];
+      reloadFn = options.reload ?? reloadFn;
+      pendingAfterSchedule = options.afterSchedule ?? null;
+      const x = options.event?.clientX ?? window.innerWidth / 2 - 120;
+      const y = options.event?.clientY ?? window.innerHeight / 2;
+      confirmPosition.value = {
+        top: Math.max(8, Math.min(y + 8, window.innerHeight - 160)),
+        left: Math.max(8, Math.min(x - 120, window.innerWidth - 248)),
+      };
+      confirmOpen.value = true;
+      return;
+    }
+    void remove(records, options);
+  }
+
+  function confirmDelete() {
+    const records = pendingRecords.value;
+    const afterSchedule = pendingAfterSchedule;
+    pendingRecords.value = [];
+    pendingAfterSchedule = null;
+    confirmOpen.value = false;
+    if (records.length)
+      void remove(records, { afterSchedule: afterSchedule ?? undefined });
+  }
+
+  function cancelDelete() {
+    pendingRecords.value = [];
+    pendingAfterSchedule = null;
+    confirmOpen.value = false;
+  }
+
+  /** True while the row is hidden by a pending delete. */
+  function isPending(id: string): boolean {
+    return pendingIds.value.has(id);
+  }
+
+  function undo() {
+    void session.undo();
+  }
+
+  function pause() {
+    session.pause();
+  }
+
+  function resume() {
+    session.resume();
+  }
+
+  /** Route change: commit pending deletes instead of dropping them. */
+  function flush() {
+    void session.flushAll();
+    message.value = "";
+  }
+
+  /** Page teardown: commits; the durable intent covers a killed page. */
+  function teardown() {
+    session.dispose();
+    message.value = "";
+  }
+
+  return {
+    message,
+    confirmOpen,
+    confirmPosition,
+    pendingRecords,
+    pendingIds,
+    isPending,
+    remove,
+    requestDelete,
+    confirmDelete,
+    cancelDelete,
+    undo,
+    pause,
+    resume,
+    flush,
+    teardown,
+  };
+});

@@ -9,6 +9,7 @@ import { computed, defineComponent, nextTick, watch } from "vue";
 import type { PropType } from "vue";
 import { useRouter } from "vue-router";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
+import { useDeleteStore } from "../stores/delete.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
 import { openEpubRecordInReader } from "@/reader/open.js";
@@ -22,6 +23,7 @@ export default defineComponent({
   },
   setup(props) {
     const highlightsStore = useHighlightsStore();
+    const deleteStore = useDeleteStore();
     const uiStore = useUIStore();
     const router = useRouter();
 
@@ -66,13 +68,20 @@ export default defineComponent({
       },
     );
 
-    function handleAction(action: HighlightItemAction, record: MyZRecord) {
+    function handleAction(
+      action: HighlightItemAction,
+      record: MyZRecord,
+      event?: MouseEvent,
+    ) {
       switch (action) {
         case "copy":
           void highlightsStore.copyHighlight(record.id);
           break;
         case "delete":
-          void highlightsStore.deleteHighlight(record.id);
+          deleteStore.requestDelete([record], {
+            reload: () => highlightsStore.refreshHighlights(),
+            event,
+          });
           break;
         case "view":
           router.push(`/highlights/${record.id}`);
@@ -126,7 +135,12 @@ export default defineComponent({
             <HighlightGroups
               loading={highlightsStore.loadingHighlights}
               view={uiStore.view}
-              groups={uiStore.groupedHighlights}
+              groups={uiStore.groupedHighlights.map((group) => ({
+                ...group,
+                items: group.items.filter(
+                  (item) => !deleteStore.isPending(item.id),
+                ),
+              }))}
               hasMore={uiStore.hasMoreHighlights}
               setSentinelRef={(value) => {
                 sentinelRef.value = value as Element | null;

@@ -2,8 +2,9 @@ import { DashboardAppShell } from "@myz/dashboard-ui";
 import "@myz/shared/colorScheme";
 import { useThemePreference } from "@myz/shared/theme";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import { RouterView, useRoute } from "vue-router";
+import { RouterView, useRoute, useRouter } from "vue-router";
 import DashboardNavbar from "./components/DashboardNavbar.jsx";
+import { useDeleteStore } from "./stores/delete.js";
 import { useHighlightsStore } from "./stores/highlights.js";
 import { useSettingsStore } from "./stores/settings.js";
 import { useUIStore } from "./stores/ui.js";
@@ -14,12 +15,18 @@ export default defineComponent({
     const highlightsStore = useHighlightsStore();
     const settingsStore = useSettingsStore();
     const uiStore = useUIStore();
+    const deleteStore = useDeleteStore();
+    const router = useRouter();
+    let stopAfterEach: (() => void) | null = null;
     const route = useRoute();
     const { effectiveTheme } = useThemePreference();
     const fullscreen = computed(() => Boolean(route.meta?.fullscreen));
     const workspace = computed(() => Boolean(route.meta?.workspace));
 
     onMounted(async () => {
+      // Route change commits pending deletes instead of dropping them.
+      stopAfterEach = router.afterEach(() => deleteStore.flush());
+      window.addEventListener("pagehide", deleteStore.teardown);
       try {
         await Promise.all([
           highlightsStore.initialize(),
@@ -33,6 +40,9 @@ export default defineComponent({
     });
 
     onBeforeUnmount(() => {
+      stopAfterEach?.();
+      window.removeEventListener("pagehide", deleteStore.teardown);
+      deleteStore.teardown();
       highlightsStore.cleanup();
     });
 

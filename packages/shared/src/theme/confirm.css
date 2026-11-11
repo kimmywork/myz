@@ -1,0 +1,59 @@
+/* §4.18 删除确认 popup：页面内、无遮罩、跟随主题。Hosts import this file
+   (content shadow root and the dashboard) so the guard looks the same. */
+
+.myz-confirm {
+  position: fixed;
+  z-index: 2147483647;
+  width: 240px;
+  padding: 14px;
+  border-radius: var(--myz-r-lg);
+  background: var(--myz-surface);
+  color: var(--myz-text);
+  border: 1px solid var(--myz-line);
+  box-shadow: var(--myz-shadow);
+  font-family: var(--myz-sans);
+}
+
+.myz-confirm__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--myz-text);
+}
+
+.myz-confirm__message {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--myz-muted);
+}
+
+.myz-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.myz-confirm__actions button {
+  appearance: none;
+  height: var(--myz-hit-compact);
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--myz-r);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.myz-confirm__actions .myz-btn-danger {
+  background: var(--myz-error-bg);
+  color: var(--myz-error);
+  border-color: var(--myz-error-border);
+}
+
+.myz-confirm__actions .myz-btn-secondary {
+  background: var(--myz-surface-2);
+  color: var(--myz-text);
+  border-color: var(--myz-line);
+}

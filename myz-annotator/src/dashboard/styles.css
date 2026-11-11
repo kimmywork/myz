@@ -1,6 +1,7 @@
 @config "../../tailwind.config.ts";
 @import "tailwindcss";
 @import "@myz/shared/theme/tailwind.css";
+@import "@myz/shared/theme/confirm.css";
 @reference "@myz/shared/theme/tailwind.css";
 @plugin "@tailwindcss/typography";
 /* Shared base layer (focus rings, reduced motion, base type) — D10. */

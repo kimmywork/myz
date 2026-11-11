@@ -10,7 +10,6 @@ import {
 } from "@lucide/vue"
 import type { MyZRecord } from "@myz/shared"
 import { RECORD_KINDS } from "@myz/shared"
-import { DELETE_CONFIRM, confirmDestructive } from "@myz/shared/dialogs"
 import { isEpubSourceUrl, isPdfSourceUrl } from "@myz/shared/url"
 import type { PropType } from "vue"
 import { computed, defineComponent } from "vue"
@@ -27,13 +26,15 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    onAction: Function as PropType<(action: HighlightItemAction, record: MyZRecord) => void>,
+    onAction: Function as PropType<
+      (action: HighlightItemAction, record: MyZRecord, event?: MouseEvent) => void
+    >,
     /** Compact row variant: no top border, 28px hit targets. */
     compact: { type: Boolean, default: false },
   },
   setup(props) {
-    function emitAction(action: HighlightItemAction) {
-      props.onAction?.(action, props.record)
+    function emitAction(action: HighlightItemAction, event?: MouseEvent) {
+      props.onAction?.(action, props.record, event)
     }
 
     const isPdf = computed(() => Boolean(props.record.pdfLocator))
@@ -73,7 +74,7 @@ export default defineComponent({
           <button
             class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-warn hover:text-warn dark:text-warn dark:hover:text-warn"
             type="button"
-            onClick={() => emitAction("openPdf")}
+            onClick={(event: MouseEvent) => emitAction("openPdf", event)}
             title="在阅读器中打开"
             aria-label="在阅读器中打开"
           >
@@ -84,7 +85,7 @@ export default defineComponent({
           <button
             class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-warn hover:text-warn dark:text-warn dark:hover:text-warn"
             type="button"
-            onClick={() => emitAction("openEpub")}
+            onClick={(event: MouseEvent) => emitAction("openEpub", event)}
             title="在阅读器中打开"
             aria-label="在阅读器中打开"
           >
@@ -94,7 +95,7 @@ export default defineComponent({
         <button
           class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-muted hover:text-text dark:text-muted dark:hover:text-text"
           type="button"
-          onClick={() => emitAction("view")}
+          onClick={(event: MouseEvent) => emitAction("view", event)}
           title="打开原文"
           aria-label="打开原文"
         >
@@ -103,7 +104,7 @@ export default defineComponent({
         <button
           class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-muted hover:text-text dark:text-muted dark:hover:text-text"
           type="button"
-          onClick={() => emitAction("edit")}
+          onClick={(event: MouseEvent) => emitAction("edit", event)}
           title="编辑"
           aria-label="编辑"
         >
@@ -112,7 +113,7 @@ export default defineComponent({
         <button
           class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-muted hover:text-text dark:text-muted dark:hover:text-text"
           type="button"
-          onClick={() => emitAction("copy")}
+          onClick={(event: MouseEvent) => emitAction("copy", event)}
           title="复制"
           aria-label="复制"
         >
@@ -122,7 +123,7 @@ export default defineComponent({
           <button
             class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-muted hover:text-text dark:text-muted dark:hover:text-text"
             type="button"
-            onClick={() => emitAction("downgrade")}
+            onClick={(event: MouseEvent) => emitAction("downgrade", event)}
             title="降级"
             aria-label="降级"
           >
@@ -132,9 +133,7 @@ export default defineComponent({
         <button
           class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-error hover:text-error dark:text-error dark:hover:text-error"
           type="button"
-          onClick={() => {
-            if (confirmDestructive(DELETE_CONFIRM)) emitAction("delete");
-          }}
+          onClick={(event: MouseEvent) => emitAction("delete", event)}
           title="删除"
           aria-label="删除"
         >

@@ -37,7 +37,8 @@
     "./messageRegistry": "./src/messageRegistry.ts",
     "./transport": "./src/transport.ts",
     "./components/ThemeToggle": "./src/components/ThemeToggle.tsx",
-    "./components/ConfirmPopover": "./src/components/ConfirmPopover.tsx"
+    "./components/ConfirmPopover": "./src/components/ConfirmPopover.tsx",
+    "./theme/confirm.css": "./src/theme/confirm.css"
   },
   "dependencies": {
     "@fontsource/noto-serif-hk": "^5.3.0",

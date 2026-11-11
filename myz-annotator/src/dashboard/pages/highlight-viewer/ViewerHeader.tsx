@@ -1,5 +1,7 @@
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
+import { useDeleteStore } from "../../stores/delete.js";
+import { useHighlightsStore } from "../../stores/highlights.js";
 import { useUIStore } from "../../stores/ui.js";
 import type { HighlightViewerApi } from "./useHighlightViewer.js";
 
@@ -14,6 +16,8 @@ export default defineComponent({
   },
   setup(props) {
     const uiStore = useUIStore();
+    const highlightsStore = useHighlightsStore();
+    const deleteStore = useDeleteStore();
     return () => {
       const a = props.api;
       const pageUrl = a.record.value?.sourceUrl || a.record.value?.url || "";
@@ -58,6 +62,21 @@ export default defineComponent({
               }
             >
               {a.editing.value ? "取消编辑" : "编辑"}
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              onClick={(event: MouseEvent) => {
+                const record = a.record.value;
+                if (!record) return;
+                deleteStore.requestDelete([record], {
+                  event,
+                  reload: () => highlightsStore.refreshHighlights(),
+                  afterSchedule: () => a.backToList(),
+                });
+              }}
+            >
+              删除
             </button>
             <div
               class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"

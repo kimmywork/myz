@@ -33,10 +33,16 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
   const deleteBtn = await card?.$('button[title="删除"]');
   expect(deleteBtn).toBeTruthy();
   await deleteBtn?.click();
+  // This record carries a note, so §4.30 asks for confirmation first.
+  await dash.waitForSelector(".myz-confirm", { timeout: 5000 });
+  await dash.click(".myz-confirm .myz-btn-danger");
   await dash.waitForSelector(cardSelector, {
     state: "detached",
     timeout: 5000,
   });
+  await expect(
+    dash.locator('[role="status"]', { hasText: "已删除 1 条" }),
+  ).toBeVisible();
 
   const exportResult = await send<{ markdown?: string }>(dash, "myz:export");
   expect(exportResult?.markdown || "").not.toContain("dashboard snippet");
