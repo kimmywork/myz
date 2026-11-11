@@ -29,18 +29,26 @@ export default defineComponent({
     const inspectorRef = ref<HTMLElement | null>(null);
     let focusTrap: FocusTrap | null = null;
 
+    async function activateInspectorTrap() {
+      await nextTick();
+      if (!inspectorRef.value) return;
+      focusTrap?.deactivate();
+      focusTrap = createFocusTrap(inspectorRef.value, {
+        onEscape: () => (store.activeId = null),
+      });
+      focusTrap.activate();
+    }
+
+    function suspendInspectorTrap() {
+      focusTrap?.deactivate();
+      focusTrap = null;
+    }
+
     watch(activeRecord, async (record) => {
       if (record) {
-        await nextTick();
-        if (inspectorRef.value) {
-          focusTrap = createFocusTrap(inspectorRef.value, {
-            onEscape: () => (store.activeId = null),
-          });
-          focusTrap.activate();
-        }
+        await activateInspectorTrap();
       } else {
-        focusTrap?.deactivate();
-        focusTrap = null;
+        suspendInspectorTrap();
       }
     });
 

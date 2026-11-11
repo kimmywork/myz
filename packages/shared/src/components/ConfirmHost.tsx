@@ -23,8 +23,10 @@ export default defineComponent({
     setConfirmHandler(
       (next) =>
         new Promise<boolean>((resolve) => {
-          request.value = next
+          // Never leave an earlier caller waiting: a new request cancels it.
+          resolveFn?.(false)
           resolveFn = resolve
+          request.value = next
         }),
     )
 

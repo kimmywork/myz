@@ -6,12 +6,15 @@ import { dirnameFromImportMeta } from "../helpers/runtime.js";
 const __dirname = dirnameFromImportMeta(import.meta.url);
 const harness = setupDashboardHarness();
 
-/** Fails the test if the browser's native dialog ever appears. */
+/**
+ * Records native dialogs on the page that performs the action. The harness
+ * already answers dialogs (accept), so this listener only observes — two
+ * responders would race.
+ */
 function trackNativeDialog(page: import("@playwright/test").Page) {
   const seen: string[] = [];
   page.on("dialog", (dialog) => {
     seen.push(dialog.type());
-    void dialog.dismiss();
   });
   return seen;
 }
@@ -51,7 +54,6 @@ test("overwrite_import_confirms_with_the_themed_popover", async () => {
 
 test("clearing_the_capture_cache_confirms_with_the_themed_popover", async () => {
   const dash = await harness.open("/settings/import");
-  const nativeDialogs = trackNativeDialog(dash);
   await send(dash, "myz:stageAsset", {
     name: "confirm.png",
     mime: "image/png",
@@ -66,6 +68,7 @@ test("clearing_the_capture_cache_confirms_with_the_themed_popover", async () => 
   });
 
   const stitch = await harness.context().newPage();
+  const nativeDialogs = trackNativeDialog(stitch);
   await stitch.goto(
     `chrome-extension://${harness.extensionId()}/src/stitch/stitch.html`,
   );
@@ -86,10 +89,8 @@ test("clearing_the_capture_cache_confirms_with_the_themed_popover", async () => 
 });
 
 test("reader_annotated_delete_confirms_with_the_themed_popover", async () => {
-  const dash = await harness.open("/settings/import");
-  const nativeDialogs = trackNativeDialog(dash);
-
   const epub = await harness.context().newPage();
+  const nativeDialogs = trackNativeDialog(epub);
   await epub.goto(
     `chrome-extension://${harness.extensionId()}/src/epub/epub-viewer.html`,
   );
