@@ -6,10 +6,11 @@ import {
   type HighlightItemAction,
 } from "@myz/dashboard-ui";
 import type { MyZRecord } from "@myz/shared/types";
-import { computed, defineComponent, nextTick, ref, watch } from "vue";
+import { computed, defineComponent, nextTick, watch } from "vue";
 import type { PropType } from "vue";
 import { useRouter } from "vue-router";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll.js";
+import { useLibraryBatchActions } from "../composables/useLibraryBatchActions.js";
 import {
   libraryViewKey,
   useLibrarySelection,
@@ -78,42 +79,10 @@ export default defineComponent({
       highlightsStore.highlights.filter((record) => selection.has(record.id)),
     );
 
-    const bulkTag = ref("");
-    const bulkExportFormat = ref<"json" | "markdown">("json");
-
-    async function applyBulkTag() {
-      const tag = bulkTag.value.trim();
-      if (!tag || !selectedRecords.value.length) return;
-      const applied = await highlightsStore.addTagToRecords(
-        selectedRecords.value,
-        tag,
-      );
-      highlightsStore.setOperationStatus(
-        applied
-          ? `已为 ${applied} 条加上标签「${tag}」`
-          : `这些记录已经有标签「${tag}」`,
-      );
-      bulkTag.value = "";
-      selection.clear();
-    }
-
-    async function exportSelected() {
-      const records = selectedRecords.value;
-      if (!records.length) return;
-      await highlightsStore.handleExport(
-        bulkExportFormat.value,
-        records.map((record) => record.id),
-      );
-      highlightsStore.setOperationStatus(`已导出 ${records.length} 条`, 2000);
-    }
-
-    /** One group, one undo bar: the whole batch is undone by one click. */
-    function deleteSelected() {
-      if (!selectedRecords.value.length) return;
-      deleteStore.requestDelete(selectedRecords.value, {
-        reload: () => highlightsStore.refreshHighlights(),
-      });
-    }
+    const batch = useLibraryBatchActions({
+      selectedRecords,
+      clearSelection: selection.clear,
+    });
 
     const currentPageLabel = computed(() => {
       if (!uiStore.pageFilter) {
@@ -239,29 +208,30 @@ export default defineComponent({
                           class="h-8 w-28 rounded-control border border-line bg-surface px-2 text-caption text-text"
                           placeholder="标签"
                           aria-label="要添加的标签"
-                          value={bulkTag.value}
+                          value={batch.bulkTag.value}
                           onInput={(event: Event) =>
-                            (bulkTag.value = (
+                            (batch.bulkTag.value = (
                               event.target as HTMLInputElement
                             ).value)
                           }
                           onKeydown={(event: KeyboardEvent) => {
-                            if (event.key === "Enter") void applyBulkTag();
+                            if (event.key === "Enter")
+                              void batch.applyBulkTag();
                           }}
                         />
                         <button
                           type="button"
                           class="btn btn-small"
-                          onClick={() => void applyBulkTag()}
+                          onClick={() => void batch.applyBulkTag()}
                         >
                           打标签
                         </button>
                         <select
                           class="h-8 rounded-control border border-line bg-surface px-2 text-caption text-text"
                           aria-label="导出格式"
-                          value={bulkExportFormat.value}
+                          value={batch.bulkExportFormat.value}
                           onChange={(event: Event) => {
-                            bulkExportFormat.value = (
+                            batch.bulkExportFormat.value = (
                               event.target as HTMLSelectElement
                             ).value as "json" | "markdown";
                           }}
@@ -272,14 +242,14 @@ export default defineComponent({
                         <button
                           type="button"
                           class="btn btn-small"
-                          onClick={() => void exportSelected()}
+                          onClick={() => void batch.exportSelected()}
                         >
                           导出选中
                         </button>
                         <button
                           type="button"
                           class="btn btn-small btn-danger"
-                          onClick={deleteSelected}
+                          onClick={batch.deleteSelected}
                         >
                           批量删除
                         </button>

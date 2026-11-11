@@ -127,25 +127,6 @@ export const useHighlightsStore = defineStore("highlights", () => {
     setTimedStatus(operationStatus, message, duration);
   }
 
-  /** Adds one tag to each record that does not have it yet. */
-  async function addTagToRecords(
-    records: readonly MyZRecord[],
-    tag: string,
-  ): Promise<number> {
-    let applied = 0;
-    for (const record of records) {
-      const tags = record.tags || [];
-      if (tags.includes(tag)) continue;
-      await invoke("myz:updateHighlight", {
-        id: record.id,
-        tags: [...tags, tag],
-      });
-      applied += 1;
-    }
-    if (applied) await loadHighlights();
-    return applied;
-  }
-
   function applyUpdatedRecord(updated: MyZRecord) {
     const normalized = normalizeRecord(updated);
     if (!normalized) {
@@ -296,7 +277,6 @@ export const useHighlightsStore = defineStore("highlights", () => {
     copyHighlight,
     downgradeHighlight,
     setOperationStatus,
-    addTagToRecords,
     applyUpdatedRecord,
     handleExport,
     importHighlightsFromFile,
