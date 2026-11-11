@@ -140,7 +140,10 @@ describe("delete journal", () => {
     setNow(2_000);
     await journal.drainExpired();
     // The cancelled marker is kept for a while so a late commit is a no-op.
-    expect(entries().map((entry) => entry.ids)).toEqual([["later"], ["undone"]]);
+    expect(entries().map((entry) => entry.ids)).toEqual([
+      ["later"],
+      ["undone"],
+    ]);
 
     setNow(200_000);
     await journal.drainExpired();
