@@ -79,10 +79,13 @@ function registerReadHandlers() {
     collectTags(await withoutPendingDeletes(await listRecords(recordsStore))),
   );
 
-  registerMessageHandler("myz:export", async () => {
-    const highlights = await withoutPendingDeletes(
-      await listRecords(recordsStore),
-    );
+  registerMessageHandler("myz:export", async (payload) => {
+    const all = await withoutPendingDeletes(await listRecords(recordsStore));
+    // Backwards compatible: no ids = export everything.
+    const ids = normalizeIds(payload?.ids);
+    const highlights = ids.length
+      ? all.filter((record) => ids.includes(record.id))
+      : all;
     return {
       json: JSON.stringify(highlights, null, 2),
       markdown: buildMarkdownExport(highlights),

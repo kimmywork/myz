@@ -181,9 +181,15 @@ export const useHighlightsStore = defineStore("highlights", () => {
     }
   }
 
-  async function handleExport(format: "markdown" | "json") {
+  async function handleExport(
+    format: "markdown" | "json",
+    ids?: readonly string[],
+  ) {
     try {
-      const result = await invoke("myz:export");
+      const result = await invoke(
+        "myz:export",
+        ids?.length ? { ids: [...ids] } : {},
+      );
       if (!result) {
         return;
       }

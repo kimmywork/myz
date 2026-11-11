@@ -79,6 +79,7 @@ export default defineComponent({
     );
 
     const bulkTag = ref("");
+    const bulkExportFormat = ref<"json" | "markdown">("json");
 
     async function applyBulkTag() {
       const tag = bulkTag.value.trim();
@@ -94,6 +95,16 @@ export default defineComponent({
       );
       bulkTag.value = "";
       selection.clear();
+    }
+
+    async function exportSelected() {
+      const records = selectedRecords.value;
+      if (!records.length) return;
+      await highlightsStore.handleExport(
+        bulkExportFormat.value,
+        records.map((record) => record.id),
+      );
+      highlightsStore.setOperationStatus(`已导出 ${records.length} 条`, 2000);
     }
 
     /** One group, one undo bar: the whole batch is undone by one click. */
@@ -244,6 +255,26 @@ export default defineComponent({
                           onClick={() => void applyBulkTag()}
                         >
                           打标签
+                        </button>
+                        <select
+                          class="h-8 rounded-control border border-line bg-surface px-2 text-caption text-text"
+                          aria-label="导出格式"
+                          value={bulkExportFormat.value}
+                          onChange={(event: Event) => {
+                            bulkExportFormat.value = (
+                              event.target as HTMLSelectElement
+                            ).value as "json" | "markdown";
+                          }}
+                        >
+                          <option value="json">JSON</option>
+                          <option value="markdown">Markdown</option>
+                        </select>
+                        <button
+                          type="button"
+                          class="btn btn-small"
+                          onClick={() => void exportSelected()}
+                        >
+                          导出选中
                         </button>
                         <button
                           type="button"

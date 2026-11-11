@@ -101,7 +101,11 @@ export type MyzRuntimeMap = {
   "myz:listPendingDeletes": { payload: void; result: { ids: string[] } };
   "myz:getAllHighlights": { payload: void; result: MyZRecord[] };
   "myz:getAllTags": { payload: void; result: string[] };
-  "myz:export": { payload: void; result: { json: string; markdown: string } };
+  /** Omit `ids` to export everything (legacy behaviour); pass a list to export only those records. */
+  "myz:export": {
+    payload: { ids?: string[] };
+    result: { json: string; markdown: string };
+  };
   "myz:updateBadge": {
     payload: { tabId?: number; count?: number } & Partial<BadgeCount>;
     result: { success: boolean };
