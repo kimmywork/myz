@@ -121,6 +121,8 @@ I2 与 I4 的后半段、I6 与 I8 可以并行开工，但**合并顺序按上�
 
 ### I4 · 删除统一
 
+> 状态：**已实现**（2026-11-11）：`packages/core` 的 undoable delete session + background 删除意图表（落盘、启动/闹钟补提交、读取时过滤未到期 id）；Inbox / 文库 / 查看器 / 阅读器接入同一套语义——单条无批注 6 秒撤销、带批注先确认、批量整批原子且切路由/关页面提交；`window.confirm` 在业务代码里为 0（只剩 `@myz/shared/dialogs` 封装）。四条边界单测见 `packages/core/tests/delete-session.test.ts` 与 `myz-annotator/tests/unit/background/delete-journal.test.ts`。
+
 **做什么**
 - 把 `content/highlight/pending-delete.ts` 的延迟删除提成共享纯逻辑（可单测、无 DOM），dashboard 与 content 共用。
 - **先定死四条边界语义**（这是上一轮对抗分析指出的隐患，必须在 PR 里写清并有用例）：
