@@ -1,13 +1,49 @@
 /**
- * Confirmation for destructive actions. Centralized so every host uses the same
- * guard (native confirm is the lowest common denominator across extension
- * surfaces; callers may replace it with a custom dialog later).
+ * Confirmation for destructive actions.
+ *
+ * Hosts register a themed implementation once at their root (`ConfirmHost`);
+ * `confirmDestructive` then awaits it. The native `window.confirm` remains
+ * only as a fallback for a host that never registered one (tests, future
+ * surfaces), never as the intended UI.
  */
-export function confirmDestructive(message: string): boolean {
-  if (typeof window === "undefined" || typeof window.confirm !== "function") {
-    return true;
-  }
-  return window.confirm(message);
+export interface ConfirmRequest {
+  message: string
+  title?: string
+  confirmLabel?: string
+  cancelLabel?: string
 }
 
-export const DELETE_CONFIRM = "删除后不可撤销，确定删除？";
+export type ConfirmHandler = (request: ConfirmRequest) => Promise<boolean>
+
+let activeHandler: ConfirmHandler | null = null
+
+/** Registers (or clears) the themed confirm implementation for this host. */
+export function setConfirmHandler(handler: ConfirmHandler | null): void {
+  activeHandler = handler
+}
+
+/**
+ * Asks the user to confirm a destructive action.
+ *
+ * @param message Body text.
+ * @param options Optional title and button labels.
+ * @returns `true` when confirmed.
+ */
+export async function confirmDestructive(
+  message: string,
+  options: Omit<ConfirmRequest, "message"> = {},
+): Promise<boolean> {
+  if (activeHandler) {
+    try {
+      return await activeHandler({ message, ...options })
+    } catch {
+      return false
+    }
+  }
+  if (typeof window === "undefined" || typeof window.confirm !== "function") {
+    return true
+  }
+  return window.confirm(message)
+}
+
+export const DELETE_CONFIRM = "删除后不可撤销，确定删除？"
