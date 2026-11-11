@@ -1,0 +1,149 @@
+/* Flush list row (§4.20 / §4.25). Row height comes from tokens; the touch
+   breakpoint switches to the 64px touch row. */
+
+.myz-list-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--myz-row-h);
+  padding: 8px var(--myz-row-pad-x);
+  background: var(--myz-surface);
+  border-bottom: 1px solid var(--myz-line);
+  cursor: pointer;
+  transition: background var(--myz-motion-fast) var(--myz-ease-out);
+}
+
+.myz-list-row:hover,
+.myz-list-row.is-selected,
+.myz-list-row.is-active {
+  background: var(--myz-surface-2);
+}
+
+.myz-list-row:focus-visible {
+  outline: 2px solid var(--myz-accent);
+  outline-offset: -2px;
+}
+
+.myz-list-row.is-disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.myz-list-row__bar {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 3px;
+  border-radius: var(--myz-r-xs);
+}
+
+/* Selected detail row: the tone bar switches to the accent colour (§4.20). */
+.myz-list-row.is-active .myz-list-row__bar {
+  background: var(--myz-accent);
+}
+
+.myz-list-row__bar--info {
+  background: var(--myz-info);
+}
+
+.myz-list-row__bar--neutral {
+  background: var(--myz-line);
+}
+
+.myz-list-row__bar--tag {
+  background: var(--myz-tag-fg);
+}
+
+.myz-list-row__bar--danger {
+  background: var(--myz-error);
+}
+
+/* 摘录色条是虚线 (§4.20)：用 token 拼，不写裸色值。 */
+.myz-list-row__bar--clip {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--myz-clip) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.myz-list-row__main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.myz-list-row__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.myz-list-row__title {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--myz-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myz-list-row__meta {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--myz-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Actions are icon-only 28px buttons (§4.20) that stay in flow and only
+   become visible on hover, focus, selection or an open detail. They remain
+   clickable while invisible, so a pointer that reaches them has already
+   revealed them. */
+.myz-list-row__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--myz-motion-fast) var(--myz-ease-out);
+}
+
+.myz-list-row:hover .myz-list-row__actions,
+.myz-list-row:focus-within .myz-list-row__actions,
+.myz-list-row.is-active .myz-list-row__actions,
+.myz-list-row.is-selected .myz-list-row__actions {
+  opacity: 1;
+}
+
+/* Touch / narrow screens keep actions visible (§4.20); they collapse to
+   icon-only buttons so the title still has room. */
+@media (hover: none), (max-width: 639px) {
+  .myz-list-row__actions {
+    opacity: 1;
+  }
+
+  .myz-list-row .myz-list-row__snooze {
+    width: 28px;
+    padding: 0;
+    color: transparent;
+  }
+}
+
+@media (max-width: 639px) {
+  .myz-list-row {
+    min-height: var(--myz-row-h-touch);
+  }
+}
+
+/* Library row actions reuse HighlightActions; keep them at 28px. */
+.myz-row-actions a,
+.myz-row-actions button {
+  padding: 6px;
+}

@@ -1,4 +1,14 @@
-import { computed, defineComponent, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { createFocusTrap } from "@myz/shared/focusTrap"
+import type { FocusTrap } from "@myz/shared/focusTrap"
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue"
 import type { PropType } from "vue"
 import ResizeHandle from "./ResizeHandle.js"
 import {
@@ -30,8 +40,9 @@ export default defineComponent({
     /** Narrow-screen nav drawer is controlled by the page that fills it. */
     navOpen: { type: Boolean, default: false },
     onCloseNav: Function as PropType<() => void>,
-    /** Rendered above the scrolling main area (48px, §4.27). */
+    /** Right detail panel (§4.27); below 1200 it becomes an overlay. */
     panelOpen: { type: Boolean, default: false },
+    onClosePanel: Function as PropType<() => void>,
   },
   setup(props, { slots }) {
     const storage = browserWidthStorage()
@@ -62,6 +73,41 @@ export default defineComponent({
     })
 
     const hasPanel = computed(() => Boolean(props.panelOpen && slots.panel))
+    const panelRef = ref<HTMLElement | null>(null)
+    const isNarrow = ref(false)
+    let mediaQuery: MediaQueryList | null = null
+    let panelTrap: FocusTrap | null = null
+
+    function syncNarrow() {
+      isNarrow.value = Boolean(mediaQuery?.matches)
+    }
+
+    function teardownPanelTrap() {
+      panelTrap?.deactivate()
+      panelTrap = null
+    }
+
+    // Below 1200 the panel is an overlay dialog: trap Tab inside it and
+    // restore focus to the row on close (§4.8). The inline panel never
+    // steals focus.
+    async function setupPanelTrap() {
+      if (!props.panelOpen || !isNarrow.value) {
+        teardownPanelTrap()
+        return
+      }
+      await nextTick()
+      const el = panelRef.value
+      if (!el) return
+      teardownPanelTrap()
+      panelTrap = createFocusTrap(el, {
+        onEscape: () => props.onClosePanel?.(),
+      })
+      panelTrap.activate()
+    }
+
+    watch([() => props.panelOpen, isNarrow], () => {
+      void setupPanelTrap()
+    })
     const navCollapsed = computed(() => navWidth.value === 0)
 
     const style = computed(() => ({
@@ -72,16 +118,30 @@ export default defineComponent({
     }))
 
     function onKeydown(event: KeyboardEvent) {
-      if (event.key === "Escape" && props.navOpen) {
+      if (event.key !== "Escape") return
+      // The theme menu (or another overlay) may have consumed this Escape.
+      if (event.defaultPrevented) return
+      if (props.panelOpen) {
+        props.onClosePanel?.()
+        return
+      }
+      if (props.navOpen) {
         props.onCloseNav?.()
       }
     }
 
     onMounted(() => {
       window.addEventListener("keydown", onKeydown)
+      if (typeof window.matchMedia === "function") {
+        mediaQuery = window.matchMedia("(max-width: 1199px)")
+        syncNarrow()
+        mediaQuery.addEventListener("change", syncNarrow)
+      }
     })
     onBeforeUnmount(() => {
       window.removeEventListener("keydown", onKeydown)
+      mediaQuery?.removeEventListener("change", syncNarrow)
+      teardownPanelTrap()
     })
 
     return () => {
@@ -162,9 +222,24 @@ export default defineComponent({
                   }}
                 />
               </div>
-              <aside class="myz-workspace__panel" data-testid="workspace-panel">
+              <aside
+                ref={panelRef}
+                class="myz-workspace__panel"
+                data-testid="workspace-panel"
+                role={isNarrow && props.panelOpen ? "dialog" : "complementary"}
+                aria-modal={
+                  isNarrow && props.panelOpen ? "true" : undefined
+                }
+                aria-label="详情"
+                tabindex={-1}
+              >
                 {slots.panel?.()}
               </aside>
+              <div
+                class="myz-workspace__panel-backdrop"
+                onClick={() => props.onClosePanel?.()}
+                aria-hidden="true"
+              />
             </>
           ) : null}
           {slots.bottomNav ? (

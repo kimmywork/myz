@@ -3,6 +3,7 @@ import { formatDateTime } from "@myz/shared/recordDisplay";
 import { defineComponent } from "vue";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
 import type { WorkspacePageControls } from "../components/DashboardWorkspaceLayout.jsx";
+import InboxDetailPanel from "./inbox/InboxDetailPanel.jsx";
 import InboxList from "./inbox/InboxList.jsx";
 import InboxSidebar from "./inbox/InboxSidebar.jsx";
 import { useInboxQueue } from "./inbox/useInboxQueue.js";
@@ -13,11 +14,25 @@ export default defineComponent({
     const a = useInboxQueue();
 
     return () => (
-      <DashboardWorkspaceLayout>
+      <DashboardWorkspaceLayout
+        panelOpen={Boolean(a.detailItem.value)}
+        onClosePanel={a.closeDetail}
+      >
         {{
           nav: ({ closeNav }: WorkspacePageControls) => (
             <InboxSidebar api={a} onNavigate={closeNav} />
           ),
+          panel: () =>
+            a.detailItem.value ? (
+              <InboxDetailPanel
+                item={a.detailItem.value}
+                onClose={a.closeDetail}
+                onRemoveTag={(tag) => {
+                  const item = a.detailItem.value;
+                  if (item) void a.removeTag(item, tag);
+                }}
+              />
+            ) : null,
           default: ({ openNav }: WorkspacePageControls) => (
             <section class="flex min-h-0 flex-col gap-4 p-4">
               <header class="flex flex-wrap items-end justify-between gap-3">

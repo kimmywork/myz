@@ -20,6 +20,8 @@ export function useInboxData() {
   const activeTag = ref<string | null>(null);
   const query = ref("");
   const selected = ref<Set<string>>(new Set());
+  /** Row whose detail panel is open; independent of the batch selection. */
+  const detailItemId = ref<string | null>(null);
   const focusMode = ref(false);
   const focusIndex = ref(0);
   const status = ref("");
@@ -109,6 +111,25 @@ export function useInboxData() {
   });
 
   const focusItem = computed(() => tabItems.value[focusIndex.value] ?? null);
+  const detailItem = computed(
+    () =>
+      tabItems.value.find((item) => item.targetId === detailItemId.value) ??
+      null,
+  );
+
+  function openDetail(item: InboxQueueItem) {
+    detailItemId.value = item.targetId;
+  }
+
+  // Archiving, filtering or switching tabs can drop the item from the queue;
+  // clear the stale id instead of keeping a dangling reference.
+  watch(detailItem, (item) => {
+    if (!item) detailItemId.value = null;
+  });
+
+  function closeDetail() {
+    detailItemId.value = null;
+  }
   const visibleItems = computed(() =>
     tabItems.value.slice(0, visibleCount.value),
   );
@@ -166,6 +187,7 @@ export function useInboxData() {
     activeTag,
     query,
     selected,
+    detailItemId,
     focusMode,
     focusIndex,
     status,
@@ -183,7 +205,10 @@ export function useInboxData() {
     visibleTags,
     workingSet,
     focusItem,
+    detailItem,
     visibleItems,
+    openDetail,
+    closeDetail,
     load,
     observeSentinel,
     disposeSentinel,

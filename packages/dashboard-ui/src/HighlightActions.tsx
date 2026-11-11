@@ -28,6 +28,8 @@ export default defineComponent({
       required: true,
     },
     onAction: Function as PropType<(action: HighlightItemAction, record: MyZRecord) => void>,
+    /** Compact row variant: no top border, 28px hit targets. */
+    compact: { type: Boolean, default: false },
   },
   setup(props) {
     function emitAction(action: HighlightItemAction) {
@@ -47,7 +49,14 @@ export default defineComponent({
     )
 
     return () => (
-      <div class="flex items-center gap-1 border-t border-line pt-3 text-caption font-semibold dark:border-line">
+      <div
+        class={[
+          "flex items-center gap-1 text-caption font-semibold",
+          props.compact
+            ? "myz-row-actions"
+            : "border-t border-line pt-3 dark:border-line",
+        ].join(" ")}
+      >
         {externalHref.value ? (
           <a
             class="rounded-tag p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg text-accent-text hover:text-accent-text dark:text-accent-text dark:hover:text-accent-text"

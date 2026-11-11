@@ -1,5 +1,6 @@
 import { WorkspaceShell } from "@myz/dashboard-ui";
 import { defineComponent, ref } from "vue";
+import type { PropType } from "vue";
 import DashboardBottomNav from "./DashboardBottomNav.jsx";
 import DashboardRail from "./DashboardRail.jsx";
 
@@ -16,7 +17,15 @@ export interface WorkspacePageControls {
  */
 export default defineComponent({
   name: "DashboardWorkspaceLayout",
-  setup(_, { slots }) {
+  props: {
+    /** Right detail panel; the page fills `slots.panel`. */
+    panelOpen: { type: Boolean, default: false },
+    onClosePanel: {
+      type: Function as PropType<() => void>,
+      default: undefined,
+    },
+  },
+  setup(props, { slots }) {
     const navOpen = ref(false);
     const controls: WorkspacePageControls = {
       openNav: () => (navOpen.value = true),
@@ -24,11 +33,17 @@ export default defineComponent({
     };
 
     return () => (
-      <WorkspaceShell navOpen={navOpen.value} onCloseNav={controls.closeNav}>
+      <WorkspaceShell
+        navOpen={navOpen.value}
+        onCloseNav={controls.closeNav}
+        panelOpen={props.panelOpen}
+        onClosePanel={props.onClosePanel}
+      >
         {{
           rail: () => <DashboardRail />,
           nav: () => slots.nav?.(controls),
           default: () => slots.default?.(controls),
+          panel: () => slots.panel?.(),
           bottomNav: () => <DashboardBottomNav />,
         }}
       </WorkspaceShell>

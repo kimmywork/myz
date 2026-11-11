@@ -163,6 +163,13 @@ export const useUIStore = defineStore("ui", () => {
     }
   }
 
+  /** Apply the persisted cards/list preference without writing it back. */
+  function restoreView(nextView: unknown) {
+    if (nextView === "cards" || nextView === "list") {
+      view.value = nextView;
+    }
+  }
+
   function setView(nextView: "cards" | "list", { persist = true } = {}) {
     if (!nextView || view.value === nextView) return;
     view.value = nextView;
@@ -238,6 +245,7 @@ export const useUIStore = defineStore("ui", () => {
     resetFilters,
     applyQuickSearch,
     setView,
+    restoreView,
     setPageFilter,
     clearPageFilter,
     setPageSortMode,

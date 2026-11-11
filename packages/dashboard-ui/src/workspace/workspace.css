@@ -201,15 +201,41 @@
 
 /* ── breakpoints: 1200 / 900 / 640 ────────────────────────────────── */
 @media (max-width: 1199px) {
-  /* The inline panel needs room; below 1200 it becomes an overlay drawer
-     (content wiring lands with the panel itself). */
+  /* Below 1200 the panel is an overlay drawer (§4.25). */
   .myz-workspace.is-panel-open {
     grid-template-columns:
       var(--myz-rail-w) var(--ws-nav-w) 4px minmax(0, 1fr);
   }
 
-  .myz-workspace__panel,
   .myz-workspace__panel-handle {
+    display: none;
+  }
+
+  .myz-workspace__panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 41;
+    width: var(--ws-panel-w);
+    border-left: 1px solid var(--myz-line);
+  }
+
+  .myz-workspace__panel:focus-visible {
+    outline: 2px solid var(--myz-accent);
+    outline-offset: -2px;
+  }
+
+  .myz-workspace__panel-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: color-mix(in srgb, var(--myz-overlay) 40%, transparent);
+  }
+}
+
+@media (min-width: 1200px) {
+  .myz-workspace__panel-backdrop {
     display: none;
   }
 }
@@ -254,6 +280,19 @@
   .myz-workspace.is-panel-open {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  /* Bottom sheet (§4.25): max 70vh, scrolls inside. */
+  .myz-workspace__panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 70vh;
+    border-top: 1px solid var(--myz-line);
+    border-left: 0;
+    border-radius: var(--myz-r-lg) var(--myz-r-lg) 0 0;
   }
 
   .myz-workspace__rail-slot {
