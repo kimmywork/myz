@@ -7,6 +7,7 @@ import {
 
 function setup(now = 1_000) {
   let entries: DeleteJournalEntry[] = [];
+  let backlog: string[] = [];
   const deps = {
     read: vi.fn(async () => entries.map((entry) => ({ ...entry }))),
     write: vi.fn(async (next: DeleteJournalEntry[]) => {
@@ -15,6 +16,11 @@ function setup(now = 1_000) {
     removeRecords: vi.fn(async () => {}),
     recordDeletion: vi.fn(async () => {}),
     anyPresent: vi.fn(async () => false),
+    clearDeletions: vi.fn(async () => {}),
+    readTombstoneBacklog: vi.fn(async () => backlog),
+    writeTombstoneBacklog: vi.fn(async (ids: string[]) => {
+      backlog = [...ids];
+    }),
     now: () => now,
   };
   const journal = createDeleteJournal(deps);
@@ -22,6 +28,7 @@ function setup(now = 1_000) {
     deps,
     journal,
     entries: () => entries,
+    backlog: () => backlog,
     setNow: (value: number) => {
       now = value;
     },
@@ -80,6 +87,39 @@ describe("delete journal", () => {
 
     expect(await journal.commit(["gone"])).toBe(true);
     expect(deps.removeRecords).not.toHaveBeenCalled();
+  });
+
+  it("writes no tombstone when the record delete fails", async () => {
+    const { deps, journal } = setup();
+    await journal.queue(["a"], 1_000);
+    deps.removeRecords.mockRejectedValueOnce(new Error("offline"));
+
+    expect(await journal.commit(["a"])).toBe(false);
+    expect(deps.recordDeletion).not.toHaveBeenCalled();
+    expect(deps.writeTombstoneBacklog).not.toHaveBeenCalled();
+  });
+
+  it("keeps a successful local delete when the tombstone fails, and retries it", async () => {
+    const { deps, journal, backlog } = setup();
+    await journal.queue(["a"], 1_000);
+    deps.recordDeletion.mockRejectedValueOnce(new Error("sync db down"));
+
+    expect(await journal.commit(["a"])).toBe(true);
+    expect(deps.removeRecords).toHaveBeenCalledWith(["a"]);
+    expect(backlog()).toEqual(["a"]);
+
+    // The next drain retries the tombstone and clears the backlog.
+    await journal.drainExpired();
+    expect(deps.recordDeletion).toHaveBeenCalledTimes(2);
+    expect(backlog()).toEqual([]);
+  });
+
+  it("clears tombstones when an intent is cancelled", async () => {
+    const { deps, journal } = setup();
+    await journal.queue(["a"], 1_000);
+
+    expect(await journal.cancel(["a"])).toBe(true);
+    expect(deps.clearDeletions).toHaveBeenCalledWith(["a"]);
   });
 
   it("cancel reports whether the intent existed", async () => {

@@ -25,6 +25,13 @@ export interface DeleteJournalDeps {
   recordDeletion: (id: string) => Promise<void>;
   /** True when at least one of these records still exists in storage. */
   anyPresent: (ids: readonly string[]) => Promise<boolean>;
+  /** Removes tombstones when an intent is cancelled (undo). */
+  clearDeletions: (ids: readonly string[]) => Promise<void>;
+  /** Ids whose record delete succeeded but whose tombstone still needs writing. */
+  readTombstoneBacklog: () => Promise<string[]>;
+  writeTombstoneBacklog: (ids: string[]) => Promise<void>;
+  /** Reports a tombstone that could not even be queued for retry. */
+  onTombstoneFailure?: (ids: readonly string[]) => void;
   now?: () => number;
 }
 
@@ -95,22 +102,65 @@ export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
     const next = entries.filter((entry) => !sameIds(entry.ids, ids));
     if (next.length === entries.length) return false;
     await deps.write(next);
+    // The intent may have been cancelled after a partial commit; never leave a
+    // tombstone behind for a record the user just restored.
+    try {
+      await deps.clearDeletions(ids);
+    } catch {
+      /* Undo already restored the rows; a stale tombstone is retried next sync. */
+    }
     return true;
   }
 
+  /**
+   * Deletes the records first, then writes tombstones: records and tombstones
+   * live in different databases, so a failed record delete must not leave a
+   * publishable tombstone for a row the UI is about to restore.
+   */
   async function deleteRecords(ids: readonly string[]): Promise<boolean> {
     try {
-      for (const id of ids) {
-        await deps.recordDeletion(id);
-      }
       await deps.removeRecords([...ids]);
-      return true;
     } catch {
       return false;
     }
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
+        await deps.recordDeletion(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+    if (failed.length) {
+      try {
+        const backlog = await deps.readTombstoneBacklog();
+        const merged = Array.from(new Set([...backlog, ...failed]));
+        await deps.writeTombstoneBacklog(merged);
+      } catch {
+        // Local delete succeeded; report so the failure is not silent.
+        deps.onTombstoneFailure?.(failed);
+      }
+    }
+    return true;
+  }
+
+  /** Retries tombstones whose record delete already succeeded. */
+  async function retryTombstonesImpl(): Promise<void> {
+    const backlog = await deps.readTombstoneBacklog();
+    if (!backlog.length) return;
+    const failed: string[] = [];
+    for (const id of backlog) {
+      try {
+        await deps.recordDeletion(id);
+      } catch {
+        failed.push(id);
+      }
+    }
+    await deps.writeTombstoneBacklog(failed);
   }
 
   async function commitImpl(ids: readonly string[]): Promise<boolean> {
+    await retryTombstonesImpl();
     const entries = await deps.read();
     const entry = entries.find((candidate) => sameIds(candidate.ids, ids));
     if (!entry) {
@@ -131,6 +181,7 @@ export function createDeleteJournal(deps: DeleteJournalDeps): DeleteJournal {
   }
 
   async function drainExpiredImpl(): Promise<void> {
+    await retryTombstonesImpl();
     const entries = await deps.read();
     const due = entries.filter((entry) => entry.dueAt <= now());
     for (const entry of due) {

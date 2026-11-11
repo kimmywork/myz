@@ -28,10 +28,13 @@ vi.mock("@/background/storage", () => ({
   readDeleteJournal: async () => [],
   writeDeleteJournal: async () => {},
   deleteHighlights: async () => {},
+  readTombstoneBacklog: async () => [],
+  writeTombstoneBacklog: async () => {},
 }));
 
 vi.mock("@/background/sync/deletions", () => ({
   recordHighlightDeletion: vi.fn(),
+  clearHighlightDeletion: vi.fn(),
 }));
 
 vi.mock("@myz/shared/types", () => ({

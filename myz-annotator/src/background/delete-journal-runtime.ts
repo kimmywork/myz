@@ -2,13 +2,16 @@
  * Chrome wiring for the deferred-delete journal: IndexedDB records, sync
  * tombstones and `chrome.storage.local` intents.
  */
-import { recordsStore } from "./stores.js";
 import { createDeleteJournal } from "./delete-journal.js";
 import {
   deleteHighlights,
   readDeleteJournal,
+  readTombstoneBacklog,
   writeDeleteJournal,
+  writeTombstoneBacklog,
 } from "./storage.js";
+import { recordsStore } from "./stores.js";
+import { clearHighlightDeletion } from "./sync/deletions.js";
 import { recordHighlightDeletion } from "./sync/deletions.js";
 
 export const deleteJournal = createDeleteJournal({
@@ -21,6 +24,14 @@ export const deleteJournal = createDeleteJournal({
       if (await recordsStore.get(id)) return true;
     }
     return false;
+  },
+  clearDeletions: async (ids) => {
+    for (const id of ids) await clearHighlightDeletion(id);
+  },
+  readTombstoneBacklog,
+  writeTombstoneBacklog,
+  onTombstoneFailure: (ids) => {
+    console.warn("Delete tombstones could not be queued for retry", ids);
   },
 });
 

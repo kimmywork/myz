@@ -413,3 +413,17 @@ export async function writeDeleteJournal(
 ): Promise<void> {
   await chrome.storage.local.set({ [DELETE_JOURNAL_KEY]: entries });
 }
+
+/** Ids whose delete succeeded but whose sync tombstone still needs writing. */
+const DELETE_TOMBSTONE_BACKLOG_KEY = "myz_delete_tombstone_backlog";
+
+export async function readTombstoneBacklog(): Promise<string[]> {
+  const stored = await chrome.storage.local.get(DELETE_TOMBSTONE_BACKLOG_KEY);
+  const raw = stored[DELETE_TOMBSTONE_BACKLOG_KEY];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((id): id is string => typeof id === "string");
+}
+
+export async function writeTombstoneBacklog(ids: string[]): Promise<void> {
+  await chrome.storage.local.set({ [DELETE_TOMBSTONE_BACKLOG_KEY]: ids });
+}
