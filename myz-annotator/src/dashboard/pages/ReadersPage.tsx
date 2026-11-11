@@ -1,8 +1,20 @@
-import { StatePanel } from "@myz/dashboard-ui";
-import { defineComponent, onMounted, ref } from "vue";
+import { StatePanel, UndoBar } from "@myz/dashboard-ui";
+import { confirmDestructive } from "@myz/shared/dialogs";
+import {
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from "vue";
+import { useReaderListRemoval } from "./readers/reader-removal.js";
 import { ensureLocalEpubPermission } from "@/epub/source.js";
 import { ensureLocalPdfPermission } from "@/pdf/source.js";
-import { isPdfProgress, listReaderProgress } from "@/reader/progress-store.js";
+import {
+  isPdfProgress,
+  listReaderProgress,
+  readerProgress,
+} from "@/reader/progress-store.js";
 
 interface RecentDocument {
   key: string;
@@ -10,6 +22,7 @@ interface RecentDocument {
   title: string;
   meta: string;
   fingerprint: string;
+  sourceKey: string;
   page?: number;
   spineIndex?: number;
   progression?: number;
@@ -40,6 +53,11 @@ function readerUrl(entry: RecentDocument): string | null {
  * "阅读" library page (design-system §6): a local-only shortcut list of the
  * most recently opened PDF/EPUB documents, merged from the two reader progress
  * stores. Nothing here syncs; it just reopens the local file at its last spot.
+ *
+ * Two distinct actions live here (§4.32): `从列表移除` is undoable for the
+ * shared 6-second window and only drops the shortcut, while `清空历史` clears
+ * every shortcut behind a themed confirmation and is not undoable. Neither
+ * touches the file on disk or its highlights.
  */
 export default defineComponent({
   name: "ReadersPage",
@@ -47,6 +65,8 @@ export default defineComponent({
     const loading = ref(true);
     const documents = ref<RecentDocument[]>([]);
     const busyKey = ref("");
+    const status = ref("");
+    const clearing = ref(false);
 
     async function load() {
       loading.value = true;
@@ -56,6 +76,7 @@ export default defineComponent({
           .filter((entry) => entry.fingerprint)
           .map((entry): RecentDocument => {
             const fingerprint = entry.fingerprint as string;
+            const sourceKey = entry.sourceKey;
             if (isPdfProgress(entry)) {
               return {
                 key: `pdf:${entry.sourceKey}`,
@@ -65,6 +86,7 @@ export default defineComponent({
                   ? `第 ${entry.page} / ${entry.pages} 页`
                   : "PDF",
                 fingerprint,
+                sourceKey,
                 page: entry.page,
                 updatedAt: entry.updatedAt,
               };
@@ -75,6 +97,7 @@ export default defineComponent({
               title: entry.title || "未命名 EPUB",
               meta: `第 ${entry.spineIndex + 1} 章`,
               fingerprint,
+              sourceKey,
               spineIndex: entry.spineIndex,
               progression: entry.progression,
               updatedAt: entry.updatedAt,
@@ -82,6 +105,34 @@ export default defineComponent({
           });
       } finally {
         loading.value = false;
+      }
+    }
+
+    const removal = useReaderListRemoval(load);
+    const visibleDocuments = computed(() =>
+      documents.value.filter(
+        (entry) => !removal.hiddenKeys.value.has(entry.key),
+      ),
+    );
+
+    async function clearHistory() {
+      if (!visibleDocuments.value.length || clearing.value) return;
+      const confirmed = await confirmDestructive(
+        "清空阅读历史会移除列表里的所有文档；本地文件和高亮不会被删除。",
+        { title: "清空阅读历史", confirmLabel: "清空历史" },
+      );
+      if (!confirmed) return;
+      clearing.value = true;
+      try {
+        await readerProgress.clear();
+        removal.clearHidden();
+        await load();
+        status.value = "已清空阅读历史";
+      } catch (error) {
+        console.warn("Failed to clear reader history", error);
+        status.value = "清空失败，请重试";
+      } finally {
+        clearing.value = false;
       }
     }
 
@@ -108,6 +159,7 @@ export default defineComponent({
     }
 
     onMounted(() => void load());
+    onBeforeUnmount(() => removal.dispose());
 
     return () => (
       <section
@@ -116,23 +168,60 @@ export default defineComponent({
         aria-labelledby="readers-title"
       >
         <header class="flex flex-col gap-2 border-b border-line pb-4 dark:border-line">
-          <h2 id="readers-title" class="text-heading font-semibold text-text">
-            阅读
-          </h2>
-          <p class="text-compact text-muted">
-            最近打开的本地 PDF / EPUB，继续上次的位置。
-          </p>
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h2
+                id="readers-title"
+                class="text-heading font-semibold text-text"
+              >
+                阅读
+              </h2>
+              <p class="text-compact text-muted">
+                最近打开的本地 PDF / EPUB，继续上次的位置。
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn btn-small btn-danger"
+              disabled={clearing.value || !visibleDocuments.value.length}
+              onClick={() => void clearHistory()}
+            >
+              清空历史
+            </button>
+          </div>
         </header>
+
+        {removal.undoMessage.value ? (
+          <div class="mt-4">
+            <UndoBar
+              message={removal.undoMessage.value}
+              onUndo={() => void removal.undo()}
+              onPause={removal.pause}
+              onResume={removal.resume}
+            />
+          </div>
+        ) : null}
+
+        {status.value || removal.failureMessage.value ? (
+          <p
+            class="mt-4 text-caption text-muted"
+            role="status"
+            aria-live="polite"
+          >
+            {status.value}
+          </p>
+        ) : null}
 
         <div class="mt-4">
           {loading.value ? (
             <StatePanel kind="loading" title="正在读取…" />
-          ) : documents.value.length ? (
+          ) : visibleDocuments.value.length ? (
             <ul class="space-y-3">
-              {documents.value.map((entry) => (
+              {visibleDocuments.value.map((entry) => (
                 <li
                   key={entry.key}
                   class="settings__list-item flex items-center justify-between gap-4"
+                  data-testid="reader-row"
                 >
                   <div class="min-w-0">
                     <div class="flex items-center gap-2">
@@ -148,14 +237,23 @@ export default defineComponent({
                     </div>
                     <p class="mt-1 text-caption text-muted">{entry.meta}</p>
                   </div>
-                  <button
-                    type="button"
-                    class="btn"
-                    disabled={busyKey.value === entry.key}
-                    onClick={() => void open(entry)}
-                  >
-                    {busyKey.value === entry.key ? "打开中…" : "继续阅读"}
-                  </button>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-small"
+                      onClick={() => void removal.remove(entry)}
+                    >
+                      从列表移除
+                    </button>
+                    <button
+                      type="button"
+                      class="btn"
+                      disabled={busyKey.value === entry.key}
+                      onClick={() => void open(entry)}
+                    >
+                      {busyKey.value === entry.key ? "打开中…" : "继续阅读"}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

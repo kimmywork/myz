@@ -81,3 +81,47 @@ describe("readerProgress facade", () => {
     expect(list.some((entry) => !isPdfProgress(entry))).toBe(true);
   });
 });
+
+describe("removeProgress / clearProgress", () => {
+  it("removes one progress row and its fingerprint-keyed handle", async () => {
+    const store = createProgressStore<EpubProgress>(
+      "myz_test_progress_remove_db",
+    );
+    await store.putFileHandle("fp-handle", { name: "book.epub" });
+    await store.saveProgress({
+      sourceKey: "myz-epub:local:fp-handle",
+      sourceType: SOURCE_TYPES.EPUB,
+      spineIndex: 0,
+      progression: 0,
+      fingerprint: "fp-handle",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    await store.removeProgress("myz-epub:local:fp-handle", "fp-handle");
+
+    await expect(
+      store.getProgress("myz-epub:local:fp-handle"),
+    ).resolves.toBeUndefined();
+    await expect(store.getFileHandle("fp-handle")).resolves.toBeUndefined();
+  });
+
+  it("clears every progress row and handle", async () => {
+    const store = createProgressStore<EpubProgress>(
+      "myz_test_progress_clear_db",
+    );
+    await store.putFileHandle("fp-1", { name: "one.epub" });
+    await store.saveProgress({
+      sourceKey: "myz-epub:local:fp-1",
+      sourceType: SOURCE_TYPES.EPUB,
+      spineIndex: 1,
+      progression: 0.1,
+      fingerprint: "fp-1",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    await store.clearProgress();
+
+    await expect(store.listProgress()).resolves.toEqual([]);
+    await expect(store.getFileHandle("fp-1")).resolves.toBeUndefined();
+  });
+});

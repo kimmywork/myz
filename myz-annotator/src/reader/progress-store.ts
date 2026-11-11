@@ -78,6 +78,14 @@ export interface ProgressStore<P extends ReaderProgressBase> {
   getProgress(sourceKey: string): Promise<P | undefined>;
   /** Reads every progress record, newest first. */
   listProgress(): Promise<P[]>;
+  /**
+   * Removes one document from the reader list: its progress row and the
+   * stored file handle (keyed by fingerprint, not sourceKey). The file on
+   * disk and its highlights are untouched.
+   */
+  removeProgress(sourceKey: string, handleKey?: string): Promise<void>;
+  /** Removes every document from the reader list (progress + file handles). */
+  clearProgress(): Promise<void>;
 }
 
 /**
@@ -114,6 +122,26 @@ export function createProgressStore<P extends ReaderProgressBase>(
       const all = await idbGetAll<P>(await open(), PROGRESS_STORE);
       return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
+    async removeProgress(sourceKey, handleKey) {
+      const db = await open();
+      await withStore<void>(db, PROGRESS_STORE, "readwrite", (store) =>
+        store.delete(sourceKey),
+      );
+      if (!handleKey) return;
+      // A handle without a progress row is unreachable; drop it too.
+      await withStore<void>(db, HANDLE_STORE, "readwrite", (store) =>
+        store.delete(handleKey),
+      ).catch(() => undefined);
+    },
+    async clearProgress() {
+      const db = await open();
+      await withStore<void>(db, PROGRESS_STORE, "readwrite", (store) =>
+        store.clear(),
+      );
+      await withStore<void>(db, HANDLE_STORE, "readwrite", (store) =>
+        store.clear(),
+      ).catch(() => undefined);
+    },
   };
 }
 
@@ -137,6 +165,22 @@ export const readerProgress = {
     return [...pdf, ...epub].sort((a, b) =>
       b.updatedAt.localeCompare(a.updatedAt),
     );
+  },
+  /** Removes one document from the reader list (file and highlights stay). */
+  async remove(
+    kind: "pdf" | "epub",
+    sourceKey: string,
+    handleKey?: string,
+  ): Promise<void> {
+    const store = kind === "pdf" ? pdfProgressStore : epubProgressStore;
+    await store.removeProgress(sourceKey, handleKey);
+  },
+  /** Empties the reader list; the underlying files and highlights stay. */
+  async clear(): Promise<void> {
+    await Promise.all([
+      pdfProgressStore.clearProgress(),
+      epubProgressStore.clearProgress(),
+    ]);
   },
 };
 
