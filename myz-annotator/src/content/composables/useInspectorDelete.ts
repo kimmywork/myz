@@ -121,8 +121,8 @@ function createDeferredDelete(hide: () => void): DeferredDelete {
       },
       // Keep the commit countdown in step with the toast countdown: hovering
       // or focusing the undo button must hold the write too.
-      onPause: () => session.pause(),
-      onResume: () => session.resume(),
+      onPause: () => session.pause([target.id]),
+      onResume: () => session.resume([target.id]),
     });
     if (handle) toasts.set(target.id, handle);
   }

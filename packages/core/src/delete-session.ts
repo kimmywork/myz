@@ -28,13 +28,15 @@ export interface DeleteSessionPorts<T> {
   queue: (ids: readonly string[], dueAt: number) => Promise<boolean>
   /** Deletes the records. Resolves `false` when nothing was deleted. */
   commit: (ids: readonly string[]) => Promise<boolean>
-  /** Cancels a persisted intent (undo or failed commit). */
-  cancel: (ids: readonly string[]) => Promise<void>
+  /** Cancels a persisted intent; `false` when it was already committed. */
+  cancel: (ids: readonly string[]) => Promise<boolean>
   /** Puts the items back into the UI. */
   restore: (items: readonly T[]) => void
   onCommitted?: (ids: readonly string[]) => void
   onCommitFailed?: (items: readonly T[]) => void
   onUndone?: (items: readonly T[]) => void
+  /** The intent was already committed (e.g. the alarm won); undo is too late. */
+  onUndoUnavailable?: (items: readonly T[]) => void
   /** Clock override for tests. */
   now?: () => number
   windowMs?: number
@@ -56,10 +58,14 @@ export interface DeleteSession<T> {
    * toasts keep one group per record).
    */
   undo: (ids?: readonly string[]) => Promise<boolean>
-  /** Freezes the newest countdown (undo affordance hovered/focused). */
-  pause: () => void
-  /** Resumes a paused countdown. */
-  resume: () => void
+  /**
+   * Freezes one group's countdown (undo affordance hovered/focused) and
+   * extends its durable intent so the background cannot commit meanwhile.
+   * Without ids the newest group is paused.
+   */
+  pause: (ids?: readonly string[]) => void
+  /** Resumes a paused countdown and re-arms the durable intent. */
+  resume: (ids?: readonly string[]) => void
   /** Commits every pending group now (route change, explicit flush). */
   flushAll: () => Promise<void>
   /** Ids of every pending group. */
@@ -150,15 +156,34 @@ export function createDeleteSession<T>(
     ports.onCommitFailed?.(group.items)
   }
 
+  function groupFor(ids?: readonly string[]): PendingGroup<T> | undefined {
+    return ids
+      ? groups.find((candidate) => sameIds(candidate.ids, ids))
+      : groups[groups.length - 1]
+  }
+
+  function pendingIdSet(): Set<string> {
+    return new Set(groups.flatMap((group) => group.ids))
+  }
+
+  /** Extends the durable deadline so pause cannot be outrun by the alarm. */
+  function extendIntent(group: PendingGroup<T>, delay: number) {
+    void ports.queue(group.ids, now() + delay).catch(() => undefined)
+  }
+
   async function schedule(
     items: readonly T[],
     options: { flushPrevious?: boolean } = {},
   ): Promise<boolean> {
     if (!items.length) return true
+    // Never create a second group for a record that is already pending.
+    const alreadyPending = pendingIdSet()
+    const fresh = items.filter((item) => !alreadyPending.has(ports.getId(item)))
+    if (!fresh.length) return true
     // One undo affordance at a time by default; content toasts keep one group
     // per record and pass `flushPrevious: false`.
     if (options.flushPrevious !== false) await flushAll()
-    const ids = items.map(ports.getId)
+    const ids = fresh.map(ports.getId)
     const dueAt = now() + windowMs
     let queued = false
     try {
@@ -170,7 +195,7 @@ export function createDeleteSession<T>(
     const group: PendingGroup<T> = {
       id: `delete-${nextGroupId++}`,
       ids,
-      items: [...items],
+      items: [...fresh],
       timer: null,
       remaining: windowMs,
       startedAt: 0,
@@ -187,11 +212,16 @@ export function createDeleteSession<T>(
       : groups[groups.length - 1]
     if (!group) return false
     detach(group)
+    let cancelled = false
     try {
-      await ports.cancel(group.ids)
+      cancelled = await ports.cancel(group.ids)
     } catch {
-      // The intent is still durable; let it commit rather than claim an undo.
-      void commitGroup(group)
+      cancelled = false
+    }
+    if (!cancelled) {
+      // The alarm/drain already committed it: do not pretend the rows are back.
+      detach(group)
+      ports.onUndoUnavailable?.(group.items)
       return false
     }
     ports.restore(group.items)
@@ -199,18 +229,20 @@ export function createDeleteSession<T>(
     return true
   }
 
-  function pause() {
-    const group = groups[groups.length - 1]
+  function pause(ids?: readonly string[]) {
+    const group = groupFor(ids)
     if (!group?.timer) return
     clearTimeout(group.timer)
     group.timer = null
     group.remaining = Math.max(0, group.remaining - (now() - group.startedAt))
+    extendIntent(group, group.remaining)
   }
 
-  function resume() {
-    const group = groups[groups.length - 1]
+  function resume(ids?: readonly string[]) {
+    const group = groupFor(ids)
     if (!group || group.timer) return
     arm(group, group.remaining)
+    extendIntent(group, group.remaining)
   }
 
   async function flushAll(): Promise<void> {

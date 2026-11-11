@@ -30,7 +30,10 @@ export function createJournalDeleteSession<T extends { id: string }>(
     commit: async (ids) =>
       (await invoke("myz:commitPendingDelete", { ids: [...ids] })).committed,
     cancel: async (ids) => {
-      await invoke("myz:cancelPendingDelete", { ids: [...ids] });
+      const result = await invoke("myz:cancelPendingDelete", {
+        ids: [...ids],
+      });
+      return result.ok;
     },
     restore: callbacks.restore,
     onCommitted: callbacks.onCommitted,

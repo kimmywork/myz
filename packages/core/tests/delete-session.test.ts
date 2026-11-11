@@ -13,11 +13,12 @@ function setup(overrides: Record<string, unknown> = {}) {
     getId: (item: Item) => item.id,
     queue: vi.fn(async () => true),
     commit: vi.fn(async () => true),
-    cancel: vi.fn(async () => {}),
+    cancel: vi.fn(async () => true),
     restore: vi.fn(),
     onCommitted: vi.fn(),
     onCommitFailed: vi.fn(),
     onUndone: vi.fn(),
+    onUndoUnavailable: vi.fn(),
     ...overrides,
   }
   const session = createDeleteSession<Item>(ports)
@@ -190,7 +191,18 @@ describe("createDeleteSession", () => {
     expect(await session.undo(["missing"])).toBe(false)
   })
 
-  it("falls back to committing when the cancel call fails on undo", async () => {
+  it("does not restore when the intent was already committed", async () => {
+    const { ports, session } = setup({
+      cancel: vi.fn(async () => false),
+    })
+    await session.schedule([{ id: "a" }])
+
+    expect(await session.undo()).toBe(false)
+    expect(ports.restore).not.toHaveBeenCalled()
+    expect(ports.onUndoUnavailable).toHaveBeenCalledWith([{ id: "a" }])
+  })
+
+  it("treats a throwing cancel as 'already committed' too", async () => {
     const { ports, session } = setup({
       cancel: vi.fn(async () => {
         throw new Error("offline")
@@ -199,8 +211,56 @@ describe("createDeleteSession", () => {
     await session.schedule([{ id: "a" }])
 
     expect(await session.undo()).toBe(false)
-    await flushPromises()
-    expect(ports.commit).toHaveBeenCalledWith(["a"])
     expect(ports.restore).not.toHaveBeenCalled()
+  })
+
+  it("ignores a second schedule for an already pending record", async () => {
+    const { ports, session } = setup()
+    await session.schedule([{ id: "a" }])
+    expect(await session.schedule([{ id: "a" }])).toBe(true)
+
+    expect(ports.queue).toHaveBeenCalledTimes(1)
+    expect(session.pendingIds()).toEqual(["a"])
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.commit).toHaveBeenCalledTimes(1)
+  })
+
+  it("pauses exactly the requested group out of three", async () => {
+    const { ports, session } = setup()
+    await session.schedule([{ id: "a" }], { flushPrevious: false })
+    await session.schedule([{ id: "b" }], { flushPrevious: false })
+    await session.schedule([{ id: "c" }], { flushPrevious: false })
+
+    session.pause(["a"])
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+
+    expect(ports.commit).not.toHaveBeenCalledWith(["a"])
+    expect(ports.commit).toHaveBeenCalledWith(["b"])
+    expect(ports.commit).toHaveBeenCalledWith(["c"])
+    expect(session.pendingIds()).toEqual(["a"])
+
+    session.resume(["a"])
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
+  })
+
+  it("pause(ids) freezes the matching group and extends its intent", async () => {
+    const { ports, session } = setup()
+    await session.schedule([{ id: "a" }], { flushPrevious: false })
+    await session.schedule([{ id: "b" }], { flushPrevious: false })
+
+    session.pause(["a"])
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    // The other group still commits; the paused one must not.
+    expect(ports.commit).not.toHaveBeenCalledWith(["a"])
+    // The durable deadline was extended with a new queue() call.
+    expect(ports.queue).toHaveBeenLastCalledWith(
+      ["a"],
+      expect.any(Number),
+    )
+
+    session.resume(["a"])
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
   })
 })
