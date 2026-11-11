@@ -1,10 +1,8 @@
-import {
-  DELETE_UNDO_WINDOW_MS,
-  createDeleteSession,
-} from "@myz/core/delete-session";
+import { DELETE_UNDO_WINDOW_MS } from "@myz/core/delete-session";
 import type { MyZRecord } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import { createJournalDeleteSession } from "@/messaging/delete-session";
 import { invoke } from "@/messaging/invoke";
 
 /** Reload callback so a restored delete reappears in the current list. */
@@ -36,16 +34,8 @@ export const useDeleteStore = defineStore("delete", () => {
     void reloadFn?.();
   }
 
-  const session = createDeleteSession<MyZRecord>({
-    getId: (record) => record.id,
+  const session = createJournalDeleteSession<MyZRecord>({
     windowMs: DELETE_UNDO_WINDOW_MS,
-    queue: async (ids, dueAt) =>
-      (await invoke("myz:queuePendingDelete", { ids: [...ids], dueAt })).ok,
-    commit: async (ids) =>
-      (await invoke("myz:commitPendingDelete", { ids: [...ids] })).committed,
-    cancel: async (ids) => {
-      await invoke("myz:cancelPendingDelete", { ids: [...ids] });
-    },
     restore: (records) => {
       message.value = "";
       const next = new Set(pendingIds.value);
@@ -122,14 +112,52 @@ export const useDeleteStore = defineStore("delete", () => {
     void remove(records, options);
   }
 
+  /**
+   * Annotated single record: confirmation replaces undo (§4.30), so this
+   * commits immediately instead of opening the undo window.
+   */
+  async function removeNow(records: readonly MyZRecord[]) {
+    if (!records.length) return;
+    const ids = records.map((record) => record.id);
+    let queued = false;
+    try {
+      queued = (
+        await invoke("myz:queuePendingDelete", { ids, dueAt: Date.now() })
+      ).ok;
+    } catch {
+      queued = false;
+    }
+    if (!queued) {
+      message.value = "删除失败，记录已恢复";
+      return;
+    }
+    const hidden = new Set(pendingIds.value);
+    ids.forEach((id) => hidden.add(id));
+    pendingIds.value = hidden;
+
+    let committed = false;
+    try {
+      committed = (await invoke("myz:commitPendingDelete", { ids })).committed;
+    } catch {
+      committed = false;
+    }
+    const next = new Set(pendingIds.value);
+    ids.forEach((id) => next.delete(id));
+    pendingIds.value = next;
+    if (!committed) {
+      message.value = "删除失败，记录已恢复";
+    }
+    refresh();
+  }
+
   function confirmDelete() {
     const records = pendingRecords.value;
     const afterSchedule = pendingAfterSchedule;
     pendingRecords.value = [];
     pendingAfterSchedule = null;
     confirmOpen.value = false;
-    if (records.length)
-      void remove(records, { afterSchedule: afterSchedule ?? undefined });
+    if (!records.length) return;
+    void removeNow(records).then(() => afterSchedule?.());
   }
 
   function cancelDelete() {

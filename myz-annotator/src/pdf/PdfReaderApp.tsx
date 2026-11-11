@@ -1,4 +1,4 @@
-import { UndoToast } from "@myz/dashboard-ui";
+import { UndoBar } from "@myz/dashboard-ui";
 import { storeToRefs } from "pinia";
 import { defineComponent, onBeforeUnmount, onMounted, watch } from "vue";
 import PdfInspector from "./components/PdfInspector.js";
@@ -160,7 +160,8 @@ export default defineComponent({
         <PdfStage />
 
         {store.deleteMessage ? (
-          <UndoToast
+          <UndoBar
+            variant="toast"
             message={store.deleteMessage}
             onUndo={store.undoDelete}
             onPause={store.pauseDelete}

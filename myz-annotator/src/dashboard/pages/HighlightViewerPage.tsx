@@ -1,7 +1,6 @@
 import { StatePanel } from "@myz/dashboard-ui";
-import ConfirmPopover from "@myz/shared/components/ConfirmPopover";
 import { defineComponent } from "vue";
-import { useDeleteStore } from "../stores/delete.js";
+import DeleteConfirmPopover from "../components/DeleteConfirmPopover.jsx";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useHighlightViewer } from "./highlight-viewer/useHighlightViewer.js";
 import ViewerEditPanel from "./highlight-viewer/ViewerEditPanel.jsx";
@@ -13,7 +12,6 @@ export default defineComponent({
   name: "HighlightViewerPage",
   setup() {
     const highlightsStore = useHighlightsStore();
-    const deleteStore = useDeleteStore();
     const a = useHighlightViewer();
 
     return () => {
@@ -54,20 +52,7 @@ export default defineComponent({
           </div>
 
           <ViewerFooter api={a} />
-          {deleteStore.confirmOpen ? (
-            <ConfirmPopover
-              style={{
-                top: `${deleteStore.confirmPosition.top}px`,
-                left: `${deleteStore.confirmPosition.left}px`,
-              }}
-              title="删除记录？"
-              message="这条记录带有批注，删除后批注一起消失。"
-              confirmLabel="删除"
-              cancelLabel="取消"
-              onConfirm={deleteStore.confirmDelete}
-              onCancel={deleteStore.cancelDelete}
-            />
-          ) : null}
+          <DeleteConfirmPopover />
         </section>
       );
     };

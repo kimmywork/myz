@@ -40,9 +40,8 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
     state: "detached",
     timeout: 5000,
   });
-  await expect(
-    dash.locator('[role="status"]', { hasText: "已删除 1 条" }),
-  ).toBeVisible();
+  // Confirmation replaces undo for annotated records (§4.30).
+  await expect(dash.getByTestId("undo-bar")).toHaveCount(0);
 
   const exportResult = await send<{ markdown?: string }>(dash, "myz:export");
   expect(exportResult?.markdown || "").not.toContain("dashboard snippet");

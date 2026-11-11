@@ -1,4 +1,4 @@
-import { UndoToast } from "@myz/dashboard-ui";
+import { UndoBar } from "@myz/dashboard-ui";
 import { selectionBlocks } from "@myz/shared/selectionBlocks";
 import { RECORD_KINDS } from "@myz/shared/types";
 import { storeToRefs } from "pinia";
@@ -71,7 +71,8 @@ export default defineComponent({
         ) : null}
 
         {frame.deleteMessage.value ? (
-          <UndoToast
+          <UndoBar
+            variant="toast"
             message={frame.deleteMessage.value}
             onUndo={frame.undoDelete}
             onPause={frame.pauseDelete}

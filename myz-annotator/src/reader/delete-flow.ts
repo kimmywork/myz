@@ -1,10 +1,7 @@
-import {
-  DELETE_UNDO_WINDOW_MS,
-  createDeleteSession,
-} from "@myz/core/delete-session";
+import { DELETE_UNDO_WINDOW_MS } from "@myz/core/delete-session";
 import type { MyZRecord } from "@myz/shared/types";
 import { ref } from "vue";
-import { invoke } from "@/messaging/invoke";
+import { createJournalDeleteSession } from "@/messaging/delete-session";
 
 interface ReaderDeleteOptions {
   /** Removes the record from the reader UI now. */
@@ -22,16 +19,8 @@ export function useReaderDelete() {
   const message = ref("");
   let restoreUi: ((record: MyZRecord) => void) | null = null;
 
-  const session = createDeleteSession<MyZRecord>({
-    getId: (record) => record.id,
+  const session = createJournalDeleteSession<MyZRecord>({
     windowMs: DELETE_UNDO_WINDOW_MS,
-    queue: async (ids, dueAt) =>
-      (await invoke("myz:queuePendingDelete", { ids: [...ids], dueAt })).ok,
-    commit: async (ids) =>
-      (await invoke("myz:commitPendingDelete", { ids: [...ids] })).committed,
-    cancel: async (ids) => {
-      await invoke("myz:cancelPendingDelete", { ids: [...ids] });
-    },
     restore: (records) => {
       message.value = "";
       records.forEach((record) => restoreUi?.(record));

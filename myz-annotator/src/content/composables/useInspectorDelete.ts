@@ -6,10 +6,7 @@
  * the two concerns (anchored confirm popup, delayed storage write) can be read
  * one at a time.
  */
-import {
-  DELETE_UNDO_WINDOW_MS,
-  createDeleteSession,
-} from "@myz/core/delete-session";
+import { DELETE_UNDO_WINDOW_MS } from "@myz/core/delete-session";
 import type { MyZRecord } from "@myz/shared/types";
 import { computed, nextTick, ref } from "vue";
 import type { Ref } from "vue";
@@ -24,7 +21,7 @@ import {
   useNotificationStore,
   type NotificationHandle,
 } from "../stores/notification-store.js";
-import { invoke } from "@/messaging/invoke";
+import { createJournalDeleteSession } from "@/messaging/delete-session";
 
 /** Width of the in-page delete confirmation (§4.18 popup). */
 export const CONFIRM_WIDTH = 240;
@@ -74,16 +71,8 @@ function createDeferredDelete(hide: () => void): DeferredDelete {
     return restored;
   }
 
-  const session = createDeleteSession<MyZRecord>({
-    getId: (record) => record.id,
+  const session = createJournalDeleteSession<MyZRecord>({
     windowMs: DELETE_UNDO_WINDOW_MS,
-    queue: async (ids, dueAt) =>
-      (await invoke("myz:queuePendingDelete", { ids: [...ids], dueAt })).ok,
-    commit: async (ids) =>
-      (await invoke("myz:commitPendingDelete", { ids: [...ids] })).committed,
-    cancel: async (ids) => {
-      await invoke("myz:cancelPendingDelete", { ids: [...ids] });
-    },
     restore: (records) => {
       restoreFailed = false;
       for (const target of records) {

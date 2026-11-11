@@ -1,8 +1,8 @@
 import { PageSidebar, UndoBar } from "@myz/dashboard-ui";
-import ConfirmPopover from "@myz/shared/components/ConfirmPopover";
 import { defineComponent } from "vue";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
 import type { WorkspacePageControls } from "../components/DashboardWorkspaceLayout.jsx";
+import DeleteConfirmPopover from "../components/DeleteConfirmPopover.jsx";
 import HighlightsPane from "../components/HighlightsPane.jsx";
 import { useDeleteStore } from "../stores/delete.js";
 import { useHighlightsStore } from "../stores/highlights.js";
@@ -56,20 +56,7 @@ export default defineComponent({
                 </p>
               ) : null}
               <HighlightsPane onOpenNav={openNav} />
-              {deleteStore.confirmOpen ? (
-                <ConfirmPopover
-                  style={{
-                    top: `${deleteStore.confirmPosition.top}px`,
-                    left: `${deleteStore.confirmPosition.left}px`,
-                  }}
-                  title="删除记录？"
-                  message="这条记录带有批注，删除后批注一起消失。"
-                  confirmLabel="删除"
-                  cancelLabel="取消"
-                  onConfirm={deleteStore.confirmDelete}
-                  onCancel={deleteStore.cancelDelete}
-                />
-              ) : null}
+              <DeleteConfirmPopover />
             </div>
           ),
         }}

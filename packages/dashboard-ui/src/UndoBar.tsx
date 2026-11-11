@@ -10,20 +10,44 @@ export default defineComponent({
   name: "UndoBar",
   props: {
     message: { type: String, required: true },
+    /** Inline bar for lists, fixed toast for overlays/readers. */
+    variant: {
+      type: String as PropType<"inline" | "toast">,
+      default: "inline",
+    },
     onUndo: Function as PropType<() => void>,
     onPause: Function as PropType<() => void>,
     onResume: Function as PropType<() => void>,
   },
   setup(props) {
-    return () => (
+    return () => {
+      const toast = props.variant === "toast"
+      return (
       <div
-        class="flex flex-wrap items-center gap-2 rounded-control border border-line bg-surface-2 px-3 py-2 text-caption"
+        class={
+          toast
+            ? "fixed right-4 top-4 z-[9999] flex max-w-[320px] items-center gap-3 rounded-control px-3 py-2 text-caption shadow-float"
+            : "flex flex-wrap items-center gap-2 rounded-control border border-line bg-surface-2 px-3 py-2 text-caption"
+        }
+        style={
+          toast
+            ? "background: var(--myz-overlay); color: var(--myz-overlay-text)"
+            : undefined
+        }
         role="status"
         aria-live="polite"
+        data-testid={toast ? "undo-toast" : "undo-bar"}
       >
-        <span class="min-w-0 flex-1 text-text">{props.message}</span>
+        <span class={["min-w-0 flex-1", toast ? "" : "text-text"].join(" ")}>
+          {props.message}
+        </span>
         <button
-          class="btn h-7 rounded-control px-2 text-caption"
+          class={
+            toast
+              ? "rounded-tag px-1 font-semibold underline-offset-2 hover:underline"
+              : "btn h-7 rounded-control px-2 text-caption"
+          }
+          style={toast ? "color: var(--myz-overlay-text)" : undefined}
           type="button"
           onClick={() => props.onUndo?.()}
           onMouseenter={() => props.onPause?.()}
@@ -34,6 +58,7 @@ export default defineComponent({
           撤销
         </button>
       </div>
-    )
+      )
+    }
   },
 })
