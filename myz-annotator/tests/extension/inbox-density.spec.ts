@@ -169,4 +169,12 @@ test("capture_inbox_density", async () => {
   await dash.screenshot({
     path: path.join(OUT_DIR, `i3-library-${PREFIX}-list.png`),
   });
+
+  // The cards/list toggle is stored: a reload keeps the list view.
+  await dash.reload();
+  await dash.waitForSelector(".myz-list-row", { timeout: 10000 });
+  expect(await dash.locator(".myz-list-row").count()).toBe(20);
+  await expect(dash.locator("article[data-id]").first()).toHaveClass(
+    /myz-list-row/,
+  );
 });

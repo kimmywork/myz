@@ -1473,7 +1473,7 @@ Inbox 是新采集内容的处理队列，不是文库副本，也不是按时�
 **0.7 待落地（按依赖排序）**
 
 1. **已落地（I2）**：`packages/dashboard-ui` 新增 `WorkspaceShell` / `NavRail` / `ResizeHandle`（+ `QuickSearch` 从顶栏抽出复用），rail + 可拖 nav（200–320，宽度写本地）已接到 Inbox 与文库；panel 的 260–380 拖拽与宽度变量已实现、内容接线留给 I3，header / statusbar / 底部导航槽位已就位（底部导航 < 640 已生效）；阅读、设置、查看器仍用旧顶栏，由 I10 收口。
-2. **已落地（I3）**：`ListRow` / `StatusPill` 进 `packages/dashboard-ui`；Inbox 与文库列表视图都换成 flush 行（56px、1px 分隔、无卡片、动作 hover/聚焦/选中出现、触屏常驻、<640 64px 触控行）。实测 973px 列表区完整可见 17 行（800px 即 14 行），改前为 159px 卡片、1100px 可见 6 行。Inbox 右栏详情已接（≥1200 内联 280、<1200 覆盖、<640 底部抽屉 70vh）；文库默认视图仍是卡片，列表视图同构。
+2. **已落地（I3）**：`ListRow` / `StatusPill` 进 `packages/dashboard-ui`；Inbox 与文库列表视图都换成 flush 行（56px、1px 分隔、无卡片、动作 hover/聚焦/选中出现、触屏常驻、<640 64px 触控行）。实测 973px 列表区完整可见 17 行（800px 即 14 行），改前为 159px 卡片、1100px 可见 6 行。Inbox 右栏详情已接（≥1200 内联 280；<1200 覆盖式 `role=dialog` + `aria-modal` + Tab 循环 + 焦点回原行；<640 底部抽屉 70vh）；文库默认视图仍是卡片，列表视图同构；卡片/列表切换写设置并在启动时恢复。
 3. `Button` / `Dialog` —— 吃掉 `.btn`（54 处调用）与 6 处 native confirm。
 4. 逐页收口：设置、素材、阅读、查看器、页面快照、popup、内容浮层。
 5. 删掉 `dashboard/styles.css` 里的 `.btn`（47–71）与 `.settings__*`（104–246）两层。

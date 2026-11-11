@@ -6,12 +6,14 @@ import { RouterView, useRoute } from "vue-router";
 import DashboardNavbar from "./components/DashboardNavbar.jsx";
 import { useHighlightsStore } from "./stores/highlights.js";
 import { useSettingsStore } from "./stores/settings.js";
+import { useUIStore } from "./stores/ui.js";
 
 export default defineComponent({
   name: "DashboardApp",
   setup() {
     const highlightsStore = useHighlightsStore();
     const settingsStore = useSettingsStore();
+    const uiStore = useUIStore();
     const route = useRoute();
     const { effectiveTheme } = useThemePreference();
     const fullscreen = computed(() => Boolean(route.meta?.fullscreen));
@@ -23,6 +25,8 @@ export default defineComponent({
           highlightsStore.initialize(),
           settingsStore.initialize(),
         ]);
+        // The cards/list toggle is a stored preference: honour it on load.
+        uiStore.restoreView(settingsStore.settings.dashboardView);
       } catch (error) {
         console.error("Dashboard init failed", error);
       }
