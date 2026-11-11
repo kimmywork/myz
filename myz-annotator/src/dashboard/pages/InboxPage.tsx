@@ -27,6 +27,10 @@ export default defineComponent({
               <InboxDetailPanel
                 item={a.detailItem.value}
                 onClose={a.closeDetail}
+                onRemoveTag={(tag) => {
+                  const item = a.detailItem.value;
+                  if (item) void a.removeTag(item, tag);
+                }}
               />
             ) : null,
           default: ({ openNav }: WorkspacePageControls) => (

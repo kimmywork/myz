@@ -19,7 +19,7 @@ export default defineComponent({
     ...highlightItemProps,
   },
   setup(props) {
-    const { kind, hiddenTagsCount, kindIcon, sourceTitle, isClip, pageLabel } =
+    const { kind, kindIcon, sourceTitle, isClip, pageLabel } =
       useHighlightItem(props)
     const KindIcon = kindIcon
 
@@ -59,11 +59,6 @@ export default defineComponent({
                 {pageLabel.value ? (
                   <span class="shrink-0 rounded-tag bg-warn-bg px-1.5 text-tag font-semibold text-warn">
                     {pageLabel.value}
-                  </span>
-                ) : null}
-                {hiddenTagsCount.value ? (
-                  <span class="shrink-0 text-caption text-muted">
-                    +{hiddenTagsCount.value}
                   </span>
                 ) : null}
               </>

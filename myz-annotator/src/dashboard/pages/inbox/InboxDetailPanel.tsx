@@ -19,6 +19,11 @@ export default defineComponent({
   props: {
     item: { type: Object as PropType<InboxQueueItem>, required: true },
     onClose: { type: Function as PropType<() => void>, default: undefined },
+    /** Removes one tag from the record (the row no longer carries per-tag X). */
+    onRemoveTag: {
+      type: Function as PropType<(tag: string) => void>,
+      default: undefined,
+    },
   },
   setup(props) {
     return () => {
@@ -83,9 +88,17 @@ export default defineComponent({
                   {tags.map((tag) => (
                     <span
                       key={tag}
-                      class="rounded-tag border border-line px-1.5 py-0.5 text-tag text-muted"
+                      class="inline-flex items-center gap-1 rounded-tag border border-line px-1.5 py-0.5 text-tag text-muted"
                     >
                       {tag}
+                      <button
+                        type="button"
+                        class="hit-expand text-muted hover:text-error"
+                        aria-label={`移除标签 ${tag}`}
+                        onClick={() => props.onRemoveTag?.(tag)}
+                      >
+                        <IconClose size={10} />
+                      </button>
                     </span>
                   ))}
                 </div>

@@ -121,6 +121,12 @@ export function useInboxData() {
     detailItemId.value = item.targetId;
   }
 
+  // Archiving, filtering or switching tabs can drop the item from the queue;
+  // clear the stale id instead of keeping a dangling reference.
+  watch(detailItem, (item) => {
+    if (!item) detailItemId.value = null;
+  });
+
   function closeDetail() {
     detailItemId.value = null;
   }

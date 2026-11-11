@@ -35,7 +35,9 @@ export default defineComponent({
 
       return (
         <ListRow
-          title={excerpt(item.record.text || item.record.note, 200)}
+          title={
+            excerpt(item.record.text || item.record.note, 200) || "（无正文）"
+          }
           meta={meta}
           tone={item.record.kind === "clip" ? "clip" : "tag"}
           active={a.detailItemId.value === item.targetId}

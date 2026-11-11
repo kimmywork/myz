@@ -1,3 +1,5 @@
+import { createFocusTrap } from "@myz/shared/focusTrap"
+import type { FocusTrap } from "@myz/shared/focusTrap"
 import {
   computed,
   defineComponent,
@@ -8,8 +10,6 @@ import {
   watch,
 } from "vue"
 import type { PropType } from "vue"
-import { createFocusTrap } from "@myz/shared/focusTrap"
-import type { FocusTrap } from "@myz/shared/focusTrap"
 import ResizeHandle from "./ResizeHandle.js"
 import {
   NAV_WIDTH_DEFAULT,
@@ -119,6 +119,8 @@ export default defineComponent({
 
     function onKeydown(event: KeyboardEvent) {
       if (event.key !== "Escape") return
+      // The theme menu (or another overlay) may have consumed this Escape.
+      if (event.defaultPrevented) return
       if (props.panelOpen) {
         props.onClosePanel?.()
         return

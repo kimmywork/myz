@@ -124,3 +124,22 @@ test("panel_is_an_overlay_below_1200_and_a_bottom_sheet_below_640", async () => 
   await dash.locator(".myz-workspace__panel-backdrop").click();
   await expect(panel).toBeHidden();
 });
+
+test("tags_can_be_removed_from_the_detail_panel", async () => {
+  const dash = await harness.open("/inbox");
+  await seedTwo(dash);
+  // The harness profile persists across tests, so earlier seeds may repeat.
+  await dash
+    .locator('[data-testid="inbox-row"]', { hasText: "panel alpha" })
+    .first()
+    .locator(".myz-list-row__title")
+    .click();
+
+  const panel = dash.locator('[data-testid="workspace-panel"]');
+  await expect(panel).toContainText("work");
+
+  // The row no longer carries a per-tag X; the panel is the delete path.
+  await panel.getByRole("button", { name: "移除标签 work" }).click();
+  await expect(panel).toContainText("没有标签");
+  await expect(panel).not.toContainText("work");
+});
