@@ -141,13 +141,34 @@ export const useDeleteStore = defineStore("delete", () => {
     } catch {
       committed = false;
     }
-    const next = new Set(pendingIds.value);
-    ids.forEach((id) => next.delete(id));
-    pendingIds.value = next;
-    if (!committed) {
-      message.value = "删除失败，记录已恢复";
+    if (committed) {
+      const next = new Set(pendingIds.value);
+      ids.forEach((id) => next.delete(id));
+      pendingIds.value = next;
+      refresh();
+      return;
     }
-    refresh();
+
+    // The delete failed. Cancel the durable intent BEFORE refreshing, otherwise
+    // the next read retries the (already due) intent and deletes the record the
+    // user was told was restored.
+    let cancelled = false;
+    try {
+      cancelled = (await invoke("myz:cancelPendingDelete", { ids })).ok;
+    } catch {
+      cancelled = false;
+    }
+    if (cancelled) {
+      const next = new Set(pendingIds.value);
+      ids.forEach((id) => next.delete(id));
+      pendingIds.value = next;
+      message.value = "删除失败，记录已恢复";
+      refresh();
+      return;
+    }
+    // Cancelling failed too: keep the rows hidden and let the intent retry.
+    // Never claim "restored" when the record is still going to be deleted.
+    message.value = "删除失败，稍后会重试";
   }
 
   function confirmDelete() {
@@ -234,6 +255,7 @@ export const useDeleteStore = defineStore("delete", () => {
     pendingIds,
     isPending,
     remove,
+    removeNow,
     requestDelete,
     confirmDelete,
     cancelDelete,
