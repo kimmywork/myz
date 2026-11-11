@@ -65,7 +65,9 @@ function registerReadHandlers() {
     async (payload: { url?: string; aliases?: string[] }) => {
       const urls = resolveRequestedUrls(payload);
       if (!urls.length) return [];
-      return withoutPendingDeletes(await getRecordsForUrls(recordsStore, urls));
+      // Content pages fetch by URL; a refresh inside the undo window should
+      // still show the record (storage was not touched yet).
+      return getRecordsForUrls(recordsStore, urls);
     },
   );
 

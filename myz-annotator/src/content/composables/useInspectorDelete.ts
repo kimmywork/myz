@@ -6,16 +6,15 @@
  * the two concerns (anchored confirm popup, delayed storage write) can be read
  * one at a time.
  */
+import {
+  DELETE_UNDO_WINDOW_MS,
+  createDeleteSession,
+} from "@myz/core/delete-session";
 import type { MyZRecord } from "@myz/shared/types";
 import { computed, nextTick, ref } from "vue";
 import type { Ref } from "vue";
 import {
-  createPendingDelete,
-  PENDING_DELETE_WINDOW_MS,
-} from "../highlight/pending-delete.js";
-import {
   applyHighlight,
-  deleteHighlight,
   getFromHighlightCache,
   rebuildHighlightRange,
   removeHighlightFromDom,
@@ -25,6 +24,7 @@ import {
   useNotificationStore,
   type NotificationHandle,
 } from "../stores/notification-store.js";
+import { invoke } from "@/messaging/invoke";
 
 /** Width of the in-page delete confirmation (§4.18 popup). */
 export const CONFIRM_WIDTH = 240;
@@ -58,6 +58,8 @@ function createDeferredDelete(hide: () => void): DeferredDelete {
   const notificationStore = useNotificationStore();
   /** One toast per pending delete, so a commit can take its own toast down. */
   const toasts = new Map<string, NotificationHandle>();
+  /** Set by the restore port; onUndone reads it right after. */
+  let restoreFailed = false;
 
   function dismissToast(id: string) {
     const handle = toasts.get(id);
@@ -72,46 +74,66 @@ function createDeferredDelete(hide: () => void): DeferredDelete {
     return restored;
   }
 
-  const pendingDelete = createPendingDelete({
-    windowMs: PENDING_DELETE_WINDOW_MS,
-    commit: (id) => deleteHighlight(id),
-    restore: (target) => restoreRecord(target),
-    onCommitted: (target) => {
-      // The undo affordance died with the write; never leave it on screen.
-      dismissToast(target.id);
+  const session = createDeleteSession<MyZRecord>({
+    getId: (record) => record.id,
+    windowMs: DELETE_UNDO_WINDOW_MS,
+    queue: async (ids, dueAt) =>
+      (await invoke("myz:queuePendingDelete", { ids: [...ids], dueAt })).ok,
+    commit: async (ids) =>
+      (await invoke("myz:commitPendingDelete", { ids: [...ids] })).committed,
+    cancel: async (ids) => {
+      await invoke("myz:cancelPendingDelete", { ids: [...ids] });
     },
-    onCommitFailed: (target) => {
-      dismissToast(target.id);
+    restore: (records) => {
+      restoreFailed = false;
+      for (const target of records) {
+        if (!restoreRecord(target)) restoreFailed = true;
+      }
+    },
+    onCommitted: (ids) => {
+      // The undo affordance died with the write; never leave it on screen.
+      ids.forEach(dismissToast);
+    },
+    onCommitFailed: (records) => {
+      records.forEach((target) => dismissToast(target.id));
       notificationStore.notify({ message: "删除失败，划线没有删除" });
     },
-    onUndone: (target, restored) => {
-      dismissToast(target.id);
-      if (!restored) {
+    onUndone: (records) => {
+      records.forEach((target) => dismissToast(target.id));
+      if (restoreFailed) {
         notificationStore.notify({ message: "已撤销删除，刷新页面后可见" });
       }
     },
   });
 
-  function start(target: MyZRecord) {
+  async function start(target: MyZRecord) {
+    // Persist the durable intent before the row leaves the page; if that
+    // fails nothing is deleted and the row stays.
+    const queued = await session.schedule([target], {
+      flushPrevious: false,
+    });
+    if (!queued) {
+      notificationStore.notify({ message: "删除失败，划线没有删除" });
+      return;
+    }
     removeHighlightFromDom(target.id);
     updateHighlightIndicators();
     hide();
-    pendingDelete.schedule(target);
     const handle = notificationStore.notify({
       message: "已删除划线",
-      duration: PENDING_DELETE_WINDOW_MS,
+      // Only the commit (or a failure) takes this toast down; a parallel
+      // auto-hide timer would race with the deferred write.
+      duration: DELETE_UNDO_WINDOW_MS + 5000,
       action: {
         label: "撤销",
         onClick: () => {
-          // A late click must not pretend to undo a record that already went.
-          if (!pendingDelete.has(target.id)) return;
-          pendingDelete.undo(target.id);
+          void session.undo([target.id]);
         },
       },
       // Keep the commit countdown in step with the toast countdown: hovering
       // or focusing the undo button must hold the write too.
-      onPause: () => pendingDelete.pause(target.id),
-      onResume: () => pendingDelete.resume(target.id),
+      onPause: () => session.pause(),
+      onResume: () => session.resume(),
     });
     if (handle) toasts.set(target.id, handle);
   }
@@ -119,7 +141,8 @@ function createDeferredDelete(hide: () => void): DeferredDelete {
   return {
     start,
     dispose: () => {
-      pendingDelete.dispose();
+      // Teardown commits: never drop a pending delete (§4.30).
+      session.dispose();
       toasts.clear();
     },
   };
