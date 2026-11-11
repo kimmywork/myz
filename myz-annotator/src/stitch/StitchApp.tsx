@@ -6,6 +6,7 @@ import {
   SquareStack,
   Trash2,
 } from "@lucide/vue";
+import { confirmDestructive } from "@myz/shared/dialogs";
 import {
   computed,
   defineComponent,
@@ -76,7 +77,7 @@ export default defineComponent({
 
     function clearAll() {
       if (!store.assets.length) return;
-      if (!window.confirm("清空当前所有图片？此操作不可撤销。")) return;
+      if (!confirmDestructive("清空当前所有图片？此操作不可撤销。")) return;
       store.clear();
     }
 

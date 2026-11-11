@@ -1,4 +1,5 @@
 import { Check, Images, RotateCcw, Trash2 } from "@lucide/vue";
+import { confirmDestructive } from "@myz/shared/dialogs";
 import { defineComponent, onMounted, ref } from "vue";
 import { formatAssetSize, type StagedAssetKind } from "../staged-asset";
 import { useStagingStore } from "../stores/staging";
@@ -51,7 +52,7 @@ export default defineComponent({
 
     async function clearAll() {
       if (!staging.items.length) return;
-      if (!window.confirm("清空缓存区的全部图片？此操作不可撤销。")) return;
+      if (!confirmDestructive("清空缓存区的全部图片？此操作不可撤销。")) return;
       await staging.clearStaged();
       clearSelection();
     }
