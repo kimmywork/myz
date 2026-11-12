@@ -23,7 +23,7 @@ import { normalizeAiSettings } from "@/ai/settings.js";
 import type { StagedAsset } from "@/stitch/staged-asset.js";
 
 const DB_NAME = "myz_db";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 /**
  * Creates the object stores the first time the db is opened (or upgrades an
@@ -46,6 +46,15 @@ function upgradeSchema(db: IDBDatabase): void {
     store.createIndex("createdAt", "createdAt", { unique: false });
   }
 
+  // Page snapshots (I8) are their own store: page structure kept until space
+  // runs out, with its own LRU eviction. It must never share a store or an
+  // eviction rule with `staged_assets` (captured image bytes).
+  if (!db.objectStoreNames.contains("page_snapshots")) {
+    const store = db.createObjectStore("page_snapshots", { keyPath: "id" });
+    store.createIndex("usedAt", "usedAt", { unique: false });
+    store.createIndex("recordId", "recordId", { unique: false });
+  }
+
   // Opaque overflow for synced records we cannot materialize (unknown
   // schemaId / record-id prefix). Keyed by (streamId, recordId) so the same
   // recordId on two streams cannot collide.
@@ -63,7 +72,8 @@ function upgradeSchema(db: IDBDatabase): void {
  */
 let migrationPromise: Promise<void> | null = null;
 
-async function getDB(): Promise<IDBDatabase> {
+/** Opens (and upgrades) the shared MyZ database. Exported for sibling stores. */
+export async function getDB(): Promise<IDBDatabase> {
   const db = await openDatabase({
     name: DB_NAME,
     version: DB_VERSION,
@@ -101,7 +111,7 @@ async function migrateFromLocalStorage(db: IDBDatabase) {
   });
 }
 
-function getAllFromStore<T>(storeName: string): Promise<T[]> {
+export function getAllFromStore<T>(storeName: string): Promise<T[]> {
   return getDB().then((db) => idbGetAll<T>(db, storeName));
 }
 
