@@ -142,3 +142,20 @@ test("assets_page_shows_the_empty_state", async () => {
   await dash.waitForSelector("text=缓存区还是空的");
   await expect(dash.getByTestId("asset-card")).toHaveCount(0);
 });
+
+test("bottom_nav_fits_five_items_on_a_phone", async () => {
+  const dash = await harness.open("/assets");
+  await dash.setViewportSize({ width: 375, height: 780 });
+  await dash.reload();
+
+  const bottom = dash.locator(".myz-workspace__bottom");
+  await expect(bottom).toBeVisible();
+  // Five destinations (文库/Inbox/阅读/素材/设置) must not overflow 375px.
+  for (const key of ["highlights", "inbox", "readers", "assets", "settings"]) {
+    await expect(dash.getByTestId(`bottom-nav-${key}`)).toBeVisible();
+  }
+  const overflow = await bottom.evaluate(
+    (node) => node.scrollWidth - node.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+});
