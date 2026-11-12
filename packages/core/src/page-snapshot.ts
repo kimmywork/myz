@@ -1,3 +1,5 @@
+import { localDateKey } from "@myz/shared/recordDisplay";
+
 /**
  * Page snapshots (I8) — a local copy of the page body behind a record.
  *
@@ -107,12 +109,7 @@ export function formatSnapshotUsage(bytes: number): string {
 
 /** `YYYY-MM-DD` of the snapshot's own capture time, in local time. */
 export function snapshotDateLabel(createdAt: string): string {
-  const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return createdAt.slice(0, 10);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return localDateKey(createdAt) || createdAt.slice(0, 10);
 }
 
 /**
