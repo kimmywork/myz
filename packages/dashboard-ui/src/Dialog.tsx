@@ -8,6 +8,7 @@ import {
 } from "vue"
 import type { PropType, VNodeChild } from "vue"
 import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap"
+import { IconClose } from "@myz/shared/icons"
 
 /**
  * Modal dialog (§4.15 / §4.18).
@@ -107,11 +108,11 @@ export default defineComponent({
                 {props.hideCloseButton ? null : (
                   <button
                     type="button"
-                    class="rounded-control px-2 py-1 text-caption text-muted hover:text-text"
+                    class="rounded-control p-1 text-muted hover:text-text"
                     aria-label="关闭"
                     onClick={() => props.onClose?.()}
                   >
-                    关闭
+                    <IconClose size={16} aria-hidden="true" />
                   </button>
                 )}
               </header>

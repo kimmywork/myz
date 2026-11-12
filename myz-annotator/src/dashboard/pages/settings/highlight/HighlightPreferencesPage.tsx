@@ -1,4 +1,9 @@
-import { ColorPalette, SettingsRow } from "@myz/dashboard-ui";
+import {
+  Button,
+  ColorPalette,
+  SettingsGroup,
+  SettingsRow,
+} from "@myz/dashboard-ui";
 import {
   normalizeColor,
   normalizeHighlightStyle,
@@ -105,84 +110,85 @@ export default defineComponent({
     };
 
     return () => (
-      <section class="settings__group">
-        <div class="settings__group-header">
-          <div>
-            <h3>划线偏好</h3>
-            <p class="settings__hint">设置划线调色盘与默认样式</p>
-          </div>
-          <button
-            type="button"
-            class="btn btn-secondary"
-            onClick={resetDefaults}
-          >
-            恢复默认
-          </button>
-        </div>
+      <SettingsGroup title="划线偏好" hint="设置划线调色盘与默认样式">
+        {{
+          actions: () => (
+            <Button variant="secondary" onClick={resetDefaults}>
+              恢复默认
+            </Button>
+          ),
+          default: () => (
+            <div class="space-y-4">
+              <SettingsRow
+                label="调色盘"
+                hint="点色块选默认色，点铅笔改色"
+                stacked
+              >
+                <ColorPalette
+                  colors={palette.value}
+                  activeColor={defaultColor.value}
+                  disabled={isSaving.value}
+                  onSelect={(color) => (defaultColor.value = color)}
+                  onUpdate={(index, value) => updatePaletteColor(index, value)}
+                />
+                <p class="mt-2 flex items-center gap-2 text-caption text-muted">
+                  <span
+                    class="inline-block h-4 w-4 rounded-full border border-line"
+                    style={{ backgroundColor: defaultColor.value }}
+                  />
+                  默认色：{colorName(defaultColor.value)} · {defaultColor.value}
+                </p>
+              </SettingsRow>
 
-        <div class="settings__fields">
-          <SettingsRow label="调色盘" hint="点色块选默认色，点铅笔改色" stacked>
-            <ColorPalette
-              colors={palette.value}
-              activeColor={defaultColor.value}
-              disabled={isSaving.value}
-              onSelect={(color) => (defaultColor.value = color)}
-              onUpdate={(index, value) => updatePaletteColor(index, value)}
-            />
-            <p class="mt-2 flex items-center gap-2 text-caption text-muted">
-              <span
-                class="inline-block h-4 w-4 rounded-full border border-line"
-                style={{ backgroundColor: defaultColor.value }}
-              />
-              默认色：{colorName(defaultColor.value)} · {defaultColor.value}
-            </p>
-          </SettingsRow>
-
-          <SettingsRow label="默认样式" controlWidth="auto">
-            <div
-              class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"
-              role="group"
-              aria-label="默认样式"
-            >
-              {styleOptions.map(([value, meta]) => (
-                <button
-                  key={value}
-                  type="button"
-                  class={[
-                    "h-8 rounded-full px-4 transition",
-                    defaultStyle.value === value
-                      ? "bg-accent text-on-accent "
-                      : "text-muted dark:text-muted",
-                  ].join(" ")}
-                  onClick={() => (defaultStyle.value = value)}
+              <SettingsRow label="默认样式" controlWidth="auto">
+                <div
+                  class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"
+                  role="group"
+                  aria-label="默认样式"
                 >
-                  {meta.label}
-                </button>
-              ))}
+                  {styleOptions.map(([value, meta]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      class={[
+                        "h-8 rounded-full px-4 transition",
+                        defaultStyle.value === value
+                          ? "bg-accent text-on-accent "
+                          : "text-muted dark:text-muted",
+                      ].join(" ")}
+                      onClick={() => (defaultStyle.value = value)}
+                    >
+                      {meta.label}
+                    </button>
+                  ))}
+                </div>
+              </SettingsRow>
             </div>
-          </SettingsRow>
-
-          <div class="settings__actions">
-            <button
-              class="btn btn-primary"
-              type="button"
-              disabled={isSaving.value}
-              onClick={save}
-            >
-              保存设置
-            </button>
-            {isDirty.value ? (
-              <span class="text-caption text-warn">未保存</span>
-            ) : null}
-            {saveNotice.value ? (
-              <span class="text-caption text-success">{saveNotice.value}</span>
-            ) : null}
-            {status.value ? (
-              <span class="text-caption text-muted">{status.value}</span>
-            ) : null}
-          </div>
-        </div>
-      </section>
+          ),
+          footer: () => (
+            <>
+              <Button
+                variant="primary"
+                disabled={isSaving.value}
+                onClick={save}
+              >
+                保存设置
+              </Button>
+              {isDirty.value ? (
+                <span class="text-caption text-warn">未保存</span>
+              ) : null}
+              {saveNotice.value ? (
+                <span class="text-caption text-success">
+                  {saveNotice.value}
+                </span>
+              ) : null}
+              {status.value ? (
+                <span class="text-caption text-muted">{status.value}</span>
+              ) : null}
+            </>
+          ),
+        }}
+      </SettingsGroup>
     );
   },
 });

@@ -88,10 +88,10 @@ test("assets_page_previews_the_full_image", async () => {
     /^data:image\/png/,
   );
 
-  // Focus moves into the modal and Tab stays there.
-  const closeButton = dash
-    .getByRole("dialog")
-    .getByRole("button", { name: "关闭" });
+  // One exit: the title-bar X. A display-only dialog has no footer (§4.8).
+  const dialog = dash.getByRole("dialog");
+  await expect(dialog.locator("footer")).toHaveCount(0);
+  const closeButton = dialog.getByRole("button", { name: "关闭" });
   await expect(closeButton).toBeFocused();
   await dash.keyboard.press("Tab");
   await expect(closeButton).toBeFocused();

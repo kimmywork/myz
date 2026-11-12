@@ -40,7 +40,6 @@ export const AssetPreview = defineComponent({
       <Dialog
         open={true}
         width={840}
-        hideCloseButton
         ariaLabel={`预览 ${props.asset.name}`}
         onClose={() => props.onClose()}
       >
@@ -60,15 +59,6 @@ export const AssetPreview = defineComponent({
                 {failed.value ? " · 原图读取失败，显示缩略图" : ""}
               </p>
             </div>
-          ),
-          footer: () => (
-            <button
-              type="button"
-              class="btn btn-small"
-              onClick={() => props.onClose()}
-            >
-              关闭
-            </button>
           ),
         }}
       </Dialog>
