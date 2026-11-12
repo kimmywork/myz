@@ -105,6 +105,27 @@ export function formatSnapshotUsage(bytes: number): string {
   return `${mb.toFixed(1)} MB`;
 }
 
+/** `YYYY-MM-DD` of the snapshot's own capture time, in local time. */
+export function snapshotDateLabel(createdAt: string): string {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return createdAt.slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * The header line of a snapshot view. Wording is fixed by the contract:
+ * "快照 YYYY-MM-DD · 原页可能已更新".
+ *
+ * The date is when *this snapshot* was taken, not when the page was last
+ * updated — the whole point of the line is to tell the user the copy is old.
+ */
+export function snapshotHeaderLine(createdAt: string): string {
+  return `快照 ${snapshotDateLabel(createdAt)} · 原页可能已更新`;
+}
+
 /**
  * The one-line status the viewer shows. Wording is fixed by the contract:
  * "本机快照 · 占用 X MB · 空间不足时最旧的会被清理".

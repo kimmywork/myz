@@ -39,6 +39,14 @@ test("viewer_shows_a_saved_snapshot_with_its_status_line", async () => {
 
   const view = dash.getByTestId("snapshot-view");
   await expect(view).toBeVisible();
+  // Header wording is fixed by the contract, date = when this copy was taken.
+  const header = dash.getByTestId("snapshot-header");
+  await expect(header).toContainText("快照 ");
+  await expect(header).toContainText("· 原页可能已更新");
+  await expect(header.getByRole("link", { name: "打开原页" })).toHaveAttribute(
+    "href",
+    "https://example.com/article",
+  );
   // The fixed status wording from the contract.
   await expect(dash.getByTestId("snapshot-status")).toContainText(
     "本机快照 · 占用",

@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
+  snapshotDateLabel,
+  snapshotHeaderLine,
   SNAPSHOT_MAX_BYTES,
   SNAPSHOT_QUOTA_BYTES,
   formatSnapshotUsage,
@@ -96,5 +98,18 @@ describe("quota constants and status line", () => {
     expect(snapshotStatusLine(1024 * 1024 * 5)).toBe(
       "本机快照 · 占用 5.0 MB · 空间不足时最旧的会被清理",
     );
+  });
+
+  it("formats the snapshot header with its own capture date", () => {
+    const createdAt = new Date(2026, 10, 9, 14, 30).toISOString();
+    expect(snapshotDateLabel(createdAt)).toBe("2026-11-09");
+    expect(snapshotHeaderLine(createdAt)).toBe(
+      "快照 2026-11-09 · 原页可能已更新",
+    );
+  });
+
+  it("falls back to the stored date prefix when the timestamp is broken", () => {
+    expect(snapshotDateLabel("2026-11-09T00:00:00.000Z")).toBe("2026-11-09");
+    expect(snapshotDateLabel("broken")).toBe("broken");
   });
 });

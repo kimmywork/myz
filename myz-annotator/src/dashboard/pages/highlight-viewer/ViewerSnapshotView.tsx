@@ -1,4 +1,5 @@
 import type { PageSnapshot } from "@myz/core/page-snapshot";
+import { snapshotHeaderLine } from "@myz/core/page-snapshot";
 import { computed, defineComponent, ref, watch } from "vue";
 import {
   normalizeAnchorText,
@@ -91,6 +92,25 @@ export const ViewerSnapshotView = defineComponent({
 
     return () => (
       <div class="mt-4 flex min-h-0 flex-col gap-2" data-testid="snapshot-view">
+        {snapshot.value ? (
+          <div
+            class="flex flex-wrap items-center gap-3 rounded-control border border-line bg-surface-2 px-3 py-2 text-caption"
+            data-testid="snapshot-header"
+          >
+            <span class="text-text">
+              {snapshotHeaderLine(snapshot.value.createdAt)}
+            </span>
+            <a
+              class="underline"
+              href={snapshot.value.url}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="snapshot-open-original"
+            >
+              打开原页
+            </a>
+          </div>
+        ) : null}
         <p class="text-caption text-muted" data-testid="snapshot-status">
           {statusLine.value}
         </p>
