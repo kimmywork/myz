@@ -36,6 +36,12 @@ export default defineComponent({
         isActive: (path: string) => path.startsWith("/readers"),
       },
       {
+        key: "assets",
+        label: "素材",
+        to: "/assets",
+        isActive: (path: string) => path.startsWith("/assets"),
+      },
+      {
         key: "settings",
         label: "设置",
         to: "/settings",

@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from "vue-router";
+import AssetsPage from "./pages/AssetsPage.jsx";
 import HighlightsPage from "./pages/HighlightsPage.jsx";
 import HighlightViewerPage from "./pages/HighlightViewerPage.jsx";
 import InboxPage from "./pages/InboxPage.jsx";
@@ -32,6 +33,7 @@ const routes = [
     component: HighlightViewerPage,
   },
   { path: "/readers", name: "readers", component: ReadersPage },
+  { path: "/assets", name: "assets", component: AssetsPage },
   {
     path: "/setup",
     name: "setup",
