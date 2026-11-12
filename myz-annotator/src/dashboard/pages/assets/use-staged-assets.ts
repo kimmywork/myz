@@ -36,18 +36,26 @@ export function useStagedAssets(): StagedAssetsState {
     return `${assets.value.length} 张 · 共 ${formatBytes(bytes)}`;
   });
 
+  /** Monotonic request id: only the newest response may touch the list. */
+  let requestId = 0;
+
   async function reload() {
+    const request = ++requestId;
     loading.value = true;
     error.value = "";
     try {
       const list = await invoke("myz:listStagedAssets");
+      // A removal group finishes asynchronously; an older response arriving
+      // late must not put back an asset the newer one already excluded.
+      if (request !== requestId) return;
       assets.value = Array.isArray(list) ? list : [];
     } catch (loadError) {
+      if (request !== requestId) return;
       console.warn("Failed to load staged assets", loadError);
       error.value = "读取缓存区失败，请稍后重试";
       assets.value = [];
     } finally {
-      loading.value = false;
+      if (request === requestId) loading.value = false;
     }
   }
 

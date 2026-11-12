@@ -158,4 +158,50 @@ describe("useAssetsRemoval", () => {
     // Nothing is left hidden: the list reload shows what really survived.
     expect(removal.hiddenIds.value.size).toBe(0);
   });
+
+  it("ignores a list response that a newer request superseded", async () => {
+    const state = useStagedAssets();
+    let releaseFirst: (value: StagedAssetMeta[]) => void = () => undefined;
+    let releaseSecond: (value: StagedAssetMeta[]) => void = () => undefined;
+    invokeMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<StagedAssetMeta[]>((resolve) => {
+            releaseFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<StagedAssetMeta[]>((resolve) => {
+            releaseSecond = resolve;
+          }),
+      );
+
+    const first = state.reload();
+    const second = state.reload();
+
+    // The newer request wins even though the older one answers last.
+    releaseSecond([asset("new")]);
+    await second;
+    releaseFirst([asset("stale")]);
+    await first;
+
+    expect(state.assets.value.map((entry) => entry.id)).toEqual(["new"]);
+  });
+
+  it("names the group the next undo would restore", async () => {
+    invokeMock.mockResolvedValue({ ok: true });
+    const removal = useAssetsRemoval(async () => undefined);
+
+    await removal.remove([asset("a")]);
+    const firstMessage = removal.undoMessage.value;
+    await removal.remove([asset("b"), asset("c")]);
+    const secondMessage = removal.undoMessage.value;
+    expect(secondMessage).not.toBe(firstMessage);
+
+    // Undo hits the newest open group; the bar must then describe the one
+    // that is still open, not the one just restored.
+    await removal.undo();
+    expect(removal.undoMessage.value).toBe(firstMessage);
+  });
 });

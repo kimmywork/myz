@@ -20,20 +20,28 @@ interface RemovalIntent extends RemovableDocument {
 }
 
 /** True when the stored progress was saved after the removal was requested. */
-function intendsNewerProgress(
-  intent: RemovalIntent,
+export function intendsNewerProgress(
+  intent: Pick<RemovableDocument, "updatedAt">,
   progressUpdatedAt: string | undefined,
 ): boolean {
   if (!intent.updatedAt || !progressUpdatedAt) return false;
   return progressUpdatedAt > intent.updatedAt;
 }
 
-async function readIntents(): Promise<RemovalIntent[]> {
+/**
+ * Reads the stored intents.
+ *
+ * @param strict When true a failed read throws instead of reading as empty: a
+ *   writer must not overwrite intents it could not see, or an earlier pending
+ *   removal loses its durable record.
+ */
+async function readIntents(strict = false): Promise<RemovalIntent[]> {
   try {
     const stored = await chrome.storage.local.get(INTENT_KEY);
     const list = stored?.[INTENT_KEY];
     return Array.isArray(list) ? (list as RemovalIntent[]) : [];
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     return [];
   }
 }
@@ -62,7 +70,8 @@ export function createRemovalIntents() {
     dueAt = 0,
   ): Promise<void> {
     const run = chain.then(async () => {
-      const current = await readIntents();
+      // Strict: a failed read must abort the write, not replace every intent.
+      const current = await readIntents(true);
       const keys = new Set(records.map((record) => record.key));
       const rest = current.filter((intent) => !keys.has(intent.key));
       if (action === "queue") {
@@ -92,9 +101,14 @@ export function createRemovalIntents() {
       // The document may have been reopened and saved again after the intent
       // was written. Deleting then would erase the new position, so compare
       // the progress stamp and drop the stale intent instead.
-      const current = await readerProgress
-        .get(intent.kind, intent.sourceKey)
-        .catch(() => undefined);
+      let current: { updatedAt?: string } | undefined;
+      try {
+        current = await readerProgress.get(intent.kind, intent.sourceKey);
+      } catch {
+        // Cannot tell whether a newer position was saved: keep the intent and
+        // retry on the next load instead of risking a fresh save.
+        continue;
+      }
       if (current && intendsNewerProgress(intent, current.updatedAt)) {
         await persist("cancel", [intent]).catch(() => undefined);
         continue;

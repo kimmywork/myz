@@ -1,6 +1,12 @@
 import type { StagedAssetMeta } from "@myz/core/staged-asset";
 import { SelectionBar, StatePanel, UndoBar } from "@myz/dashboard-ui";
-import { computed, defineComponent, onMounted, ref } from "vue";
+import {
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+} from "vue";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
 import { useLibrarySelection } from "../composables/useLibrarySelection.js";
 import { formatDateTime } from "../utils/records.js";
@@ -61,7 +67,10 @@ export default defineComponent({
       if (busy.value) return;
       busy.value = true;
       try {
-        await removal.remove([asset]);
+        const scheduled = await removal.remove([asset]);
+        // The card is gone; leaving its id selected would show "已选 1" over an
+        // empty list and make 批量删除 do nothing.
+        if (scheduled) selection.clear([asset.id]);
       } finally {
         busy.value = false;
       }
@@ -80,6 +89,9 @@ export default defineComponent({
     }
 
     onMounted(() => void reload());
+    // Leaving the page commits a pending delete instead of leaving a timer
+    // behind: the next visit would list the capture with no undo bar.
+    onBeforeUnmount(() => removal.dispose());
 
     return () => (
       <DashboardWorkspaceLayout>

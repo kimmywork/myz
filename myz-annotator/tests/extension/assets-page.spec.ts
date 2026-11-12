@@ -159,3 +159,20 @@ test("bottom_nav_fits_five_items_on_a_phone", async () => {
   );
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+test("deleting_a_selected_card_clears_its_selection", async () => {
+  const dash = await harness.open("/assets");
+  await openAssets(dash);
+
+  const card = dash.getByTestId("asset-card").filter({ hasText: "页面图片" });
+  await card.getByTestId("select-asset").check();
+  await expect(dash.getByTestId("selection-bar")).toContainText(
+    "已选 1（共 3）",
+  );
+
+  await card.getByRole("button", { name: "删除" }).click();
+
+  // Its row is gone, so it must not stay in the count either.
+  await expect(dash.getByTestId("asset-card")).toHaveCount(2);
+  await expect(dash.getByTestId("selection-bar")).toHaveCount(0);
+});

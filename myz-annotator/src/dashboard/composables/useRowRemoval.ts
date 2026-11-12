@@ -77,8 +77,29 @@ export function useRowRemoval<T>(options: RowRemovalOptions<T>): RowRemoval<T> {
     });
   }
 
-  function clearUndoIfIdle() {
-    if (!openGroups.size) undoMessage.value = "";
+  /** Copy per group, so the bar always names the group undo would target. */
+  const messageByGroup = new Map<string, string>();
+
+  /**
+   * Points the bar at the newest group still open. After an undo or a commit
+   * the previous message names a group that no longer exists, and the next
+   * undo would hit a different one.
+   */
+  function syncUndoMessage() {
+    let latest = "";
+    openGroups.forEach((id) => {
+      const message = messageByGroup.get(id);
+      if (message) latest = message;
+    });
+    undoMessage.value = latest;
+  }
+
+  function forgetGroup(ids: readonly string[]) {
+    ids.forEach((id) => {
+      messageByGroup.delete(id);
+      byId.delete(id);
+    });
+    syncUndoMessage();
   }
 
   const session = createDeleteSession<T>({
@@ -89,31 +110,29 @@ export function useRowRemoval<T>(options: RowRemovalOptions<T>): RowRemoval<T> {
     commit: (ids) => options.commit(ids, itemsById(ids)),
     restore: (items) => {
       const ids = items.map(options.getId);
-      ids.forEach((id) => byId.delete(id));
       track(ids, false);
       setHidden(ids, false);
-      clearUndoIfIdle();
+      forgetGroup(ids);
       void options.reload();
     },
     onCommitted: (ids) => {
-      ids.forEach((id) => byId.delete(id));
       track(ids, false);
       setHidden(ids, false);
-      clearUndoIfIdle();
+      forgetGroup(ids);
       void options.reload();
     },
     onCommitFailed: (items) => {
       const ids = items.map(options.getId);
-      ids.forEach((id) => byId.delete(id));
       track(ids, false);
       setHidden(ids, false);
       failureMessage.value = options.failureMessage ?? "删除失败，已恢复";
-      clearUndoIfIdle();
+      forgetGroup(ids);
       void options.reload();
     },
     onUndone: (items) => {
-      track(items.map(options.getId), false);
-      clearUndoIfIdle();
+      const ids = items.map(options.getId);
+      track(ids, false);
+      forgetGroup(ids);
     },
   });
 
@@ -129,7 +148,9 @@ export function useRowRemoval<T>(options: RowRemovalOptions<T>): RowRemoval<T> {
     items.forEach((item) => byId.set(options.getId(item), item));
     track(ids, true);
     setHidden(ids, true);
-    undoMessage.value = options.describe(items);
+    const message = options.describe(items);
+    ids.forEach((id) => messageByGroup.set(id, message));
+    undoMessage.value = message;
     failureMessage.value = "";
     return true;
   }
@@ -137,6 +158,7 @@ export function useRowRemoval<T>(options: RowRemovalOptions<T>): RowRemoval<T> {
   function clearHidden() {
     hiddenIds.value = new Set();
     openGroups.clear();
+    messageByGroup.clear();
     undoMessage.value = "";
   }
 
