@@ -2,7 +2,15 @@ import { describeHighlightStyle } from "@myz/shared/highlightUtils";
 import { HIGHLIGHT_STYLES, MyZRecord } from "@myz/shared/types";
 import { extractHostname } from "@myz/shared/url";
 
-export function buildMarkdownExport(highlights: MyZRecord[]): string {
+export interface ExportAttachmentsMissing {
+  count: number;
+  ids: string[];
+}
+
+export function buildMarkdownExport(
+  highlights: MyZRecord[],
+  attachmentsMissing: ExportAttachmentsMissing = { count: 0, ids: [] },
+): string {
   if (!highlights.length) {
     return "# MyZ Export\n\n_No highlights available._";
   }
@@ -54,6 +62,14 @@ export function buildMarkdownExport(highlights: MyZRecord[]): string {
       }
       lines.push("");
     });
+  }
+
+  // Attachments are local-only; say so instead of silently dropping them.
+  if (attachmentsMissing.count > 0) {
+    lines.push("");
+    lines.push(
+      `> ${attachmentsMissing.count} 个附件未包含（仅本机）：${attachmentsMissing.ids.join("、")}`,
+    );
   }
 
   return lines.join("\n");

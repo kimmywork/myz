@@ -86,9 +86,22 @@ function registerReadHandlers() {
     const highlights = ids.length
       ? all.filter((record) => ids.includes(record.id))
       : all;
+    // Attachments stay local: the export keeps the reference but never the
+    // bytes, so the result says which ones a reader will not be able to open.
+    const attachmentsMissing = {
+      count: 0,
+      ids: [] as string[],
+    };
+    for (const record of highlights) {
+      const assetId = record.attachments?.[0]?.assetId;
+      if (!assetId) continue;
+      attachmentsMissing.count += 1;
+      attachmentsMissing.ids.push(assetId);
+    }
     return {
       json: JSON.stringify(highlights, null, 2),
-      markdown: buildMarkdownExport(highlights),
+      markdown: buildMarkdownExport(highlights, attachmentsMissing),
+      attachmentsMissing,
     };
   });
 }

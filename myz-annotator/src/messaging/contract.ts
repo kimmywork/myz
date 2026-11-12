@@ -105,7 +105,15 @@ export type MyzRuntimeMap = {
   /** Omit `ids` to export everything (legacy behaviour); pass a list to export only those records. */
   "myz:export": {
     payload: { ids?: string[] };
-    result: { json: string; markdown: string };
+    result: {
+      json: string;
+      markdown: string;
+      /**
+       * Attachment references are local-only, so an export never contains the
+       * bytes (§I7). This says how many were left behind and which.
+       */
+      attachmentsMissing: { count: number; ids: string[] };
+    };
   };
   "myz:updateBadge": {
     payload: { tabId?: number; count?: number } & Partial<BadgeCount>;

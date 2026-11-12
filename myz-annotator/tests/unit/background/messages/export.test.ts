@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const records = [
   { id: "a", text: "A", createdAt: "2026-11-01T00:00:00.000Z", tags: [] },
   { id: "b", text: "B", createdAt: "2026-11-02T00:00:00.000Z", tags: [] },
+  {
+    id: "c",
+    text: "C",
+    createdAt: "2026-11-03T00:00:00.000Z",
+    tags: [],
+    attachments: [{ assetId: "asset-1", mime: "image/png" }],
+  },
 ];
 
 vi.mock("@/background/stores", () => ({ recordsStore: {} }));
@@ -57,8 +64,18 @@ vi.mock("@/messaging/changes", () => ({
 }));
 
 vi.mock("@myz/core/markdown-export", () => ({
-  buildMarkdownExport: (items: Array<{ text?: string }>) =>
-    items.map((item) => item.text ?? "").join("\n"),
+  buildMarkdownExport: (
+    items: Array<{ text?: string }>,
+    missing: { count: number; ids: string[] },
+  ) =>
+    [
+      items.map((item) => item.text ?? "").join("\n"),
+      missing.count
+        ? `${missing.count} 个附件未包含（仅本机）：${missing.ids.join("、")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
 }));
 
 import { handleMessage } from "@/background/messages/handler";
@@ -75,8 +92,19 @@ describe("myz:export contract", () => {
     const result = (await handleMessage("myz:export", {}, ctx)) as {
       json: string;
       markdown: string;
+      attachmentsMissing: { count: number; ids: string[] };
     };
-    expect(JSON.parse(result.json)).toHaveLength(2);
+    expect(JSON.parse(result.json)).toHaveLength(3);
+    // One record carries a local-only attachment.
+    expect(result.attachmentsMissing).toEqual({ count: 1, ids: ["asset-1"] });
+    expect(result.markdown).toContain("1 个附件未包含（仅本机）：asset-1");
+  });
+
+  it("reports no missing attachments when the exported records have none", async () => {
+    const result = (await handleMessage("myz:export", { ids: ["a"] }, ctx)) as {
+      attachmentsMissing: { count: number; ids: string[] };
+    };
+    expect(result.attachmentsMissing).toEqual({ count: 0, ids: [] });
   });
 
   it("exports only the requested ids", async () => {
