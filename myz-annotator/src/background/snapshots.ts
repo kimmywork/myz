@@ -54,7 +54,16 @@ function toIndex(snapshot: PageSnapshot): PageSnapshotIndex {
   };
 }
 
-/** Index of every stored snapshot, cheap enough to compute per write. */
+/**
+ * Index of every stored snapshot.
+ *
+ * **This is a full scan**: IndexedDB cursors return whole records, so summing
+ * `bytes` necessarily loads every body (up to the quota, 80 MB) into memory.
+ * Called on each save and whenever the viewer asks for usage. Fine at the
+ * current scale; if snapshots grow into the hundreds this is the first thing to
+ * change (a maintained counter record), at the cost of a second source of
+ * truth that could drift.
+ */
 export async function listSnapshotIndex(): Promise<PageSnapshotIndex[]> {
   const all = await getAllFromStore<PageSnapshot>(STORE);
   return all.map(toIndex);
@@ -73,10 +82,17 @@ export async function getSnapshot(
 export async function getSnapshotForRecord(
   recordId: string,
 ): Promise<PageSnapshot | undefined> {
-  const all = await getAllFromStore<PageSnapshot>(STORE);
-  return all
-    .filter((snapshot) => snapshot.recordId === recordId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  // Uses the `recordId` index rather than scanning the store: this runs every
+  // time the viewer opens a snapshot, and a full scan would load every body
+  // (up to the whole quota) into memory.
+  const db = await getDB();
+  const matches = await withStore<PageSnapshot[]>(
+    db,
+    STORE,
+    "readonly",
+    (store) => store.index("recordId").getAll(recordId),
+  );
+  return matches.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 }
 
 export async function snapshotUsageBytes(): Promise<number> {

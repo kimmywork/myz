@@ -1,6 +1,6 @@
 // @vitest-environment node
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // `getDB` runs the one-shot legacy migration, which reads chrome.storage.
 (globalThis as unknown as { chrome: unknown }).chrome = {
@@ -154,6 +154,38 @@ describe("snapshot store", () => {
     expect(shouldAnnounceEviction()).toBe(false);
     resetEvictionNotice();
     expect(shouldAnnounceEviction()).toBe(true);
+  });
+
+  it("looks a record up through the indexed query, newest first", async () => {
+    // Two snapshots of the same record; the newest must win.
+    await saveSnapshot({
+      ...input("older", 0, "rec-shared"),
+      createdAt: "2026-01-01T00:00:00.000Z",
+      usedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await saveSnapshot({
+      ...input("newer", 0, "rec-shared"),
+      createdAt: "2026-02-01T00:00:00.000Z",
+      usedAt: "2026-02-01T00:00:00.000Z",
+    });
+    // A different record must not come back.
+    await saveSnapshot({ ...input("other", 0, "rec-other") });
+
+    // Spy on the index call: this is the only assertion that can tell an
+    // indexed lookup from a full scan — both return the same rows.
+    const indexSpy = vi.spyOn(IDBObjectStore.prototype, "index");
+    const found = await getSnapshotForRecord("rec-shared");
+    expect(found?.id).toBe("newer");
+    expect(indexSpy).toHaveBeenCalledWith("recordId");
+    indexSpy.mockRestore();
+
+    // And the index the query relies on exists on the store.
+    const { getDB } = await import("@/background/storage.js");
+    const db = await getDB();
+    const names = Array.from(
+      db.transaction("page_snapshots").objectStore("page_snapshots").indexNames,
+    );
+    expect(names).toContain("recordId");
   });
 });
 
