@@ -128,6 +128,7 @@ export default defineComponent({
         // would delete a shortcut the user reopened in the meantime.
         await removal.settleAll();
         await readerProgress.clear();
+        await removal.clearIntents();
         removal.clearHidden();
         await load();
         status.value = "已清空阅读历史";

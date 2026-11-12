@@ -1,11 +1,12 @@
-import { BookOpen, Inbox, Library, Settings } from "@lucide/vue";
+import { BookOpen, Image, Inbox, Library, Settings } from "@lucide/vue";
 import type { NavRailItem } from "@myz/dashboard-ui";
 
-/** Rail destinations (§4.27). 素材 joins when that page exists (I6). */
+/** Rail destinations (§4.27), also the source of the <640px bottom bar. */
 export const WORKSPACE_NAV_ITEMS: NavRailItem[] = [
   { key: "highlights", label: "文库", to: "/highlights", icon: Library },
   { key: "inbox", label: "Inbox", to: "/inbox", icon: Inbox },
   { key: "readers", label: "阅读", to: "/readers", icon: BookOpen },
+  { key: "assets", label: "素材", to: "/assets", icon: Image },
   { key: "settings", label: "设置", to: "/settings", icon: Settings },
 ];
 
@@ -13,6 +14,7 @@ export const WORKSPACE_NAV_ITEMS: NavRailItem[] = [
 export function activeNavKey(path: string): string {
   if (path.startsWith("/inbox")) return "inbox";
   if (path.startsWith("/readers")) return "readers";
+  if (path.startsWith("/assets")) return "assets";
   if (path.startsWith("/settings")) return "settings";
   return "highlights";
 }

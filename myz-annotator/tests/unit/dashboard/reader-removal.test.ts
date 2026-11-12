@@ -184,4 +184,61 @@ describe("useReaderListRemoval", () => {
     // The stale intent is dropped so it cannot fire later either.
     expect(storage.get("myz_reader_removal_intents")).toBeUndefined();
   });
+
+  it("says retry, not restored, when the intent cannot be queued", async () => {
+    // No chrome.storage, so persisting the intent fails before anything hides.
+    const storage = (
+      globalThis as unknown as {
+        chrome: { storage: { local: { set: unknown } } };
+      }
+    ).chrome.storage.local;
+    const original = storage.set;
+    storage.set = async () => {
+      throw new Error("quota");
+    };
+
+    const removal = useReaderListRemoval(async () => undefined);
+    expect(await removal.remove(document)).toBe(false);
+    expect(removal.hiddenKeys.value.size).toBe(0);
+    expect(removal.failureMessage.value).toBe("移除失败，请重试");
+
+    storage.set = original;
+  });
+
+  it("protects a position saved during the live undo window", async () => {
+    const { readerProgress } = await import("@/reader/progress-store");
+    const removal = useReaderListRemoval(async () => undefined);
+    removeMock.mockResolvedValue(undefined);
+    vi.mocked(readerProgress.get).mockResolvedValue({
+      sourceKey: document.sourceKey,
+      // Saved after the removal was requested.
+      updatedAt: "2027-01-01T00:00:00.000Z",
+    } as never);
+
+    await removal.remove({
+      ...document,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS);
+
+    expect(removeMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the intent when the progress read fails during settlement", async () => {
+    storage.set("myz_reader_removal_intents", [
+      { ...document, dueAt: Date.now() - 1 },
+    ]);
+    const { readerProgress } = await import("@/reader/progress-store");
+    vi.mocked(readerProgress.get).mockImplementation(async () => {
+      throw new Error("read failed");
+    });
+
+    const next = useReaderListRemoval(async () => undefined);
+    const applied = await next.settleExpired();
+
+    expect(applied).toBe(0);
+    expect(removeMock).not.toHaveBeenCalled();
+    // Still queued for the next attempt.
+    expect(storage.get("myz_reader_removal_intents")).toBeDefined();
+  });
 });
