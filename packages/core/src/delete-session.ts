@@ -114,6 +114,8 @@ export function createDeleteSession<T>(
   const groups: PendingGroup<T>[] = []
   /** Ids whose queue() call is still in flight (dedupe across a tick). */
   const queueing = new Set<string>()
+  /** Commits already detached from `groups` but still running. */
+  const commits = new Set<Promise<void>>()
 
   function detach(group: PendingGroup<T>) {
     if (group.timer) {
@@ -129,8 +131,20 @@ export function createDeleteSession<T>(
     group.remaining = delay
     group.timer = setTimeout(() => {
       group.timer = null
-      void commitGroup(group)
+      runCommit(group)
     }, delay)
+  }
+
+  /**
+   * Starts a commit and keeps it tracked until it settles, so `flushAll()` can
+   * wait for a timer-started commit that already left `groups`.
+   */
+  function runCommit(group: PendingGroup<T>): Promise<void> {
+    const promise = commitGroup(group).finally(() => {
+      commits.delete(promise)
+    })
+    commits.add(promise)
+    return promise
   }
 
   async function commitGroup(group: PendingGroup<T>) {
@@ -276,7 +290,12 @@ export function createDeleteSession<T>(
   async function flushAll(): Promise<void> {
     const current = groups.slice()
     for (const group of current) {
-      await commitGroup(group)
+      await runCommit(group)
+    }
+    // A timer may have fired before this call: wait for those too, otherwise a
+    // caller that wipes storage right after (the reader list) races the commit.
+    while (commits.size) {
+      await Promise.all([...commits])
     }
   }
 

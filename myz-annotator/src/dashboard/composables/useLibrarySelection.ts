@@ -36,7 +36,8 @@ export interface LibrarySelection {
   isAllSelected: (visibleIds: readonly string[]) => boolean;
   toggleAll: (visibleIds: readonly string[]) => void;
   prune: (existingIds: ReadonlySet<string>) => void;
-  clear: () => void;
+  /** Clears everything, or only `ids` when a batch owns that subset. */
+  clear: (ids?: readonly string[]) => void;
 }
 
 /**
@@ -96,8 +97,16 @@ export function useLibrarySelection(
     if (next.size !== selectedIds.value.size) selectedIds.value = next;
   }
 
-  function clear() {
-    selectedIds.value = new Set();
+  function clear(ids?: readonly string[]) {
+    if (!ids) {
+      selectedIds.value = new Set();
+      return;
+    }
+    // A batch may finish after the user picked new rows: only drop the rows it
+    // actually operated on.
+    const next = new Set(selectedIds.value);
+    ids.forEach((id) => next.delete(id));
+    selectedIds.value = next;
   }
 
   return {

@@ -69,6 +69,34 @@ describe("createDeleteSession", () => {
     expect(ports.restore).not.toHaveBeenCalled()
   })
 
+  it("waits for a timer-started commit during flushAll", async () => {
+    let release: () => void = () => undefined;
+    const { ports, session } = setup({
+      commit: vi.fn(
+        (ids: string[]) =>
+          new Promise<boolean>((resolve) => {
+            release = () => resolve(true)
+          }),
+      ),
+    })
+    await session.schedule([{ id: "a" }])
+
+    // The timer fires and the commit detaches from `groups` but is still
+    // running: flushAll must not resolve and let callers wipe storage first.
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS)
+    let flushed = false
+    const flushing = session.flushAll().then(() => {
+      flushed = true
+    })
+    await flushPromises()
+    expect(flushed).toBe(false)
+
+    release()
+    await flushing
+    expect(flushed).toBe(true)
+    expect(ports.commit).toHaveBeenCalledWith(["a"])
+  })
+
   it("commits on route change via flushAll", async () => {
     const { ports, session } = setup()
     await session.schedule([{ id: "a" }])

@@ -88,7 +88,8 @@ export default defineComponent({
 
     const batch = useLibraryBatchActions({
       selectedRecords,
-      clearSelection: selection.clear,
+      clearSelection: (records) =>
+        selection.clear(records.map((record) => record.id)),
     });
 
     const currentPageLabel = computed(() => {

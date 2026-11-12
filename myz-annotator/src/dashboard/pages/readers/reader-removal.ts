@@ -12,6 +12,8 @@ export interface RemovableDocument {
   sourceKey: string;
   /** The stored file handle is keyed by fingerprint, not sourceKey. */
   fingerprint?: string;
+  /** Progress stamp when the removal was requested, to spot a newer save. */
+  updatedAt?: string;
   title: string;
 }
 
@@ -20,6 +22,15 @@ const INTENT_KEY = "myz_reader_removal_intents";
 
 interface RemovalIntent extends RemovableDocument {
   dueAt: number;
+}
+
+/** True when the stored progress was saved after the removal was requested. */
+function intendsNewerProgress(
+  intent: RemovalIntent,
+  progressUpdatedAt: string | undefined,
+): boolean {
+  if (!intent.updatedAt || !progressUpdatedAt) return false;
+  return progressUpdatedAt > intent.updatedAt;
 }
 
 function toggleKeys(
@@ -86,22 +97,35 @@ export function useReaderListRemoval(reload: () => Promise<void>) {
     });
   }
 
-  async function persist(
+  /**
+   * Read-modify-write of the intent list, serialised on one chain. Without it
+   * a paused group's `queue` write can land after an `undo`'s `cancel` and
+   * resurrect the intent, so a later `settleExpired` would delete a document
+   * the user had just saved.
+   */
+  let intentChain: Promise<void> = Promise.resolve();
+
+  function persist(
     action: "queue" | "cancel",
     records: readonly RemovableDocument[],
     dueAt = 0,
-  ) {
-    const current = await readIntents();
-    const keys = new Set(records.map((record) => record.key));
-    const rest = current.filter((intent) => !keys.has(intent.key));
-    if (action === "queue") {
-      const appended = records
-        .filter((record) => record.kind && record.sourceKey)
-        .map((record) => ({ ...record, dueAt }));
-      await writeIntents([...rest, ...appended]);
-    } else {
-      await writeIntents(rest);
-    }
+  ): Promise<void> {
+    const run = intentChain.then(async () => {
+      const current = await readIntents();
+      const keys = new Set(records.map((record) => record.key));
+      const rest = current.filter((intent) => !keys.has(intent.key));
+      if (action === "queue") {
+        const appended = records
+          .filter((record) => record.kind && record.sourceKey)
+          .map((record) => ({ ...record, dueAt }));
+        await writeIntents([...rest, ...appended]);
+      } else {
+        await writeIntents(rest);
+      }
+    });
+    // A failed write must not break the chain for later operations.
+    intentChain = run.catch(() => undefined);
+    return run;
   }
 
   const session = createDeleteSession<RemovableDocument>({
@@ -178,7 +202,9 @@ export function useReaderListRemoval(reload: () => Promise<void>) {
 
   async function remove(entry: RemovableDocument): Promise<boolean> {
     byKey.set(entry.key, entry);
-    const scheduled = await session.schedule([entry]);
+    // Each removal keeps its own group and undo bar: a second removal must not
+    // flush (nor wait for) the first one's commit.
+    const scheduled = await session.schedule([entry], { flushPrevious: false });
     if (!scheduled) {
       failureMessage.value = "移除失败，请重试";
       return false;
@@ -202,6 +228,16 @@ export function useReaderListRemoval(reload: () => Promise<void>) {
     if (!due.length) return 0;
     let applied = 0;
     for (const intent of due) {
+      // The document may have been reopened and saved again after the intent
+      // was written. Deleting then would erase the new position, so compare
+      // the progress stamp and drop the stale intent instead.
+      const current = await readerProgress
+        .get(intent.kind, intent.sourceKey)
+        .catch(() => undefined);
+      if (current && intendsNewerProgress(intent, current.updatedAt)) {
+        await persist("cancel", [intent]).catch(() => undefined);
+        continue;
+      }
       try {
         await readerProgress.remove(
           intent.kind,

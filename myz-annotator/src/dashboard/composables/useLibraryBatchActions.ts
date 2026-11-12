@@ -17,7 +17,8 @@ import { invoke } from "@/messaging/invoke.js";
  */
 export function useLibraryBatchActions(input: {
   selectedRecords: ComputedRef<MyZRecord[]>;
-  clearSelection: () => void;
+  /** Clears only the rows this batch started with (a newer selection stays). */
+  clearSelection: (records: readonly MyZRecord[]) => void;
 }) {
   const highlightsStore = useHighlightsStore();
   const deleteStore = useDeleteStore();
@@ -38,7 +39,7 @@ export function useLibraryBatchActions(input: {
   async function addTagToRecords(
     records: readonly MyZRecord[],
     tag: string,
-  ): Promise<{ applied: number; failed: number }> {
+  ): Promise<{ applied: number; failed: number; refreshed: boolean }> {
     let applied = 0;
     let failed = 0;
     for (const record of records) {
@@ -54,18 +55,38 @@ export function useLibraryBatchActions(input: {
         failed += 1;
       }
     }
-    if (applied) await highlightsStore.loadHighlights();
-    return { applied, failed };
+    let refreshed = true;
+    if (applied) {
+      // The writes are already committed: a failed refresh must not turn them
+      // into "nothing happened", it just needs its own message.
+      try {
+        await highlightsStore.loadHighlights();
+      } catch {
+        refreshed = false;
+      }
+    }
+    return { applied, failed, refreshed };
   }
 
   async function applyBulkTag() {
     const tag = bulkTag.value.trim();
     const records = input.selectedRecords.value;
     if (!tag || !records.length || tagging) return;
+    // Snapshot the selection: if the user changes filters and picks new rows
+    // while this runs, those rows are not part of the operation.
+    const startedWith = records;
     tagging = true;
     try {
-      const { applied, failed } = await addTagToRecords(records, tag);
-      if (failed) {
+      const { applied, failed, refreshed } = await addTagToRecords(
+        records,
+        tag,
+      );
+      if (applied && !refreshed) {
+        highlightsStore.setOperationStatus(
+          `已为 ${applied} 条加上「${tag}」，但列表刷新失败，请手动刷新`,
+          5000,
+        );
+      } else if (failed) {
         // Partial batches must say so: the tag is on some rows already.
         highlightsStore.setOperationStatus(
           `部分完成：已为 ${applied} 条加上「${tag}」，${failed} 条失败`,
@@ -79,7 +100,7 @@ export function useLibraryBatchActions(input: {
         );
       }
       bulkTag.value = "";
-      input.clearSelection();
+      input.clearSelection(startedWith);
     } finally {
       tagging = false;
     }

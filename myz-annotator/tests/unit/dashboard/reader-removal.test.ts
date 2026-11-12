@@ -25,6 +25,7 @@ const storage = new Map<string, unknown>();
 vi.mock("@/reader/progress-store", () => ({
   readerProgress: {
     remove: (...args: unknown[]) => removeMock(...args),
+    get: vi.fn(async () => undefined),
     clear: vi.fn(),
   },
 }));
@@ -157,5 +158,30 @@ describe("useReaderListRemoval", () => {
       document.sourceKey,
       document.fingerprint,
     );
+  });
+
+  it("does not delete progress saved after the removal was queued", async () => {
+    // The intent is old, but the document was reopened and saved afterwards.
+    storage.set("myz_reader_removal_intents", [
+      {
+        ...document,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        dueAt: Date.now() - 1,
+      },
+    ]);
+    const { readerProgress } = await import("@/reader/progress-store");
+    vi.mocked(readerProgress.get).mockResolvedValue({
+      sourceKey: document.sourceKey,
+      updatedAt: "2026-06-01T00:00:00.000Z",
+    } as never);
+    removeMock.mockResolvedValue(undefined);
+
+    const next = useReaderListRemoval(async () => undefined);
+    const applied = await next.settleExpired();
+
+    expect(applied).toBe(0);
+    expect(removeMock).not.toHaveBeenCalled();
+    // The stale intent is dropped so it cannot fire later either.
+    expect(storage.get("myz_reader_removal_intents")).toBeUndefined();
   });
 });

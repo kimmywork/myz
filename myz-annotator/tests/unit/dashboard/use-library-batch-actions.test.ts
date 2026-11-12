@@ -125,4 +125,29 @@ describe("useLibraryBatchActions", () => {
     release();
     await Promise.resolve();
   });
+
+  it("reports a refresh failure after the tags were written", async () => {
+    const { actions } = setup([record("a")]);
+    invokeMock.mockResolvedValue({});
+    store.loadHighlights.mockRejectedValue(new Error("reload failed"));
+    actions.bulkTag.value = "tag";
+
+    await actions.applyBulkTag();
+
+    expect(store.setOperationStatus).toHaveBeenCalledWith(
+      expect.stringContaining("列表刷新失败"),
+      5000,
+    );
+  });
+
+  it("only clears the rows the tag batch operated on", async () => {
+    const { actions, clearSelection } = setup([record("a")]);
+    invokeMock.mockResolvedValue({});
+    actions.bulkTag.value = "tag";
+
+    await actions.applyBulkTag();
+
+    // The pane clears by id, so a selection the user made meanwhile survives.
+    expect(clearSelection).toHaveBeenCalledWith([record("a")]);
+  });
 });

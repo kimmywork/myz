@@ -178,6 +178,14 @@ export const readerProgress = {
       b.updatedAt.localeCompare(a.updatedAt),
     );
   },
+  /** Reads one document's saved progress, if any. */
+  async get(
+    kind: "pdf" | "epub",
+    sourceKey: string,
+  ): Promise<ReaderProgress | undefined> {
+    const store = kind === "pdf" ? pdfProgressStore : epubProgressStore;
+    return store.getProgress(sourceKey);
+  },
   /** Removes one document from the reader list (file and highlights stay). */
   async remove(
     kind: "pdf" | "epub",
