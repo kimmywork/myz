@@ -22,7 +22,7 @@ import {
   shouldAnnounceEviction,
   snapshotUsageBytes,
   touchSnapshot,
-} from "@/background/snapshots";
+} from "@/background/snapshots.js";
 
 function input(id: string, bytes: number, recordId = `rec-${id}`) {
   return {
