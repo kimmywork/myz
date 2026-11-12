@@ -57,6 +57,8 @@ export function useReaderListRemoval(reload: () => Promise<void>) {
     reload,
     describe: (entries) => `已从列表移除「${entries[0]?.title ?? ""}」`,
     failureMessage: "移除失败，已恢复",
+    // Nothing was hidden yet on this branch, so "已恢复" would be a lie.
+    scheduleFailureMessage: "移除失败，请重试",
   });
 
   async function remove(entry: RemovableDocument): Promise<boolean> {

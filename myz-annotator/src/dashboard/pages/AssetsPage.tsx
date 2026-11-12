@@ -5,7 +5,10 @@ import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx
 import { useLibrarySelection } from "../composables/useLibrarySelection.js";
 import { formatDateTime } from "../utils/records.js";
 import { AssetPreview } from "./assets/AssetPreview.jsx";
-import { useAssetsRemoval } from "./assets/use-assets-removal.js";
+import {
+  lastAssetRemovalFailures,
+  useAssetsRemoval,
+} from "./assets/use-assets-removal.js";
 import {
   assetKindLabel,
   assetSourceLabel,
@@ -28,6 +31,8 @@ export default defineComponent({
     // No filters on this page: the selection lives as long as the page does.
     const selection = useLibrarySelection(computed(() => "assets"));
     const preview = ref<StagedAssetMeta | null>(null);
+    /** The thumbnail that opened the preview, so focus can go back to it. */
+    let previewTrigger: HTMLElement | null = null;
     const busy = ref(false);
 
     const removal = useAssetsRemoval(async () => {
@@ -110,6 +115,9 @@ export default defineComponent({
                   aria-live="polite"
                 >
                   {removal.failureMessage.value}
+                  {lastAssetRemovalFailures()
+                    ? `（${lastAssetRemovalFailures()} 张仍在缓存区）`
+                    : ""}
                 </p>
               ) : null}
 
@@ -166,7 +174,10 @@ export default defineComponent({
                         <button
                           type="button"
                           class="block w-full"
-                          onClick={() => (preview.value = asset)}
+                          onClick={(event: MouseEvent) => {
+                            previewTrigger = event.currentTarget as HTMLElement;
+                            preview.value = asset;
+                          }}
                           aria-label={`预览 ${asset.name}`}
                         >
                           <img
@@ -219,7 +230,11 @@ export default defineComponent({
               {preview.value ? (
                 <AssetPreview
                   asset={preview.value}
-                  onClose={() => (preview.value = null)}
+                  onClose={() => {
+                    preview.value = null;
+                    previewTrigger?.focus();
+                    previewTrigger = null;
+                  }}
                 />
               ) : null}
             </div>

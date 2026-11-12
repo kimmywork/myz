@@ -12,7 +12,13 @@ export interface RowRemovalOptions<T> {
   reload: () => Promise<void>;
   /** Undo-bar copy for a batch. */
   describe: (items: readonly T[]) => string;
+  /** Shown when the commit failed and the rows were put back. */
   failureMessage?: string;
+  /**
+   * Shown when the intent could not be queued. Nothing was hidden in that
+   * branch, so it must not claim the rows were restored.
+   */
+  scheduleFailureMessage?: string;
   /** Durable-intent hooks; omit when the surface has none. */
   queue?: (ids: readonly string[], dueAt: number) => Promise<boolean>;
   cancel?: (ids: readonly string[]) => Promise<boolean>;
@@ -116,7 +122,8 @@ export function useRowRemoval<T>(options: RowRemovalOptions<T>): RowRemoval<T> {
     const ids = items.map(options.getId);
     const scheduled = await session.schedule(items, { flushPrevious: false });
     if (!scheduled) {
-      failureMessage.value = options.failureMessage ?? "删除失败，请重试";
+      failureMessage.value =
+        options.scheduleFailureMessage ?? "删除失败，请重试";
       return false;
     }
     items.forEach((item) => byId.set(options.getId(item), item));

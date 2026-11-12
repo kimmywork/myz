@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/messaging/invoke.js", () => ({ invoke: vi.fn() }));
 
-import { useAssetsRemoval } from "@/dashboard/pages/assets/use-assets-removal";
+import {
+  lastAssetRemovalFailures,
+  useAssetsRemoval,
+} from "@/dashboard/pages/assets/use-assets-removal";
 
 const invokeMock = vi.mocked(invoke);
 import {
@@ -134,6 +137,25 @@ describe("useAssetsRemoval", () => {
     await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS);
 
     expect(removal.hiddenIds.value.size).toBe(0);
-    expect(removal.failureMessage.value).toBe("删除失败，已恢复");
+    expect(removal.failureMessage.value).toBe("部分素材未能删除，列表已刷新");
+  });
+
+  it("keeps deleting after one capture fails and reports the survivors", async () => {
+    // Second capture fails; the third must still be attempted, otherwise rows
+    // whose bytes are already gone would stay in the list.
+    invokeMock
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: true });
+    const removal = useAssetsRemoval(async () => undefined);
+
+    await removal.remove([asset("a"), asset("b"), asset("c")]);
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS);
+
+    expect(invokeMock).toHaveBeenCalledTimes(3);
+    expect(removal.failureMessage.value).toBe("部分素材未能删除，列表已刷新");
+    expect(lastAssetRemovalFailures()).toBe(1);
+    // Nothing is left hidden: the list reload shows what really survived.
+    expect(removal.hiddenIds.value.size).toBe(0);
   });
 });
