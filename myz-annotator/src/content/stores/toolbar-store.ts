@@ -4,6 +4,7 @@ import { Ref, ref } from "vue";
 import type { AiComposeResult } from "../ai-compose";
 import { askAiAboutSelection } from "../ask-ai";
 import { stageCapturedImage, copyImageToClipboard } from "../capture-media";
+import { selectionContextText } from "../context-text";
 import { serializeRangeToHtml, waitForNextPaint } from "../html";
 import { cropAndDownloadSelection, getSelectionBoundingRect } from "../image";
 import type { CropRect } from "../image";
@@ -135,6 +136,9 @@ export const useToolbarStore = defineStore("toolbar", () => {
     for (let index = 0; index < selection.rangeCount; index += 1) {
       storedRanges.push(selection.getRangeAt(index).cloneRange());
     }
+    // Capture the text while the selection still exists: after the ranges are
+    // cleared below it cannot be recovered, and the record needs it as context.
+    const selectedText = selectionContextText(selection, range);
 
     selection.removeAllRanges();
     await waitForNextPaint();
@@ -167,6 +171,7 @@ export const useToolbarStore = defineStore("toolbar", () => {
         sourceKind: "screenshot",
         sourceUrl: window.location.href,
         download: false,
+        context: selectedText ? { text: selectedText } : undefined,
       });
     } catch (error) {
       console.error("Selection capture failed", error);

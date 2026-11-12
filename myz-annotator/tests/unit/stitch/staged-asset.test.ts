@@ -99,4 +99,46 @@ describe("formatAssetSize", () => {
     expect(formatAssetSize(2048)).toBe("2 KB");
     expect(formatAssetSize(1024 * 1024 * 1.5)).toBe("1.5 MB");
   });
+
+  it("stores no context field when a capture passes none", () => {
+    // The pre-I7 shape: a capture that says nothing extra must produce the
+    // exact same record, so old and new assets stay indistinguishable.
+    const asset = normalizeStagedAsset({
+      id: "asset-plain",
+      dataUrl: "data:image/png;base64,AAAA",
+      sourceKind: "image",
+    });
+    expect(asset?.context).toBeUndefined();
+    // Serialised (which is what IndexedDB stores), the record is byte-for-byte
+    // the pre-I7 shape: no `context` key at all.
+    expect(JSON.stringify(asset)).not.toContain('"context"');
+  });
+
+  it("keeps only the context fields that carry information", () => {
+    const asset = normalizeStagedAsset({
+      id: "asset-ctx",
+      dataUrl: "data:image/png;base64,AAAA",
+      context: {
+        pageUrl: "https://example.com/post",
+        pageTitle: "A post",
+        text: "  the selected line  ",
+        timeSeconds: 83.7,
+      },
+    });
+    expect(asset?.context).toEqual({
+      pageUrl: "https://example.com/post",
+      pageTitle: "A post",
+      text: "the selected line",
+      timeSeconds: 83,
+    });
+  });
+
+  it("drops an empty context instead of storing an empty object", () => {
+    const asset = normalizeStagedAsset({
+      id: "asset-empty-ctx",
+      dataUrl: "data:image/png;base64,AAAA",
+      context: { text: "   ", timeSeconds: -1 },
+    });
+    expect(asset?.context).toBeUndefined();
+  });
 });

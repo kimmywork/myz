@@ -10,6 +10,7 @@
 
 import type {
   StagedAsset,
+  StagedAssetContext,
   StagedAssetKind,
   StagedAssetMeta,
 } from "@myz/core/staged-asset";
@@ -17,6 +18,7 @@ import type {
 export type {
   NewStagedAsset,
   StagedAsset,
+  StagedAssetContext,
   StagedAssetKind,
   StagedAssetMeta,
 } from "@myz/core/staged-asset";
@@ -89,7 +91,35 @@ export function normalizeStagedAsset(raw: unknown): StagedAsset | null {
         ? candidate.createdAt
         : new Date().toISOString(),
     size: toPositiveInt(candidate.size),
+    context: normalizeContext(candidate.context),
   };
+}
+
+/**
+ * Keeps only the context fields that carry real information, so a capture that
+ * sent nothing extra stores nothing extra (its record is byte-identical to
+ * the pre-I7 shape).
+ */
+function normalizeContext(raw: unknown): StagedAssetContext | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as StagedAssetContext;
+  const context: StagedAssetContext = {};
+  if (typeof value.pageUrl === "string" && value.pageUrl) {
+    context.pageUrl = value.pageUrl;
+  }
+  if (typeof value.pageTitle === "string" && value.pageTitle) {
+    context.pageTitle = value.pageTitle;
+  }
+  const text = typeof value.text === "string" ? value.text.trim() : "";
+  if (text) context.text = text;
+  if (
+    typeof value.timeSeconds === "number" &&
+    Number.isFinite(value.timeSeconds) &&
+    value.timeSeconds >= 0
+  ) {
+    context.timeSeconds = Math.floor(value.timeSeconds);
+  }
+  return Object.keys(context).length ? context : undefined;
 }
 
 function toPositiveInt(value: unknown): number {
