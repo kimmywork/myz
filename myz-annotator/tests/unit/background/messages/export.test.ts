@@ -4,6 +4,13 @@ const records = [
   { id: "a", text: "A", createdAt: "2026-11-01T00:00:00.000Z", tags: [] },
   { id: "b", text: "B", createdAt: "2026-11-02T00:00:00.000Z", tags: [] },
   {
+    id: "d",
+    text: "D",
+    createdAt: "2026-11-04T00:00:00.000Z",
+    tags: [],
+    attachments: [{ assetId: "asset-1", mime: "image/png" }],
+  },
+  {
     id: "c",
     text: "C",
     createdAt: "2026-11-03T00:00:00.000Z",
@@ -97,7 +104,7 @@ describe("myz:export contract", () => {
       markdown: string;
       attachmentsMissing: { count: number; ids: string[] };
     };
-    expect(JSON.parse(result.json)).toHaveLength(3);
+    expect(JSON.parse(result.json)).toHaveLength(4);
     // One record carries a local-only attachment.
     // Every reference is reported, not just the first one on each record.
     expect(result.attachmentsMissing).toEqual({
@@ -134,5 +141,21 @@ describe("myz:export contract", () => {
       ctx,
     )) as { json: string; markdown: string };
     expect(JSON.parse(result.json)).toEqual([]);
+  });
+
+  it("counts one missing file once, even when two records share it", async () => {
+    // A single capture attached to two records is one image the reader will
+    // not get; reporting two would be a wrong number in the export notice.
+    const result = (await handleMessage(
+      "myz:export",
+      { ids: ["c", "d"] },
+      ctx,
+    )) as { attachmentsMissing: { count: number; ids: string[] } };
+    // c references asset-1 and asset-2, d references asset-1: three references
+    // but only two distinct files.
+    expect(result.attachmentsMissing.count).toBe(2);
+    expect(
+      result.attachmentsMissing.ids.filter((id) => id === "asset-1"),
+    ).toHaveLength(1);
   });
 });

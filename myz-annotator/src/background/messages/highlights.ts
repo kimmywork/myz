@@ -88,19 +88,20 @@ function registerReadHandlers() {
       : all;
     // Attachments stay local: the export keeps the reference but never the
     // bytes, so the result says which ones a reader will not be able to open.
-    const attachmentsMissing = {
-      count: 0,
-      ids: [] as string[],
-    };
+    //
+    // Counted per distinct file, not per reference: one capture attached to
+    // two records is still one image the reader is missing, and listing the
+    // same id twice would misreport it as two.
+    const missingIds = new Set<string>();
     for (const record of highlights) {
-      // Every reference is left behind, so every reference must be reported —
-      // otherwise the JSON (which keeps them all) and the notice disagree.
       for (const attachment of record.attachments ?? []) {
-        if (!attachment?.assetId) continue;
-        attachmentsMissing.count += 1;
-        attachmentsMissing.ids.push(attachment.assetId);
+        if (attachment?.assetId) missingIds.add(attachment.assetId);
       }
     }
+    const attachmentsMissing = {
+      count: missingIds.size,
+      ids: [...missingIds],
+    };
     return {
       json: JSON.stringify(highlights, null, 2),
       markdown: buildMarkdownExport(highlights, attachmentsMissing),
