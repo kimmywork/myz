@@ -39,7 +39,20 @@ const WIDTHS = [1440, 1280, 900, 640];
 const THEMES = ["light", "dark"];
 
 /** Surfaces the acceptance list names. */
-const SURFACES = ["settings", "assets", "readers", "viewer", "popup", "content"];
+const ALL_SURFACES = ["settings", "assets", "readers", "viewer", "popup", "content"];
+
+/** `--surface readers` narrows the run; repeating it takes several. */
+const requested = process.argv
+  .map((argument, index, all) => (argument === "--surface" ? all[index + 1] : ""))
+  .filter(Boolean);
+const SURFACES = requested.length
+  ? ALL_SURFACES.filter((surface) => requested.includes(surface))
+  : ALL_SURFACES;
+for (const surface of requested) {
+  if (!ALL_SURFACES.includes(surface)) {
+    throw new Error(`unknown surface "${surface}" (have: ${ALL_SURFACES.join(", ")})`);
+  }
+}
 
 const OUT_DIR = resolve(OUT_ROOT, phase);
 mkdirSync(OUT_DIR, { recursive: true });
@@ -165,6 +178,56 @@ async function seed(page) {
         css: "",
       });
     }
+
+    // Two shortcuts in the reader progress stores, so the 阅读 page has rows.
+    // Without this the surface is its empty state, and its before/after images
+    // are identical no matter what the row markup does.
+    const openDb = (name) =>
+      new Promise((resolve, reject) => {
+        const request = indexedDB.open(name, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains("handles")) {
+            db.createObjectStore("handles");
+          }
+          if (!db.objectStoreNames.contains("progress")) {
+            db.createObjectStore("progress", { keyPath: "sourceKey" });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+
+    const putProgress = async (dbName, value) => {
+      const db = await openDb(dbName);
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction("progress", "readwrite");
+        tx.objectStore("progress").put(value);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    };
+
+    const stamp = Date.now();
+    await putProgress("myz_pdf_db", {
+      sourceKey: "myz-pdf:local:fp-pdf",
+      sourceType: "pdf",
+      page: 2,
+      pages: 9,
+      title: "示例文档（PDF）",
+      fingerprint: "fp-pdf",
+      updatedAt: new Date(stamp).toISOString(),
+    });
+    await putProgress("myz_epub_db", {
+      sourceKey: "myz-epub:local:fp-epub",
+      sourceType: "epub",
+      spineIndex: 0,
+      progression: 0.1,
+      title: "示例文档（EPUB）",
+      fingerprint: "fp-epub",
+      updatedAt: new Date(stamp - 60_000).toISOString(),
+    });
   });
 }
 
