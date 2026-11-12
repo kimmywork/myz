@@ -23,6 +23,10 @@ export const ViewerSnapshotView = defineComponent({
   },
   setup(props) {
     const snapshot = ref<PageSnapshot | null>(null);
+    /** Other captures of the same page, newest first (§I9). */
+    const versions = ref<PageSnapshot[]>([]);
+    /** Which version is on screen; the newest by default. */
+    const selectedVersion = ref(0);
     const statusLine = ref("");
     const loading = ref(true);
     const error = ref("");
@@ -47,6 +51,14 @@ export const ViewerSnapshotView = defineComponent({
         snapshot.value = found ?? null;
         statusLine.value = usage?.statusLine ?? "";
         loadedFor.value = recordId;
+        // Versions are grouped by canonical URL: tracking parameters, a
+        // fragment or a video timestamp must not look like another page.
+        versions.value = found
+          ? await invoke("myz:getSnapshotVersions", { url: found.url })
+          : [];
+        selectedVersion.value = 0;
+        if (request !== requestId) return;
+        if (versions.value.length) snapshot.value = versions.value[0];
       } catch (loadError) {
         if (request !== requestId) return;
         console.warn("Failed to load snapshot", loadError);
@@ -84,6 +96,14 @@ export const ViewerSnapshotView = defineComponent({
       return resolveSnapshotAnchor(props.recordText, text);
     });
 
+    /** Switches to another capture of the same page. */
+    function selectVersion(index: number) {
+      const chosen = versions.value[index];
+      if (!chosen) return;
+      selectedVersion.value = index;
+      snapshot.value = chosen;
+    }
+
     const body = computed(() =>
       snapshot.value && anchor.value?.status === "located"
         ? renderSnapshotBody(snapshot.value, props.recordText)
@@ -109,6 +129,33 @@ export const ViewerSnapshotView = defineComponent({
             >
               打开原页
             </a>
+          </div>
+        ) : null}
+        {versions.value.length > 1 ? (
+          <div
+            class="flex flex-wrap items-center gap-2 text-caption"
+            role="group"
+            aria-label="快照版本"
+            data-testid="snapshot-versions"
+          >
+            <span class="text-muted">共 {versions.value.length} 个版本：</span>
+            {versions.value.map((version, index) => (
+              <button
+                key={version.id}
+                type="button"
+                class={[
+                  "rounded-tag border border-line px-2 py-0.5",
+                  index === selectedVersion.value
+                    ? "bg-accent text-on-accent"
+                    : "text-muted",
+                ].join(" ")}
+                aria-pressed={index === selectedVersion.value}
+                data-testid={`snapshot-version-${index}`}
+                onClick={() => selectVersion(index)}
+              >
+                {snapshotHeaderLine(version.createdAt).replace("快照 ", "")}
+              </button>
+            ))}
           </div>
         ) : null}
         <p class="text-caption text-muted" data-testid="snapshot-status">

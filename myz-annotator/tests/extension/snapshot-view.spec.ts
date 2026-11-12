@@ -117,3 +117,43 @@ test("missing_text_is_reported_too", async () => {
 
   await expect(dash.getByTestId("snapshot-unlocated")).toContainText("找不到");
 });
+
+test("same_page_versions_are_grouped_and_newest_first", async () => {
+  const dash = await harness.open("/highlights");
+  const record = await save(dash, "versioned sentence");
+
+  // Two captures of the same page: one with tracking noise, one with a
+  // fragment. They are one page, two versions — newest shown by default.
+  await send(dash, "myz:saveSnapshot", {
+    recordId: record.id,
+    url: "https://example.com/versioned?utm_source=feed",
+    title: "Older",
+    html: "<article><p>versioned sentence older body</p></article>",
+    css: "",
+  });
+  await dash.waitForTimeout(5);
+  await send(dash, "myz:saveSnapshot", {
+    recordId: record.id,
+    url: "https://example.com/versioned#top",
+    title: "Newer",
+    html: "<article><p>versioned sentence newer body</p></article>",
+    css: "",
+  });
+
+  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="view-snapshot"]');
+  await dash.getByTestId("view-snapshot").click();
+
+  const switcher = dash.getByTestId("snapshot-versions");
+  await expect(switcher).toContainText("共 2 个版本");
+  // The newest capture is the one rendered.
+  await expect(dash.getByTestId("snapshot-view")).toContainText("newer body");
+  await expect(dash.getByTestId("snapshot-version-0")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  // Switching shows the older body without merging anything.
+  await dash.getByTestId("snapshot-version-1").click();
+  await expect(dash.getByTestId("snapshot-view")).toContainText("older body");
+});

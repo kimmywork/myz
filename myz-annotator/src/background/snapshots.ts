@@ -17,6 +17,7 @@ import {
   type PageSnapshot,
   type PageSnapshotIndex,
 } from "@myz/core/page-snapshot";
+import { canonicalSnapshotUrl } from "@myz/core/snapshot-versions";
 import { withStore } from "@myz/shared/idb";
 import { getAllFromStore, getDB } from "./storage.js";
 
@@ -93,6 +94,23 @@ export async function getSnapshotForRecord(
     (store) => store.index("recordId").getAll(recordId),
   );
   return matches.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+}
+
+/**
+ * Every snapshot of the page at `url`, grouped into versions.
+ *
+ * Uses the canonical URL so `?utm_source=…`, a fragment or a video timestamp
+ * does not look like a different page. All snapshots are scanned: grouping is
+ * rare (only when the viewer opens) and needs the whole set anyway.
+ */
+export async function getSnapshotVersions(
+  url: string,
+): Promise<PageSnapshot[]> {
+  const key = canonicalSnapshotUrl(url);
+  const all = await getAllFromStore<PageSnapshot>(STORE);
+  return all
+    .filter((snapshot) => canonicalSnapshotUrl(snapshot.url) === key)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function snapshotUsageBytes(): Promise<number> {
