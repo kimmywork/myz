@@ -84,4 +84,60 @@ describe("snapshot extraction", () => {
     expect(snapshot.html).toContain("keep me");
     expect(snapshot.html).not.toContain("<div><span>");
   });
+
+  it("windows around the anchor instead of taking the whole container", () => {
+    // Long enough that the extractor picks <article> rather than <body>.
+    const padding = "padding sentence to make this a real article body. ";
+    const html = `<html><body><article>
+      <p>${padding.repeat(3)}far away paragraph</p>
+      <div>promo</div><div>promo</div><div>promo</div>
+      <p>${padding.repeat(2)}the paragraph that holds the record</p>
+      <div>promo</div><div>promo</div><div>promo</div>
+      <p>${padding.repeat(3)}another far paragraph</p>
+    </article></body></html>`;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    const wide = extractSnapshot(doc, "https://example.com/a");
+    const narrow = extractSnapshot(
+      doc,
+      "https://example.com/a",
+      "the paragraph that holds the record",
+    );
+
+    expect(wide.html).toContain("far away paragraph");
+    expect(wide.html).toContain("another far paragraph");
+    // With an anchor the far paragraphs fall outside the window.
+    expect(narrow.html).toContain("the paragraph that holds the record");
+    expect(narrow.html).not.toContain("far away paragraph");
+    expect(narrow.html).not.toContain("another far paragraph");
+    expect(narrow.bytes).toBeLessThan(wide.bytes);
+  });
+
+  it("falls back to the whole container when the anchor text is absent", () => {
+    const doc = loadFixture("article-page.html");
+    const withUnknownAnchor = extractSnapshot(
+      doc,
+      "https://example.com/x",
+      "text that is not on this page",
+    );
+    const plain = extractSnapshot(doc, "https://example.com/x");
+    expect(withUnknownAnchor.html).toBe(plain.html);
+  });
+
+  it("finds an anchor that spans inline markup", () => {
+    const padding = "padding sentence to make this a real article body. ";
+    const doc = new DOMParser().parseFromString(
+      `<html><body><article>
+        <p>${padding.repeat(3)}</p>
+        <p>alpha <em>beta</em> gamma</p>
+        <p>${padding.repeat(3)}</p>
+      </article></body></html>`,
+      "text/html",
+    );
+
+    // The quote lives in three text nodes; a node-by-node search misses it.
+    const container = containerAround(doc, "alpha beta gamma");
+    expect(container).not.toBeNull();
+    expect(container?.tagName).toBe("P");
+  });
 });

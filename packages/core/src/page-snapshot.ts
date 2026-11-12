@@ -1,3 +1,5 @@
+import { localDateKey } from "@myz/shared/recordDisplay";
+
 /**
  * Page snapshots (I8) — a local copy of the page body behind a record.
  *
@@ -103,6 +105,22 @@ export function formatSnapshotUsage(bytes: number): string {
   const mb = bytes / (1024 * 1024);
   if (mb >= 10) return `${Math.round(mb)} MB`;
   return `${mb.toFixed(1)} MB`;
+}
+
+/** `YYYY-MM-DD` of the snapshot's own capture time, in local time. */
+export function snapshotDateLabel(createdAt: string): string {
+  return localDateKey(createdAt) || createdAt.slice(0, 10);
+}
+
+/**
+ * The header line of a snapshot view. Wording is fixed by the contract:
+ * "快照 YYYY-MM-DD · 原页可能已更新".
+ *
+ * The date is when *this snapshot* was taken, not when the page was last
+ * updated — the whole point of the line is to tell the user the copy is old.
+ */
+export function snapshotHeaderLine(createdAt: string): string {
+  return `快照 ${snapshotDateLabel(createdAt)} · 原页可能已更新`;
 }
 
 /**

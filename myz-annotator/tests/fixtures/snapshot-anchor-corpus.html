@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <title>锚点基线语料（夹具）</title>
+  </head>
+  <body>
+    <!--
+      Corpus for the I9 anchor baseline measurement.
+
+      It is a fixture, not a real site: 20 sentence-sized targets with the
+      structure variety that matters for anchoring — paragraphs, headings,
+      list items, a code block, a quote that spans two paragraphs, and a short
+      phrase that repeats on purpose.
+
+      `snapshot-anchor-baseline.test.ts` reads it, builds 20 records from the
+      marked sentences, and reports how many land by path, by unique text, or
+      not at all — before and after a simulated page revision.
+    -->
+    <article id="corpus">
+      <h1 data-target="h1">A field guide to page snapshots</h1>
+      <p data-target="p1">
+        The first paragraph explains why a stored copy drifts away from the page
+        it came from.
+      </p>
+      <p data-target="p2">
+        The second paragraph notes that a quote is the only stable anchor left
+        once the original markup is gone.
+      </p>
+      <h2 data-target="h2">What changes when a page is revised</h2>
+      <p data-target="p3">
+        Editors move sections around, and a paragraph that used to be third
+        becomes eighth without changing a single word.
+      </p>
+      <ul>
+        <li data-target="li1">Lists keep their items but not their neighbours.</li>
+        <li data-target="li2">A code block below is copied verbatim.</li>
+        <li data-target="li3">Quotes survive revisions better than layout does.</li>
+      </ul>
+      <pre data-target="code"><code>const anchor = resolveSnapshotAnchor(text, body)</code></pre>
+      <blockquote>
+        <p data-target="quote1">
+          A snapshot is a promise about a moment, and the moment has already
+          passed by the time anyone reads it again.
+        </p>
+      </blockquote>
+      <p data-target="p4">
+        This paragraph is deliberately ordinary so the corpus has filler that
+        a revision could delete without touching the interesting cases.
+      </p>
+      <p data-target="p5">
+        Another ordinary paragraph follows, long enough that removing it changes
+        the document's shape in a way a path would notice.
+      </p>
+      <p data-target="p6">
+        The short phrase appears here first: shared fragment.
+      </p>
+      <p data-target="p7">
+        The same short phrase appears again on purpose: shared fragment.
+      </p>
+      <p data-target="p8">
+        A paragraph that will be deleted entirely in the revised version of this
+        fixture, so its record has nowhere to land.
+      </p>
+      <p data-target="p9">
+        A second paragraph that the revision removes, for the same reason.
+      </p>
+      <p data-target="p10">
+        The closing paragraph stays put across the revision and should keep its
+        anchor.
+      </p>
+      <h3 data-target="h3">Appendix of stable sentences</h3>
+      <p data-target="p11">
+        Stable sentence one stays exactly where it is in both versions.
+      </p>
+      <p data-target="p12">
+        Stable sentence two also survives the revision untouched.
+      </p>
+      <p>
+        The last paragraph is here so the corpus ends with prose rather than a
+        heading.
+      </p>
+    </article>
+  </body>
+</html>

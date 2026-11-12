@@ -126,6 +126,11 @@ export type MyzRuntimeMap = {
     payload: { recordId: string };
     result: PageSnapshot | null;
   };
+  /** Every snapshot of this page, newest first (§I9 version list). */
+  "myz:getSnapshotVersions": {
+    payload: { url: string };
+    result: PageSnapshot[];
+  };
   "myz:getSnapshotUsage": {
     payload: void;
     result: { bytes: number; statusLine: string };

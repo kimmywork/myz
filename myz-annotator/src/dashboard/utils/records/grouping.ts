@@ -1,6 +1,7 @@
 import {
   getRecordKindLabel,
   hostnameForRecord,
+  localDateKey,
 } from "@myz/shared/recordDisplay";
 import { RECORD_KINDS, getRecordKind, type MyZRecord } from "@myz/shared/types";
 import type { PageGroup } from "./types.js";
@@ -33,19 +34,9 @@ function toTimestamp(value: string | undefined): number | null {
   return Number.isNaN(time) ? null : time;
 }
 
-/**
- * Local-time `YYYY-MM-DD` key for a timestamp. Date inputs are local dates, so
- * grouping/filtering must not compare against the UTC date (BUG2).
- */
-export function localDateKey(value: string | undefined): string {
-  const time = toTimestamp(value);
-  if (time === null) return "";
-  const date = new Date(time);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+// `localDateKey` lives in `@myz/shared/recordDisplay` so the snapshot header
+// uses the same rule instead of formatting dates a second way.
+export { localDateKey };
 
 export function groupRecordsByPage(records: MyZRecord[]): PageGroup[] {
   const map = new Map<string, PageGroup>();

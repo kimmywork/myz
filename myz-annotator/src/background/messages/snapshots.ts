@@ -10,6 +10,7 @@ import { snapshotStatusLine } from "@myz/core/page-snapshot";
 import {
   SnapshotWriteError,
   getSnapshotForRecord,
+  getSnapshotVersions,
   saveSnapshot,
   shouldAnnounceEviction,
   snapshotUsageBytes,
@@ -53,6 +54,11 @@ export function initializeSnapshotMessageHandlers() {
     // Reading a snapshot is a use, so LRU keeps what the user actually opens.
     await touchSnapshot(snapshot.id);
     return snapshot;
+  });
+
+  registerMessageHandler("myz:getSnapshotVersions", async (payload) => {
+    if (!payload?.url) return [];
+    return getSnapshotVersions(payload.url);
   });
 
   registerMessageHandler("myz:getSnapshotUsage", async () => {

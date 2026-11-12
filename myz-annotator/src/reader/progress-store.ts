@@ -10,6 +10,7 @@
 
 import {
   idbGet,
+  inTransaction,
   idbGetAll,
   idbPut,
   openDatabase,
@@ -148,13 +149,7 @@ function removeInOneTransaction(
   db: IDBDatabase,
   run: (tx: IDBTransaction) => void,
 ): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction([PROGRESS_STORE, HANDLE_STORE], "readwrite");
-    run(tx);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
-  });
+  return inTransaction(db, [PROGRESS_STORE, HANDLE_STORE], "readwrite", run);
 }
 
 /** PDF reader progress store (`myz_pdf_db`). */

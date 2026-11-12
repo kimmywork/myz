@@ -34,7 +34,10 @@ export function useSnapshotCapture() {
   const notify = useNotificationStore();
   const saving = ref(false);
 
-  async function save(recordId: string | undefined): Promise<boolean> {
+  async function save(
+    recordId: string | undefined,
+    recordText?: string,
+  ): Promise<boolean> {
     if (saving.value) return false;
     saving.value = true;
     try {
@@ -49,7 +52,9 @@ export function useSnapshotCapture() {
         return false;
       }
 
-      const snapshot = extractSnapshot(document, url);
+      // The record's text anchors the window, so a long page yields the part
+      // around the highlight rather than everything.
+      const snapshot = extractSnapshot(document, url, recordText);
       const result = await invoke("myz:saveSnapshot", {
         recordId,
         url: snapshot.url,
@@ -64,10 +69,11 @@ export function useSnapshotCapture() {
         notify.notify({ message: result?.error ?? "快照保存失败" });
         return false;
       }
+      // Not "整页": the capture is the window around this record (§I9).
       if (result.announceEviction) {
         notify.notify({ message: "已保存快照；空间不足，最旧的快照已被清理" });
       } else {
-        notify.notify({ message: "已保存整页快照" });
+        notify.notify({ message: "已保存快照" });
       }
       return true;
     } catch (error) {

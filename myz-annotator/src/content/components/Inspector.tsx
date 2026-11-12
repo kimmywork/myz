@@ -217,7 +217,12 @@ export default defineComponent({
                 aria-label="保存整页快照"
                 title="保存整页快照"
                 disabled={snapshot.saving.value}
-                onClick={() => void snapshot.save(record.value.id ?? undefined)}
+                onClick={() =>
+                  void snapshot.save(
+                    record.value.id ?? undefined,
+                    record.value.text,
+                  )
+                }
               >
                 <IconCamera size={16} aria-hidden="true" />
               </button>

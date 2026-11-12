@@ -17,7 +17,8 @@ import {
   type PageSnapshot,
   type PageSnapshotIndex,
 } from "@myz/core/page-snapshot";
-import { withStore } from "@myz/shared/idb";
+import { canonicalSnapshotUrl } from "@myz/core/snapshot-versions";
+import { inTransaction, withStore } from "@myz/shared/idb";
 import { getAllFromStore, getDB } from "./storage.js";
 
 const STORE = "page_snapshots";
@@ -93,6 +94,23 @@ export async function getSnapshotForRecord(
     (store) => store.index("recordId").getAll(recordId),
   );
   return matches.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+}
+
+/**
+ * Every snapshot of the page at `url`, grouped into versions.
+ *
+ * Uses the canonical URL so `?utm_source=…`, a fragment or a video timestamp
+ * does not look like a different page. All snapshots are scanned: grouping is
+ * rare (only when the viewer opens) and needs the whole set anyway.
+ */
+export async function getSnapshotVersions(
+  url: string,
+): Promise<PageSnapshot[]> {
+  const key = canonicalSnapshotUrl(url);
+  const all = await getAllFromStore<PageSnapshot>(STORE);
+  return all
+    .filter((snapshot) => canonicalSnapshotUrl(snapshot.url) === key)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function snapshotUsageBytes(): Promise<number> {
@@ -171,14 +189,10 @@ export async function saveSnapshot(
     // Eviction and the new record share one transaction: if the write fails,
     // the evictions roll back too, so nothing is lost for a snapshot that was
     // never stored. (A failed put must not cost the user the old pages.)
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, "readwrite");
+    await inTransaction(db, STORE, "readwrite", (tx) => {
       const store = tx.objectStore(STORE);
       plan.evict.forEach((id) => store.delete(id));
       store.put(snapshot);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
     });
   } catch (error) {
     throw new SnapshotWriteError(
