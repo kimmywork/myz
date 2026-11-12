@@ -93,10 +93,13 @@ function registerReadHandlers() {
       ids: [] as string[],
     };
     for (const record of highlights) {
-      const assetId = record.attachments?.[0]?.assetId;
-      if (!assetId) continue;
-      attachmentsMissing.count += 1;
-      attachmentsMissing.ids.push(assetId);
+      // Every reference is left behind, so every reference must be reported —
+      // otherwise the JSON (which keeps them all) and the notice disagree.
+      for (const attachment of record.attachments ?? []) {
+        if (!attachment?.assetId) continue;
+        attachmentsMissing.count += 1;
+        attachmentsMissing.ids.push(attachment.assetId);
+      }
     }
     return {
       json: JSON.stringify(highlights, null, 2),

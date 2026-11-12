@@ -142,4 +142,28 @@ describe("video time context", () => {
     expect(videoTimeLabel(asset("g"))).toBe("");
     expect(videoDeepLink(asset("g"))).toBeUndefined();
   });
+
+  it("points a video record at the captured frame", () => {
+    const [payload] = buildAssetRecords([
+      asset("v", {
+        sourceKind: "video-frame",
+        context: {
+          pageUrl: "https://video.example/watch?v=1",
+          timeSeconds: 83,
+        },
+      }),
+    ]);
+    // Opening the record lands on the frame, while sourceUrl stays the page.
+    expect(payload.url).toBe("https://video.example/watch?v=1&t=83s");
+    expect(payload.sourceUrl).toBe("https://video.example/watch?v=1");
+  });
+
+  it("leaves a non-video record on the plain page url", () => {
+    const [payload] = buildAssetRecords([
+      asset("p", {
+        context: { pageUrl: "https://example.com/post", timeSeconds: 10 },
+      }),
+    ]);
+    expect(payload.url).toBe("https://example.com/post");
+  });
 });

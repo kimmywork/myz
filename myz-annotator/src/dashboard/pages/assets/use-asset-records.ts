@@ -25,10 +25,14 @@ export function useAssetRecords(options: {
       const payloads = buildAssetRecords(assets);
       let saved = 0;
       let failed = 0;
-      for (const payload of payloads) {
+      // Only clear what actually saved: a failed capture stays selected so the
+      // user can retry just that one instead of re-saving the successes.
+      const savedIds: string[] = [];
+      for (let index = 0; index < payloads.length; index += 1) {
         try {
-          await invoke("myz:saveHighlight", payload);
+          await invoke("myz:saveHighlight", payloads[index]);
           saved += 1;
+          savedIds.push(assets[index].id);
         } catch (error) {
           console.warn("Failed to save capture as a record", error);
           failed += 1;
@@ -36,7 +40,7 @@ export function useAssetRecords(options: {
       }
       if (failed) options.onPartial(saved, failed);
       else if (saved) options.onSaved(saved);
-      options.clearSelection(assets.map((asset) => asset.id));
+      if (savedIds.length) options.clearSelection(savedIds);
       return saved;
     } finally {
       saving.value = false;

@@ -73,7 +73,10 @@ export function buildAssetRecords(
       asset.sourceUrl;
     const pageTitle =
       (assets.length > 1 ? shared.pageTitle : context?.pageTitle) || undefined;
-    const url = pageUrl || fallbackUrl(asset);
+    // A video record should open at the captured frame, not at the start.
+    const deepLink =
+      asset.sourceKind === "video-frame" ? videoDeepLink(asset) : undefined;
+    const url = deepLink || pageUrl || fallbackUrl(asset);
     const hostname = hostnameOf(pageUrl);
 
     const payload: AssetRecordPayload = {

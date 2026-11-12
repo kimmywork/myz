@@ -8,7 +8,10 @@ const records = [
     text: "C",
     createdAt: "2026-11-03T00:00:00.000Z",
     tags: [],
-    attachments: [{ assetId: "asset-1", mime: "image/png" }],
+    attachments: [
+      { assetId: "asset-1", mime: "image/png" },
+      { assetId: "asset-2", mime: "image/png" },
+    ],
   },
 ];
 
@@ -96,8 +99,14 @@ describe("myz:export contract", () => {
     };
     expect(JSON.parse(result.json)).toHaveLength(3);
     // One record carries a local-only attachment.
-    expect(result.attachmentsMissing).toEqual({ count: 1, ids: ["asset-1"] });
-    expect(result.markdown).toContain("1 个附件未包含（仅本机）：asset-1");
+    // Every reference is reported, not just the first one on each record.
+    expect(result.attachmentsMissing).toEqual({
+      count: 2,
+      ids: ["asset-1", "asset-2"],
+    });
+    expect(result.markdown).toContain(
+      "2 个附件未包含（仅本机）：asset-1、asset-2",
+    );
   });
 
   it("reports no missing attachments when the exported records have none", async () => {
