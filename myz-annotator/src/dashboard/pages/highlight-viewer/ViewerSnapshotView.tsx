@@ -1,5 +1,9 @@
 import type { PageSnapshot } from "@myz/core/page-snapshot";
 import { computed, defineComponent, ref, watch } from "vue";
+import {
+  normalizeAnchorText,
+  resolveSnapshotAnchor,
+} from "./snapshot-anchor.js";
 import { renderSnapshotBody } from "./snapshot-body.js";
 import { invoke } from "@/messaging/invoke.js";
 
@@ -58,10 +62,31 @@ export const ViewerSnapshotView = defineComponent({
       { immediate: true },
     );
 
+    /** Plain text of a stored snapshot body, for the anchor comparison. */
+    function snapshotText(html: string): string {
+      if (typeof document === "undefined") return normalizeAnchorText(html);
+      const container = document.createElement("div");
+      container.innerHTML = html;
+      return normalizeAnchorText(container.textContent || "");
+    }
+
+    /**
+     * Whether the record's text can be placed in this snapshot.
+     *
+     * Computed from the stored body, not from a live page, so the answer is
+     * stable: either the quote occurs exactly once in the saved copy or it does
+     * not, and "does not" is reported rather than guessed around.
+     */
+    const anchor = computed(() => {
+      if (!snapshot.value) return null;
+      const text = snapshotText(snapshot.value.html);
+      return resolveSnapshotAnchor(props.recordText, text);
+    });
+
     const body = computed(() =>
-      snapshot.value
+      snapshot.value && anchor.value?.status === "located"
         ? renderSnapshotBody(snapshot.value, props.recordText)
-        : "",
+        : (snapshot.value?.html ?? ""),
     );
 
     return () => (
@@ -76,11 +101,37 @@ export const ViewerSnapshotView = defineComponent({
             {error.value}
           </p>
         ) : snapshot.value ? (
-          <article
-            class="myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
-            // Snapshotted markup: sanitized in `renderSnapshotBody`.
-            innerHTML={body.value}
-          ></article>
+          <>
+            {anchor.value?.status === "unlocated" ? (
+              <div
+                class="rounded-control border border-warn/40 bg-warn-bg px-3 py-2 text-caption text-warn"
+                role="status"
+                data-testid="snapshot-unlocated"
+              >
+                <p>这条高亮未能在快照中定位：{anchor.value.reason}</p>
+                {snapshot.value.url ? (
+                  <a
+                    class="underline"
+                    href={snapshot.value.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    打开原页看它原本的位置
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+            <article
+              class="myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
+              // Sanitized when the anchor located a spot; the untransformed
+              // body still needs the same treatment, so it goes through it too.
+              innerHTML={
+                anchor.value?.status === "located"
+                  ? body.value
+                  : renderSnapshotBody({ html: snapshot.value.html }, "")
+              }
+            ></article>
+          </>
         ) : (
           <p class="text-compact text-muted" data-testid="snapshot-empty">
             这条记录还没有快照。在网页上打开它，点「保存整页快照」。

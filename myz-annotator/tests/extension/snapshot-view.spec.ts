@@ -61,3 +61,51 @@ test("viewer_says_when_a_record_has_no_snapshot", async () => {
 
   await expect(dash.getByTestId("snapshot-empty")).toContainText("还没有快照");
 });
+
+test("unlocated_text_is_reported_and_still_linkable", async () => {
+  const dash = await harness.open("/highlights");
+  const record = await save(dash, "repeated sentence");
+
+  // The same sentence twice in the saved copy: no honest way to pick one.
+  await send(dash, "myz:saveSnapshot", {
+    recordId: record.id,
+    url: "https://example.com/rewritten",
+    title: "Rewritten",
+    html: "<article><p>repeated sentence</p><p>middle</p><p>repeated sentence</p></article>",
+    css: "",
+  });
+
+  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="view-snapshot"]');
+  await dash.getByTestId("view-snapshot").click();
+
+  const notice = dash.getByTestId("snapshot-unlocated");
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText("出现了 2 次");
+  await expect(
+    notice.getByRole("link", { name: "打开原页看它原本的位置" }),
+  ).toHaveAttribute("href", "https://example.com/rewritten");
+  // Nothing is marked, because nothing could be placed honestly.
+  await expect(dash.getByTestId("snapshot-view").locator("mark")).toHaveCount(
+    0,
+  );
+});
+
+test("missing_text_is_reported_too", async () => {
+  const dash = await harness.open("/highlights");
+  const record = await save(dash, "text that used to be here");
+
+  await send(dash, "myz:saveSnapshot", {
+    recordId: record.id,
+    url: "https://example.com/rewritten",
+    title: "Rewritten",
+    html: "<article><p>the page was rewritten entirely</p></article>",
+    css: "",
+  });
+
+  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="view-snapshot"]');
+  await dash.getByTestId("view-snapshot").click();
+
+  await expect(dash.getByTestId("snapshot-unlocated")).toContainText("找不到");
+});

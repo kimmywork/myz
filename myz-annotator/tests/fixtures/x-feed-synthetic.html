@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <title>X 首页（合成样本）</title>
+    <style>
+      body { margin: 0; font-family: sans-serif; }
+      .shell { display: flex; }
+      .rail, .aside { width: 200px; padding: 8px; }
+      .timeline { flex: 1; }
+      article[data-testid="tweet"] { padding: 12px; border-bottom: 1px solid #ddd; }
+      .promo { padding: 12px; background: #f6f6f6; }
+    </style>
+  </head>
+  <body>
+    <!--
+      Synthetic stand-in for the X home timeline (§I9 measurement sample).
+
+      It is deliberately labelled synthetic in the README: the sandbox cannot
+      reach x.com, so this reproduces the structure the measurement depends on
+      (a virtualised feed of tweet articles separated by occasional promo
+      blocks) rather than claiming to be a real capture.
+    -->
+    <div class="shell">
+      <nav class="rail"><a href="/home">Home</a></nav>
+      <main class="timeline">
+        <article data-testid="tweet"><p>Tweet one: a short observation about the weather and the city.</p></article>
+        <article data-testid="tweet"><p>Tweet two: reply chains make the timeline dense with text blocks.</p></article>
+        <div class="promo">Promoted</div>
+        <article data-testid="tweet"><p>Tweet three: sometimes a promoted block interrupts the run.</p></article>
+        <article data-testid="tweet"><p>Tweet four: media placeholders are not text blocks.</p></article>
+        <div class="promo">Promoted</div>
+        <div class="promo">Promoted again</div>
+        <article data-testid="tweet"><p>Tweet five: two promos in a row is the widest gap we see.</p></article>
+        <article data-testid="tweet"><p>Tweet six: back to back tweets.</p></article>
+        <article data-testid="tweet"><p>Tweet seven: another one.</p></article>
+        <div class="promo">Promoted</div>
+        <article data-testid="tweet"><p>Tweet eight: the feed keeps going with no end in sight.</p></article>
+      </main>
+      <aside class="aside"><p>Who to follow</p></aside>
+    </div>
+  </body>
+</html>
