@@ -45,6 +45,8 @@ Other modules: check each module's `package.json` for scripts.
 - Dashboard uses Vue Router (`myz-annotator/src/dashboard/router.ts`); add new settings sections as routes and sidebar items.
 - Highlight records should use shared schemas/types (`MyZRecord`, `RECORD_KINDS`, serializers).
 - Highlight rendering: range wrapping / re-anchoring is shared (`@myz/shared/highlightRange` + `serializer`) and reused by the content script and EPUB reader. Only the per-surface decorator stays local (`content/apply-highlight.ts`, `epub/highlights.ts`, `pdf/annotations/decorations.ts`); PDF keeps its own span/rect semantics deliberately.
+- **共享工作区是独占的，且必须「声明占用」才算数**：改文件、切分支、`git mv` 之前，先在协作频道声明占用，做完释放。看一眼工作区干净不等于占用——中间几分钟别人可能就回来；没有声明就不要切分支。
+- **文档类改动优先用独立 worktree**：`git worktree add /tmp/<name> -b <branch> origin/master`，在临时目录里改和提交，不动共享目录的分支，做完 `git worktree remove`。提交一律显式列文件，不用 `git add -A` / `git add .`。
 
 ## AGENTS.md upkeep
 - When a directory's structure or responsibilities change, update the nearest `AGENTS.md`.
