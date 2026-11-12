@@ -74,6 +74,14 @@ function tokenMatches(source, token) {
 }
 
 const ALLOWED_HEIGHTS = new Set(["28", "32", "36", "40", "44", "56", "64"])
+/**
+ * Status pills are component-internal sizes, not controls (§4.29).
+ *
+ * Counting a pill as a control is how this check first reported five false
+ * alarms: they were `rounded-tag` chips at 22px, which is off the pill scale
+ * (16 / 18 / 20) rather than off the control scale.
+ */
+const ALLOWED_PILL_HEIGHTS = new Set(["16", "18", "20"])
 const ALLOWED_SPACING = new Set(["4", "8", "12", "16", "24", "32"])
 /** Component-internal sizes the spec exempts. */
 const SPACING_EXEMPT = new Set(["1", "2", "3", "5", "6", "10", "18", "22"])
@@ -100,10 +108,14 @@ for (const file of files) {
       fail("A2", file, lineNo, "`settings__` still used")
     }
 
-    // A3: arbitrary control heights.
+    // A3: heights, with pills judged by their own scale.
+    const isPill =
+      /rounded-(?:tag|full)/.test(code) && /text-tag/.test(code)
     for (const match of code.matchAll(/\bh-\[(\d+)px\]/g)) {
-      if (!ALLOWED_HEIGHTS.has(match[1])) {
-        fail("A3", file, lineNo, `height ${match[1]}px is off-scale`)
+      const allowed = isPill ? ALLOWED_PILL_HEIGHTS : ALLOWED_HEIGHTS
+      if (!allowed.has(match[1])) {
+        const kind = isPill ? "pill height" : "control height"
+        fail("A3", file, lineNo, `${kind} ${match[1]}px is off-scale`)
       }
     }
 
