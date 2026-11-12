@@ -157,3 +157,47 @@ test("same_page_versions_are_grouped_and_newest_first", async () => {
   await dash.getByTestId("snapshot-version-1").click();
   await expect(dash.getByTestId("snapshot-view")).toContainText("older body");
 });
+
+test("an_unlocated_snapshot_is_still_sanitized", async () => {
+  const dash = await harness.open("/highlights");
+  const record = await save(dash, "text that will not be found");
+
+  // A stored snapshot carrying a script-bearing link. The capture-time strip
+  // is not a security boundary once the HTML sits in storage, so the render
+  // path must remove it — including on the unlocated branch, which is exactly
+  // what a revised page produces.
+  await send(dash, "myz:saveSnapshot", {
+    recordId: record.id,
+    url: "https://example.com/hostile",
+    title: "Hostile",
+    html: `<article>
+      <p>the page was rewritten entirely</p>
+      <p><a href="javascript:alert(1)" id="bad">click me</a></p>
+      <script>window.__pwned = true</script>
+    </article>`,
+    css: "",
+  });
+
+  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="view-snapshot"]');
+  await dash.getByTestId("view-snapshot").click();
+
+  // Unlocated branch is what renders here.
+  await expect(dash.getByTestId("snapshot-unlocated")).toBeVisible();
+
+  const body = dash.getByTestId("snapshot-view").locator("article");
+  await expect(body).toContainText("click me");
+  // No executable link survived, and no script tag did either.
+  const hrefs = await body
+    .locator("a")
+    .evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute("href") ?? ""),
+    );
+  expect(
+    hrefs.every((href) => !href.toLowerCase().startsWith("javascript:")),
+  ).toBe(true);
+  await expect(body.locator("script")).toHaveCount(0);
+  expect(
+    await dash.evaluate(() => (window as { __pwned?: boolean }).__pwned),
+  ).toBeUndefined();
+});

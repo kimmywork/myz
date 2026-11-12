@@ -124,11 +124,21 @@ export const ViewerSnapshotView = defineComponent({
       snapshot.value = chosen;
     }
 
-    const body = computed(() =>
-      snapshot.value && anchor.value?.status === "located"
-        ? renderSnapshotBody(snapshot.value, props.recordText)
-        : (snapshot.value?.html ?? ""),
-    );
+    /**
+     * The rendered body — **always sanitized**.
+     *
+     * When the anchor located, the record's text is marked; otherwise the body
+     * renders without a mark. Both branches go through `renderSnapshotBody`,
+     * whose first step is `sanitizeHtmlString`: the capture-time strip is not a
+     * security boundary once the HTML has been sitting in storage, and a
+     * `javascript:` href inside a stored snapshot is exactly what that
+     * sanitizer exists to remove.
+     */
+    const body = computed(() => {
+      if (!snapshot.value) return "";
+      const text = anchor.value?.status === "located" ? props.recordText : "";
+      return renderSnapshotBody(snapshot.value, text);
+    });
 
     return () => (
       <div class="mt-4 flex min-h-0 flex-col gap-2" data-testid="snapshot-view">
@@ -212,11 +222,7 @@ export const ViewerSnapshotView = defineComponent({
               class="myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
               // Sanitized when the anchor located a spot; the untransformed
               // body still needs the same treatment, so it goes through it too.
-              innerHTML={
-                anchor.value?.status === "located"
-                  ? body.value
-                  : renderSnapshotBody({ html: snapshot.value.html }, "")
-              }
+              innerHTML={body.value}
             ></article>
           </>
         ) : (
