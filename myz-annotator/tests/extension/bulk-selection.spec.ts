@@ -213,3 +213,23 @@ test("bulk_tag_applies_to_every_selected_record", async () => {
   ).toHaveLength(2);
   await expect(bar).toHaveCount(0);
 });
+
+test("select_all_skips_rows_pending_deletion", async () => {
+  const dash = await harness.open("/highlights");
+  await openLibrary(dash, 4);
+
+  // Delete one row: it leaves the list and waits out the undo window.
+  await dash
+    .locator('[data-testid="select-record"]')
+    .first()
+    .locator("xpath=ancestor::article[1]")
+    .getByRole("button", { name: /删除/ })
+    .click();
+  await expect(dash.getByTestId("select-record")).toHaveCount(3);
+
+  // Select-all must cover only what is on screen (3), not the hidden pending row.
+  await dash.locator('[data-testid="select-record"]').first().check();
+  const bar = dash.getByTestId("selection-bar");
+  await bar.getByRole("checkbox", { name: "全选当前页" }).check();
+  await expect(bar).toContainText("已选 3（共 4）");
+});

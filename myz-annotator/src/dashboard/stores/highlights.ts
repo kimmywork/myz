@@ -162,17 +162,18 @@ export const useHighlightsStore = defineStore("highlights", () => {
     }
   }
 
+  /** @returns `true` when the file was handed to the downloader. */
   async function handleExport(
     format: "markdown" | "json",
     ids?: readonly string[],
-  ) {
+  ): Promise<boolean> {
     try {
       const result = await invoke(
         "myz:export",
         ids?.length ? { ids: [...ids] } : {},
       );
       if (!result) {
-        return;
+        return false;
       }
       if (format === "markdown") {
         downloadFile(
@@ -187,9 +188,11 @@ export const useHighlightsStore = defineStore("highlights", () => {
           `myz-export-${Date.now()}.json`,
         );
       }
+      return true;
     } catch (error) {
       log.error("导出失败", error);
       setTimedStatus(operationStatus, `导出失败：${(error as Error).message}`);
+      return false;
     }
   }
 

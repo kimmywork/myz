@@ -51,8 +51,12 @@ export default defineComponent({
       }),
     );
     const selection = useLibrarySelection(viewKey);
+    // Rows hidden by a pending delete are not selectable either: select-all
+    // must not resurrect one into the batch (its row is not on screen).
     const visibleIds = computed(() =>
-      uiStore.visibleHighlights.map((record) => record.id),
+      uiStore.visibleHighlights
+        .map((record) => record.id)
+        .filter((id) => !deleteStore.pendingIds.has(id)),
     );
     watch(
       () => highlightsStore.highlights,
@@ -76,7 +80,10 @@ export default defineComponent({
     );
 
     const selectedRecords = computed(() =>
-      highlightsStore.highlights.filter((record) => selection.has(record.id)),
+      highlightsStore.highlights.filter(
+        (record) =>
+          selection.has(record.id) && !deleteStore.pendingIds.has(record.id),
+      ),
     );
 
     const batch = useLibraryBatchActions({
@@ -131,7 +138,7 @@ export default defineComponent({
           void highlightsStore.copyHighlight(record.id);
           break;
         case "delete":
-          deleteStore.requestDelete([record], {
+          void deleteStore.requestDelete([record], {
             reload: () => highlightsStore.refreshHighlights(),
             event,
           });

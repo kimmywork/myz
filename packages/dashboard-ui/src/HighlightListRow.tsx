@@ -52,7 +52,7 @@ export default defineComponent({
                   class="h-4 w-4 shrink-0"
                   checked={props.selected}
                   onChange={() => props.onToggleSelect?.(record)}
-                  aria-label="选择这条记录"
+                  aria-label={`选择：${title.slice(0, 40)}`}
                   data-testid="select-record"
                 />
               ) : null,

@@ -123,26 +123,38 @@ export function createProgressStore<P extends ReaderProgressBase>(
       return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
     async removeProgress(sourceKey, handleKey) {
-      const db = await open();
-      await withStore<void>(db, PROGRESS_STORE, "readwrite", (store) =>
-        store.delete(sourceKey),
-      );
-      if (!handleKey) return;
-      // A handle without a progress row is unreachable; drop it too.
-      await withStore<void>(db, HANDLE_STORE, "readwrite", (store) =>
-        store.delete(handleKey),
-      ).catch(() => undefined);
+      // One transaction over both stores: either the shortcut is fully gone
+      // (progress row and its handle) or nothing was deleted, so a failure can
+      // be retried instead of leaving an orphan handle behind a "success".
+      await removeInOneTransaction(await open(), (tx) => {
+        tx.objectStore(PROGRESS_STORE).delete(sourceKey);
+        if (handleKey) tx.objectStore(HANDLE_STORE).delete(handleKey);
+      });
     },
     async clearProgress() {
-      const db = await open();
-      await withStore<void>(db, PROGRESS_STORE, "readwrite", (store) =>
-        store.clear(),
-      );
-      await withStore<void>(db, HANDLE_STORE, "readwrite", (store) =>
-        store.clear(),
-      ).catch(() => undefined);
+      await removeInOneTransaction(await open(), (tx) => {
+        tx.objectStore(PROGRESS_STORE).clear();
+        tx.objectStore(HANDLE_STORE).clear();
+      });
     },
   };
+}
+
+/**
+ * Runs a delete over several stores in one transaction and rejects when the
+ * transaction aborts, so a half-done cleanup is never reported as success.
+ */
+function removeInOneTransaction(
+  db: IDBDatabase,
+  run: (tx: IDBTransaction) => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([PROGRESS_STORE, HANDLE_STORE], "readwrite");
+    run(tx);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
+  });
 }
 
 /** PDF reader progress store (`myz_pdf_db`). */

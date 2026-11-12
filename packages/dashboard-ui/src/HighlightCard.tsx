@@ -18,6 +18,14 @@ export default defineComponent({
       useHighlightItem(props)
     const KindIcon = kindIcon
     const hasNote = computed(() => Boolean(props.record!.note))
+    /** Short, record-specific label for the selection checkbox (§a11y). */
+    const recordTitle = () => {
+      const record = props.record!
+      const text = (record.text || record.note || record.title || "")
+        .replace(/\s+/g, " ")
+        .trim()
+      return text.length > 40 ? `${text.slice(0, 40)}…` : text || "无正文记录"
+    }
 
     const cardClasses = computed(() => {
       const classes = [
@@ -42,7 +50,7 @@ export default defineComponent({
                 class="h-4 w-4 shrink-0"
                 checked={props.selected}
                 onChange={() => props.onToggleSelect?.(props.record!)}
-                aria-label="选择这条记录"
+                aria-label={`选择：${recordTitle()}`}
                 data-testid="select-record"
               />
             ) : null}

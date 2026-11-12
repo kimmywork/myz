@@ -3,6 +3,25 @@ import { DELETE_UNDO_WINDOW_MS } from "@myz/core/delete-session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const removeMock = vi.fn();
+
+/** Minimal chrome.storage.local so the durable removal intent has a home. */
+const storage = new Map<string, unknown>();
+(globalThis as unknown as { chrome: unknown }).chrome = {
+  storage: {
+    local: {
+      get: async (key: string) => ({ [key]: storage.get(key) }),
+      set: async (items: Record<string, unknown>) => {
+        Object.entries(items).forEach(([key, value]) =>
+          storage.set(key, value),
+        );
+      },
+      remove: async (key: string) => {
+        storage.delete(key);
+      },
+    },
+  },
+};
+
 vi.mock("@/reader/progress-store", () => ({
   readerProgress: {
     remove: (...args: unknown[]) => removeMock(...args),
@@ -24,6 +43,7 @@ describe("useReaderListRemoval", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     removeMock.mockReset();
+    storage.clear();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -70,5 +90,72 @@ describe("useReaderListRemoval", () => {
 
     expect(removal.hiddenKeys.value.has(document.key)).toBe(false);
     expect(removal.failureMessage.value).toBe("移除失败，已恢复");
+  });
+
+  it("applies a removal whose window passed while the page was closed", async () => {
+    // Simulates a page that died inside the undo window: the intent is on
+    // disk with a due time in the past and no session ever ran.
+    storage.set("myz_reader_removal_intents", [
+      { ...document, dueAt: Date.now() - 1 },
+    ]);
+    removeMock.mockResolvedValue(undefined);
+
+    const next = useReaderListRemoval(async () => undefined);
+    const applied = await next.settleExpired();
+
+    expect(applied).toBe(1);
+    expect(removeMock).toHaveBeenCalledWith(
+      "epub",
+      document.sourceKey,
+      document.fingerprint,
+    );
+  });
+
+  it("keeps a newer removal undo state when an older commit finishes", async () => {
+    const removal = useReaderListRemoval(async () => undefined);
+    const other = {
+      ...document,
+      key: "epub:myz-epub:local:fp-2",
+      sourceKey: "myz-epub:local:fp-2",
+      fingerprint: "fp-2",
+      title: "Doc B",
+    };
+    let release: () => void = () => undefined;
+    removeMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = () => resolve(undefined);
+        }),
+    );
+
+    await removal.remove(document);
+    await vi.advanceTimersByTimeAsync(DELETE_UNDO_WINDOW_MS);
+    await Promise.resolve();
+    expect(removeMock).toHaveBeenCalledTimes(1);
+
+    await removal.remove(other);
+    expect(removal.undoMessage.value).toContain("Doc B");
+
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    await Promise.resolve();
+
+    expect(removal.undoMessage.value).toContain("Doc B");
+    expect(removal.hiddenKeys.value.has(other.key)).toBe(true);
+  });
+
+  it("settleAll finishes pending removals before the list is cleared", async () => {
+    const removal = useReaderListRemoval(async () => undefined);
+    removeMock.mockResolvedValue(undefined);
+
+    await removal.remove(document);
+    expect(removeMock).not.toHaveBeenCalled();
+
+    await removal.settleAll();
+    expect(removeMock).toHaveBeenCalledWith(
+      "epub",
+      document.sourceKey,
+      document.fingerprint,
+    );
   });
 });

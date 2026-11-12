@@ -124,6 +124,9 @@ export default defineComponent({
       if (!confirmed) return;
       clearing.value = true;
       try {
+        // Pending removals must finish first: a timer that fires after the wipe
+        // would delete a shortcut the user reopened in the meantime.
+        await removal.settleAll();
         await readerProgress.clear();
         removal.clearHidden();
         await load();
@@ -158,7 +161,11 @@ export default defineComponent({
       }
     }
 
-    onMounted(() => void load());
+    onMounted(async () => {
+      // Apply removals that expired while the dashboard was closed.
+      await removal.settleExpired();
+      await load();
+    });
     onBeforeUnmount(() => removal.dispose());
 
     return () => (
@@ -208,7 +215,7 @@ export default defineComponent({
             role="status"
             aria-live="polite"
           >
-            {status.value}
+            {status.value || removal.failureMessage.value}
           </p>
         ) : null}
 

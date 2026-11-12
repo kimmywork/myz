@@ -69,7 +69,7 @@ export default defineComponent({
               onClick={(event: MouseEvent) => {
                 const record = a.record.value;
                 if (!record) return;
-                deleteStore.requestDelete([record], {
+                void deleteStore.requestDelete([record], {
                   event,
                   reload: () => highlightsStore.refreshHighlights(),
                   afterSchedule: () => {
