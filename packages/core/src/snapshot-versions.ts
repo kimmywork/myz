@@ -25,15 +25,11 @@ const NOISE_PARAMETERS = new Set([
   "igshid",
   "mc_cid",
   "mc_eid",
-  "ref",
   "ref_src",
   "ref_url",
   "referrer",
-  "source",
   "spm",
   "si",
-  "t",
-  "start",
   "utm_campaign",
   "utm_content",
   "utm_medium",
@@ -46,12 +42,26 @@ const NOISE_PARAMETERS = new Set([
   "utm_brand",
 ]);
 
-/** True for parameters that only carry tracking or position noise. */
-export function isNoiseParameter(name: string): boolean {
+/**
+ * A playback position: `83`, `83s`, `1m23s`, `1h2m3s`. Only this shape of `t=`
+ * is treated as noise — a bare `t=page` or `t=chapter` is content on some
+ * sites, and guessing would merge two different pages.
+ */
+const PLAYBACK_POSITION = /^(?:\d+(?:h|m|s)?)+$/i;
+
+/**
+ * True for a parameter that only carries tracking or playback-position noise.
+ *
+ * @param name Parameter name.
+ * @param value Its value, needed for shapes that are only noise sometimes.
+ */
+export function isNoiseParameter(name: string, value = ""): boolean {
   const key = name.toLowerCase();
   if (NOISE_PARAMETERS.has(key)) return true;
   // `utm_*` is an open-ended family; every member is tracking.
-  return key.startsWith("utm_");
+  if (key.startsWith("utm_")) return true;
+  if (key === "t") return PLAYBACK_POSITION.test(value.trim());
+  return false;
 }
 
 /**
@@ -71,7 +81,7 @@ export function canonicalSnapshotUrl(raw: string): string {
   }
 
   const params = [...url.searchParams.entries()]
-    .filter(([name]) => !isNoiseParameter(name))
+    .filter(([name, value]) => !isNoiseParameter(name, value))
     .sort(([a], [b]) => a.localeCompare(b));
 
   const query = params.length

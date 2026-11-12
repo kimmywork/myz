@@ -37,8 +37,11 @@ export function normalizeAnchorText(value: string | undefined): string {
 }
 
 /**
- * Counts non-overlapping occurrences of `needle` in `haystack`, both already
- * whitespace-normalized.
+ * Counts occurrences of `needle` in `haystack`, including overlapping ones.
+ *
+ * Overlap matters for the uniqueness test: `ana` occurs twice in `banana`
+ * (positions 1 and 3), and a non-overlapping count would call that unique and
+ * place the highlight on a guess.
  */
 export function countOccurrences(haystack: string, needle: string): number {
   if (!needle) return 0;
@@ -46,7 +49,7 @@ export function countOccurrences(haystack: string, needle: string): number {
   let index = haystack.indexOf(needle);
   while (index !== -1) {
     count += 1;
-    index = haystack.indexOf(needle, index + needle.length);
+    index = haystack.indexOf(needle, index + 1);
   }
   return count;
 }

@@ -84,12 +84,17 @@ for (const [name, source] of SAMPLES) {
         median: at(0.5),
         p95: at(0.95),
         max: gaps.length ? Math.max(...gaps) : 0,
-        sample: gaps.slice(-8),
+        // All gaps, not a tail sample: an aggregate percentile over tail
+        // samples would overstate the threshold.
+        gaps,
       };
     });
 
-    console.log(name, JSON.stringify(result));
-    allGaps.push(...(result.sample ?? []));
+    console.log(
+      name,
+      JSON.stringify({ ...result, gaps: result.gaps.length }),
+    );
+    allGaps.push(...(result.gaps ?? []));
   } catch (error) {
     console.log(name, "FAILED", String(error).slice(0, 80));
   } finally {

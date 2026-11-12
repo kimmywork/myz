@@ -41,6 +41,9 @@ export const ViewerSnapshotView = defineComponent({
       const request = ++requestId;
       if (loadedFor.value !== recordId) loading.value = true;
       error.value = "";
+      let replaced: PageSnapshot | null = null;
+      let nextStatus = "";
+      let nextVersions: PageSnapshot[] = [];
       try {
         const [found, usage] = await Promise.all([
           invoke("myz:getSnapshotForRecord", { recordId }),
@@ -48,17 +51,21 @@ export const ViewerSnapshotView = defineComponent({
         ]);
         // Navigating A → B: A's answer arriving late must not replace B's.
         if (request !== requestId) return;
-        snapshot.value = found ?? null;
-        statusLine.value = usage?.statusLine ?? "";
-        loadedFor.value = recordId;
+        replaced = found ?? null;
+        nextStatus = usage?.statusLine ?? "";
         // Versions are grouped by canonical URL: tracking parameters, a
         // fragment or a video timestamp must not look like another page.
-        versions.value = found
+        nextVersions = found
           ? await invoke("myz:getSnapshotVersions", { url: found.url })
           : [];
-        selectedVersion.value = 0;
+        // The second await gives another load time to start: re-check before
+        // touching any reactive state, or A's versions land on B's view.
         if (request !== requestId) return;
-        if (versions.value.length) snapshot.value = versions.value[0];
+        snapshot.value = nextVersions.length ? nextVersions[0] : replaced;
+        statusLine.value = nextStatus;
+        versions.value = nextVersions;
+        selectedVersion.value = 0;
+        loadedFor.value = recordId;
       } catch (loadError) {
         if (request !== requestId) return;
         console.warn("Failed to load snapshot", loadError);
@@ -75,11 +82,24 @@ export const ViewerSnapshotView = defineComponent({
       { immediate: true },
     );
 
-    /** Plain text of a stored snapshot body, for the anchor comparison. */
+    /**
+     * Plain text of a stored snapshot body, for the anchor comparison.
+     *
+     * Block elements are separated by a space first: `textContent` glues
+     * `<p>first</p><p>second</p>` into `firstsecond`, which would make a quote
+     * spanning two paragraphs unmatchable.
+     */
     function snapshotText(html: string): string {
       if (typeof document === "undefined") return normalizeAnchorText(html);
       const container = document.createElement("div");
       container.innerHTML = html;
+      container
+        .querySelectorAll(
+          "p, div, li, br, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th",
+        )
+        .forEach((element) => {
+          element.after(document.createTextNode(" "));
+        });
       return normalizeAnchorText(container.textContent || "");
     }
 

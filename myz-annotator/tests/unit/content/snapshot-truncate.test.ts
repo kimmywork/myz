@@ -118,11 +118,27 @@ describe("snapshot truncation", () => {
     );
     const root = doc.querySelector("article")!;
     const deep = doc.querySelector("#deep")!;
-    expect(childContaining(root, deep)?.tagName).toBe("SECTION");
+    expect((childContaining(root, deep) as Element)?.tagName).toBe("SECTION");
     expect(childContaining(root, root)).toBeNull();
   });
 
   it("documents a run of three", () => {
     expect(SNAPSHOT_TRUNCATION_RUN).toBe(3);
+  });
+
+  it("keeps direct text nodes of the container inside the window", () => {
+    // An article can hold bare text next to its blocks: `<article>Opening
+    // text<p>…</p></article>`. Slicing `children` would drop those sentences.
+    const doc = new DOMParser().parseFromString(
+      `<html><body><article>Opening sentence<p id="anchor">the record lives here</p>Closing sentence</article></body></html>`,
+      "text/html",
+    );
+    const root = doc.querySelector("article")!;
+    const anchor = doc.querySelector("#anchor")!;
+
+    const clone = truncateAround(root, anchor);
+    expect(clone.textContent).toContain("Opening sentence");
+    expect(clone.textContent).toContain("the record lives here");
+    expect(clone.textContent).toContain("Closing sentence");
   });
 });

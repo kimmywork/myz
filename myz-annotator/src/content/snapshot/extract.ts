@@ -141,7 +141,7 @@ export function buildSnapshotBody(
   root: Element,
   doc: Document,
   url: string,
-  anchor: Element | null = null,
+  anchor: Node | null = null,
 ): ExtractedSnapshot {
   const clone = truncateAround(root, anchor);
   clone.querySelectorAll(DROP_SELECTORS).forEach((node) => node.remove());
@@ -186,7 +186,7 @@ export function extractSnapshot(
 }
 
 /** The container child holding the record's text, when it can be found. */
-function anchorElement(root: Element, anchorText?: string): Element | null {
+function anchorElement(root: Element, anchorText?: string): Node | null {
   const owner = root.ownerDocument;
   if (!owner) return null;
   const container = containerAround(owner, anchorText);
@@ -201,23 +201,41 @@ function anchorElement(root: Element, anchorText?: string): Element | null {
  * Returns `null` when the anchor cannot be resolved, and the caller falls back
  * to the whole content root.
  */
+/** Block-level elements an anchor can land in. */
+const ANCHOR_BLOCKS =
+  "p, li, blockquote, pre, td, th, dd, dt, figure, h1, h2, h3, h4, h5, h6, section, div";
+
+/** Collapses whitespace so comparisons ignore the page's own line breaks. */
+export function normalizeSnapshotText(
+  value: string | null | undefined,
+): string {
+  return (value || "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The block that holds the record's text, or `null`.
+ *
+ * Compares the *block's* whole text, not individual text nodes: a quote that
+ * spans inline markup (`alpha <em>beta</em> gamma`) lives in three text nodes
+ * and would never match node-by-node. Among the blocks containing the quote,
+ * the innermost wins, so a wrapping `div` does not swallow the capture.
+ */
 export function containerAround(
   doc: Document,
   anchorText: string | undefined,
 ): Element | null {
-  const text = (anchorText || "").trim();
+  const text = normalizeSnapshotText(anchorText);
   if (text.length < 4) return null;
-  const needle = text.slice(0, 80);
-  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
-  while (walker.nextNode()) {
-    const node = walker.currentNode;
-    if ((node.textContent || "").includes(needle)) {
-      return (
-        node.parentElement?.closest(
-          "p, li, blockquote, pre, td, h1, h2, h3, h4, h5, h6, section, div",
-        ) ?? null
-      );
-    }
-  }
-  return null;
+  const needle = text.slice(0, 120);
+
+  const matches = Array.from(doc.querySelectorAll(ANCHOR_BLOCKS)).filter(
+    (element) => normalizeSnapshotText(element.textContent).includes(needle),
+  );
+  if (!matches.length) return null;
+  // Drop ancestors of another match: the deepest one is the paragraph itself.
+  const deepest = matches.filter(
+    (element) =>
+      !matches.some((other) => other !== element && element.contains(other)),
+  );
+  return deepest[0] ?? matches[matches.length - 1];
 }

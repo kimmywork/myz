@@ -51,10 +51,19 @@ describe("snapshot anchor resolution", () => {
     expect(anchor.reason).toContain("没有文字");
   });
 
-  it("counts non-overlapping occurrences only", () => {
-    expect(countOccurrences("aaaa", "aa")).toBe(2);
+  it("counts overlapping occurrences, because overlap is not unique", () => {
+    // `ana` occurs at 1 and 3 in `banana`: a non-overlapping count would call
+    // this unique and place the highlight on a guess.
+    expect(countOccurrences("banana", "ana")).toBe(2);
+    expect(countOccurrences("aaaa", "aa")).toBe(3);
     expect(countOccurrences("abc", "x")).toBe(0);
     expect(countOccurrences("abc", "")).toBe(0);
+  });
+
+  it("refuses a placement that only looked unique without overlap", () => {
+    const anchor = resolveSnapshotAnchor("ana", "banana");
+    expect(anchor.status).toBe("unlocated");
+    expect(anchor.matches).toBe(2);
   });
 
   it("normalizes both sides the same way", () => {

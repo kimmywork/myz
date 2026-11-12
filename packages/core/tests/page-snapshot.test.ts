@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { localDateKey } from "@myz/shared/recordDisplay";
 import {
   snapshotDateLabel,
   snapshotHeaderLine,
@@ -101,7 +102,13 @@ describe("quota constants and status line", () => {
   });
 
   it("formats the snapshot header with its own capture date", () => {
+    // Built and asserted in local time, so the test does not depend on the
+    // machine's zone (a UTC timestamp would read as the previous day in
+    // America/Los_Angeles).
     const createdAt = new Date(2026, 10, 9, 14, 30).toISOString();
+    expect(snapshotDateLabel(createdAt)).toBe(
+      localDateKey(createdAt),
+    );
     expect(snapshotDateLabel(createdAt)).toBe("2026-11-09");
     expect(snapshotHeaderLine(createdAt)).toBe(
       "快照 2026-11-09 · 原页可能已更新",
@@ -109,7 +116,11 @@ describe("quota constants and status line", () => {
   });
 
   it("falls back to the stored date prefix when the timestamp is broken", () => {
-    expect(snapshotDateLabel("2026-11-09T00:00:00.000Z")).toBe("2026-11-09");
+    // Unparseable: the stored string's own prefix is the best available answer.
     expect(snapshotDateLabel("broken")).toBe("broken");
+    // A real timestamp formats through the shared local-date rule.
+    expect(snapshotDateLabel("2026-11-09T00:00:00.000Z")).toBe(
+      localDateKey("2026-11-09T00:00:00.000Z"),
+    );
   });
 });

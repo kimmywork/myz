@@ -25,6 +25,22 @@ describe("canonicalSnapshotUrl", () => {
     expect(canonicalSnapshotUrl("https://example.com/watch?v=1&t=83s")).toBe(
       "https://example.com/watch?v=1",
     );
+    expect(canonicalSnapshotUrl("https://example.com/watch?v=1&t=1m23s")).toBe(
+      "https://example.com/watch?v=1",
+    );
+  });
+
+  it("keeps a t= that is not a playback position", () => {
+    // Some sites use `t` for content; dropping it would merge two pages.
+    expect(canonicalSnapshotUrl("https://example.com/p?t=chapter-2")).toBe(
+      "https://example.com/p?t=chapter-2",
+    );
+  });
+
+  it("keeps source/start, which can identify content", () => {
+    expect(canonicalSnapshotUrl("https://example.com/p?source=docs&start=40")).toBe(
+      "https://example.com/p?source=docs&start=40",
+    );
   });
 
   it("keeps content parameters it does not recognize", () => {
@@ -57,6 +73,9 @@ describe("canonicalSnapshotUrl", () => {
   it("classifies parameters", () => {
     expect(isNoiseParameter("utm_whatever")).toBe(true);
     expect(isNoiseParameter("FBCLID")).toBe(true);
+    expect(isNoiseParameter("t", "83s")).toBe(true);
+    expect(isNoiseParameter("t", "chapter-2")).toBe(false);
+    expect(isNoiseParameter("source")).toBe(false);
     expect(isNoiseParameter("id")).toBe(false);
     expect(isNoiseParameter("page")).toBe(false);
   });

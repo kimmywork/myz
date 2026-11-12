@@ -123,4 +123,21 @@ describe("snapshot extraction", () => {
     const plain = extractSnapshot(doc, "https://example.com/x");
     expect(withUnknownAnchor.html).toBe(plain.html);
   });
+
+  it("finds an anchor that spans inline markup", () => {
+    const padding = "padding sentence to make this a real article body. ";
+    const doc = new DOMParser().parseFromString(
+      `<html><body><article>
+        <p>${padding.repeat(3)}</p>
+        <p>alpha <em>beta</em> gamma</p>
+        <p>${padding.repeat(3)}</p>
+      </article></body></html>`,
+      "text/html",
+    );
+
+    // The quote lives in three text nodes; a node-by-node search misses it.
+    const container = containerAround(doc, "alpha beta gamma");
+    expect(container).not.toBeNull();
+    expect(container?.tagName).toBe("P");
+  });
 });

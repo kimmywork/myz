@@ -37,6 +37,14 @@ export const SNAPSHOT_MAX_SIBLINGS_PER_SIDE = 200;
 const PROSE_SELECTOR =
   "p, li, blockquote, pre, table, h1, h2, h3, h4, h5, h6, dd, dt, figure";
 
+/** A node counts as prose when it is text, or an element holding text. */
+function isProseNode(node: Node): boolean {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return (node.textContent || "").trim().length > 0;
+  }
+  return node.nodeType === Node.ELEMENT_NODE && isProseElement(node as Element);
+}
+
 /** An element with a real amount of text reads as prose regardless of tag. */
 const PROSE_MIN_TEXT = 40;
 
@@ -61,15 +69,12 @@ export function isProseElement(element: Element): boolean {
  * The anchor can sit anywhere inside a paragraph, so walk up until the parent
  * is the container itself.
  */
-export function childContaining(
-  root: Element,
-  node: Node | null,
-): Element | null {
+export function childContaining(root: Element, node: Node | null): Node | null {
   let current: Node | null = node;
-  while (current && current.parentElement !== root) {
-    current = current.parentElement;
+  while (current && current.parentNode !== root) {
+    current = current.parentNode;
   }
-  return current instanceof Element ? current : null;
+  return current;
 }
 
 /**
@@ -80,12 +85,15 @@ export function childContaining(
  */
 export function siblingWindow(
   root: Element,
-  anchor: Element,
+  anchor: Node,
   options: TruncationOptions = {},
 ): { first: number; last: number } {
   const run = options.run ?? SNAPSHOT_TRUNCATION_RUN;
   const maxPerSide = options.maxPerSide ?? SNAPSHOT_MAX_SIBLINGS_PER_SIDE;
-  const children = Array.from(root.children);
+  // `childNodes`, not `children`: an article's opening and closing sentences can
+  // be direct text nodes of the container, and slicing elements only would
+  // silently drop them.
+  const children = Array.from(root.childNodes) as Node[];
   const start = children.indexOf(anchor);
   if (start < 0) return { first: 0, last: Math.max(0, children.length - 1) };
 
@@ -93,7 +101,7 @@ export function siblingWindow(
   let misses = 0;
   let added = 0;
   for (let index = start - 1; index >= 0; index -= 1) {
-    if (isProseElement(children[index])) misses = 0;
+    if (isProseNode(children[index])) misses = 0;
     else misses += 1;
     if (misses >= run || added >= maxPerSide) break;
     first = index;
@@ -104,7 +112,7 @@ export function siblingWindow(
   misses = 0;
   added = 0;
   for (let index = start + 1; index < children.length; index += 1) {
-    if (isProseElement(children[index])) misses = 0;
+    if (isProseNode(children[index])) misses = 0;
     else misses += 1;
     if (misses >= run || added >= maxPerSide) break;
     last = index;
@@ -122,14 +130,15 @@ export function siblingWindow(
  */
 export function truncateAround(
   root: Element,
-  anchor: Element | null,
+  anchor: Node | null,
   options: TruncationOptions = {},
 ): Element {
   if (!anchor || !root.contains(anchor)) return root.cloneNode(true) as Element;
 
   const { first, last } = siblingWindow(root, anchor, options);
   const clone = root.cloneNode(false) as Element;
-  Array.from(root.children)
+  // Node slice, so direct text nodes ride along with their siblings.
+  Array.from(root.childNodes)
     .slice(first, last + 1)
     .forEach((child) => clone.appendChild(child.cloneNode(true)));
   return clone;
