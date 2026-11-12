@@ -1,5 +1,5 @@
 import type { StagedAssetMeta } from "@myz/core/staged-asset";
-import { SelectionBar, StatePanel, UndoBar } from "@myz/dashboard-ui";
+import { Button, SelectionBar, StatePanel, UndoBar } from "@myz/dashboard-ui";
 import {
   computed,
   defineComponent,
@@ -174,21 +174,20 @@ export default defineComponent({
                   {{
                     actions: () => (
                       <>
-                        <button
-                          type="button"
-                          class="btn btn-small"
+                        <Button
+                          size="sm"
                           disabled={records.saving.value}
                           onClick={() => void saveSelected()}
                         >
                           批量存为记录
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn-small btn-danger"
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
                           onClick={() => void removeSelected()}
                         >
                           批量删除
-                        </button>
+                        </Button>
                       </>
                     ),
                   }}
@@ -267,21 +266,20 @@ export default defineComponent({
                           {formatBytes(asset.size)}
                         </p>
                         <div class="mt-1 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            class="btn btn-small"
+                          <Button
+                            size="sm"
                             disabled={records.saving.value}
                             onClick={() => void saveOne(asset)}
                           >
                             存为记录
-                          </button>
-                          <button
-                            type="button"
-                            class="btn btn-small btn-danger"
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
                             onClick={() => void removeOne(asset)}
                           >
                             删除
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     </li>
