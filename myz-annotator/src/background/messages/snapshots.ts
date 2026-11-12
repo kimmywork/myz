@@ -30,7 +30,7 @@ export function initializeSnapshotMessageHandlers() {
         title: payload.title || payload.url,
         html: payload.html,
         css: payload.css,
-        bytes: payload.bytes,
+        // Size is measured inside the store; the payload's value is advisory.
       });
       return {
         ok: true,

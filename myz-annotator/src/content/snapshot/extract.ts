@@ -151,7 +151,10 @@ export function buildSnapshotBody(
     if (!hasContent(element)) element.remove();
   }
 
-  const html = clone.outerHTML;
+  // A cleaned body can still serialise to `<article></article>`; that is an
+  // empty snapshot, and storing it would let the UI say "已保存整页快照" over
+  // nothing readable.
+  const html = (clone.textContent || "").trim() ? clone.outerHTML : "";
   return {
     html,
     css: SNAPSHOT_CSS,

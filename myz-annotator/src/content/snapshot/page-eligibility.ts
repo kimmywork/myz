@@ -103,21 +103,41 @@ export const ENDLESS_SCROLL_RULES: readonly SiteRule[] = [
     label: "tieba-forum",
   },
 
-  // Short-video and social feeds with no bottom edge.
+  // Short-video and social feeds with no bottom edge. A single video is a
+  // document, so its rule comes first: the profile rule must not swallow
+  // `/@alice/video/123`.
+  {
+    pattern:
+      /^https?:\/\/(?:www\.)?(?:douyin|tiktok)\.com\/@[^/?#]+\/video\/\d+/i,
+    mode: "allow",
+    label: "short-video-post",
+  },
   {
     pattern:
       /^https?:\/\/(?:www\.)?(?:douyin|tiktok)\.com\/(?:@[^/?#]+\/?|[?#]|$)/i,
     mode: "block",
     label: "short-video-feed",
   },
+  // The bare root is a feed too — matching only `[?#]` misses the trailing `/`.
   {
-    pattern: /^https?:\/\/(?:www\.)?instagram\.com\/(?:[?#]|explore|reels)/i,
+    pattern: /^https?:\/\/(?:www\.)?instagram\.com\/?(?:[?#]|$)/i,
     mode: "block",
     label: "instagram-feed",
   },
   {
     pattern:
-      /^https?:\/\/(?:www\.)?facebook\.com\/(?:[?#]|home|watch|reels|marketplace)/i,
+      /^https?:\/\/(?:www\.)?instagram\.com\/(?:explore|reels)(?:[/?#]|$)/i,
+    mode: "block",
+    label: "instagram-feed",
+  },
+  {
+    pattern: /^https?:\/\/(?:www\.)?facebook\.com\/?(?:[?#]|$)/i,
+    mode: "block",
+    label: "facebook-feed",
+  },
+  {
+    pattern:
+      /^https?:\/\/(?:www\.)?facebook\.com\/(?:home|watch|reels|marketplace)(?:[/?#]|$)/i,
     mode: "block",
     label: "facebook-feed",
   },

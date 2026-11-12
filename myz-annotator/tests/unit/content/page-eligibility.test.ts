@@ -59,6 +59,22 @@ describe("endless-scroll site rules", () => {
     }
   });
 
+  it("blocks bare social roots but allows a single short video", () => {
+    for (const url of [
+      "https://www.instagram.com/",
+      "https://instagram.com/explore/",
+      "https://www.facebook.com/",
+      "https://www.facebook.com/home",
+      "https://www.douyin.com/?recommend=1",
+    ]) {
+      expect(classifyPage(url).capture).toBe(false);
+    }
+    // A single video page has a bottom edge, so the profile rule must not eat it.
+    const video = classifyPage("https://www.tiktok.com/@alice/video/123");
+    expect(video.capture).toBe(true);
+    expect(video.rule).toBe("short-video-post");
+  });
+
   it("gives the user a reason when it refuses", () => {
     const result = classifyPage("https://x.com/home");
     expect(result.capture).toBe(false);

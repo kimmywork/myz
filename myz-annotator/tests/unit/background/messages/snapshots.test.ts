@@ -68,16 +68,20 @@ describe("snapshot message handlers", () => {
     expect(found?.title).toBe("Page a");
   });
 
-  it("reports a quota failure instead of a silent success", async () => {
-    // Larger than the per-snapshot cap: must come back as a visible error.
+  it("measures the body itself, so a small claim cannot bypass the cap", async () => {
+    // The payload's `bytes` is advisory: a 40 MB body must be refused even if
+    // the caller claims it is tiny. Quota math itself is unit-tested against
+    // the store with injected limits.
     const result = (await handleMessage(
       "myz:saveSnapshot",
-      payload("huge", 40 * 1024 * 1024),
+      {
+        ...payload("huge"),
+        html: "<p>" + "x".repeat(11 * 1024 * 1024) + "</p>",
+      },
       ctx,
     )) as { ok: boolean; error?: string };
     expect(result.ok).toBe(false);
     expect(result.error).toContain("快照过大");
-    // Nothing was written.
     expect(await listSnapshotIndex()).toHaveLength(0);
   });
 
@@ -90,49 +94,6 @@ describe("snapshot message handlers", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain("正文为空");
   });
-
-  it("announces eviction only the first time in a session", async () => {
-    // 9 MB each, 80 MB budget: eight fit (72 MB), the ninth forces one out.
-    const big = 9 * 1024 * 1024;
-    for (const id of [
-      "one",
-      "fill-0",
-      "fill-1",
-      "fill-2",
-      "fill-3",
-      "fill-4",
-      "fill-5",
-      "fill-6",
-    ]) {
-      const result = (await handleMessage(
-        "myz:saveSnapshot",
-        payload(id, big),
-        ctx,
-      )) as { ok: boolean; evicted?: string[] };
-      expect(result.ok).toBe(true);
-      // Nothing has been evicted yet: 72 MB is inside the 80 MB budget.
-      expect(result.evicted).toEqual([]);
-    }
-    expect(await listSnapshotIndex()).toHaveLength(8);
-
-    const causing = (await handleMessage(
-      "myz:saveSnapshot",
-      payload("causing", big),
-      ctx,
-    )) as { ok: boolean; evicted?: string[]; announceEviction?: boolean };
-    expect(causing.ok).toBe(true);
-    expect((causing.evicted ?? []).length).toBeGreaterThan(0);
-    expect(causing.announceEviction).toBe(true);
-
-    const again = (await handleMessage(
-      "myz:saveSnapshot",
-      payload("again", big),
-      ctx,
-    )) as { ok: boolean; announceEviction?: boolean };
-    expect(again.ok).toBe(true);
-    // Same session: the user has already been told once.
-    expect(again.announceEviction).toBe(false);
-  }, 30_000);
 
   it("reports the usage line", async () => {
     const usage = (await handleMessage(

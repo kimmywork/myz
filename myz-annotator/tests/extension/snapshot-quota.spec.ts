@@ -3,15 +3,15 @@ import { send, setupDashboardHarness } from "../helpers/dashboard-harness.js";
 
 const harness = setupDashboardHarness();
 
-/** Snapshot payload of a known size, so quota math in the test is exact. */
-function snapshot(id: string, bytes: number) {
+/** A snapshot whose body really is about `kb` KB — the store measures it. */
+function snapshot(id: string, kb: number) {
+  const body = "x".repeat(kb * 1024);
   return {
     recordId: `rec-${id}`,
     url: `https://example.com/${id}`,
     title: `Page ${id}`,
-    html: `<p>${id}</p>`,
-    css: "body{}",
-    bytes,
+    html: `<p>${id}</p><p>${body}</p>`,
+    css: "",
   };
 }
 
@@ -22,14 +22,13 @@ function snapshot(id: string, bytes: number) {
 test("snapshot_quota_evicts_the_oldest_and_never_half_writes", async () => {
   // A fresh profile per spec file, so the store starts empty.
   const dash = await harness.open("/highlights");
-  const big = 9 * 1024 * 1024;
   const ids: string[] = [];
   // 8 × 9 MB = 72 MB of the 80 MB budget.
   for (let index = 0; index < 8; index += 1) {
     const result = await send<{ ok: boolean; id?: string; evicted?: string[] }>(
       dash,
       "myz:saveSnapshot",
-      snapshot(`fill-${index}`, big),
+      snapshot(`fill-${index}`, 9 * 1024),
     );
     expect(result.ok).toBe(true);
     expect(result.evicted ?? []).toEqual([]);
@@ -42,7 +41,7 @@ test("snapshot_quota_evicts_the_oldest_and_never_half_writes", async () => {
     id?: string;
     evicted?: string[];
     announceEviction?: boolean;
-  }>(dash, "myz:saveSnapshot", snapshot("ninth", big));
+  }>(dash, "myz:saveSnapshot", snapshot("ninth", 9 * 1024));
 
   expect(ninth.ok).toBe(true);
   expect(ninth.evicted).toContain(ids[0]);
@@ -58,7 +57,7 @@ test("snapshot_quota_evicts_the_oldest_and_never_half_writes", async () => {
     "myz:getSnapshotForRecord",
     { recordId: "rec-ninth" },
   );
-  expect(kept?.bytes).toBe(big);
+  expect(kept?.bytes).toBeGreaterThan(9 * 1024 * 1024);
   expect(kept?.html).toContain("ninth");
 });
 
@@ -70,7 +69,8 @@ test("snapshot_write_failure_is_visible_not_silent", async () => {
     ok: boolean;
     error?: string;
     evicted?: string[];
-  }>(dash, "myz:saveSnapshot", snapshot("too-big", 40 * 1024 * 1024));
+  // ~11 MB body: above the 10 MB single-snapshot cap.
+  }>(dash, "myz:saveSnapshot", snapshot("too-big", 11 * 1024));
   expect(tooBig.ok).toBe(false);
   expect(tooBig.error).toBeTruthy();
   expect(tooBig.evicted ?? []).toEqual([]);
@@ -85,7 +85,7 @@ test("snapshot_write_failure_is_visible_not_silent", async () => {
   const empty = await send<{ ok: boolean; error?: string }>(
     dash,
     "myz:saveSnapshot",
-    { ...snapshot("empty", 10), html: "" },
+    { ...snapshot("empty", 1), html: "" },
   );
   expect(empty.ok).toBe(false);
   expect(empty.error).toContain("正文为空");

@@ -31,18 +31,37 @@ const INLINE_PROPS = [
 ];
 
 const FIXTURES = `${process.cwd()}/myz-annotator/tests/fixtures`;
-const SAMPLES = fs
-  .readFileSync("/tmp/samples.txt", "utf8")
-  .trim()
-  .split("\n")
-  .map((line) => {
-    const [name, file] = line.split(" ");
-    return [name, `file://${file}`];
-  });
-
+/**
+ * Samples: `[label, localFile]`. Pages are fetched with curl first (see
+ * README.md) because the headless browser has no network. Extra pages can be
+ * appended here.
+ */
+const SAMPLES = [
+  ["wikipedia-web-browser", "/tmp/wiki.html"],
+  ["wikipedia-color", "/tmp/s-wiki-color.html"],
+  ["ruanyifeng-287", "/tmp/s-ruanyifeng-287.html"],
+  ["ruanyifeng-283", "/tmp/s-ruanyifeng-283.html"],
+  ["gcores-article", "/tmp/s-gcores.html"],
+  ["sspai-post", "/tmp/s-sspai.html"],
+  [
+    "fixture-zen-code",
+    new URL(
+      "../../myz-annotator/tests/fixtures/zen-code.html",
+      import.meta.url,
+    ).pathname,
+  ],
+  [
+    "fixture-complex",
+    new URL(
+      "../../myz-annotator/tests/fixtures/complex-highlight-test.html",
+      import.meta.url,
+    ).pathname,
+  ],
+];
 const browser = await chromium.launch();
 const results = [];
-for (const [name, url] of SAMPLES) {
+for (const [name, source] of SAMPLES) {
+  const url = /^(?:https?|file):/.test(source) ? source : `file://${source}`;
   const page = await browser.newPage();
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });

@@ -36,7 +36,14 @@ cd <repo>
 node scripts/measure/snapshot-size.mjs
 ```
 
-Edit the `SAMPLES` list in the script for other pages.
+The sample list lives in the script itself (`SAMPLES`, one `[label, path]` per
+line); the fixture pages are resolved relative to the script, so only the four
+`/tmp` downloads need to exist. Add more entries there for other pages.
+
+JS-rendered sites (机核, 少数派) can be downloaded the same way but measure near
+zero in this script: their body only exists after JavaScript runs, and here the
+file is loaded without it. They are kept in the list as evidence of that
+limitation rather than as size samples.
 
 ## The sample and what it does not cover
 
@@ -48,6 +55,9 @@ Edit the `SAMPLES` list in the script for other pages.
 | 阮一峰周刊 283 | 72 KB |
 | Test-site long article | 0.5 KB |
 | Test-site complex structure | 3.4 KB |
+
+The two JS-rendered downloads come out at 2.3 KB and 12.9 KB — far too small to
+be real articles, which is the limitation below showing up in the numbers.
 
 Of the four real articles the median is about **122 KB**.
 

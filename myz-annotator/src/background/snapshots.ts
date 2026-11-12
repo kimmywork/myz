@@ -36,6 +36,12 @@ export class SnapshotWriteError extends Error {
   }
 }
 
+/** UTF-8 size of what is actually stored, not what the caller claims. */
+export function measureSnapshotBytes(html: string, css: string): number {
+  const encoder = new TextEncoder();
+  return encoder.encode(html).length + encoder.encode(css).length;
+}
+
 function toIndex(snapshot: PageSnapshot): PageSnapshotIndex {
   return {
     id: snapshot.id,
@@ -95,15 +101,6 @@ export async function touchSnapshot(id: string): Promise<void> {
   }
 }
 
-async function deleteSnapshots(ids: readonly string[]): Promise<void> {
-  if (!ids.length) return;
-  const db = await getDB();
-  await withStore<void>(db, STORE, "readwrite", (store) => {
-    ids.forEach((id) => store.delete(id));
-    return store.count();
-  });
-}
-
 export interface SaveSnapshotResult {
   saved: PageSnapshot;
   /** Ids evicted to make room; empty when there was room. */
@@ -120,21 +117,27 @@ export interface SaveSnapshotResult {
  */
 export async function saveSnapshot(
   input: Omit<PageSnapshot, "bytes" | "createdAt" | "usedAt"> & {
-    bytes: number;
     createdAt?: string;
     usedAt?: string;
   },
+  limits: { quota?: number; maxBytes?: number } = {},
 ): Promise<SaveSnapshotResult> {
-  if (input.bytes > SNAPSHOT_MAX_BYTES) {
+  const quota = limits.quota ?? SNAPSHOT_QUOTA_BYTES;
+  const maxBytes = limits.maxBytes ?? SNAPSHOT_MAX_BYTES;
+  // Never trust a caller-supplied size: a payload with a small `bytes` and a
+  // large `html` would slip past both the per-snapshot cap and the quota plan
+  // and make the stored usage lie. Measure what is actually being written.
+  const bytes = measureSnapshotBytes(input.html, input.css);
+  if (bytes > maxBytes) {
     throw new SnapshotWriteError(
       "too-large",
-      `快照过大（${Math.round(input.bytes / 1024)} KB）`,
+      `快照过大（${Math.round(bytes / 1024)} KB）`,
     );
   }
 
   const index = await listSnapshotIndex();
   const others = index.filter((entry) => entry.id !== input.id);
-  const plan = planEviction(others, input.bytes, SNAPSHOT_QUOTA_BYTES);
+  const plan = planEviction(others, bytes, quota);
   if (!plan.fits) {
     throw new SnapshotWriteError("no-room", "空间不足，无法保存快照");
   }
@@ -142,19 +145,25 @@ export async function saveSnapshot(
   const now = new Date().toISOString();
   const snapshot: PageSnapshot = {
     ...input,
-    bytes: input.bytes,
+    bytes,
     createdAt: input.createdAt ?? now,
     usedAt: input.usedAt ?? now,
   };
 
   try {
-    // Evict first: the new record is already known to fit afterwards.
-    await deleteSnapshots(plan.evict);
     const db = await getDB();
-    // One put = one record; a failure leaves nothing half-written.
-    await withStore<void>(db, STORE, "readwrite", (store) =>
-      store.put(snapshot),
-    );
+    // Eviction and the new record share one transaction: if the write fails,
+    // the evictions roll back too, so nothing is lost for a snapshot that was
+    // never stored. (A failed put must not cost the user the old pages.)
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      const store = tx.objectStore(STORE);
+      plan.evict.forEach((id) => store.delete(id));
+      store.put(snapshot);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
+    });
   } catch (error) {
     throw new SnapshotWriteError(
       "write-failed",

@@ -23,25 +23,32 @@ export const ViewerSnapshotView = defineComponent({
     const error = ref("");
     /** Only the first load per record needs a spinner. */
     const loadedFor = ref("");
+    /** Monotonic id: a slower earlier load must not overwrite a newer one. */
+    let requestId = 0;
 
     async function load() {
-      if (!props.recordId) return;
-      if (loadedFor.value !== props.recordId) loading.value = true;
+      const recordId = props.recordId;
+      if (!recordId) return;
+      const request = ++requestId;
+      if (loadedFor.value !== recordId) loading.value = true;
       error.value = "";
       try {
         const [found, usage] = await Promise.all([
-          invoke("myz:getSnapshotForRecord", { recordId: props.recordId }),
+          invoke("myz:getSnapshotForRecord", { recordId }),
           invoke("myz:getSnapshotUsage"),
         ]);
+        // Navigating A → B: A's answer arriving late must not replace B's.
+        if (request !== requestId) return;
         snapshot.value = found ?? null;
         statusLine.value = usage?.statusLine ?? "";
-        loadedFor.value = props.recordId;
+        loadedFor.value = recordId;
       } catch (loadError) {
+        if (request !== requestId) return;
         console.warn("Failed to load snapshot", loadError);
         error.value = "快照读取失败";
         snapshot.value = null;
       } finally {
-        loading.value = false;
+        if (request === requestId) loading.value = false;
       }
     }
 

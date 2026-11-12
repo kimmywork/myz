@@ -25,12 +25,12 @@ describe("renderSnapshotBody", () => {
     expect(rendered).toContain("the selected sentence");
   });
 
-  it("normalizes whitespace before matching", () => {
+  it("matches across the snapshot's own spacing", () => {
+    // The page has two spaces and a newline; the record stores one space.
     const html = `<p>the  selected\nsentence</p>`;
     const rendered = highlightSnapshotText(html, "the selected sentence");
-    // The snapshot keeps its own whitespace; the match still happens when the
-    // text is contiguous after collapsing.
-    expect(rendered).toContain("selected");
+    expect(rendered).toContain("<mark");
+    expect(rendered).toContain("the  selected\nsentence");
   });
 
   it("leaves the body alone when the text is not found", () => {

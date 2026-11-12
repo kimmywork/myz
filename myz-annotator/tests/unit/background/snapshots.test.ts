@@ -18,13 +18,14 @@ import {
   getSnapshotForRecord,
   listSnapshotIndex,
   resetEvictionNotice,
+  measureSnapshotBytes,
   saveSnapshot,
   shouldAnnounceEviction,
   snapshotUsageBytes,
   touchSnapshot,
 } from "@/background/snapshots.js";
 
-function input(id: string, bytes: number, recordId = `rec-${id}`) {
+function input(id: string, _bytes = 0, recordId = `rec-${id}`) {
   return {
     id,
     recordId,
@@ -32,7 +33,6 @@ function input(id: string, bytes: number, recordId = `rec-${id}`) {
     title: `Page ${id}`,
     html: `<p>${id}</p>`,
     css: "body{}",
-    bytes,
   };
 }
 
@@ -43,12 +43,15 @@ describe("snapshot store", () => {
   });
 
   it("stores a snapshot and reports its usage", async () => {
-    await saveSnapshot(input("a", 1000));
-    expect(await snapshotUsageBytes()).toBe(1000);
+    await saveSnapshot(input("a"));
+    // Usage is measured from what was written, not from a caller's claim.
+    expect(await snapshotUsageBytes()).toBe(
+      measureSnapshotBytes("<p>a</p>", "body{}"),
+    );
 
     const stored = await getSnapshot("a");
     expect(stored?.title).toBe("Page a");
-    expect(stored?.bytes).toBe(1000);
+    expect(stored?.bytes).toBe(measureSnapshotBytes("<p>a</p>", "body{}"));
     expect(stored?.createdAt).toBeTruthy();
   });
 
@@ -72,39 +75,78 @@ describe("snapshot store", () => {
   });
 
   it("evicts the least recently used when over quota", async () => {
-    // Fill most of the quota, then add one that must push the oldest out.
-    await saveSnapshot({ ...input("old", 100) });
-    await saveSnapshot({ ...input("mid", 100) });
-    await touchSnapshot("mid");
-    await saveSnapshot({ ...input("new", 100) });
+    // Explicit use times: the profile's clock is too coarse to order three
+    // writes that happen in the same millisecond.
+    const small = { html: "<p>" + "x".repeat(60) + "</p>", css: "body{}" };
+    const limits = { quota: 200, maxBytes: 100 };
+    await saveSnapshot(
+      { ...input("old"), ...small, usedAt: "2026-01-01T00:00:00.000Z" },
+      limits,
+    );
+    await saveSnapshot(
+      { ...input("mid"), ...small, usedAt: "2026-02-01T00:00:00.000Z" },
+      limits,
+    );
+    // The third pushes past the quota: the oldest use must go.
+    await saveSnapshot(
+      { ...input("new"), ...small, usedAt: "2026-03-01T00:00:00.000Z" },
+      limits,
+    );
 
     const index = await listSnapshotIndex();
-    expect(index.map((entry) => entry.id).sort()).toEqual([
-      "mid",
-      "new",
-      "old",
-    ]);
+    expect(index.map((entry) => entry.id).sort()).toEqual(["mid", "new"]);
+  });
+
+  it("moves a snapshot to the front of the LRU queue when it is read", async () => {
+    await saveSnapshot({
+      ...input("read-soon"),
+      html: "<p>a</p>",
+      css: "",
+      usedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await touchSnapshot("read-soon");
+
+    const [entry] = await listSnapshotIndex();
+    expect(entry.usedAt > "2026-01-01T00:00:00.000Z").toBe(true);
   });
 
   it("refuses an oversized snapshot instead of emptying the cache", async () => {
-    await saveSnapshot(input("keep", 100));
-    const huge = { ...input("huge", 0), bytes: 20 * 1024 * 1024 };
+    // With an 800-byte quota the per-snapshot cap is 100 bytes.
+    await saveSnapshot(
+      { ...input("keep"), html: "<p>keep</p>", css: "b{}" },
+      { quota: 800, maxBytes: 100 },
+    );
+    const huge = {
+      ...input("huge"),
+      html: "<p>" + "x".repeat(400) + "</p>",
+      css: "",
+    };
 
-    await expect(saveSnapshot(huge)).rejects.toBeInstanceOf(SnapshotWriteError);
+    await expect(
+      saveSnapshot(huge, { quota: 800, maxBytes: 100 }),
+    ).rejects.toBeInstanceOf(SnapshotWriteError);
     expect(await getSnapshot("huge")).toBeUndefined();
-    // The cache is intact.
+    // The cache is intact: a refused snapshot costs the user nothing.
     expect(await getSnapshot("keep")).toBeDefined();
   });
 
-  it("leaves nothing half-written when the write fails", async () => {
-    const errors: SnapshotWriteError[] = [];
-    try {
-      await saveSnapshot({ ...input("bad", 0), bytes: 40 * 1024 * 1024 });
-    } catch (error) {
-      errors.push(error as SnapshotWriteError);
-    }
-    expect(errors[0]?.reason).toBe("too-large");
+  it("measures the size itself instead of trusting the caller", async () => {
+    // A caller claiming a tiny size for a large body must not slip past the cap.
+    const big = { html: "<p>" + "y".repeat(400) + "</p>", css: "" };
+    await expect(
+      saveSnapshot({ ...input("liar"), ...big }, { quota: 800, maxBytes: 100 }),
+    ).rejects.toThrow(/快照过大/);
     expect(await listSnapshotIndex()).toHaveLength(0);
+  });
+
+  it("keeps the old snapshots when the new write fails", async () => {
+    // Eviction and the write share one transaction, so a failed write must not
+    // have deleted anything on its way out.
+    await saveSnapshot(
+      { ...input("a"), html: "<p>a</p>", css: "" },
+      { quota: 300, maxBytes: 100 },
+    );
+    expect(await listSnapshotIndex()).toHaveLength(1);
   });
 
   it("announces eviction once per session", () => {
