@@ -21,7 +21,8 @@
     "./record-codecs": "./src/record-codecs.ts",
     "./changes": "./src/changes.ts",
     "./services/records": "./src/services/records.ts",
-    "./services/inbox": "./src/services/inbox.ts"
+    "./services/inbox": "./src/services/inbox.ts",
+    "./page-snapshot": "./src/page-snapshot.ts"
   },
   "dependencies": {
     "@myz/shared": "*",
