@@ -25,7 +25,9 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const root = process.env.MYZ_ROOT
+  ? resolve(process.env.MYZ_ROOT)
+  : resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const EXTENSION = resolve(root, "myz-annotator/dist");
 const OUT_ROOT = resolve(root, "screenshots/i10");
 
@@ -182,6 +184,20 @@ async function setTheme(page, theme) {
   }, theme);
   await page.waitForFunction(
     (value) => document.documentElement.dataset.theme === value,
+    theme,
+    { timeout: 5000 },
+  );
+  // The attribute flips before the palette has painted: without this the first
+  // shot of a theme can catch a half-applied page (light shell, dark panels).
+  await page.waitForFunction(
+    (value) => {
+      const bg = getComputedStyle(document.body).backgroundColor;
+      if (!bg || bg === "rgba(0, 0, 0, 0)") return false;
+      const dark = /^rgb\((\d+), (\d+), (\d+)\)$/.exec(bg);
+      if (!dark) return true;
+      const luminance = (Number(dark[1]) + Number(dark[2]) + Number(dark[3])) / 3;
+      return value === "dark" ? luminance < 120 : luminance > 120;
+    },
     theme,
     { timeout: 5000 },
   );

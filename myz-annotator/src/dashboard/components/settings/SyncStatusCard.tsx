@@ -1,4 +1,4 @@
-import { SettingsRow } from "@myz/dashboard-ui";
+import { Button, SettingsRow } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
 import type { SyncSectionApi } from "./useSyncSection.js";
@@ -21,7 +21,7 @@ export default defineComponent({
                   {a.hasAccount.value ? "已建立" : "未建立"}
                 </span>
                 {a.hasAccount.value && !a.lastSyncAt.value ? (
-                  <span class="settings__pill settings__pill--info">
+                  <span class="rounded-full border border-info px-2 py-0.5 text-tag uppercase tracking-wide text-info">
                     未完成同步
                   </span>
                 ) : null}
@@ -55,42 +55,33 @@ export default defineComponent({
             </SettingsRow>
           </div>
 
-          <div class="settings__actions">
+          <div class="flex flex-wrap gap-3 border-t border-line pt-3">
             {!a.hasAccount.value ? (
-              <button
-                class="btn btn-primary"
-                type="button"
+              <Button
+                variant="primary"
                 disabled={a.isBusy.value}
                 onClick={() => a.openSetup()}
               >
                 设置同步
-              </button>
+              </Button>
             ) : (
               <>
-                <button
-                  class="btn"
-                  type="button"
-                  disabled={a.isBusy.value}
-                  onClick={a.handleSyncNow}
-                >
+                <Button disabled={a.isBusy.value} onClick={a.handleSyncNow}>
                   立即同步
-                </button>
-                <button
-                  class="btn"
-                  type="button"
+                </Button>
+                <Button
                   disabled={a.isBusy.value}
                   onClick={() => a.openSetup("authorize")}
                 >
                   添加设备
-                </button>
-                <button
-                  class="btn btn-danger"
-                  type="button"
+                </Button>
+                <Button
+                  variant="danger"
                   disabled={a.isBusy.value}
                   onClick={a.handleClearAccount}
                 >
                   解除账号
-                </button>
+                </Button>
               </>
             )}
           </div>
