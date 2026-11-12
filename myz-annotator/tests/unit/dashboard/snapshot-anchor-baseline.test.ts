@@ -140,6 +140,14 @@ function revise(html: string): string {
   return doc.documentElement.outerHTML;
 }
 
+/**
+ * These counts are a **pinned baseline, not arbitrary expectations**.
+ *
+ * They are quoted in the PR and in the plan (§3.4) as the reason the snapshot
+ * view does not match by path. If a number here changes, either the anchor
+ * behaviour or the fixture changed — which means the trade-off in §3.4 has to
+ * be re-evaluated rather than silently inherited.
+ */
 describe("anchor baseline on a 20-record fixture page", () => {
   const html = fs.readFileSync(FIXTURE, "utf8");
   const original = load(html);
@@ -186,6 +194,10 @@ describe("anchor baseline on a 20-record fixture page", () => {
     // a stored copy can offer. The repeated phrase appears twice, so both of
     // its records are honest "unlocated" cases — 18 unique + 2 ambiguous.
     expect(textLevel(records, body)).toEqual({ located: 18, unlocated: 2 });
+    // While the page is untouched every path is also *correct*, so the 11 wrong
+    // landings below come from the revision alone, not from the fixture.
+    expect(counts.path).toBe(20);
+    expect(counts.pathWrong).toBe(0);
 
     console.log(
       "BASELINE_ORIGINAL",
@@ -205,8 +217,11 @@ describe("anchor baseline on a 20-record fixture page", () => {
 
     // Paths do not survive the revision: the stored ranges either fail to
     // resolve or resolve into the moved block, which is exactly the situation
-    // the text level exists for.
-    expect(counts.path).toBeLessThan(20);
+    // the text level exists for. These two numbers are the argument for
+    // skipping the path level entirely (plan §3.4): 19 look like hits while 11
+    // of them land on different text.
+    expect(counts.path).toBe(19);
+    expect(counts.pathWrong).toBe(11);
 
     console.log(
       "BASELINE_REVISED",
