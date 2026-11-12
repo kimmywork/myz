@@ -127,3 +127,36 @@ export function idbDelete(
     store.delete(key),
   )
 }
+
+/**
+ * Runs several writes as one transaction and settles when it commits.
+ *
+ * `withStore` resolves on the request, which is enough for a single put. When
+ * two stores must change together — or when evictions must roll back with a
+ * failed write — the transaction itself is the unit of success.
+ *
+ * @param run Performs the writes; anything thrown aborts the transaction.
+ */
+export function inTransaction(
+  db: IDBDatabase,
+  storeNames: string | string[],
+  mode: IDBTransactionMode,
+  run: (tx: IDBTransaction) => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(storeNames, mode)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"))
+    try {
+      run(tx)
+    } catch (error) {
+      try {
+        tx.abort()
+      } catch {
+        // Already finished; the rejection below still reports the real cause.
+      }
+      reject(error)
+    }
+  })
+}

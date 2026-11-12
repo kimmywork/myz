@@ -72,3 +72,21 @@ export function recordToMarkdown(record: MyZRecord): string {
   const title = record?.title || record?.hostname || "页面"
   return `- **${title}**${tags} ([链接](${link}))\n${quote}${note}`
 }
+
+/**
+ * Local-time `YYYY-MM-DD` key for a timestamp, or `""` when it is missing or
+ * unparseable (so an invalid date never silently buckets into 1970).
+ *
+ * Local, not UTC: date filters and grouping compare against dates the user
+ * picked, which are local.
+ */
+export function localDateKey(value: string | undefined): string {
+  if (!value) return "";
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) return "";
+  const date = new Date(time);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}

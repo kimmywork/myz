@@ -18,7 +18,7 @@ import {
   type PageSnapshotIndex,
 } from "@myz/core/page-snapshot";
 import { canonicalSnapshotUrl } from "@myz/core/snapshot-versions";
-import { withStore } from "@myz/shared/idb";
+import { inTransaction, withStore } from "@myz/shared/idb";
 import { getAllFromStore, getDB } from "./storage.js";
 
 const STORE = "page_snapshots";
@@ -189,14 +189,10 @@ export async function saveSnapshot(
     // Eviction and the new record share one transaction: if the write fails,
     // the evictions roll back too, so nothing is lost for a snapshot that was
     // never stored. (A failed put must not cost the user the old pages.)
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, "readwrite");
+    await inTransaction(db, STORE, "readwrite", (tx) => {
       const store = tx.objectStore(STORE);
       plan.evict.forEach((id) => store.delete(id));
       store.put(snapshot);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
     });
   } catch (error) {
     throw new SnapshotWriteError(
