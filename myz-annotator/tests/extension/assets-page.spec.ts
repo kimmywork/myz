@@ -35,7 +35,21 @@ async function stage(
   });
 }
 
+/** Records survive across tests in one extension context; start clean. */
+async function resetRecords(dash: Page) {
+  const existing = await send<Array<{ id: string }>>(
+    dash,
+    "myz:getAllHighlights",
+  );
+  if (existing.length) {
+    await send(dash, "myz:removeRecordsByIds", {
+      ids: existing.map((record) => record.id),
+    });
+  }
+}
+
 async function openAssets(dash: Page) {
+  await resetRecords(dash);
   await send(dash, "myz:clearStagedAssets");
   await stage(dash, "页面图片", "image");
   await stage(dash, "视频帧", "video-frame");
@@ -175,4 +189,61 @@ test("deleting_a_selected_card_clears_its_selection", async () => {
   // Its row is gone, so it must not stay in the count either.
   await expect(dash.getByTestId("asset-card")).toHaveCount(2);
   await expect(dash.getByTestId("selection-bar")).toHaveCount(0);
+});
+
+test("saves_captures_as_records_with_attachment_and_context", async () => {
+  const dash = await harness.open("/assets");
+  await openAssets(dash);
+
+  const card = dash.getByTestId("asset-card").filter({ hasText: "视频帧" });
+  await card.getByRole("button", { name: "存为记录" }).click();
+  await expect(dash.getByText("已存为 1 条记录")).toBeVisible();
+
+  const records = await send<Array<Record<string, unknown>>>(
+    dash,
+    "myz:getAllHighlights",
+  );
+  const saved = records.find(
+    (record) =>
+      Array.isArray(record.attachments) &&
+      (record.attachments as Array<{ assetId?: string }>).length > 0,
+  );
+  expect(saved).toBeTruthy();
+  const attachments = saved!.attachments as Array<Record<string, unknown>>;
+  expect(attachments).toHaveLength(1);
+  expect(typeof attachments[0].assetId).toBe("string");
+  expect(attachments[0].mime).toBe("image/png");
+  // The record points at the host page, not at the image file.
+  expect(String(saved!.url)).toContain("example.com");
+  // No new schema id or version: the additive-field promise.
+  expect(saved!.schemaVersion).toBe("1.0.0");
+  expect(
+    saved!.schemaId === undefined || saved!.schemaId === "myz.record",
+  ).toBe(true);
+});
+
+test("batch_save_uses_the_shared_context", async () => {
+  const dash = await harness.open("/assets");
+  await openAssets(dash);
+
+  for (const name of ["视频帧", "选区截图"]) {
+    await dash
+      .getByTestId("asset-card")
+      .filter({ hasText: name })
+      .getByTestId("select-asset")
+      .check();
+  }
+  await dash.getByRole("button", { name: "批量存为记录" }).click();
+  await expect(dash.getByText("已存为 2 条记录")).toBeVisible();
+
+  const records = await send<Array<Record<string, unknown>>>(
+    dash,
+    "myz:getAllHighlights",
+  );
+  const saved = records.filter((record) => Array.isArray(record.attachments));
+  expect(saved).toHaveLength(2);
+  // Both captures came from the same page, so the shared context is filled.
+  expect(new Set(saved.map((record) => record.url))).toEqual(
+    new Set(["https://example.com/article"]),
+  );
 });
