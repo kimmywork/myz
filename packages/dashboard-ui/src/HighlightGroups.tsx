@@ -44,6 +44,9 @@ export default defineComponent({
     onAction: Function as PropType<
       (action: HighlightItemAction, record: MyZRecord, event?: MouseEvent) => void
     >,
+    /** Batch selection (§4.31); omitted when the host has no selection. */
+    selectedIds: Object as PropType<ReadonlySet<string>>,
+    onToggleSelect: Function as PropType<(record: MyZRecord) => void>,
     loadingLabel: {
       type: String,
       default: "正在加载…",
@@ -91,6 +94,8 @@ export default defineComponent({
         renderHighlight: props.renderHighlight,
         formatNote: props.formatNote,
         onAction: props.onAction,
+        selected: props.selectedIds?.has(item.id) ?? false,
+        onToggleSelect: props.onToggleSelect,
       })
 
       if (props.view === "list") {

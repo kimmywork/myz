@@ -78,6 +78,14 @@ export interface ProgressStore<P extends ReaderProgressBase> {
   getProgress(sourceKey: string): Promise<P | undefined>;
   /** Reads every progress record, newest first. */
   listProgress(): Promise<P[]>;
+  /**
+   * Removes one document from the reader list: its progress row and the
+   * stored file handle (keyed by fingerprint, not sourceKey). The file on
+   * disk and its highlights are untouched.
+   */
+  removeProgress(sourceKey: string, handleKey?: string): Promise<void>;
+  /** Removes every document from the reader list (progress + file handles). */
+  clearProgress(): Promise<void>;
 }
 
 /**
@@ -114,7 +122,39 @@ export function createProgressStore<P extends ReaderProgressBase>(
       const all = await idbGetAll<P>(await open(), PROGRESS_STORE);
       return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
+    async removeProgress(sourceKey, handleKey) {
+      // One transaction over both stores: either the shortcut is fully gone
+      // (progress row and its handle) or nothing was deleted, so a failure can
+      // be retried instead of leaving an orphan handle behind a "success".
+      await removeInOneTransaction(await open(), (tx) => {
+        tx.objectStore(PROGRESS_STORE).delete(sourceKey);
+        if (handleKey) tx.objectStore(HANDLE_STORE).delete(handleKey);
+      });
+    },
+    async clearProgress() {
+      await removeInOneTransaction(await open(), (tx) => {
+        tx.objectStore(PROGRESS_STORE).clear();
+        tx.objectStore(HANDLE_STORE).clear();
+      });
+    },
   };
+}
+
+/**
+ * Runs a delete over several stores in one transaction and rejects when the
+ * transaction aborts, so a half-done cleanup is never reported as success.
+ */
+function removeInOneTransaction(
+  db: IDBDatabase,
+  run: (tx: IDBTransaction) => void,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([PROGRESS_STORE, HANDLE_STORE], "readwrite");
+    run(tx);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
+  });
 }
 
 /** PDF reader progress store (`myz_pdf_db`). */
@@ -137,6 +177,30 @@ export const readerProgress = {
     return [...pdf, ...epub].sort((a, b) =>
       b.updatedAt.localeCompare(a.updatedAt),
     );
+  },
+  /** Reads one document's saved progress, if any. */
+  async get(
+    kind: "pdf" | "epub",
+    sourceKey: string,
+  ): Promise<ReaderProgress | undefined> {
+    const store = kind === "pdf" ? pdfProgressStore : epubProgressStore;
+    return store.getProgress(sourceKey);
+  },
+  /** Removes one document from the reader list (file and highlights stay). */
+  async remove(
+    kind: "pdf" | "epub",
+    sourceKey: string,
+    handleKey?: string,
+  ): Promise<void> {
+    const store = kind === "pdf" ? pdfProgressStore : epubProgressStore;
+    await store.removeProgress(sourceKey, handleKey);
+  },
+  /** Empties the reader list; the underlying files and highlights stay. */
+  async clear(): Promise<void> {
+    await Promise.all([
+      pdfProgressStore.clearProgress(),
+      epubProgressStore.clearProgress(),
+    ]);
   },
 };
 

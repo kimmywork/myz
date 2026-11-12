@@ -104,7 +104,9 @@ export function useInboxActions(data: InboxData) {
 
   function remove(item: InboxQueueItem) {
     clearUndo();
-    deleteStore.requestDelete([item.record], { reload: () => data.load() });
+    void deleteStore.requestDelete([item.record], {
+      reload: () => data.load(),
+    });
     data.status.value = "已删除";
   }
 
@@ -228,7 +230,7 @@ export function useInboxActions(data: InboxData) {
       data.selected.value.has(item.targetId),
     );
     if (!chosen.length) return;
-    deleteStore.requestDelete(
+    void deleteStore.requestDelete(
       chosen.map((item) => item.record),
       { reload: () => data.load() },
     );

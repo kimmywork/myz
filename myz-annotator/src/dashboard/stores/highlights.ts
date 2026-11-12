@@ -122,6 +122,11 @@ export const useHighlightsStore = defineStore("highlights", () => {
     }
   }
 
+  /** Timed status line for bulk actions (tagging, etc.). */
+  function setOperationStatus(message: string, duration = 3000) {
+    setTimedStatus(operationStatus, message, duration);
+  }
+
   function applyUpdatedRecord(updated: MyZRecord) {
     const normalized = normalizeRecord(updated);
     if (!normalized) {
@@ -157,11 +162,18 @@ export const useHighlightsStore = defineStore("highlights", () => {
     }
   }
 
-  async function handleExport(format: "markdown" | "json") {
+  /** @returns `true` when the file was handed to the downloader. */
+  async function handleExport(
+    format: "markdown" | "json",
+    ids?: readonly string[],
+  ): Promise<boolean> {
     try {
-      const result = await invoke("myz:export");
+      const result = await invoke(
+        "myz:export",
+        ids?.length ? { ids: [...ids] } : {},
+      );
       if (!result) {
-        return;
+        return false;
       }
       if (format === "markdown") {
         downloadFile(
@@ -176,9 +188,11 @@ export const useHighlightsStore = defineStore("highlights", () => {
           `myz-export-${Date.now()}.json`,
         );
       }
+      return true;
     } catch (error) {
       log.error("导出失败", error);
       setTimedStatus(operationStatus, `导出失败：${(error as Error).message}`);
+      return false;
     }
   }
 
@@ -265,6 +279,7 @@ export const useHighlightsStore = defineStore("highlights", () => {
     refreshHighlights,
     copyHighlight,
     downgradeHighlight,
+    setOperationStatus,
     applyUpdatedRecord,
     handleExport,
     importHighlightsFromFile,

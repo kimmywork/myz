@@ -93,8 +93,8 @@ export const useDeleteStore = defineStore("delete", () => {
   function requestDelete(
     records: readonly MyZRecord[],
     options: DeleteRequestOptions = {},
-  ) {
-    if (!records.length) return;
+  ): Promise<boolean> {
+    if (!records.length) return Promise.resolve(false);
     const annotated = records.filter((record) => (record.note || "").trim());
     if (records.length === 1 && annotated.length === 1) {
       pendingRecords.value = [...records];
@@ -107,9 +107,11 @@ export const useDeleteStore = defineStore("delete", () => {
         left: Math.max(8, Math.min(x - 120, window.innerWidth - 248)),
       };
       confirmOpen.value = true;
-      return;
+      // The confirmation path resolves later; the caller only needs not to
+      // re-enter while the popover is open.
+      return Promise.resolve(true);
     }
-    void remove(records, options);
+    return remove(records, options);
   }
 
   /**

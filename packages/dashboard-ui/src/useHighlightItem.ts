@@ -25,6 +25,9 @@ interface HighlightItemProps {
     record: MyZRecord,
     event?: MouseEvent,
   ) => void
+  /** Batch selection (§4.31): checked state and its toggle handler. */
+  selected?: boolean
+  onToggleSelect?: (record: MyZRecord) => void
 }
 
 export const highlightItemProps = {
@@ -51,6 +54,8 @@ export const highlightItemProps = {
   onAction: Function as PropType<
       (action: HighlightItemAction, record: MyZRecord, event?: MouseEvent) => void
     >,
+  selected: { type: Boolean, default: false },
+  onToggleSelect: Function as PropType<(record: MyZRecord) => void>,
 }
 
 export function useHighlightItem(props: HighlightItemProps) {
