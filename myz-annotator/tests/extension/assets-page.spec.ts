@@ -247,3 +247,50 @@ test("batch_save_uses_the_shared_context", async () => {
     new Set(["https://example.com/article"]),
   );
 });
+
+test("record_card_shows_the_attachment_or_the_placeholder", async () => {
+  const dash = await harness.open("/assets");
+  await openAssets(dash);
+
+  const card = dash.getByTestId("asset-card").filter({ hasText: "视频帧" });
+  await card.getByRole("button", { name: "存为记录" }).click();
+  await expect(dash.getByText("已存为 1 条记录")).toBeVisible();
+
+  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights`);
+  await dash.waitForSelector('[data-testid="record-attachment"]');
+
+  const attachment = dash.getByTestId("record-attachment").first();
+  // The badge says what it is, and a video frame carries its position.
+  await expect(attachment).toContainText("视频帧");
+  await expect(attachment.locator("img")).toHaveAttribute(
+    "src",
+    /^data:image\/png/,
+  );
+  await expect(attachment).not.toContainText("图片在本机");
+});
+
+test("record_card_falls_back_when_the_attachment_is_not_on_this_device", async () => {
+  const dash = await harness.open("/assets");
+  await resetRecords(dash);
+
+  // A record synced from another device: it keeps the reference, but this
+  // device has no bytes for it.
+  await send(dash, "myz:saveHighlight", {
+    kind: "clip",
+    text: "synced capture",
+    url: "https://example.com/elsewhere",
+    sourceUrl: "https://example.com/elsewhere",
+    title: "Synced capture",
+    hostname: "example.com",
+    attachments: [
+      { assetId: "asset-not-here", mime: "image/png", width: 10, height: 10 },
+    ],
+  });
+
+  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights`);
+  await dash.waitForSelector('[data-testid="record-attachment"]');
+
+  const attachment = dash.getByTestId("record-attachment").first();
+  await expect(attachment).toContainText("图片在本机");
+  await expect(attachment.locator("img")).toHaveCount(0);
+});

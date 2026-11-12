@@ -45,6 +45,30 @@ export function isStagedAssetKind(value: unknown): value is StagedAssetKind {
   );
 }
 
+/**
+ * What a record card needs to draw an attachment (§I7): a thumbnail, the kind
+ * for the badge, and the video position for the `mm:ss` label.
+ */
+export interface StagedAssetSummary {
+  id: string;
+  thumb: string;
+  sourceKind: StagedAssetKind;
+  /** Video position in seconds, when the capture was a video frame. */
+  timeSeconds?: number;
+  /** Host page title, when the capture recorded one. */
+  pageTitle?: string;
+}
+
+export function toStagedAssetSummary(asset: StagedAsset): StagedAssetSummary {
+  return {
+    id: asset.id,
+    thumb: asset.thumb,
+    sourceKind: asset.sourceKind,
+    timeSeconds: asset.context?.timeSeconds,
+    pageTitle: asset.context?.pageTitle,
+  };
+}
+
 /** Strips the list payload down to its metadata (no `dataUrl`). */
 export function toStagedAssetMeta(asset: StagedAsset): StagedAssetMeta {
   const { dataUrl: _dataUrl, ...meta } = asset;

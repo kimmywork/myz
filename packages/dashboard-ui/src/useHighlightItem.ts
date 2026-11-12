@@ -28,6 +28,18 @@ interface HighlightItemProps {
   /** Batch selection (§4.31): checked state and its toggle handler. */
   selected?: boolean
   onToggleSelect?: (record: MyZRecord) => void
+  /**
+   * Attachment metadata for the card (§I7). Only the first attachment is ever
+   * shown; `undefined` means this device does not have the bytes.
+   */
+  attachment?: RecordAttachmentView
+}
+
+/** What the card can draw for a record's attachment. */
+export interface RecordAttachmentView {
+  thumb: string
+  kindLabel: string
+  timeLabel: string
 }
 
 export const highlightItemProps = {
@@ -56,6 +68,10 @@ export const highlightItemProps = {
     >,
   selected: { type: Boolean, default: false },
   onToggleSelect: Function as PropType<(record: MyZRecord) => void>,
+  attachment: {
+    type: Object as PropType<RecordAttachmentView>,
+    default: undefined,
+  },
 }
 
 export function useHighlightItem(props: HighlightItemProps) {

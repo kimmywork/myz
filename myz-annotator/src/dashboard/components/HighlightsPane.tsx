@@ -15,6 +15,7 @@ import {
   libraryViewKey,
   useLibrarySelection,
 } from "../composables/useLibrarySelection.js";
+import { useRecordAttachments } from "../composables/useRecordAttachments.js";
 import { useDeleteStore } from "../stores/delete.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
@@ -77,6 +78,14 @@ export default defineComponent({
           ),
         );
       },
+    );
+
+    // Attachment thumbnails live in the capture cache, not in the record.
+    const attachments = useRecordAttachments();
+    watch(
+      () => uiStore.visibleHighlights,
+      (records) => void attachments.ensure(records),
+      { immediate: true },
     );
 
     const selectedRecords = computed(() =>
@@ -286,6 +295,7 @@ export default defineComponent({
                 onAction={handleAction}
                 selectedIds={selection.selectedIds.value}
                 onToggleSelect={(record) => selection.toggle(record.id)}
+                attachmentViews={attachments.views.value}
               />
             </div>
           ),

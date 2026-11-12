@@ -13,6 +13,7 @@ import {
   isStagedAssetKind,
   normalizeStagedAsset,
   toStagedAssetMeta,
+  toStagedAssetSummary,
   type NewStagedAsset,
   type StagedAsset,
   type StagedAssetContext,
@@ -129,6 +130,24 @@ export function initializeStagedAssetMessageHandlers() {
     const assets = await stagedAssetStore.list();
     return assets.map(toStagedAssetMeta);
   });
+
+  registerMessageHandler(
+    "myz:getStagedAssetSummaries",
+    async (payload: { ids?: string[] } | undefined) => {
+      const ids = Array.isArray(payload?.ids) ? payload.ids : [];
+      const summaries = await Promise.all(
+        ids.map(async (id) => {
+          const asset = await stagedAssetStore.get(id);
+          const normalized = asset ? normalizeStagedAsset(asset) : null;
+          return normalized ? toStagedAssetSummary(normalized) : null;
+        }),
+      );
+      return summaries.filter(
+        (entry): entry is ReturnType<typeof toStagedAssetSummary> =>
+          entry !== null,
+      );
+    },
+  );
 
   registerMessageHandler(
     "myz:getStagedAsset",

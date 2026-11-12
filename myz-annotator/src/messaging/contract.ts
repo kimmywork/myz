@@ -43,6 +43,7 @@ import type {
   NewStagedAsset,
   StagedAsset,
   StagedAssetMeta,
+  StagedAssetSummary,
 } from "@/stitch/staged-asset.js";
 
 /** Snapshot returned by `myz:getHighlightState`. */
@@ -167,6 +168,15 @@ export type MyzRuntimeMap = {
     result: { id: string };
   };
   "myz:listStagedAssets": { payload: void; result: StagedAssetMeta[] };
+  /**
+   * Read-only batch projection for record cards (§I7): a record only stores
+   * its attachment's `assetId`, so the card needs the thumbnail and kind from
+   * the capture cache. Missing ids are simply absent from the result.
+   */
+  "myz:getStagedAssetSummaries": {
+    payload: { ids: string[] };
+    result: StagedAssetSummary[];
+  };
   "myz:getStagedAsset": {
     payload: { id?: string } | undefined;
     result: StagedAsset | null;
