@@ -1,0 +1,195 @@
+/**
+ * Turning a live page into a snapshot (§I8).
+ *
+ * The body is the article around the record, not the whole document: extending
+ * from the record to both sides reaches the content container's edges, which is
+ * what I9's truncation thresholds will refine later. What ships here is the
+ * structure only — no scripts, no image payloads, no site CSS.
+ *
+ * The extractor is written as pure functions over a `Document` so it can be
+ * tested against fixtures without a running content script.
+ */
+import { ZEN_SELECTOR_MAP } from "../zen-config.js";
+import { SNAPSHOT_CSS } from "./style.js";
+
+/** Elements whose contents are never part of the readable body. */
+const DROP_SELECTORS = [
+  "script",
+  "style",
+  "link",
+  "noscript",
+  "template",
+  "iframe",
+  "object",
+  "embed",
+  "svg",
+  "canvas",
+  "img",
+  "picture",
+  "video",
+  "audio",
+  "form",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "nav",
+  "aside",
+  "footer",
+  "header",
+  "[role='navigation']",
+  "[role='banner']",
+  "[role='complementary']",
+  "[aria-hidden='true']",
+].join(",");
+
+/** Class/id noise that never helps a static render. */
+const NOISE_ATTRIBUTES = ["class", "id", "style", "contenteditable"];
+
+export interface ExtractedSnapshot {
+  html: string;
+  css: string;
+  title: string;
+  url: string;
+  /** Bytes of `html + css` as UTF-8. */
+  bytes: number;
+}
+
+/** Text-per-node score: the readable-body heuristic used across the app. */
+function textDensityScore(element: Element): number {
+  const text = (element.textContent || "").trim().length;
+  if (!text) return 0;
+  return text / Math.max(1, element.querySelectorAll("*").length);
+}
+
+/** The site's configured article container, when a rule matches. */
+function elementFromSiteRules(doc: Document, url: string): Element | null {
+  for (const rule of ZEN_SELECTOR_MAP) {
+    const matches =
+      typeof rule.pattern === "string"
+        ? url.includes(rule.pattern)
+        : rule.pattern.test(url);
+    if (!matches) continue;
+    const found = doc.querySelector(rule.selector);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Best readable container: site rule, then semantic tags, then density. */
+export function findSnapshotRoot(doc: Document, url: string): Element {
+  const bySite = elementFromSiteRules(doc, url);
+  if (bySite) return bySite;
+
+  for (const selector of ["article", "main", "[role='main']"]) {
+    const found = doc.querySelector(selector);
+    if (found && (found.textContent || "").trim().length > 200) return found;
+  }
+
+  const candidates = Array.from(
+    doc.querySelectorAll("article, main, section, div"),
+  ).filter((element) => (element.textContent || "").trim().length > 400);
+  if (!candidates.length) return doc.body;
+  return candidates.sort(
+    (a, b) => textDensityScore(b) - textDensityScore(a),
+  )[0];
+}
+
+/** True when the element still has something worth rendering. */
+function hasContent(element: Element): boolean {
+  if ((element.textContent || "").trim()) return true;
+  // An empty block that is a deliberate separator still matters.
+  return ["HR", "BR", "TD", "TH"].includes(element.tagName);
+}
+
+/** Strips noise attributes from the whole subtree. */
+function cleanAttributes(root: Element): void {
+  root.removeAttribute("class");
+  root.removeAttribute("id");
+  root.removeAttribute("style");
+  for (const element of Array.from(root.querySelectorAll("*"))) {
+    for (const attribute of [
+      ...NOISE_ATTRIBUTES,
+      ...Array.from(element.attributes)
+        .map((entry) => entry.name)
+        .filter(
+          (name) =>
+            name.startsWith("data-") ||
+            name.startsWith("aria-") ||
+            name.startsWith("on"),
+        ),
+    ]) {
+      element.removeAttribute(attribute);
+    }
+  }
+}
+
+/** Byte length of a string as UTF-8, matching what IndexedDB stores. */
+export function byteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/**
+ * Builds the snapshot body from `root`.
+ *
+ * @param root Content container (see {@link findSnapshotRoot}).
+ * @param doc Owner document, for the title.
+ * @param url Page URL.
+ */
+export function buildSnapshotBody(
+  root: Element,
+  doc: Document,
+  url: string,
+): ExtractedSnapshot {
+  const clone = root.cloneNode(true) as Element;
+  clone.querySelectorAll(DROP_SELECTORS).forEach((node) => node.remove());
+  cleanAttributes(clone);
+
+  // Drop wrappers that carry no text or separator after cleaning, bottom-up.
+  const all = Array.from(clone.querySelectorAll("*")).reverse();
+  for (const element of all) {
+    if (!hasContent(element)) element.remove();
+  }
+
+  const html = clone.outerHTML;
+  return {
+    html,
+    css: SNAPSHOT_CSS,
+    title: (doc.title || "").trim(),
+    url,
+    bytes: byteLength(html) + byteLength(SNAPSHOT_CSS),
+  };
+}
+
+/** Convenience: the whole extraction for a live page. */
+export function extractSnapshot(doc: Document, url: string): ExtractedSnapshot {
+  return buildSnapshotBody(findSnapshotRoot(doc, url), doc, url);
+}
+
+/**
+ * The block-level container that holds a record's anchor, so the snapshot can
+ * start from the record rather than from the first paragraph.
+ *
+ * Returns `null` when the anchor cannot be resolved, and the caller falls back
+ * to the whole content root.
+ */
+export function containerAround(
+  doc: Document,
+  anchorText: string | undefined,
+): Element | null {
+  const text = (anchorText || "").trim();
+  if (text.length < 4) return null;
+  const needle = text.slice(0, 80);
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if ((node.textContent || "").includes(needle)) {
+      return (
+        node.parentElement?.closest(
+          "p, li, blockquote, pre, td, h1, h2, h3, h4, h5, h6, section, div",
+        ) ?? null
+      );
+    }
+  }
+  return null;
+}
