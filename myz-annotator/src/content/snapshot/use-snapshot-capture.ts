@@ -34,7 +34,10 @@ export function useSnapshotCapture() {
   const notify = useNotificationStore();
   const saving = ref(false);
 
-  async function save(recordId: string | undefined): Promise<boolean> {
+  async function save(
+    recordId: string | undefined,
+    recordText?: string,
+  ): Promise<boolean> {
     if (saving.value) return false;
     saving.value = true;
     try {
@@ -49,7 +52,9 @@ export function useSnapshotCapture() {
         return false;
       }
 
-      const snapshot = extractSnapshot(document, url);
+      // The record's text anchors the window, so a long page yields the part
+      // around the highlight rather than everything.
+      const snapshot = extractSnapshot(document, url, recordText);
       const result = await invoke("myz:saveSnapshot", {
         recordId,
         url: snapshot.url,

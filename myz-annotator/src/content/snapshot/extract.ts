@@ -11,6 +11,7 @@
  */
 import { ZEN_SELECTOR_MAP } from "../zen-config.js";
 import { SNAPSHOT_CSS } from "./style.js";
+import { childContaining, truncateAround } from "./truncate.js";
 
 /** Elements whose contents are never part of the readable body. */
 const DROP_SELECTORS = [
@@ -140,8 +141,9 @@ export function buildSnapshotBody(
   root: Element,
   doc: Document,
   url: string,
+  anchor: Element | null = null,
 ): ExtractedSnapshot {
-  const clone = root.cloneNode(true) as Element;
+  const clone = truncateAround(root, anchor);
   clone.querySelectorAll(DROP_SELECTORS).forEach((node) => node.remove());
   cleanAttributes(clone);
 
@@ -164,9 +166,32 @@ export function buildSnapshotBody(
   };
 }
 
-/** Convenience: the whole extraction for a live page. */
-export function extractSnapshot(doc: Document, url: string): ExtractedSnapshot {
-  return buildSnapshotBody(findSnapshotRoot(doc, url), doc, url);
+/**
+ * Convenience: the whole extraction for a live page.
+ *
+ * @param anchorText The record's text, when the capture started from one. The
+ *   body is then windows around that anchor instead of the whole container
+ *   (§I9); without it the full container is kept.
+ */
+export function extractSnapshot(
+  doc: Document,
+  url: string,
+  anchorText?: string,
+): ExtractedSnapshot {
+  const root = findSnapshotRoot(doc, url);
+  // `isConnected` is false for a document parsed off the live tree (tests,
+  // fixtures), so containment is the reliable check here.
+  const anchor = doc.contains(root) ? anchorElement(root, anchorText) : null;
+  return buildSnapshotBody(root, doc, url, anchor);
+}
+
+/** The container child holding the record's text, when it can be found. */
+function anchorElement(root: Element, anchorText?: string): Element | null {
+  const owner = root.ownerDocument;
+  if (!owner) return null;
+  const container = containerAround(owner, anchorText);
+  if (!container || !root.contains(container)) return null;
+  return childContaining(root, container);
 }
 
 /**
