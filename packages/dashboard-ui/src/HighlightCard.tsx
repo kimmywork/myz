@@ -42,6 +42,30 @@ export default defineComponent({
 
     return () => (
       <article class={`${cardClasses.value} break-inside-avoid`} data-id={props.record!.id} data-kind={kind.value}>
+        {props.record!.attachments?.length ? (
+          <div class="mb-3" data-testid="record-attachment">
+            {props.attachment ? (
+              <div class="relative">
+                <img
+                  src={props.attachment.thumb}
+                  alt=""
+                  class="h-40 w-full rounded-control border border-line bg-bg object-cover"
+                  draggable={false}
+                />
+                <span class="absolute left-2 top-2 rounded-tag bg-surface px-1.5 text-tag font-semibold text-text">
+                  {props.attachment.kindLabel}
+                  {props.attachment.timeLabel
+                    ? ` · ${props.attachment.timeLabel}`
+                    : ""}
+                </span>
+              </div>
+            ) : (
+              <div class="flex h-24 items-center justify-center rounded-control border border-dashed border-line bg-bg text-caption text-muted">
+                图片在本机
+              </div>
+            )}
+          </div>
+        ) : null}
         <div class="flex items-center justify-between gap-4">
           <div class="flex min-w-0 items-center gap-2">
             {props.onToggleSelect ? (

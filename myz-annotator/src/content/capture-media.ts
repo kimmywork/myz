@@ -44,6 +44,11 @@ export interface StageImageInput {
   name: string;
   sourceKind: StagedAssetKind;
   sourceUrl?: string;
+  /**
+   * Capture-time context (§I7): the video position or the selected text.
+   * Optional — omitting it keeps the staged record exactly as before.
+   */
+  context?: { text?: string; timeSeconds?: number };
   /** Download a copy (default true, preserves the pre-existing behaviour). */
   download?: boolean;
   /** Best-effort system-clipboard copy (default false). */
@@ -116,6 +121,8 @@ export async function captureVideoFrame(srcUrl?: string): Promise<void> {
       name: buildVideoName(src),
       sourceKind: "video-frame",
       sourceUrl: src,
+      // Only the position: the badge shows mm:ss and the deep link adds `?t=`.
+      context: { timeSeconds: video.currentTime },
     });
     notify.notify({ message: "已截取当前视频帧" });
   } catch (error) {
@@ -155,6 +162,7 @@ export async function stageCapturedImage(
       sourceKind: input.sourceKind,
       sourceUrl: input.sourceUrl,
       size: estimateDataUrlBytes(input.dataUrl),
+      context: input.context,
     });
     return result?.id ?? null;
   } catch (error) {

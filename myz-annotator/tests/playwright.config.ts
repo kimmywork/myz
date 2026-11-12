@@ -5,7 +5,12 @@ export default defineConfig({
   // The extension's unit tests live under `tests/unit` and are run by Vitest,
   // not Playwright. Without this, Playwright's default `*.test.ts` match picks
   // them up and fails.
-  testIgnore: ["**/unit/**"],
+  testIgnore: [
+    "**/unit/**",
+    // One-off checks that need a second build (e.g. the pre-I7 extension to
+    // prove an older client keeps a field it does not know). Run by hand.
+    "**/manual/**",
+  ],
   timeout: 30_000,
   expect: { timeout: 5000 },
   fullyParallel: false,

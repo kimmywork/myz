@@ -43,6 +43,7 @@ import type {
   NewStagedAsset,
   StagedAsset,
   StagedAssetMeta,
+  StagedAssetSummary,
 } from "@/stitch/staged-asset.js";
 
 /** Snapshot returned by `myz:getHighlightState`. */
@@ -104,7 +105,15 @@ export type MyzRuntimeMap = {
   /** Omit `ids` to export everything (legacy behaviour); pass a list to export only those records. */
   "myz:export": {
     payload: { ids?: string[] };
-    result: { json: string; markdown: string };
+    result: {
+      json: string;
+      markdown: string;
+      /**
+       * Attachment references are local-only, so an export never contains the
+       * bytes (§I7). This says how many were left behind and which.
+       */
+      attachmentsMissing: { count: number; ids: string[] };
+    };
   };
   "myz:updateBadge": {
     payload: { tabId?: number; count?: number } & Partial<BadgeCount>;
@@ -167,6 +176,15 @@ export type MyzRuntimeMap = {
     result: { id: string };
   };
   "myz:listStagedAssets": { payload: void; result: StagedAssetMeta[] };
+  /**
+   * Read-only batch projection for record cards (§I7): a record only stores
+   * its attachment's `assetId`, so the card needs the thumbnail and kind from
+   * the capture cache. Missing ids are simply absent from the result.
+   */
+  "myz:getStagedAssetSummaries": {
+    payload: { ids: string[] };
+    result: StagedAssetSummary[];
+  };
   "myz:getStagedAsset": {
     payload: { id?: string } | undefined;
     result: StagedAsset | null;

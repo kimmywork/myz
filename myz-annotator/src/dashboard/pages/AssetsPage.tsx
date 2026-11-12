@@ -11,6 +11,7 @@ import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx
 import { useLibrarySelection } from "../composables/useLibrarySelection.js";
 import { formatDateTime } from "../utils/records.js";
 import { AssetPreview } from "./assets/AssetPreview.jsx";
+import { useAssetRecords } from "./assets/use-asset-records.js";
 import {
   lastAssetRemovalFailures,
   useAssetsRemoval,
@@ -44,6 +45,25 @@ export default defineComponent({
     const removal = useAssetsRemoval(async () => {
       await state.reload();
     });
+
+    const status = ref("");
+    const records = useAssetRecords({
+      onSaved: (count) => {
+        status.value = `已存为 ${count} 条记录`;
+      },
+      onPartial: (saved, failed) => {
+        status.value = `已存 ${saved} 条，${failed} 条失败`;
+      },
+      clearSelection: (ids) => selection.clear(ids),
+    });
+
+    async function saveOne(asset: StagedAssetMeta) {
+      await records.save([asset]);
+    }
+
+    async function saveSelected() {
+      await records.save(selected.value);
+    }
 
     const visible = computed(() =>
       state.assets.value.filter(
@@ -133,6 +153,16 @@ export default defineComponent({
                 </p>
               ) : null}
 
+              {status.value ? (
+                <p
+                  class="text-caption text-muted"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {status.value}
+                </p>
+              ) : null}
+
               {selection.count.value > 0 ? (
                 <SelectionBar
                   count={selection.count.value}
@@ -143,13 +173,23 @@ export default defineComponent({
                 >
                   {{
                     actions: () => (
-                      <button
-                        type="button"
-                        class="btn btn-small btn-danger"
-                        onClick={() => void removeSelected()}
-                      >
-                        批量删除
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          class="btn btn-small"
+                          disabled={records.saving.value}
+                          onClick={() => void saveSelected()}
+                        >
+                          批量存为记录
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-small btn-danger"
+                          onClick={() => void removeSelected()}
+                        >
+                          批量删除
+                        </button>
+                      </>
                     ),
                   }}
                 </SelectionBar>
@@ -226,13 +266,23 @@ export default defineComponent({
                           {asset.width}×{asset.height} ·{" "}
                           {formatBytes(asset.size)}
                         </p>
-                        <button
-                          type="button"
-                          class="btn btn-small btn-danger mt-1"
-                          onClick={() => void removeOne(asset)}
-                        >
-                          删除
-                        </button>
+                        <div class="mt-1 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            class="btn btn-small"
+                            disabled={records.saving.value}
+                            onClick={() => void saveOne(asset)}
+                          >
+                            存为记录
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-small btn-danger"
+                            onClick={() => void removeOne(asset)}
+                          >
+                            删除
+                          </button>
+                        </div>
                       </div>
                     </li>
                   ))}

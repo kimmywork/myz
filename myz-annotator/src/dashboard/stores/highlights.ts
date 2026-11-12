@@ -188,6 +188,15 @@ export const useHighlightsStore = defineStore("highlights", () => {
           `myz-export-${Date.now()}.json`,
         );
       }
+      const missing = result.attachmentsMissing;
+      if (missing?.count) {
+        // Do not let the user think the file is complete.
+        setTimedStatus(
+          operationStatus,
+          `已导出；${missing.count} 个附件未包含（仅本机）`,
+          4000,
+        );
+      }
       return true;
     } catch (error) {
       log.error("导出失败", error);

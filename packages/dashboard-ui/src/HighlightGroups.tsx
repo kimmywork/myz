@@ -4,6 +4,7 @@ import type { PropType } from "vue"
 import HighlightCard from "./HighlightCard"
 import HighlightListRow from "./HighlightListRow"
 import type { HighlightGroupSection, HighlightItemAction } from "./highlightMeta"
+import type { RecordAttachmentView } from "./useHighlightItem"
 import StatePanel from "./StatePanel"
 
 /**
@@ -47,6 +48,8 @@ export default defineComponent({
     /** Batch selection (§4.31); omitted when the host has no selection. */
     selectedIds: Object as PropType<ReadonlySet<string>>,
     onToggleSelect: Function as PropType<(record: MyZRecord) => void>,
+    /** Attachment thumbnails by asset id (§I7); absent = show the placeholder. */
+    attachmentViews: Object as PropType<ReadonlyMap<string, RecordAttachmentView>>,
     loadingLabel: {
       type: String,
       default: "正在加载…",
@@ -96,6 +99,9 @@ export default defineComponent({
         onAction: props.onAction,
         selected: props.selectedIds?.has(item.id) ?? false,
         onToggleSelect: props.onToggleSelect,
+        attachment: item.attachments?.[0]?.assetId
+          ? props.attachmentViews?.get(item.attachments[0].assetId)
+          : undefined,
       })
 
       if (props.view === "list") {

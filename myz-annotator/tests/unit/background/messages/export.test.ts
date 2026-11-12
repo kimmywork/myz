@@ -3,6 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const records = [
   { id: "a", text: "A", createdAt: "2026-11-01T00:00:00.000Z", tags: [] },
   { id: "b", text: "B", createdAt: "2026-11-02T00:00:00.000Z", tags: [] },
+  {
+    id: "d",
+    text: "D",
+    createdAt: "2026-11-04T00:00:00.000Z",
+    tags: [],
+    attachments: [{ assetId: "asset-1", mime: "image/png" }],
+  },
+  {
+    id: "c",
+    text: "C",
+    createdAt: "2026-11-03T00:00:00.000Z",
+    tags: [],
+    attachments: [
+      { assetId: "asset-1", mime: "image/png" },
+      { assetId: "asset-2", mime: "image/png" },
+    ],
+  },
 ];
 
 vi.mock("@/background/stores", () => ({ recordsStore: {} }));
@@ -57,8 +74,18 @@ vi.mock("@/messaging/changes", () => ({
 }));
 
 vi.mock("@myz/core/markdown-export", () => ({
-  buildMarkdownExport: (items: Array<{ text?: string }>) =>
-    items.map((item) => item.text ?? "").join("\n"),
+  buildMarkdownExport: (
+    items: Array<{ text?: string }>,
+    missing: { count: number; ids: string[] },
+  ) =>
+    [
+      items.map((item) => item.text ?? "").join("\n"),
+      missing.count
+        ? `${missing.count} 个附件未包含（仅本机）：${missing.ids.join("、")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
 }));
 
 import { handleMessage } from "@/background/messages/handler";
@@ -75,8 +102,25 @@ describe("myz:export contract", () => {
     const result = (await handleMessage("myz:export", {}, ctx)) as {
       json: string;
       markdown: string;
+      attachmentsMissing: { count: number; ids: string[] };
     };
-    expect(JSON.parse(result.json)).toHaveLength(2);
+    expect(JSON.parse(result.json)).toHaveLength(4);
+    // One record carries a local-only attachment.
+    // Every reference is reported, not just the first one on each record.
+    expect(result.attachmentsMissing).toEqual({
+      count: 2,
+      ids: ["asset-1", "asset-2"],
+    });
+    expect(result.markdown).toContain(
+      "2 个附件未包含（仅本机）：asset-1、asset-2",
+    );
+  });
+
+  it("reports no missing attachments when the exported records have none", async () => {
+    const result = (await handleMessage("myz:export", { ids: ["a"] }, ctx)) as {
+      attachmentsMissing: { count: number; ids: string[] };
+    };
+    expect(result.attachmentsMissing).toEqual({ count: 0, ids: [] });
   });
 
   it("exports only the requested ids", async () => {
@@ -97,5 +141,21 @@ describe("myz:export contract", () => {
       ctx,
     )) as { json: string; markdown: string };
     expect(JSON.parse(result.json)).toEqual([]);
+  });
+
+  it("counts one missing file once, even when two records share it", async () => {
+    // A single capture attached to two records is one image the reader will
+    // not get; reporting two would be a wrong number in the export notice.
+    const result = (await handleMessage(
+      "myz:export",
+      { ids: ["c", "d"] },
+      ctx,
+    )) as { attachmentsMissing: { count: number; ids: string[] } };
+    // c references asset-1 and asset-2, d references asset-1: three references
+    // but only two distinct files.
+    expect(result.attachmentsMissing.count).toBe(2);
+    expect(
+      result.attachmentsMissing.ids.filter((id) => id === "asset-1"),
+    ).toHaveLength(1);
   });
 });

@@ -11,6 +11,22 @@
 /** Where a staged asset came from. */
 export type StagedAssetKind = "image" | "video-frame" | "screenshot";
 
+/**
+ * Where a capture sat when it was taken (§I7). Filled in by the capture and
+ * the background, never by the user; every field is optional so a capture that
+ * has nothing extra to say behaves exactly as before.
+ */
+export interface StagedAssetContext {
+  /** Host page URL (the page, not the image/video file). */
+  pageUrl?: string
+  /** Host page title at capture time. */
+  pageTitle?: string
+  /** Selected text, or the nearby paragraph, at capture time. */
+  text?: string
+  /** Video position in seconds, for the `mm:ss` badge and the `?t=` deep link. */
+  timeSeconds?: number
+}
+
 /** Full staged record as persisted by the host. */
 export interface StagedAsset {
   id: string;
@@ -30,6 +46,8 @@ export interface StagedAsset {
   createdAt: string;
   /** Approximate decoded byte size, for display/sorting. */
   size: number;
+  /** Capture-time context (§I7); absent on assets captured before it existed. */
+  context?: StagedAssetContext;
 }
 
 /** List projection: everything except the heavy `dataUrl`. */

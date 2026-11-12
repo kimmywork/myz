@@ -3,6 +3,7 @@ import { CONTENT_TYPES, RECORD_KINDS, SOURCE_TYPES } from "./enums"
 import { hasMarkdown } from "./markdownRenderer"
 import { MyZRecordRegistry } from "./recordRegistry"
 import { MyZRecordSchema } from "./schemas"
+export type { RecordAttachment } from "./schemas"
 import { isRecord } from "./typeUtils"
 import { RECORD_SCHEMA_VERSION, type RecordSchemaVersion } from "./versioning"
 

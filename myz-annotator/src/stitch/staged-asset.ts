@@ -10,6 +10,7 @@
 
 import type {
   StagedAsset,
+  StagedAssetContext,
   StagedAssetKind,
   StagedAssetMeta,
 } from "@myz/core/staged-asset";
@@ -17,6 +18,7 @@ import type {
 export type {
   NewStagedAsset,
   StagedAsset,
+  StagedAssetContext,
   StagedAssetKind,
   StagedAssetMeta,
 } from "@myz/core/staged-asset";
@@ -41,6 +43,30 @@ export function isStagedAssetKind(value: unknown): value is StagedAssetKind {
     typeof value === "string" &&
     (STAGED_ASSET_KINDS as readonly string[]).includes(value)
   );
+}
+
+/**
+ * What a record card needs to draw an attachment (§I7): a thumbnail, the kind
+ * for the badge, and the video position for the `mm:ss` label.
+ */
+export interface StagedAssetSummary {
+  id: string;
+  thumb: string;
+  sourceKind: StagedAssetKind;
+  /** Video position in seconds, when the capture was a video frame. */
+  timeSeconds?: number;
+  /** Host page title, when the capture recorded one. */
+  pageTitle?: string;
+}
+
+export function toStagedAssetSummary(asset: StagedAsset): StagedAssetSummary {
+  return {
+    id: asset.id,
+    thumb: asset.thumb,
+    sourceKind: asset.sourceKind,
+    timeSeconds: asset.context?.timeSeconds,
+    pageTitle: asset.context?.pageTitle,
+  };
 }
 
 /** Strips the list payload down to its metadata (no `dataUrl`). */
@@ -89,7 +115,35 @@ export function normalizeStagedAsset(raw: unknown): StagedAsset | null {
         ? candidate.createdAt
         : new Date().toISOString(),
     size: toPositiveInt(candidate.size),
+    context: normalizeContext(candidate.context),
   };
+}
+
+/**
+ * Keeps only the context fields that carry real information, so a capture that
+ * sent nothing extra stores nothing extra (its record is byte-identical to
+ * the pre-I7 shape).
+ */
+function normalizeContext(raw: unknown): StagedAssetContext | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as StagedAssetContext;
+  const context: StagedAssetContext = {};
+  if (typeof value.pageUrl === "string" && value.pageUrl) {
+    context.pageUrl = value.pageUrl;
+  }
+  if (typeof value.pageTitle === "string" && value.pageTitle) {
+    context.pageTitle = value.pageTitle;
+  }
+  const text = typeof value.text === "string" ? value.text.trim() : "";
+  if (text) context.text = text;
+  if (
+    typeof value.timeSeconds === "number" &&
+    Number.isFinite(value.timeSeconds) &&
+    value.timeSeconds >= 0
+  ) {
+    context.timeSeconds = Math.floor(value.timeSeconds);
+  }
+  return Object.keys(context).length ? context : undefined;
 }
 
 function toPositiveInt(value: unknown): number {

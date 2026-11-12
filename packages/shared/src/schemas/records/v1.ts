@@ -2,6 +2,7 @@ import { z } from "zod"
 import { CONTENT_TYPES, RECORD_KINDS, SOURCE_TYPES } from "../../enums"
 import { RECORD_SCHEMA_VERSION } from "../../versioning"
 import {
+  RecordAttachmentSchema,
   SerializedRangeSchema,
   HighlightStyleSchema,
   PdfLocatorSchema,
@@ -35,6 +36,13 @@ export const MyZRecordSchemaV1 = z
     range: SerializedRangeSchema.optional(),
     url: z.string(),
     unreachable: z.boolean().optional(),
+    /**
+     * Local attachment references (§I7). Optional and additive on purpose: no
+     * new `schemaId`, no version bump. `.passthrough()` keeps the field for a
+     * client that does not know it yet, and the record write path is
+     * `{...existing, ...patch}`, so an older build editing tags keeps it too.
+     */
+    attachments: z.array(RecordAttachmentSchema).optional(),
   })
   .passthrough()
 

@@ -25,6 +25,8 @@ export default defineConfig({
       "tests/spike/**",
       "tests/pdf/**",
       "tests/transport/**",
+      // Hand-run checks that need a second build (see tests/manual).
+      "tests/manual/**",
     ],
   },
 });
