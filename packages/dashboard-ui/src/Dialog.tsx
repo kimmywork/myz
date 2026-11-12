@@ -11,6 +11,69 @@ import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap"
 import { IconClose } from "@myz/shared/icons"
 
 /**
+ * §4.8 landing order for the initial focus. Each step must be **visible and
+ * usable**, otherwise the focus silently stays outside the layer.
+ *
+ * 1. the first usable input — a dialog that asks for something focuses the ask;
+ * 2. the title-bar close button;
+ * 3. the footer's cancel action (any footer button that is not a primary or
+ *    danger one — the initial focus must never be able to submit on Enter);
+ * 4. the dialog container itself, which is why it carries `tabindex="-1"`.
+ */
+export function isUsable(element: HTMLElement): boolean {
+  if (element.hasAttribute("disabled")) return false
+  if (element.getAttribute("aria-disabled") === "true") return false
+  // Walk the ancestors: `display: none` on a parent does not show up in the
+  // child's own computed style, and that is exactly how a hidden dialog body
+  // looks. Layout-free on purpose, so the rule is unit-testable in jsdom.
+  let node: HTMLElement | null = element
+  while (node) {
+    if (node.hasAttribute("hidden")) return false
+    const style = getComputedStyle(node)
+    if (style.display === "none") return false
+    if (style.visibility === "hidden" || style.visibility === "collapse") {
+      return false
+    }
+    node = node.parentElement
+  }
+  return true
+}
+
+export function resolveInitialFocus(layer: HTMLElement): HTMLElement {
+  const usable = isUsable
+
+  const fields = Array.from(
+    layer.querySelectorAll<HTMLElement>(
+      "input:not([type=hidden]), textarea, select",
+    ),
+  )
+  for (const element of fields) {
+    if (usable(element)) return element
+  }
+
+  const close = layer.querySelector<HTMLElement>("[data-dialog-close]")
+  if (close && usable(close)) return close
+
+  const footer = layer.querySelector<HTMLElement>("[data-dialog-footer]")
+  if (footer) {
+    for (const element of Array.from(
+      footer.querySelectorAll<HTMLElement>("button"),
+    )) {
+      if (!usable(element)) continue
+      if (
+        element.classList.contains("btn-primary") ||
+        element.classList.contains("btn-danger")
+      ) {
+        continue
+      }
+      return element
+    }
+  }
+
+  return layer
+}
+
+/**
  * Modal dialog (§4.15 / §4.18).
  *
  * Focus behaviour is **not** re-implemented here: it uses the shared
@@ -23,6 +86,10 @@ import { IconClose } from "@myz/shared/icons"
  * - Tab / Shift+Tab cycle inside it;
  * - Escape closes it;
  * - focus returns to whatever was focused before.
+ *
+ * The landing spot is resolved here and passed to the trap rather than left to
+ * "the first focusable in the DOM": with a hidden X and a footer, that rule
+ * would land on the footer's submit button and let Enter decide for the user.
  *
  * It is presentational: the caller owns `open` and does the closing. Content and
  * footer come through slots so this stays layout, not a page.
@@ -50,6 +117,7 @@ export default defineComponent({
       trap?.deactivate()
       trap = createFocusTrap(layerRef.value, {
         onEscape: () => props.onClose?.(),
+        initialFocus: resolveInitialFocus(layerRef.value),
       })
       trap.activate()
     }
@@ -94,11 +162,12 @@ export default defineComponent({
         >
           <div
             ref={layerRef}
-            class="flex max-h-full flex-col overflow-hidden rounded-panel border border-line bg-surface text-text shadow-float"
+            class="flex max-h-full flex-col overflow-hidden rounded-panel border border-line bg-surface text-text shadow-float focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             style={`width: min(${props.width}px, 100%)`}
             role="dialog"
             aria-modal="true"
             aria-label={props.ariaLabel || props.title || undefined}
+            tabindex="-1"
           >
             {props.title || !props.hideCloseButton ? (
               <header class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
@@ -109,6 +178,7 @@ export default defineComponent({
                   <button
                     type="button"
                     class="rounded-control p-1 text-muted hover:text-text"
+                    data-dialog-close
                     aria-label="关闭"
                     onClick={() => props.onClose?.()}
                   >
@@ -121,7 +191,10 @@ export default defineComponent({
               {slots.default?.()}
             </div>
             {slots.footer ? (
-              <footer class="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+              <footer
+                data-dialog-footer
+                class="flex items-center justify-end gap-2 border-t border-line px-4 py-3"
+              >
                 {slots.footer()}
               </footer>
             ) : null}
