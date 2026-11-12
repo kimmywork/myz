@@ -2,6 +2,7 @@ import type { StagedAssetMeta } from "@myz/core/staged-asset";
 import { computed, ref } from "vue";
 import type { ComputedRef, Ref } from "vue";
 import { invoke } from "@/messaging/invoke.js";
+import { formatAssetSize } from "@/stitch/staged-asset.js";
 
 /** Sort order for the asset grid. */
 export type AssetSort = "newest" | "oldest" | "largest";
@@ -58,18 +59,11 @@ export function useStagedAssets(): StagedAssetsState {
   return { assets, loading, error, usageText, reload, forget };
 }
 
-/** Byte size with one decimal at most, matching the stitch picker's wording. */
+/** Byte size, reusing the stitch picker's formatting. */
 export function formatBytes(bytes: number): string {
-  if (bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  const rendered = Number.isInteger(value) ? String(value) : value.toFixed(1);
-  return `${rendered} ${units[unit]}`;
+  // The picker renders 0 as an em dash; the assets page prefers an explicit
+  // "0 B", which is the only difference between the two.
+  return bytes > 0 ? formatAssetSize(bytes) : "0 B";
 }
 
 /** Human label for a capture kind (matches the stitch picker). */
