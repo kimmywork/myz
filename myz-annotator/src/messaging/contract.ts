@@ -14,6 +14,7 @@
  * both the sender and the handler side.
  */
 import type { ImportStrategy } from "@myz/core/import";
+import type { PageSnapshot } from "@myz/core/page-snapshot";
 import type {
   InboxMarkState,
   InboxRelationState,
@@ -101,6 +102,34 @@ export type MyzRuntimeMap = {
   };
   "myz:listPendingDeletes": { payload: void; result: { ids: string[] } };
   "myz:getAllHighlights": { payload: void; result: MyZRecord[] };
+  /** Stores a page snapshot, evicting least-recently-used ones if needed (§I8). */
+  "myz:saveSnapshot": {
+    payload: {
+      recordId?: string;
+      url: string;
+      title: string;
+      html: string;
+      css: string;
+      bytes: number;
+    };
+    result: {
+      ok: boolean;
+      id?: string;
+      evicted?: string[];
+      /** Present when `ok` is false; shown to the user. */
+      error?: string;
+      /** True the first time this session that something was evicted. */
+      announceEviction?: boolean;
+    };
+  };
+  "myz:getSnapshotForRecord": {
+    payload: { recordId: string };
+    result: PageSnapshot | null;
+  };
+  "myz:getSnapshotUsage": {
+    payload: void;
+    result: { bytes: number; statusLine: string };
+  };
   "myz:getAllTags": { payload: void; result: string[] };
   /** Omit `ids` to export everything (legacy behaviour); pass a list to export only those records. */
   "myz:export": {

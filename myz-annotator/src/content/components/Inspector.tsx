@@ -1,7 +1,7 @@
 import { TagInput } from "@myz/dashboard-ui";
 import ConfirmPopover from "@myz/shared/components/ConfirmPopover";
 import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
-import { IconClose, IconEdit, IconTrash } from "@myz/shared/icons";
+import { IconCamera, IconClose, IconEdit, IconTrash } from "@myz/shared/icons";
 import { storeToRefs } from "pinia";
 import {
   defineComponent,
@@ -13,6 +13,7 @@ import {
   watch,
 } from "vue";
 import { useInspectorDelete } from "../composables/useInspectorDelete.js";
+import { useSnapshotCapture } from "../snapshot/use-snapshot-capture.js";
 import { useInspectorStore } from "@/content/stores/inspector-store.js";
 import { useModalStore } from "@/content/stores/modal-store.js";
 
@@ -26,6 +27,7 @@ export default defineComponent({
   name: "MyZInspector",
   setup() {
     const store = useInspectorStore();
+    const snapshot = useSnapshotCapture();
     const modalStore = useModalStore();
     const { visible, record, inspectorAnchor, noteDraft, tagsDraft, dirty } =
       storeToRefs(store);
@@ -209,6 +211,16 @@ export default defineComponent({
               </button>
             ) : null}
             <div class="myz-inspector__icon-group">
+              <button
+                type="button"
+                class="myz-inspector__icon-btn"
+                aria-label="保存整页快照"
+                title="保存整页快照"
+                disabled={snapshot.saving.value}
+                onClick={() => void snapshot.save(record.value.id ?? undefined)}
+              >
+                <IconCamera size={16} aria-hidden="true" />
+              </button>
               <button
                 type="button"
                 class="myz-inspector__icon-btn myz-inspector__icon-btn--edit"

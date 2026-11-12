@@ -11,6 +11,7 @@ import { initializeHighlightMessageHandlers } from "./background/messages/highli
 import { initializeInboxMessageHandlers } from "./background/messages/inbox.js";
 import { initializeSearchMessageHandlers } from "./background/messages/search.js";
 import { initializeSettingsMessageHandlers } from "./background/messages/settings.js";
+import { initializeSnapshotMessageHandlers } from "./background/messages/snapshots.js";
 import { initializeStagedAssetMessageHandlers } from "./background/messages/staged-assets.js";
 import { initializeSyncMessageHandlers } from "./background/messages/sync.js";
 import { authorizeMessage } from "./background/messages/trustedSender.js";
@@ -202,6 +203,7 @@ initializeInboxMessageHandlers();
 initializeSearchMessageHandlers();
 initializeSettingsMessageHandlers();
 initializeStagedAssetMessageHandlers();
+initializeSnapshotMessageHandlers();
 initializeSyncMessageHandlers();
 initializeSyncScheduler();
 initializeDeleteJournalMessageHandlers();
