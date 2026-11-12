@@ -201,6 +201,10 @@ async function setTheme(page, theme) {
     theme,
     { timeout: 5000 },
   );
+  // Body colour flips before every container has repainted, and a wide layout
+  // has more to repaint. Without this the first shot of a theme can catch a
+  // light shell around dark panels.
+  await page.waitForTimeout(400);
 }
 
 async function shoot(page, surface, width, theme) {
