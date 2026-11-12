@@ -12,6 +12,24 @@ const SerializedPointSchema = z.object({
   offset: z.coerce.number().min(0).optional(),
 })
 
+/**
+ * A local attachment reference (§I7): the capture-cache id plus enough of its
+ * shape to render a card without opening the bytes.
+ *
+ * The bytes never leave this device, so this is a *reference*, not the image:
+ * a record synced to another device keeps the reference and shows a
+ * "图片在本机" placeholder.
+ */
+export const RecordAttachmentSchema = z.object({
+  /** `myz:stageAsset` id in the local capture cache. */
+  assetId: z.string().min(1),
+  mime: z.string().optional(),
+  width: z.coerce.number().min(0).optional(),
+  height: z.coerce.number().min(0).optional(),
+})
+
+export type RecordAttachment = z.infer<typeof RecordAttachmentSchema>
+
 export const SerializedRangeSchema = z.object({
   start: SerializedPointSchema.optional(),
   end: SerializedPointSchema.optional(),
