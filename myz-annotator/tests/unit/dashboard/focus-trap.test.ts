@@ -75,6 +75,86 @@ describe("createFocusTrap", () => {
     host.remove();
   });
 
+  it("keeps Tab inside the inner trap while a parent trap is open", () => {
+    const parent = document.createElement("div");
+    parent.setAttribute("tabindex", "-1");
+    parent.innerHTML = '<button id="p1">p1</button><button id="p2">p2</button>';
+    document.body.append(parent);
+    const child = document.createElement("div");
+    child.setAttribute("tabindex", "-1");
+    child.innerHTML =
+      '<button id="c1">c1</button><button id="c2">c2</button><button id="c3">c3</button>';
+    document.body.append(child);
+
+    const outer = createFocusTrap(parent);
+    outer.activate();
+    const inner = createFocusTrap(child);
+    inner.activate();
+    expect(document.activeElement?.id).toBe("c1");
+
+    // jsdom does not move focus on Tab, so what matters here is WHO handles
+    // it: while the child is innermost the parent must not hijack the key
+    // (which is what made forward Tab bounce between c1 and c1).
+    const mid = tab();
+    expect(mid.defaultPrevented).toBe(false);
+    expect(document.activeElement?.id).toBe("c1");
+
+    // At the child's edges the child wraps, and only the child.
+    document.getElementById("c3")?.focus();
+    tab();
+    expect(document.activeElement?.id).toBe("c1");
+    tab(true);
+    expect(document.activeElement?.id).toBe("c3");
+    expect(parent.contains(document.activeElement)).toBe(false);
+
+    inner.deactivate();
+    expect(parent.contains(document.activeElement)).toBe(true);
+    outer.deactivate();
+    parent.remove();
+    child.remove();
+  });
+
+  it("returns to the parent trap after the inner one closes", () => {
+    const parent = document.createElement("div");
+    parent.setAttribute("tabindex", "-1");
+    parent.innerHTML = '<button id="p1">p1</button><button id="p2">p2</button>';
+    document.body.append(parent);
+    const child = document.createElement("div");
+    child.setAttribute("tabindex", "-1");
+    child.innerHTML = '<button id="c1">c1</button>';
+    document.body.append(child);
+
+    const outer = createFocusTrap(parent);
+    outer.activate();
+    document.getElementById("p2")?.focus();
+    const inner = createFocusTrap(child);
+    inner.activate();
+    inner.deactivate();
+    expect(document.activeElement?.id).toBe("p2");
+    tab();
+    expect(document.activeElement?.id).toBe("p1");
+    outer.deactivate();
+    parent.remove();
+    child.remove();
+  });
+
+  it("skips disabled, fieldset-disabled and hidden controls", () => {
+    const host = document.createElement("div");
+    host.setAttribute("tabindex", "-1");
+    host.innerHTML =
+      '<fieldset disabled><input id="off" /></fieldset>' +
+      '<div hidden><button id="gone">gone</button></div>' +
+      '<button id="only">only</button>';
+    document.body.append(host);
+    const trap = createFocusTrap(host);
+    trap.activate();
+    expect(document.activeElement?.id).toBe("only");
+    tab();
+    expect(document.activeElement?.id).toBe("only");
+    trap.deactivate();
+    host.remove();
+  });
+
   it("returns focus to the previously focused element on deactivate", () => {
     const opener = document.createElement("button");
     opener.id = "opener";

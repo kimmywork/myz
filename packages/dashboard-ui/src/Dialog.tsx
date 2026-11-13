@@ -7,7 +7,11 @@ import {
   watch,
 } from "vue"
 import type { PropType, VNodeChild } from "vue"
-import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap"
+import {
+  createFocusTrap,
+  isUsableFocusTarget,
+  type FocusTrap,
+} from "@myz/shared/focusTrap"
 import { IconClose } from "@myz/shared/icons"
 
 /**
@@ -21,29 +25,12 @@ import { IconClose } from "@myz/shared/icons"
  *    focus must never be able to submit on Enter;
  * 4. the dialog container itself, which is why it carries `tabindex="-1"`.
  */
-export function isUsable(element: HTMLElement): boolean {
-  // `:disabled` also matches a control disabled by an ancestor `<fieldset>`,
-  // which has no `disabled` attribute of its own but cannot take focus.
-  if (element.matches(":disabled")) return false
-  if (element.getAttribute("aria-disabled") === "true") return false
-  // Walk the ancestors: `display: none` on a parent does not show up in the
-  // child's own computed style, and that is exactly how a hidden dialog body
-  // looks. Layout-free on purpose, so the rule is unit-testable in jsdom.
-  let node: HTMLElement | null = element
-  while (node) {
-    if (node.hasAttribute("hidden")) return false
-    const style = getComputedStyle(node)
-    if (style.display === "none") return false
-    if (style.visibility === "hidden" || style.visibility === "collapse") {
-      return false
-    }
-    node = node.parentElement
-  }
-  return true
-}
-
+/**
+ * Landing spot for the initial focus (§4.8). "Usable" is the shared check the
+ * focus trap uses too, so both agree on what can take focus.
+ */
 export function resolveInitialFocus(layer: HTMLElement): HTMLElement {
-  const usable = isUsable
+  const usable = isUsableFocusTarget
 
   const fields = Array.from(
     layer.querySelectorAll<HTMLElement>(

@@ -247,13 +247,16 @@ const MIME = {
  * is still an open port on every interface, not just this machine.
  */
 const server = createServer((request, response) => {
-  const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
-  const file = resolve(FIXTURES, `.${decodeURIComponent(pathname)}`);
-  if (file !== FIXTURES && !file.startsWith(FIXTURES + sep)) {
-    response.writeHead(403).end("forbidden");
-    return;
-  }
+  let file = "";
   try {
+    // `new URL` and `decodeURIComponent` both throw on a malformed request
+    // (e.g. `/%`); an uncaught throw here would kill the whole capture run.
+    const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+    file = resolve(FIXTURES, `.${decodeURIComponent(pathname)}`);
+    if (file !== FIXTURES && !file.startsWith(FIXTURES + sep)) {
+      response.writeHead(403).end("forbidden");
+      return;
+    }
     const body = readFileSync(file);
     response.writeHead(200, {
       "content-type": MIME[pathExtname(file)] ?? "application/octet-stream",

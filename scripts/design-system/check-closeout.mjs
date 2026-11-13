@@ -80,47 +80,52 @@ function fail(check, file, line, detail) {
 }
 
 /**
- * Drops `//` and `/* *\/` comments without touching strings.
- *
- * A plain `line.replace(/\/\/.*$/, "")` eats everything after `https:` in a
- * URL, so a violation on that line was invisible to the checks.
- *
- * Known limit: a `/*` block that spans lines is not tracked, so the lines after
- * it are scanned as code. That can produce a false positive (never a missed
- * violation), and a false positive fails the ratchet loudly rather than
- * passing quietly.
+ * Strips comments without touching strings, keeping block-comment state across
+ * lines. A per-line regex both ate the rest of any line containing `https://`
+ * and treated the body of a multi-line block comment as code — the second one
+ * turns a comment-only edit into a violation, which is a false alarm on a
+ * change that does not touch the product.
  */
-function stripComments(line) {
-  let out = ""
-  let quote = ""
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index]
-    const next = line[index + 1]
-    if (quote) {
-      out += char
-      if (char === "\\") {
-        out += next ?? ""
-        index += 1
-      } else if (char === quote) {
-        quote = ""
+function createCommentStripper() {
+  let inBlock = false
+  return (line) => {
+    let out = ""
+    let quote = ""
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index]
+      const next = line[index + 1]
+      if (inBlock) {
+        const end = line.indexOf("*/", index)
+        if (end < 0) return out
+        inBlock = false
+        index = end + 1
+        continue
       }
-      continue
-    }
-    if (char === '"' || char === "'" || char === "`") {
-      quote = char
+      if (quote) {
+        out += char
+        if (char === "\\") {
+          out += next ?? ""
+          index += 1
+        } else if (char === quote) {
+          quote = ""
+        }
+        continue
+      }
+      if (char === '"' || char === "'" || char === "`") {
+        quote = char
+        out += char
+        continue
+      }
+      if (char === "/" && next === "/") break
+      if (char === "/" && next === "*") {
+        inBlock = true
+        index += 1
+        continue
+      }
       out += char
-      continue
     }
-    if (char === "/" && next === "/") break
-    if (char === "/" && next === "*") {
-      const end = line.indexOf("*/", index + 2)
-      if (end < 0) break
-      index = end + 1
-      continue
-    }
-    out += char
+    return out
   }
-  return out
 }
 
 /** Matches a whole class token, so `btn-link` does not match `btn` twice. */
@@ -145,6 +150,7 @@ const SPACING_EXEMPT = new Set(["1", "2", "3", "5", "6", "10", "18", "22"])
 for (const file of files) {
   const isCss = extname(file) === ".css"
   const lines = readFileSync(file, "utf8").split("\n")
+  const stripComments = createCommentStripper()
 
   lines.forEach((line, index) => {
     const lineNo = index + 1
