@@ -365,13 +365,18 @@ async function seed(page) {
     const first = all[0];
     if (first) {
       // One record with a saved snapshot, so the viewer's second view renders.
-      await send("myz:saveSnapshot", {
+      // This handler reports failure as `{ok: false}` inside the DATA (it does
+      // not reject the envelope), so the send() guard above cannot see it.
+      const snapshot = await send("myz:saveSnapshot", {
         recordId: first.id,
         url: first.url,
         title: first.title,
         html: `<article><p>${first.text}</p><p>快照正文的第二段，用来观察回看时的排版。</p></article>`,
         css: "",
       });
+      if (!snapshot?.ok) {
+        throw new Error(`snapshot seed: ${snapshot?.error ?? "no result"}`);
+      }
     }
 
     // Two shortcuts in the reader progress stores, so the 阅读 page has rows.

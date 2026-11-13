@@ -84,6 +84,11 @@ function fail(check, file, line, detail) {
  *
  * A plain `line.replace(/\/\/.*$/, "")` eats everything after `https:` in a
  * URL, so a violation on that line was invisible to the checks.
+ *
+ * Known limit: a `/*` block that spans lines is not tracked, so the lines after
+ * it are scanned as code. That can produce a false positive (never a missed
+ * violation), and a false positive fails the ratchet loudly rather than
+ * passing quietly.
  */
 function stripComments(line) {
   let out = ""
