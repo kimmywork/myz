@@ -7,7 +7,6 @@ import { createStaticServer } from "../helpers/static-server.js";
 
 const __dirname = dirnameFromImportMeta(import.meta.url);
 
-test.describe.configure({ retries: 1 });
 
 let server: Server;
 let serverUrl: string;
@@ -211,10 +210,19 @@ test("inbox_tag_can_be_dragged_onto_a_record", async () => {
   });
   await workTag.dragTo(targetRow);
 
-  const records = await allHighlights(dash);
-  expect(
-    records.find((record) => (record.text || "").includes("drop target"))?.tags,
-  ).toContain("work");
+  // The drop handler writes through the background message layer, so reading
+  // straight after the drop races the round trip.
+  await expect
+    .poll(
+      () =>
+        allHighlights(dash).then(
+          (records) =>
+            records.find((record) => (record.text || "").includes("drop target"))
+              ?.tags ?? [],
+        ),
+      { message: "the dropped tag reaches the record" },
+    )
+    .toContain("work");
 });
 
 test("inbox_multi_select_drag_tags_all_selected", async () => {
@@ -244,11 +252,19 @@ test("inbox_multi_select_drag_tags_all_selected", async () => {
     .locator('[data-testid="inbox-row"]', { hasText: "multi one" })
     .dragTo(workTag);
 
-  const records = await allHighlights(dash);
+  // Every selected record is tagged through the same async path.
   for (const text of ["multi one", "multi two"]) {
-    expect(
-      records.find((record) => (record.text || "").includes(text))?.tags,
-    ).toContain("work");
+    await expect
+      .poll(
+        () =>
+          allHighlights(dash).then(
+            (records) =>
+              records.find((record) => (record.text || "").includes(text))
+                ?.tags ?? [],
+          ),
+        { message: `the dropped tag reaches "${text}"` },
+      )
+      .toContain("work");
   }
 });
 

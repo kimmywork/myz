@@ -4,6 +4,10 @@ permissions:
   contents: read
 
 on:
+  # Manual dispatch runs the repeat matrix below: ten jobs, retries off. That is
+  # how a "no flakes" claim gets evidence anyone can click, instead of a local
+  # log nobody can check.
+  workflow_dispatch:
   push:
     branches: [ "master" ]
     paths:
@@ -126,6 +130,10 @@ jobs:
         working-directory: myz-annotator
         run: npm run build --if-present
 
+      # 45 MiB is the release gate. Raising it is its own commit with a reason.
+      - name: Check dist size
+        run: node scripts/check-dist-size.mjs
+
       - name: Install Playwright browsers and system deps
         working-directory: myz-annotator
         run: npx playwright install --with-deps chromium
@@ -158,6 +166,49 @@ jobs:
           name: dist
           path: myz-annotator/dist
           retention-days: 3
+
+  # Ten runs with retries OFF, one job each, manually dispatched. This is the
+  # evidence behind "the suite is stable": same environment as a PR, every run
+  # addressable by its own job URL.
+  e2e-no-retries:
+    name: e2e without retries (${{ matrix.run }}/10)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build myz-annotator
+        working-directory: myz-annotator
+        run: npm run build --if-present
+
+      - name: Install Playwright browsers and system deps
+        working-directory: myz-annotator
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests (retries 0)
+        working-directory: myz-annotator
+        run: xvfb-run npx playwright test tests --config=tests/playwright.config.ts --retries=0 --reporter=list
+
+      - name: Upload raw test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-repeat-${{ matrix.run }}
+          path: myz-annotator/test-results
 
   # Nightly pre-release: only on master, only after the tests pass. Version is
   # `<package.json version>.<yyyyMMdd>-<last merged PR>` (e.g. 0.6.6.20261103-105).

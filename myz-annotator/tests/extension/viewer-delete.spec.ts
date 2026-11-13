@@ -20,7 +20,9 @@ async function seed(dash: import("@playwright/test").Page, text: string) {
 }
 
 async function openViewer(dash: import("@playwright/test").Page, id: string) {
-  await dash.goto(`${harness.dashboardUrl()}#/highlights/${id}`);
+  // `navigate` waits for the shell (cold-start budget); the functional wait
+  // below stays tight, so a viewer that boots but renders nothing still fails.
+  await harness.navigate(dash, `/highlights/${id}`);
   await dash.waitForSelector('button:has-text("删除")', { timeout: 8000 });
 }
 
