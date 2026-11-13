@@ -1,5 +1,5 @@
 {
-  "note": "Per-check violation counts for the I10 visual closeout. The ratchet in CI fails when a number goes up; lower it in the same PR that lowers the count. Delete this file (and switch CI to --strict) once every number is 0.",
+  "note": "Per-check violation counts for the I10 visual closeout. CI runs --ratchet: a count may go down, never up. Lowering a number: lower it here in the same PR. RAISING one needs its own commit that says why (a deliberate revert, not a convenience edit) — do not fold it into a feature commit. Delete this file and switch CI to --strict once every number is 0.",
   "total": 98,
   "counts": {
     "A1": 53,
