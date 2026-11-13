@@ -21,6 +21,12 @@ async function seed(dash: import("@playwright/test").Page, text: string) {
 
 async function openViewer(dash: import("@playwright/test").Page, id: string) {
   await dash.goto(`${harness.dashboardUrl()}#/highlights/${id}`);
+  // Two waits on purpose. This is the first navigation of the file, so it pays
+  // the extension's cold start, which measured over 8s once under CI load —
+  // the other two tests in this file then pass in ~0.5s. Boot gets a generous
+  // budget; the functional wait stays tight, so a viewer that boots but never
+  // renders its actions still fails.
+  await dash.waitForSelector(".app-shell", { timeout: 20_000 });
   await dash.waitForSelector('button:has-text("删除")', { timeout: 8000 });
 }
 
