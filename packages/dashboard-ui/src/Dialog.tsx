@@ -16,8 +16,9 @@ import { IconClose } from "@myz/shared/icons"
  *
  * 1. the first usable input — a dialog that asks for something focuses the ask;
  * 2. the title-bar close button;
- * 3. the footer's cancel action (any footer button that is not a primary or
- *    danger one — the initial focus must never be able to submit on Enter);
+ * 3. the footer's cancel action — any footer button that is neither marked
+ *    `data-dialog-primary` nor styled as primary/danger, because the initial
+ *    focus must never be able to submit on Enter;
  * 4. the dialog container itself, which is why it carries `tabindex="-1"`.
  */
 export function isUsable(element: HTMLElement): boolean {
@@ -60,6 +61,9 @@ export function resolveInitialFocus(layer: HTMLElement): HTMLElement {
       footer.querySelectorAll<HTMLElement>("button"),
     )) {
       if (!usable(element)) continue
+      // The attribute is the contract; the variant classes stay as the safety
+      // net so an unmarked primary cannot be picked by accident.
+      if (element.hasAttribute("data-dialog-primary")) continue
       if (
         element.classList.contains("btn-primary") ||
         element.classList.contains("btn-danger")

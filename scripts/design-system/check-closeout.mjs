@@ -17,8 +17,11 @@
  * - default: report only.
  * - `--ratchet`: compare with `closeout-baseline.json` and fail if a check got
  *   worse, or if the total did. This is what CI runs: the pass is not finished,
- *   so absolute zero is not enforce yet, but the number can only go down.
+ *   so absolute zero is not enforced yet, but the number can only go down.
  *   When a check improves, lower its number in the baseline in the same PR.
+ *   `--baseline <path>` points the ratchet at another file. CI passes the copy
+ *   from the BASE branch, otherwise the gate would be self-certifying: edit the
+ *   number in your own branch and the check turns green.
  * - `--strict`: fail on any violation at all (the state once A1/A2 reach 0).
  */
 
@@ -30,6 +33,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const SRC = resolve(root, "myz-annotator/src")
 const strict = process.argv.includes("--strict")
 const ratchet = process.argv.includes("--ratchet")
+const baselineIndex = process.argv.indexOf("--baseline")
+const baselineArg =
+  baselineIndex >= 0 ? process.argv[baselineIndex + 1] : ""
 
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".css"])
 
@@ -186,10 +192,9 @@ const counts = Object.fromEntries(
 )
 
 if (ratchet) {
-  const baselinePath = resolve(
-    dirname(fileURLToPath(import.meta.url)),
-    "closeout-baseline.json",
-  )
+  const baselinePath = baselineArg
+    ? resolve(baselineArg)
+    : resolve(dirname(fileURLToPath(import.meta.url)), "closeout-baseline.json")
   const baseline = JSON.parse(readFileSync(baselinePath, "utf8"))
   const regressions = []
   for (const [check, count] of Object.entries(counts)) {

@@ -63,6 +63,23 @@ describe("resolveInitialFocus", () => {
     expect(resolveInitialFocus(host)).toBe(host);
   });
 
+  it("treats data-dialog-primary as a submit action, whatever its classes", () => {
+    const host = layer(
+      `<div><p>body</p></div><footer data-dialog-footer>` +
+        `<button data-dialog-primary>完成</button>` +
+        `<button class="btn btn-secondary">取消</button></footer>`,
+    );
+    expect(resolveInitialFocus(host).textContent).toBe("取消");
+  });
+
+  it("lands on the container when the only footer action is marked primary", () => {
+    const host = layer(
+      `<div><p>body</p></div><footer data-dialog-footer>` +
+        `<button data-dialog-primary>完成</button></footer>`,
+    );
+    expect(resolveInitialFocus(host)).toBe(host);
+  });
+
   it("still never lands on a submit action when the cancel is hidden", () => {
     const host = layer(
       `<div><p>body</p></div><footer data-dialog-footer>` +

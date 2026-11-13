@@ -78,8 +78,22 @@ jobs:
       # A1/A2 are not at zero yet, so this is a ratchet rather than --strict:
       # the count may go down, never up. Lower closeout-baseline.json in the
       # same PR that lowers a number; switch to --strict when all are zero.
+      #
+      # The ratchet compares against the BASE branch's baseline, not the one in
+      # the PR: comparing with the PR's own copy would be self-certifying, since
+      # editing the number would also turn the check green.
       - name: Visual closeout checks
-        run: npm run check:closeout:ratchet
+        run: |
+          BASE="${{ github.base_ref || 'master' }}"
+          git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
+          if git show "origin/${BASE}:scripts/design-system/closeout-baseline.json" > /tmp/base-closeout-baseline.json 2>/dev/null; then
+            node scripts/design-system/check-closeout.mjs --ratchet --baseline /tmp/base-closeout-baseline.json
+          else
+            # The PR that introduces the baseline cannot be compared yet; from
+            # the next PR on the gate is live.
+            echo "no closeout baseline on origin/${BASE} yet — reporting only"
+            npm run check:closeout
+          fi
 
   build-and-test:
     name: Build and test myz-annotator
