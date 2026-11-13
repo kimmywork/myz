@@ -75,6 +75,12 @@ jobs:
           npm run check:design-tokens
           npm run check:tailwind-keys
 
+      # A1/A2 are not at zero yet, so this is a ratchet rather than --strict:
+      # the count may go down, never up. Lower closeout-baseline.json in the
+      # same PR that lowers a number; switch to --strict when all are zero.
+      - name: Visual closeout checks
+        run: npm run check:closeout:ratchet
+
   build-and-test:
     name: Build and test myz-annotator
     runs-on: ubuntu-latest

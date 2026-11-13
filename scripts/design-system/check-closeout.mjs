@@ -13,8 +13,13 @@
  *
  * Usage: `node scripts/design-system/check-closeout.mjs`
  *
- * It reports by default; `--strict` exits non-zero on any violation (that is
- * what CI will run once the pass lands). Until then the report is the baseline.
+ * Three modes:
+ * - default: report only.
+ * - `--ratchet`: compare with `closeout-baseline.json` and fail if a check got
+ *   worse, or if the total did. This is what CI runs: the pass is not finished,
+ *   so absolute zero is not enforce yet, but the number can only go down.
+ *   When a check improves, lower its number in the baseline in the same PR.
+ * - `--strict`: fail on any violation at all (the state once A1/A2 reach 0).
  */
 
 import { readdirSync, readFileSync, statSync } from "node:fs"
@@ -24,6 +29,7 @@ import { fileURLToPath } from "node:url"
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..")
 const SRC = resolve(root, "myz-annotator/src")
 const strict = process.argv.includes("--strict")
+const ratchet = process.argv.includes("--ratchet")
 
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".css"])
 
@@ -174,6 +180,40 @@ for (const [check, label] of Object.entries(labels)) {
 const total = violations.length
 console.log("")
 console.log(`${total} violation(s) across ${files.length} files`)
+
+const counts = Object.fromEntries(
+  Object.keys(labels).map((check) => [check, (byCheck.get(check) ?? []).length]),
+)
+
+if (ratchet) {
+  const baselinePath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "closeout-baseline.json",
+  )
+  const baseline = JSON.parse(readFileSync(baselinePath, "utf8"))
+  const regressions = []
+  for (const [check, count] of Object.entries(counts)) {
+    const allowed = baseline.counts?.[check] ?? 0
+    if (count > allowed) regressions.push(`${check}: ${allowed} → ${count}`)
+  }
+  if (total > (baseline.total ?? 0)) {
+    regressions.push(`total: ${baseline.total} → ${total}`)
+  }
+  const improved = Object.entries(counts)
+    .filter(([check, count]) => count < (baseline.counts?.[check] ?? 0))
+    .map(([check, count]) => `${check} ${baseline.counts[check]} → ${count}`)
+  if (improved.length) {
+    console.log(
+      `↓ ${improved.join(", ")} — lower the baseline in this PR (${relative(root, baselinePath)})`,
+    )
+  }
+  if (regressions.length) {
+    console.error(`✗ closeout regressions: ${regressions.join("; ")}`)
+    process.exit(1)
+  }
+  console.log("✓ no closeout regressions")
+  process.exit(0)
+}
 
 if (strict && total > 0) {
   console.error("✗ closeout checks failed (--strict)")

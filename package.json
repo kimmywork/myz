@@ -9,6 +9,7 @@
     "check:tailwind-keys": "node scripts/design-system/check-tailwind-keys.mjs",
     "check:version": "node scripts/check-version.mjs",
     "check:closeout": "node scripts/design-system/check-closeout.mjs",
+    "check:closeout:ratchet": "node scripts/design-system/check-closeout.mjs --ratchet",
     "check:closeout:strict": "node scripts/design-system/check-closeout.mjs --strict"
   },
   "workspaces": [
