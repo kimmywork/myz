@@ -19,7 +19,7 @@
 import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
-import { extname as pathExtname, join } from "node:path";
+import { extname as pathExtname, join, sep } from "node:path";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -66,9 +66,21 @@ const MIME = {
   ".js": "text/javascript; charset=utf-8",
 };
 
-/** Tiny static server, only so the content script has a real page to run on. */
+/**
+ * Tiny static server, only so the content script has a real page to run on.
+ *
+ * It serves the fixture directory and nothing else: the path is resolved and
+ * then checked to still be inside `FIXTURES`, so `GET /../../../.env` is a 403
+ * rather than a file read. It also binds to loopback only — an ephemeral port
+ * is still an open port on every interface, not just this machine.
+ */
 const server = createServer((request, response) => {
-  const file = resolve(FIXTURES, `.${request.url ?? "/"}`.split("?")[0]);
+  const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+  const file = resolve(FIXTURES, `.${decodeURIComponent(pathname)}`);
+  if (file !== FIXTURES && !file.startsWith(FIXTURES + sep)) {
+    response.writeHead(403).end("forbidden");
+    return;
+  }
   try {
     const body = readFileSync(file);
     response.writeHead(200, {
@@ -79,7 +91,7 @@ const server = createServer((request, response) => {
     response.writeHead(404).end("not found");
   }
 });
-await new Promise((resolve) => server.listen(0, resolve));
+await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const fixtureUrl = `http://127.0.0.1:${server.address().port}`;
 
 const userDataDir = mkdtempSync(resolve(tmpdir(), "myz-shots-"));
@@ -117,11 +129,26 @@ const dashboard = (hash) => `${base}/src/dashboard/index.html#${hash}`;
 /** Seeds records, captures and reading progress so the pages are not empty. */
 async function seed(page) {
   await page.evaluate(async () => {
+    // A handler can fail with `{ok: false, error}`; swallowing that would let
+    // the run continue and photograph empty pages, which is how a fake
+    // "identical" comparison gets made.
     const send = (type, payload) =>
-      new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type, payload }, (response) =>
-          resolve(response?.data),
-        );
+      new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type, payload }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(`${type}: ${chrome.runtime.lastError.message}`));
+            return;
+          }
+          if (!response) {
+            reject(new Error(`${type}: no response from the message layer`));
+            return;
+          }
+          if (response.ok === false) {
+            reject(new Error(`${type}: ${response.error ?? "failed"}`));
+            return;
+          }
+          resolve(response.data);
+        });
       });
 
     const now = Date.now();
@@ -167,7 +194,12 @@ async function seed(page) {
     }
 
     const all = await send("myz:getAllHighlights", undefined);
-    const first = Array.isArray(all) ? all[0] : null;
+    if (!Array.isArray(all) || all.length < records.length) {
+      throw new Error(
+        `seeded ${records.length} records but the store has ${Array.isArray(all) ? all.length : "none"}`,
+      );
+    }
+    const first = all[0];
     if (first) {
       // One record with a saved snapshot, so the viewer's second view renders.
       await send("myz:saveSnapshot", {
@@ -219,6 +251,17 @@ async function seed(page) {
       fingerprint: "fp-pdf",
       updatedAt: new Date(stamp).toISOString(),
     });
+    const progressCount = async (dbName) => {
+      const db = await openDb(dbName);
+      const count = await new Promise((resolve, reject) => {
+        const tx = db.transaction("progress", "readonly");
+        const request = tx.objectStore("progress").count();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+      return count;
+    };
     await putProgress("myz_epub_db", {
       sourceKey: "myz-epub:local:fp-epub",
       sourceType: "epub",
@@ -228,6 +271,11 @@ async function seed(page) {
       fingerprint: "fp-epub",
       updatedAt: new Date(stamp - 60_000).toISOString(),
     });
+
+    for (const dbName of ["myz_pdf_db", "myz_epub_db"]) {
+      const count = await progressCount(dbName);
+      if (count < 1) throw new Error(`no reading progress landed in ${dbName}`);
+    }
   });
 }
 
