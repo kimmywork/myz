@@ -138,6 +138,44 @@ describe("createFocusTrap", () => {
     child.remove();
   });
 
+  it("does not restore focus when a parent trap closes under an open child", () => {
+    const opener = document.createElement("button");
+    opener.id = "opener";
+    document.body.append(opener);
+    opener.focus();
+    const parent = document.createElement("div");
+    parent.setAttribute("tabindex", "-1");
+    parent.innerHTML = '<button id="p1">p1</button>';
+    document.body.append(parent);
+    const child = document.createElement("div");
+    child.setAttribute("tabindex", "-1");
+    child.innerHTML = '<button id="c1">c1</button><button id="c2">c2</button>';
+    document.body.append(child);
+
+    const outer = createFocusTrap(parent);
+    outer.activate();
+    const inner = createFocusTrap(child);
+    inner.activate();
+    expect(document.activeElement?.id).toBe("c1");
+
+    // The parent closes while the child is still on screen: focus must stay in
+    // the child, not jump to the element that opened the parent.
+    outer.deactivate();
+    expect(document.activeElement?.id).toBe("c1");
+    // And the child is still the trap handling keys: Tab wraps at its edge.
+    document.getElementById("c2")?.focus();
+    tab();
+    expect(document.activeElement?.id).toBe("c1");
+
+    // Closing the child returns focus to where it was before the child opened,
+    // which is the parent's control — not all the way back to the page.
+    inner.deactivate();
+    expect(document.activeElement?.id).toBe("p1");
+    parent.remove();
+    child.remove();
+    opener.remove();
+  });
+
   it("skips disabled, fieldset-disabled and hidden controls", () => {
     const host = document.createElement("div");
     host.setAttribute("tabindex", "-1");

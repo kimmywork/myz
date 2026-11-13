@@ -116,9 +116,12 @@ export function createFocusTrap(
     },
     deactivate() {
       document.removeEventListener("keydown", onKeydown, true)
+      const wasInnermost = isInnermost()
       const index = trapStack.indexOf(self)
       if (index >= 0) trapStack.splice(index, 1)
-      previouslyFocused?.focus?.()
+      // Closing a layer that still has one above it must not hand focus back:
+      // that would yank it out of the layer the user is looking at.
+      if (wasInnermost) previouslyFocused?.focus?.()
       previouslyFocused = null
     },
   }

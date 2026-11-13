@@ -153,6 +153,13 @@ function compare(beforeName, afterName) {
       problems.push(`${label}: no ${MANIFEST} in ${dir} — re-shoot that phase`);
       continue;
     }
+    // A build made from a dirty tree has no commit to pin the images to, so
+    // "before" and "after" could be the same source and nothing would say so.
+    if (manifest.source?.dirty) {
+      problems.push(
+        `${label}: shot from a dirty tree — commit and rebuild before comparing`,
+      );
+    }
     const commits = new Set(Object.values(manifest.images).map((i) => i.commit));
     if (commits.size > 1) {
       problems.push(
