@@ -79,6 +79,45 @@ function fail(check, file, line, detail) {
   })
 }
 
+/**
+ * Drops `//` and `/* *\/` comments without touching strings.
+ *
+ * A plain `line.replace(/\/\/.*$/, "")` eats everything after `https:` in a
+ * URL, so a violation on that line was invisible to the checks.
+ */
+function stripComments(line) {
+  let out = ""
+  let quote = ""
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+    const next = line[index + 1]
+    if (quote) {
+      out += char
+      if (char === "\\") {
+        out += next ?? ""
+        index += 1
+      } else if (char === quote) {
+        quote = ""
+      }
+      continue
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char
+      out += char
+      continue
+    }
+    if (char === "/" && next === "/") break
+    if (char === "/" && next === "*") {
+      const end = line.indexOf("*/", index + 2)
+      if (end < 0) break
+      index = end + 1
+      continue
+    }
+    out += char
+  }
+  return out
+}
+
 /** Matches a whole class token, so `btn-link` does not match `btn` twice. */
 function tokenMatches(source, token) {
   const re = new RegExp(`(?<![\\w-])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`)
@@ -105,7 +144,7 @@ for (const file of files) {
   lines.forEach((line, index) => {
     const lineNo = index + 1
     // Comments are not usage.
-    const code = line.replace(/\/\/.*$/, "").replace(/\/\*.*?\*\//g, "")
+    const code = stripComments(line)
 
     // A1: the dashboard button classes are a transitional primitive.
     if (!isCss && /\bclass(?:Name)?=/.test(code)) {
@@ -146,10 +185,11 @@ for (const file of files) {
     // are where token values themselves are defined. Banning hex there would be
     // a rule with no meaning.
     if (!isCss && isUiSurface(file) && /#[0-9a-fA-F]{3,8}\b/.test(code)) {
-      // Inline SVG strokes and the palette picker legitimately carry colours;
-      // everything else should read a token.
+      // Inline SVG strokes and the palette itself legitimately carry colours;
+      // everything else should read a token. Matching `color` anywhere made
+      // `style={{ color: "#123456" }}` pass as "palette".
       const isSvg = /stroke=|fill=/.test(code)
-      const isPalette = /palette|PALETTE|color/i.test(code)
+      const isPalette = /palette|colorPalette|SWATCHES/i.test(code)
       if (!isSvg && !isPalette) {
         fail("A7", file, lineNo, "raw hex colour")
       }
@@ -196,21 +236,32 @@ if (ratchet) {
     ? resolve(baselineArg)
     : resolve(dirname(fileURLToPath(import.meta.url)), "closeout-baseline.json")
   const baseline = JSON.parse(readFileSync(baselinePath, "utf8"))
+  // Against the base branch only regressions matter: a PR may improve without
+  // touching the file, and CI runs this mode with `--baseline origin/<base>`.
+  // Against the repo's own file the numbers must match exactly, otherwise an
+  // improvement leaves headroom that a later change can quietly spend.
+  const authoritative = !baselineArg
   const regressions = []
+  const stale = []
   for (const [check, count] of Object.entries(counts)) {
     const allowed = baseline.counts?.[check] ?? 0
     if (count > allowed) regressions.push(`${check}: ${allowed} → ${count}`)
+    else if (authoritative && count < allowed) {
+      stale.push(`${check}: ${allowed} → ${count}`)
+    }
   }
   if (total > (baseline.total ?? 0)) {
     regressions.push(`total: ${baseline.total} → ${total}`)
+  } else if (authoritative && total < (baseline.total ?? 0)) {
+    stale.push(`total: ${baseline.total} → ${total}`)
   }
-  const improved = Object.entries(counts)
-    .filter(([check, count]) => count < (baseline.counts?.[check] ?? 0))
-    .map(([check, count]) => `${check} ${baseline.counts[check]} → ${count}`)
-  if (improved.length) {
-    console.log(
-      `↓ ${improved.join(", ")} — lower the baseline in this PR (${relative(root, baselinePath)})`,
+  if (stale.length) {
+    console.error(
+      `✗ baseline is higher than the code: ${stale.join("; ")} — ` +
+        `lower it in ${relative(root, baselinePath)} in this change, ` +
+        `so the next change cannot spend the slack`,
     )
+    process.exit(1)
   }
   if (regressions.length) {
     console.error(`✗ closeout regressions: ${regressions.join("; ")}`)

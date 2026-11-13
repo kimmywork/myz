@@ -86,6 +86,10 @@ jobs:
         run: |
           BASE="${{ github.base_ref || 'master' }}"
           git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
+          # Own file first: the numbers must match it exactly, so an improvement
+          # has to lower the baseline in the same change instead of leaving
+          # slack for the next one.
+          node scripts/design-system/check-closeout.mjs --ratchet
           if git show "origin/${BASE}:scripts/design-system/closeout-baseline.json" > /tmp/base-closeout-baseline.json 2>/dev/null; then
             node scripts/design-system/check-closeout.mjs --ratchet --baseline /tmp/base-closeout-baseline.json
           else
