@@ -87,7 +87,9 @@ export default defineComponent({
             "aria-disabled": props.disabled ? "true" : undefined,
             "aria-label": props.ariaLabel || undefined,
             rel: "noreferrer",
-            onClick: props.onClick,
+            // Without href the anchor is inert for navigation, but a click
+            // handler would still run; a disabled action must do nothing.
+            onClick: props.disabled ? undefined : props.onClick,
           },
           slots.default?.(),
         )

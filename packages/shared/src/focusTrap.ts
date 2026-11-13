@@ -51,6 +51,14 @@ export function createFocusTrap(
     const last = items[items.length - 1]
     const active = (container.getRootNode() as Document | ShadowRoot)
       .activeElement as HTMLElement | null
+    // The dialog's last-resort landing spot is the container itself, which is
+    // focusable but deliberately not part of the cycle. Tab from there must
+    // still enter the layer instead of walking into the background.
+    if (items.indexOf(active as HTMLElement) < 0) {
+      event.preventDefault()
+      ;(event.shiftKey ? last : first).focus()
+      return
+    }
     if (event.shiftKey && active === first) {
       event.preventDefault()
       last.focus()

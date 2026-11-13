@@ -22,7 +22,9 @@ import { IconClose } from "@myz/shared/icons"
  * 4. the dialog container itself, which is why it carries `tabindex="-1"`.
  */
 export function isUsable(element: HTMLElement): boolean {
-  if (element.hasAttribute("disabled")) return false
+  // `:disabled` also matches a control disabled by an ancestor `<fieldset>`,
+  // which has no `disabled` attribute of its own but cannot take focus.
+  if (element.matches(":disabled")) return false
   if (element.getAttribute("aria-disabled") === "true") return false
   // Walk the ancestors: `display: none` on a parent does not show up in the
   // child's own computed style, and that is exactly how a hidden dialog body

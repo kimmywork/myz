@@ -40,6 +40,14 @@ describe("resolveInitialFocus", () => {
     expect(resolveInitialFocus(host).id).toBe("b");
   });
 
+  it("skips an input disabled by an ancestor fieldset", () => {
+    const host = layer(
+      `${closeButton}<fieldset disabled><input id="a" /></fieldset>` +
+        `<div><input id="b" /></div>`,
+    );
+    expect(resolveInitialFocus(host).id).toBe("b");
+  });
+
   it("falls back to the close button when there is no input", () => {
     const host = layer(`${closeButton}<p>body</p>`);
     expect(resolveInitialFocus(host).getAttribute("aria-label")).toBe("关闭");
