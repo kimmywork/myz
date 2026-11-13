@@ -88,8 +88,18 @@ test("assets_page_previews_the_full_image", async () => {
     /^data:image\/png/,
   );
 
+  // One exit: the title-bar X. A display-only dialog has no footer (§4.8).
+  const dialog = dash.getByRole("dialog");
+  await expect(dialog.locator("footer")).toHaveCount(0);
+  const closeButton = dialog.getByRole("button", { name: "关闭" });
+  await expect(closeButton).toBeFocused();
+  await dash.keyboard.press("Tab");
+  await expect(closeButton).toBeFocused();
+
+  // Escape closes, and focus goes back to the thumbnail that opened it.
   await dash.keyboard.press("Escape");
   await expect(preview).toHaveCount(0);
+  await expect(dash.getByRole("button", { name: "预览 视频帧" })).toBeFocused();
 });
 
 test("assets_batch_delete_can_be_undone", async () => {

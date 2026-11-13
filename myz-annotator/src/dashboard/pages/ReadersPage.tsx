@@ -1,4 +1,10 @@
-import { StatePanel, UndoBar } from "@myz/dashboard-ui";
+import {
+  Button,
+  ListRow,
+  StatePanel,
+  StatusPill,
+  UndoBar,
+} from "@myz/dashboard-ui";
 import { confirmDestructive } from "@myz/shared/dialogs";
 import {
   computed,
@@ -188,14 +194,14 @@ export default defineComponent({
                 最近打开的本地 PDF / EPUB，继续上次的位置。
               </p>
             </div>
-            <button
-              type="button"
-              class="btn btn-small btn-danger"
+            <Button
+              variant="danger"
+              size="sm"
               disabled={clearing.value || !visibleDocuments.value.length}
               onClick={() => void clearHistory()}
             >
               清空历史
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -224,46 +230,51 @@ export default defineComponent({
           {loading.value ? (
             <StatePanel kind="loading" title="正在读取…" />
           ) : visibleDocuments.value.length ? (
-            <ul class="space-y-3">
-              {visibleDocuments.value.map((entry) => (
-                <li
-                  key={entry.key}
-                  class="settings__list-item flex items-center justify-between gap-4"
-                  data-testid="reader-row"
-                >
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="settings__pill settings__pill--accent">
-                        {entry.kind.toUpperCase()}
-                      </span>
-                      <span
-                        class="truncate font-semibold text-text"
-                        title={entry.title}
-                      >
-                        {entry.title}
-                      </span>
-                    </div>
-                    <p class="mt-1 text-caption text-muted">{entry.meta}</p>
-                  </div>
-                  <div class="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      class="btn btn-small"
-                      onClick={() => void removal.remove(entry)}
-                    >
-                      从列表移除
-                    </button>
-                    <button
-                      type="button"
-                      class="btn"
-                      disabled={busyKey.value === entry.key}
-                      onClick={() => void open(entry)}
-                    >
-                      {busyKey.value === entry.key ? "打开中…" : "继续阅读"}
-                    </button>
-                  </div>
-                </li>
-              ))}
+            <ul
+              class="overflow-hidden rounded-panel border border-line bg-surface"
+              role="list"
+            >
+              {visibleDocuments.value.map((entry) => {
+                const busy = busyKey.value === entry.key;
+                return (
+                  <ListRow
+                    key={entry.key}
+                    title={entry.title}
+                    meta={entry.meta}
+                    tone="neutral"
+                    disabled={busy}
+                    onOpen={() => void open(entry)}
+                    data-testid="reader-row"
+                  >
+                    {{
+                      badges: () => (
+                        <StatusPill
+                          label={entry.kind.toUpperCase()}
+                          tone="tag"
+                          size="row"
+                        />
+                      ),
+                      actions: () => (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => void removal.remove(entry)}
+                          >
+                            从列表移除
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => void open(entry)}
+                          >
+                            {busy ? "打开中…" : "继续阅读"}
+                          </Button>
+                        </>
+                      ),
+                    }}
+                  </ListRow>
+                );
+              })}
             </ul>
           ) : (
             <StatePanel

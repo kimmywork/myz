@@ -39,14 +39,14 @@ export default defineComponent({
         >
           <div class="flex flex-wrap items-center justify-between gap-2 text-caption text-muted">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="inline-flex h-[22px] items-center rounded-tag bg-tag-bg px-2 text-tag font-semibold uppercase tracking-wide text-tag-fg">
+              <span class="inline-flex h-[18px] items-center rounded-tag bg-tag-bg px-2 text-tag font-semibold uppercase tracking-wide text-tag-fg">
                 {getRecordKindLabel(item)}
               </span>
               {(item.tags || []).length
                 ? (item.tags || []).map((tag) => (
                     <span
                       key={tag}
-                      class="inline-flex h-[22px] items-center rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
+                      class="inline-flex h-[18px] items-center rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
                     >
                       {tag}
                     </span>

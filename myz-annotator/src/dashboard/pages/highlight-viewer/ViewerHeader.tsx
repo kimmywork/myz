@@ -1,3 +1,4 @@
+import { Button } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
 import { useDeleteStore } from "../../stores/delete.js";
@@ -54,18 +55,16 @@ export default defineComponent({
             </div>
           </div>
           <div class="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              class="btn btn-secondary"
+            <Button
+              variant="secondary"
               onClick={() =>
                 a.editing.value ? a.stopEditing() : a.startEditing()
               }
             >
               {a.editing.value ? "取消编辑" : "编辑"}
-            </button>
-            <button
-              type="button"
-              class="btn btn-danger"
+            </Button>
+            <Button
+              variant="danger"
               onClick={(event: MouseEvent) => {
                 const record = a.record.value;
                 if (!record) return;
@@ -81,7 +80,7 @@ export default defineComponent({
               }}
             >
               删除
-            </button>
+            </Button>
             <div
               class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"
               role="group"

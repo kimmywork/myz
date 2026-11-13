@@ -1,4 +1,4 @@
-import { TagInput } from "@myz/dashboard-ui";
+import { Button, TagInput } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
 import type { HighlightViewerApi } from "./useHighlightViewer.js";
@@ -41,22 +41,16 @@ export default defineComponent({
                 {a.saveError.value}
               </span>
             ) : null}
-            <button
-              type="button"
-              class="btn"
-              disabled={a.saving.value}
-              onClick={a.stopEditing}
-            >
+            <Button disabled={a.saving.value} onClick={a.stopEditing}>
               取消
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary"
+            </Button>
+            <Button
+              variant="primary"
               disabled={a.saving.value}
               onClick={() => void a.saveEditing()}
             >
               {a.saving.value ? "保存中…" : "保存"}
-            </button>
+            </Button>
           </div>
         </div>
       );

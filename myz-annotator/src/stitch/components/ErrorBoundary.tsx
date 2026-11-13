@@ -34,7 +34,7 @@ export default defineComponent({
             <div class="crash-actions">
               <button
                 type="button"
-                class="btn btn-primary"
+                class="stitch-btn stitch-btn-primary"
                 onClick={() => {
                   error.value = null;
                   attempt.value += 1;
@@ -44,7 +44,7 @@ export default defineComponent({
               </button>
               <button
                 type="button"
-                class="btn"
+                class="stitch-btn"
                 onClick={() => window.location.reload()}
               >
                 刷新页面

@@ -153,9 +153,11 @@ test("readers_page_lists_recent_local_documents", async () => {
     window.location.hash = "#/readers";
   });
   await expect(dash.getByRole("heading", { name: "阅读" })).toBeVisible();
-  const item = dash.locator(".settings__list-item", { hasText: "Seed EPUB" });
+  const item = dash.getByTestId("reader-row").filter({ hasText: "Seed EPUB" });
   await expect(item).toBeVisible();
   await expect(item.getByText("第 3 章")).toBeVisible();
+  // Row actions are revealed on hover (§4.20), so hover before asserting one.
+  await item.hover();
   await expect(item.getByRole("button", { name: "继续阅读" })).toBeVisible();
 });
 

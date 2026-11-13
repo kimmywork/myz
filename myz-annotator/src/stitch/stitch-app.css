@@ -851,7 +851,7 @@ input[type='range']::-moz-range-thumb {
 }
 
 /* ---------- Buttons ---------- */
-.btn {
+.stitch-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -868,23 +868,23 @@ input[type='range']::-moz-range-thumb {
     border-color var(--dur-fast) var(--ease);
 }
 
-.btn:hover:not(:disabled) {
+.stitch-btn:hover:not(:disabled) {
   filter: brightness(1.12);
 }
 
-.btn:disabled {
+.stitch-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.btn-primary {
+.stitch-btn-primary {
   background: linear-gradient(135deg, var(--c-accent), var(--c-accent-2));
   border-color: transparent;
   color: var(--c-on-accent);
   font-weight: var(--fw-semibold);
 }
 
-.btn-ghost {
+.stitch-btn-ghost {
   min-height: var(--ctl-h-sm);
   background: transparent;
   border-color: transparent;
@@ -893,12 +893,12 @@ input[type='range']::-moz-range-thumb {
   font-size: var(--fs-xs);
 }
 
-.btn-danger:hover {
+.stitch-btn-danger:hover {
   border-color: var(--c-danger);
   color: var(--c-danger);
 }
 
-.btn-block {
+.stitch-btn-block {
   width: 100%;
 }
 

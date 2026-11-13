@@ -184,7 +184,11 @@ export const Button = defineComponent({
         type={props.type}
         title={props.title}
         disabled={props.disabled}
-        class={["btn", `btn-${props.variant}`, props.block ? "btn-block" : ""]}
+        class={[
+          "stitch-btn",
+          `stitch-btn-${props.variant}`,
+          props.block ? "stitch-btn-block" : "",
+        ]}
         onClick={() => emit("click")}
       >
         {props.icon}

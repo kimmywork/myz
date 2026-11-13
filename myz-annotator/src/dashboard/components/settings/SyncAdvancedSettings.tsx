@@ -1,4 +1,4 @@
-import { SettingsRow } from "@myz/dashboard-ui";
+import { Button, SettingsRow } from "@myz/dashboard-ui";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
 import ToggleSwitch from "../ToggleSwitch.jsx";
@@ -105,23 +105,16 @@ export default defineComponent({
                 step: 5_000,
               })}
             </SettingsRow>
-            <div class="settings__actions">
-              <button
-                class="btn"
-                type="button"
-                disabled={a.isBusy.value}
-                onClick={a.handleSaveSettings}
-              >
+            <div class="flex flex-wrap gap-3 border-t border-line pt-3">
+              <Button disabled={a.isBusy.value} onClick={a.handleSaveSettings}>
                 保存设置
-              </button>
-              <button
-                class="btn"
-                type="button"
+              </Button>
+              <Button
                 disabled={a.isBusy.value}
                 onClick={a.handleTestConnection}
               >
                 测试连接
-              </button>
+              </Button>
             </div>
           </div>
         </details>

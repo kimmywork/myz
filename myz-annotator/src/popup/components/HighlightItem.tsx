@@ -90,7 +90,7 @@ export default defineComponent({
           <div class="highlight-item__header flex flex-wrap items-center gap-2">
             <span
               class={[
-                "highlight-item__badge inline-flex h-[22px] items-center rounded-tag px-2 text-tag font-semibold uppercase tracking-wide",
+                "highlight-item__badge inline-flex h-[18px] items-center rounded-tag px-2 text-tag font-semibold uppercase tracking-wide",
                 kind.value === RECORD_KINDS.CLIP
                   ? "bg-clip-bg text-clip"
                   : "bg-tag-bg text-tag-fg",
@@ -99,7 +99,7 @@ export default defineComponent({
               {badgeLabel.value}
             </span>
             {props.record.unreachable ? (
-              <span class="highlight-item__status inline-flex h-[22px] items-center gap-1 rounded-full bg-error-bg px-2 text-tag font-semibold text-error dark:bg-error/20 dark:text-error">
+              <span class="highlight-item__status inline-flex h-[18px] items-center gap-1 rounded-full bg-error-bg px-2 text-tag font-semibold text-error dark:bg-error/20 dark:text-error">
                 <span class="highlight-item__status-icon" aria-hidden="true">
                   <IconWarning size={12} aria-hidden="true" />
                 </span>
@@ -136,7 +136,7 @@ export default defineComponent({
               {props.record.tags.map((tag) => (
                 <span
                   key={tag}
-                  class="inline-flex h-[22px] items-center gap-1 rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
+                  class="inline-flex h-[18px] items-center gap-1 rounded-tag bg-tag-bg px-2 text-tag font-semibold text-tag-fg"
                 >
                   <IconHash size={12} aria-hidden="true" />
                   <span>{tag}</span>
