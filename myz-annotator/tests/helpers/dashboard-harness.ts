@@ -16,6 +16,8 @@ export interface DashboardHarness {
   dashboardUrl(): string;
   /** Open the dashboard (optionally at a hash route) and wait for the shell. */
   open(hash?: string): Promise<Page>;
+  /** Navigate an already-open page to a hash route and wait for the shell. */
+  navigate(page: Page, hash: string): Promise<void>;
 }
 
 /** Shared static server + extension launch for dashboard specs. */
@@ -53,6 +55,17 @@ export function setupDashboardHarness(): DashboardHarness {
   const dashboardUrl = () =>
     `chrome-extension://${extensionId}/src/dashboard/index.html`;
 
+  /**
+   * Shell wait for boot only. The first navigation of a spec pays the
+   * extension's cold start, which measured over 10s once under CI load while
+   * the same page rendered in ~0.5s afterwards. Functional assertions keep
+   * their own (tight) timeouts, so "booted but rendered nothing" still fails.
+   */
+  async function navigate(page: Page, hash: string) {
+    await page.goto(hash ? `${dashboardUrl()}#${hash}` : dashboardUrl());
+    await page.waitForSelector(".app-shell", { timeout: 20_000 });
+  }
+
   return {
     serverUrl: () => serverUrl,
     context: () => context,
@@ -60,9 +73,9 @@ export function setupDashboardHarness(): DashboardHarness {
     dashboardUrl,
     async open(hash) {
       const page = await context.newPage();
-      await page.goto(hash ? `${dashboardUrl()}#${hash}` : dashboardUrl());
-      await page.waitForSelector(".app-shell", { timeout: 8000 });
+      await navigate(page, hash ?? "");
       return page;
     },
+    navigate,
   };
 }

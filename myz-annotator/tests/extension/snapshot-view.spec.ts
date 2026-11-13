@@ -33,7 +33,7 @@ test("viewer_shows_a_saved_snapshot_with_its_status_line", async () => {
   });
   expect(saved.ok).toBe(true);
 
-  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="view-snapshot"]');
   await dash.getByTestId("view-snapshot").click();
 
@@ -63,7 +63,7 @@ test("viewer_says_when_a_record_has_no_snapshot", async () => {
   const dash = await harness.open("/highlights");
   const record = await save(dash, "no snapshot for me");
 
-  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="view-snapshot"]');
   await dash.getByTestId("view-snapshot").click();
 
@@ -83,7 +83,7 @@ test("unlocated_text_is_reported_and_still_linkable", async () => {
     css: "",
   });
 
-  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="view-snapshot"]');
   await dash.getByTestId("view-snapshot").click();
 
@@ -111,7 +111,7 @@ test("missing_text_is_reported_too", async () => {
     css: "",
   });
 
-  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="view-snapshot"]');
   await dash.getByTestId("view-snapshot").click();
 
@@ -140,7 +140,7 @@ test("same_page_versions_are_grouped_and_newest_first", async () => {
     css: "",
   });
 
-  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="view-snapshot"]');
   await dash.getByTestId("view-snapshot").click();
 
@@ -178,7 +178,7 @@ test("an_unlocated_snapshot_is_still_sanitized", async () => {
     css: "",
   });
 
-  await dash.goto(`${dash.url().replace(/#.*$/, "#")}/highlights/${record.id}`);
+  await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="view-snapshot"]');
   await dash.getByTestId("view-snapshot").click();
 
