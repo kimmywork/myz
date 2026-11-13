@@ -10,8 +10,16 @@
  *   node scripts/screenshots/closeout.mjs --phase before
  *   node scripts/screenshots/closeout.mjs --phase after
  *
- * Output: `screenshots/i10/<phase>/<surface>-<theme>-<width>.png`
- * (git-ignored). Requires a built extension: `npm run build` first.
+ * Output: `screenshots/i10/<phase>/<surface>-<theme>-<width>.png` plus a
+ * `manifest.json` per phase (git-ignored). Requires a built extension:
+ * `npm run build` first.
+ *
+ * The manifest is the point: it records which commit each phase was shot from,
+ * so two sets can be compared only when they come from one run each. Without
+ * it, a mix of images from different builds silently produces a plausible
+ * "0.44%" — which is exactly what happened once and cost hours to notice.
+ *
+ *   node scripts/screenshots/closeout.mjs --compare before after
  *
  * Not part of CI: it depends on a real browser and on fixture data, and the
  * images are judged by a person.
@@ -20,7 +28,9 @@ import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { extname as pathExtname, join, sep } from "node:path";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { execSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +62,159 @@ for (const surface of requested) {
   if (!ALL_SURFACES.includes(surface)) {
     throw new Error(`unknown surface "${surface}" (have: ${ALL_SURFACES.join(", ")})`);
   }
+}
+
+/** Records which build a phase's images came from. Refuses to mix builds. */
+const MANIFEST = "manifest.json";
+
+function buildInfo() {
+  const git = (args) => execSync(`git ${args}`, { cwd: root }).toString().trim();
+  return {
+    branch: git("rev-parse --abbrev-ref HEAD"),
+    commit: git("rev-parse HEAD"),
+    dirty: git("status --porcelain").length > 0,
+  };
+}
+
+/** PNG dimensions from the IHDR chunk — no image library needed. */
+function pngSize(file) {
+  const header = readFileSync(file).subarray(0, 24);
+  return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
+}
+
+function pngHash(file) {
+  return createHash("sha256").update(readFileSync(file)).digest("hex");
+}
+
+function readManifest(dir) {
+  try {
+    return JSON.parse(readFileSync(resolve(dir, MANIFEST), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Refuses to add images from a different build to an existing phase.
+ *
+ * `--surface` makes partial runs cheap, and partial runs are how a directory
+ * ends up holding images from two commits. Re-shooting one surface after a
+ * rebuild is exactly that case, so it is an error rather than a merge.
+ */
+function assertSameBuild(dir, info) {
+  const existing = readManifest(dir);
+  if (!existing) return;
+  if (existing.source?.commit && existing.source.commit !== info.commit) {
+    throw new Error(
+      `${dir} already holds images from ${existing.source.commit.slice(0, 7)} ` +
+        `(${existing.source.branch}); this build is ${info.commit.slice(0, 7)}. ` +
+        `Re-shoot the whole phase, or delete the directory — mixing builds is ` +
+        `what makes a before/after comparison lie.`,
+    );
+  }
+}
+
+function writeManifest(dir, images, info) {
+  const existing = readManifest(dir);
+  const merged = { ...(existing?.images ?? {}) };
+  for (const [name, entry] of Object.entries(images)) merged[name] = entry;
+  const manifest = {
+    version: 1,
+    phase: dir.slice(OUT_ROOT.length + 1),
+    source: info,
+    createdAt: new Date().toISOString(),
+    images: merged,
+  };
+  writeFileSync(resolve(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
+  return manifest;
+}
+
+/**
+ * `--compare <before> <after>`: refuses to compare sets that are not each from
+ * one build, and refuses to compare files that changed on disk after the run.
+ */
+function compare(beforeName, afterName) {
+  const beforeDir = resolve(OUT_ROOT, beforeName);
+  const afterDir = resolve(OUT_ROOT, afterName);
+  const problems = [];
+  const manifests = {};
+  for (const [label, dir] of [["before", beforeDir], ["after", afterDir]]) {
+    const manifest = readManifest(dir);
+    if (!manifest) {
+      problems.push(`${label}: no ${MANIFEST} in ${dir} — re-shoot that phase`);
+      continue;
+    }
+    const commits = new Set(Object.values(manifest.images).map((i) => i.commit));
+    if (commits.size > 1) {
+      problems.push(
+        `${label}: images come from ${commits.size} commits ` +
+          `(${[...commits].map((c) => c.slice(0, 7)).join(", ")}) — mixed set`,
+      );
+    }
+    manifests[label] = manifest;
+  }
+  if (problems.length) {
+    console.error(`✗ refusing to compare:\n  ${problems.join("\n  ")}`);
+    process.exit(1);
+  }
+
+  const before = manifests.before;
+  const after = manifests.after;
+  const names = Object.keys(before.images).sort();
+  const afterNames = new Set(Object.keys(after.images));
+  for (const name of names) {
+    if (!afterNames.has(name)) problems.push(`${name} is missing from ${afterName}`);
+  }
+  for (const name of afterNames) {
+    if (!before.images[name]) problems.push(`${name} is missing from ${beforeName}`);
+  }
+  for (const [label, dir, manifest] of [
+    ["before", beforeDir, before],
+    ["after", afterDir, after],
+  ]) {
+    for (const [name, entry] of Object.entries(manifest.images)) {
+      const file = resolve(dir, name);
+      let hash = "";
+      try {
+        hash = pngHash(file);
+      } catch {
+        problems.push(`${label}/${name}: recorded but not on disk`);
+        continue;
+      }
+      if (hash !== entry.sha256) {
+        problems.push(`${label}/${name}: changed on disk after the run`);
+      }
+    }
+  }
+  if (problems.length) {
+    console.error(`✗ refusing to compare:\n  ${problems.join("\n  ")}`);
+    process.exit(1);
+  }
+
+  const identical = names.filter(
+    (name) => before.images[name].sha256 === after.images[name].sha256,
+  );
+  const differing = names.filter((name) => !identical.includes(name));
+  console.log(
+    `before: ${before.source.branch}@${before.source.commit.slice(0, 7)}` +
+      `${before.source.dirty ? " (dirty)" : ""}`,
+  );
+  console.log(
+    `after:  ${after.source.branch}@${after.source.commit.slice(0, 7)}` +
+      `${after.source.dirty ? " (dirty)" : ""}`,
+  );
+  console.log(`${identical.length}/${names.length} byte-identical`);
+  for (const name of differing) console.log(`  differs: ${name}`);
+  console.log(
+    "for the differing images, measure with: " +
+      "magick compare -metric AE <before>/<name> <after>/<name> null:",
+  );
+}
+
+const compareIndex = process.argv.indexOf("--compare");
+if (compareIndex >= 0) {
+  compare(process.argv[compareIndex + 1], process.argv[compareIndex + 2]);
+  process.exit(0);
 }
 
 const OUT_DIR = resolve(OUT_ROOT, phase);
@@ -321,11 +484,21 @@ async function setTheme(page, theme) {
 async function shoot(page, surface, width, theme) {
   await page.setViewportSize({ width, height: 900 });
   await page.waitForTimeout(150);
-  await page.screenshot({
-    path: resolve(OUT_DIR, `${surface}-${theme}-${width}.png`),
-    fullPage: false,
-  });
+  const file = resolve(OUT_DIR, `${surface}-${theme}-${width}.png`);
+  await page.screenshot({ path: file, fullPage: false });
+  captured[file] = {
+    width: pngSize(file).width,
+    height: pngSize(file).height,
+    sha256: pngHash(file),
+    commit: info.commit,
+    at: new Date().toISOString(),
+  };
 }
+
+const info = buildInfo();
+assertSameBuild(OUT_DIR, info);
+/** Every image this run produces, keyed by path, for the phase manifest. */
+const captured = {};
 
 const dash = await context.newPage();
 await dash.goto(dashboard("/highlights"));
@@ -410,5 +583,11 @@ await context.close();
 server.close();
 rmSync(userDataDir, { recursive: true, force: true });
 
-console.log(`wrote ${SURFACES.length * THEMES.length * WIDTHS.length} images to ${OUT_DIR}`);
+const total = SURFACES.length * THEMES.length * WIDTHS.length;
+const manifest = writeManifest(OUT_DIR, captured, info);
+console.log(`wrote ${total} images to ${OUT_DIR}`);
+console.log(
+  `manifest: ${info.branch}@${info.commit.slice(0, 7)}` +
+    `${info.dirty ? " (dirty)" : ""}, ${Object.keys(manifest.images).length} images recorded`,
+);
 
