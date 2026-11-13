@@ -90,7 +90,14 @@ function pngHash(file) {
 
 function readManifest(dir) {
   try {
-    return JSON.parse(readFileSync(resolve(dir, MANIFEST), "utf8"));
+    const manifest = JSON.parse(readFileSync(resolve(dir, MANIFEST), "utf8"));
+    // Keys are file names, not paths: the two phases live in different
+    // directories, so a path would never match across them.
+    const images = {};
+    for (const [key, entry] of Object.entries(manifest.images ?? {})) {
+      images[key.slice(key.lastIndexOf("/") + 1)] = entry;
+    }
+    return { ...manifest, images };
   } catch {
     return null;
   }
@@ -493,7 +500,7 @@ async function shoot(page, surface, width, theme) {
   await page.waitForTimeout(150);
   const file = resolve(OUT_DIR, `${surface}-${theme}-${width}.png`);
   await page.screenshot({ path: file, fullPage: false });
-  captured[file] = {
+  captured[`${surface}-${theme}-${width}.png`] = {
     width: pngSize(file).width,
     height: pngSize(file).height,
     sha256: pngHash(file),
