@@ -163,7 +163,8 @@ function compare(beforeName, afterName) {
     // "before" and "after" could be the same source and nothing would say so.
     if (manifest.source?.dirty) {
       problems.push(
-        `${label}: shot from a dirty tree — commit and rebuild before comparing`,
+        `${label}: shot from a dirty tree and the flag is sticky — ` +
+          `delete that phase directory (or pass --clean ${label}) and re-shoot`,
       );
     }
     const commits = new Set(Object.values(manifest.images).map((i) => i.commit));
@@ -231,6 +232,19 @@ function compare(beforeName, afterName) {
     "for the differing images, measure with: " +
       "magick compare -metric AE <before>/<name> <after>/<name> null:",
   );
+}
+
+const cleanIndex = process.argv.indexOf("--clean");
+if (cleanIndex >= 0) {
+  const target = process.argv[cleanIndex + 1];
+  if (!target) {
+    console.error("usage: --clean <phase>");
+    process.exit(1);
+  }
+  const dir = resolve(OUT_ROOT, target);
+  rmSync(dir, { recursive: true, force: true });
+  console.log(`removed ${dir} — the next run for that phase starts clean`);
+  process.exit(0);
 }
 
 const compareIndex = process.argv.indexOf("--compare");
