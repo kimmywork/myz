@@ -72,7 +72,9 @@ function buildInfo() {
   return {
     branch: git("rev-parse --abbrev-ref HEAD"),
     commit: git("rev-parse HEAD"),
-    dirty: git("status --porcelain").length > 0,
+    // Only the build inputs count: an untracked tool file changes nothing about
+    // what the extension rendered, and would mark every "before" run dirty.
+    dirty: git("status --porcelain -- myz-annotator packages").length > 0,
   };
 }
 
