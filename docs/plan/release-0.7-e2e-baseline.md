@@ -16,6 +16,13 @@
 - 运行号是 job 的 URL，**任何人都能点开复核**，不是本地日志。
 - 本地连续跑只用于排查（「是本机还是产品」），不作为交付证据。
 
+## 一个必须先说的坑
+
+第一次跑完才发现：`inbox.spec.ts` 里有一行 `test.describe.configure({ retries: 1 })`。
+它**覆盖了命令行上的 `--retries=0`**，所以那一轮里 inbox 的用例实际上还是带重试的（日志里 `1 flaky` 就是它），而其它文件确实是 0 重试。
+
+这就是「配了门禁」和「门禁真的生效」的差别：命令行看着是对的，日志里却有 `retry #1`。现在那行已删掉，并且在 10 轮的日志里用 `grep "retry #"` 应当为 0 来自检。
+
 ## 结果
 
 ### 第 1 轮（10 个 job）
@@ -39,9 +46,38 @@
 - 关键旁证：**同一个文件里后两条在 0.5s 和 6.6s 内通过**——说明扩展已经热了，是这一条替整个文件付了冷启动成本。
 - 判定：冷启动延迟，不是渲染逻辑坏了。修法不是把功能等待调长，而是**把两段等待分开**：先等应用外壳（20s，覆盖冷启动），再等动作按钮（仍然 8s）。如果哪天「外壳起来了但按钮不出来」，测试照样红。
 
-### 第 2 轮（修复后重跑）
+### 第 2 轮（修复 viewer 冷启动后）
 
-<!-- 结果在下面补：run 号与 10 个 job 的结论 -->
+- 运行：https://github.com/kimmywork/myz/actions/runs/43453567322
+- **9/10**。失败的是 `e2e without retries (10/10)`（job 131981766905）。
+
+挂着两条，性质不同：
+
+| 用例 | 现象 | 判定与处置 |
+|---|---|---|
+| `snapshot-view.spec.ts` 第一条 | `waitForSelector` 10s 超时 | 和上轮同一类：直接 `goto` 之后马上等功能元素，没有先等应用外壳。已改为走 `harness.navigate()`（外壳 20s 预算，功能等待仍是 10s） |
+| `inbox_multi_select_drag_tags_all_selected` | 2.5s 失败，**retry #1 后通过**（日志里 `1 flaky`） | 本轮才暴露：该文件自带 `retries: 1`。删掉后单跑三次全过，说明原来那条是 `dragTo` 之后立刻读记录、和后台消息往返赛跑。改成轮询标签，断言不变、竞态消失 |
+
+### 第 3 轮（修复后重跑）
+
+- 运行：https://github.com/kimmywork/myz/actions/runs/43458774155
+- **10/10 全绿**，每轮 **177 passed / 3 skipped / 0 failed**（约 3.8 分钟），日志里 `retry #` 出现 **0** 次。
+
+| # | job |
+|---|---|
+| 1 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999828799 |
+| 2 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999828602 |
+| 3 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999828928 |
+| 4 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999828780 |
+| 5 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999828675 |
+| 6 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999829090 |
+| 7 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999830123 |
+| 8 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999828791 |
+| 9 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999828873 |
+| 10 | https://github.com/kimmywork/myz/actions/runs/43458774155/job/131999828919 |
+
+**结论**：三轮 30 次运行共 3 次失败，全部落在**首次导航的冷启动**和**拖拽后立刻读记录**这两类上，没有一条是产品逻辑错误；两处都已按根因修掉（不是调大超时掩盖），第三轮 10/10。
+换句话说：0.7 里那句「单跑能过、是时序抖动」**大体成立，但不是「无关」**——它是两个可以修掉的测试缺陷，修完就不抖了。
 
 ## 关键路径覆盖
 
