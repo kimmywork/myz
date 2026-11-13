@@ -88,9 +88,12 @@ function fail(check, file, line, detail) {
  */
 function createCommentStripper() {
   let inBlock = false
+  // A template literal can span lines; `'` and `"` cannot, so their state is
+  // reset per line (otherwise an apostrophe in JSX text swallows the rest of
+  // the file). Backticks are carried over.
+  let quote = ""
   return (line) => {
     let out = ""
-    let quote = ""
     for (let index = 0; index < line.length; index += 1) {
       const char = line[index]
       const next = line[index + 1]
@@ -124,6 +127,7 @@ function createCommentStripper() {
       }
       out += char
     }
+    if (quote && quote !== "`") quote = ""
     return out
   }
 }

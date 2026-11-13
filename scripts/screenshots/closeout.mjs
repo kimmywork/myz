@@ -74,7 +74,10 @@ function buildInfo() {
     commit: git("rev-parse HEAD"),
     // Only the build inputs count: an untracked tool file changes nothing about
     // what the extension rendered, and would mark every "before" run dirty.
-    dirty: git("status --porcelain -- myz-annotator packages").length > 0,
+    dirty:
+      git(
+        "status --porcelain -- myz-annotator packages package.json package-lock.json",
+      ).length > 0,
   };
 }
 
@@ -130,7 +133,10 @@ function writeManifest(dir, images, info) {
   const manifest = {
     version: 1,
     phase: dir.slice(OUT_ROOT.length + 1),
-    source: info,
+    // Sticky: once a phase holds images from a dirty build, the whole phase is
+    // dirty for comparison purposes, even if a later run at the same commit is
+    // clean — otherwise the mixed set would be reported as a clean commit.
+    source: { ...info, dirty: info.dirty || Boolean(existing?.source?.dirty) },
     createdAt: new Date().toISOString(),
     images: merged,
   };

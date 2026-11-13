@@ -167,13 +167,32 @@ describe("createFocusTrap", () => {
     tab();
     expect(document.activeElement?.id).toBe("c1");
 
-    // Closing the child returns focus to where it was before the child opened,
-    // which is the parent's control — not all the way back to the page.
+    // The parent handed its own target down: the child restores to the page
+    // control that opened the parent, not to a control in a layer that closed.
     inner.deactivate();
-    expect(document.activeElement?.id).toBe("p1");
+    expect(document.activeElement?.id).toBe("opener");
     parent.remove();
     child.remove();
     opener.remove();
+  });
+
+  it("keeps aria-disabled controls in the Tab cycle", () => {
+    // `aria-disabled` does not remove an element from native Tab order, so the
+    // cycle has to include it or Tab jumps backwards on reaching one.
+    const host = document.createElement("div");
+    host.setAttribute("tabindex", "-1");
+    host.innerHTML =
+      '<button id="a">a</button><button id="c">c</button>' +
+      '<button id="b" aria-disabled="true">b</button>';
+    document.body.append(host);
+    const trap = createFocusTrap(host);
+    trap.activate();
+    document.getElementById("a")?.focus();
+    tab(true);
+    // `b` is the last item: Shift+Tab from the first wraps to it.
+    expect(document.activeElement?.id).toBe("b");
+    trap.deactivate();
+    host.remove();
   });
 
   it("skips disabled, fieldset-disabled and hidden controls", () => {

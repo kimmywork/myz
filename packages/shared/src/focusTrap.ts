@@ -19,8 +19,15 @@ export interface FocusTrap {
   deactivate(): void
 }
 
+interface TrapEntry {
+  trap: FocusTrap
+  container: HTMLElement
+  /** Where focus goes on deactivate; may be handed down by a closing parent. */
+  restoration: { target: HTMLElement | null }
+}
+
 /** Active traps, innermost last. Only the top one reacts to keys. */
-const trapStack: FocusTrap[] = []
+const trapStack: TrapEntry[] = []
 
 /**
  * Whether an element can really take focus. `:disabled` also covers a control
@@ -28,9 +35,17 @@ const trapStack: FocusTrap[] = []
  * on a parent, which does not show up in the child's own computed style.
  * Layout-free on purpose, so it also works in jsdom.
  */
-export function isUsableFocusTarget(element: HTMLElement): boolean {
+export function isUsableFocusTarget(
+  element: HTMLElement,
+  options: { allowAriaDisabled?: boolean } = {},
+): boolean {
   if (element.matches(":disabled")) return false
-  if (element.getAttribute("aria-disabled") === "true") return false
+  // `aria-disabled` does not remove an element from native Tab order, so the
+  // Tab cycle must keep it (otherwise Tab can land on it and the cycle jumps
+  // backwards). The initial focus must still skip it.
+  if (!options.allowAriaDisabled && element.getAttribute("aria-disabled") === "true") {
+    return false
+  }
   let node: HTMLElement | null = element
   while (node) {
     if (node.hasAttribute("hidden")) return false
@@ -53,18 +68,25 @@ export function createFocusTrap(
   container: HTMLElement,
   options: FocusTrapOptions = {},
 ): FocusTrap {
-  let previouslyFocused: HTMLElement | null = null
   let self: FocusTrap
 
   function focusable(): HTMLElement[] {
     return Array.from(
       container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-    ).filter(isUsableFocusTarget)
+    ).filter((element) =>
+      isUsableFocusTarget(element, { allowAriaDisabled: true }),
+    )
+  }
+
+  const entry: TrapEntry = {
+    trap: null as unknown as FocusTrap,
+    container,
+    restoration: { target: null },
   }
 
   /** A trap stacked above this one owns the keyboard (§4.18 nested layers). */
   function isInnermost(): boolean {
-    return trapStack[trapStack.length - 1] === self
+    return trapStack[trapStack.length - 1] === entry
   }
 
   function onKeydown(event: KeyboardEvent) {
@@ -105,24 +127,40 @@ export function createFocusTrap(
 
   self = {
     activate() {
-      previouslyFocused = (container.getRootNode() as Document | ShadowRoot)
+      entry.restoration.target = (container.getRootNode() as Document | ShadowRoot)
         .activeElement as HTMLElement | null
-      const index = trapStack.indexOf(self)
+      entry.trap = self
+      const index = trapStack.indexOf(entry)
       if (index >= 0) trapStack.splice(index, 1)
-      trapStack.push(self)
+      trapStack.push(entry)
       document.addEventListener("keydown", onKeydown, true)
       const target = options.initialFocus ?? focusable()[0]
       target?.focus()
     },
     deactivate() {
       document.removeEventListener("keydown", onKeydown, true)
-      const wasInnermost = isInnermost()
-      const index = trapStack.indexOf(self)
-      if (index >= 0) trapStack.splice(index, 1)
-      // Closing a layer that still has one above it must not hand focus back:
-      // that would yank it out of the layer the user is looking at.
-      if (wasInnermost) previouslyFocused?.focus?.()
-      previouslyFocused = null
+      const index = trapStack.indexOf(entry)
+      if (index < 0) return
+      const wasInnermost = index === trapStack.length - 1
+      trapStack.splice(index, 1)
+      if (wasInnermost) {
+        entry.restoration.target?.focus?.()
+      } else {
+        // A parent closing under an open child must not hand focus back. If the
+        // child would restore to a control inside this closing layer, give it
+        // this trap's target instead, so focus still lands somewhere real.
+        const above = trapStack[index]
+        const ownTarget = entry.restoration.target
+        if (
+          above &&
+          ownTarget &&
+          above.restoration.target &&
+          container.contains(above.restoration.target)
+        ) {
+          above.restoration.target = ownTarget
+        }
+      }
+      entry.restoration.target = null
     },
   }
   return self
