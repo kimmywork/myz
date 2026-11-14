@@ -202,7 +202,7 @@ jobs:
 
       - name: Run Playwright tests (retries 0)
         working-directory: myz-annotator
-        run: xvfb-run npx playwright test tests --config=tests/playwright.config.ts --retries=0 --reporter=list
+        run: xvfb-run npx playwright test tests --config=tests/playwright.config.ts --retries=0 --reporter=list,html
 
       - name: Upload Playwright HTML report
         if: always()
