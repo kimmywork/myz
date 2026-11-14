@@ -2,18 +2,19 @@
 /*
  * Release gate: the built extension must not grow without someone deciding it.
  *
- * 45 MiB is ~2% over today's build: enough for normal build noise, not enough
- * to absorb a new dependency by accident. Raising the limit is a separate
- * commit that says why — the same rule as the closeout baseline. The five
- * largest files are printed so growth points at a file, not just at a total.
+ * The limit is 45 MiB against a measured 40.80 MiB (about 10% headroom; `du`
+ * reports 44M because that is disk-block usage, not bytes). Raising it is a
+ * separate commit that says why — the same rule as the closeout baseline. The
+ * five largest files are printed so growth points at a file, not at a total.
  *
- * Scope: the Chrome extension artifact (MV3, Chrome Web Store). 0.7 ships no
- * other target, so there is one limit for one product — a Firefox or Safari
- * build would need its own number and its own justification, not this one.
+ * Scope: the Chrome extension artifact (MV3, Chrome Web Store). `vite build
+ * --target firefox` writes `dist-firefox`, and that output is deliberately NOT
+ * measured: 0.7 has no Firefox release target. If one is added, it needs its
+ * own limit and its own justification, not this number.
  *
  * Usage: `node scripts/check-dist-size.mjs` (or `--limit-mib <n>` to probe it).
  */
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -51,6 +52,11 @@ const mib = (value) => `${(value / (1024 * 1024)).toFixed(2)} MiB`;
 const limit = limitMib * 1024 * 1024;
 
 console.log(`dist: ${mib(bytes)} in ${files.length} files (limit ${limitMib} MiB)`);
+if (existsSync(resolve(root, "myz-annotator/dist-firefox"))) {
+  console.log(
+    "  note: dist-firefox exists but is not gated — 0.7 has no Firefox target",
+  );
+}
 for (const file of files.sort((a, b) => b.size - a.size).slice(0, 5)) {
   console.log(`  ${mib(file.size).padStart(10)}  ${relative(DIST, file.path)}`);
 }
