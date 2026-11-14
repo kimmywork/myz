@@ -7,7 +7,6 @@ import { createStaticServer } from "../helpers/static-server.js";
 
 const __dirname = dirnameFromImportMeta(import.meta.url);
 
-
 let server: Server;
 let serverUrl: string;
 let context: BrowserContext;

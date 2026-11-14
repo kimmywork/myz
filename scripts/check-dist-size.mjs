@@ -7,6 +7,10 @@
  * commit that says why — the same rule as the closeout baseline. The five
  * largest files are printed so growth points at a file, not just at a total.
  *
+ * Scope: the Chrome extension artifact (MV3, Chrome Web Store). 0.7 ships no
+ * other target, so there is one limit for one product — a Firefox or Safari
+ * build would need its own number and its own justification, not this one.
+ *
  * Usage: `node scripts/check-dist-size.mjs` (or `--limit-mib <n>` to probe it).
  */
 import { readdirSync, statSync } from "node:fs";
