@@ -2,10 +2,14 @@
 /*
  * Release gate: the built extension must not grow without someone deciding it.
  *
- * The limit is 45 MiB against a measured 40.80 MiB (about 10% headroom; `du`
- * reports 44M because that is disk-block usage, not bytes). Raising it is a
- * separate commit that says why — the same rule as the closeout baseline. The
- * five largest files are printed so growth points at a file, not at a total.
+ * Arithmetic: the build is 40.80 MiB, the limit is 42 MiB, so the headroom is
+ * +2.9%. The criterion is "no more than 3% headroom", not "leave a bit of room":
+ * 3% absorbs build-to-build noise and does not absorb a new dependency. (`du`
+ * reports 44M for the same tree because that is disk-block usage, not bytes —
+ * the earlier "44 MB" was that number, which is why the first limit was too
+ * loose.) Raising it is a separate commit that says why, same rule as the
+ * closeout baseline. The five largest files are printed so growth points at a
+ * file, not at a total.
  *
  * Scope: the Chrome extension artifact (MV3, Chrome Web Store). `vite build
  * --target firefox` writes `dist-firefox`, and that output is deliberately NOT
@@ -20,7 +24,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = resolve(root, "myz-annotator/dist");
-const DEFAULT_LIMIT_MIB = 45;
+const DEFAULT_LIMIT_MIB = 42;
 
 const index = process.argv.indexOf("--limit-mib");
 const limitMib =

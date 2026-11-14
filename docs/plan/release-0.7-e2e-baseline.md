@@ -97,7 +97,7 @@
 
 | 门禁 | 命令 | 演示（故意弄坏，确认它红） |
 |---|---|---|
-| dist 体积 ≤ 45 MiB | `npm run check:dist-size` | 用 `--limit-mib 40` 跑：`✗ dist is 40.80 MiB, over the 40 MiB limit` |
+| dist 体积 ≤ 42 MiB（40.80 MiB 实测，约 +2.9% 余量） | `npm run check:dist-size` | 用 `--limit-mib 40` 跑：`✗ dist is 40.80 MiB, over the 40 MiB limit` |
 | 裸色值（A7，UI 目录） | `npm run check:closeout` | 在 `dashboard/` 加一处 `style={{ color: "#ff00aa" }}`：A7 5 → 6 并指出行号，删掉后回到 5 |
 | 违规数棘轮 | `npm run check:closeout:ratchet` | 把基线调高一位即失败；对「自己的基线」要求精确相等 |
 

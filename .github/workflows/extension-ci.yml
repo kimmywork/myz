@@ -130,7 +130,8 @@ jobs:
         working-directory: myz-annotator
         run: npm run build --if-present
 
-      # 45 MiB is the release gate. Raising it is its own commit with a reason.
+      # 42 MiB is the release gate (40.80 MiB today, ~+2.9%). Raising it is its
+      # own commit with a reason.
       - name: Check dist size
         run: node scripts/check-dist-size.mjs
 
