@@ -95,12 +95,18 @@ function readManifest(dir) {
   try {
     const manifest = JSON.parse(readFileSync(resolve(dir, MANIFEST), "utf8"));
     // Keys are file names, not paths: the two phases live in different
-    // directories, so a path would never match across them.
+    // directories, so a path would never match across them. Older manifests
+    // used absolute paths, so they are reduced to their base name — and any key
+    // that is not a bare name is remembered, because a manifest is data on disk
+    // and `"../../x"` must be reported rather than quietly rewritten.
     const images = {};
+    const badNames = [];
     for (const [key, entry] of Object.entries(manifest.images ?? {})) {
-      images[key.slice(key.lastIndexOf("/") + 1)] = entry;
+      const name = key.slice(key.lastIndexOf("/") + 1);
+      images[name] = entry;
+      if (key !== name || name === "." || name === "..") badNames.push(key);
     }
-    return { ...manifest, images };
+    return { ...manifest, images, badNames };
   } catch {
     return null;
   }
@@ -163,7 +169,9 @@ function compare(beforeName, afterName) {
     // "before" and "after" could be the same source and nothing would say so.
     if (manifest.source?.dirty) {
       problems.push(
-        `${label}: shot from a dirty tree — commit and rebuild before comparing`,
+        `${label}: shot from a dirty tree and the flag is sticky. Commit or ` +
+          `stash the build inputs, rebuild, then pass --clean ${label} and ` +
+          `re-shoot — re-shooting a dirty build just records dirty again`,
       );
     }
     const commits = new Set(Object.values(manifest.images).map((i) => i.commit));
@@ -186,6 +194,13 @@ function compare(beforeName, afterName) {
   const afterNames = new Set(Object.keys(after.images));
   for (const name of names) {
     if (!afterNames.has(name)) problems.push(`${name} is missing from ${afterName}`);
+  }
+  // A manifest is data on disk; a hand-edited `"../../x"` must not become a
+  // path this tool reads from or deletes.
+  for (const [label, manifest] of Object.entries(manifests)) {
+    for (const name of manifest.badNames) {
+      problems.push(`${label}: image key "${name}" is not a bare file name`);
+    }
   }
   for (const name of afterNames) {
     if (!before.images[name]) problems.push(`${name} is missing from ${beforeName}`);
@@ -231,6 +246,26 @@ function compare(beforeName, afterName) {
     "for the differing images, measure with: " +
       "magick compare -metric AE <before>/<name> <after>/<name> null:",
   );
+}
+
+const cleanIndex = process.argv.indexOf("--clean");
+if (cleanIndex >= 0) {
+  const target = process.argv[cleanIndex + 1];
+  if (!target) {
+    console.error("usage: --clean <phase>");
+    process.exit(1);
+  }
+  const dir = resolve(OUT_ROOT, target);
+  // `target` comes from the command line, but the rule is the same as for any
+  // path that arrives as data: resolve it first, then prove it is still under
+  // the directory this tool owns. `--clean ../../somewhere` must not delete.
+  if (!dir.startsWith(OUT_ROOT + sep) || dir === OUT_ROOT) {
+    console.error(`✗ --clean only removes a phase directory under ${OUT_ROOT}`);
+    process.exit(1);
+  }
+  rmSync(dir, { recursive: true, force: true });
+  console.log(`removed ${dir} — the next run for that phase starts clean`);
+  process.exit(0);
 }
 
 const compareIndex = process.argv.indexOf("--compare");

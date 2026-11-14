@@ -8,6 +8,7 @@
     "check:design-tokens": "node scripts/design-system/check-tokens.mjs",
     "check:tailwind-keys": "node scripts/design-system/check-tailwind-keys.mjs",
     "check:version": "node scripts/check-version.mjs",
+    "check:dist-size": "node scripts/check-dist-size.mjs",
     "check:closeout": "node scripts/design-system/check-closeout.mjs",
     "check:closeout:ratchet": "node scripts/design-system/check-closeout.mjs --ratchet",
     "check:closeout:strict": "node scripts/design-system/check-closeout.mjs --strict"
