@@ -58,9 +58,11 @@ export const DEFAULT_SETTINGS_SECTION: SettingsSectionKey =
 
 /** Maps a legacy `#/settings/...` path to its modal section. */
 export function settingsSectionForPath(path: string): SettingsSectionKey {
+  // Router matching ignores a trailing slash; the raw path does not.
+  const normalized = path.replace(/\/+$/, "");
   for (const group of SETTINGS_SECTION_GROUPS) {
     for (const item of group.items) {
-      if (item.path === path) return item.key;
+      if (item.path === normalized) return item.key;
     }
   }
   return DEFAULT_SETTINGS_SECTION;

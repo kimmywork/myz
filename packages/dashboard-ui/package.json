@@ -4,7 +4,6 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./DashboardAppShell": "./src/DashboardAppShell.tsx",
     "./PageSidebar": "./src/PageSidebar.tsx",
     "./ListRow": "./src/ListRow.tsx",
     "./StatusPill": "./src/StatusPill.tsx",
