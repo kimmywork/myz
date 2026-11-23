@@ -244,4 +244,45 @@
   .is-disabled {
     @apply pointer-events-none opacity-45;
   }
+
+  /* §3.4 快照视图：标注区固定显示，前后内容折叠（2026-11-23）。 */
+  .myz-snapshot-body mark[data-myz-snapshot-mark] {
+    background: color-mix(in srgb, var(--myz-accent) 18%, transparent);
+    color: inherit;
+    border-radius: var(--myz-r-xs);
+  }
+
+  .myz-snapshot-body mark[data-myz-snapshot-mark].is-active {
+    background: color-mix(in srgb, var(--myz-accent) 32%, transparent);
+    outline: 1.5px solid var(--myz-accent);
+  }
+
+  .myz-snapshot-region + .myz-snapshot-region,
+  .myz-snapshot-gap,
+  .myz-snapshot-gap-toggle {
+    margin-top: 12px;
+  }
+
+  .myz-snapshot-region > * + *,
+  .myz-snapshot-gap > * + * {
+    margin-top: 8px;
+  }
+
+  .myz-snapshot-gap-toggle {
+    display: block;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px dashed var(--myz-line);
+    border-radius: var(--myz-r);
+    background: transparent;
+    color: var(--myz-muted);
+    font-size: 12px;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .myz-snapshot-gap-toggle:hover {
+    color: var(--myz-text);
+    border-color: var(--myz-accent);
+  }
 }

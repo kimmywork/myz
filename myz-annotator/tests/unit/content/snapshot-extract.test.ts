@@ -8,6 +8,7 @@ import {
   containerAround,
   extractSnapshot,
   findSnapshotRoot,
+  recordNeedles,
 } from "@/content/snapshot/extract";
 import { SNAPSHOT_CSS } from "@/content/snapshot/style";
 
@@ -20,7 +21,9 @@ function loadFixture(name: string): Document {
 describe("snapshot extraction", () => {
   it("keeps the article text and drops scripts, media and site CSS", () => {
     const doc = loadFixture("article-page.html");
-    const snapshot = extractSnapshot(doc, "https://example.com/article");
+    const snapshot = extractSnapshot(doc, "https://example.com/article", {
+      mode: "full",
+    })!;
 
     expect(snapshot.html).toContain("<p");
     expect(snapshot.html).not.toContain("<script");
@@ -37,7 +40,9 @@ describe("snapshot extraction", () => {
 
   it("keeps the text of a long code article", () => {
     const doc = loadFixture("zen-code.html");
-    const snapshot = extractSnapshot(doc, "https://example.com/code");
+    const snapshot = extractSnapshot(doc, "https://example.com/code", {
+      mode: "full",
+    })!;
     expect(snapshot.html).toContain("<pre");
     expect(snapshot.bytes).toBeGreaterThan(0);
   });
@@ -52,7 +57,9 @@ describe("snapshot extraction", () => {
 
   it("never returns an empty body for a normal page", () => {
     const doc = loadFixture("complex-highlight-test.html");
-    const snapshot = extractSnapshot(doc, "https://example.com/x");
+    const snapshot = extractSnapshot(doc, "https://example.com/x", {
+      mode: "full",
+    })!;
     expect(snapshot.html.length).toBeGreaterThan(20);
     expect(snapshot.title).toBeTruthy();
   });
@@ -85,8 +92,25 @@ describe("snapshot extraction", () => {
     expect(snapshot.html).not.toContain("<div><span>");
   });
 
-  it("windows around the anchor instead of taking the whole container", () => {
+  it("captures the whole body in full mode, whatever the anchor", () => {
     // Long enough that the extractor picks <article> rather than <body>.
+    const padding = "padding sentence to make this a real article body. ";
+    const html = `<html><body><article>
+      <p>${padding.repeat(3)}far away paragraph</p>
+      <p>${padding.repeat(2)}the paragraph that holds the record</p>
+      <p>${padding.repeat(3)}another far paragraph</p>
+    </article></body></html>`;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    const full = extractSnapshot(doc, "https://example.com/a", {
+      mode: "full",
+    })!;
+    expect(full.html).toContain("far away paragraph");
+    expect(full.html).toContain("another far paragraph");
+    // The display folds this down; the copy itself is complete (2026-11-23).
+  });
+
+  it("windows around the anchor on endless surfaces", () => {
     const padding = "padding sentence to make this a real article body. ";
     const html = `<html><body><article>
       <p>${padding.repeat(3)}far away paragraph</p>
@@ -97,31 +121,65 @@ describe("snapshot extraction", () => {
     </article></body></html>`;
     const doc = new DOMParser().parseFromString(html, "text/html");
 
-    const wide = extractSnapshot(doc, "https://example.com/a");
-    const narrow = extractSnapshot(
-      doc,
-      "https://example.com/a",
-      "the paragraph that holds the record",
-    );
+    const wide = extractSnapshot(doc, "https://example.com/a", {
+      mode: "full",
+    })!;
+    const narrow = extractSnapshot(doc, "https://example.com/a", {
+      mode: "windowed",
+      anchorText: "the paragraph that holds the record",
+      recordTexts: ["the paragraph that holds the record"],
+    })!;
 
     expect(wide.html).toContain("far away paragraph");
     expect(wide.html).toContain("another far paragraph");
-    // With an anchor the far paragraphs fall outside the window.
+    // Three record-less siblings in a row end the window (§3.4 stop rule).
     expect(narrow.html).toContain("the paragraph that holds the record");
     expect(narrow.html).not.toContain("far away paragraph");
     expect(narrow.html).not.toContain("another far paragraph");
     expect(narrow.bytes).toBeLessThan(wide.bytes);
   });
 
-  it("falls back to the whole container when the anchor text is absent", () => {
+  it("extends the window through neighbouring records", () => {
+    const padding = "padding sentence to make this a real article body. ";
+    const html = `<html><body><article>
+      <p>${padding.repeat(2)}first record paragraph</p>
+      <p>${padding.repeat(2)}middle filler paragraph</p>
+      <p>${padding.repeat(2)}second record paragraph</p>
+      <p>${padding.repeat(2)}tail filler one</p>
+      <p>${padding.repeat(2)}tail filler two</p>
+      <p>${padding.repeat(2)}unrelated tail paragraph</p>
+    </article></body></html>`;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    const windowed = extractSnapshot(doc, "https://example.com/a", {
+      mode: "windowed",
+      anchorText: "first record paragraph",
+      recordTexts: ["first record paragraph", "second record paragraph"],
+    })!;
+    // The neighbour's hit resets the run, so both records land in one window;
+    // past the last record the run rule keeps a little air (two elements) and
+    // stops at the third (§3.4: N consecutive record-less elements end it).
+    expect(windowed.html).toContain("first record paragraph");
+    expect(windowed.html).toContain("second record paragraph");
+    expect(windowed.html).toContain("tail filler one");
+    expect(windowed.html).not.toContain("unrelated tail paragraph");
+  });
+
+  it("returns null in windowed mode when the anchor cannot be placed", () => {
+    // Never fall back to "capture everything": that is how a feed would be
+    // stored whole behind the user's back.
     const doc = loadFixture("article-page.html");
-    const withUnknownAnchor = extractSnapshot(
-      doc,
-      "https://example.com/x",
-      "text that is not on this page",
-    );
-    const plain = extractSnapshot(doc, "https://example.com/x");
-    expect(withUnknownAnchor.html).toBe(plain.html);
+    const missing = extractSnapshot(doc, "https://example.com/x", {
+      mode: "windowed",
+      anchorText: "text that is not on this page",
+    });
+    expect(missing).toBeNull();
+  });
+
+  it("normalizes record needles the same way the window compares", () => {
+    expect(recordNeedles(["  alpha   beta  ", undefined, "ab"])).toEqual([
+      "alpha beta",
+    ]);
   });
 
   it("finds an anchor that spans inline markup", () => {

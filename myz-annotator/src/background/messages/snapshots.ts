@@ -5,11 +5,13 @@
  * owns the store, the quota and eviction. Failures travel back as `ok: false`
  * with a message, never as a silent success: a snapshot the user believes in
  * but does not have is the one outcome this feature must not produce.
+ *
+ * Snapshots are page-bound (2026-11-23): `getSnapshotsForPage` returns the
+ * page's version list and every record of the page anchors onto it.
  */
 import { snapshotStatusLine } from "@myz/core/page-snapshot";
 import {
   SnapshotWriteError,
-  getSnapshotForRecord,
   getSnapshotVersions,
   saveSnapshot,
   shouldAnnounceEviction,
@@ -26,7 +28,6 @@ export function initializeSnapshotMessageHandlers() {
     try {
       const { saved, evicted } = await saveSnapshot({
         id: `snap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        recordId: payload.recordId,
         url: payload.url,
         title: payload.title || payload.url,
         html: payload.html,
@@ -48,17 +49,12 @@ export function initializeSnapshotMessageHandlers() {
     }
   });
 
-  registerMessageHandler("myz:getSnapshotForRecord", async (payload) => {
-    const snapshot = await getSnapshotForRecord(payload.recordId);
-    if (!snapshot) return null;
-    // Reading a snapshot is a use, so LRU keeps what the user actually opens.
-    await touchSnapshot(snapshot.id);
-    return snapshot;
-  });
-
-  registerMessageHandler("myz:getSnapshotVersions", async (payload) => {
+  registerMessageHandler("myz:getSnapshotsForPage", async (payload) => {
     if (!payload?.url) return [];
-    return getSnapshotVersions(payload.url);
+    const versions = await getSnapshotVersions(payload.url);
+    // Reading the version list is a use, so LRU keeps what the user opens.
+    if (versions[0]) await touchSnapshot(versions[0].id);
+    return versions;
   });
 
   registerMessageHandler("myz:getSnapshotUsage", async () => {

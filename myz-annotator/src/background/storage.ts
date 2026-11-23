@@ -23,14 +23,19 @@ import { normalizeAiSettings } from "@/ai/settings.js";
 import type { StagedAsset } from "@/stitch/staged-asset.js";
 
 const DB_NAME = "myz_db";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 /**
  * Creates the object stores the first time the db is opened (or upgrades an
  * older one). Store creation is guarded by `contains` so a caller that opens an
  * already-current db is unaffected.
  */
-function upgradeSchema(db: IDBDatabase): void {
+function upgradeSchema(
+  db: IDBDatabase,
+  _oldVersion: number,
+  _newVersion: number | null,
+  transaction: IDBTransaction,
+): void {
   if (!db.objectStoreNames.contains("highlights")) {
     const store = db.createObjectStore("highlights", { keyPath: "id" });
     store.createIndex("url", "url", { unique: false });
@@ -52,7 +57,11 @@ function upgradeSchema(db: IDBDatabase): void {
   if (!db.objectStoreNames.contains("page_snapshots")) {
     const store = db.createObjectStore("page_snapshots", { keyPath: "id" });
     store.createIndex("usedAt", "usedAt", { unique: false });
-    store.createIndex("recordId", "recordId", { unique: false });
+  } else if (
+    transaction.objectStore("page_snapshots").indexNames.contains("recordId")
+  ) {
+    // v6: snapshots became page-bound; the record-id lookup is gone.
+    transaction.objectStore("page_snapshots").deleteIndex("recordId");
   }
 
   // Opaque overflow for synced records we cannot materialize (unknown

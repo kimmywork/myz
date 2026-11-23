@@ -214,15 +214,10 @@ export default defineComponent({
               <button
                 type="button"
                 class="myz-inspector__icon-btn"
-                aria-label="保存整页快照"
-                title="保存整页快照"
+                aria-label="保存快照"
+                title="保存快照"
                 disabled={snapshot.saving.value}
-                onClick={() =>
-                  void snapshot.save(
-                    record.value.id ?? undefined,
-                    record.value.text,
-                  )
-                }
+                onClick={() => void snapshot.save(record.value.text)}
               >
                 <IconCamera size={16} aria-hidden="true" />
               </button>

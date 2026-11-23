@@ -1,17 +1,25 @@
 /**
- * Turning a live page into a snapshot (§I8).
+ * Turning a live page into a snapshot (§I8 / §3.4, revised 2026-11-23).
  *
- * The body is the article around the record, not the whole document: extending
- * from the record to both sides reaches the content container's edges, which is
- * what I9's truncation thresholds will refine later. What ships here is the
- * structure only — no scripts, no image payloads, no site CSS.
+ * What ships here is *structure* — no scripts, no image payloads, no site CSS.
+ * How much structure depends on the page (see `page-eligibility.ts`):
+ *
+ * - `full` — an article page keeps its **whole readable body** (正文边界内
+ *   整篇). The viewer folds the display down to the annotated regions.
+ * - `windowed` — an endless-scroll page gets a record-anchored window: the
+ *   cluster of the page's records plus a little air (`truncate.ts`).
  *
  * The extractor is written as pure functions over a `Document` so it can be
  * tested against fixtures without a running content script.
  */
 import { ZEN_SELECTOR_MAP } from "../zen-config.js";
+import type { SnapshotCaptureMode } from "./page-eligibility.js";
 import { SNAPSHOT_CSS } from "./style.js";
-import { childContaining, truncateAround } from "./truncate.js";
+import {
+  childContaining,
+  normalizeWindowText,
+  truncateAround,
+} from "./truncate.js";
 
 /** Elements whose contents are never part of the readable body. */
 const DROP_SELECTORS = [
@@ -136,14 +144,17 @@ export function byteLength(value: string): number {
  * @param root Content container (see {@link findSnapshotRoot}).
  * @param doc Owner document, for the title.
  * @param url Page URL.
+ * @param anchor Window centre (windowed mode only).
+ * @param needles Normalized record texts; the window stops past their cluster.
  */
 export function buildSnapshotBody(
   root: Element,
   doc: Document,
   url: string,
   anchor: Node | null = null,
+  needles: readonly string[] = [],
 ): ExtractedSnapshot {
-  const clone = truncateAround(root, anchor);
+  const clone = truncateAround(root, anchor, needles);
   clone.querySelectorAll(DROP_SELECTORS).forEach((node) => node.remove());
   cleanAttributes(clone);
 
@@ -154,7 +165,7 @@ export function buildSnapshotBody(
   }
 
   // A cleaned body can still serialise to `<article></article>`; that is an
-  // empty snapshot, and storing it would let the UI say "已保存整页快照" over
+  // empty snapshot, and storing it would let the UI say "已保存快照" over
   // nothing readable.
   const html = (clone.textContent || "").trim() ? clone.outerHTML : "";
   return {
@@ -166,23 +177,51 @@ export function buildSnapshotBody(
   };
 }
 
+/** Normalized, truncated needles: the window's record-hit comparison. */
+export function recordNeedles(
+  texts: readonly (string | undefined)[],
+): string[] {
+  const needles = new Set<string>();
+  for (const text of texts) {
+    const needle = normalizeWindowText(text).slice(0, 120);
+    if (needle.length >= 4) needles.add(needle);
+  }
+  return [...needles];
+}
+
 /**
  * Convenience: the whole extraction for a live page.
  *
- * @param anchorText The record's text, when the capture started from one. The
- *   body is then windows around that anchor instead of the whole container
- *   (§I9); without it the full container is kept.
+ * @param options `mode` decides full body vs record-anchored window. In
+ *   windowed mode the anchor must resolve — `null` means "cannot window this
+ *   capture", never "capture everything", or a feed would be stored whole.
  */
 export function extractSnapshot(
   doc: Document,
   url: string,
-  anchorText?: string,
-): ExtractedSnapshot {
+  options: {
+    mode: SnapshotCaptureMode;
+    anchorText?: string;
+    recordTexts?: readonly (string | undefined)[];
+  },
+): ExtractedSnapshot | null {
   const root = findSnapshotRoot(doc, url);
+  if (options.mode === "full") {
+    return buildSnapshotBody(root, doc, url);
+  }
   // `isConnected` is false for a document parsed off the live tree (tests,
   // fixtures), so containment is the reliable check here.
-  const anchor = doc.contains(root) ? anchorElement(root, anchorText) : null;
-  return buildSnapshotBody(root, doc, url, anchor);
+  const anchor = doc.contains(root)
+    ? anchorElement(root, options.anchorText)
+    : null;
+  if (!anchor) return null;
+  return buildSnapshotBody(
+    root,
+    doc,
+    url,
+    anchor,
+    recordNeedles([options.anchorText, ...(options.recordTexts ?? [])]),
+  );
 }
 
 /** The container child holding the record's text, when it can be found. */

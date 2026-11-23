@@ -1,14 +1,18 @@
 /**
- * "Save the whole page" from a record (§I8), run in the content script because
- * only it has the live DOM.
+ * "Save the page" from a record (§I8 / §3.4, revised 2026-11-23), run in the
+ * content script because only it has the live DOM.
  *
- * The flow is: decide whether the page is eligible, extract the body, let the
- * background store it under quota. Every outcome ends in a message the user can
- * read — success, refused, or failed — because the one thing this must never do
- * is leave them believing a snapshot exists when it does not.
+ * The snapshot is **page-bound**: this saves the current page's copy, and every
+ * record of the page anchors onto it. The record the capture started from only
+ * anchors the window on endless surfaces (there is no whole page there).
+ *
+ * Every outcome ends in a message the user can read — success or failed —
+ * because the one thing this must never do is leave them believing a snapshot
+ * exists when it does not.
  */
 import { ref } from "vue";
 import { useNotificationStore } from "../stores/notification-store.js";
+import type { ExtractedSnapshot } from "./extract.js";
 import { extractSnapshot } from "./extract.js";
 import { evaluatePage } from "./page-eligibility.js";
 import { invoke } from "@/messaging/invoke.js";
@@ -34,10 +38,13 @@ export function useSnapshotCapture() {
   const notify = useNotificationStore();
   const saving = ref(false);
 
-  async function save(
-    recordId: string | undefined,
-    recordText?: string,
-  ): Promise<boolean> {
+  /**
+   * Saves the page's snapshot.
+   *
+   * @param recordText The record the capture started from. Required to window
+   *   an endless surface; ignored for the full capture.
+   */
+  async function save(recordText?: string): Promise<boolean> {
     if (saving.value) return false;
     saving.value = true;
     try {
@@ -47,16 +54,39 @@ export function useSnapshotCapture() {
         viewportHeight: window.innerHeight,
         visibleTextLength: visibleTextLength(),
       });
-      if (!eligibility.capture) {
-        notify.notify({ message: eligibility.reason ?? "这个页面不支持快照" });
+
+      let snapshot: ExtractedSnapshot | null;
+      if (eligibility.mode === "full") {
+        snapshot = extractSnapshot(document, url, { mode: "full" });
+      } else {
+        // Endless surface: keep the cluster of this page's records instead of
+        // a headless fragment (§3.4 stop rule: N elements with no neighbouring
+        // record end the window).
+        const records = await invoke("myz:getHighlightsForUrl", {
+          url,
+        }).catch(() => []);
+        snapshot = extractSnapshot(document, url, {
+          mode: "windowed",
+          anchorText: recordText,
+          recordTexts: (records ?? []).map((record) => record.text),
+        });
+        if (!snapshot) {
+          notify.notify({
+            message: "找不到这条划线在这一页上的位置，无法截取片段",
+          });
+          return false;
+        }
+      }
+      if (!snapshot) {
+        notify.notify({ message: "页面正文为空，无法保存快照" });
+        return false;
+      }
+      if (!snapshot.html) {
+        notify.notify({ message: "页面正文为空，无法保存快照" });
         return false;
       }
 
-      // The record's text anchors the window, so a long page yields the part
-      // around the highlight rather than everything.
-      const snapshot = extractSnapshot(document, url, recordText);
       const result = await invoke("myz:saveSnapshot", {
-        recordId,
         url: snapshot.url,
         title: snapshot.title,
         html: snapshot.html,
@@ -69,7 +99,6 @@ export function useSnapshotCapture() {
         notify.notify({ message: result?.error ?? "快照保存失败" });
         return false;
       }
-      // Not "整页": the capture is the window around this record (§I9).
       if (result.announceEviction) {
         notify.notify({ message: "已保存快照；空间不足，最旧的快照已被清理" });
       } else {
