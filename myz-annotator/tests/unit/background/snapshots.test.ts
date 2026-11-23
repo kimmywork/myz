@@ -1,6 +1,6 @@
 // @vitest-environment node
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 // `getDB` runs the one-shot legacy migration, which reads chrome.storage.
 (globalThis as unknown as { chrome: unknown }).chrome = {
@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SnapshotWriteError,
   getSnapshot,
-  getSnapshotForRecord,
+  getSnapshotVersions,
   listSnapshotIndex,
   resetEvictionNotice,
   measureSnapshotBytes,
@@ -25,11 +25,11 @@ import {
   touchSnapshot,
 } from "@/background/snapshots.js";
 
-function input(id: string, _bytes = 0, recordId = `rec-${id}`) {
+/** One snapshot of the page at `url`; ids double as the body text. */
+function input(id: string, url = `https://example.com/${id}`) {
   return {
     id,
-    recordId,
-    url: `https://example.com/${id}`,
+    url,
     title: `Page ${id}`,
     html: `<p>${id}</p>`,
     css: "body{}",
@@ -55,23 +55,32 @@ describe("snapshot store", () => {
     expect(stored?.createdAt).toBeTruthy();
   });
 
-  it("finds the newest snapshot for a record", async () => {
+  it("lists a page's versions newest first, regardless of record", async () => {
+    // Snapshots are page-bound (2026-11-23): the two captures of one page are
+    // its version list; a capture of another page must not leak in.
     await saveSnapshot({
-      ...input("old", 100),
+      ...input("old", "https://example.com/shared"),
       createdAt: "2026-01-01T00:00:00.000Z",
       usedAt: "2026-01-01T00:00:00.000Z",
     });
     await saveSnapshot({
-      ...input("new", 100),
+      ...input("new", "https://example.com/shared"),
       createdAt: "2026-02-01T00:00:00.000Z",
       usedAt: "2026-02-01T00:00:00.000Z",
     });
+    await saveSnapshot(input("other"));
 
-    const found = await getSnapshotForRecord("rec-old");
-    expect(found?.id).toBe("old");
+    const versions = await getSnapshotVersions("https://example.com/shared");
+    expect(versions.map((entry) => entry.id)).toEqual(["new", "old"]);
+  });
 
-    const newest = await getSnapshotForRecord("rec-new");
-    expect(newest?.id).toBe("new");
+  it("groups versions by canonical URL", async () => {
+    // Tracking parameters must not make the page look like another page.
+    await saveSnapshot(
+      input("tracked", "https://example.com/shared?utm_source=x#frag"),
+    );
+    const versions = await getSnapshotVersions("https://example.com/shared");
+    expect(versions.map((entry) => entry.id)).toEqual(["tracked"]);
   });
 
   it("evicts the least recently used when over quota", async () => {
@@ -156,36 +165,13 @@ describe("snapshot store", () => {
     expect(shouldAnnounceEviction()).toBe(true);
   });
 
-  it("looks a record up through the indexed query, newest first", async () => {
-    // Two snapshots of the same record; the newest must win.
-    await saveSnapshot({
-      ...input("older", 0, "rec-shared"),
-      createdAt: "2026-01-01T00:00:00.000Z",
-      usedAt: "2026-01-01T00:00:00.000Z",
-    });
-    await saveSnapshot({
-      ...input("newer", 0, "rec-shared"),
-      createdAt: "2026-02-01T00:00:00.000Z",
-      usedAt: "2026-02-01T00:00:00.000Z",
-    });
-    // A different record must not come back.
-    await saveSnapshot({ ...input("other", 0, "rec-other") });
-
-    // Spy on the index call: this is the only assertion that can tell an
-    // indexed lookup from a full scan — both return the same rows.
-    const indexSpy = vi.spyOn(IDBObjectStore.prototype, "index");
-    const found = await getSnapshotForRecord("rec-shared");
-    expect(found?.id).toBe("newer");
-    expect(indexSpy).toHaveBeenCalledWith("recordId");
-    indexSpy.mockRestore();
-
-    // And the index the query relies on exists on the store.
+  it("drops the obsolete recordId index (v6, page-bound snapshots)", async () => {
     const { getDB } = await import("@/background/storage.js");
     const db = await getDB();
     const names = Array.from(
       db.transaction("page_snapshots").objectStore("page_snapshots").indexNames,
     );
-    expect(names).toContain("recordId");
+    expect(names).not.toContain("recordId");
   });
 });
 

@@ -46,7 +46,6 @@ export function measureSnapshotBytes(html: string, css: string): number {
 function toIndex(snapshot: PageSnapshot): PageSnapshotIndex {
   return {
     id: snapshot.id,
-    recordId: snapshot.recordId,
     url: snapshot.url,
     title: snapshot.title,
     bytes: snapshot.bytes,
@@ -79,29 +78,13 @@ export async function getSnapshot(
   );
 }
 
-/** Newest first, for the viewer. */
-export async function getSnapshotForRecord(
-  recordId: string,
-): Promise<PageSnapshot | undefined> {
-  // Uses the `recordId` index rather than scanning the store: this runs every
-  // time the viewer opens a snapshot, and a full scan would load every body
-  // (up to the whole quota) into memory.
-  const db = await getDB();
-  const matches = await withStore<PageSnapshot[]>(
-    db,
-    STORE,
-    "readonly",
-    (store) => store.index("recordId").getAll(recordId),
-  );
-  return matches.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-}
-
 /**
- * Every snapshot of the page at `url`, grouped into versions.
+ * Every snapshot of the page at `url` — the page's version list, newest first.
  *
- * Uses the canonical URL so `?utm_source=…`, a fragment or a video timestamp
- * does not look like a different page. All snapshots are scanned: grouping is
- * rare (only when the viewer opens) and needs the whole set anyway.
+ * Snapshots are page-bound (2026-11-23): all records of a page anchor onto the
+ * same copies. Uses the canonical URL so `?utm_source=…`, a fragment or a video
+ * timestamp does not look like a different page. All snapshots are scanned:
+ * grouping is rare (only when the viewer opens) and needs the whole set anyway.
  */
 export async function getSnapshotVersions(
   url: string,

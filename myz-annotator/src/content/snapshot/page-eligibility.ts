@@ -1,27 +1,30 @@
 /**
- * "Should this page be snapshotted?" (§I8)
+ * "How should this page be snapshotted?" (§I8 / §3.4, revised 2026-11-23)
  *
- * Endless-scroll pages cannot be captured as "the whole page": extending from a
- * record to both sides never reaches an edge, and the result would be a
- * headless fragment the user believes is complete.
+ * An article page gets the **whole readable body** — the user's 「整页快照」
+ * is the full content, and the viewer folds the display down to the annotated
+ * regions (expandable). An endless-scroll page has no whole: extending from a
+ * record never reaches an edge, so it gets a **record-anchored window**
+ * instead (§3.4 truncation rule: extend from the record to both sides, stop
+ * after N elements that hit no neighbouring record).
  *
- * The rule is deliberately conservative. The two mistakes are not equal:
+ * The two mistakes are not equal:
  *
- * - a normal article judged endless → the user cannot save it, but is told so
- *   and can try again (visible, recoverable);
- * - an endless page judged normal → the user gets a fragment, believes it is
- *   saved, and finds out later (invisible, unrecoverable).
+ * - an article judged endless → a window instead of the full body (visible
+ *   immediately, and honest about being a fragment);
+ * - a feed judged normal → an unbounded capture, rejected by the 10 MB
+ *   per-snapshot cap with a visible error.
  *
- * So the site table only blocks the list surfaces it names, and anything it does
- * not name is allowed. I9's truncation is the backstop for the pages this
- * misses on purpose.
+ * So the site table only blocks the list surfaces it names, and anything it
+ * does not name gets the full capture.
  */
 
+/** How much of the page the capture keeps. */
+export type SnapshotCaptureMode = "full" | "windowed";
+
 export interface PageEligibility {
-  /** Whether a snapshot may be taken. */
-  capture: boolean;
-  /** Why not, for the user-facing message. */
-  reason?: string;
+  /** `full` = whole readable body; `windowed` = record-anchored fragment. */
+  mode: SnapshotCaptureMode;
   /** Which rule decided (useful in tests and logs). */
   rule: string;
 }
@@ -169,23 +172,19 @@ export function looksEndlessByLayout(input: {
 }
 
 /**
- * Decides whether `url` is a capturable page.
+ * Decides how `url` is captured.
  *
- * Unknown pages are capturable: the site table is an allow-list of known
+ * Unknown pages get the full capture: the site table is a list of known
  * endless surfaces, not a gate.
  */
 export function classifyPage(url: string): PageEligibility {
   for (const rule of ENDLESS_SCROLL_RULES) {
     if (!rule.pattern.test(url)) continue;
     return rule.mode === "allow"
-      ? { capture: true, rule: rule.label }
-      : {
-          capture: false,
-          rule: rule.label,
-          reason: "这是无限滚动页面，快照会截出没有头尾的内容，因此不采集",
-        };
+      ? { mode: "full", rule: rule.label }
+      : { mode: "windowed", rule: rule.label };
   }
-  return { capture: true, rule: "default" };
+  return { mode: "full", rule: "default" };
 }
 
 /**
@@ -203,14 +202,9 @@ export function evaluatePage(
   },
 ): PageEligibility {
   const byUrl = classifyPage(url);
-  if (!byUrl.capture) return byUrl;
+  if (byUrl.mode === "windowed") return byUrl;
   if (metrics && looksEndlessByLayout(metrics)) {
-    return {
-      capture: false,
-      rule: "layout",
-      reason:
-        "这个页面看起来是无限滚动（内容高度远超视口且首屏几乎没有正文），因此不采集",
-    };
+    return { mode: "windowed", rule: "layout" };
   }
   return byUrl;
 }

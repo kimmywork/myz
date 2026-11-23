@@ -83,7 +83,7 @@ export default defineComponent({
                   data-testid="view-snapshot"
                   onClick={() => (view.value = "snapshot")}
                 >
-                  整页快照
+                  快照
                 </button>
               </div>
               <button
@@ -102,8 +102,12 @@ export default defineComponent({
 
             {view.value === "snapshot" ? (
               <ViewerSnapshotView
-                recordId={a.recordId.value}
-                recordText={a.record.value?.text ?? ""}
+                pageUrl={a.record.value?.sourceUrl || a.record.value?.url || ""}
+                records={a.pageRecords.value.map((item) => ({
+                  id: item.id,
+                  text: item.text,
+                }))}
+                activeId={a.recordId.value}
               />
             ) : (
               <div

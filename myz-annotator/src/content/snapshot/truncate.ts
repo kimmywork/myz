@@ -1,66 +1,61 @@
 /**
- * Snapshot truncation (§I9).
+ * Snapshot truncation (§3.4, revised 2026-11-23).
  *
- * A snapshot extends from the record's anchor outwards through the content
- * container's children. It has to stop somewhere, or a feed page would keep
- * growing without an edge.
+ * Only endless-scroll pages are truncated at all: article pages capture the
+ * whole readable body. A feed has no "whole", so the capture extends from the
+ * record's anchor to both sides and stops after `run` consecutive elements
+ * that hit **no record of this page** (§3.4: 「以 record 为锚向两侧扩展，
+ * 连续 N 个元素都没有命中相邻 record 时停止」). That keeps the cluster of the
+ * user's highlights plus a little air, without dragging an endless tail in.
  *
- * The stop rule is a run of elements that carry no prose. In an article that is
- * the ad/promo/card block between two paragraphs; in a long comment thread it
- * is the chunk of buttons and metadata between two comments. Three in a row
- * means we have left the prose behind.
- *
- * **What N serves — and does not.** These numbers were measured on article
- * pages with promo blocks, on a real long comment thread, and on a synthetic
- * feed sample. X's home timeline is *not* the target: I8's site rules refuse to
- * snapshot endless feeds at all, so this threshold never runs there. Do not
- * read it as "a value tuned for X".
- *
- * Measurement: `scripts/measure/truncation-threshold.mjs`. The widest gap
- * between two adjacent prose blocks across the samples was 2 elements, so N is
- * 3 — the observed maximum plus one.
+ * N is `SNAPSHOT_TRUNCATION_RUN` (3). The value follows the prose-gap probe
+ * (`scripts/measure/truncation-threshold.mjs`, widest observed gap + 1); the
+ * record-hit variant still owes its own probe on a real feed (§6-2), so treat
+ * 3 as the conservative starting point, not a tuned constant.
  */
 
-/** Consecutive prose-less siblings that end the capture. */
+/** Consecutive record-less siblings that end the capture. */
 export const SNAPSHOT_TRUNCATION_RUN = 3;
 
 /**
  * Hard cap on how many siblings one side may add, whatever the runs look like.
  *
- * The run rule alone is not enough: a container whose children are all prose
- * (one long article body split into paragraphs) would never reach a run of
- * three, and the snapshot would be the whole page. This bounds the work.
+ * A dense cluster of highlights would otherwise extend without a limit, so
+ * this bounds the work regardless of the stop rule.
  */
 export const SNAPSHOT_MAX_SIBLINGS_PER_SIDE = 200;
 
-/** Elements that count as "prose" for the stop rule. */
-const PROSE_SELECTOR =
-  "p, li, blockquote, pre, table, h1, h2, h3, h4, h5, h6, dd, dt, figure";
-
-/** A node counts as prose when it is text, or an element holding text. */
-function isProseNode(node: Node): boolean {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return (node.textContent || "").trim().length > 0;
-  }
-  return node.nodeType === Node.ELEMENT_NODE && isProseElement(node as Element);
-}
-
-/** An element with a real amount of text reads as prose regardless of tag. */
-const PROSE_MIN_TEXT = 40;
-
 export interface TruncationOptions {
-  /** Prose-less run that ends the capture. */
+  /** Record-less run that ends the capture. */
   run?: number;
   /** Per-side sibling cap. */
   maxPerSide?: number;
 }
 
-/** True when this element reads as article prose. */
-export function isProseElement(element: Element): boolean {
-  if (element.matches(PROSE_SELECTOR)) {
-    return (element.textContent || "").trim().length > 0;
-  }
-  return (element.textContent || "").trim().length >= PROSE_MIN_TEXT;
+/** Collapses whitespace so needles compare like the page text does. */
+export function normalizeWindowText(value: string | null | undefined): string {
+  return (value || "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Whitespace between blocks is layout, not content: it must neither hit a
+ * record nor consume the record-less run budget.
+ */
+function isBlankLayout(node: Node): boolean {
+  return node.nodeType === Node.TEXT_NODE && !(node.textContent || "").trim();
+}
+
+/**
+ * Whether one sibling hits any of the page's record texts.
+ *
+ * The needle is compared collapsed and truncated to 120 chars — the same
+ * comparison `containerAround` resolves the anchor with — so inline markup or
+ * line breaks inside the quote do not hide the hit.
+ */
+export function hitsRecord(node: Node, needles: readonly string[]): boolean {
+  const text = normalizeWindowText(node.textContent);
+  if (!text) return false;
+  return needles.some((needle) => needle && text.includes(needle));
 }
 
 /**
@@ -80,12 +75,13 @@ export function childContaining(root: Element, node: Node | null): Node | null {
 /**
  * Indexes to keep when extending from `anchor` inside `root`.
  *
- * Walks outward one sibling at a time, keeping prose and short connective
- * elements, and stops after `run` consecutive prose-less siblings.
+ * Walks outward one sibling at a time and stops after `run` consecutive
+ * siblings that hit no record of this page.
  */
 export function siblingWindow(
   root: Element,
   anchor: Node,
+  needles: readonly string[],
   options: TruncationOptions = {},
 ): { first: number; last: number } {
   const run = options.run ?? SNAPSHOT_TRUNCATION_RUN;
@@ -101,7 +97,12 @@ export function siblingWindow(
   let misses = 0;
   let added = 0;
   for (let index = start - 1; index >= 0; index -= 1) {
-    if (isProseNode(children[index])) misses = 0;
+    const node = children[index];
+    if (isBlankLayout(node)) {
+      first = index;
+      continue;
+    }
+    if (hitsRecord(node, needles)) misses = 0;
     else misses += 1;
     if (misses >= run || added >= maxPerSide) break;
     first = index;
@@ -112,7 +113,12 @@ export function siblingWindow(
   misses = 0;
   added = 0;
   for (let index = start + 1; index < children.length; index += 1) {
-    if (isProseNode(children[index])) misses = 0;
+    const node = children[index];
+    if (isBlankLayout(node)) {
+      last = index;
+      continue;
+    }
+    if (hitsRecord(node, needles)) misses = 0;
     else misses += 1;
     if (misses >= run || added >= maxPerSide) break;
     last = index;
@@ -131,11 +137,12 @@ export function siblingWindow(
 export function truncateAround(
   root: Element,
   anchor: Node | null,
+  needles: readonly string[],
   options: TruncationOptions = {},
 ): Element {
   if (!anchor || !root.contains(anchor)) return root.cloneNode(true) as Element;
 
-  const { first, last } = siblingWindow(root, anchor, options);
+  const { first, last } = siblingWindow(root, anchor, needles, options);
   const clone = root.cloneNode(false) as Element;
   // Node slice, so direct text nodes ride along with their siblings.
   Array.from(root.childNodes)

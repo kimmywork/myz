@@ -1,25 +1,41 @@
 import type { PageSnapshot } from "@myz/core/page-snapshot";
 import { snapshotHeaderLine } from "@myz/core/page-snapshot";
-import { computed, defineComponent, ref, watch } from "vue";
+import { computed, defineComponent, nextTick, ref, watch } from "vue";
+import type { PropType } from "vue";
+import { resolveSnapshotAnchor } from "./snapshot-anchor.js";
 import {
-  normalizeAnchorText,
-  resolveSnapshotAnchor,
-} from "./snapshot-anchor.js";
-import { renderSnapshotBody } from "./snapshot-body.js";
+  renderSnapshotBody,
+  snapshotTextOf,
+  type SnapshotMark,
+} from "./snapshot-body.js";
+import { buildSnapshotDisplay } from "./snapshot-collapse.js";
 import { invoke } from "@/messaging/invoke.js";
 
+/** The only record fields the anchoring needs. */
+type PageRecordRef = { id: string; text?: string };
+
 /**
- * Read-only page snapshot for one record (§I8).
+ * The page's snapshot, read-only (§I8, revised 2026-11-23).
  *
- * Shows the stored body with the record's text marked, plus the one-line
- * status the contract fixes. When no snapshot exists — never taken, or taken
- * on another device — it says so plainly instead of rendering an empty page.
+ * Snapshots are **page-bound**: one copy per page, every record of the page
+ * anchors onto it. Display is the blur-fade form (user 2026-11-23: 「只显示
+ * 高亮的部分，其他渐入渐出式模糊掉」): only the annotated regions render
+ * sharp; the surrounding copy stays in place, blurred with a fade, and
+ * reveals on click. Fonts and sizes come from the shared markdown render
+ * styles (`.read-body` / `.prose`), not from the captured page.
  */
 export const ViewerSnapshotView = defineComponent({
   name: "ViewerSnapshotView",
   props: {
-    recordId: { type: String, required: true },
-    recordText: { type: String, default: "" },
+    /** The record's page URL — the snapshot's identity. */
+    pageUrl: { type: String, required: true },
+    /** Every record of this page, so all of them anchor onto the copy. */
+    records: {
+      type: Array as PropType<PageRecordRef[]>,
+      default: () => [],
+    },
+    /** The record being read; its mark is emphasised and scrolled to. */
+    activeId: { type: String, default: "" },
   },
   setup(props) {
     const snapshot = ref<PageSnapshot | null>(null);
@@ -30,42 +46,30 @@ export const ViewerSnapshotView = defineComponent({
     const statusLine = ref("");
     const loading = ref(true);
     const error = ref("");
-    /** Only the first load per record needs a spinner. */
+    /** Only the first load per page needs a spinner. */
     const loadedFor = ref("");
+    const bodyRef = ref<HTMLElement | null>(null);
     /** Monotonic id: a slower earlier load must not overwrite a newer one. */
     let requestId = 0;
 
     async function load() {
-      const recordId = props.recordId;
-      if (!recordId) return;
+      const pageUrl = props.pageUrl;
+      if (!pageUrl) return;
       const request = ++requestId;
-      if (loadedFor.value !== recordId) loading.value = true;
+      if (loadedFor.value !== pageUrl) loading.value = true;
       error.value = "";
-      let replaced: PageSnapshot | null = null;
-      let nextStatus = "";
-      let nextVersions: PageSnapshot[] = [];
       try {
         const [found, usage] = await Promise.all([
-          invoke("myz:getSnapshotForRecord", { recordId }),
+          invoke("myz:getSnapshotsForPage", { url: pageUrl }),
           invoke("myz:getSnapshotUsage"),
         ]);
         // Navigating A → B: A's answer arriving late must not replace B's.
         if (request !== requestId) return;
-        replaced = found ?? null;
-        nextStatus = usage?.statusLine ?? "";
-        // Versions are grouped by canonical URL: tracking parameters, a
-        // fragment or a video timestamp must not look like another page.
-        nextVersions = found
-          ? await invoke("myz:getSnapshotVersions", { url: found.url })
-          : [];
-        // The second await gives another load time to start: re-check before
-        // touching any reactive state, or A's versions land on B's view.
-        if (request !== requestId) return;
-        snapshot.value = nextVersions.length ? nextVersions[0] : replaced;
-        statusLine.value = nextStatus;
-        versions.value = nextVersions;
+        versions.value = found;
+        snapshot.value = found[0] ?? null;
+        statusLine.value = usage?.statusLine ?? "";
         selectedVersion.value = 0;
-        loadedFor.value = recordId;
+        loadedFor.value = pageUrl;
       } catch (loadError) {
         if (request !== requestId) return;
         console.warn("Failed to load snapshot", loadError);
@@ -77,44 +81,81 @@ export const ViewerSnapshotView = defineComponent({
     }
 
     watch(
-      () => props.recordId,
+      () => props.pageUrl,
       () => void load(),
       { immediate: true },
     );
 
     /**
-     * Plain text of a stored snapshot body, for the anchor comparison.
-     *
-     * Block elements are separated by a space first: `textContent` glues
-     * `<p>first</p><p>second</p>` into `firstsecond`, which would make a quote
-     * spanning two paragraphs unmatchable.
+     * Placement of every record of this page. The haystack is the exact text
+     * the marking walks (one matcher, `snapshot-text`), so "located" and
+     * "marked" can never disagree; the answer is stable because it is computed
+     * from the stored body, not from a live page.
      */
-    function snapshotText(html: string): string {
-      if (typeof document === "undefined") return normalizeAnchorText(html);
-      const container = document.createElement("div");
-      container.innerHTML = html;
-      container
-        .querySelectorAll(
-          "p, div, li, br, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th",
-        )
-        .forEach((element) => {
-          element.after(document.createTextNode(" "));
-        });
-      return normalizeAnchorText(container.textContent || "");
+    const placements = computed(() => {
+      if (!snapshot.value) return [];
+      const text = snapshotTextOf(snapshot.value.html);
+      return props.records.map((record) => ({
+        id: record.id,
+        text: record.text || "",
+        anchor: resolveSnapshotAnchor(record.text, text),
+      }));
+    });
+
+    const locatedMarks = computed<SnapshotMark[]>(() =>
+      placements.value
+        .filter((entry) => entry.anchor.status === "located" && entry.text)
+        .map((entry) => ({ id: entry.id, text: entry.text })),
+    );
+
+    const locatedCount = computed(
+      () =>
+        placements.value.filter((p) => p.anchor.status === "located").length,
+    );
+    const unlocatedCount = computed(
+      () =>
+        placements.value.filter((p) => p.anchor.status === "unlocated").length,
+    );
+
+    /** The active record's placement, for the "未能定位" notice. */
+    const activePlacement = computed(
+      () =>
+        placements.value.find((entry) => entry.id === props.activeId) ?? null,
+    );
+
+    /** Marked body in the blur-fade form: sharp highlights, faded context. */
+    const body = computed(() => {
+      if (!snapshot.value) return "";
+      const marked = renderSnapshotBody(snapshot.value, locatedMarks.value);
+      return buildSnapshotDisplay(marked, props.activeId);
+    });
+
+    /** Click on a faded run reveals it (渐入); click again re-blurs (渐出). */
+    function onBodyClick(event: MouseEvent) {
+      // A drag-select must not toggle: only an actual click reveals.
+      if (!window.getSelection()?.isCollapsed) return;
+      const target = (event.target as HTMLElement | null)?.closest(
+        ".myz-snapshot-dim",
+      );
+      if (!target || !bodyRef.value?.contains(target)) return;
+      toggleReveal(target as HTMLElement);
     }
 
-    /**
-     * Whether the record's text can be placed in this snapshot.
-     *
-     * Computed from the stored body, not from a live page, so the answer is
-     * stable: either the quote occurs exactly once in the saved copy or it does
-     * not, and "does not" is reported rather than guessed around.
-     */
-    const anchor = computed(() => {
-      if (!snapshot.value) return null;
-      const text = snapshotText(snapshot.value.html);
-      return resolveSnapshotAnchor(props.recordText, text);
-    });
+    /** Keyboard twin of the click (Enter / Space), per APG button semantics. */
+    function onBodyKeydown(event: KeyboardEvent) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const target = (event.target as HTMLElement | null)?.closest(
+        ".myz-snapshot-dim",
+      );
+      if (!target || !bodyRef.value?.contains(target)) return;
+      event.preventDefault();
+      toggleReveal(target as HTMLElement);
+    }
+
+    function toggleReveal(target: HTMLElement) {
+      const revealed = target.classList.toggle("is-revealed");
+      target.setAttribute("aria-expanded", revealed ? "true" : "false");
+    }
 
     /** Switches to another capture of the same page. */
     function selectVersion(index: number) {
@@ -124,21 +165,18 @@ export const ViewerSnapshotView = defineComponent({
       snapshot.value = chosen;
     }
 
-    /**
-     * The rendered body — **always sanitized**.
-     *
-     * When the anchor located, the record's text is marked; otherwise the body
-     * renders without a mark. Both branches go through `renderSnapshotBody`,
-     * whose first step is `sanitizeHtmlString`: the capture-time strip is not a
-     * security boundary once the HTML has been sitting in storage, and a
-     * `javascript:` href inside a stored snapshot is exactly what that
-     * sanitizer exists to remove.
-     */
-    const body = computed(() => {
-      if (!snapshot.value) return "";
-      const text = anchor.value?.status === "located" ? props.recordText : "";
-      return renderSnapshotBody(snapshot.value, text);
-    });
+    /** Brings the active record's mark into view (the region it lives in). */
+    async function focusActiveMark() {
+      await nextTick();
+      bodyRef.value
+        ?.querySelector("mark.is-active")
+        ?.scrollIntoView({ block: "center" });
+    }
+
+    watch(
+      () => [props.activeId, snapshot.value?.id],
+      () => void focusActiveMark(),
+    );
 
     return () => (
       <div class="mt-4 flex min-h-0 flex-col gap-2" data-testid="snapshot-view">
@@ -199,13 +237,25 @@ export const ViewerSnapshotView = defineComponent({
           </p>
         ) : snapshot.value ? (
           <>
-            {anchor.value?.status === "unlocated" ? (
+            {placements.value.length ? (
+              <p class="text-caption text-muted" data-testid="snapshot-summary">
+                本页 {placements.value.length} 条记录：{locatedCount.value}{" "}
+                条已标注
+                {unlocatedCount.value
+                  ? `，${unlocatedCount.value} 条未能定位`
+                  : ""}
+              </p>
+            ) : null}
+            {activePlacement.value?.anchor.status === "unlocated" ? (
               <div
                 class="rounded-control border border-warn/40 bg-warn-bg px-3 py-2 text-caption text-warn"
                 role="status"
                 data-testid="snapshot-unlocated"
               >
-                <p>这条高亮未能在快照中定位：{anchor.value.reason}</p>
+                <p>
+                  这条高亮未能在快照中定位：
+                  {activePlacement.value.anchor.reason}
+                </p>
                 {snapshot.value.url ? (
                   <a
                     class="underline"
@@ -219,15 +269,17 @@ export const ViewerSnapshotView = defineComponent({
               </div>
             ) : null}
             <article
-              class="myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
-              // Sanitized when the anchor located a spot; the untransformed
-              // body still needs the same treatment, so it goes through it too.
+              ref={bodyRef}
+              class="read-body prose myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
+              data-testid="snapshot-body"
+              onClick={onBodyClick}
+              onKeydown={onBodyKeydown}
               innerHTML={body.value}
             ></article>
           </>
         ) : (
           <p class="text-compact text-muted" data-testid="snapshot-empty">
-            这条记录还没有快照。在网页上打开它，点「保存整页快照」。
+            这一页还没有快照。在网页上打开它，点「保存快照」。
           </p>
         )}
       </div>

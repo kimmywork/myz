@@ -105,7 +105,6 @@ export type MyzRuntimeMap = {
   /** Stores a page snapshot, evicting least-recently-used ones if needed (§I8). */
   "myz:saveSnapshot": {
     payload: {
-      recordId?: string;
       url: string;
       title: string;
       html: string;
@@ -122,12 +121,8 @@ export type MyzRuntimeMap = {
       announceEviction?: boolean;
     };
   };
-  "myz:getSnapshotForRecord": {
-    payload: { recordId: string };
-    result: PageSnapshot | null;
-  };
-  /** Every snapshot of this page, newest first (§I9 version list). */
-  "myz:getSnapshotVersions": {
+  /** Every snapshot of this page (newest first) — the page's version list. */
+  "myz:getSnapshotsForPage": {
     payload: { url: string };
     result: PageSnapshot[];
   };

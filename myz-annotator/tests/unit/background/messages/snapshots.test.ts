@@ -23,7 +23,6 @@ const ctx = { tabId: 1, trusted: false };
 
 function payload(id: string, bytes = 1024) {
   return {
-    recordId: `rec-${id}`,
     url: `https://example.com/${id}`,
     title: `Page ${id}`,
     html: `<p>${id}</p>`,
@@ -48,7 +47,7 @@ describe("snapshot message handlers", () => {
     initializeSnapshotMessageHandlers();
   });
 
-  it("stores a snapshot and reads it back for its record", async () => {
+  it("stores a snapshot and reads the page's copy back", async () => {
     const saved = (await handleMessage(
       "myz:saveSnapshot",
       payload("a"),
@@ -61,11 +60,12 @@ describe("snapshot message handlers", () => {
     expect(typeof saved.id).toBe("string");
 
     const found = (await handleMessage(
-      "myz:getSnapshotForRecord",
-      { recordId: "rec-a" },
+      "myz:getSnapshotsForPage",
+      { url: "https://example.com/a" },
       ctx,
-    )) as { title?: string } | null;
-    expect(found?.title).toBe("Page a");
+    )) as Array<{ title?: string }>;
+    expect(found).toHaveLength(1);
+    expect(found[0]?.title).toBe("Page a");
   });
 
   it("measures the body itself, so a small claim cannot bypass the cap", async () => {

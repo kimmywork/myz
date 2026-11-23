@@ -244,4 +244,66 @@
   .is-disabled {
     @apply pointer-events-none opacity-45;
   }
+
+  /* §3.4 快照视图：高亮区清晰，其余渐入渐出模糊（2026-11-23）。 */
+  .myz-snapshot-body mark[data-myz-snapshot-mark] {
+    background: color-mix(in srgb, var(--myz-accent) 18%, transparent);
+    color: inherit;
+    border-radius: var(--myz-r-xs);
+  }
+
+  .myz-snapshot-body mark[data-myz-snapshot-mark].is-active {
+    background: color-mix(in srgb, var(--myz-accent) 32%, transparent);
+    outline: 1.5px solid var(--myz-accent);
+  }
+
+  .myz-snapshot-region + .myz-snapshot-region,
+  .myz-snapshot-region + .myz-snapshot-dim,
+  .myz-snapshot-dim + .myz-snapshot-region,
+  .myz-snapshot-dim + .myz-snapshot-dim {
+    margin-top: 12px;
+  }
+
+  .myz-snapshot-region > * + *,
+  .myz-snapshot-dim > * + * {
+    margin-top: 8px;
+  }
+
+  /* 非高亮内容就地模糊：边缘渐出，点击渐入展开（再点恢复）。 */
+  .myz-snapshot-dim {
+    filter: blur(4px);
+    opacity: 0.55;
+    cursor: pointer;
+    transition:
+      filter var(--myz-motion-med) var(--myz-ease-out),
+      opacity var(--myz-motion-med) var(--myz-ease-out),
+      mask-image var(--myz-motion-med) var(--myz-ease-out);
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 28px,
+      #000 calc(100% - 28px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 28px,
+      #000 calc(100% - 28px),
+      transparent 100%
+    );
+  }
+
+  .myz-snapshot-dim:hover {
+    filter: blur(2px);
+    opacity: 0.75;
+  }
+
+  .myz-snapshot-dim.is-revealed {
+    filter: none;
+    opacity: 1;
+    cursor: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 }
