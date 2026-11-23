@@ -16,7 +16,12 @@
  * block-spanning range in one element).
  */
 import type { PageSnapshot } from "@myz/core/page-snapshot";
+import { DEFAULT_COLORS, HIGHLIGHT_STYLES } from "@myz/shared/enums";
 import { wrapRangeAcrossNodes } from "@myz/shared/highlightRange";
+import {
+  normalizeColor,
+  normalizeHighlightStyle,
+} from "@myz/shared/highlightUtils";
 import { sanitizeHtmlString } from "@myz/shared/sanitizeHtml";
 import { normalizeAnchorText } from "./snapshot-anchor.js";
 
@@ -25,6 +30,41 @@ export interface SnapshotMark {
   /** Record id; lands in `data-myz-anchor` so the active one can be styled. */
   id: string;
   text: string;
+  /** The record's own highlight style (涂色 / 下划线 / 波浪线). */
+  style?: unknown;
+  /** The record's own colour; defaults like the content layer does. */
+  color?: string;
+  /** The record's note; shown Word-review-style beside the mark. */
+  note?: string;
+}
+
+/** Inline fallback styles, mirroring the content layer's `apply-highlight`. */
+function markStyleAttr(mark: SnapshotMark): string {
+  const style = normalizeHighlightStyle(mark.style);
+  const color = normalizeColor(mark.color, DEFAULT_COLORS[0]);
+  const parts = [`--myz-highlight-color:${color}`];
+  if (style === HIGHLIGHT_STYLES.PAINT) {
+    // 42% alpha as 8-digit hex, matching the content layer's paint.
+    parts.push(
+      `background-color:${color}6b`,
+      "border-radius:3px",
+      "padding:0.12em 2px",
+    );
+  } else if (style === HIGHLIGHT_STYLES.UNDERLINE) {
+    parts.push(
+      "text-decoration-line:underline",
+      `text-decoration-color:${color}`,
+      "text-decoration-thickness:2px",
+    );
+  } else if (style === HIGHLIGHT_STYLES.WAVY) {
+    parts.push(
+      "text-decoration-line:underline",
+      "text-decoration-style:wavy",
+      `text-decoration-color:${color}`,
+      "text-decoration-thickness:1.5px",
+    );
+  }
+  return parts.join(";");
 }
 
 /** Block elements separated in the flattened text so quotes can span them. */
@@ -119,6 +159,11 @@ export function highlightSnapshotText(
       const element = container.ownerDocument.createElement("mark");
       element.setAttribute("data-myz-snapshot-mark", "1");
       element.setAttribute("data-myz-anchor", mark.id);
+      element.setAttribute(
+        "data-myz-highlight-style",
+        String(normalizeHighlightStyle(mark.style)),
+      );
+      element.setAttribute("style", markStyleAttr(mark));
       return element;
     });
   }

@@ -87,3 +87,32 @@ test("dashboard_shows_pdf_page_and_opens_reader_at_page", async () => {
   );
   await dashboard.close();
 });
+
+test("pdf_record_detail_opens_the_document_instead", async () => {
+  // PDF/EPUB 划线不是「页面」（没有快照）：详情地址一律落到阅读器。
+  const pdfUrl = `${serverUrl}/myz-pdf-reader.pdf`;
+  await createPdfAnnotation(pdfUrl);
+
+  const dashboard: Page = await context.newPage();
+  await dashboard.goto(
+    `chrome-extension://${extensionId}/src/dashboard/index.html`,
+  );
+  await dashboard.waitForSelector("[data-id]");
+  const recordId = await dashboard
+    .locator("[data-id]")
+    .first()
+    .getAttribute("data-id");
+
+  await dashboard.goto(
+    `chrome-extension://${extensionId}/src/dashboard/index.html#/highlights/${recordId}`,
+  );
+  await dashboard.waitForSelector('iframe[data-testid="reader-frame"]', {
+    timeout: 10000,
+  });
+  const src =
+    (await dashboard
+      .locator('iframe[data-testid="reader-frame"]')
+      .getAttribute("src")) || "";
+  expect(src).toContain("pdf-viewer.html");
+  await dashboard.close();
+});

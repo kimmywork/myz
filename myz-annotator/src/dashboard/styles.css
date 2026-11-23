@@ -245,23 +245,142 @@
     @apply pointer-events-none opacity-45;
   }
 
-  /* §3.4 快照视图：高亮区清晰，其余渐入渐出模糊（2026-11-23）。 */
+  /* §3.4 快照视图：高亮区清晰按原划线样式，其余渐入渐出模糊（2026-11-23）。 */
+  /* 划线底色/下划线由 mark 的内联样式按记录的类型与颜色驱动（同内容层）；
+     这里只负责重置 UA 底色与强调当前记录。 */
   .myz-snapshot-body mark[data-myz-snapshot-mark] {
-    background: color-mix(in srgb, var(--myz-accent) 18%, transparent);
+    background: transparent;
     color: inherit;
     border-radius: var(--myz-r-xs);
   }
 
   .myz-snapshot-body mark[data-myz-snapshot-mark].is-active {
-    background: color-mix(in srgb, var(--myz-accent) 32%, transparent);
     outline: 1.5px solid var(--myz-accent);
+    outline-offset: 1px;
   }
 
-  .myz-snapshot-region + .myz-snapshot-region,
-  .myz-snapshot-region + .myz-snapshot-dim,
-  .myz-snapshot-dim + .myz-snapshot-region,
-  .myz-snapshot-dim + .myz-snapshot-dim {
-    margin-top: 12px;
+  /* 正文纸面：内容 1080 居中、字号大一档；排版取 read token 但宽度显式
+     接管（`.read-body` 的 38em 会把纸面挤扁）。 */
+  .myz-snapshot-body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(1080px, 100%);
+    max-width: none;
+    margin-inline: auto;
+    padding: 32px 48px;
+    background: var(--myz-surface);
+    border: 1px solid var(--myz-line);
+    border-radius: var(--myz-r-lg);
+    font-family: var(--myz-read);
+    font-size: var(--myz-read-size-4);
+    line-height: var(--myz-read-leading);
+    letter-spacing: var(--myz-read-tracking);
+  }
+
+  /* 为纸面右侧的批注边栏预留位置：纸面连同批注列整体居中。 */
+  .myz-snapshot-view {
+    padding-right: 274px;
+  }
+
+  /* 批注（Word 审阅式）：挂在纸面右缘**外侧**的边栏列，不进正文流。 */
+  .myz-snapshot-region {
+    position: relative;
+  }
+
+  .myz-snapshot-notes {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 72px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 250px;
+  }
+
+  .myz-snapshot-note {
+    padding: 8px 12px;
+    border-left: 3px solid var(--myz-accent);
+    border-radius: var(--myz-r);
+    background: var(--myz-surface-2);
+    color: var(--myz-text);
+    font-family: ui-sans-serif, system-ui, "PingFang SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+
+  /* 窄屏没有边栏余量：批注退回正文流内右对齐卡片。 */
+  @media (max-width: 1199px) {
+    .myz-snapshot-view {
+      padding-right: 0;
+    }
+
+    .myz-snapshot-body {
+      padding: 24px;
+    }
+
+    .myz-snapshot-notes {
+      position: static;
+      width: auto;
+      max-width: 420px;
+      margin: 8px 0 0 auto;
+    }
+  }
+
+  /* 渐入：展开的内容淡入（对应模糊的渐出）。 */
+  .myz-snapshot-revealed {
+    animation: myz-snapshot-fade-in var(--myz-motion-med) var(--myz-ease-out);
+  }
+
+  @keyframes myz-snapshot-fade-in {
+    from {
+      opacity: 0;
+      filter: blur(4px);
+    }
+
+    to {
+      opacity: 1;
+      filter: none;
+    }
+  }
+
+  /* 撕裂缝：长隐藏内容中间的「…」分割线，点击完整展开。 */
+  .myz-snapshot-tear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--myz-muted);
+    font-size: 18px;
+    letter-spacing: 4px;
+    cursor: pointer;
+  }
+
+  .myz-snapshot-tear::before,
+  .myz-snapshot-tear::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--myz-line) 0 6px,
+      transparent 6px 10px
+    );
+  }
+
+  .myz-snapshot-tear:hover,
+  .myz-snapshot-tear:focus-visible {
+    color: var(--myz-accent);
+  }
+
+  .myz-snapshot-tear:focus-visible {
+    outline: 2px solid var(--myz-accent);
+    outline-offset: 2px;
   }
 
   .myz-snapshot-region > * + *,
@@ -269,7 +388,7 @@
     margin-top: 8px;
   }
 
-  /* 非高亮内容就地模糊：边缘渐出，点击渐入展开（再点恢复）。 */
+  /* 非高亮内容就地模糊：边缘渐出；点击/键盘逐段或整段渐入展开。 */
   .myz-snapshot-dim {
     filter: blur(4px);
     opacity: 0.55;
@@ -297,13 +416,5 @@
   .myz-snapshot-dim:hover {
     filter: blur(2px);
     opacity: 0.75;
-  }
-
-  .myz-snapshot-dim.is-revealed {
-    filter: none;
-    opacity: 1;
-    cursor: auto;
-    -webkit-mask-image: none;
-    mask-image: none;
   }
 }

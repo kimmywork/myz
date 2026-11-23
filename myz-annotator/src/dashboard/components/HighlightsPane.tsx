@@ -1,3 +1,4 @@
+import { resolveReaderLocator } from "@myz/core/source";
 import {
   HighlightGroups,
   HighlightsPaneShell,
@@ -156,7 +157,17 @@ export default defineComponent({
           });
           break;
         case "view":
-          router.push(`/highlights/${record.id}`);
+          // PDF/EPUB 划线不是「页面」（没有快照）：直接打开原文档（2026-11-23）。
+          {
+            const locator = resolveReaderLocator(record);
+            if (locator?.kind === "epub") {
+              void openEpubInWorkspace(router, record);
+            } else if (locator?.kind === "pdf-page-rect") {
+              void openPdfInWorkspace(router, record);
+            } else {
+              router.push(`/highlights/${record.id}`);
+            }
+          }
           break;
         case "edit":
           router.push({
@@ -183,9 +194,7 @@ export default defineComponent({
         currentPageLabel={currentPageLabel.value}
         stickyLayout={false}
         view={uiStore.view}
-        pageSortMode={uiStore.pageSortMode}
         onSetView={uiStore.setView}
-        onSetPageSortMode={uiStore.setPageSortMode}
         onTogglePageSidebar={props.onOpenNav}
         onClearPageFilter={uiStore.clearPageFilter}
         onExport={(format) => {

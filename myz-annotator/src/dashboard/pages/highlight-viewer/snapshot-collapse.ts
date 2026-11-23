@@ -73,17 +73,41 @@ function unitsOf(node: Node): Unit[] {
   return Array.from(element.childNodes).flatMap(unitsOf);
 }
 
+/** One hidden run's progressive-reveal state (2026-11-23 撕裂式渐进展开). */
+export interface SnapshotGapState {
+  /**
+   * Blocks per chunk. Below the block count the run is split at ~半屏 a
+   * chunk with 「…」 seams between (2026-11-23 revision: seams close
+   * together, not one seam in the middle of a huge gap).
+   */
+  chunkSize: number;
+  /** Chunk indexes revealed so far (each click opens one). */
+  revealed: readonly number[];
+  /** Everything revealed (clicking a seam). */
+  expanded: boolean;
+  /** Measurement done; guards the measure → re-render loop. */
+  measured?: boolean;
+}
+
 /**
  * Rewrites marked-up snapshot html into the blur-fade display.
  *
  * Consecutive unmarked units collapse into one `.myz-snapshot-dim` wrapper
  * (one continuous faded blur region per run); annotated units stay sharp in
- * `.myz-snapshot-region`. With no marks at all there is nothing to pin: the
- * body comes back unchanged and renders sharp.
+ * `.myz-snapshot-region`, and a record's note renders in the document's side
+ * gutter as a Word-review-style comment. With no marks at all there is
+ * nothing to pin: the body comes back unchanged and renders sharp.
+ *
+ * A long hidden run (over half a screen, decided by the caller's measurement)
+ * splits at its middle into a tear seam (「…」): clicking one side reveals one
+ * block on that side, step by step, the rest staying blurred; clicking the
+ * seam reveals the whole run.
  */
 export function buildSnapshotDisplay(
   html: string,
   activeRecordId?: string,
+  notes: Readonly<Record<string, string>> = {},
+  gaps: readonly SnapshotGapState[] = [],
 ): string {
   if (typeof document === "undefined") return html;
   const container = document.createElement("div");
@@ -99,16 +123,77 @@ export function buildSnapshotDisplay(
       ? unitsOf(container.firstElementChild as Element)
       : Array.from(container.childNodes).flatMap(unitsOf);
 
+  /** Word-review-style comment cards for the marks inside one region. */
+  const noteCards = (node: Node): string => {
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const cards: string[] = [];
+    const seen = new Set<string>();
+    (node as Element).querySelectorAll("mark[data-myz-anchor]").forEach((m) => {
+      const id = m.getAttribute("data-myz-anchor") || "";
+      const note = notes[id];
+      if (!note || seen.has(id)) return;
+      seen.add(id);
+      cards.push(
+        `<aside class="myz-snapshot-note" data-myz-anchor="${escapeHtml(id)}">` +
+          `${escapeHtml(note)}</aside>`,
+      );
+    });
+    return cards.length
+      ? `<div class="myz-snapshot-notes">${cards.join("")}</div>`
+      : "";
+  };
+
+  const dimAttrs = (gap: number, chunk?: number) =>
+    `class="myz-snapshot-dim" data-gap="${gap}"` +
+    (chunk !== undefined ? ` data-chunk="${chunk}"` : "") +
+    ` tabindex="0" role="button" aria-expanded="false" ` +
+    `title="${chunk !== undefined ? "点击展开这一段" : "点击展开这段上下文"}"`;
+
+  /** One revealed stretch, fading in (渐入); tagged for the scroll follow. */
+  const revealed = (html: string, gap: number, chunk?: number) =>
+    html
+      ? `<div class="myz-snapshot-revealed" data-revealed="gap-${gap}${
+          chunk !== undefined ? `-${chunk}` : ""
+        }">${html}</div>`
+      : "";
+
+  /** The tear seam of a split run. */
+  const tear = (gap: number, seam: number) =>
+    `<div class="myz-snapshot-tear" data-gap="${gap}" data-seam="${seam}" tabindex="0" role="button" ` +
+    `aria-expanded="false" title="展开这段中间内容"><span aria-hidden="true">…</span>` +
+    `<span class="sr-only">展开这段中间内容</span></div>`;
+
+  /** Renders one hidden run with its progressive-reveal state. */
+  const renderGap = (blocks: Node[], gap: number): string => {
+    const state = gaps[gap];
+    const serialized = blocks.map(serialize);
+    const chunk = state?.chunkSize ?? 0;
+    if (state?.expanded) return revealed(serialized.join(""), gap);
+    if (!chunk || chunk >= blocks.length) {
+      return `<div ${dimAttrs(gap)}>${serialized.join("")}</div>`;
+    }
+    // Chunked at ~半屏: seams close together, each chunk opens on its own.
+    const out: string[] = [];
+    const count = Math.ceil(blocks.length / chunk);
+    for (let i = 0; i < count; i += 1) {
+      if (i > 0) out.push(tear(gap, i));
+      const slice = serialized.slice(i * chunk, (i + 1) * chunk).join("");
+      out.push(
+        state?.revealed.includes(i)
+          ? revealed(slice, gap, i)
+          : `<div ${dimAttrs(gap, i)}>${slice}</div>`,
+      );
+    }
+    return out.join("");
+  };
+
   const out: string[] = [];
   let pending: Node[] = [];
+  let gapIndex = 0;
   const flush = () => {
     if (!pending.length) return;
-    out.push(
-      `<div class="myz-snapshot-dim" tabindex="0" role="button" ` +
-        `aria-expanded="false" title="点击展开这段上下文">${pending
-          .map(serialize)
-          .join("")}</div>`,
-    );
+    out.push(renderGap(pending, gapIndex));
+    gapIndex += 1;
     pending = [];
   };
   for (const unit of units) {
@@ -117,7 +202,11 @@ export function buildSnapshotDisplay(
       continue;
     }
     flush();
-    out.push(`<div class="myz-snapshot-region">${serialize(unit.node)}</div>`);
+    out.push(
+      `<div class="myz-snapshot-region">${serialize(unit.node)}${noteCards(
+        unit.node,
+      )}</div>`,
+    );
   }
   flush();
   return out.join("");

@@ -11,6 +11,7 @@ async function save(
   dash: import("@playwright/test").Page,
   text: string,
   pageUrl: string,
+  note = "",
 ) {
   return send<{ id: string }>(dash, "myz:saveHighlight", {
     url: pageUrl,
@@ -18,7 +19,7 @@ async function save(
     title: text,
     text,
     html: `<p>${text}</p>`,
-    note: "",
+    note,
     tags: [],
     hostname: new URL(pageUrl).hostname,
     kind: "clip",
@@ -45,8 +46,7 @@ test("viewer_blurs_context_and_keeps_annotated_regions_sharp", async () => {
   expect(saved.ok).toBe(true);
 
   await harness.navigate(dash, `/highlights/${record.id}`);
-  await dash.waitForSelector('[data-testid="view-snapshot"]');
-  await dash.getByTestId("view-snapshot").click();
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
 
   const view = dash.getByTestId("snapshot-view");
   await expect(view).toBeVisible();
@@ -71,9 +71,13 @@ test("viewer_blurs_context_and_keeps_annotated_regions_sharp", async () => {
   const dimmed = view.locator(".myz-snapshot-dim").first();
   await expect(dimmed).toContainText("Title");
   await expect(dimmed).toContainText("before");
-  await expect(dimmed).not.toHaveClass(/is-revealed/);
   await dimmed.click();
-  await expect(dimmed).toHaveClass(/is-revealed/);
+  // Clicking a faded run fades it in (渐入) as sharp content.
+  await expect(view.locator(".myz-snapshot-revealed").first()).toContainText(
+    "Title",
+  );
+  // The other faded run stays blurred.
+  await expect(view.locator(".myz-snapshot-dim")).toHaveCount(1);
 });
 
 test("viewer_says_when_a_page_has_no_snapshot", async () => {
@@ -81,8 +85,7 @@ test("viewer_says_when_a_page_has_no_snapshot", async () => {
   const record = await save(dash, "no snapshot for me", pageUrl("missing"));
 
   await harness.navigate(dash, `/highlights/${record.id}`);
-  await dash.waitForSelector('[data-testid="view-snapshot"]');
-  await dash.getByTestId("view-snapshot").click();
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
 
   await expect(dash.getByTestId("snapshot-empty")).toContainText("还没有快照");
 });
@@ -103,8 +106,7 @@ test("every_record_of_the_page_anchors_onto_the_same_copy", async () => {
   });
 
   await harness.navigate(dash, `/highlights/${first.id}`);
-  await dash.waitForSelector('[data-testid="view-snapshot"]');
-  await dash.getByTestId("view-snapshot").click();
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
 
   // Both records land on the one copy: marked and counted.
   await expect(dash.getByTestId("snapshot-summary")).toContainText(
@@ -114,10 +116,107 @@ test("every_record_of_the_page_anchors_onto_the_same_copy", async () => {
   // The cross-inline quote is wrapped per text node (≥1 mark), the plain one
   // exactly once — either way each record is marked.
   expect(
-    await view.locator('mark[data-myz-anchor]').evaluateAll((nodes) =>
-      [...new Set(nodes.map((n) => n.getAttribute("data-myz-anchor")))],
-    ),
+    await view
+      .locator("mark[data-myz-anchor]")
+      .evaluateAll((nodes) => [
+        ...new Set(nodes.map((n) => n.getAttribute("data-myz-anchor"))),
+      ]),
   ).toHaveLength(2);
+});
+
+test("notes_show_word_review_style_beside_their_marks", async () => {
+  const dash = await harness.open("/highlights");
+  const url = pageUrl("annotated");
+  const record = await save(dash, "annotated sentence", url, "这里有个想法");
+
+  await send(dash, "myz:saveSnapshot", {
+    url,
+    title: "Annotated",
+    html: "<article><p>before</p><p>annotated sentence</p></article>",
+    css: "",
+  });
+
+  await harness.navigate(dash, `/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
+
+  const note = dash.locator(".myz-snapshot-note");
+  await expect(note).toContainText("这里有个想法");
+  // 批注挂在文档侧边栏列，不插在正文流里（2026-11-23）。
+  await expect(dash.locator(".myz-snapshot-notes")).toHaveCount(1);
+  await expect(
+    dash.locator(".myz-snapshot-region .myz-snapshot-notes"),
+  ).toHaveCount(1);
+});
+
+test("long_hidden_content_chunks_at_seams_and_unfolds_stepwise", async () => {
+  const dash = await harness.open("/highlights");
+  const url = pageUrl("long-gap");
+  const record = await save(dash, "first recorded sentence", url);
+  await save(dash, "second recorded sentence", url);
+
+  // A tall hidden run between the two records (several screens).
+  const filler = Array.from(
+    { length: 12 },
+    (_, i) => `<p>filler paragraph ${i} — ${"hidden content ".repeat(12)}</p>`,
+  ).join("");
+  await send(dash, "myz:saveSnapshot", {
+    url,
+    title: "Long gap",
+    html: `<article><p>first recorded sentence</p>${filler}<p>second recorded sentence</p></article>`,
+    css: "",
+  });
+
+  await harness.navigate(dash, `/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
+
+  // 分割线间距 ~半屏：长内容切成多段，缝不止一条。
+  const seams = dash.locator(".myz-snapshot-tear");
+  await expect(seams.first()).toBeVisible();
+  expect(await seams.count()).toBeGreaterThan(1);
+
+  // 点一段 → 该段就地展开，视图平滑跟随（工作区滚动容器往上或往下）。
+  const scrollTopOf = () =>
+    dash.evaluate(
+      () => document.querySelector(".myz-workspace__body")?.scrollTop ?? -1,
+    );
+  const scrollBefore = await scrollTopOf();
+  await dash.locator('.myz-snapshot-dim[data-chunk="0"]').click();
+  await expect(dash.locator('[data-revealed="gap-0-0"]')).toHaveCount(1);
+  await dash.waitForTimeout(400);
+  const scrollAfter = await scrollTopOf();
+  expect(scrollAfter).not.toBe(scrollBefore);
+
+  // 点「…」缝 → 整段完整展开。
+  await seams.first().click();
+  await dash.waitForTimeout(80);
+  await expect(dash.locator(".myz-snapshot-dim")).toHaveCount(0);
+  await expect(dash.locator('[data-revealed="gap-0"]')).toHaveCount(1);
+});
+
+test("the_header_bar_stays_pinned_while_the_snapshot_scrolls", async () => {
+  const dash = await harness.open("/highlights");
+  const url = pageUrl("sticky");
+  const record = await save(dash, "sticky anchor sentence", url);
+
+  const filler = Array.from(
+    { length: 12 },
+    (_, i) =>
+      `<p>filler paragraph ${i} — ${"scrolling content ".repeat(12)}</p>`,
+  ).join("");
+  await send(dash, "myz:saveSnapshot", {
+    url,
+    title: "Sticky",
+    html: `<article><p>sticky anchor sentence</p>${filler}</article>`,
+    css: "",
+  });
+
+  await harness.navigate(dash, `/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
+
+  const bar = dash.getByTestId("viewer-sticky-bar");
+  expect(await bar.evaluate((el) => getComputedStyle(el).position)).toBe(
+    "sticky",
+  );
 });
 
 test("unlocated_text_is_reported_and_still_linkable", async () => {
@@ -134,8 +233,7 @@ test("unlocated_text_is_reported_and_still_linkable", async () => {
   });
 
   await harness.navigate(dash, `/highlights/${record.id}`);
-  await dash.waitForSelector('[data-testid="view-snapshot"]');
-  await dash.getByTestId("view-snapshot").click();
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
 
   const notice = dash.getByTestId("snapshot-unlocated");
   await expect(notice).toBeVisible();
@@ -162,8 +260,7 @@ test("missing_text_is_reported_too", async () => {
   });
 
   await harness.navigate(dash, `/highlights/${record.id}`);
-  await dash.waitForSelector('[data-testid="view-snapshot"]');
-  await dash.getByTestId("view-snapshot").click();
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
 
   await expect(dash.getByTestId("snapshot-unlocated")).toContainText("找不到");
 });
@@ -190,8 +287,7 @@ test("same_page_versions_are_grouped_and_newest_first", async () => {
   });
 
   await harness.navigate(dash, `/highlights/${record.id}`);
-  await dash.waitForSelector('[data-testid="view-snapshot"]');
-  await dash.getByTestId("view-snapshot").click();
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
 
   const switcher = dash.getByTestId("snapshot-versions");
   await expect(switcher).toContainText("共 2 个版本");
@@ -228,8 +324,7 @@ test("an_unlocated_snapshot_is_still_sanitized", async () => {
   });
 
   await harness.navigate(dash, `/highlights/${record.id}`);
-  await dash.waitForSelector('[data-testid="view-snapshot"]');
-  await dash.getByTestId("view-snapshot").click();
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
 
   // Unlocated branch is what renders here.
   await expect(dash.getByTestId("snapshot-unlocated")).toBeVisible();

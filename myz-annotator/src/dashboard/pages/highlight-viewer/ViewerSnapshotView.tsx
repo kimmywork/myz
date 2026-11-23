@@ -8,11 +8,20 @@ import {
   snapshotTextOf,
   type SnapshotMark,
 } from "./snapshot-body.js";
-import { buildSnapshotDisplay } from "./snapshot-collapse.js";
+import {
+  buildSnapshotDisplay,
+  type SnapshotGapState,
+} from "./snapshot-collapse.js";
 import { invoke } from "@/messaging/invoke.js";
 
 /** The only record fields the anchoring needs. */
-type PageRecordRef = { id: string; text?: string };
+type PageRecordRef = {
+  id: string;
+  text?: string;
+  note?: string;
+  color?: string;
+  style?: unknown;
+};
 
 /**
  * The page's snapshot, read-only (§I8, revised 2026-11-23).
@@ -20,9 +29,11 @@ type PageRecordRef = { id: string; text?: string };
  * Snapshots are **page-bound**: one copy per page, every record of the page
  * anchors onto it. Display is the blur-fade form (user 2026-11-23: 「只显示
  * 高亮的部分，其他渐入渐出式模糊掉」): only the annotated regions render
- * sharp; the surrounding copy stays in place, blurred with a fade, and
- * reveals on click. Fonts and sizes come from the shared markdown render
- * styles (`.read-body` / `.prose`), not from the captured page.
+ * sharp; the surrounding copy stays in place, blurred with a fade. Long
+ * hidden runs chunk at ~半屏 with 「…」 seams close together; each click opens
+ * one chunk and the view glides to it (animated follow, 上/下), a seam click
+ * opens the whole run. Fonts come from the shared markdown render tokens;
+ * notes sit in the document's side gutter (Word-review-style).
  */
 export const ViewerSnapshotView = defineComponent({
   name: "ViewerSnapshotView",
@@ -36,6 +47,11 @@ export const ViewerSnapshotView = defineComponent({
     },
     /** The record being read; its mark is emphasised and scrolled to. */
     activeId: { type: String, default: "" },
+    /** Clicking a mark selects that record (the snapshot is the navigation). */
+    onSelectRecord: {
+      type: Function as PropType<(recordId: string) => void>,
+      default: undefined,
+    },
   },
   setup(props) {
     const snapshot = ref<PageSnapshot | null>(null);
@@ -69,6 +85,7 @@ export const ViewerSnapshotView = defineComponent({
         snapshot.value = found[0] ?? null;
         statusLine.value = usage?.statusLine ?? "";
         selectedVersion.value = 0;
+        gaps.value = [];
         loadedFor.value = pageUrl;
       } catch (loadError) {
         if (request !== requestId) return;
@@ -88,7 +105,7 @@ export const ViewerSnapshotView = defineComponent({
 
     /**
      * Placement of every record of this page. The haystack is the exact text
-     * the marking walks (one matcher, `snapshot-text`), so "located" and
+     * the marking walks (one matcher, `snapshot-body`), so "located" and
      * "marked" can never disagree; the answer is stable because it is computed
      * from the stored body, not from a live page.
      */
@@ -105,8 +122,26 @@ export const ViewerSnapshotView = defineComponent({
     const locatedMarks = computed<SnapshotMark[]>(() =>
       placements.value
         .filter((entry) => entry.anchor.status === "located" && entry.text)
-        .map((entry) => ({ id: entry.id, text: entry.text })),
+        .map((entry) => {
+          const record = props.records.find((r) => r.id === entry.id);
+          return {
+            id: entry.id,
+            text: entry.text,
+            style: record?.style,
+            color: record?.color,
+            note: record?.note?.trim() ? record.note.trim() : undefined,
+          };
+        }),
     );
+
+    /** Notes by record id, rendered Word-review-style beside their marks. */
+    const notes = computed<Record<string, string>>(() => {
+      const map: Record<string, string> = {};
+      for (const mark of locatedMarks.value) {
+        if (mark.note) map[mark.id] = mark.note;
+      }
+      return map;
+    });
 
     const locatedCount = computed(
       () =>
@@ -123,38 +158,146 @@ export const ViewerSnapshotView = defineComponent({
         placements.value.find((entry) => entry.id === props.activeId) ?? null,
     );
 
+    /**
+     * Progressive-reveal state per hidden run (2026-11-23 修订): a run is
+     * chunked at ~半屏 a piece with 「…」 seams close together; each click
+     * opens one chunk and the view glides to it.
+     */
+    const gaps = ref<SnapshotGapState[]>([]);
+
     /** Marked body in the blur-fade form: sharp highlights, faded context. */
     const body = computed(() => {
       if (!snapshot.value) return "";
       const marked = renderSnapshotBody(snapshot.value, locatedMarks.value);
-      return buildSnapshotDisplay(marked, props.activeId);
+      return buildSnapshotDisplay(
+        marked,
+        props.activeId,
+        notes.value,
+        gaps.value,
+      );
     });
 
-    /** Click on a faded run reveals it (渐入); click again re-blurs (渐出). */
+    /** Ensures the state array reaches index `gap` (a click may lead). */
+    function ensureGap(gap: number): SnapshotGapState[] {
+      const next = gaps.value.slice();
+      while (next.length <= gap) {
+        next.push({ chunkSize: 0, revealed: [], expanded: false });
+      }
+      return next;
+    }
+
+    /**
+     * Measures each hidden run once and chunks it at ~半屏 a piece. jsdom has
+     * no layout, so the decision lives here (browser measurement), not in the
+     * pure builder.
+     */
+    async function measureGaps() {
+      await nextTick();
+      const root = bodyRef.value;
+      if (!root) return;
+      const next = ensureGap(
+        root.querySelectorAll("div.myz-snapshot-dim[data-gap]").length +
+          gaps.value.length,
+      );
+      let changed = false;
+      root
+        .querySelectorAll<HTMLElement>("div.myz-snapshot-dim[data-gap]")
+        .forEach((el) => {
+          const index = Number(el.getAttribute("data-gap") || "-1");
+          if (index < 0 || next[index]?.measured) return;
+          // Blocks live as element children of the run.
+          const blocks = Math.max(1, el.children.length);
+          const height = el.scrollHeight;
+          const half = window.innerHeight / 2;
+          next[index] = {
+            chunkSize:
+              height > half
+                ? Math.max(1, Math.floor((blocks * half) / height))
+                : blocks,
+            revealed: [],
+            expanded: false,
+            measured: true,
+          };
+          changed = true;
+        });
+      if (changed) gaps.value = next;
+    }
+
+    /** Smoothly glides the view to follow what just expanded (上/下). */
+    async function followRevealed(selector: string) {
+      await nextTick();
+      bodyRef.value
+        ?.querySelector(selector)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    /** Reveal one chunk of a run and glide the view onto it. */
+    function revealChunk(gap: number, chunk: number) {
+      const next = ensureGap(gap);
+      const state = next[gap];
+      if (state.revealed.includes(chunk)) return;
+      next[gap] = { ...state, revealed: [...state.revealed, chunk] };
+      gaps.value = next;
+      void followRevealed(`[data-revealed="gap-${gap}-${chunk}"]`);
+    }
+
+    /** Full reveal of one run (short-run click, or a seam click). */
+    function revealAll(gap: number) {
+      const next = ensureGap(gap);
+      const state = next[gap];
+      next[gap] = {
+        chunkSize: state.chunkSize,
+        revealed: state.revealed,
+        expanded: true,
+        measured: true,
+      };
+      gaps.value = next;
+      void followRevealed(`[data-revealed="gap-${gap}"]`);
+    }
+
+    /**
+     * Click handling on the body: a mark click selects that record (the
+     * snapshot is the navigation surface); a faded chunk opens one step (the
+     * view follows it); a 「…」 seam opens the whole run.
+     */
     function onBodyClick(event: MouseEvent) {
       // A drag-select must not toggle: only an actual click reveals.
       if (!window.getSelection()?.isCollapsed) return;
-      const target = (event.target as HTMLElement | null)?.closest(
-        ".myz-snapshot-dim",
-      );
-      if (!target || !bodyRef.value?.contains(target)) return;
-      toggleReveal(target as HTMLElement);
+      const element = event.target as HTMLElement | null;
+      const mark = element?.closest("mark[data-myz-anchor]");
+      const markId = mark?.getAttribute("data-myz-anchor");
+      if (markId && props.onSelectRecord) {
+        props.onSelectRecord(markId);
+        return;
+      }
+      handleRevealActivate(element);
     }
 
     /** Keyboard twin of the click (Enter / Space), per APG button semantics. */
     function onBodyKeydown(event: KeyboardEvent) {
       if (event.key !== "Enter" && event.key !== " ") return;
-      const target = (event.target as HTMLElement | null)?.closest(
-        ".myz-snapshot-dim",
-      );
-      if (!target || !bodyRef.value?.contains(target)) return;
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(".myz-snapshot-dim, .myz-snapshot-tear")) return;
       event.preventDefault();
-      toggleReveal(target as HTMLElement);
+      handleRevealActivate(target);
     }
 
-    function toggleReveal(target: HTMLElement) {
-      const revealed = target.classList.toggle("is-revealed");
-      target.setAttribute("aria-expanded", revealed ? "true" : "false");
+    function handleRevealActivate(element: HTMLElement | null) {
+      const tear = element?.closest(".myz-snapshot-tear") as HTMLElement | null;
+      if (tear && bodyRef.value?.contains(tear)) {
+        revealAll(Number(tear.getAttribute("data-gap") || "-1"));
+        return;
+      }
+      const dim = element?.closest(".myz-snapshot-dim") as HTMLElement | null;
+      if (!dim || !bodyRef.value?.contains(dim)) return;
+      const gap = Number(dim.getAttribute("data-gap") || "-1");
+      if (gap < 0) return;
+      const chunk = dim.getAttribute("data-chunk");
+      if (chunk !== null) {
+        revealChunk(gap, Number(chunk));
+        return;
+      }
+      revealAll(gap);
     }
 
     /** Switches to another capture of the same page. */
@@ -163,6 +306,7 @@ export const ViewerSnapshotView = defineComponent({
       if (!chosen) return;
       selectedVersion.value = index;
       snapshot.value = chosen;
+      gaps.value = [];
     }
 
     /** Brings the active record's mark into view (the region it lives in). */
@@ -177,9 +321,15 @@ export const ViewerSnapshotView = defineComponent({
       () => [props.activeId, snapshot.value?.id],
       () => void focusActiveMark(),
     );
+    // Each body render re-measures the hidden runs (once each) so long runs
+    // pick up their chunk seams.
+    watch(body, () => void measureGaps());
 
     return () => (
-      <div class="mt-4 flex min-h-0 flex-col gap-2" data-testid="snapshot-view">
+      <div
+        class="myz-snapshot-view mt-4 flex min-h-0 flex-col gap-2"
+        data-testid="snapshot-view"
+      >
         {snapshot.value ? (
           <div
             class="flex flex-wrap items-center gap-3 rounded-control border border-line bg-surface-2 px-3 py-2 text-caption"
@@ -270,7 +420,7 @@ export const ViewerSnapshotView = defineComponent({
             ) : null}
             <article
               ref={bodyRef}
-              class="read-body prose myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
+              class="prose myz-snapshot-body"
               data-testid="snapshot-body"
               onClick={onBodyClick}
               onKeydown={onBodyKeydown}

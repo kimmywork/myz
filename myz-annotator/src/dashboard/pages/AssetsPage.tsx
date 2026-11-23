@@ -7,6 +7,7 @@ import {
   onMounted,
   ref,
 } from "vue";
+import { useRouter } from "vue-router";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
 import RemovalUndoBar from "../components/RemovalUndoBar.jsx";
 import { useLibrarySelection } from "../composables/useLibrarySelection.js";
@@ -35,6 +36,7 @@ import {
 export default defineComponent({
   name: "AssetsPage",
   setup() {
+    const router = useRouter();
     const state = useStagedAssets();
     // No filters on this page: the selection lives as long as the page does.
     const selection = useLibrarySelection(computed(() => "assets"));
@@ -126,9 +128,18 @@ export default defineComponent({
                     采集到的图片、截图和视频帧，只存在本机。
                   </p>
                 </div>
-                <p class="text-caption text-muted" data-testid="assets-usage">
-                  {state.usageText.value}
-                </p>
+                <div class="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    onClick={() => void router.push("/stitch")}
+                    data-testid="assets-to-stitch"
+                  >
+                    送入拼图
+                  </Button>
+                  <p class="text-caption text-muted" data-testid="assets-usage">
+                    {state.usageText.value}
+                  </p>
+                </div>
               </header>
 
               <RemovalUndoBar session={removal} />

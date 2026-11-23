@@ -6,6 +6,7 @@ import InboxPage from "./pages/InboxPage.jsx";
 import ReaderHostPage from "./pages/ReaderHostPage.jsx";
 import ReadersPage from "./pages/ReadersPage.jsx";
 import SetupPage from "./pages/SetupPage.jsx";
+import StitchHostPage from "./pages/StitchHostPage.jsx";
 
 const routes = [
   { path: "/", redirect: "/highlights" },
@@ -33,11 +34,18 @@ const routes = [
     component: ReadersPage,
     meta: { workspace: true },
   },
+  // Embedded reader host: `/read?kind=pdf|epub&src=<viewer query string>`.
   {
-    // Embedded reader host: `/read?kind=pdf|epub&src=<viewer query string>`.
     path: "/read",
     name: "reader-host",
     component: ReaderHostPage,
+    meta: { workspace: true },
+  },
+  {
+    // Embedded stitch editor host (2026-11-23): 拼图 on the rail.
+    path: "/stitch",
+    name: "stitch-host",
+    component: StitchHostPage,
     meta: { workspace: true },
   },
   {

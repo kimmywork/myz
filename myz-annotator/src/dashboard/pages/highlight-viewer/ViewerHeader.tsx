@@ -3,7 +3,6 @@ import { defineComponent } from "vue";
 import type { PropType } from "vue";
 import { useDeleteStore } from "../../stores/delete.js";
 import { useHighlightsStore } from "../../stores/highlights.js";
-import { useUIStore } from "../../stores/ui.js";
 import type { HighlightViewerApi } from "./useHighlightViewer.js";
 
 const PAGER_BTN =
@@ -16,7 +15,6 @@ export default defineComponent({
     api: { type: Object as PropType<HighlightViewerApi>, required: true },
   },
   setup(props) {
-    const uiStore = useUIStore();
     const highlightsStore = useHighlightsStore();
     const deleteStore = useDeleteStore();
     return () => {
@@ -81,36 +79,6 @@ export default defineComponent({
             >
               删除
             </Button>
-            <div
-              class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"
-              role="group"
-              aria-label="排序切换"
-            >
-              <button
-                type="button"
-                class={[
-                  "rounded-full px-4 py-1.5 transition",
-                  uiStore.pageSortMode === "time"
-                    ? "bg-accent text-on-accent "
-                    : "text-muted dark:text-muted",
-                ].join(" ")}
-                onClick={() => uiStore.setPageSortMode("time")}
-              >
-                时间
-              </button>
-              <button
-                type="button"
-                class={[
-                  "rounded-full px-4 py-1.5 transition",
-                  uiStore.pageSortMode === "range"
-                    ? "bg-accent text-on-accent "
-                    : "text-muted dark:text-muted",
-                ].join(" ")}
-                onClick={() => uiStore.setPageSortMode("range")}
-              >
-                文中顺序
-              </button>
-            </div>
             <div class="inline-flex items-center gap-2">
               <button
                 type="button"

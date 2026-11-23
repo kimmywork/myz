@@ -97,3 +97,66 @@ describe("withActiveAnchor", () => {
     expect(out).toContain('data-myz-anchor="rec-2" class="is-active"');
   });
 });
+
+describe("progressive reveal (chunked seams)", () => {
+  const sixBlocks = `
+    <article>
+      <p>block one</p><p>block two</p><p>block three</p>
+      <p>block four</p><p>block five</p><p>block six</p>
+      <p>the ${mark("rec-1", "marked")} paragraph</p>
+    </article>`;
+
+  it("chunks a long run at ~半屏 with seams close together", () => {
+    const out = buildSnapshotDisplay(sixBlocks, "", {}, [
+      { chunkSize: 2, revealed: [], expanded: false, measured: true },
+    ]);
+    // 6 blocks / 2 = 3 chunks → 2 seams between them.
+    expect(out.match(/myz-snapshot-tear/g)).toHaveLength(2);
+    expect(out.match(/data-chunk="0"/g)).toHaveLength(1);
+    expect(out.match(/data-chunk="1"/g)).toHaveLength(1);
+    expect(out.match(/data-chunk="2"/g)).toHaveLength(1);
+  });
+
+  it("reveals one chunk per click, in place, tagged for the scroll follow", () => {
+    const out = buildSnapshotDisplay(sixBlocks, "", {}, [
+      { chunkSize: 2, revealed: [1], expanded: false, measured: true },
+    ]);
+    expect(out).toContain('data-revealed="gap-0-1"');
+    expect(out).toContain("block three");
+    expect(out).toContain("block four");
+    // The other two chunks stay blurred.
+    expect(out.match(/data-chunk=/g)).toHaveLength(2);
+  });
+
+  it("fully reveals the run when a seam is clicked", () => {
+    const out = buildSnapshotDisplay(sixBlocks, "", {}, [
+      { chunkSize: 2, revealed: [0], expanded: true, measured: true },
+    ]);
+    expect(out).not.toContain("myz-snapshot-dim");
+    expect(out).not.toContain("myz-snapshot-tear");
+    expect(out).toContain('data-revealed="gap-0"');
+    expect(out).toContain("block one");
+    expect(out).toContain("block six");
+  });
+
+  it("keeps short runs as one click-to-open block", () => {
+    const out = buildSnapshotDisplay(sixBlocks, "", {}, [
+      { chunkSize: 6, revealed: [], expanded: false, measured: true },
+    ]);
+    expect(out).not.toContain("myz-snapshot-tear");
+    expect(out.match(/data-chunk=/g) ?? []).toHaveLength(0);
+  });
+});
+
+describe("notes in the side gutter", () => {
+  it("wraps note cards in the margin column beside their region", () => {
+    const html = `<article><p>head</p><p>the ${mark(
+      "rec-1",
+      "marked",
+    )} words</p></article>`;
+    const out = buildSnapshotDisplay(html, "", { "rec-1": "一条批注" });
+    expect(out).toContain('class="myz-snapshot-notes"');
+    expect(out).toContain('class="myz-snapshot-note"');
+    expect(out).toContain("一条批注");
+  });
+});
