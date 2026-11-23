@@ -29,7 +29,7 @@ function pageUrl(name: string): string {
   return `https://example.com/${name}`;
 }
 
-test("viewer_shows_a_saved_snapshot_folded_to_its_annotated_region", async () => {
+test("viewer_blurs_context_and_keeps_annotated_regions_sharp", async () => {
   const dash = await harness.open("/highlights");
   const url = pageUrl("article");
   const record = await save(dash, "snapshot anchor sentence", url);
@@ -65,15 +65,15 @@ test("viewer_shows_a_saved_snapshot_folded_to_its_annotated_region", async () =>
   await expect(dash.getByTestId("snapshot-status")).toContainText(
     "空间不足时最旧的会被清理",
   );
-  // The display is folded to the annotated region (2026-11-23): the marked
-  // sentence is visible, the surrounding content is behind the expanders.
+  // Blur-fade display (2026-11-23): the marked sentence is sharp, the
+  // surrounding copy stays in place but blurred out — and reveals on click.
   await expect(view.locator("mark")).toContainText("snapshot anchor sentence");
-  await expect(view).not.toContainText("Title");
-
-  const expanders = dash.getByTestId("snapshot-expand");
-  await expect(expanders.first()).toContainText("展开前文");
-  await expanders.first().click();
-  await expect(view).toContainText("Title");
+  const dimmed = view.locator(".myz-snapshot-dim").first();
+  await expect(dimmed).toContainText("Title");
+  await expect(dimmed).toContainText("before");
+  await expect(dimmed).not.toHaveClass(/is-revealed/);
+  await dimmed.click();
+  await expect(dimmed).toHaveClass(/is-revealed/);
 });
 
 test("viewer_says_when_a_page_has_no_snapshot", async () => {
@@ -90,13 +90,15 @@ test("viewer_says_when_a_page_has_no_snapshot", async () => {
 test("every_record_of_the_page_anchors_onto_the_same_copy", async () => {
   const dash = await harness.open("/highlights");
   const url = pageUrl("shared-page");
+  // The first quote spans inline markup in the copy — placement must handle
+  // it (the per-node matcher used to resolve it and then fail to mark it).
   const first = await save(dash, "first recorded sentence", url);
   await save(dash, "second recorded sentence", url);
 
   await send(dash, "myz:saveSnapshot", {
     url,
     title: "Shared",
-    html: "<article><p>first recorded sentence</p><p>plain middle</p><p>second recorded sentence</p></article>",
+    html: "<article><p>first <em>recorded</em> sentence</p><p>plain middle</p><p>second recorded sentence</p></article>",
     css: "",
   });
 
@@ -104,12 +106,18 @@ test("every_record_of_the_page_anchors_onto_the_same_copy", async () => {
   await dash.waitForSelector('[data-testid="view-snapshot"]');
   await dash.getByTestId("view-snapshot").click();
 
-  // Both records land on the one copy: two marks, one summary line.
+  // Both records land on the one copy: marked and counted.
   await expect(dash.getByTestId("snapshot-summary")).toContainText(
     "本页 2 条记录：2 条已标注",
   );
   const view = dash.getByTestId("snapshot-view");
-  await expect(view.locator("mark")).toHaveCount(2);
+  // The cross-inline quote is wrapped per text node (≥1 mark), the plain one
+  // exactly once — either way each record is marked.
+  expect(
+    await view.locator('mark[data-myz-anchor]').evaluateAll((nodes) =>
+      [...new Set(nodes.map((n) => n.getAttribute("data-myz-anchor")))],
+    ),
+  ).toHaveLength(2);
 });
 
 test("unlocated_text_is_reported_and_still_linkable", async () => {

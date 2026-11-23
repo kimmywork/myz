@@ -2,33 +2,27 @@ import type { PageSnapshot } from "@myz/core/page-snapshot";
 import { snapshotHeaderLine } from "@myz/core/page-snapshot";
 import { computed, defineComponent, nextTick, ref, watch } from "vue";
 import type { PropType } from "vue";
+import { resolveSnapshotAnchor } from "./snapshot-anchor.js";
 import {
-  normalizeAnchorText,
-  resolveSnapshotAnchor,
-} from "./snapshot-anchor.js";
-import { renderSnapshotBody, type SnapshotMark } from "./snapshot-body.js";
-import {
-  splitSnapshotSections,
-  withActiveAnchor,
-} from "./snapshot-collapse.js";
+  renderSnapshotBody,
+  snapshotTextOf,
+  type SnapshotMark,
+} from "./snapshot-body.js";
+import { buildSnapshotDisplay } from "./snapshot-collapse.js";
 import { invoke } from "@/messaging/invoke.js";
 
 /** The only record fields the anchoring needs. */
 type PageRecordRef = { id: string; text?: string };
 
-const GAP_LABEL: Record<"before" | "between" | "after", string> = {
-  before: "展开前文",
-  between: "展开中间详情",
-  after: "展开后文",
-};
-
 /**
  * The page's snapshot, read-only (§I8, revised 2026-11-23).
  *
  * Snapshots are **page-bound**: one copy per page, every record of the page
- * anchors onto it. The display is folded down to the annotated regions (user
- * decision 2026-11-23): only the marked regions stay visible, the content
- * around them collapses behind 「展开前后的详情」 affordances.
+ * anchors onto it. Display is the blur-fade form (user 2026-11-23: 「只显示
+ * 高亮的部分，其他渐入渐出式模糊掉」): only the annotated regions render
+ * sharp; the surrounding copy stays in place, blurred with a fade, and
+ * reveals on click. Fonts and sizes come from the shared markdown render
+ * styles (`.read-body` / `.prose`), not from the captured page.
  */
 export const ViewerSnapshotView = defineComponent({
   name: "ViewerSnapshotView",
@@ -54,8 +48,6 @@ export const ViewerSnapshotView = defineComponent({
     const error = ref("");
     /** Only the first load per page needs a spinner. */
     const loadedFor = ref("");
-    /** Gap indexes the user asked to unfold. */
-    const expanded = ref<Set<number>>(new Set());
     const bodyRef = ref<HTMLElement | null>(null);
     /** Monotonic id: a slower earlier load must not overwrite a newer one. */
     let requestId = 0;
@@ -77,7 +69,6 @@ export const ViewerSnapshotView = defineComponent({
         snapshot.value = found[0] ?? null;
         statusLine.value = usage?.statusLine ?? "";
         selectedVersion.value = 0;
-        expanded.value = new Set();
         loadedFor.value = pageUrl;
       } catch (loadError) {
         if (request !== requestId) return;
@@ -96,34 +87,14 @@ export const ViewerSnapshotView = defineComponent({
     );
 
     /**
-     * Plain text of the stored body, for the anchor comparison.
-     *
-     * Block elements are separated by a space first: `textContent` glues
-     * `<p>first</p><p>second</p>` into `firstsecond`, which would make a quote
-     * spanning two paragraphs unmatchable.
-     */
-    function snapshotText(html: string): string {
-      if (typeof document === "undefined") return normalizeAnchorText(html);
-      const container = document.createElement("div");
-      container.innerHTML = html;
-      container
-        .querySelectorAll(
-          "p, div, li, br, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th",
-        )
-        .forEach((element) => {
-          element.after(document.createTextNode(" "));
-        });
-      return normalizeAnchorText(container.textContent || "");
-    }
-
-    /**
-     * Placement of every record of this page, computed from the stored body so
-     * the answer is stable: either the quote occurs exactly once in the saved
-     * copy or it does not, and "does not" is reported rather than guessed.
+     * Placement of every record of this page. The haystack is the exact text
+     * the marking walks (one matcher, `snapshot-text`), so "located" and
+     * "marked" can never disagree; the answer is stable because it is computed
+     * from the stored body, not from a live page.
      */
     const placements = computed(() => {
       if (!snapshot.value) return [];
-      const text = snapshotText(snapshot.value.html);
+      const text = snapshotTextOf(snapshot.value.html);
       return props.records.map((record) => ({
         id: record.id,
         text: record.text || "",
@@ -138,8 +109,7 @@ export const ViewerSnapshotView = defineComponent({
     );
 
     const locatedCount = computed(
-      () =>
-        placements.value.filter((p) => p.anchor.status === "located").length,
+      () => placements.value.filter((p) => p.anchor.status === "located").length,
     );
     const unlocatedCount = computed(
       () =>
@@ -152,21 +122,20 @@ export const ViewerSnapshotView = defineComponent({
         placements.value.find((entry) => entry.id === props.activeId) ?? null,
     );
 
-    /** Marked body with the active mark emphasised, then folded to regions. */
-    const sections = computed(() => {
-      if (!snapshot.value) return [];
+    /** Marked body in the blur-fade form: sharp highlights, faded context. */
+    const body = computed(() => {
+      if (!snapshot.value) return "";
       const marked = renderSnapshotBody(snapshot.value, locatedMarks.value);
-      return splitSnapshotSections(withActiveAnchor(marked, props.activeId));
+      return buildSnapshotDisplay(marked, props.activeId);
     });
 
-    /** Any located record at all: without one there is nothing to pin. */
-    const hasAnnotations = computed(() => locatedMarks.value.length > 0);
-
-    function toggleGap(index: number) {
-      const next = new Set(expanded.value);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      expanded.value = next;
+    /** Click on a faded run reveals it (渐入); click again re-blurs (渐出). */
+    function onBodyClick(event: MouseEvent) {
+      const target = (event.target as HTMLElement | null)?.closest(
+        ".myz-snapshot-dim",
+      );
+      if (!target || !bodyRef.value?.contains(target)) return;
+      target.classList.toggle("is-revealed");
     }
 
     /** Switches to another capture of the same page. */
@@ -175,7 +144,6 @@ export const ViewerSnapshotView = defineComponent({
       if (!chosen) return;
       selectedVersion.value = index;
       snapshot.value = chosen;
-      expanded.value = new Set();
     }
 
     /** Brings the active record's mark into view (the region it lives in). */
@@ -283,43 +251,11 @@ export const ViewerSnapshotView = defineComponent({
             ) : null}
             <article
               ref={bodyRef}
-              class="read-body myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
+              class="read-body prose myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
               data-testid="snapshot-body"
-            >
-              {sections.value.map((section, index) =>
-                section.kind === "annotated" ? (
-                  <div
-                    key={`a${index}`}
-                    class="myz-snapshot-region"
-                    // Sanitized + mark-wrapped in `renderSnapshotBody`.
-                    innerHTML={section.html}
-                  />
-                ) : expanded.value.has(index) ? (
-                  <div key={`g${index}`} class="myz-snapshot-gap">
-                    <div innerHTML={section.html} />
-                    <button
-                      type="button"
-                      class="myz-snapshot-gap-toggle"
-                      onClick={() => toggleGap(index)}
-                    >
-                      收起
-                    </button>
-                  </div>
-                ) : hasAnnotations.value ? (
-                  <button
-                    key={`g${index}`}
-                    type="button"
-                    class="myz-snapshot-gap-toggle"
-                    data-testid="snapshot-expand"
-                    onClick={() => toggleGap(index)}
-                  >
-                    {GAP_LABEL[section.position]} · 约 {section.chars} 字
-                  </button>
-                ) : (
-                  <div key={`g${index}`} innerHTML={section.html} />
-                ),
-              )}
-            </article>
+              onClick={onBodyClick}
+              innerHTML={body.value}
+            ></article>
           </>
         ) : (
           <p class="text-compact text-muted" data-testid="snapshot-empty">

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   highlightSnapshotText,
   renderSnapshotBody,
+  snapshotTextOf,
 } from "@/dashboard/pages/highlight-viewer/snapshot-body";
 
 describe("renderSnapshotBody", () => {
@@ -31,6 +32,30 @@ describe("renderSnapshotBody", () => {
     expect(rendered).toContain("the second sentence");
   });
 
+  it("marks a quote that spans inline markup", () => {
+    // The quote lives in three text nodes; a per-node search used to resolve
+    // it as located and then silently fail to wrap anything.
+    const html = `<p>alpha <em>beta</em> gamma</p>`;
+    const rendered = renderSnapshotBody({ html }, [
+      { id: "rec-1", text: "alpha beta gamma" },
+    ]);
+
+    expect(rendered).toContain('data-myz-anchor="rec-1"');
+    // Per-text-node wrapping: one mark per spanned segment, text kept whole.
+    expect(rendered.replace(/<[^>]+>/g, "")).toContain("alpha beta gamma");
+  });
+
+  it("marks a quote spanning two paragraphs", () => {
+    const html = `<p>one first</p><p>second two</p>`;
+    const rendered = renderSnapshotBody({ html }, [
+      { id: "rec-1", text: "first second" },
+    ]);
+
+    expect(rendered.match(/data-myz-anchor="rec-1"/g)).toHaveLength(2);
+    expect(rendered).toContain(">first<");
+    expect(rendered).toContain(">second<");
+  });
+
   it("matches across the snapshot's own spacing", () => {
     // The page has two spaces and a newline; the record stores one space.
     const html = `<p>the  selected\nsentence</p>`;
@@ -53,5 +78,19 @@ describe("renderSnapshotBody", () => {
   it("renders the plain body without marks for an empty mark list", () => {
     const html = `<p>body</p>`;
     expect(renderSnapshotBody({ html }, [])).toContain("body");
+  });
+});
+
+describe("snapshotTextOf", () => {
+  it("flattens blocks with separators so quotes can span them", () => {
+    expect(snapshotTextOf("<p>one first</p><p>second two</p>")).toBe(
+      "one first second two",
+    );
+  });
+
+  it("collapses whitespace like the anchor side does", () => {
+    expect(snapshotTextOf("<p>the  selected\nsentence</p>")).toBe(
+      "the selected sentence",
+    );
   });
 });

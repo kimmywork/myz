@@ -5,9 +5,20 @@
  * comes from a page we captured, but it still passes through the shared
  * sanitizer before `innerHTML`: stripping scripts at capture time is not a
  * security boundary once the data has been sitting in storage.
+ *
+ * Placement (2026-11-23 fix): **one matcher serves both jobs** — anchor
+ * resolution and marking. The body is flattened to whitespace-collapsed text
+ * with block separators, and every normalized index maps back to a live text
+ * node, so a quote that spans inline markup (`alpha <em>beta</em> gamma`) or
+ * two paragraphs resolves *and* marks. The old per-text-node search claimed
+ * "located" on such quotes and then silently failed to wrap them. Wrapping
+ * reuses `@myz/shared/highlightRange` (split per text node, never wrap a
+ * block-spanning range in one element).
  */
 import type { PageSnapshot } from "@myz/core/page-snapshot";
+import { wrapRangeAcrossNodes } from "@myz/shared/highlightRange";
 import { sanitizeHtmlString } from "@myz/shared/sanitizeHtml";
+import { normalizeAnchorText } from "./snapshot-anchor.js";
 
 /** One record's text to mark inside the page's copy. */
 export interface SnapshotMark {
@@ -16,44 +27,68 @@ export interface SnapshotMark {
   text: string;
 }
 
-/**
- * Finds the record's text inside one text node, tolerating different
- * whitespace.
- *
- * The snapshot keeps the page's original spacing (`the  selected\nsentence`)
- * while the record stores a normalized quote, so a plain `indexOf` misses. This
- * compares on normalized text and maps the hit back to the node's own offsets.
- *
- * @returns Offsets into the original node text, or `null`.
- */
-export function matchInNode(
-  content: string,
-  needle: string,
-): { start: number; length: number } | null {
-  const direct = content.indexOf(needle);
-  if (direct >= 0) return { start: direct, length: needle.length };
+/** Block elements separated in the flattened text so quotes can span them. */
+const BLOCK_SEPARATOR_SELECTOR =
+  "p, div, li, br, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th";
 
-  const collapsed = content.replace(/\s+/g, " ");
-  const target = needle.replace(/\s+/g, " ");
-  const hit = collapsed.indexOf(target);
-  if (hit < 0) return null;
+interface TextIndex {
+  /** Whitespace-collapsed text of the container, block-separated. */
+  text: string;
+  /** `text[i]` lives at `map[i].node.textContent[map[i].offset]`. */
+  map: Array<{ node: Text; offset: number }>;
+}
 
-  // Map each normalized character back to its offset in the original text.
-  const offsets: number[] = [];
-  let index = 0;
-  while (index < content.length) {
-    offsets.push(index);
-    if (/\s/.test(content[index])) {
-      while (index + 1 < content.length && /\s/.test(content[index + 1])) {
-        index += 1;
+/** Parses the body and inserts the block separators the flattening needs. */
+export function prepareSnapshotContainer(html: string): HTMLElement {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  container
+    .querySelectorAll(BLOCK_SEPARATOR_SELECTOR)
+    .forEach((element) => {
+      element.after(document.createTextNode(" "));
+    });
+  return container;
+}
+
+/** Flattens a prepared container into normalized text with a node map. */
+export function buildTextIndex(container: HTMLElement): TextIndex {
+  const pieces: string[] = [];
+  const map: Array<{ node: Text; offset: number }> = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let pendingSpace = false;
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    const content = node.textContent || "";
+    for (let offset = 0; offset < content.length; offset += 1) {
+      if (/\s/.test(content[offset])) {
+        // One space per run, mapped to its first raw character.
+        if (!pendingSpace && pieces.length) {
+          pieces.push(" ");
+          map.push({ node, offset });
+          pendingSpace = true;
+        }
+        continue;
       }
+      pieces.push(content[offset]);
+      map.push({ node, offset });
+      pendingSpace = false;
     }
-    index += 1;
   }
-  const start = offsets[hit] ?? 0;
-  const lastNormalized = hit + target.length - 1;
-  const endOffset = offsets[lastNormalized] ?? content.length - 1;
-  return { start, length: endOffset - start + 1 };
+  // The needle side is trimmed; the haystack must be too.
+  if (pieces[pieces.length - 1] === " ") {
+    pieces.pop();
+    map.pop();
+  }
+  return { text: pieces.join(""), map };
+}
+
+/**
+ * The flattened text of a stored body — the exact haystack the anchor
+ * resolution counts against, so "located" and "marked" can never disagree.
+ */
+export function snapshotTextOf(html: string): string {
+  if (typeof document === "undefined") return normalizeAnchorText(html);
+  return buildTextIndex(prepareSnapshotContainer(html)).text;
 }
 
 /**
@@ -67,42 +102,27 @@ export function highlightSnapshotText(
   html: string,
   marks: readonly SnapshotMark[],
 ): string {
-  let output = html;
+  if (!marks.length || typeof document === "undefined") return html;
+  const container = prepareSnapshotContainer(html);
   for (const mark of marks) {
-    output = highlightOneText(output, mark);
-  }
-  return output;
-}
-
-function highlightOneText(html: string, mark: SnapshotMark): string {
-  const needle = (mark.text || "").replace(/\s+/g, " ").trim();
-  if (!needle || typeof document === "undefined") return html;
-
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  const short = needle.length > 120 ? needle.slice(0, 120) : needle;
-
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  const targets: Array<{ node: Text; start: number; length: number }> = [];
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text;
-    const found = matchInNode(node.textContent || "", short);
-    if (found) targets.push({ node, ...found });
-  }
-
-  for (const { node, start: index, length } of targets) {
-    const range = document.createRange();
-    range.setStart(node, index);
-    range.setEnd(node, index + length);
-    const element = document.createElement("mark");
-    element.setAttribute("data-myz-snapshot-mark", "1");
-    element.setAttribute("data-myz-anchor", mark.id);
-    try {
-      range.surroundContents(element);
-    } catch {
-      // A range spanning elements cannot be wrapped; leaving the text
-      // unhighlighted is acceptable in a read-only view.
-    }
+    const needle = normalizeAnchorText(mark.text);
+    if (!needle) continue;
+    // Rebuild per mark: wrapping splits text nodes, so the node map goes stale.
+    const index = buildTextIndex(container);
+    const at = index.text.indexOf(needle);
+    if (at < 0) continue;
+    const start = index.map[at];
+    const end = index.map[at + needle.length - 1];
+    if (!start || !end) continue;
+    const range = container.ownerDocument.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset + 1);
+    wrapRangeAcrossNodes(range, () => {
+      const element = container.ownerDocument.createElement("mark");
+      element.setAttribute("data-myz-snapshot-mark", "1");
+      element.setAttribute("data-myz-anchor", mark.id);
+      return element;
+    });
   }
   return container.innerHTML;
 }

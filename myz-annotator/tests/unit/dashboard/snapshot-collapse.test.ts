@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import {
-  splitSnapshotSections,
+  buildSnapshotDisplay,
   withActiveAnchor,
 } from "@/dashboard/pages/highlight-viewer/snapshot-collapse";
 
 const mark = (id: string, text: string) =>
   `<mark data-myz-anchor="${id}">${text}</mark>`;
 
-describe("splitSnapshotSections", () => {
-  it("folds the content around annotated regions into gaps", () => {
+describe("buildSnapshotDisplay", () => {
+  it("blurs unmarked runs and keeps annotated regions sharp", () => {
     const html = `
       <article>
         <p>intro paragraph one</p>
@@ -17,19 +17,20 @@ describe("splitSnapshotSections", () => {
         <p>the ${mark("rec-1", "marked")} paragraph</p>
         <p>outro paragraph one</p>
       </article>`;
-    const sections = splitSnapshotSections(html);
+    const out = buildSnapshotDisplay(html);
 
-    expect(sections.map((s) => s.kind)).toEqual(["gap", "annotated", "gap"]);
-    expect(sections[0].position).toBe("before");
-    expect(sections[1].position).toBe("between");
-    expect(sections[2].position).toBe("after");
-    expect(sections[0].html).toContain("intro paragraph one");
-    expect(sections[0].html).toContain("intro paragraph two");
-    expect(sections[1].html).toContain("the");
-    expect(sections[2].html).toContain("outro paragraph one");
+    expect(out).toContain('class="myz-snapshot-dim"');
+    expect(out).toContain('class="myz-snapshot-region"');
+    // The two intro paragraphs merge into one faded run; the outro is a run
+    // of its own after the sharp region.
+    expect(out.match(/myz-snapshot-dim/g)).toHaveLength(2);
+    expect(out).toContain("intro paragraph one");
+    expect(out).toContain("intro paragraph two");
+    expect(out).toContain("outro paragraph one");
+    expect(out).toContain('data-myz-anchor="rec-1"');
   });
 
-  it("keeps every annotated region visible and folds the interior", () => {
+  it("keeps every annotated region sharp and blurs the interior", () => {
     const html = `
       <article>
         <p>head</p>
@@ -39,26 +40,19 @@ describe("splitSnapshotSections", () => {
         <p>second ${mark("rec-2", "mark")} here</p>
         <p>tail</p>
       </article>`;
-    const sections = splitSnapshotSections(html);
+    const out = buildSnapshotDisplay(html);
 
-    expect(sections.map((s) => s.kind)).toEqual([
-      "gap",
-      "annotated",
-      "gap",
-      "annotated",
-      "gap",
-    ]);
-    expect(sections[2].position).toBe("between");
-    expect(sections[2].html).toContain("middle one");
-    expect(sections[2].html).toContain("middle two");
+    expect(out.match(/myz-snapshot-region/g)).toHaveLength(2);
+    // head / middle / tail → three blurred runs.
+    expect(out.match(/myz-snapshot-dim/g)).toHaveLength(3);
+    expect(out).toContain("middle one");
   });
 
-  it("renders the whole body when nothing is annotated", () => {
+  it("renders the body unchanged when nothing is annotated", () => {
+    // Nothing to pin: blurring the whole copy would only hide it.
     const html = `<article><p>only text</p></article>`;
-    const sections = splitSnapshotSections(html);
-    expect(sections).toHaveLength(1);
-    expect(sections[0].kind).toBe("annotated");
-    expect(sections[0].html).toContain("only text");
+    expect(buildSnapshotDisplay(html)).not.toContain("myz-snapshot-dim");
+    expect(buildSnapshotDisplay(html)).toContain("only text");
   });
 
   it("splits wrappers but never takes inline content apart", () => {
@@ -69,24 +63,13 @@ describe("splitSnapshotSections", () => {
           <p>wrapped <em>${mark("rec-1", "marked")}</em> paragraph</p>
         </div>
       </article>`;
-    const sections = splitSnapshotSections(html);
-    // The div splits into its block children: plain → gap, marked → region,
+    const out = buildSnapshotDisplay(html);
+    // The div splits into its block children: plain → blurred, marked → sharp,
     // and the region keeps its inline `<em>` wrapper intact.
-    expect(sections.map((s) => s.kind)).toEqual(["gap", "annotated"]);
-    expect(sections[1].html).toContain("wrapped");
-    expect(sections[1].html).toContain("<em>");
-    expect(sections[1].html).toContain("</em>");
-  });
-
-  it("reports gap sizes for the expand affordance", () => {
-    const html = `
-      <article>
-        <p>some hidden words</p>
-        <p>visible ${mark("rec-1", "marked")} words</p>
-      </article>`;
-    const sections = splitSnapshotSections(html);
-    expect(sections[0].kind).toBe("gap");
-    expect(sections[0].chars).toBeGreaterThan(5);
+    expect(out.match(/myz-snapshot-dim/g)).toHaveLength(1);
+    expect(out).toContain("<em>");
+    expect(out).toContain("</em>");
+    expect(out).toContain('data-myz-anchor="rec-1"');
   });
 });
 

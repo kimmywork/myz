@@ -1,22 +1,13 @@
 /**
- * Folding a page copy down to its annotated regions (§3.4 display, user
- * decision 2026-11-23: 「整篇正文，但是固定显示已经标注的区域，而不是完整的内容，
- * 除非用户展开前后的详情」).
+ * The blur-fade display (user decision 2026-11-23, refined same day):
+ * 「只显示高亮的部分，其他渐入渐出式模糊掉」.
  *
- * The stored snapshot is the whole content; this splits the marked-up body
- * into **annotated** units (always shown) and **gaps** (collapsed behind an
- * expand affordance until asked for). A unit is a leaf block containing a
- * `<mark>`; unmarked subtrees merge into one gap per run.
+ * The whole copy stays in its place — nothing is dropped and nothing hides
+ * behind expanders — but only the annotated regions render sharp. Everything
+ * else is blurred out in place with a fade at the edges (渐出) and reveals on
+ * click (渐入), so the layout keeps the surrounding context while reading
+ * stays pinned to the highlights.
  */
-
-export interface SnapshotSection {
-  kind: "annotated" | "gap";
-  /** Gap position relative to the annotated regions. */
-  position: "before" | "between" | "after";
-  html: string;
-  /** Plain-text size, for the "展开 · N 字" affordance. */
-  chars: number;
-}
 
 /** Container tags that exist only to group blocks and may be split through. */
 const WRAPPER_SELECTOR =
@@ -44,21 +35,14 @@ function serialize(node: Node): string {
     : node.textContent || "";
 }
 
-function charsOf(nodes: readonly Node[]): number {
-  return nodes.reduce(
-    (sum, node) => sum + (node.textContent || "").trim().length,
-    0,
-  );
-}
-
 /**
- * Flattens the body into units: leaf blocks that contain a mark are annotated
- * units, unmarked subtrees stay whole as gap units. A wrapper is split through
- * only when its children are blocks themselves — inline content (`<p><em>…`)
- * must never be taken apart.
+ * Flattens the body into units: leaf blocks that contain a mark stay sharp,
+ * unmarked subtrees stay whole as blur units. A wrapper is split through only
+ * when its children are blocks themselves — inline content (`<p><em>…`) must
+ * never be taken apart.
  */
 function unitsOf(node: Node): Unit[] {
-  // Whitespace between blocks is layout, not content: it must not open a gap.
+  // Whitespace between blocks is layout, not content.
   if (node.nodeType === Node.TEXT_NODE) {
     return (node.textContent || "").trim() ? [{ node, marked: false }] : [];
   }
@@ -69,39 +53,34 @@ function unitsOf(node: Node): Unit[] {
   const marked = hasMark(element);
   if (!marked) return [{ node, marked: false }];
 
-  const children = Array.from(element.childNodes);
   const elementChildren = Array.from(element.children);
   const splittable =
     elementChildren.length > 0 &&
     element.matches(WRAPPER_SELECTOR) &&
     elementChildren.every((child) => child.matches(BLOCK_SELECTOR));
   if (!splittable) return [{ node, marked: true }];
-  return children.flatMap(unitsOf);
+  return Array.from(element.childNodes).flatMap(unitsOf);
 }
 
 /**
- * Splits marked-up snapshot html into annotated sections and gaps.
+ * Rewrites marked-up snapshot html into the blur-fade display.
  *
- * With no marks at all there is nothing to pin: the body comes back as one
- * gap-less section list so the caller can render it whole.
+ * Consecutive unmarked units collapse into one `.myz-snapshot-dim` wrapper
+ * (one continuous faded blur region per run); annotated units stay sharp in
+ * `.myz-snapshot-region`. With no marks at all there is nothing to pin: the
+ * body comes back unchanged and renders sharp.
  */
-export function splitSnapshotSections(html: string): SnapshotSection[] {
-  if (typeof document === "undefined") return [];
+export function buildSnapshotDisplay(
+  html: string,
+  activeRecordId?: string,
+): string {
+  if (typeof document === "undefined") return html;
   const container = document.createElement("div");
   container.innerHTML = html;
-  if (!container.querySelector("mark")) {
-    return container.childNodes.length
-      ? [
-          {
-            kind: "annotated",
-            position: "between",
-            html,
-            chars: (container.textContent || "").trim().length,
-          },
-        ]
-      : [];
-  }
+  const withActive = withActiveAnchor(container.innerHTML, activeRecordId);
+  if (!container.querySelector("mark")) return withActive;
 
+  container.innerHTML = withActive;
   // The stored body is one root element (the content container); its children
   // are the units. Wrapper chains around the body are split through as well.
   const units =
@@ -109,58 +88,34 @@ export function splitSnapshotSections(html: string): SnapshotSection[] {
       ? unitsOf(container.firstElementChild as Element)
       : Array.from(container.childNodes).flatMap(unitsOf);
 
-  const sections: SnapshotSection[] = [];
-  let pendingGap: Node[] = [];
-  const flushGap = () => {
-    if (!pendingGap.length) return;
-    sections.push({
-      kind: "gap",
-      position: "between",
-      html: pendingGap.map(serialize).join(""),
-      chars: charsOf(pendingGap),
-    });
-    pendingGap = [];
+  const out: string[] = [];
+  let pending: Node[] = [];
+  const flush = () => {
+    if (!pending.length) return;
+    out.push(
+      `<div class="myz-snapshot-dim" title="点击展开这段上下文">${pending
+        .map(serialize)
+        .join("")}</div>`,
+    );
+    pending = [];
   };
-
   for (const unit of units) {
     if (!unit.marked) {
-      pendingGap.push(unit.node);
+      pending.push(unit.node);
       continue;
     }
-    flushGap();
-    sections.push({
-      kind: "annotated",
-      position: "between",
-      html: serialize(unit.node),
-      chars: charsOf([unit.node]),
-    });
+    flush();
+    out.push(`<div class="myz-snapshot-region">${serialize(unit.node)}</div>`);
   }
-  flushGap();
-
-  // A gap sits before the annotations, between them, or after them.
-  const firstAnnotation = sections.findIndex((s) => s.kind === "annotated");
-  const lastAnnotation =
-    sections.length -
-    1 -
-    [...sections].reverse().findIndex((s) => s.kind === "annotated");
-  sections.forEach((section, index) => {
-    if (section.kind !== "gap") return;
-    section.position =
-      index < firstAnnotation
-        ? "before"
-        : index > lastAnnotation
-          ? "after"
-          : "between";
-  });
-
-  return sections;
+  flush();
+  return out.join("");
 }
 
 /**
  * Marks the active record's `<mark>` so the view can emphasise and scroll to
  * it: adds `is-active` to `mark[data-myz-anchor="<recordId>"]`.
  */
-export function withActiveAnchor(html: string, recordId: string): string {
+export function withActiveAnchor(html: string, recordId?: string): string {
   if (!recordId || typeof document === "undefined") return html;
   const container = document.createElement("div");
   container.innerHTML = html;
