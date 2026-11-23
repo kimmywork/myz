@@ -1,63 +1,52 @@
 import { defineComponent } from "vue";
-import { RouterLink, useRoute } from "vue-router";
+import {
+  SETTINGS_SECTION_GROUPS,
+  type SettingsSectionKey,
+} from "./settings-sections.js";
 
-const groups = [
-  {
-    title: "划线设置",
-    items: [{ label: "划线偏好", to: "/settings/highlight/preferences" }],
-  },
-  {
-    title: "外观",
-    items: [{ label: "外观设置", to: "/settings/appearance" }],
-  },
-  {
-    title: "同步",
-    items: [{ label: "加密同步", to: "/settings/sync" }],
-  },
-  {
-    title: "采集",
-    items: [
-      { label: "Inbox", to: "/settings/inbox" },
-      { label: "AI 解读", to: "/settings/ai" },
-    ],
-  },
-  {
-    title: "数据",
-    items: [{ label: "导入", to: "/settings/import" }],
-  },
-];
-
+/**
+ * Group nav for the settings modal (§4.17 侧栏规格): uppercase group titles,
+ * 36px items, current item on `--myz-surface-2` + accent text. State-driven —
+ * the modal owns the active section, so no routing is involved.
+ */
 export default defineComponent({
   name: "SettingsSidebar",
-  setup() {
-    const route = useRoute();
-    const isActive = (path: string, to: string) => path === to;
-
+  props: {
+    active: { type: String, required: true },
+    onSelect: { type: Function, required: true },
+  },
+  setup(props) {
     return () => (
-      <aside class="rounded-panel border border-line bg-surface p-4 dark:border-line dark:bg-surface">
+      <aside aria-label="设置分组">
         <div class="space-y-4">
-          {groups.map((group) => (
+          {SETTINGS_SECTION_GROUPS.map((group) => (
             <div key={group.title} class="space-y-2">
               <div class="text-tag font-semibold uppercase tracking-wide text-muted">
                 {group.title}
               </div>
               <div class="space-y-1">
                 {group.items.map((item) => {
-                  const active = isActive(route.path, item.to);
+                  const active = props.active === item.key;
                   return (
-                    <RouterLink
-                      key={item.to}
-                      to={item.to}
+                    <button
+                      key={item.key}
+                      type="button"
                       class={[
-                        "flex items-center justify-between rounded-control px-3 py-2 text-compact font-medium transition",
+                        "flex w-full items-center justify-between rounded-control px-3 py-2 text-compact font-medium transition",
                         active
-                          ? "bg-surface-2 text-accent-text "
-                          : "text-muted hover:bg-surface-2 dark:text-muted dark:hover:bg-surface-2",
+                          ? "bg-surface-2 text-accent-text"
+                          : "text-muted hover:bg-surface-2",
                       ].join(" ")}
                       aria-current={active ? "page" : undefined}
+                      data-testid={`settings-nav-${item.key}`}
+                      onClick={() =>
+                        (props.onSelect as (key: SettingsSectionKey) => void)(
+                          item.key,
+                        )
+                      }
                     >
                       {item.label}
-                    </RouterLink>
+                    </button>
                   );
                 })}
               </div>

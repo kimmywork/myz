@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { resolveInitialFocus } from "@myz/dashboard-ui/Dialog";
+import { describe, expect, it } from "vitest";
 
 /**
  * §4.8 landing order. The regression these pin down: `Dialog` used to pass no

@@ -1,5 +1,5 @@
 import type { StagedAssetMeta } from "@myz/core/staged-asset";
-import { Button, SelectionBar, StatePanel, UndoBar } from "@myz/dashboard-ui";
+import { Button, SelectionBar, StatePanel } from "@myz/dashboard-ui";
 import {
   computed,
   defineComponent,
@@ -8,6 +8,7 @@ import {
   ref,
 } from "vue";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
+import RemovalUndoBar from "../components/RemovalUndoBar.jsx";
 import { useLibrarySelection } from "../composables/useLibrarySelection.js";
 import { formatDateTime } from "../utils/records.js";
 import { AssetPreview } from "./assets/AssetPreview.jsx";
@@ -116,7 +117,6 @@ export default defineComponent({
     return () => (
       <DashboardWorkspaceLayout>
         {{
-          nav: () => null,
           default: () => (
             <div class="flex min-h-0 flex-col gap-3 p-4">
               <header class="flex flex-wrap items-start justify-between gap-3 border-b border-line pb-3">
@@ -131,14 +131,7 @@ export default defineComponent({
                 </p>
               </header>
 
-              {removal.undoMessage.value ? (
-                <UndoBar
-                  message={removal.undoMessage.value}
-                  onUndo={() => void removal.undo()}
-                  onPause={removal.pause}
-                  onResume={removal.resume}
-                />
-              ) : null}
+              <RemovalUndoBar session={removal} />
 
               {removal.failureMessage.value ? (
                 <p

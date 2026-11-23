@@ -1,10 +1,4 @@
-import {
-  Button,
-  ListRow,
-  StatePanel,
-  StatusPill,
-  UndoBar,
-} from "@myz/dashboard-ui";
+import { Button, ListRow, StatePanel, StatusPill } from "@myz/dashboard-ui";
 import { confirmDestructive } from "@myz/shared/dialogs";
 import {
   computed,
@@ -13,6 +7,10 @@ import {
   onMounted,
   ref,
 } from "vue";
+import { useRouter } from "vue-router";
+import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
+import RemovalUndoBar from "../components/RemovalUndoBar.jsx";
+import { openReaderInWorkspace } from "../utils/open-reader.js";
 import { useReaderListRemoval } from "./readers/reader-removal.js";
 import { ensureLocalEpubPermission } from "@/epub/source.js";
 import { ensureLocalPdfPermission } from "@/pdf/source.js";
@@ -68,6 +66,7 @@ function readerUrl(entry: RecentDocument): string | null {
 export default defineComponent({
   name: "ReadersPage",
   setup() {
+    const router = useRouter();
     const loading = ref(true);
     const documents = ref<RecentDocument[]>([]);
     const busyKey = ref("");
@@ -153,14 +152,14 @@ export default defineComponent({
       }
       busyKey.value = entry.key;
       try {
-        // Request read permission while the click still carries activation, so
-        // the freshly opened tab does not hit a permission prompt.
+        // Request read permission while the click still carries activation,
+        // so the embedded reader does not hit a permission prompt.
         if (entry.kind === "pdf") {
           await ensureLocalPdfPermission(entry.fingerprint);
         } else {
           await ensureLocalEpubPermission(entry.fingerprint);
         }
-        chrome.tabs.create({ url });
+        openReaderInWorkspace(router, url);
       } catch (error) {
         console.warn("Failed to open document", error);
       } finally {
@@ -176,115 +175,110 @@ export default defineComponent({
     onBeforeUnmount(() => removal.dispose());
 
     return () => (
-      <section
-        id="readers-view"
-        class="rounded-panel border border-line bg-surface p-5 text-text dark:border-line dark:bg-surface"
-        aria-labelledby="readers-title"
-      >
-        <header class="flex flex-col gap-2 border-b border-line pb-4 dark:border-line">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h2
-                id="readers-title"
-                class="text-heading font-semibold text-text"
-              >
-                阅读
-              </h2>
-              <p class="text-compact text-muted">
-                最近打开的本地 PDF / EPUB，继续上次的位置。
-              </p>
-            </div>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={clearing.value || !visibleDocuments.value.length}
-              onClick={() => void clearHistory()}
+      <DashboardWorkspaceLayout>
+        {{
+          default: () => (
+            <div
+              id="readers-view"
+              class="flex min-h-0 flex-col gap-3 p-4 text-text"
+              aria-labelledby="readers-title"
             >
-              清空历史
-            </Button>
-          </div>
-        </header>
-
-        {removal.undoMessage.value ? (
-          <div class="mt-4">
-            <UndoBar
-              message={removal.undoMessage.value}
-              onUndo={() => void removal.undo()}
-              onPause={removal.pause}
-              onResume={removal.resume}
-            />
-          </div>
-        ) : null}
-
-        {status.value || removal.failureMessage.value ? (
-          <p
-            class="mt-4 text-caption text-muted"
-            role="status"
-            aria-live="polite"
-          >
-            {status.value || removal.failureMessage.value}
-          </p>
-        ) : null}
-
-        <div class="mt-4">
-          {loading.value ? (
-            <StatePanel kind="loading" title="正在读取…" />
-          ) : visibleDocuments.value.length ? (
-            <ul
-              class="overflow-hidden rounded-panel border border-line bg-surface"
-              role="list"
-            >
-              {visibleDocuments.value.map((entry) => {
-                const busy = busyKey.value === entry.key;
-                return (
-                  <ListRow
-                    key={entry.key}
-                    title={entry.title}
-                    meta={entry.meta}
-                    tone="neutral"
-                    disabled={busy}
-                    onOpen={() => void open(entry)}
-                    data-testid="reader-row"
+              <header class="flex flex-wrap items-start justify-between gap-3 border-b border-line pb-3">
+                <div class="min-w-0">
+                  <h2
+                    id="readers-title"
+                    class="text-heading font-semibold text-text"
                   >
-                    {{
-                      badges: () => (
-                        <StatusPill
-                          label={entry.kind.toUpperCase()}
-                          tone="tag"
-                          size="row"
-                        />
-                      ),
-                      actions: () => (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={() => void removal.remove(entry)}
-                          >
-                            从列表移除
-                          </Button>
-                          <Button
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => void open(entry)}
-                          >
-                            {busy ? "打开中…" : "继续阅读"}
-                          </Button>
-                        </>
-                      ),
-                    }}
-                  </ListRow>
-                );
-              })}
-            </ul>
-          ) : (
-            <StatePanel
-              kind="empty"
-              title="还没有打开过文档"
-              hint="在阅读器里打开本地 PDF 或 EPUB 后会出现在这里"
-            />
-          )}
-        </div>
-      </section>
+                    阅读
+                  </h2>
+                  <p class="text-compact text-muted">
+                    最近打开的本地 PDF / EPUB，继续上次的位置。
+                  </p>
+                </div>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={clearing.value || !visibleDocuments.value.length}
+                  onClick={() => void clearHistory()}
+                >
+                  清空历史
+                </Button>
+              </header>
+
+              <RemovalUndoBar session={removal} />
+
+              {status.value || removal.failureMessage.value ? (
+                <p
+                  class="text-caption text-muted"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {status.value || removal.failureMessage.value}
+                </p>
+              ) : null}
+
+              <div>
+                {loading.value ? (
+                  <StatePanel kind="loading" title="正在读取…" />
+                ) : visibleDocuments.value.length ? (
+                  <ul
+                    class="overflow-hidden rounded-panel border border-line bg-surface"
+                    role="list"
+                  >
+                    {visibleDocuments.value.map((entry) => {
+                      const busy = busyKey.value === entry.key;
+                      return (
+                        <ListRow
+                          key={entry.key}
+                          title={entry.title}
+                          meta={entry.meta}
+                          tone="neutral"
+                          disabled={busy}
+                          onOpen={() => void open(entry)}
+                          data-testid="reader-row"
+                        >
+                          {{
+                            badges: () => (
+                              <StatusPill
+                                label={entry.kind.toUpperCase()}
+                                tone="tag"
+                                size="row"
+                              />
+                            ),
+                            actions: () => (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => void removal.remove(entry)}
+                                >
+                                  从列表移除
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  disabled={busy}
+                                  onClick={() => void open(entry)}
+                                >
+                                  {busy ? "打开中…" : "继续阅读"}
+                                </Button>
+                              </>
+                            ),
+                          }}
+                        </ListRow>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <StatePanel
+                    kind="empty"
+                    title="还没有打开过文档"
+                    hint="在阅读器里打开本地 PDF 或 EPUB 后会出现在这里"
+                  />
+                )}
+              </div>
+            </div>
+          ),
+        }}
+      </DashboardWorkspaceLayout>
     );
   },
 });

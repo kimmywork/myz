@@ -18,7 +18,15 @@ import { dirnameFromImportMeta, send } from "../helpers/runtime.js";
 const __dirname = dirnameFromImportMeta(import.meta.url);
 const OLD_DIST =
   process.env.OLD_EXTENSION_DIST ||
-  path.join(__dirname, "..", "..", "..", ".tmp-old-build", "myz-annotator", "dist");
+  path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    ".tmp-old-build",
+    "myz-annotator",
+    "dist",
+  );
 
 test("old_build_reads_edits_and_writes_back_an_attachment", async () => {
   const launched = await launchExtension(OLD_DIST);

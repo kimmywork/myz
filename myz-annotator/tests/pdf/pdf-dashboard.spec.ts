@@ -68,22 +68,22 @@ test("dashboard_shows_pdf_page_and_opens_reader_at_page", async () => {
   await dashboard.screenshot({ path: `${SHOT_DIR}/dashboard-pdf.png` });
   console.log(`SHOT ${SHOT_DIR}/dashboard-pdf.png`);
 
-  const [readerPage] = await Promise.all([
-    context.waitForEvent("page"),
+  const [readerFrame] = await Promise.all([
+    dashboard.waitForSelector('iframe[data-testid="reader-frame"]'),
     openButton.click(),
   ]);
-  await readerPage.waitForLoadState();
-  const readerUrl = readerPage.url();
-  console.log("READER_URL", readerUrl);
-  expect(readerUrl).toContain("pdf-viewer.html");
-  expect(readerUrl).toContain("page=1");
-  expect(readerUrl).toContain(encodeURIComponent(pdfUrl));
-  await readerPage.waitForFunction(() => Boolean((window as any).__MYZ_PDF__));
-  await readerPage.waitForFunction(
+  const readerSrc = (await readerFrame.getAttribute("src")) || "";
+  console.log("READER_SRC", readerSrc);
+  expect(readerSrc).toContain("pdf-viewer.html");
+  expect(readerSrc).toContain("page=1");
+  expect(readerSrc).toContain(encodeURIComponent(pdfUrl));
+  const frame = await readerFrame.contentFrame();
+  if (!frame) throw new Error("embedded reader frame missing");
+  await frame.waitForFunction(() => Boolean((window as any).__MYZ_PDF__));
+  await frame.waitForFunction(
     () =>
       (window as any).__MYZ_PDF__?.getState().status === "ready" &&
       (window as any).__MYZ_PDF__.getState().page === 1,
   );
-  await readerPage.close();
   await dashboard.close();
 });

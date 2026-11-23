@@ -216,8 +216,9 @@ test("inbox_tag_can_be_dragged_onto_a_record", async () => {
       () =>
         allHighlights(dash).then(
           (records) =>
-            records.find((record) => (record.text || "").includes("drop target"))
-              ?.tags ?? [],
+            records.find((record) =>
+              (record.text || "").includes("drop target"),
+            )?.tags ?? [],
         ),
       { message: "the dropped tag reaches the record" },
     )

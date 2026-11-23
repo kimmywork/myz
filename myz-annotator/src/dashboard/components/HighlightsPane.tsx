@@ -19,8 +19,10 @@ import { useRecordAttachments } from "../composables/useRecordAttachments.js";
 import { useDeleteStore } from "../stores/delete.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
-import { openEpubRecordInReader } from "@/reader/open.js";
-import { openPdfRecordInReader } from "@/reader/open.js";
+import {
+  openEpubInWorkspace,
+  openPdfInWorkspace,
+} from "@/dashboard/utils/open-reader.js";
 
 export default defineComponent({
   name: "HighlightsPane",
@@ -166,10 +168,10 @@ export default defineComponent({
           void highlightsStore.downgradeHighlight(record.id);
           break;
         case "openPdf":
-          void openPdfRecordInReader(record);
+          void openPdfInWorkspace(router, record);
           break;
         case "openEpub":
-          void openEpubRecordInReader(record);
+          void openEpubInWorkspace(router, record);
           break;
       }
     }

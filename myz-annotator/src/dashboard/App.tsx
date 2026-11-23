@@ -1,10 +1,8 @@
-import { DashboardAppShell } from "@myz/dashboard-ui";
 import "@myz/shared/colorScheme";
 import ConfirmHost from "@myz/shared/components/ConfirmHost";
-import { useThemePreference } from "@myz/shared/theme";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
-import DashboardNavbar from "./components/DashboardNavbar.jsx";
+import SettingsModalHost from "./SettingsModalHost.jsx";
 import { useDeleteStore } from "./stores/delete.js";
 import { useHighlightsStore } from "./stores/highlights.js";
 import { useSettingsStore } from "./stores/settings.js";
@@ -20,9 +18,7 @@ export default defineComponent({
     const router = useRouter();
     let stopAfterEach: (() => void) | null = null;
     const route = useRoute();
-    const { effectiveTheme } = useThemePreference();
     const fullscreen = computed(() => Boolean(route.meta?.fullscreen));
-    const workspace = computed(() => Boolean(route.meta?.workspace));
 
     onMounted(async () => {
       // Route change commits pending deletes instead of dropping them.
@@ -53,26 +49,14 @@ export default defineComponent({
           <ConfirmHost />
           <RouterView />
         </div>
-      ) : workspace.value ? (
-        // Workspace pages draw the four-region shell themselves (§4.27).
+      ) : (
+        // Every workspace page draws the four-region shell itself (§4.27);
+        // settings lives in a modal over whichever page is mounted.
         <div class="app-shell h-screen overflow-hidden bg-bg text-text transition-colors">
           <ConfirmHost />
           <RouterView />
+          <SettingsModalHost />
         </div>
-      ) : (
-        <>
-          <ConfirmHost />
-          <DashboardAppShell
-            theme={effectiveTheme.value}
-            outerWidthClass="mx-auto flex w-full flex-col gap-6 lg:w-5/6 lg:max-w-[1400px]"
-            mainClass="flex flex-col gap-6"
-          >
-            {{
-              navbar: () => <DashboardNavbar />,
-              default: () => <RouterView />,
-            }}
-          </DashboardAppShell>
-        </>
       );
   },
 });

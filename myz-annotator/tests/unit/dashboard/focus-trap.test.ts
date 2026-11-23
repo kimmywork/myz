@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { createFocusTrap } from "@myz/shared/focusTrap";
+import { describe, expect, it } from "vitest";
 
 /**
  * The trap keeps Tab inside the layer. The case these pin down is the dialog's
