@@ -65,18 +65,28 @@ test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", asyn
   await expect(dash.getByTestId("snapshot-status")).toContainText(
     "空间不足时最旧的会被清理",
   );
-  // Fold display (2026-11-23): the marked sentence is sharp; the rest is
-  // folded behind one 「…」 seam per hidden run — not rendered at all.
+  // Fold display (2026-11-24): the marked sentence is sharp; the rest folds
+  // behind one 「…」 seam per hidden run, keeping a blurred hint of the next
+  // block each side will reveal (there is still content here).
   await expect(view.locator("mark")).toContainText("snapshot anchor sentence");
-  await expect(view.locator(".myz-snapshot-tear")).toHaveCount(2);
-  await expect(view).not.toContainText("Title");
+  await expect(view.locator(".myz-snapshot-tear")).toHaveCount(1);
+  const hints = view.locator(".myz-snapshot-fold-hint");
+  await expect(hints).toHaveCount(3);
+  await expect(hints.nth(0)).toContainText("Title");
+  await expect(hints.nth(1)).toContainText("before");
+  await expect(hints.nth(2)).toContainText("after");
 
-  // 点缝的上/下区 → 向该侧展开一段；点「…」本体 → 该段整段展开。
-  await view.locator('.myz-snapshot-tear-half[data-side="up"]').first().click();
-  await expect(view).toContainText("Title");
-  await view.locator(".myz-snapshot-tear-glyph").first().click();
-  await expect(view).toContainText("before");
-  await view.locator(".myz-snapshot-tear-glyph").last().click();
+  // 上半区从上侧划线处向内揭（先 Title）；gap0 只剩单块后不再有缝，
+  // 点剩余提示继续揭（before）；单块段 gap1 同样点提示（after）。
+  await view.locator('.myz-snapshot-tear-half[data-side="up"]').click();
+  await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
+    "Title",
+  );
+  await view.locator('.myz-snapshot-fold-hint[data-gap="0"]').click();
+  await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
+    "before",
+  );
+  await view.locator('.myz-snapshot-fold-hint[data-gap="1"]').click();
   await expect(view).toContainText("after");
 });
 
@@ -214,40 +224,53 @@ test("long_hidden_content_folds_behind_one_seam_and_unfolds_stepwise", async () 
   await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="snapshot-view"]');
 
-  // 两个划线之间只有一条分割线；隐藏段落收起为零高，不占版面。
+  // 两个划线之间只有一条分割线；隐藏段落折叠，只在两侧各留一段模糊提示。
   const seams = dash.locator(".myz-snapshot-tear");
   await expect(seams).toHaveCount(1);
-  await expect(dash.getByTestId("snapshot-view")).not.toContainText(
-    "filler paragraph",
+  const view = dash.getByTestId("snapshot-view");
+  // 上侧提示 = 紧邻上侧划线的第一个隐藏块；下侧提示 = 紧邻下侧划线的块。
+  await expect(view.locator(".myz-snapshot-fold-hint").first()).toContainText(
+    "filler paragraph 0",
   );
+  await expect(view.locator(".myz-snapshot-fold-hint").last()).toContainText(
+    "filler paragraph 11",
+  );
+  await expect(view).not.toContainText("filler paragraph 6");
 
-  // 点缝的下半区 → 从中点向下展开一段；点上半区 → 向上展开一段。
   const scrollTopOf = () =>
     dash.evaluate(
       () => document.querySelector(".myz-workspace__body")?.scrollTop ?? -1,
     );
-  await dash.locator('.myz-snapshot-tear-half[data-side="down"]').click();
-  await expect(dash.getByTestId("snapshot-view")).toContainText(
-    "filler paragraph 6",
-  );
 
-  // 展开两段后内容超出视口：视图平滑跟随展开处（工作区滚动容器滚动）。
+  // 点缝下半区 → 从下侧划线处向内揭（先 paragraph 11）；点击处（缝）位置不动。
+  const seamTopBefore = await seams.evaluate(
+    (el) => el.getBoundingClientRect().top,
+  );
+  await dash.locator('.myz-snapshot-tear-half[data-side="down"]').click();
+  await expect(view.locator('[data-revealed="gap-0-down"]')).toContainText(
+    "filler paragraph 11",
+  );
+  await dash.waitForTimeout(500);
+  const seamTopAfter = await seams.evaluate(
+    (el) => el.getBoundingClientRect().top,
+  );
+  expect(Math.abs(seamTopAfter - seamTopBefore)).toBeLessThan(5);
+
+  // 点上半区 → 从上侧划线处向内揭（先 paragraph 0），视图平滑跟随。
   const scrollBefore = await scrollTopOf();
   await dash.locator('.myz-snapshot-tear-half[data-side="up"]').click();
-  await expect(dash.getByTestId("snapshot-view")).toContainText(
-    "filler paragraph 5",
+  await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
+    "filler paragraph 0",
   );
-  await dash.waitForTimeout(400);
+  await dash.waitForTimeout(500);
   const scrollAfter = await scrollTopOf();
   expect(scrollAfter).not.toBe(scrollBefore);
 
-  // 点「…」本体 → 整段完整展开。
+  // 点「…」本体 → 整段完整展开；全部展开后不再有折叠线。
   await dash.locator(".myz-snapshot-tear-glyph").click();
-  await dash.waitForTimeout(80);
+  await dash.waitForTimeout(100);
   await expect(dash.locator(".myz-snapshot-tear")).toHaveCount(0);
-  await expect(dash.getByTestId("snapshot-view")).toContainText(
-    "filler paragraph 0",
-  );
+  await expect(view).toContainText("filler paragraph 6");
 });
 
 test("the_header_bar_stays_pinned_while_the_snapshot_scrolls", async () => {

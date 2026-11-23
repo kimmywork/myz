@@ -201,16 +201,49 @@ export const ViewerSnapshotView = defineComponent({
       return next;
     }
 
-    /** Smoothly glides the view to follow what just expanded (上/下). */
-    async function follow(selector: string) {
+    /**
+     * Keeps an anchor at its exact screen position across a re-render
+     * (2026-11-24 定位规则): the clicked spot stays put while the content
+     * unfolds away from it. Compensates the workspace scroll container.
+     */
+    async function keepAnchor(
+      before: number | null,
+      afterSelector: string,
+      apply: () => void,
+    ) {
+      const container = bodyRef.value?.closest(
+        ".myz-workspace__body",
+      ) as HTMLElement | null;
+      apply();
       await nextTick();
-      bodyRef.value
-        ?.querySelector(selector)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (before === null || !container || !afterSelector) return;
+      const after = bodyRef.value?.querySelector(
+        afterSelector,
+      ) as HTMLElement | null;
+      if (!after) return;
+      const delta = after.getBoundingClientRect().top - before;
+      if (Math.abs(delta) > 1) {
+        container.scrollBy({ top: delta, behavior: "smooth" });
+      }
     }
 
-    /** Unfold one block from the seam toward one side; glide onto the seam. */
-    function revealStep(gap: number, side: "up" | "down") {
+    /**
+     * Reveal one block on one side (from the highlight edge inward). The
+     * clicked spot stays screen-fixed: a hint click anchors the block that
+     * replaces it, a seam-half click anchors the seam.
+     */
+    function revealStep(
+      gap: number,
+      side: "up" | "down",
+      clicked: HTMLElement | null,
+    ) {
+      const isHint = Boolean(clicked?.closest(".myz-snapshot-fold-hint"));
+      const before = clicked?.getBoundingClientRect().top ?? null;
+      const anchorSelector = isHint
+        ? side === "up"
+          ? `[data-revealed="gap-${gap}-up"] > :last-child`
+          : `[data-revealed="gap-${gap}-down"] > :first-child`
+        : `[data-tear="gap-${gap}"]`;
       const next = ensureGap(gap);
       const state = next[gap];
       next[gap] = {
@@ -218,20 +251,54 @@ export const ViewerSnapshotView = defineComponent({
         upRev: side === "up" ? state.upRev + 1 : state.upRev,
         downRev: side === "down" ? state.downRev + 1 : state.downRev,
       };
-      gaps.value = next;
-      void follow(`[data-tear="gap-${gap}"]`);
+      void keepAnchor(before, anchorSelector, () => {
+        gaps.value = next;
+      });
     }
 
-    /** Full unfold of one run (the 「…」 glyph click). */
-    function revealAll(gap: number) {
+    /**
+     * Full unfold (the 「…」 glyph): anchor on the visible highlight record —
+     * the one above preferred, else the one below — so the records show how
+     * far the snapshot has opened (2026-11-24).
+     */
+    function revealAll(gap: number, clicked: HTMLElement | null) {
+      const tearEl = clicked?.closest(
+        ".myz-snapshot-tear",
+      ) as HTMLElement | null;
+      let anchorEl: Element | null = null;
+      if (tearEl) {
+        let prev: Element | null = tearEl.previousElementSibling;
+        while (prev && !prev.classList.contains("myz-snapshot-region")) {
+          prev = prev.previousElementSibling;
+        }
+        let next: Element | null = tearEl.nextElementSibling;
+        while (next && !next.classList.contains("myz-snapshot-region")) {
+          next = next.nextElementSibling;
+        }
+        const viewportBottom = window.innerHeight;
+        const visible = (el: Element | null) => {
+          if (!el) return false;
+          const rect = el.getBoundingClientRect();
+          return rect.bottom > 0 && rect.top < viewportBottom;
+        };
+        anchorEl = visible(prev) ? prev : visible(next) ? next : (prev ?? next);
+      }
+      const before = (anchorEl as HTMLElement | null)?.getBoundingClientRect()
+        .top;
+      const regionId = anchorEl?.getAttribute("data-region") ?? "";
       const next = ensureGap(gap);
       next[gap] = {
         upRev: next[gap].upRev,
         downRev: next[gap].downRev,
         expanded: true,
       };
-      gaps.value = next;
-      void follow(`[data-revealed="gap-${gap}"]`);
+      void keepAnchor(
+        before ?? null,
+        regionId ? `[data-region="${regionId}"]` : "",
+        () => {
+          gaps.value = next;
+        },
+      );
     }
 
     /**
@@ -287,21 +354,26 @@ export const ViewerSnapshotView = defineComponent({
       }
       if (event.key !== "Enter" && event.key !== " ") return;
       const target = event.target as HTMLElement | null;
-      if (!target?.closest(".myz-snapshot-tear-half, .myz-snapshot-tear-glyph"))
+      if (
+        !target?.closest(
+          ".myz-snapshot-tear-half, .myz-snapshot-tear-glyph, .myz-snapshot-fold-hint",
+        )
+      )
         return;
       event.preventDefault();
       handleRevealActivate(target);
     }
 
     function handleRevealActivate(element: HTMLElement | null) {
-      const half = element?.closest(
-        ".myz-snapshot-tear-half",
+      // 缝的上下半区、以及模糊提示，都是同一个动作：向该侧揭开下一个块。
+      const target = element?.closest(
+        ".myz-snapshot-tear-half, .myz-snapshot-fold-hint",
       ) as HTMLElement | null;
-      if (half && bodyRef.value?.contains(half)) {
-        const gap = Number(half.getAttribute("data-gap") || "-1");
-        const side = half.getAttribute("data-side");
+      if (target && bodyRef.value?.contains(target)) {
+        const gap = Number(target.getAttribute("data-gap") || "-1");
+        const side = target.getAttribute("data-side");
         if (gap >= 0 && (side === "up" || side === "down")) {
-          revealStep(gap, side);
+          revealStep(gap, side, target);
         }
         return;
       }
@@ -309,7 +381,7 @@ export const ViewerSnapshotView = defineComponent({
         ".myz-snapshot-tear-glyph",
       ) as HTMLElement | null;
       if (glyph && bodyRef.value?.contains(glyph)) {
-        revealAll(Number(glyph.getAttribute("data-gap") || "-1"));
+        revealAll(Number(glyph.getAttribute("data-gap") || "-1"), glyph);
       }
     }
 

@@ -21,10 +21,13 @@ describe("buildSnapshotDisplay", () => {
 
     expect(out).toContain('class="myz-snapshot-region"');
     expect(out).toContain('data-myz-anchor="rec-1"');
-    // Hidden runs collapse to one seam each; their text is not rendered.
-    expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(2);
-    expect(out).not.toContain("intro paragraph one");
-    expect(out).not.toContain("outro paragraph one");
+    // Hidden runs keep their frontier blocks as blurred hints (content is
+    // still here) and — while both sides hide something — one seam each.
+    // The single-block outro run has no middle left, so no seam.
+    expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(1);
+    expect(out.match(/myz-snapshot-fold-hint/g)).toHaveLength(3);
+    expect(out).toContain("intro paragraph one");
+    expect(out).toContain("outro paragraph one");
   });
 
   it("keeps every annotated region sharp and folds the interior", () => {
@@ -40,8 +43,10 @@ describe("buildSnapshotDisplay", () => {
     const out = buildSnapshotDisplay(html);
 
     expect(out.match(/myz-snapshot-region/g)).toHaveLength(2);
-    // head / middle / tail → three folded runs, one seam each.
-    expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(3);
+    // head / tail are one-block runs (hint only); the middle run has two
+    // hidden blocks → its middle still exists → one seam there.
+    expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(1);
+    expect(out.match(/myz-snapshot-fold-hint/g)).toHaveLength(4);
   });
 
   it("renders the body unchanged when nothing is annotated", () => {
@@ -60,16 +65,18 @@ describe("buildSnapshotDisplay", () => {
         </div>
       </article>`;
     const out = buildSnapshotDisplay(html);
-    // The div splits into its block children: plain → folded, marked → sharp,
-    // and the region keeps its inline `<em>` wrapper intact.
-    expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(1);
+    // The div splits into its block children: plain → folded (a one-block run
+    // keeps its hint but has no middle to seam), marked → sharp, and the
+    // region keeps its inline `<em>` wrapper intact.
+    expect(out.match(/class="myz-snapshot-tear"/g) ?? []).toHaveLength(0);
+    expect(out.match(/myz-snapshot-fold-hint/g) ?? []).toHaveLength(1);
     expect(out).toContain("<em>");
     expect(out).toContain("</em>");
     expect(out).toContain('data-myz-anchor="rec-1"');
   });
 });
 
-describe("folded runs unfold from the single seam", () => {
+describe("folded runs unfold from the highlight edges inward", () => {
   const sixBlocks = `
     <article>
       <p>block one</p><p>block two</p><p>block three</p>
@@ -77,48 +84,49 @@ describe("folded runs unfold from the single seam", () => {
       <p>the ${mark("rec-1", "marked")} paragraph</p>
     </article>`;
 
-  it("shows exactly one seam per run and no hidden text", () => {
+  it("shows one seam per run with a hint at each edge", () => {
     const out = buildSnapshotDisplay(sixBlocks, "", {}, [
       { upRev: 0, downRev: 0, expanded: false },
     ]);
     expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(1);
-    expect(out.match(/myz-snapshot-tear-half/g)).toHaveLength(2);
-    expect(out).not.toContain("block one");
-    expect(out).not.toContain("block six");
+    expect(out.match(/myz-snapshot-fold-hint/g)).toHaveLength(2);
+    // Hints preview the blocks each side reveals first: the edges, not the
+    // middle (用户示例 A…G：上侧提示 B、下侧提示 F)。
+    expect(out).toContain("block one");
+    expect(out).toContain("block six");
+    expect(out).not.toContain("block three");
+    expect(out).not.toContain("block four");
   });
 
-  it("unfolds upward from the seam, one block at a time", () => {
-    // mid = ceil(6/2) = 3: the up side holds blocks one..three.
+  it("unfolds upward from the upper highlight, one block at a time", () => {
     const out = buildSnapshotDisplay(sixBlocks, "", {}, [
       { upRev: 1, downRev: 0, expanded: false },
     ]);
-    const up = out.indexOf('data-revealed="gap-0-up"');
-    expect(up).toBeGreaterThan(-1);
-    expect(out).toContain("block three");
-    expect(out).not.toContain("block two");
-    // Folded remainder keeps a blurred fade edge (遮起来并且模糊).
-    expect(out).toContain('data-open="up"');
+    expect(out).toContain('data-revealed="gap-0-up"');
+    expect(out).toContain("block one");
+    // The hint advances to the next hidden block on that side.
+    expect(out).toContain("block two");
+    expect(out).not.toContain("block three");
   });
 
-  it("unfolds downward from the seam, one block at a time", () => {
+  it("unfolds downward from the lower highlight, one block at a time", () => {
     const out = buildSnapshotDisplay(sixBlocks, "", {}, [
       { upRev: 0, downRev: 1, expanded: false },
     ]);
     expect(out).toContain('data-revealed="gap-0-down"');
-    expect(out).toContain("block four");
-    expect(out).not.toContain("block five");
-    expect(out).toContain('data-open="down"');
+    expect(out).toContain("block six");
+    expect(out).toContain("block five");
+    expect(out).not.toContain("block four");
   });
 
-  it("clamps when one side runs out of blocks", () => {
+  it("drops the seam once nothing is left in the middle", () => {
     const out = buildSnapshotDisplay(sixBlocks, "", {}, [
       { upRev: 9, downRev: 0, expanded: false },
     ]);
     expect(out).toContain("block one");
-    expect(out).toContain("block three");
-    // Up side fully unfolded: no fade edge on that side any more.
-    expect(out).not.toContain('data-open="up"');
-    expect(out).toContain("myz-snapshot-tear");
+    expect(out).toContain("block six");
+    expect(out).not.toContain("myz-snapshot-tear");
+    expect(out).not.toContain("myz-snapshot-fold-hint");
   });
 
   it("unfolds the whole run when the glyph is clicked", () => {

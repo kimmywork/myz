@@ -373,24 +373,6 @@
     animation: myz-snapshot-fade-in var(--myz-motion-med) var(--myz-ease-out);
   }
 
-  .myz-snapshot-revealed[data-open="up"] {
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 32px);
-    mask-image: linear-gradient(to bottom, transparent 0, #000 32px);
-  }
-
-  .myz-snapshot-revealed[data-open="down"] {
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      #000 calc(100% - 32px),
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      to bottom,
-      #000 calc(100% - 32px),
-      transparent 100%
-    );
-  }
-
   @keyframes myz-snapshot-fade-in {
     from {
       opacity: 0;
@@ -470,6 +452,46 @@
 
   .myz-snapshot-tear-half:hover {
     background: color-mix(in srgb, var(--myz-accent) 8%, transparent);
+  }
+
+  /* 折叠提示：一小段模糊文本告诉读者「这里还有内容」。上侧提示衔接上方的
+     已揭内容、向隐藏一侧（下）渐出；下侧镜像（2026-11-24）。 */
+  .myz-snapshot-fold-hint {
+    max-height: 3.5em;
+    overflow: hidden;
+    filter: blur(3px);
+    opacity: 0.55;
+    cursor: pointer;
+    transition:
+      filter var(--myz-motion-med) var(--myz-ease-out),
+      opacity var(--myz-motion-med) var(--myz-ease-out);
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 0,
+      #000 60%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(to bottom, #000 0, #000 60%, transparent 100%);
+  }
+
+  .myz-snapshot-fold-hint[data-side="down"] {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 40%,
+      #000 100%
+    );
+    mask-image: linear-gradient(to bottom, transparent 0, #000 40%, #000 100%);
+  }
+
+  .myz-snapshot-fold-hint:hover {
+    filter: blur(1.5px);
+    opacity: 0.75;
+  }
+
+  .myz-snapshot-fold-hint:focus-visible {
+    outline: 2px solid var(--myz-accent);
+    outline-offset: 2px;
   }
 }
 

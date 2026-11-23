@@ -1,18 +1,21 @@
 /**
- * The fold display (2026-11-23 定稿，用户拍板):
- * 「两个划线之间的隐藏内容收起折叠，只留一条『…』分割线；所有隐藏段落都
- * 通过这一条展开」。
+ * The fold display (2026-11-24 定稿，用户示例：A…G 划了 A/G):
  *
- * Annotated units stay sharp in `.myz-snapshot-region`; a record's note lives
- * on a page-margin comment icon (popover on click). Every hidden run between
- * regions collapses to zero height behind ONE 「…」 seam:
+ * ```
+ * A                     ← 划线（清晰）
+ * blurred B             ← 上侧提示：这一侧下一个要揭开的块
+ * …… fold               ← 唯一的分割线（中间没有剩余内容时消失）
+ * blurred F             ← 下侧提示
+ * G                     ← 划线（清晰）
+ * ```
  *
- * - click the seam's upper half → one more block unfolds upward from it;
- * - click its lower half → one block unfolds downward;
- * - click the 「…」 glyph → the whole run unfolds.
+ * 点击提示或缝的对应半区 → 揭开**该侧紧邻划线处的下一个块**（上侧 B→C→…
+ * 向中间推进，下侧 F→E→… 反向推进），提示随之前进；点「…」本体全部揭开。
+ * 提示块本身模糊（遮起来并且模糊），揭开的内容渐入显示。
  *
- * Unfolded blocks fade in (渐入); the folded remainder is covered with a
- * blurred fade edge (遮起来并且模糊) toward the seam's side.
+ * Annotated units stay sharp in `.myz-snapshot-region` (tagged with a stable
+ * `data-region` index for the scroll anchoring); a record's note lives on a
+ * page-margin comment icon (popover on click).
  */
 
 /** Container tags that exist only to group blocks and may be split through. */
@@ -86,11 +89,11 @@ function unitsOf(node: Node): Unit[] {
   return Array.from(element.childNodes).flatMap(unitsOf);
 }
 
-/** One hidden run's progressive-reveal state (2026-11-23 折叠模型定稿). */
+/** One hidden run's unfold state (2026-11-24 边到中推进). */
 export interface SnapshotGapState {
-  /** Blocks revealed upward from the divider (its inner end grows up). */
+  /** Blocks revealed from the highlight above, in reading order. */
   upRev: number;
-  /** Blocks revealed downward from the divider. */
+  /** Blocks revealed from the highlight below, in reverse reading order. */
   downRev: number;
   /** Everything revealed (the 「…」 glyph click). */
   expanded: boolean;
@@ -143,22 +146,30 @@ export function buildSnapshotDisplay(
       : "";
   };
 
-  /** One unfolded stretch, fading in (渐入); tagged for the scroll follow. */
-  const revealed = (
-    html: string,
-    gap: number,
-    side?: "up" | "down",
-    open?: boolean,
-  ) =>
+  /** One unfolded stretch, fading in (渐入); tagged for the scroll anchor. */
+  const revealed = (html: string, gap: number, side?: "up" | "down") =>
     html
       ? `<div class="myz-snapshot-revealed" data-revealed="gap-${gap}${
           side ? `-${side}` : ""
-        }"${open ? ` data-open="${side}"` : ""}>${html}</div>`
+        }">${html}</div>`
       : "";
 
   /**
+   * A short blurred preview of the block this side will reveal next — so the
+   * reader can see content is still hidden there. Clicking it reveals exactly
+   * that block (same action as the seam half).
+   */
+  const foldHint = (blockHtml: string, gap: number, side: "up" | "down") =>
+    `<div class="myz-snapshot-fold-hint" data-gap="${gap}" data-side="${side}" ` +
+    `tabindex="0" role="button" aria-label="${
+      side === "up" ? "向上展开一段" : "向下展开一段"
+    }" title="${side === "up" ? "向上展开一段" : "向下展开一段"}">` +
+    `${blockHtml}</div>`;
+
+  /**
    * The single 「…」 seam of a hidden run: upper half unfolds upward, lower
-   * half downward, the glyph unfolds everything.
+   * half downward, the glyph unfolds everything. Hidden once nothing remains
+   * in the middle (2026-11-24).
    */
   const tear = (gap: number) =>
     `<div class="myz-snapshot-tear" data-gap="${gap}" data-tear="gap-${gap}">` +
@@ -170,27 +181,35 @@ export function buildSnapshotDisplay(
     `data-gap="${gap}" aria-label="展开全部" title="展开全部">…</span>` +
     `</div>`;
 
-  /** Renders one hidden run: collapsed behind its single seam. */
+  /**
+   * Renders one hidden run. Unfold grows from the two highlight edges inward:
+   * the up side reveals the pool's top block first (B, then C…), the down
+   * side its bottom block first (F, then E…); each side's hint is exactly the
+   * block it will reveal next.
+   */
   const renderGap = (blocks: Node[], gap: number): string => {
     const state = gaps[gap];
     const serialized = blocks.map(serialize);
+    const total = serialized.length;
     if (state?.expanded) return revealed(serialized.join(""), gap);
-    // The seam sits at the run's middle; unfold grows from it outward.
-    const mid = Math.ceil(blocks.length / 2);
-    const upRev = Math.min(state?.upRev ?? 0, mid);
-    const downRev = Math.min(state?.downRev ?? 0, blocks.length - mid);
-    const upShown = serialized.slice(mid - upRev, mid);
-    const downShown = serialized.slice(mid, mid + downRev);
+    const upRev = Math.min(state?.upRev ?? 0, total);
+    const downRev = Math.min(state?.downRev ?? 0, total - upRev);
+    const pool = serialized.slice(upRev, total - downRev);
     return [
-      revealed(upShown.join(""), gap, "up", upRev < mid),
-      tear(gap),
-      revealed(downShown.join(""), gap, "down", downRev < blocks.length - mid),
-    ].join("");
+      revealed(serialized.slice(0, upRev).join(""), gap, "up"),
+      pool.length ? foldHint(pool[0], gap, "up") : "",
+      pool.length > 1 ? tear(gap) : "",
+      pool.length > 1 ? foldHint(pool[pool.length - 1], gap, "down") : "",
+      revealed(serialized.slice(total - downRev).join(""), gap, "down"),
+    ]
+      .filter(Boolean)
+      .join("");
   };
 
   const out: string[] = [];
   let pending: Node[] = [];
   let gapIndex = 0;
+  let regionIndex = 0;
   const flush = () => {
     if (!pending.length) return;
     out.push(renderGap(pending, gapIndex));
@@ -204,10 +223,10 @@ export function buildSnapshotDisplay(
     }
     flush();
     out.push(
-      `<div class="myz-snapshot-region">${serialize(unit.node)}${noteCards(
-        unit.node,
-      )}</div>`,
+      `<div class="myz-snapshot-region" data-region="${regionIndex}">` +
+        `${serialize(unit.node)}${noteCards(unit.node)}</div>`,
     );
+    regionIndex += 1;
   }
   flush();
   return out.join("");
