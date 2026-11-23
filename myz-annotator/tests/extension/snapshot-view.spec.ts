@@ -30,7 +30,7 @@ function pageUrl(name: string): string {
   return `https://example.com/${name}`;
 }
 
-test("viewer_blurs_context_and_keeps_annotated_regions_sharp", async () => {
+test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", async () => {
   const dash = await harness.open("/highlights");
   const url = pageUrl("article");
   const record = await save(dash, "snapshot anchor sentence", url);
@@ -65,19 +65,19 @@ test("viewer_blurs_context_and_keeps_annotated_regions_sharp", async () => {
   await expect(dash.getByTestId("snapshot-status")).toContainText(
     "空间不足时最旧的会被清理",
   );
-  // Blur-fade display (2026-11-23): the marked sentence is sharp, the
-  // surrounding copy stays in place but blurred out — and reveals on click.
+  // Fold display (2026-11-23): the marked sentence is sharp; the rest is
+  // folded behind one 「…」 seam per hidden run — not rendered at all.
   await expect(view.locator("mark")).toContainText("snapshot anchor sentence");
-  const dimmed = view.locator(".myz-snapshot-dim").first();
-  await expect(dimmed).toContainText("Title");
-  await expect(dimmed).toContainText("before");
-  await dimmed.click();
-  // Clicking a faded run fades it in (渐入) as sharp content.
-  await expect(view.locator(".myz-snapshot-revealed").first()).toContainText(
-    "Title",
-  );
-  // The other faded run stays blurred.
-  await expect(view.locator(".myz-snapshot-dim")).toHaveCount(1);
+  await expect(view.locator(".myz-snapshot-tear")).toHaveCount(2);
+  await expect(view).not.toContainText("Title");
+
+  // 点缝的上/下区 → 向该侧展开一段；点「…」本体 → 该段整段展开。
+  await view.locator('.myz-snapshot-tear-half[data-side="up"]').first().click();
+  await expect(view).toContainText("Title");
+  await view.locator(".myz-snapshot-tear-glyph").first().click();
+  await expect(view).toContainText("before");
+  await view.locator(".myz-snapshot-tear-glyph").last().click();
+  await expect(view).toContainText("after");
 });
 
 test("viewer_says_when_a_page_has_no_snapshot", async () => {
@@ -124,7 +124,7 @@ test("every_record_of_the_page_anchors_onto_the_same_copy", async () => {
   ).toHaveLength(2);
 });
 
-test("notes_show_word_review_style_beside_their_marks", async () => {
+test("notes_show_in_a_page_margin_popover", async () => {
   const dash = await harness.open("/highlights");
   const url = pageUrl("annotated");
   const record = await save(dash, "annotated sentence", url, "这里有个想法");
@@ -139,25 +139,70 @@ test("notes_show_word_review_style_beside_their_marks", async () => {
   await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="snapshot-view"]');
 
-  const note = dash.locator(".myz-snapshot-note");
-  await expect(note).toContainText("这里有个想法");
-  // 批注挂在文档侧边栏列，不插在正文流里（2026-11-23）。
-  await expect(dash.locator(".myz-snapshot-notes")).toHaveCount(1);
-  await expect(
-    dash.locator(".myz-snapshot-region .myz-snapshot-notes"),
-  ).toHaveCount(1);
+  // 批注是页边 comment 图标，不占正文宽度；点击弹 popover 展示内容。
+  const icon = dash.locator(".myz-snapshot-note-icon");
+  await expect(icon).toHaveCount(1);
+  await expect(dash.getByTestId("note-popover")).toHaveCount(0);
+  await icon.click();
+  await expect(dash.getByTestId("note-popover")).toContainText("这里有个想法");
+  await dash.getByTestId("note-popover-close").click();
+  await expect(dash.getByTestId("note-popover")).toHaveCount(0);
 });
 
-test("long_hidden_content_chunks_at_seams_and_unfolds_stepwise", async () => {
+test("edit_panel_rides_in_the_pinned_header_bar", async () => {
+  const dash = await harness.open("/highlights");
+  const url = pageUrl("editable");
+  const record = await save(dash, "editable sentence", url);
+
+  await send(dash, "myz:saveSnapshot", {
+    url,
+    title: "Editable",
+    html: "<article><p>editable sentence</p></article>",
+    css: "",
+  });
+
+  await harness.navigate(dash, `/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
+
+  await dash.getByRole("button", { name: "编辑" }).click();
+  // 编辑面板出现在固定顶栏内：不用滚回页面顶部就能编辑。
+  await expect(
+    dash.getByTestId("viewer-sticky-bar").locator("textarea"),
+  ).toBeVisible();
+});
+
+test("the_reading_column_keeps_its_full_width", async () => {
+  const dash = await harness.open("/highlights");
+  const url = pageUrl("wide");
+  const record = await save(dash, "wide anchor sentence", url);
+
+  await send(dash, "myz:saveSnapshot", {
+    url,
+    title: "Wide",
+    html: "<article><p>wide anchor sentence</p></article>",
+    css: "",
+  });
+
+  await harness.navigate(dash, `/highlights/${record.id}`);
+  await dash.waitForSelector('[data-testid="snapshot-view"]');
+
+  // 纸面不为批注预留边栏：阅读列宽度完整（回归 2026-11-23 的挤窄问题）。
+  const width = await dash
+    .getByTestId("snapshot-body")
+    .evaluate((el) => el.getBoundingClientRect().width);
+  expect(width).toBeGreaterThan(880);
+});
+
+test("long_hidden_content_folds_behind_one_seam_and_unfolds_stepwise", async () => {
   const dash = await harness.open("/highlights");
   const url = pageUrl("long-gap");
   const record = await save(dash, "first recorded sentence", url);
   await save(dash, "second recorded sentence", url);
 
-  // A tall hidden run between the two records (several screens).
+  // A tall hidden run between the two records (each block is several lines).
   const filler = Array.from(
     { length: 12 },
-    (_, i) => `<p>filler paragraph ${i} — ${"hidden content ".repeat(12)}</p>`,
+    (_, i) => `<p>filler paragraph ${i} — ${"hidden content ".repeat(80)}</p>`,
   ).join("");
   await send(dash, "myz:saveSnapshot", {
     url,
@@ -169,28 +214,40 @@ test("long_hidden_content_chunks_at_seams_and_unfolds_stepwise", async () => {
   await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="snapshot-view"]');
 
-  // 分割线间距 ~半屏：长内容切成多段，缝不止一条。
+  // 两个划线之间只有一条分割线；隐藏段落收起为零高，不占版面。
   const seams = dash.locator(".myz-snapshot-tear");
-  await expect(seams.first()).toBeVisible();
-  expect(await seams.count()).toBeGreaterThan(1);
+  await expect(seams).toHaveCount(1);
+  await expect(dash.getByTestId("snapshot-view")).not.toContainText(
+    "filler paragraph",
+  );
 
-  // 点一段 → 该段就地展开，视图平滑跟随（工作区滚动容器往上或往下）。
+  // 点缝的下半区 → 从中点向下展开一段；点上半区 → 向上展开一段。
   const scrollTopOf = () =>
     dash.evaluate(
       () => document.querySelector(".myz-workspace__body")?.scrollTop ?? -1,
     );
+  await dash.locator('.myz-snapshot-tear-half[data-side="down"]').click();
+  await expect(dash.getByTestId("snapshot-view")).toContainText(
+    "filler paragraph 6",
+  );
+
+  // 展开两段后内容超出视口：视图平滑跟随展开处（工作区滚动容器滚动）。
   const scrollBefore = await scrollTopOf();
-  await dash.locator('.myz-snapshot-dim[data-chunk="0"]').click();
-  await expect(dash.locator('[data-revealed="gap-0-0"]')).toHaveCount(1);
+  await dash.locator('.myz-snapshot-tear-half[data-side="up"]').click();
+  await expect(dash.getByTestId("snapshot-view")).toContainText(
+    "filler paragraph 5",
+  );
   await dash.waitForTimeout(400);
   const scrollAfter = await scrollTopOf();
   expect(scrollAfter).not.toBe(scrollBefore);
 
-  // 点「…」缝 → 整段完整展开。
-  await seams.first().click();
+  // 点「…」本体 → 整段完整展开。
+  await dash.locator(".myz-snapshot-tear-glyph").click();
   await dash.waitForTimeout(80);
-  await expect(dash.locator(".myz-snapshot-dim")).toHaveCount(0);
-  await expect(dash.locator('[data-revealed="gap-0"]')).toHaveCount(1);
+  await expect(dash.locator(".myz-snapshot-tear")).toHaveCount(0);
+  await expect(dash.getByTestId("snapshot-view")).toContainText(
+    "filler paragraph 0",
+  );
 });
 
 test("the_header_bar_stays_pinned_while_the_snapshot_scrolls", async () => {

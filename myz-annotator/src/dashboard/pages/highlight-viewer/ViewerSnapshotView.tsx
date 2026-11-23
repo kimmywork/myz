@@ -134,7 +134,7 @@ export const ViewerSnapshotView = defineComponent({
         }),
     );
 
-    /** Notes by record id, rendered Word-review-style beside their marks. */
+    /** Notes by record id, shown in the page-margin comment popover. */
     const notes = computed<Record<string, string>>(() => {
       const map: Record<string, string> = {};
       for (const mark of locatedMarks.value) {
@@ -142,6 +142,22 @@ export const ViewerSnapshotView = defineComponent({
       }
       return map;
     });
+
+    /**
+     * Open page-margin comment popover (2026-11-23 三修): the note lives on
+     * an icon at the page edge beside its region and opens on demand, so the
+     * reading column keeps its full width.
+     */
+    const notePopover = ref<{
+      id: string;
+      text: string;
+      x: number;
+      y: number;
+    } | null>(null);
+
+    function closeNotePopover() {
+      notePopover.value = null;
+    }
 
     const locatedCount = computed(
       () =>
@@ -159,13 +175,12 @@ export const ViewerSnapshotView = defineComponent({
     );
 
     /**
-     * Progressive-reveal state per hidden run (2026-11-23 修订): a run is
-     * chunked at ~半屏 a piece with 「…」 seams close together; each click
-     * opens one chunk and the view glides to it.
+     * Fold state per hidden run (2026-11-23 定稿): one 「…」 seam per run;
+     * its halves unfold a block at a time outward, the glyph unfolds all.
      */
     const gaps = ref<SnapshotGapState[]>([]);
 
-    /** Marked body in the blur-fade form: sharp highlights, faded context. */
+    /** Marked body in the fold form: sharp highlights, folded context. */
     const body = computed(() => {
       if (!snapshot.value) return "";
       const marked = renderSnapshotBody(snapshot.value, locatedMarks.value);
@@ -181,89 +196,77 @@ export const ViewerSnapshotView = defineComponent({
     function ensureGap(gap: number): SnapshotGapState[] {
       const next = gaps.value.slice();
       while (next.length <= gap) {
-        next.push({ chunkSize: 0, revealed: [], expanded: false });
+        next.push({ upRev: 0, downRev: 0, expanded: false });
       }
       return next;
     }
 
-    /**
-     * Measures each hidden run once and chunks it at ~半屏 a piece. jsdom has
-     * no layout, so the decision lives here (browser measurement), not in the
-     * pure builder.
-     */
-    async function measureGaps() {
-      await nextTick();
-      const root = bodyRef.value;
-      if (!root) return;
-      const next = ensureGap(
-        root.querySelectorAll("div.myz-snapshot-dim[data-gap]").length +
-          gaps.value.length,
-      );
-      let changed = false;
-      root
-        .querySelectorAll<HTMLElement>("div.myz-snapshot-dim[data-gap]")
-        .forEach((el) => {
-          const index = Number(el.getAttribute("data-gap") || "-1");
-          if (index < 0 || next[index]?.measured) return;
-          // Blocks live as element children of the run.
-          const blocks = Math.max(1, el.children.length);
-          const height = el.scrollHeight;
-          const half = window.innerHeight / 2;
-          next[index] = {
-            chunkSize:
-              height > half
-                ? Math.max(1, Math.floor((blocks * half) / height))
-                : blocks,
-            revealed: [],
-            expanded: false,
-            measured: true,
-          };
-          changed = true;
-        });
-      if (changed) gaps.value = next;
-    }
-
     /** Smoothly glides the view to follow what just expanded (上/下). */
-    async function followRevealed(selector: string) {
+    async function follow(selector: string) {
       await nextTick();
       bodyRef.value
         ?.querySelector(selector)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
-    /** Reveal one chunk of a run and glide the view onto it. */
-    function revealChunk(gap: number, chunk: number) {
-      const next = ensureGap(gap);
-      const state = next[gap];
-      if (state.revealed.includes(chunk)) return;
-      next[gap] = { ...state, revealed: [...state.revealed, chunk] };
-      gaps.value = next;
-      void followRevealed(`[data-revealed="gap-${gap}-${chunk}"]`);
-    }
-
-    /** Full reveal of one run (short-run click, or a seam click). */
-    function revealAll(gap: number) {
+    /** Unfold one block from the seam toward one side; glide onto the seam. */
+    function revealStep(gap: number, side: "up" | "down") {
       const next = ensureGap(gap);
       const state = next[gap];
       next[gap] = {
-        chunkSize: state.chunkSize,
-        revealed: state.revealed,
-        expanded: true,
-        measured: true,
+        ...state,
+        upRev: side === "up" ? state.upRev + 1 : state.upRev,
+        downRev: side === "down" ? state.downRev + 1 : state.downRev,
       };
       gaps.value = next;
-      void followRevealed(`[data-revealed="gap-${gap}"]`);
+      void follow(`[data-tear="gap-${gap}"]`);
+    }
+
+    /** Full unfold of one run (the 「…」 glyph click). */
+    function revealAll(gap: number) {
+      const next = ensureGap(gap);
+      next[gap] = {
+        upRev: next[gap].upRev,
+        downRev: next[gap].downRev,
+        expanded: true,
+      };
+      gaps.value = next;
+      void follow(`[data-revealed="gap-${gap}"]`);
     }
 
     /**
      * Click handling on the body: a mark click selects that record (the
-     * snapshot is the navigation surface); a faded chunk opens one step (the
-     * view follows it); a 「…」 seam opens the whole run.
+     * snapshot is the navigation surface); a seam half unfolds one block
+     * toward that side (the view follows); the 「…」 glyph unfolds the run.
      */
     function onBodyClick(event: MouseEvent) {
       // A drag-select must not toggle: only an actual click reveals.
       if (!window.getSelection()?.isCollapsed) return;
       const element = event.target as HTMLElement | null;
+
+      // 页边批注图标：点击弹出 popover；点别处关闭。
+      const icon = element?.closest(
+        ".myz-snapshot-note-icon",
+      ) as HTMLElement | null;
+      if (icon && bodyRef.value?.contains(icon)) {
+        const id = icon.getAttribute("data-note-for") || "";
+        const text = notes.value[id];
+        if (text) {
+          const rect = icon.getBoundingClientRect();
+          notePopover.value = {
+            id,
+            text,
+            x: Math.min(rect.right + 8, window.innerWidth - 288),
+            y: Math.min(rect.top, window.innerHeight - 160),
+          };
+        }
+        return;
+      }
+      if (notePopover.value) {
+        closeNotePopover();
+        return;
+      }
+
       const mark = element?.closest("mark[data-myz-anchor]");
       const markId = mark?.getAttribute("data-myz-anchor");
       if (markId && props.onSelectRecord) {
@@ -275,29 +278,39 @@ export const ViewerSnapshotView = defineComponent({
 
     /** Keyboard twin of the click (Enter / Space), per APG button semantics. */
     function onBodyKeydown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        if (notePopover.value) {
+          event.preventDefault();
+          closeNotePopover();
+        }
+        return;
+      }
       if (event.key !== "Enter" && event.key !== " ") return;
       const target = event.target as HTMLElement | null;
-      if (!target?.closest(".myz-snapshot-dim, .myz-snapshot-tear")) return;
+      if (!target?.closest(".myz-snapshot-tear-half, .myz-snapshot-tear-glyph"))
+        return;
       event.preventDefault();
       handleRevealActivate(target);
     }
 
     function handleRevealActivate(element: HTMLElement | null) {
-      const tear = element?.closest(".myz-snapshot-tear") as HTMLElement | null;
-      if (tear && bodyRef.value?.contains(tear)) {
-        revealAll(Number(tear.getAttribute("data-gap") || "-1"));
+      const half = element?.closest(
+        ".myz-snapshot-tear-half",
+      ) as HTMLElement | null;
+      if (half && bodyRef.value?.contains(half)) {
+        const gap = Number(half.getAttribute("data-gap") || "-1");
+        const side = half.getAttribute("data-side");
+        if (gap >= 0 && (side === "up" || side === "down")) {
+          revealStep(gap, side);
+        }
         return;
       }
-      const dim = element?.closest(".myz-snapshot-dim") as HTMLElement | null;
-      if (!dim || !bodyRef.value?.contains(dim)) return;
-      const gap = Number(dim.getAttribute("data-gap") || "-1");
-      if (gap < 0) return;
-      const chunk = dim.getAttribute("data-chunk");
-      if (chunk !== null) {
-        revealChunk(gap, Number(chunk));
-        return;
+      const glyph = element?.closest(
+        ".myz-snapshot-tear-glyph",
+      ) as HTMLElement | null;
+      if (glyph && bodyRef.value?.contains(glyph)) {
+        revealAll(Number(glyph.getAttribute("data-gap") || "-1"));
       }
-      revealAll(gap);
     }
 
     /** Switches to another capture of the same page. */
@@ -321,9 +334,6 @@ export const ViewerSnapshotView = defineComponent({
       () => [props.activeId, snapshot.value?.id],
       () => void focusActiveMark(),
     );
-    // Each body render re-measures the hidden runs (once each) so long runs
-    // pick up their chunk seams.
-    watch(body, () => void measureGaps());
 
     return () => (
       <div
@@ -426,6 +436,37 @@ export const ViewerSnapshotView = defineComponent({
               onKeydown={onBodyKeydown}
               innerHTML={body.value}
             ></article>
+            {notePopover.value ? (
+              <div
+                class="myz-snapshot-note-popover"
+                role="dialog"
+                aria-label="批注"
+                data-testid="note-popover"
+                style={`left:${notePopover.value.x}px;top:${notePopover.value.y}px`}
+              >
+                <p class="myz-snapshot-note">{notePopover.value.text}</p>
+                <button
+                  type="button"
+                  class="myz-snapshot-note-close"
+                  aria-label="关闭批注"
+                  data-testid="note-popover-close"
+                  onClick={closeNotePopover}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : null}
           </>
         ) : (
           <p class="text-compact text-muted" data-testid="snapshot-empty">
