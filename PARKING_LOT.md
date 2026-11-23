@@ -7,6 +7,7 @@
 已解决的条目**直接删除**，不保留历史：结论该进规则就进规则，该进文档就进文档，本文件只放还没处理的事。
 
 ---
+- 2026-11-23 · settings-modal 修复 · 全量并行跑 e2e 时 content 面用例随机 timing flake（本轮见过 delete-unification / highlight-apply-and-persistence 的 beforeAll 超时后 afterAll 报 `reading 'close'`、stitch 视频帧 waitForFunction 超时、pdf-bilingual 可见性断言）；各用例隔离复跑均过、每轮挂的组合不同。CI 的「e2e without retries ×10」矩阵在检测，先记录。· 待评估
 
 - 2026-11-10 · I1（CodeRabbit review）· Range 顺序在混合标签名下排序错误：`sorting.ts` 的 `comparePathSegments` 对不同标签名按字母比较（`h2` 会排到前面的 `p` 之前），未按文档位置排序。· 待评估
 - 2026-11-10 · I2 · `HighlightsPaneShell` 的 `stickyLayout` prop 现在恒传 false（壳接管滚动后不再需要内层定高），是死参数，待 I3 接线右栏时顺手清掉。· 待评估

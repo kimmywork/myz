@@ -100,6 +100,12 @@ export default defineComponent({
     hideCloseButton: { type: Boolean, default: false },
     /** §4.18 widths in px: 280 note, 320 capture editor, 360 popup. */
     width: { type: Number, default: 360 },
+    /**
+     * Optional fixed layer height in px, clamped to the viewport. For dialogs
+     * whose sections must not resize the frame when they swap (§4.17 settings).
+     * The body keeps its own scroll; content regions may scroll independently.
+     */
+    height: { type: Number, default: 0 },
   },
   setup(props, { slots }) {
     const layerRef = ref<HTMLElement | null>(null)
@@ -156,7 +162,10 @@ export default defineComponent({
           <div
             ref={layerRef}
             class="flex max-h-full flex-col overflow-hidden rounded-panel border border-line bg-surface text-text shadow-float focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-            style={`width: min(${props.width}px, 100%)`}
+            style={
+              `width: min(${props.width}px, 100%)` +
+              (props.height > 0 ? `; height: min(${props.height}px, 100%)` : "")
+            }
             role="dialog"
             aria-modal="true"
             aria-label={props.ariaLabel || props.title || undefined}
