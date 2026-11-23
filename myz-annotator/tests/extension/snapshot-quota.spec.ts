@@ -69,7 +69,7 @@ test("snapshot_write_failure_is_visible_not_silent", async () => {
     ok: boolean;
     error?: string;
     evicted?: string[];
-  // ~11 MB body: above the 10 MB single-snapshot cap.
+    // ~11 MB body: above the 10 MB single-snapshot cap.
   }>(dash, "myz:saveSnapshot", snapshot("too-big", 11 * 1024));
   expect(tooBig.ok).toBe(false);
   expect(tooBig.error).toBeTruthy();

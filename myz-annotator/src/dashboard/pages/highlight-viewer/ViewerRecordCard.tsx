@@ -2,11 +2,14 @@ import { resolveReaderLocator } from "@myz/core/source";
 import type { MyZRecord } from "@myz/shared/types";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
+import { useRouter } from "vue-router";
 import { useUIStore } from "../../stores/ui.js";
 import type { HighlightViewerApi } from "./useHighlightViewer.js";
+import {
+  openEpubInWorkspace,
+  openPdfInWorkspace,
+} from "@/dashboard/utils/open-reader.js";
 import { getRecordKindLabel } from "@/dashboard/utils/records.js";
-import { openEpubRecordInReader } from "@/reader/open.js";
-import { openPdfRecordInReader } from "@/reader/open.js";
 
 /** One record card inside the scroll list. */
 export default defineComponent({
@@ -18,6 +21,7 @@ export default defineComponent({
   },
   setup(props) {
     const uiStore = useUIStore();
+    const router = useRouter();
     return () => {
       const a = props.api;
       const item = props.item;
@@ -70,9 +74,9 @@ export default defineComponent({
                   onClick={(event: Event) => {
                     event.stopPropagation();
                     if (locator.kind === "epub") {
-                      void openEpubRecordInReader(item);
+                      void openEpubInWorkspace(router, item);
                     } else {
-                      void openPdfRecordInReader(item);
+                      void openPdfInWorkspace(router, item);
                     }
                   }}
                 >

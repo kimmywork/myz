@@ -8,6 +8,10 @@ import { defineStore } from "pinia";
 import { computed, reactive, ref, watch } from "vue";
 import type { Ref } from "vue";
 import { PAGINATION_BATCH } from "../constants.js";
+import {
+  DEFAULT_SETTINGS_SECTION,
+  type SettingsSectionKey,
+} from "../pages/settings/settings-sections.js";
 import { useHighlightsStore } from "./highlights.js";
 import { matchesFilters, resolveQuickSearch } from "./ui/filters.js";
 import type { SearchFilters } from "./ui/filters.js";
@@ -30,6 +34,10 @@ export const useUIStore = defineStore("ui", () => {
   const highlightsStore = useHighlightsStore();
 
   const view: Ref<"cards" | "list"> = ref("cards");
+  // The settings surface is a modal opened from the rail footer (§4.17), not
+  // a route: the current workspace page stays mounted underneath it.
+  const settingsOpen = ref(false);
+  const settingsSection = ref<SettingsSectionKey>(DEFAULT_SETTINGS_SECTION);
   const pageFilter = ref("");
   const pageSortMode: Ref<PageSortMode> = ref("time");
   const quickSearch = ref("");
@@ -192,6 +200,18 @@ export const useUIStore = defineStore("ui", () => {
     }
   }
 
+  /** Opens the settings modal at one section (rail footer / deep link). */
+  function openSettings(
+    section: SettingsSectionKey = DEFAULT_SETTINGS_SECTION,
+  ) {
+    settingsSection.value = section;
+    settingsOpen.value = true;
+  }
+
+  function closeSettings() {
+    settingsOpen.value = false;
+  }
+
   function loadMore() {
     if (hasMoreHighlights.value) {
       renderedCount.value = Math.min(
@@ -234,6 +254,10 @@ export const useUIStore = defineStore("ui", () => {
     pageFilter,
     pageSortMode,
     quickSearch,
+    settingsOpen,
+    settingsSection,
+    openSettings,
+    closeSettings,
     searchTerms,
     pageGroups,
     filteredHighlights,

@@ -3,14 +3,8 @@ import AssetsPage from "./pages/AssetsPage.jsx";
 import HighlightsPage from "./pages/HighlightsPage.jsx";
 import HighlightViewerPage from "./pages/HighlightViewerPage.jsx";
 import InboxPage from "./pages/InboxPage.jsx";
+import ReaderHostPage from "./pages/ReaderHostPage.jsx";
 import ReadersPage from "./pages/ReadersPage.jsx";
-import HighlightPreferencesPage from "./pages/settings/highlight/HighlightPreferencesPage.jsx";
-import SettingsAiPage from "./pages/settings/SettingsAiPage.jsx";
-import SettingsAppearancePage from "./pages/settings/SettingsAppearancePage.jsx";
-import SettingsImportPage from "./pages/settings/SettingsImportPage.jsx";
-import SettingsInboxPage from "./pages/settings/SettingsInboxPage.jsx";
-import SettingsLayout from "./pages/settings/SettingsLayout.jsx";
-import SettingsSyncPage from "./pages/settings/SettingsSyncPage.jsx";
 import SetupPage from "./pages/SetupPage.jsx";
 
 const routes = [
@@ -31,9 +25,27 @@ const routes = [
     path: "/highlights/:id",
     name: "highlight-viewer",
     component: HighlightViewerPage,
+    meta: { workspace: true },
   },
-  { path: "/readers", name: "readers", component: ReadersPage },
-  { path: "/assets", name: "assets", component: AssetsPage },
+  {
+    path: "/readers",
+    name: "readers",
+    component: ReadersPage,
+    meta: { workspace: true },
+  },
+  {
+    // Embedded reader host: `/read?kind=pdf|epub&src=<viewer query string>`.
+    path: "/read",
+    name: "reader-host",
+    component: ReaderHostPage,
+    meta: { workspace: true },
+  },
+  {
+    path: "/assets",
+    name: "assets",
+    component: AssetsPage,
+    meta: { workspace: true },
+  },
   {
     path: "/setup",
     name: "setup",
@@ -41,41 +53,13 @@ const routes = [
     meta: { fullscreen: true },
   },
   {
-    path: "/settings",
-    component: SettingsLayout,
-    children: [
-      { path: "", redirect: "/settings/highlight/preferences" },
-      {
-        path: "highlight/preferences",
-        name: "settings-highlight-preferences",
-        component: HighlightPreferencesPage,
-      },
-      {
-        path: "appearance",
-        name: "settings-appearance",
-        component: SettingsAppearancePage,
-      },
-      {
-        path: "import",
-        name: "settings-import",
-        component: SettingsImportPage,
-      },
-      {
-        path: "inbox",
-        name: "settings-inbox",
-        component: SettingsInboxPage,
-      },
-      {
-        path: "ai",
-        name: "settings-ai",
-        component: SettingsAiPage,
-      },
-      {
-        path: "sync",
-        name: "settings-sync",
-        component: SettingsSyncPage,
-      },
-    ],
+    // Settings is a modal (§4.17), not a page. These paths are deep links:
+    // SettingsModalHost watches the route and opens the modal at the matching
+    // section. The library renders beneath it so the workspace is still what
+    // a reload (and the rail) comes back to.
+    path: "/settings/:pathMatch(.*)*",
+    component: HighlightsPage,
+    meta: { workspace: true },
   },
 ];
 

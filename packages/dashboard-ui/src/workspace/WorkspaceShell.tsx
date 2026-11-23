@@ -145,10 +145,15 @@ export default defineComponent({
     })
 
     return () => {
+      // Pages without nav content (素材/阅读/查看器) get no nav column at
+      // all — an empty 240px column is worse than none (§4.27: the page only
+      // fills regions; regions without content are not drawn).
+      const hasNav = Boolean(slots.nav)
       return (
         <div
           class={[
             "myz-workspace",
+            hasNav ? "" : "is-navless",
             hasPanel.value ? "is-panel-open" : "",
             navCollapsed.value ? "is-nav-collapsed" : "",
           ].join(" ")}
@@ -156,38 +161,42 @@ export default defineComponent({
           data-testid="workspace-shell"
         >
           <div class="myz-workspace__rail-slot">{slots.rail?.()}</div>
-          <div
-            class={[
-              "myz-workspace__nav",
-              props.navOpen ? "is-open" : "",
-            ].join(" ")}
-            data-testid="workspace-nav"
-            inert={navCollapsed.value && !props.navOpen ? true : undefined}
-          >
-            {slots.nav?.()}
-          </div>
-          <div class="myz-workspace__nav-handle">
-            <ResizeHandle
-              width={navWidth.value}
-              min={NAV_WIDTH_MIN}
-              max={NAV_WIDTH_MAX}
-              defaultValue={NAV_WIDTH_DEFAULT}
-              label="导航栏宽度"
-              testId="workspace-nav-handle"
-              onResize={(next: number) => {
-                navWidth.value = next
-              }}
-              onReset={() => {
-                navWidth.value = NAV_WIDTH_DEFAULT
-              }}
-              onToggleCollapse={() => {
-                navWidth.value = toggleCollapsed(
-                  navWidth.value,
-                  NAV_WIDTH_DEFAULT,
-                )
-              }}
-            />
-          </div>
+          {hasNav ? (
+            <>
+              <div
+                class={[
+                  "myz-workspace__nav",
+                  props.navOpen ? "is-open" : "",
+                ].join(" ")}
+                data-testid="workspace-nav"
+                inert={navCollapsed.value && !props.navOpen ? true : undefined}
+              >
+                {slots.nav?.()}
+              </div>
+              <div class="myz-workspace__nav-handle">
+                <ResizeHandle
+                  width={navWidth.value}
+                  min={NAV_WIDTH_MIN}
+                  max={NAV_WIDTH_MAX}
+                  defaultValue={NAV_WIDTH_DEFAULT}
+                  label="导航栏宽度"
+                  testId="workspace-nav-handle"
+                  onResize={(next: number) => {
+                    navWidth.value = next
+                  }}
+                  onReset={() => {
+                    navWidth.value = NAV_WIDTH_DEFAULT
+                  }}
+                  onToggleCollapse={() => {
+                    navWidth.value = toggleCollapsed(
+                      navWidth.value,
+                      NAV_WIDTH_DEFAULT,
+                    )
+                  }}
+                />
+              </div>
+            </>
+          ) : null}
           <main class="myz-workspace__main">
             {slots.header ? (
               <div class="myz-workspace__header">{slots.header()}</div>

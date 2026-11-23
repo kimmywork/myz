@@ -32,6 +32,8 @@ export default defineComponent({
       closeNav: () => (navOpen.value = false),
     };
 
+    // Regions without page content are not forwarded: the shell draws no nav
+    // column for pages that fill none (§4.27).
     return () => (
       <WorkspaceShell
         navOpen={navOpen.value}
@@ -41,9 +43,9 @@ export default defineComponent({
       >
         {{
           rail: () => <DashboardRail />,
-          nav: () => slots.nav?.(controls),
+          ...(slots.nav ? { nav: () => slots.nav?.(controls) } : {}),
           default: () => slots.default?.(controls),
-          panel: () => slots.panel?.(),
+          ...(slots.panel ? { panel: () => slots.panel?.() } : {}),
           bottomNav: () => <DashboardBottomNav />,
         }}
       </WorkspaceShell>

@@ -33,16 +33,30 @@ export function buildEpubReaderUrl(record: EpubRecordRef): string | null {
   return `${chrome.runtime.getURL("src/epub/epub-viewer.html")}?${params.toString()}`;
 }
 
-export async function openEpubRecordInReader(
+/**
+ * Prepares the reader target for an EPUB record (permission first, while the
+ * click still has user activation). Returns null without a fingerprint.
+ */
+export async function prepareEpubRecordInReader(
   record: EpubRecordRef,
-): Promise<void> {
+): Promise<string | null> {
   const target = buildEpubReaderUrl(record);
   if (!target) {
-    return;
+    return null;
   }
   const fingerprint = fingerprintOf(record);
   if (fingerprint) {
     await ensureLocalEpubPermission(fingerprint);
   }
-  chrome.tabs.create({ url: target });
+  return target;
+}
+
+/** Opens an EPUB record in a standalone reader tab. */
+export async function openEpubRecordInReader(
+  record: EpubRecordRef,
+): Promise<void> {
+  const target = await prepareEpubRecordInReader(record);
+  if (target) {
+    chrome.tabs.create({ url: target });
+  }
 }

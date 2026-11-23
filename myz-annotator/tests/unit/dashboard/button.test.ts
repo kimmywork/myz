@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import Button from "@myz/dashboard-ui/Button";
+import { describe, expect, it, vi } from "vitest";
 
 /**
  * A `<button>` gets real `disabled` semantics from the platform. An `<a>` does

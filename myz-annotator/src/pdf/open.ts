@@ -38,21 +38,35 @@ export function buildPdfReaderUrl(record: PdfRecordRef): string | null {
 }
 
 /**
- * Opens a PDF record in the reader. For local PDFs, read permission is
- * requested here first, while the originating click still provides user
- * activation — a freshly created tab has none, so `requestPermission` inside
- * the reader would be rejected.
+ * Prepares the reader target for a PDF record: requests the local-file read
+ * permission first, while the originating click still provides user
+ * activation — a freshly opened surface has none, so `requestPermission`
+ * inside the reader would be rejected. Returns null when the record carries
+ * no usable PDF source.
  */
-export async function openPdfRecordInReader(
+export async function preparePdfRecordForReader(
   record: PdfRecordRef,
-): Promise<void> {
+): Promise<string | null> {
   const target = buildPdfReaderUrl(record);
   if (!target) {
-    return;
+    return null;
   }
   const fingerprint = fingerprintOf(record);
   if (fingerprint) {
     await ensureLocalPdfPermission(fingerprint);
   }
-  chrome.tabs.create({ url: target });
+  return target;
+}
+
+/**
+ * Opens a PDF record in a standalone reader tab. Dashboard surfaces embed the
+ * reader in the workspace instead (prepare + `/read` host page).
+ */
+export async function openPdfRecordInReader(
+  record: PdfRecordRef,
+): Promise<void> {
+  const target = await preparePdfRecordForReader(record);
+  if (target) {
+    chrome.tabs.create({ url: target });
+  }
 }

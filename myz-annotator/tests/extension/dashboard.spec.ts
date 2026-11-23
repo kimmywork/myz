@@ -270,8 +270,10 @@ test("import_through_settings_ui_uploads_real_files", async () => {
   const dash = await harness.open("/settings/import");
   await dash.waitForSelector(".settings__group", { timeout: 8000 });
 
-  const importNav = dash.locator('a[href="#/settings/import"]');
+  // The settings surface is a modal now: its group nav marks the section.
+  const importNav = dash.locator('button[data-testid="settings-nav-import"]');
   await expect(importNav).toHaveCount(1);
+  await expect(importNav).toHaveAttribute("aria-current", "page");
 
   const jsonFile = path.join(
     __dirname,
