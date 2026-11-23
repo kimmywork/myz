@@ -55,6 +55,18 @@ describe("buildSnapshotDisplay", () => {
     expect(buildSnapshotDisplay(html)).toContain("only text");
   });
 
+  it("escapes text nodes so entities cannot become live markup", () => {
+    // The sanitizer keeps `<` as text; re-serializing it raw would decode it
+    // into a real tag once the joined string is re-parsed via innerHTML.
+    const html = `<article><p>math &lt;img src=x onerror=alert(1)&gt; end</p><p>${mark(
+      "rec-1",
+      "sharp",
+    )}</p></article>`;
+    const out = buildSnapshotDisplay(html);
+    expect(out).not.toContain("<img");
+    expect(out).toContain("&lt;img");
+  });
+
   it("splits wrappers but never takes inline content apart", () => {
     const html = `
       <article>

@@ -15,7 +15,7 @@ const WRAPPER_SELECTOR =
 
 /** Block tags that make up the body's units. */
 const BLOCK_SELECTOR =
-  "p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th, dd, dt, figure, hr, div, section";
+  "p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th, dd, dt, figure, hr, div, section, article, main, ul, ol, dl, table, tbody, thead, tfoot, tr, header, footer, nav, aside";
 
 interface Unit {
   node: Node;
@@ -29,10 +29,21 @@ function hasMark(node: Node): boolean {
   );
 }
 
+/** HTML-escapes text so re-serializing cannot turn entities into live tags. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function serialize(node: Node): string {
   return node.nodeType === Node.ELEMENT_NODE
     ? (node as Element).outerHTML
-    : node.textContent || "";
+    : // A text node can legally hold `<` or `&` (the sanitizer keeps them as
+      // entities). Emitting them raw would decode them into markup once the
+      // joined string is re-parsed via `innerHTML` (CodeRabbit #135).
+      escapeHtml(node.textContent || "");
 }
 
 /**
@@ -93,9 +104,10 @@ export function buildSnapshotDisplay(
   const flush = () => {
     if (!pending.length) return;
     out.push(
-      `<div class="myz-snapshot-dim" title="点击展开这段上下文">${pending
-        .map(serialize)
-        .join("")}</div>`,
+      `<div class="myz-snapshot-dim" tabindex="0" role="button" ` +
+        `aria-expanded="false" title="点击展开这段上下文">${pending
+          .map(serialize)
+          .join("")}</div>`,
     );
     pending = [];
   };

@@ -109,7 +109,8 @@ export const ViewerSnapshotView = defineComponent({
     );
 
     const locatedCount = computed(
-      () => placements.value.filter((p) => p.anchor.status === "located").length,
+      () =>
+        placements.value.filter((p) => p.anchor.status === "located").length,
     );
     const unlocatedCount = computed(
       () =>
@@ -131,11 +132,29 @@ export const ViewerSnapshotView = defineComponent({
 
     /** Click on a faded run reveals it (渐入); click again re-blurs (渐出). */
     function onBodyClick(event: MouseEvent) {
+      // A drag-select must not toggle: only an actual click reveals.
+      if (!window.getSelection()?.isCollapsed) return;
       const target = (event.target as HTMLElement | null)?.closest(
         ".myz-snapshot-dim",
       );
       if (!target || !bodyRef.value?.contains(target)) return;
-      target.classList.toggle("is-revealed");
+      toggleReveal(target as HTMLElement);
+    }
+
+    /** Keyboard twin of the click (Enter / Space), per APG button semantics. */
+    function onBodyKeydown(event: KeyboardEvent) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const target = (event.target as HTMLElement | null)?.closest(
+        ".myz-snapshot-dim",
+      );
+      if (!target || !bodyRef.value?.contains(target)) return;
+      event.preventDefault();
+      toggleReveal(target as HTMLElement);
+    }
+
+    function toggleReveal(target: HTMLElement) {
+      const revealed = target.classList.toggle("is-revealed");
+      target.setAttribute("aria-expanded", revealed ? "true" : "false");
     }
 
     /** Switches to another capture of the same page. */
@@ -254,6 +273,7 @@ export const ViewerSnapshotView = defineComponent({
               class="read-body prose myz-snapshot-body max-h-[60vh] overflow-y-auto rounded-panel border border-line bg-surface p-5 text-compact text-text"
               data-testid="snapshot-body"
               onClick={onBodyClick}
+              onKeydown={onBodyKeydown}
               innerHTML={body.value}
             ></article>
           </>

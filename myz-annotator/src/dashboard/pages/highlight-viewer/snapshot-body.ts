@@ -42,11 +42,9 @@ interface TextIndex {
 export function prepareSnapshotContainer(html: string): HTMLElement {
   const container = document.createElement("div");
   container.innerHTML = html;
-  container
-    .querySelectorAll(BLOCK_SEPARATOR_SELECTOR)
-    .forEach((element) => {
-      element.after(document.createTextNode(" "));
-    });
+  container.querySelectorAll(BLOCK_SEPARATOR_SELECTOR).forEach((element) => {
+    element.after(document.createTextNode(" "));
+  });
   return container;
 }
 
