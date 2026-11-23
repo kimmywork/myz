@@ -3,29 +3,40 @@ import { send, setupDashboardHarness } from "../helpers/dashboard-harness.js";
 
 const harness = setupDashboardHarness();
 
-async function save(dash: import("@playwright/test").Page, text: string) {
-  const url = `${harness.serverUrl()}/myz-test.html`;
+/**
+ * Creates one record on `pageUrl` (the page identity of a snapshot since
+ * 2026-11-23: the viewer looks the page's copy up through the record's URL).
+ */
+async function save(
+  dash: import("@playwright/test").Page,
+  text: string,
+  pageUrl: string,
+) {
   return send<{ id: string }>(dash, "myz:saveHighlight", {
-    url,
-    sourceUrl: url,
+    url: pageUrl,
+    sourceUrl: pageUrl,
     title: text,
     text,
     html: `<p>${text}</p>`,
     note: "",
     tags: [],
-    hostname: new URL(url).hostname,
+    hostname: new URL(pageUrl).hostname,
     kind: "clip",
   });
 }
 
-test("viewer_shows_a_saved_snapshot_with_its_status_line", async () => {
-  const dash = await harness.open("/highlights");
-  const record = await save(dash, "snapshot anchor sentence");
+function pageUrl(name: string): string {
+  return `https://example.com/${name}`;
+}
 
-  // Store a snapshot for that record the way the content script would.
+test("viewer_shows_a_saved_snapshot_folded_to_its_annotated_region", async () => {
+  const dash = await harness.open("/highlights");
+  const url = pageUrl("article");
+  const record = await save(dash, "snapshot anchor sentence", url);
+
+  // Store a snapshot for that page the way the content script would.
   const saved = await send<{ ok: boolean }>(dash, "myz:saveSnapshot", {
-    recordId: record.id,
-    url: "https://example.com/article",
+    url,
     title: "Article",
     html: "<article><h1>Title</h1><p>before</p><p>snapshot anchor sentence</p><p>after</p></article>",
     css: "body{}",
@@ -45,7 +56,7 @@ test("viewer_shows_a_saved_snapshot_with_its_status_line", async () => {
   await expect(header).toContainText("· 原页可能已更新");
   await expect(header.getByRole("link", { name: "打开原页" })).toHaveAttribute(
     "href",
-    "https://example.com/article",
+    url,
   );
   // The fixed status wording from the contract.
   await expect(dash.getByTestId("snapshot-status")).toContainText(
@@ -54,14 +65,20 @@ test("viewer_shows_a_saved_snapshot_with_its_status_line", async () => {
   await expect(dash.getByTestId("snapshot-status")).toContainText(
     "空间不足时最旧的会被清理",
   );
-  // Body rendered, record text marked.
-  await expect(view).toContainText("Title");
+  // The display is folded to the annotated region (2026-11-23): the marked
+  // sentence is visible, the surrounding content is behind the expanders.
   await expect(view.locator("mark")).toContainText("snapshot anchor sentence");
+  await expect(view).not.toContainText("Title");
+
+  const expanders = dash.getByTestId("snapshot-expand");
+  await expect(expanders.first()).toContainText("展开前文");
+  await expanders.first().click();
+  await expect(view).toContainText("Title");
 });
 
-test("viewer_says_when_a_record_has_no_snapshot", async () => {
+test("viewer_says_when_a_page_has_no_snapshot", async () => {
   const dash = await harness.open("/highlights");
-  const record = await save(dash, "no snapshot for me");
+  const record = await save(dash, "no snapshot for me", pageUrl("missing"));
 
   await harness.navigate(dash, `/highlights/${record.id}`);
   await dash.waitForSelector('[data-testid="view-snapshot"]');
@@ -70,14 +87,39 @@ test("viewer_says_when_a_record_has_no_snapshot", async () => {
   await expect(dash.getByTestId("snapshot-empty")).toContainText("还没有快照");
 });
 
+test("every_record_of_the_page_anchors_onto_the_same_copy", async () => {
+  const dash = await harness.open("/highlights");
+  const url = pageUrl("shared-page");
+  const first = await save(dash, "first recorded sentence", url);
+  await save(dash, "second recorded sentence", url);
+
+  await send(dash, "myz:saveSnapshot", {
+    url,
+    title: "Shared",
+    html: "<article><p>first recorded sentence</p><p>plain middle</p><p>second recorded sentence</p></article>",
+    css: "",
+  });
+
+  await harness.navigate(dash, `/highlights/${first.id}`);
+  await dash.waitForSelector('[data-testid="view-snapshot"]');
+  await dash.getByTestId("view-snapshot").click();
+
+  // Both records land on the one copy: two marks, one summary line.
+  await expect(dash.getByTestId("snapshot-summary")).toContainText(
+    "本页 2 条记录：2 条已标注",
+  );
+  const view = dash.getByTestId("snapshot-view");
+  await expect(view.locator("mark")).toHaveCount(2);
+});
+
 test("unlocated_text_is_reported_and_still_linkable", async () => {
   const dash = await harness.open("/highlights");
-  const record = await save(dash, "repeated sentence");
+  const url = pageUrl("rewritten");
+  const record = await save(dash, "repeated sentence", url);
 
   // The same sentence twice in the saved copy: no honest way to pick one.
   await send(dash, "myz:saveSnapshot", {
-    recordId: record.id,
-    url: "https://example.com/rewritten",
+    url,
     title: "Rewritten",
     html: "<article><p>repeated sentence</p><p>middle</p><p>repeated sentence</p></article>",
     css: "",
@@ -92,7 +134,7 @@ test("unlocated_text_is_reported_and_still_linkable", async () => {
   await expect(notice).toContainText("出现了 2 次");
   await expect(
     notice.getByRole("link", { name: "打开原页看它原本的位置" }),
-  ).toHaveAttribute("href", "https://example.com/rewritten");
+  ).toHaveAttribute("href", url);
   // Nothing is marked, because nothing could be placed honestly.
   await expect(dash.getByTestId("snapshot-view").locator("mark")).toHaveCount(
     0,
@@ -101,11 +143,11 @@ test("unlocated_text_is_reported_and_still_linkable", async () => {
 
 test("missing_text_is_reported_too", async () => {
   const dash = await harness.open("/highlights");
-  const record = await save(dash, "text that used to be here");
+  const url = pageUrl("rewritten-again");
+  const record = await save(dash, "text that used to be here", url);
 
   await send(dash, "myz:saveSnapshot", {
-    recordId: record.id,
-    url: "https://example.com/rewritten",
+    url,
     title: "Rewritten",
     html: "<article><p>the page was rewritten entirely</p></article>",
     css: "",
@@ -120,12 +162,12 @@ test("missing_text_is_reported_too", async () => {
 
 test("same_page_versions_are_grouped_and_newest_first", async () => {
   const dash = await harness.open("/highlights");
-  const record = await save(dash, "versioned sentence");
+  const url = pageUrl("versioned");
+  const record = await save(dash, "versioned sentence", url);
 
   // Two captures of the same page: one with tracking noise, one with a
   // fragment. They are one page, two versions — newest shown by default.
   await send(dash, "myz:saveSnapshot", {
-    recordId: record.id,
     url: "https://example.com/versioned?utm_source=feed",
     title: "Older",
     html: "<article><p>versioned sentence older body</p></article>",
@@ -133,7 +175,6 @@ test("same_page_versions_are_grouped_and_newest_first", async () => {
   });
   await dash.waitForTimeout(5);
   await send(dash, "myz:saveSnapshot", {
-    recordId: record.id,
     url: "https://example.com/versioned#top",
     title: "Newer",
     html: "<article><p>versioned sentence newer body</p></article>",
@@ -160,15 +201,15 @@ test("same_page_versions_are_grouped_and_newest_first", async () => {
 
 test("an_unlocated_snapshot_is_still_sanitized", async () => {
   const dash = await harness.open("/highlights");
-  const record = await save(dash, "text that will not be found");
+  const url = pageUrl("hostile");
+  const record = await save(dash, "text that will not be found", url);
 
   // A stored snapshot carrying a script-bearing link. The capture-time strip
   // is not a security boundary once the HTML sits in storage, so the render
   // path must remove it — including on the unlocated branch, which is exactly
   // what a revised page produces.
   await send(dash, "myz:saveSnapshot", {
-    recordId: record.id,
-    url: "https://example.com/hostile",
+    url,
     title: "Hostile",
     html: `<article>
       <p>the page was rewritten entirely</p>

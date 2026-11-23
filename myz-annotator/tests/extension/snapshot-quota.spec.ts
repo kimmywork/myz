@@ -7,7 +7,6 @@ const harness = setupDashboardHarness();
 function snapshot(id: string, kb: number) {
   const body = "x".repeat(kb * 1024);
   return {
-    recordId: `rec-${id}`,
     url: `https://example.com/${id}`,
     title: `Page ${id}`,
     html: `<p>${id}</p><p>${body}</p>`,
@@ -48,17 +47,17 @@ test("snapshot_quota_evicts_the_oldest_and_never_half_writes", async () => {
   expect(ninth.announceEviction).toBe(true);
 
   // The evicted one is gone, the new one is complete and readable.
-  const evicted = await send<unknown>(dash, "myz:getSnapshotForRecord", {
-    recordId: "rec-fill-0",
+  const evicted = await send<unknown[]>(dash, "myz:getSnapshotsForPage", {
+    url: "https://example.com/fill-0",
   });
-  expect(evicted).toBeNull();
-  const kept = await send<{ html: string; bytes: number } | null>(
+  expect(evicted).toEqual([]);
+  const kept = await send<Array<{ html: string; bytes: number }>>(
     dash,
-    "myz:getSnapshotForRecord",
-    { recordId: "rec-ninth" },
+    "myz:getSnapshotsForPage",
+    { url: "https://example.com/ninth" },
   );
-  expect(kept?.bytes).toBeGreaterThan(9 * 1024 * 1024);
-  expect(kept?.html).toContain("ninth");
+  expect(kept[0]?.bytes).toBeGreaterThan(9 * 1024 * 1024);
+  expect(kept[0]?.html).toContain("ninth");
 });
 
 test("snapshot_write_failure_is_visible_not_silent", async () => {
@@ -76,10 +75,10 @@ test("snapshot_write_failure_is_visible_not_silent", async () => {
   expect(tooBig.evicted ?? []).toEqual([]);
 
   // And nothing was stored for it.
-  const stored = await send<unknown>(dash, "myz:getSnapshotForRecord", {
-    recordId: "rec-too-big",
+  const stored = await send<unknown[]>(dash, "myz:getSnapshotsForPage", {
+    url: "https://example.com/too-big",
   });
-  expect(stored).toBeNull();
+  expect(stored).toEqual([]);
 
   // An empty body is refused with its own message.
   const empty = await send<{ ok: boolean; error?: string }>(

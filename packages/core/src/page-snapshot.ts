@@ -1,7 +1,7 @@
 import { localDateKey } from "@myz/shared/recordDisplay";
 
 /**
- * Page snapshots (I8) — a local copy of the page body behind a record.
+ * Page snapshots (I8) — a local copy of a page's readable body.
  *
  * A snapshot is *structure*, not pixels: the article's text markup plus one
  * small controlled stylesheet, with scripts and image payloads stripped. It is
@@ -9,15 +9,17 @@ import { localDateKey } from "@myz/shared/recordDisplay";
  * images are bytes the user captured, snapshots are page structure kept until
  * space runs out, and they must not share an eviction rule.
  *
+ * **A snapshot belongs to a page** (2026-11-23), not to the record it was
+ * captured from: every record of that page anchors onto the same copy, and
+ * several captures of one page form its version list.
+ *
  * Everything here is pure: deciding what to evict is arithmetic on the stored
  * index, so it can be tested without IndexedDB.
  */
 
-/** One stored snapshot. */
+/** One stored snapshot of a **page** (2026-11-23: bound to the page, not to a record). */
 export interface PageSnapshot {
   id: string;
-  /** Record the snapshot was taken around, when it was taken from a record. */
-  recordId?: string;
   url: string;
   title: string;
   /** Body markup with scripts, media and layout classes stripped. */
@@ -34,7 +36,7 @@ export interface PageSnapshot {
 /** Index entry kept in memory for quota decisions (no payload). */
 export type PageSnapshotIndex = Pick<
   PageSnapshot,
-  "id" | "recordId" | "url" | "title" | "bytes" | "createdAt" | "usedAt"
+  "id" | "url" | "title" | "bytes" | "createdAt" | "usedAt"
 >;
 
 /**

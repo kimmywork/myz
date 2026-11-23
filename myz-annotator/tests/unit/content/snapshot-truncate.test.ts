@@ -4,7 +4,7 @@ import {
   SNAPSHOT_MAX_SIBLINGS_PER_SIDE,
   SNAPSHOT_TRUNCATION_RUN,
   childContaining,
-  isProseElement,
+  hitsRecord,
   siblingWindow,
   truncateAround,
 } from "@/content/snapshot/truncate";
@@ -31,7 +31,7 @@ function slotIn(clone: Element): number[] {
 }
 
 describe("snapshot truncation", () => {
-  it("stops after a run of prose-less siblings", () => {
+  it("stops after a run of record-less siblings", () => {
     const doc = page([
       "far away paragraph",
       null,
@@ -45,14 +45,15 @@ describe("snapshot truncation", () => {
     ]);
     const root = doc.querySelector("article")!;
     const anchor = root.querySelector('[data-slot="4"]')!;
+    const needles = ["middle paragraph that holds the record"];
 
-    const clone = truncateAround(root, anchor);
-    // Two promos are kept on each side; the third ends the walk without being
-    // included, so the far paragraphs never make it in.
+    const clone = truncateAround(root, anchor, needles);
+    // Two record-less siblings are kept on each side; the third ends the walk
+    // without being included, so the far paragraphs never make it in.
     expect(slotIn(clone)).toEqual([2, 3, 4, 5, 6]);
   });
 
-  it("keeps pros prose across a single promo", () => {
+  it("keeps the neighbours across a single record-less element", () => {
     const doc = page([
       "one paragraph",
       null,
@@ -62,18 +63,22 @@ describe("snapshot truncation", () => {
     const root = doc.querySelector("article")!;
     const anchor = root.querySelector('[data-slot="2"]')!;
 
-    const clone = truncateAround(root, anchor);
+    const clone = truncateAround(root, anchor, ["two paragraph"]);
     expect(slotIn(clone)).toEqual([0, 1, 2, 3]);
   });
 
-  it("does not stretch to the whole container when every child is prose", () => {
+  it("extends through every element that hits a record", () => {
+    // All elements hit some record: the run never breaks, so only the
+    // per-side cap bounds the window.
     const doc = page(
       Array.from({ length: 30 }, (_, index) => `paragraph number ${index}`),
     );
     const root = doc.querySelector("article")!;
     const anchor = root.querySelector('[data-slot="15"]')!;
 
-    const { first, last } = siblingWindow(root, anchor, { maxPerSide: 4 });
+    const { first, last } = siblingWindow(root, anchor, ["paragraph"], {
+      maxPerSide: 4,
+    });
     expect(first).toBe(11);
     expect(last).toBe(19);
   });
@@ -82,33 +87,36 @@ describe("snapshot truncation", () => {
     const doc = page(["one paragraph", null, "two paragraph"]);
     const root = doc.querySelector("article")!;
 
-    expect(slotIn(truncateAround(root, null))).toEqual([0, 1, 2]);
+    expect(slotIn(truncateAround(root, null, ["two paragraph"]))).toEqual([
+      0, 1, 2,
+    ]);
   });
 
-  it("is bounded per side even with a huge run allowance", () => {
+  it("is bounded per side even when every element hits a record", () => {
     const doc = page(
       Array.from({ length: 60 }, (_, index) => `paragraph ${index}`),
     );
     const root = doc.querySelector("article")!;
     const anchor = root.querySelector('[data-slot="30"]')!;
 
-    const { first, last } = siblingWindow(root, anchor);
+    const { first, last } = siblingWindow(root, anchor, ["paragraph"]);
     expect(30 - first).toBeLessThanOrEqual(SNAPSHOT_MAX_SIBLINGS_PER_SIDE);
     expect(last - 30).toBeLessThanOrEqual(SNAPSHOT_MAX_SIBLINGS_PER_SIDE);
   });
 
-  it("treats a long text block as prose, a promo as not", () => {
+  it("hits only elements carrying one of the record texts", () => {
     const doc = new DOMParser().parseFromString(
       `<html><body>
-        <div id="long">${"word ".repeat(20)}</div>
-        <div id="short">promo</div>
+        <div id="quoted">${"word ".repeat(2)}the recorded sentence here</div>
+        <div id="other">promo</div>
         <p id="empty"></p>
       </body></html>`,
       "text/html",
     );
-    expect(isProseElement(doc.querySelector("#long")!)).toBe(true);
-    expect(isProseElement(doc.querySelector("#short")!)).toBe(false);
-    expect(isProseElement(doc.querySelector("#empty")!)).toBe(false);
+    const needles = ["the recorded sentence here"];
+    expect(hitsRecord(doc.querySelector("#quoted")!, needles)).toBe(true);
+    expect(hitsRecord(doc.querySelector("#other")!, needles)).toBe(false);
+    expect(hitsRecord(doc.querySelector("#empty")!, needles)).toBe(false);
   });
 
   it("resolves the container child that holds a nested anchor", () => {
@@ -136,7 +144,7 @@ describe("snapshot truncation", () => {
     const root = doc.querySelector("article")!;
     const anchor = doc.querySelector("#anchor")!;
 
-    const clone = truncateAround(root, anchor);
+    const clone = truncateAround(root, anchor, ["the record lives here"]);
     expect(clone.textContent).toContain("Opening sentence");
     expect(clone.textContent).toContain("the record lives here");
     expect(clone.textContent).toContain("Closing sentence");

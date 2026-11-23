@@ -7,7 +7,7 @@ import {
 } from "@/content/snapshot/page-eligibility";
 
 describe("endless-scroll site rules", () => {
-  it("blocks the X timeline surfaces", () => {
+  it("windows the X timeline surfaces instead of refusing them", () => {
     for (const url of [
       "https://x.com/home",
       "https://twitter.com/home",
@@ -16,38 +16,36 @@ describe("endless-scroll site rules", () => {
       "https://x.com/notifications",
       "https://x.com/someuser",
     ]) {
-      expect(classifyPage(url).capture).toBe(false);
+      expect(classifyPage(url).mode).toBe("windowed");
     }
   });
 
-  it("allows a single X post page inside the same host", () => {
+  it("captures a single X post page in full inside the same host", () => {
     const result = classifyPage("https://x.com/someuser/status/1234567890");
-    expect(result.capture).toBe(true);
+    expect(result.mode).toBe("full");
     expect(result.rule).toBe("x-status");
   });
 
-  it("blocks feeds and allows single posts on the same hosts", () => {
-    expect(classifyPage("https://weibo.com/hot").capture).toBe(false);
-    expect(classifyPage("https://weibo.com/").capture).toBe(false);
-    expect(classifyPage("https://weibo.com/detail/123456").capture).toBe(true);
+  it("windows feeds and captures single posts on the same hosts", () => {
+    expect(classifyPage("https://weibo.com/hot").mode).toBe("windowed");
+    expect(classifyPage("https://weibo.com/").mode).toBe("windowed");
+    expect(classifyPage("https://weibo.com/detail/123456").mode).toBe("full");
 
-    expect(classifyPage("https://www.reddit.com/r/webdev/").capture).toBe(
-      false,
+    expect(classifyPage("https://www.reddit.com/r/webdev/").mode).toBe(
+      "windowed",
     );
     expect(
       classifyPage("https://www.reddit.com/r/webdev/comments/abc123/title/")
-        .capture,
-    ).toBe(true);
+        .mode,
+    ).toBe("full");
 
-    expect(classifyPage("https://tieba.baidu.com/f?kw=myz").capture).toBe(
-      false,
+    expect(classifyPage("https://tieba.baidu.com/f?kw=myz").mode).toBe(
+      "windowed",
     );
-    expect(classifyPage("https://tieba.baidu.com/p/1234567").capture).toBe(
-      true,
-    );
+    expect(classifyPage("https://tieba.baidu.com/p/1234567").mode).toBe("full");
   });
 
-  it("allows ordinary article pages, including look-alikes", () => {
+  it("captures ordinary article pages in full, including look-alikes", () => {
     for (const url of [
       "https://example.com/blog/post",
       "https://en.wikipedia.org/wiki/Color",
@@ -55,11 +53,11 @@ describe("endless-scroll site rules", () => {
       // Mentioning x.com in a path is not the X timeline.
       "https://example.com/posts/x.com/home",
     ]) {
-      expect(classifyPage(url).capture).toBe(true);
+      expect(classifyPage(url).mode).toBe("full");
     }
   });
 
-  it("blocks bare social roots but allows a single short video", () => {
+  it("windows bare social roots but captures a single short video", () => {
     for (const url of [
       "https://www.instagram.com/",
       "https://instagram.com/explore/",
@@ -67,18 +65,12 @@ describe("endless-scroll site rules", () => {
       "https://www.facebook.com/home",
       "https://www.douyin.com/?recommend=1",
     ]) {
-      expect(classifyPage(url).capture).toBe(false);
+      expect(classifyPage(url).mode).toBe("windowed");
     }
     // A single video page has a bottom edge, so the profile rule must not eat it.
     const video = classifyPage("https://www.tiktok.com/@alice/video/123");
-    expect(video.capture).toBe(true);
+    expect(video.mode).toBe("full");
     expect(video.rule).toBe("short-video-post");
-  });
-
-  it("gives the user a reason when it refuses", () => {
-    const result = classifyPage("https://x.com/home");
-    expect(result.capture).toBe(false);
-    expect(result.reason).toContain("无限滚动");
   });
 });
 
@@ -120,7 +112,9 @@ describe("layout fallback", () => {
       viewportHeight: 800,
       visibleTextLength: 10,
     };
-    expect(evaluatePage("https://example.com/post").capture).toBe(true);
-    expect(evaluatePage("https://example.com/post", tall).capture).toBe(false);
+    expect(evaluatePage("https://example.com/post").mode).toBe("full");
+    expect(evaluatePage("https://example.com/post", tall).mode).toBe(
+      "windowed",
+    );
   });
 });
