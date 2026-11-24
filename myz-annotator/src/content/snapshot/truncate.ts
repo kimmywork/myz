@@ -39,28 +39,73 @@ function isBlankLayout(node: Node): boolean {
 }
 
 /**
+ * The children's normalized text, concatenated with single spaces, plus each
+ * child's `[start, end)` range in it. Lets a quote be located even when its
+ * endpoints live in different children.
+ */
+function rootTextIndex(children: readonly Node[]): {
+  value: string;
+  starts: number[];
+  ends: number[];
+} {
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let value = "";
+  children.forEach((child, index) => {
+    if (value) value += " ";
+    starts[index] = value.length;
+    value += normalizeWindowText(child.textContent);
+    ends[index] = value.length;
+  });
+  return { value, starts, ends };
+}
+
+/**
  * The root-level child span holding every record hit, extended by the
  * context blocks on each side.
  *
- * Hits are compared at the root-child level: a record's block may sit deeper
- * (inside a section), and the section carries it — the fold display splits
- * containers back into blocks, so capture granularity here is not a loss.
+ * Hits are resolved against the **normalized root text**, then mapped back to
+ * the children they cover. Comparing one child at a time loses a quote that
+ * crosses a block boundary (`alpha ` in one paragraph, `beta` in the next):
+ * neither child contains the whole needle, so that record dropped out of the
+ * span while the other record's span won — the snapshot then missed a
+ * highlight it is supposed to structurally contain (CodeRabbit #136).
  *
- * @returns `null` when no child hits any record.
+ * Hits may sit deeper than the root child (a record's block inside a section):
+ * the section carries it, and the fold display splits containers back into
+ * blocks, so capture granularity here is not a loss.
+ *
+ * @returns `null` when no record text lands in the root.
  */
 export function recordSpan(
   root: Element,
   needles: readonly string[],
 ): { first: number; last: number } | null {
   const children = Array.from(root.childNodes);
+  const text = rootTextIndex(children);
   let first = -1;
   let last = -1;
-  children.forEach((node, index) => {
-    if (isBlankLayout(node)) return;
-    if (!hitsRecord(node, needles)) return;
-    if (first < 0) first = index;
-    last = index;
-  });
+
+  const cover = (from: number, to: number) => {
+    children.forEach((node, index) => {
+      if (isBlankLayout(node)) return;
+      // Child ranges are [start, end); touching an endpoint is not overlap.
+      if (text.ends[index] <= from || text.starts[index] >= to) return;
+      if (first < 0 || index < first) first = index;
+      if (index > last) last = index;
+    });
+  };
+
+  for (const needle of needles) {
+    if (!needle) continue;
+    // Every occurrence counts: the same sentence twice on a page must not
+    // shrink the span below a highlighted copy.
+    let from = text.value.indexOf(needle);
+    while (from >= 0) {
+      cover(from, from + needle.length);
+      from = text.value.indexOf(needle, from + 1);
+    }
+  }
   if (first < 0) return null;
   // Extend by context blocks; whitespace rides free — it is layout between
   // blocks, not a block, and must not eat the context budget.

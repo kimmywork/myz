@@ -11,11 +11,14 @@
  * because the one thing this must never do is leave them believing a snapshot
  * exists when it does not.
  */
+import { createLogger } from "@myz/shared/logger";
 import { ref } from "vue";
 import { useNotificationStore } from "../stores/notification-store.js";
 import type { ExtractedSnapshot } from "./extract.js";
 import { extractSnapshot } from "./extract.js";
 import { invoke } from "@/messaging/invoke.js";
+
+const log = createLogger("snapshot-capture");
 
 export function useSnapshotCapture() {
   const notify = useNotificationStore();
@@ -34,15 +37,35 @@ export function useSnapshotCapture() {
     try {
       const url = window.location.href;
       // 这页全部划线的文本：快照范围 = 包含它们的连续区域。
-      const records = await invoke("myz:getHighlightsForUrl", {
-        url,
-      }).catch(() => []);
-      const snapshot: ExtractedSnapshot = extractSnapshot(document, url, {
-        anchorText: recordText,
-        recordTexts: (records ?? []).map(
+      let recordTexts: Array<string | undefined> = [];
+      let lookupFailed = false;
+      try {
+        const records = await invoke("myz:getHighlightsForUrl", { url });
+        recordTexts = (records ?? []).map(
           (record: { text?: string }) => record.text,
-        ),
-      });
+        );
+      } catch (error) {
+        // 查询失败不等于「这页没有划线」：只按起始那条定范围会把同页其他
+        // 划线挡在快照外，还会覆盖掉上一份完整快照（CodeRabbit #136）。
+        // 宁可整根兜底——「足够完整」优先，单张上限是极端情况的兜底。
+        lookupFailed = true;
+        log.warn(
+          "record lookup failed; capturing the whole readable root",
+          error,
+        );
+      }
+      // 上面的 await 期间页面可能已经跳转（SPA）：那时 document 是**新页面**
+      // 的 DOM，用旧 url 存下去会覆盖旧页面的快照（CodeRabbit #136）。
+      if (window.location.href !== url) {
+        notify.notify({ message: "页面已经切换，快照未保存" });
+        return false;
+      }
+      const snapshot: ExtractedSnapshot = lookupFailed
+        ? extractSnapshot(document, url)
+        : extractSnapshot(document, url, {
+            anchorText: recordText,
+            recordTexts,
+          });
       if (!snapshot.html) {
         notify.notify({ message: "页面正文为空，无法保存快照" });
         return false;

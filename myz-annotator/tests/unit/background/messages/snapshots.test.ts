@@ -107,21 +107,37 @@ describe("snapshot message handlers", () => {
 
   it("prunes legacy duplicates on read, keeping the newest copy", async () => {
     // 2026-11-24：一页只保留最新版本。替换制之前遗留的多版本在读取时收敛。
-    await handleMessage("myz:saveSnapshot", payload("first"), ctx);
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await handleMessage(
-      "myz:saveSnapshot",
-      { ...payload("second"), url: "https://example.com/first" },
-      ctx,
-    );
+    // 两条必须**直接写进存储**：走两次 saveSnapshot 的话第二次已经替换掉
+    // 第一条，这条用例就算删掉「读取即清理」也照样过（CodeRabbit #136）。
+    const url = "https://example.com/first";
+    const seed = async (id: string, title: string, createdAt: string) => {
+      const { getDB } = await import("@/background/storage");
+      const { withStore } = await import("@myz/shared/idb");
+      const db = await getDB();
+      await withStore<void>(db, "page_snapshots", "readwrite", (store) =>
+        store.put({
+          id,
+          url,
+          title,
+          html: `<p>${title}</p>`,
+          css: "",
+          bytes: 64,
+          createdAt,
+          usedAt: createdAt,
+        }),
+      );
+    };
+    await seed("legacy-old", "Page old", "2026-11-20T00:00:00.000Z");
+    await seed("legacy-new", "Page new", "2026-11-23T00:00:00.000Z");
+    expect(await listSnapshotIndex()).toHaveLength(2);
 
     const found = (await handleMessage(
       "myz:getSnapshotsForPage",
-      { url: "https://example.com/first" },
+      { url },
       ctx,
     )) as Array<{ title?: string }>;
     expect(found).toHaveLength(1);
-    expect(found[0]?.title).toBe("Page second");
+    expect(found[0]?.title).toBe("Page new");
     // 读取即清理：存储里也只剩这一条。
     expect(await listSnapshotIndex()).toHaveLength(1);
   });

@@ -94,6 +94,24 @@ describe("snapshot span", () => {
     expect(clone.textContent).toContain("Closing sentence");
   });
 
+  it("keeps a quote that spans two blocks", () => {
+    // `alpha one` ends the first paragraph and `beta two` starts the second:
+    // no single child holds the whole needle, but the root text does — the
+    // span must still begin at the first paragraph instead of losing that
+    // record while the later one wins (CodeRabbit #136).
+    const doc = page([
+      "alpha one", // 0
+      "beta two", // 1
+      "filler", // 2
+      "filler", // 3
+      "last record", // 4
+    ]);
+    const root = doc.querySelector("article")!;
+
+    const clone = spanAround(root, ["alpha one beta two", "last record"]);
+    expect(slotIn(clone)).toEqual([0, 1, 2, 3, 4]);
+  });
+
   it("reports the hit span before the context extension", () => {
     const doc = page(Array.from({ length: 10 }, (_, i) => `p${i}`));
     const root = doc.querySelector("article")!;

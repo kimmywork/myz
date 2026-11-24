@@ -14,8 +14,13 @@ import { ZEN_SELECTOR_MAP } from "../zen-config.js";
 import { SNAPSHOT_CSS } from "./style.js";
 import { hitsRecord, normalizeWindowText, spanAround } from "./truncate.js";
 
-/** Elements whose contents are never part of the readable body. */
-const DROP_SELECTORS = [
+/**
+ * Elements whose contents are never part of the readable body, whatever text
+ * they hold. Script source and stylesheet text are not page content; the
+ * dashboard sanitizer strips the tag but keeps the text, so a highlighted
+ * <script> would render as visible code (CodeRabbit #136).
+ */
+const NEVER_KEEP = [
   "script",
   "style",
   "link",
@@ -35,6 +40,15 @@ const DROP_SELECTORS = [
   "input",
   "select",
   "textarea",
+].join(",");
+
+/**
+ * Chrome containers: dropped as page furniture unless a record's text lives
+ * inside — a highlight always wins over de-noising (2026-11-24: Zalando's
+ * title and lede live in the article's own <header>, which the drop deleted
+ * wholesale, so the highlight never reached the snapshot).
+ */
+const CHROME_SELECTORS = [
   "nav",
   "aside",
   "footer",
@@ -148,10 +162,9 @@ export function buildSnapshotBody(
   needles: readonly string[] = [],
 ): ExtractedSnapshot {
   const clone = spanAround(root, needles);
-  clone.querySelectorAll(DROP_SELECTORS).forEach((node) => {
-    // 一条划线永远优先于去噪：高亮内容所在的容器不能被丢掉
-    // （2026-11-24：Zalando 的标题/引言住在 article 自己的 <header> 里，
-    // 被这条去噪整块删掉——高亮因此没进快照）。
+  clone.querySelectorAll(NEVER_KEEP).forEach((node) => node.remove());
+  clone.querySelectorAll(CHROME_SELECTORS).forEach((node) => {
+    // 一条划线永远优先于去噪：高亮内容所在的容器不能被丢掉。
     if (needles.length && hitsRecord(node, needles)) return;
     node.remove();
   });
