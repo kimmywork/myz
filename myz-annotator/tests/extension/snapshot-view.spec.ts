@@ -79,30 +79,31 @@ test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", asyn
   // 上半区从上侧划线处向内揭（先 Title）；gap0 只剩单块后不再有缝，
   // 点剩余提示继续揭（before）；单块段 gap1 同样点提示（after）。
   // data-revealed 挂在每个揭示块上，二次揭示后匹配 2 个 → 取最后一个。
-  // 三段（上带 / 「…」行 / 下带）不重叠：上半区中点必须命中半区本身。
-  // 2026-11-24 之前「…」压在两带交界处，中点距它只有 1px——CI 上从「展开
-  // 一段」静默变成「整段展开」。命中测试读的是绘制后的层树，布局刚变完的
-  // 那一帧可能还指向旧位置，所以用 poll 等一帧，正常情况第一轮就过。
-  const probeBand = () =>
-    view.locator('.myz-snapshot-tear-half[data-side="up"]').evaluate((el) => {
-      const rect = el.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      const glyph = el
-        .closest(".myz-snapshot-tear")
-        ?.querySelector(".myz-snapshot-tear-glyph");
-      const glyphRect = glyph?.getBoundingClientRect();
-      const hit = document.elementFromPoint(x, y)?.className ?? "";
-      // Numbers ride along so a layout difference reports itself.
-      return (
-        `${hit} [band ${rect.top.toFixed(1)}+${rect.height.toFixed(1)}, ` +
-        `glyph ${glyphRect ? `${glyphRect.top.toFixed(1)}+${glyphRect.height.toFixed(1)}` : "-"}]`
-      );
-    });
-  await expect
-    .poll(probeBand, { message: "上半区中点应命中半区本身" })
-    .toContain("myz-snapshot-tear-half");
-  await view.locator('.myz-snapshot-tear-half[data-side="up"]').click();
+  // 三段（上带 / 「…」行 / 下带）在**布局**上不重叠：2026-11-24 之前上下
+  // 半区各占 50%、「…」压在两带交界，中点距它只有 1px——CI 上「展开一段」
+  // 会静默变成「整段展开」（点的是半区中点，命中的是「…」）。
+  // 这里量盒子而不是 elementFromPoint：命中测试读的是绘制后的层树，CI 的
+  // 窗口不可见时字体换完也不重绘，层树停在旧位置（同一坐标上位 351+13、
+  // 「…」364+14，却报命中「…」）。
+  const seam = await view.locator(".myz-snapshot-tear").evaluate((tear) => {
+    const box = (selector: string) => {
+      const rect = tear.querySelector(selector)?.getBoundingClientRect();
+      return rect ? { top: rect.top, bottom: rect.bottom } : null;
+    };
+    return {
+      up: box('.myz-snapshot-tear-half[data-side="up"]'),
+      glyph: box(".myz-snapshot-tear-glyph"),
+      down: box('.myz-snapshot-tear-half[data-side="down"]'),
+    };
+  });
+  expect(seam.up && seam.glyph && seam.down).toBeTruthy();
+  expect(seam.up!.bottom).toBeLessThanOrEqual(seam.glyph!.top + 0.5);
+  expect(seam.glyph!.bottom).toBeLessThanOrEqual(seam.down!.top + 0.5);
+  expect(seam.up!.bottom - seam.up!.top).toBeGreaterThan(0);
+
+  await view
+    .locator('.myz-snapshot-fold-hint[data-gap="0"][data-side="up"]')
+    .click();
   await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
     "Title",
   );
