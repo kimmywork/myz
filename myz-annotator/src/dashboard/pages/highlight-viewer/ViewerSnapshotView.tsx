@@ -223,27 +223,63 @@ export const ViewerSnapshotView = defineComponent({
       if (!after) return;
       const delta = after.getBoundingClientRect().top - before;
       if (Math.abs(delta) > 1) {
-        container.scrollBy({ top: delta, behavior: "smooth" });
+        // Instant: a smooth glide would move the anchor mid-flight, violating
+        // 「点击部分的位置始终保持不变」 (2026-11-24). The reveal itself fades
+        // in — that is where the motion lives.
+        container.scrollBy({ top: delta });
       }
     }
 
     /**
-     * Reveal one block on one side (from the highlight edge inward). The
-     * clicked spot stays screen-fixed: a hint click anchors the block that
-     * replaces it, a seam-half click anchors the seam.
+     * The gap's outer visual anchor on one side: the nearest highlight
+     * region above (up) or below (down). That is the reader's reference
+     * point — it must not move (2026-11-24).
+     */
+    function outerRegion(gap: number, side: "up" | "down"): HTMLElement | null {
+      const inner =
+        bodyRef.value?.querySelector(
+          `[data-tear="gap-${gap}"], [data-gap="${gap}"]`,
+        ) ?? null;
+      let el: Element | null = inner;
+      while (el) {
+        el = side === "up" ? el.previousElementSibling : el.nextElementSibling;
+        if (el?.classList.contains("myz-snapshot-region")) {
+          return el as HTMLElement;
+        }
+      }
+      return null;
+    }
+
+    /**
+     * Reveal one block on one side (from the highlight edge inward).
+     *
+     * Positioning (2026-11-24): the visual anchor stays screen-fixed — the
+     * outer highlight on the clicked side (A above / G below); when it is out
+     * of the viewport, the clicked element itself is the anchor (a full-block
+     * hint never moves — revealing only unblurs it). Never "scroll the
+     * revealed block into view".
      */
     function revealStep(
       gap: number,
       side: "up" | "down",
       clicked: HTMLElement | null,
     ) {
+      const region = outerRegion(gap, side);
+      const regionVisible = (() => {
+        if (!region) return false;
+        const rect = region.getBoundingClientRect();
+        return rect.bottom > 0 && rect.top < window.innerHeight;
+      })();
+      const anchorEl = regionVisible ? region : clicked;
+      const before = anchorEl?.getBoundingClientRect().top ?? null;
       const isHint = Boolean(clicked?.closest(".myz-snapshot-fold-hint"));
-      const before = clicked?.getBoundingClientRect().top ?? null;
-      const anchorSelector = isHint
-        ? side === "up"
-          ? `[data-revealed="gap-${gap}-up"] > :last-child`
-          : `[data-revealed="gap-${gap}-down"] > :first-child`
-        : `[data-tear="gap-${gap}"]`;
+      const anchorSelector = regionVisible
+        ? `[data-region="${region?.getAttribute("data-region") ?? ""}"]`
+        : isHint
+          ? side === "up"
+            ? `[data-revealed="gap-${gap}-up"] > :last-child`
+            : `[data-revealed="gap-${gap}-down"] > :first-child`
+          : `[data-tear="gap-${gap}"]`;
       const next = ensureGap(gap);
       const state = next[gap];
       next[gap] = {

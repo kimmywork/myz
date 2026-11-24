@@ -454,11 +454,9 @@
     background: color-mix(in srgb, var(--myz-accent) 8%, transparent);
   }
 
-  /* 折叠提示：一小段模糊文本告诉读者「这里还有内容」。上侧提示衔接上方的
-     已揭内容、向隐藏一侧（下）渐出；下侧镜像（2026-11-24）。 */
+  /* 折叠提示：一整块模糊文本（完整 block 元素，2026-11-24：占满原位置，
+     揭示即去模糊、零位移）。上侧提示向隐藏一侧（下）渐出；下侧镜像。 */
   .myz-snapshot-fold-hint {
-    max-height: 3.5em;
-    overflow: hidden;
     filter: blur(3px);
     opacity: 0.55;
     cursor: pointer;
@@ -468,20 +466,20 @@
     -webkit-mask-image: linear-gradient(
       to bottom,
       #000 0,
-      #000 60%,
+      #000 82%,
       transparent 100%
     );
-    mask-image: linear-gradient(to bottom, #000 0, #000 60%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0, #000 82%, transparent 100%);
   }
 
   .myz-snapshot-fold-hint[data-side="down"] {
     -webkit-mask-image: linear-gradient(
       to bottom,
       transparent 0,
-      #000 40%,
+      #000 18%,
       #000 100%
     );
-    mask-image: linear-gradient(to bottom, transparent 0, #000 40%, #000 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 18%, #000 100%);
   }
 
   .myz-snapshot-fold-hint:hover {

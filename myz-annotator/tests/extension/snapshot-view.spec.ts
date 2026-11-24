@@ -237,34 +237,32 @@ test("long_hidden_content_folds_behind_one_seam_and_unfolds_stepwise", async () 
   );
   await expect(view).not.toContainText("filler paragraph 6");
 
-  const scrollTopOf = () =>
-    dash.evaluate(
-      () => document.querySelector(".myz-workspace__body")?.scrollTop ?? -1,
-    );
+  const regionTop = (index: number) =>
+    dash
+      .locator(`[data-region="${index}"]`)
+      .evaluate((el) => el.getBoundingClientRect().top);
 
-  // 点缝下半区 → 从下侧划线处向内揭（先 paragraph 11）；点击处（缝）位置不动。
-  const seamTopBefore = await seams.evaluate(
-    (el) => el.getBoundingClientRect().top,
-  );
-  await dash.locator('.myz-snapshot-tear-half[data-side="down"]').click();
+  // 规则（2026-11-24）：G 在视口内点下侧提示 → 按照 G 固定、向上揭 F。
+  const downHint = view.locator('.myz-snapshot-fold-hint[data-side="down"]');
+  await downHint.scrollIntoViewIfNeeded();
+  const gBefore = await regionTop(1);
+  await downHint.click();
   await expect(view.locator('[data-revealed="gap-0-down"]')).toContainText(
     "filler paragraph 11",
   );
-  await dash.waitForTimeout(500);
-  const seamTopAfter = await seams.evaluate(
-    (el) => el.getBoundingClientRect().top,
-  );
-  expect(Math.abs(seamTopAfter - seamTopBefore)).toBeLessThan(5);
+  await dash.waitForTimeout(150);
+  expect(Math.abs((await regionTop(1)) - gBefore)).toBeLessThan(5);
 
-  // 点上半区 → 从上侧划线处向内揭（先 paragraph 0），视图平滑跟随。
-  const scrollBefore = await scrollTopOf();
-  await dash.locator('.myz-snapshot-tear-half[data-side="up"]').click();
+  // A 在视口内点上侧提示 → 按照 A 固定、向下揭 B。
+  const upHint = view.locator('.myz-snapshot-fold-hint[data-side="up"]');
+  await upHint.scrollIntoViewIfNeeded();
+  const aBefore = await regionTop(0);
+  await upHint.click();
   await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
     "filler paragraph 0",
   );
-  await dash.waitForTimeout(500);
-  const scrollAfter = await scrollTopOf();
-  expect(scrollAfter).not.toBe(scrollBefore);
+  await dash.waitForTimeout(150);
+  expect(Math.abs((await regionTop(0)) - aBefore)).toBeLessThan(5);
 
   // 点「…」本体 → 整段完整展开；全部展开后不再有折叠线。
   await dash.locator(".myz-snapshot-tear-glyph").click();
