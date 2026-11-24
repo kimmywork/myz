@@ -88,9 +88,35 @@ test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", asyn
       const rect = el.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
+      const tear = el.closest(".myz-snapshot-tear") as HTMLElement | null;
+      const glyph = tear?.querySelector(
+        ".myz-snapshot-tear-glyph",
+      ) as HTMLElement | null;
+      const box = (target: Element | null | undefined) => {
+        const r = target?.getBoundingClientRect();
+        return r
+          ? { top: +r.top.toFixed(1), height: +r.height.toFixed(1) }
+          : null;
+      };
+      const style = (target: Element | null | undefined) => {
+        if (!target) return null;
+        const cs = getComputedStyle(target);
+        return {
+          display: cs.display,
+          rows: cs.gridTemplateRows,
+          alignSelf: cs.alignSelf,
+          position: cs.position,
+          zIndex: cs.zIndex,
+          height: cs.height,
+          lineHeight: cs.lineHeight,
+        };
+      };
       return {
         hit: document.elementFromPoint(x, y)?.className ?? "",
-        rect: { top: rect.top, height: rect.height },
+        stack: document.elementsFromPoint(x, y).map((e) => e.className),
+        tear: { box: box(tear), style: style(tear) },
+        band: { box: box(el), style: style(el) },
+        glyph: { box: box(glyph), style: style(glyph) },
         point: { x, y },
       };
     });
