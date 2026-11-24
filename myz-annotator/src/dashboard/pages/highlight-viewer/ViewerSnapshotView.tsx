@@ -420,6 +420,14 @@ export const ViewerSnapshotView = defineComponent({
       ) as HTMLElement | null;
       if (glyph && bodyRef.value?.contains(glyph)) {
         revealAll(Number(glyph.getAttribute("data-gap") || "-1"));
+        return;
+      }
+      // The 「…」 row is a band of its own: its free space (either side of the
+      // glyph) is the same "unfold the whole run" action, not dead pixels —
+      // and never a band's action (the rows do not overlap, 2026-11-24).
+      const tear = element?.closest(".myz-snapshot-tear") as HTMLElement | null;
+      if (tear && bodyRef.value?.contains(tear)) {
+        revealAll(Number(tear.getAttribute("data-gap") || "-1"));
       }
     }
 

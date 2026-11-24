@@ -79,6 +79,21 @@ test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", asyn
   // 上半区从上侧划线处向内揭（先 Title）；gap0 只剩单块后不再有缝，
   // 点剩余提示继续揭（before）；单块段 gap1 同样点提示（after）。
   // data-revealed 挂在每个揭示块上，二次揭示后匹配 2 个 → 取最后一个。
+  // 三段（上带 / 「…」行 / 下带）不重叠：上半区中点必须命中半区本身。
+  // 2026-11-24 之前「…」压在两带交界处，中点距它只有 1px，CI 的字体度量
+  // 差一点就让「展开一段」静默变成「整段展开」。
+  const upCenterHit = await view
+    .locator('.myz-snapshot-tear-half[data-side="up"]')
+    .evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      return (
+        document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        )?.className ?? ""
+      );
+    });
+  expect(upCenterHit).toContain("myz-snapshot-tear-half");
   await view.locator('.myz-snapshot-tear-half[data-side="up"]').click();
   await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
     "Title",
