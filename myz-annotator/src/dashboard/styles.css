@@ -517,6 +517,17 @@
     outline: 2px solid var(--myz-accent);
     outline-offset: 2px;
   }
+
+  /* 提示的 mask 会把键盘焦点外圈裁掉：聚焦时去掉 mask 与模糊，焦点才看得见
+     （CodeRabbit #136）。两条带 side 属性，特异性与上面的渐变遮蔽规则相同，
+     靠位置取胜。 */
+  .myz-snapshot-fold-hint[data-side="up"]:focus-visible,
+  .myz-snapshot-fold-hint[data-side="down"]:focus-visible {
+    filter: none;
+    opacity: 1;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 }
 
 /*

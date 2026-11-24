@@ -184,6 +184,48 @@ function tearElement(
 }
 
 /**
+ * Attributes the hint role borrows from the block. A hint is a normal block
+ * wearing button semantics; the block may already carry its own `title` (an
+ * image credit), `role` or ARIA labels, so what was there has to come back
+ * when the block stops being a hint (CodeRabbit #136).
+ */
+const HINT_OWNED_ATTRIBUTES = [
+  "title",
+  "role",
+  "tabindex",
+  "aria-expanded",
+  "aria-label",
+] as const;
+
+/** Source values are stashed on the element itself, prefixed. */
+const HINT_STASH_PREFIX = "data-myz-hint-";
+
+/**
+ * A hint is a normal block wearing button semantics; the block may already
+ * carry its own `title` (an image credit), `role` or ARIA labels. Those are
+ * stashed on the element — not in a Map keyed by node — because the view
+ * serialises the body back to HTML between builds, so a node-keyed stash dies
+ * with the old nodes (CodeRabbit #136).
+ */
+function borrowAttributes(unit: Element): void {
+  for (const name of HINT_OWNED_ATTRIBUTES) {
+    const original = unit.getAttribute(name);
+    if (original === null) continue;
+    unit.setAttribute(`${HINT_STASH_PREFIX}${name}`, original);
+  }
+}
+
+function restoreAttributes(unit: Element): void {
+  for (const name of HINT_OWNED_ATTRIBUTES) {
+    const stash = `${HINT_STASH_PREFIX}${name}`;
+    const original = unit.getAttribute(stash);
+    unit.removeAttribute(stash);
+    if (original === null) unit.removeAttribute(name);
+    else unit.setAttribute(name, original);
+  }
+}
+
+/**
  * Paints one hidden run's blocks in place — the single source of truth for
  * hint / revealed / hidden / seam state. Works on existing nodes (reveals
  * never rebuild the DOM); `fresh` marks blocks that just appeared so only
@@ -213,22 +255,19 @@ export function paintRun(
     );
     unit.removeAttribute("data-myz-hidden");
     unit.removeAttribute("data-revealed");
-    // Only hint-owned attributes are cleaned, and only from blocks that were
-    // hints — source markup keeps its own title/role untouched.
+    // Only hint-owned attributes are touched, and only on blocks that were
+    // hints — a source `title`/`role` comes back exactly as it was.
     if (wasHint) {
       unit.removeAttribute("data-gap");
       unit.removeAttribute("data-side");
-      unit.removeAttribute("role");
-      unit.removeAttribute("tabindex");
-      unit.removeAttribute("aria-expanded");
-      unit.removeAttribute("aria-label");
-      unit.removeAttribute("title");
+      restoreAttributes(unit);
     }
     if (role === "hidden") {
       unit.classList.add("myz-snapshot-fold-hidden");
       unit.setAttribute("data-myz-hidden", "1");
     } else if (role === "hint-up" || role === "hint-down") {
       const side = role === "hint-up" ? "up" : "down";
+      borrowAttributes(unit);
       unit.classList.add("myz-snapshot-fold-hint");
       unit.setAttribute("data-gap", String(gap));
       unit.setAttribute("data-side", side);

@@ -129,4 +129,24 @@ describe("opening a record with no readable target", () => {
     expect(router.push).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
   });
+
+  it("stops when the user left while the permission prompt was open", async () => {
+    // The permission await can outlive the user's stay: navigating then would
+    // pull them into a reader they never asked for (CodeRabbit #136).
+    preparePdf.mockResolvedValue(
+      "chrome-extension://id/src/pdf/pdf-viewer.html?fp=abc",
+    );
+    const router = fakeRouter("/highlights");
+    const stillWanted = vi.fn(() => false);
+    await openPdfInWorkspace(
+      router as unknown as Router,
+      { ...record, id: "rec-5" },
+      { replace: true, stillWanted },
+    );
+
+    expect(stillWanted).toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(createTab).not.toHaveBeenCalled();
+  });
 });

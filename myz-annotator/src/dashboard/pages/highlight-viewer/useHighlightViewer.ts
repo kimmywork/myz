@@ -88,15 +88,27 @@ export function useHighlightViewer() {
   // PDF/EPUB 划线不是「页面」，没有快照：详情入口一律改为打开原文档
   // （2026-11-23）。直连详情地址也归到阅读器，不落在快照页上。
   // 用 replace：Back 不会再落回详情、被再次重定向（CodeRabbit #136）。
+  // `?edit=1` 留在详情页——编辑面板就在详情页顶条里，重定向到阅读器会把
+  // 编辑意图整个丢掉（CodeRabbit #136）。
   watch(
     record,
     (current) => {
-      if (!current) return;
+      if (!current || route.query.edit === "1") return;
       const locator = resolveReaderLocator(current);
-      if (locator?.kind === "epub") {
-        void openEpubInWorkspace(router, current, { replace: true });
-      } else if (locator?.kind === "pdf-page-rect") {
-        void openPdfInWorkspace(router, current, { replace: true });
+      if (!locator) return;
+      // 权限询问可能在这期间一直挂着；用户已经离开这条记录时不要再导航。
+      const detailPath = `/highlights/${current.id}`;
+      const stillWanted = () => router.currentRoute.value.path === detailPath;
+      if (locator.kind === "epub") {
+        void openEpubInWorkspace(router, current, {
+          replace: true,
+          stillWanted,
+        });
+      } else if (locator.kind === "pdf-page-rect") {
+        void openPdfInWorkspace(router, current, {
+          replace: true,
+          stillWanted,
+        });
       }
     },
     { immediate: true },

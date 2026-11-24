@@ -242,7 +242,14 @@ describe("notes as page-margin comment icons", () => {
 
     const out = buildSnapshotDisplay(source.innerHTML, "", { [id]: "note" });
     expect(out).not.toContain(`data-note-for="${id}"`);
-    expect(out).toContain("&quot;");
+    // The attribute must round-trip: parse the markup and read the icon back,
+    // otherwise a renderer that simply omitted the icon would pass too
+    // (CodeRabbit #136).
+    const holder = document.createElement("div");
+    holder.innerHTML = out;
+    const icon = holder.querySelector(".myz-snapshot-note-icon");
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute("data-note-for")).toBe(id);
   });
 
   it("treats only the reader's own note keys", () => {
@@ -253,6 +260,25 @@ describe("notes as page-margin comment icons", () => {
     )} words</p></article>`;
     const out = buildSnapshotDisplay(html);
     expect(out).not.toContain("myz-snapshot-note-icon");
+  });
+
+  it("renders the note for an id like __proto__", () => {
+    // The note map is null-prototype at the view layer, so this id is an own
+    // key and its icon must appear (CodeRabbit #136).
+    const id = "__proto__";
+    const source = document.createElement("div");
+    source.innerHTML = `<article><p>the <mark data-myz-anchor="">marked</mark> words</p></article>`;
+    source.querySelector("mark")!.setAttribute("data-myz-anchor", id);
+    const notes: Record<string, string> = Object.create(null);
+    notes[id] = "proto note";
+
+    const holder = document.createElement("div");
+    holder.innerHTML = buildSnapshotDisplay(source.innerHTML, "", notes);
+    expect(
+      holder
+        .querySelector(".myz-snapshot-note-icon")
+        ?.getAttribute("data-note-for"),
+    ).toBe(id);
   });
 });
 
@@ -332,5 +358,32 @@ describe("repaintGap repaints in place (no rebuild — no jitter)", () => {
       "block three",
     ]);
     expect(root.querySelectorAll(".myz-snapshot-tear").length).toBe(1);
+  });
+
+  it("gives a source title back after the block stops being a hint", () => {
+    // A hint borrows `title`/`role`/`tabindex`; a block that already carried
+    // its own credit must get it back on reveal (CodeRabbit #136).
+    const root = document.createElement("div");
+    root.innerHTML = buildSnapshotDisplay(`
+      <article>
+        <p title="Image credit">photo caption</p>
+        <p>the ${mark("rec-1", "marked")} paragraph</p>
+      </article>`);
+    const hint = root.querySelector<HTMLElement>(".myz-snapshot-fold-hint");
+    expect(hint?.getAttribute("title")).toBe("向上展开一段");
+
+    repaintGap(root, 0, { upRev: 1, downRev: 0, expanded: false });
+    expect(hint?.getAttribute("title")).toBe("Image credit");
+    expect(hint?.hasAttribute("role")).toBe(false);
+    expect(hint?.hasAttribute("tabindex")).toBe(false);
+    expect(hint?.hasAttribute("aria-label")).toBe(false);
+  });
+
+  it("removes borrowed attributes when the source had none", () => {
+    const root = mount();
+    repaintGap(root, 0, { upRev: 1, downRev: 0, expanded: false });
+    const revealed = root.querySelector('[data-revealed="gap-0-up"]')!;
+    expect(revealed.hasAttribute("title")).toBe(false);
+    expect(revealed.hasAttribute("role")).toBe(false);
   });
 });

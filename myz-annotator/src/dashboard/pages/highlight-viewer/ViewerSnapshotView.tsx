@@ -132,9 +132,18 @@ export const ViewerSnapshotView = defineComponent({
         }),
     );
 
-    /** Notes by record id, shown in the page-margin comment popover. */
+    /**
+     * Notes by record id, shown in the page-margin comment popover.
+     *
+     * Null-prototype: an id like `__proto__` must become an own key instead of
+     * running the inherited setter, or that record's note silently vanishes
+     * (CodeRabbit #136).
+     */
     const notes = computed<Record<string, string>>(() => {
-      const map: Record<string, string> = {};
+      const map: Record<string, string> = Object.create(null) as Record<
+        string,
+        string
+      >;
       for (const mark of locatedMarks.value) {
         if (mark.note) map[mark.id] = mark.note;
       }
@@ -155,9 +164,31 @@ export const ViewerSnapshotView = defineComponent({
       maxHeight: number;
     } | null>(null);
 
-    function closeNotePopover() {
+    /** The icon that opened the popover, for returning keyboard focus. */
+    let noteOpener: HTMLElement | null = null;
+
+    /** Focus target inside the popover; focused as soon as it renders. */
+    const noteCloseRef = ref<HTMLButtonElement | null>(null);
+
+    function closeNotePopover(options: { restoreFocus?: boolean } = {}) {
+      const opener = noteOpener;
+      noteOpener = null;
       notePopover.value = null;
+      if (options.restoreFocus && opener?.isConnected) opener.focus();
     }
+
+    // A page switch rebuilds the body and drops the icons the popover came
+    // from; the popover itself would linger with the old page's text and
+    // coordinates (CodeRabbit #136).
+    watch(
+      () => props.pageUrl,
+      () => closeNotePopover(),
+    );
+    // A note that disappears (record edited in another surface) must not stay
+    // open on stale text either.
+    watch(notes, (map) => {
+      if (notePopover.value && !map[notePopover.value.id]) closeNotePopover();
+    });
 
     const locatedCount = computed(
       () =>
@@ -340,7 +371,7 @@ export const ViewerSnapshotView = defineComponent({
      * snapshot is the navigation surface); a seam half unfolds one block
      * toward that side (the view follows); the 「…」 glyph unfolds the run.
      */
-    function onBodyClick(event: MouseEvent) {
+    async function onBodyClick(event: MouseEvent) {
       // A drag-select must not toggle: only an actual click reveals.
       if (!window.getSelection()?.isCollapsed) return;
       const element = event.target as HTMLElement | null;
@@ -355,6 +386,7 @@ export const ViewerSnapshotView = defineComponent({
         if (text) {
           const rect = icon.getBoundingClientRect();
           const y = Math.max(8, Math.min(rect.top, window.innerHeight - 120));
+          noteOpener = icon;
           notePopover.value = {
             id,
             text,
@@ -364,10 +396,15 @@ export const ViewerSnapshotView = defineComponent({
             // （CodeRabbit #136）。
             maxHeight: Math.max(120, window.innerHeight - y - 12),
           };
+          // Keyboard users land in the dialog instead of tabbing through every
+          // remaining icon first (CodeRabbit #136).
+          await nextTick();
+          noteCloseRef.value?.focus();
         }
         return;
       }
       if (notePopover.value) {
+        // An outside click already moved focus where the user wanted it.
         closeNotePopover();
         return;
       }
@@ -386,7 +423,8 @@ export const ViewerSnapshotView = defineComponent({
       if (event.key === "Escape") {
         if (notePopover.value) {
           event.preventDefault();
-          closeNotePopover();
+          // Escape came from the keyboard: put focus back on the icon.
+          closeNotePopover({ restoreFocus: true });
         }
         return;
       }
@@ -530,16 +568,17 @@ export const ViewerSnapshotView = defineComponent({
                   // popover carries its own Escape (CodeRabbit #136).
                   if (event.key !== "Escape") return;
                   event.preventDefault();
-                  closeNotePopover();
+                  closeNotePopover({ restoreFocus: true });
                 }}
               >
                 <p class="myz-snapshot-note">{notePopover.value.text}</p>
                 <button
+                  ref={noteCloseRef}
                   type="button"
                   class="myz-snapshot-note-close"
                   aria-label="关闭批注"
                   data-testid="note-popover-close"
-                  onClick={closeNotePopover}
+                  onClick={() => closeNotePopover({ restoreFocus: true })}
                 >
                   <svg
                     viewBox="0 0 24 24"

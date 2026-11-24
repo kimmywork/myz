@@ -25,6 +25,14 @@ export interface OpenReaderOptions {
    * user (CodeRabbit #136).
    */
   replace?: boolean;
+  /**
+   * Re-checked after the permission await, before anything navigates: a
+   * browser permission prompt can outlive the user's stay on the page, and
+   * navigating then would yank them into a reader they never asked for
+   * (CodeRabbit #136). Returning false stops the whole open, fallbacks
+   * included.
+   */
+  stillWanted?: () => boolean;
 }
 
 /**
@@ -91,6 +99,7 @@ export async function openPdfInWorkspace(
   options: OpenReaderOptions = {},
 ): Promise<void> {
   const target = await preparePdfRecordForReader(record);
+  if (options.stillWanted && !options.stillWanted()) return;
   if (!target) {
     if (!openRecordSource(record)) openRecordDetail(router, record, options);
     return;
@@ -105,6 +114,7 @@ export async function openEpubInWorkspace(
   options: OpenReaderOptions = {},
 ): Promise<void> {
   const target = await prepareEpubRecordInReader(record);
+  if (options.stillWanted && !options.stillWanted()) return;
   if (!target) {
     if (!openRecordSource(record)) openRecordDetail(router, record, options);
     return;
