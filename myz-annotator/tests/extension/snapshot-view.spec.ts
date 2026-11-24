@@ -82,18 +82,23 @@ test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", asyn
   // 三段（上带 / 「…」行 / 下带）不重叠：上半区中点必须命中半区本身。
   // 2026-11-24 之前「…」压在两带交界处，中点距它只有 1px，CI 的字体度量
   // 差一点就让「展开一段」静默变成「整段展开」。
-  const upCenterHit = await view
+  const upCenter = await view
     .locator('.myz-snapshot-tear-half[data-side="up"]')
     .evaluate((el) => {
       const rect = el.getBoundingClientRect();
-      return (
-        document.elementFromPoint(
-          rect.left + rect.width / 2,
-          rect.top + rect.height / 2,
-        )?.className ?? ""
-      );
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      return {
+        hit: document.elementFromPoint(x, y)?.className ?? "",
+        rect: { top: rect.top, height: rect.height },
+        point: { x, y },
+      };
     });
-  expect(upCenterHit).toContain("myz-snapshot-tear-half");
+  // The rect rides along in the failure message so a CI-only layout difference
+  // reports its own numbers instead of just the class it hit.
+  expect(upCenter.hit, JSON.stringify(upCenter)).toContain(
+    "myz-snapshot-tear-half",
+  );
   await view.locator('.myz-snapshot-tear-half[data-side="up"]').click();
   await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
     "Title",

@@ -458,8 +458,10 @@
 
   .myz-snapshot-tear-half {
     grid-column: 1;
+    /* Stretch into the row; a percentage height would resolve against the
+       40px container in some engines and cover all three rows (2026-11-24). */
+    align-self: stretch;
     width: 100%;
-    height: 100%;
     padding: 0;
     border: 0;
     background: transparent;
