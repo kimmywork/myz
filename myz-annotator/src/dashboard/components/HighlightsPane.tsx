@@ -192,7 +192,6 @@ export default defineComponent({
         summaryText={uiStore.summaryText}
         pageFilter={uiStore.pageFilter}
         currentPageLabel={currentPageLabel.value}
-        stickyLayout={false}
         view={uiStore.view}
         onSetView={uiStore.setView}
         onTogglePageSidebar={props.onOpenNav}

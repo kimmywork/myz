@@ -53,6 +53,10 @@
   --myz-overlay: #141413;
   --myz-overlay-text: #f5f4ed;
   --myz-overlay-hover: #30302e;
+  /* --myz-error (#b53333) only reaches 3.06:1 on --myz-overlay, so the fixed
+     dark surface uses the dark-tier red instead. Defined once here; consumers
+     must not repeat the literal (PARKING_LOT H). */
+  --myz-error-on-dark: #e08a8a;
 
   /* 圆角 */
   --myz-r-xs: 4px;

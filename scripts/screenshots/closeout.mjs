@@ -546,8 +546,38 @@ async function setTheme(page, theme) {
   await page.waitForTimeout(400);
 }
 
+/**
+ * Finishes running animations before a screenshot. The content face fades its
+ * toolbar in over 180ms; a shot taken mid-fade differed from the next run by
+ * 1.62% while every other face matched byte for byte (PARKING_LOT I).
+ * `document.getAnimations()` covers the page; the capture toolbar lives in a
+ * shadow root, so shadow roots are walked explicitly.
+ */
+async function settleAnimations(page) {
+  await page.evaluate(() => {
+    const roots = [document];
+    for (let index = 0; index < roots.length; index += 1) {
+      for (const element of roots[index].querySelectorAll("*")) {
+        if (element.shadowRoot) roots.push(element.shadowRoot);
+      }
+    }
+    for (const root of roots) {
+      for (const animation of root.getAnimations()) {
+        try {
+          // Infinite animations cannot be finished; skipping them is fine —
+          // they are not the fade-in this guards against.
+          animation.finish();
+        } catch {
+          // InvalidStateError: leave it running.
+        }
+      }
+    }
+  });
+}
+
 async function shoot(page, surface, width, theme) {
   await page.setViewportSize({ width, height: 900 });
+  await settleAnimations(page);
   await page.waitForTimeout(150);
   const file = resolve(OUT_DIR, `${surface}-${theme}-${width}.png`);
   await page.screenshot({ path: file, fullPage: false });

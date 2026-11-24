@@ -1,4 +1,4 @@
-import { UndoBar } from "@myz/dashboard-ui";
+import { Button, SelectionBar, UndoBar } from "@myz/dashboard-ui";
 import { IconSearch } from "@myz/shared/icons";
 import { formatDateTime } from "@myz/shared/recordDisplay";
 import { defineComponent } from "vue";
@@ -115,39 +115,45 @@ export default defineComponent({
                 ) : null}
 
                 {a.selected.value.size > 0 ? (
-                  <div class="flex flex-wrap gap-2 rounded-control border border-line bg-surface-2 p-2">
-                    <span class="text-caption text-muted">
-                      已选 {a.selected.value.size}
-                    </span>
-                    <button
-                      class="btn btn-small"
-                      type="button"
-                      onClick={() => a.batchStatus("kept", "已保留")}
-                    >
-                      批量保留
-                    </button>
-                    <button
-                      class="btn btn-small"
-                      type="button"
-                      onClick={() => a.batchStatus("archived", "已归档")}
-                    >
-                      批量归档
-                    </button>
-                    <button
-                      class="btn btn-small"
-                      type="button"
-                      onClick={() => a.batchStatus("snoozed", "已稍后")}
-                    >
-                      批量稍后
-                    </button>
-                    <button
-                      class="btn btn-small btn-danger"
-                      type="button"
-                      onClick={() => void a.batchDelete()}
-                    >
-                      批量删除
-                    </button>
-                  </div>
+                  <SelectionBar
+                    count={a.selected.value.size}
+                    total={a.tabItems.value.length}
+                    allSelected={a.allVisibleSelected()}
+                    onToggleAll={a.toggleAllVisible}
+                    onClear={a.clearSelection}
+                  >
+                    {{
+                      actions: () => (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => a.batchStatus("kept", "已保留")}
+                          >
+                            批量保留
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => a.batchStatus("archived", "已归档")}
+                          >
+                            批量归档
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => a.batchStatus("snoozed", "已稍后")}
+                          >
+                            批量稍后
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => void a.batchDelete()}
+                          >
+                            批量删除
+                          </Button>
+                        </>
+                      ),
+                    }}
+                  </SelectionBar>
                 ) : null}
 
                 {a.undo.value ? (

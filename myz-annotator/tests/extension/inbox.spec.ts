@@ -302,3 +302,29 @@ test("inbox_inline_tag_input_adds_tag_via_keyboard", async () => {
       ?.tags,
   ).toContain("keyboard-tag");
 });
+
+test("inbox_batch_bar_is_the_shared_selection_bar", async () => {
+  const dashboardUrl = `chrome-extension://${extensionId}/src/dashboard/index.html`;
+  const dash = await context.newPage();
+  await dash.goto(dashboardUrl);
+  await dash.waitForSelector(".app-shell", { timeout: 5000 });
+
+  await saveClip(dash, "bar one");
+  await saveClip(dash, "bar two");
+  await dash.goto(`${dashboardUrl}#/inbox`);
+  await dash.reload();
+  await dash.waitForSelector('[data-testid="inbox-row"]', { timeout: 5000 });
+
+  const rows = dash.locator('[data-testid="inbox-row"]');
+  const total = await rows.count();
+  await rows.first().getByRole("checkbox").check();
+
+  const bar = dash.getByTestId("selection-bar");
+  await expect(bar).toContainText(`已选 1（共 ${total}）`);
+  // Select-all covers the rendered page, never the whole queue (§4.31).
+  await bar.getByRole("checkbox", { name: "全选当前页" }).check();
+  await expect(bar).toContainText(`已选 ${total}（共 ${total}）`);
+
+  await bar.getByRole("button", { name: "取消选择" }).click();
+  await expect(bar).toHaveCount(0);
+});

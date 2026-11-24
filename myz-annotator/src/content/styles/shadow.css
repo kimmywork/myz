@@ -461,10 +461,10 @@
 }
 
 /* The theme's --myz-error (#b53333) only reaches 3.06:1 on --myz-overlay, so
-   fixed-dark surfaces use the dark-tier red instead. */
+   fixed-dark surfaces use the dark-tier red — one definition, in tokens. */
 .myz-inspector--toolbar .myz-inspector__icon-btn--delete,
 .myz-inspector--toolbar .myz-inspector__icon-btn--delete:hover {
-  color: #e08a8a;
+  color: var(--myz-error-on-dark);
 }
 
 .myz-inspector--toolbar .myz-inspector__icon-btn--delete:hover {

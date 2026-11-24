@@ -46,10 +46,14 @@ export function setupDashboardHarness(): DashboardHarness {
   });
 
   test.afterAll(async () => {
-    await context.close();
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve())),
-    );
+    // A failed `beforeAll` leaves these unassigned; closing blindly would
+    // replace the real failure with `Cannot read properties of undefined`.
+    if (context) await context.close();
+    if (server) {
+      await new Promise<void>((resolve, reject) =>
+        server.close((err) => (err ? reject(err) : resolve())),
+      );
+    }
   });
 
   const dashboardUrl = () =>

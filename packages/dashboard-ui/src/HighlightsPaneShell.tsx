@@ -15,7 +15,6 @@ export default defineComponent({
     summaryText: { type: String, required: true },
     pageFilter: { type: String, default: "" },
     currentPageLabel: { type: String, default: "" },
-    stickyLayout: { type: Boolean, default: false },
     view: {
       type: String as PropType<"cards" | "list">,
       required: true,
@@ -37,21 +36,12 @@ export default defineComponent({
       return label.length > 10 ? `${label.slice(0, 10)}…` : label
     })
 
-    const panelClasses = computed(() => {
-      const classes = [
-        "rounded-panel border border-line bg-surface p-5 transition dark:border-line dark:bg-surface",
-      ]
-      if (props.stickyLayout) {
-        classes.push("flex h-[calc(100vh-160px)] min-h-0 flex-col overflow-hidden")
-      }
-      return classes.join(" ")
-    })
-
-    const contentClasses = computed(() =>
-      [props.stickyLayout ? "mt-4 flex-1 min-h-0 overflow-y-auto pr-1" : "mt-4"]
-        .filter(Boolean)
-        .join(" "),
-    )
+    // The workspace shell owns scrolling (§3.6): the panel keeps its natural
+    // height instead of an inner fixed-height layout (the old
+    // `stickyLayout` branch, removed 2026-11-24).
+    const PANEL_CLASS =
+      "rounded-panel border border-line bg-surface p-5 transition dark:border-line dark:bg-surface"
+    const CONTENT_CLASS = "mt-4"
 
     function handleDocumentClick(event: MouseEvent) {
       if (!exportMenuOpen.value) {
@@ -123,7 +113,7 @@ export default defineComponent({
     })
 
     return () => (
-      <section class={panelClasses.value} aria-labelledby="highlights-title">
+      <section class={PANEL_CLASS} aria-labelledby="highlights-title">
         <header class="flex flex-col gap-4 border-b border-line pb-4 min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between dark:border-line">
           <div class="min-w-0 space-y-1">
             <h2 class="text-heading font-semibold text-text" id="highlights-title">
@@ -239,7 +229,7 @@ export default defineComponent({
           </div>
         </header>
 
-        <div class={contentClasses.value}>{slots.default?.()}</div>
+        <div class={CONTENT_CLASS}>{slots.default?.()}</div>
       </section>
     )
   },

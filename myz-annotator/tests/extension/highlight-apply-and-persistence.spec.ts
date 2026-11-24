@@ -31,10 +31,14 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await context.close();
-  await new Promise<void>((resolve, reject) =>
-    server.close((err) => (err ? reject(err) : resolve())),
-  );
+  // A failed launch leaves these unassigned; closing blindly would replace
+  // the real failure with `Cannot read properties of undefined`.
+  if (context) await context.close();
+  if (server) {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
 });
 
 test("apply_highlight_style_applies_dom_change and highlight_persists_after_reload", async () => {

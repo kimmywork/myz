@@ -54,6 +54,7 @@ Other modules: check each module's `package.json` for scripts.
 
 ## Testing Notes
 - myz-annotator Playwright runs against built output; run `npm run build` first.
+- e2e specs launch the extension in `beforeAll` through `tests/helpers/launch-extension.ts`, which raises the hook's timeout to 90s for the cold start — do not add per-file `test.setTimeout` for it; guard `afterAll` (`if (context)`, `if (server)`) so a failed launch reports its real error.
 - Sync tests do not use a hand-written S3 mock: they run against `fakes3`
   (`fakes3-sdk`, `auth: true` verifies SigV4) and use `@aws-sdk/client-s3` as an
   independent oracle. See `docs/knowledges/s3-client.md`.
