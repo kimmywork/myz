@@ -61,7 +61,9 @@ function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /** Lucide-style message-square glyph for the 页边 comment icon. */
@@ -319,8 +321,17 @@ export function buildSnapshotDisplay(
   units.forEach((unit, index) =>
     unit.setAttribute("data-myz-unit", String(index)),
   );
-  let gapIndex = 0;
+  // Annotated regions are numbered in a first pass: a run's lower anchor is
+  // the NEXT region, which must already carry its id when the run is painted
+  // (CodeRabbit #136: reading it lazily left every `data-down-region` at -1).
   let regionIndex = 0;
+  units.forEach((unit) => {
+    if (!hasMark(unit)) return;
+    unit.classList.add("myz-snapshot-region");
+    unit.setAttribute("data-region", String(regionIndex));
+    regionIndex += 1;
+  });
+  let gapIndex = 0;
 
   /** Page-margin comment icons appended inside an annotated block. */
   const noteIcons = (unit: HTMLElement) => {
@@ -328,6 +339,9 @@ export function buildSnapshotDisplay(
     const seen = new Set<string>();
     unit.querySelectorAll("mark[data-myz-anchor]").forEach((m) => {
       const id = m.getAttribute("data-myz-anchor") || "";
+      // Only the reader's own keys count: a record id like `constructor`
+      // must not resolve through the prototype.
+      if (!Object.prototype.hasOwnProperty.call(notes, id)) return;
       const note = notes[id];
       if (!note || seen.has(id)) return;
       seen.add(id);
@@ -349,9 +363,6 @@ export function buildSnapshotDisplay(
   while (i < units.length) {
     const unit = units[i];
     if (hasMark(unit)) {
-      unit.classList.add("myz-snapshot-region");
-      unit.setAttribute("data-region", String(regionIndex));
-      regionIndex += 1;
       noteIcons(unit);
       i += 1;
       continue;

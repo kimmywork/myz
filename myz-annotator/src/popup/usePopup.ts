@@ -174,7 +174,11 @@ export function usePopup() {
     const base = chrome.runtime.getURL("src/dashboard/index.html");
     const tabs = await chrome.tabs.query({});
     const existing = tabs.find((tab) => (tab.url || "").startsWith(base));
-    if (existing?.id != null) {
+    // The stitch route renders its editor in an iframe: navigating that tab
+    // away destroys the editor document (an unfinished composition). Leave it
+    // alone and open the target in a new tab instead (CodeRabbit #136).
+    const editingStitch = (existing?.url || "").includes("#/stitch");
+    if (existing?.id != null && !editingStitch) {
       await chrome.tabs.update(existing.id, { url, active: true });
       if (existing.windowId != null) {
         await chrome.windows.update(existing.windowId, { focused: true });

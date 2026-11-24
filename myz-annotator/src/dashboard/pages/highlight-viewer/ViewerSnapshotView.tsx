@@ -151,6 +151,8 @@ export const ViewerSnapshotView = defineComponent({
       text: string;
       x: number;
       y: number;
+      /** Room left below `y`, so a long note scrolls instead of overflowing. */
+      maxHeight: number;
     } | null>(null);
 
     function closeNotePopover() {
@@ -254,6 +256,26 @@ export const ViewerSnapshotView = defineComponent({
     }
 
     /**
+     * Whether an element is inside the reading area the user actually sees:
+     * the workspace scroll container clips its content at its own edges, so a
+     * window-only test can pass for a highlight hidden above the body
+     * (CodeRabbit #136).
+     */
+    function isInReadingViewport(el: Element): boolean {
+      const rect = el.getBoundingClientRect();
+      const container = bodyRef.value?.closest(
+        ".myz-workspace__body",
+      ) as HTMLElement | null;
+      if (!container) {
+        return rect.bottom > 0 && rect.top < window.innerHeight;
+      }
+      const bounds = container.getBoundingClientRect();
+      const top = Math.max(bounds.top, 0);
+      const bottom = Math.min(bounds.bottom, window.innerHeight);
+      return rect.bottom > top && rect.top < bottom;
+    }
+
+    /**
      * Reveal one block on one side (from the highlight edge inward).
      *
      * Positioning (2026-11-24): the visual anchor stays screen-fixed — the
@@ -268,11 +290,7 @@ export const ViewerSnapshotView = defineComponent({
       clicked: HTMLElement | null,
     ) {
       const region = outerRegion(gap, side);
-      const regionVisible = (() => {
-        if (!region) return false;
-        const rect = region.getBoundingClientRect();
-        return rect.bottom > 0 && rect.top < window.innerHeight;
-      })();
+      const regionVisible = Boolean(region && isInReadingViewport(region));
       // Rule 4 (2026-11-24): A/G off-screen → the clicked element is the
       // anchor. A hint is a whole block (`data-myz-unit`); a seam-half has
       // no unit id, so it anchors the block on its side — the one being
@@ -306,12 +324,8 @@ export const ViewerSnapshotView = defineComponent({
     function revealAll(gap: number) {
       const up = outerRegion(gap, "up");
       const down = outerRegion(gap, "down");
-      const viewportBottom = window.innerHeight;
-      const visible = (el: Element | null) => {
-        if (!el) return false;
-        const rect = el.getBoundingClientRect();
-        return rect.bottom > 0 && rect.top < viewportBottom;
-      };
+      const visible = (el: Element | null) =>
+        Boolean(el && isInReadingViewport(el));
       const anchorEl = visible(up) ? up : visible(down) ? down : (up ?? down);
       ensureGap(gap);
       revealWithAnchor(
@@ -340,11 +354,15 @@ export const ViewerSnapshotView = defineComponent({
         const text = notes.value[id];
         if (text) {
           const rect = icon.getBoundingClientRect();
+          const y = Math.max(8, Math.min(rect.top, window.innerHeight - 120));
           notePopover.value = {
             id,
             text,
             x: Math.min(rect.right + 8, window.innerWidth - 288),
-            y: Math.min(rect.top, window.innerHeight - 160),
+            y,
+            // 长批注不越过视口：剩余高度就是 popover 的上限，正文内部滚动
+            // （CodeRabbit #136）。
+            maxHeight: Math.max(120, window.innerHeight - y - 12),
           };
         }
         return;
@@ -498,7 +516,14 @@ export const ViewerSnapshotView = defineComponent({
                 role="dialog"
                 aria-label="批注"
                 data-testid="note-popover"
-                style={`left:${notePopover.value.x}px;top:${notePopover.value.y}px`}
+                style={`left:${notePopover.value.x}px;top:${notePopover.value.y}px;max-height:${notePopover.value.maxHeight}px`}
+                onKeydown={(event: KeyboardEvent) => {
+                  // Focus can leave the article (the close button), so the
+                  // popover carries its own Escape (CodeRabbit #136).
+                  if (event.key !== "Escape") return;
+                  event.preventDefault();
+                  closeNotePopover();
+                }}
               >
                 <p class="myz-snapshot-note">{notePopover.value.text}</p>
                 <button

@@ -317,6 +317,8 @@
   .myz-snapshot-note-popover {
     position: fixed;
     z-index: 60;
+    display: flex;
+    flex-direction: column;
     width: 260px;
     padding: 10px 28px 10px 12px;
     border: 1px solid var(--myz-line);
@@ -324,9 +326,14 @@
     border-radius: var(--myz-r);
     background: var(--myz-surface);
     box-shadow: var(--myz-shadow);
+    /* 上限由脚本按可用高度给：长批注在正文内部滚动，不越过视口
+       （CodeRabbit #136）。 */
+    overflow: hidden;
   }
 
   .myz-snapshot-note {
+    min-height: 0;
+    overflow-y: auto;
     color: var(--myz-text);
     font-family: ui-sans-serif, system-ui, "PingFang SC", sans-serif;
     font-size: 13px;

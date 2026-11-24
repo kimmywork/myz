@@ -229,6 +229,48 @@ describe("notes as page-margin comment icons", () => {
     // The note text stays out of the flow; the popover reads it from state.
     expect(out).not.toContain("一条批注");
   });
+
+  it("escapes quotes in the note anchor attribute", () => {
+    // The record id lands inside a double-quoted attribute; a quote must not
+    // be able to close it and add attributes (CodeRabbit #136). The id is set
+    // through the DOM so it survives parsing (a raw quote would break the
+    // template attribute before escaping could matter).
+    const id = 'rec" onclick="alert(1)';
+    const source = document.createElement("div");
+    source.innerHTML = `<article><p>the <mark data-myz-anchor="">marked</mark> words</p></article>`;
+    source.querySelector("mark")!.setAttribute("data-myz-anchor", id);
+
+    const out = buildSnapshotDisplay(source.innerHTML, "", { [id]: "note" });
+    expect(out).not.toContain(`data-note-for="${id}"`);
+    expect(out).toContain("&quot;");
+  });
+
+  it("treats only the reader's own note keys", () => {
+    // A record id like `constructor` must not resolve through the prototype.
+    const html = `<article><p>the ${mark(
+      "constructor",
+      "marked",
+    )} words</p></article>`;
+    const out = buildSnapshotDisplay(html);
+    expect(out).not.toContain("myz-snapshot-note-icon");
+  });
+});
+
+describe("region anchors", () => {
+  it("numbers regions before painting a gap's lower anchor", () => {
+    // The lower anchor is the NEXT region; numbering must happen first or
+    // every `data-down-region` would read -1 (CodeRabbit #136).
+    const html = `<article><p>before</p><p>the ${mark(
+      "rec-1",
+      "marked",
+    )} one</p><p>after</p></article>`;
+    const out = buildSnapshotDisplay(html);
+    expect(out).toContain('data-region="0"');
+    // The run above the region knows its lower anchor.
+    expect(out).toContain('data-down-region="0"');
+    // The run after the only region has none.
+    expect(out).toContain('data-down-region="-1"');
+  });
 });
 
 describe("withActiveAnchor", () => {
