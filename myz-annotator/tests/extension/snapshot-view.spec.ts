@@ -246,12 +246,20 @@ test("long_hidden_content_folds_behind_one_seam_and_unfolds_stepwise", async () 
   const downHint = view.locator('.myz-snapshot-fold-hint[data-side="down"]');
   await downHint.scrollIntoViewIfNeeded();
   const gBefore = await regionTop(1);
+  // 揭示的块自身也不许跳：提示与揭示盒型一致（margin 归属固定）。
+  const hintBefore = await downHint.evaluate(
+    (el) => el.getBoundingClientRect().top,
+  );
   await downHint.click();
   await expect(view.locator('[data-revealed="gap-0-down"]')).toContainText(
     "filler paragraph 11",
   );
   await dash.waitForTimeout(150);
   expect(Math.abs((await regionTop(1)) - gBefore)).toBeLessThan(5);
+  const revealedTop = await dash
+    .locator('[data-revealed="gap-0-down"]')
+    .evaluate((el) => el.getBoundingClientRect().top);
+  expect(Math.abs(revealedTop - hintBefore)).toBeLessThan(3);
 
   // A 在视口内点上侧提示 → 按照 A 固定、向下揭 B。
   const upHint = view.locator('.myz-snapshot-fold-hint[data-side="up"]');

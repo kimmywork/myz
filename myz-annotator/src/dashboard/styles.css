@@ -369,6 +369,15 @@
   }
 
   /* 渐入：展开的内容淡入；折叠残留侧留渐出边缘（遮起来并且模糊）。 */
+  /* 三种包裹层统一 flow-root：内部段落 margin 一律收在盒内。否则提示块的
+     filter 会建立格式化上下文、把 margin 关进盒子，而揭示后 filter 消失
+     margin 又折出去——文字会向上跳一段（2026-11-24）。 */
+  .myz-snapshot-region,
+  .myz-snapshot-fold-hint,
+  .myz-snapshot-revealed {
+    display: flow-root;
+  }
+
   .myz-snapshot-revealed {
     animation: myz-snapshot-fade-in var(--myz-motion-med) var(--myz-ease-out);
   }
