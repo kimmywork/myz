@@ -79,12 +79,16 @@ export async function getSnapshot(
 }
 
 /**
- * Every snapshot of the page at `url` — the page's version list, newest first.
+ * Every snapshot of the page at `url`, newest first.
  *
  * Snapshots are page-bound (2026-11-23): all records of a page anchor onto the
- * same copies. Uses the canonical URL so `?utm_source=…`, a fragment or a video
+ * same copy. Uses the canonical URL so `?utm_source=…`, a fragment or a video
  * timestamp does not look like a different page. All snapshots are scanned:
  * grouping is rare (only when the viewer opens) and needs the whole set anyway.
+ *
+ * Since 2026-11-24 a page keeps exactly one copy — saving replaces — so in
+ * practice this list has a single entry; the shape stays for the read-side
+ * pruning of pre-replacement stores.
  */
 export async function getSnapshotVersions(
   url: string,
@@ -100,19 +104,39 @@ export async function snapshotUsageBytes(): Promise<number> {
   return usedBytes(await listSnapshotIndex());
 }
 
+/** Deletes snapshots by id (one transaction). */
+export async function deleteSnapshots(ids: readonly string[]): Promise<void> {
+  if (!ids.length) return;
+  const db = await getDB();
+  await inTransaction(db, STORE, "readwrite", (tx) => {
+    const store = tx.objectStore(STORE);
+    ids.forEach((id) => store.delete(id));
+  });
+}
+
 /**
  * Marks a snapshot as used, so LRU keeps what the user actually reads.
  *
- * Best-effort: a failed touch only affects future eviction order.
+ * Best-effort: a failed touch only affects future eviction order. The read and
+ * the write share one transaction: a plain read-then-put could resurrect a
+ * snapshot that a replacement deleted in between, breaking the one-copy rule
+ * (CodeRabbit #136). Readwrite transactions on the same store are serialised,
+ * so either the replacement committed first (nothing to touch) or this write
+ * goes first and its delete follows.
  */
 export async function touchSnapshot(id: string): Promise<void> {
   try {
-    const snapshot = await getSnapshot(id);
-    if (!snapshot) return;
     const db = await getDB();
-    await withStore<void>(db, STORE, "readwrite", (store) =>
-      store.put({ ...snapshot, usedAt: new Date().toISOString() }),
-    );
+    const usedAt = new Date().toISOString();
+    await inTransaction(db, STORE, "readwrite", (tx) => {
+      const store = tx.objectStore(STORE);
+      const request = store.get(id);
+      request.onsuccess = () => {
+        const snapshot = request.result as PageSnapshot | undefined;
+        if (!snapshot) return;
+        store.put({ ...snapshot, usedAt });
+      };
+    });
   } catch (error) {
     console.warn("[myz:snapshot] failed to touch snapshot", error);
   }
@@ -132,12 +156,41 @@ export interface SaveSnapshotResult {
  *   show it: a snapshot the user believes in but does not have is worse than
  *   no snapshot.
  */
-export async function saveSnapshot(
+/**
+ * One save at a time. The eviction plan is computed from an index read that a
+ * concurrent save (two tabs, a double click) would invalidate: both would plan
+ * against the same old copy, each would write its own record, and the page
+ * would end up with two copies plus a quota plan that never counted the other
+ * write (CodeRabbit #136). A failed save must not block the next one, so the
+ * chain swallows rejections of the tail only.
+ */
+let saveTail: Promise<unknown> = Promise.resolve();
+
+function serializeSave<T>(task: () => Promise<T>): Promise<T> {
+  const run = saveTail.then(task, task);
+  saveTail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+export function saveSnapshot(
   input: Omit<PageSnapshot, "bytes" | "createdAt" | "usedAt"> & {
     createdAt?: string;
     usedAt?: string;
   },
   limits: { quota?: number; maxBytes?: number } = {},
+): Promise<SaveSnapshotResult> {
+  return serializeSave(() => saveSnapshotNow(input, limits));
+}
+
+async function saveSnapshotNow(
+  input: Omit<PageSnapshot, "bytes" | "createdAt" | "usedAt"> & {
+    createdAt?: string;
+    usedAt?: string;
+  },
+  limits: { quota?: number; maxBytes?: number },
 ): Promise<SaveSnapshotResult> {
   const quota = limits.quota ?? SNAPSHOT_QUOTA_BYTES;
   const maxBytes = limits.maxBytes ?? SNAPSHOT_MAX_BYTES;
@@ -153,7 +206,20 @@ export async function saveSnapshot(
   }
 
   const index = await listSnapshotIndex();
-  const others = index.filter((entry) => entry.id !== input.id);
+  // 2026-11-24：一页只保留最新版本——同页旧版本随本次保存一起替换，它们
+  // 释放的额度算进本次保存的可用空间（不占 LRU 驱逐名额）。
+  const pageKey = canonicalSnapshotUrl(input.url);
+  const replacedIds = new Set(
+    index
+      .filter(
+        (entry) =>
+          entry.id !== input.id && canonicalSnapshotUrl(entry.url) === pageKey,
+      )
+      .map((entry) => entry.id),
+  );
+  const others = index.filter(
+    (entry) => entry.id !== input.id && !replacedIds.has(entry.id),
+  );
   const plan = planEviction(others, bytes, quota);
   if (!plan.fits) {
     throw new SnapshotWriteError("no-room", "空间不足，无法保存快照");
@@ -169,11 +235,12 @@ export async function saveSnapshot(
 
   try {
     const db = await getDB();
-    // Eviction and the new record share one transaction: if the write fails,
-    // the evictions roll back too, so nothing is lost for a snapshot that was
-    // never stored. (A failed put must not cost the user the old pages.)
+    // Replacement, eviction and the new record share one transaction: if the
+    // write fails, nothing is lost — no half snapshot, and the previous
+    // version stays.
     await inTransaction(db, STORE, "readwrite", (tx) => {
       const store = tx.objectStore(STORE);
+      replacedIds.forEach((id) => store.delete(id));
       plan.evict.forEach((id) => store.delete(id));
       store.put(snapshot);
     });

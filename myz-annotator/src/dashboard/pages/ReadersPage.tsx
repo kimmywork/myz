@@ -167,6 +167,21 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Opens a reader with no document so its landing (file picker) shows: the
+     * list only holds documents opened before, so a first local file needs an
+     * entry point here — the popup used to open the standalone reader pages
+     * directly and lost that path when it started reusing the workspace tab
+     * (CodeRabbit #136).
+     */
+    function openLocal(kind: "pdf" | "epub") {
+      const page =
+        kind === "pdf"
+          ? "src/pdf/pdf-viewer.html"
+          : "src/epub/epub-viewer.html";
+      openReaderInWorkspace(router, chrome.runtime.getURL(page));
+    }
+
     onMounted(async () => {
       // Apply removals that expired while the dashboard was closed.
       await removal.settleExpired();
@@ -195,14 +210,22 @@ export default defineComponent({
                     最近打开的本地 PDF / EPUB，继续上次的位置。
                   </p>
                 </div>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  disabled={clearing.value || !visibleDocuments.value.length}
-                  onClick={() => void clearHistory()}
-                >
-                  清空历史
-                </Button>
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button size="sm" onClick={() => openLocal("pdf")}>
+                    打开本地 PDF
+                  </Button>
+                  <Button size="sm" onClick={() => openLocal("epub")}>
+                    打开本地 EPUB
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={clearing.value || !visibleDocuments.value.length}
+                    onClick={() => void clearHistory()}
+                  >
+                    清空历史
+                  </Button>
+                </div>
               </header>
 
               <RemovalUndoBar session={removal} />
@@ -271,7 +294,7 @@ export default defineComponent({
                   <StatePanel
                     kind="empty"
                     title="还没有打开过文档"
-                    hint="在阅读器里打开本地 PDF 或 EPUB 后会出现在这里"
+                    hint="点上方「打开本地 PDF / EPUB」选一个文件，之后会出现在这里"
                   />
                 )}
               </div>

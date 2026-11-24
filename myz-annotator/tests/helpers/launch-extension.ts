@@ -1,7 +1,31 @@
+import { test } from "@playwright/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Page, BrowserContext, chromium } from "playwright";
+
+/**
+ * Cold-start budget for a launch hook: the full Chromium channel plus a fresh
+ * profile has measured well past the default 30s hook timeout on a loaded CI
+ * runner, which failed whole specs before their first assertion and left
+ * `afterAll` reporting `reading 'close'` because the context was never
+ * assigned (PARKING_LOT A, 2026-11-23).
+ */
+const LAUNCH_TIMEOUT_MS = 90_000;
+
+/**
+ * Raises the hook's timeout, because every launcher calls this from
+ * `beforeAll` and all hooks share the test-timeout budget. Done here instead
+ * of in each of the ~33 specs so the budget cannot drift between them.
+ */
+function allowColdStart() {
+  try {
+    test.setTimeout(LAUNCH_TIMEOUT_MS);
+  } catch {
+    // Not inside a test/hook (a script may reuse this helper) — the runner
+    // owns the timeout then.
+  }
+}
 
 export interface LaunchedExtension {
   context: BrowserContext;
@@ -12,6 +36,7 @@ export interface LaunchedExtension {
 }
 
 async function launchExtension(extensionPath: string, options = {}) {
+  allowColdStart();
   // Prefer loading from the dist/ build output if a directory isn't passed.
   if (!extensionPath) {
     throw new Error("extensionPath is required");

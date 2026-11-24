@@ -134,6 +134,37 @@ export function useInboxData() {
     tabItems.value.slice(0, visibleCount.value),
   );
 
+  /** Whether every rendered row is selected ("all" is the rendered page). */
+  function allVisibleSelected(): boolean {
+    const visible = visibleItems.value;
+    return (
+      visible.length > 0 &&
+      visible.every((item) => selected.value.has(item.targetId))
+    );
+  }
+
+  /** Select-all covers the rendered page only, never the whole queue (§4.31). */
+  function toggleAllVisible() {
+    const visible = visibleItems.value.map((item) => item.targetId);
+    const next = new Set(selected.value);
+    const all = allVisibleSelected();
+    for (const id of visible) {
+      if (all) next.delete(id);
+      else next.add(id);
+    }
+    selected.value = next;
+  }
+
+  function clearSelection() {
+    selected.value = new Set();
+  }
+
+  // 专注模式只显示一条记录：批量条在那里会作用到用户看不见的行，进入时
+  // 清掉选择（CodeRabbit #136）。
+  watch(focusMode, (on) => {
+    if (on) clearSelection();
+  });
+
   watch([activeTab, activeTag, query], () => {
     visibleCount.value = LIST_PAGE_SIZE;
   });
@@ -207,6 +238,9 @@ export function useInboxData() {
     focusItem,
     detailItem,
     visibleItems,
+    allVisibleSelected,
+    toggleAllVisible,
+    clearSelection,
     openDetail,
     closeDetail,
     load,

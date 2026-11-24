@@ -1,8 +1,8 @@
-import { BookOpen, LayoutGrid } from "@lucide/vue";
+import { BookOpen, LayoutGrid, Library } from "@lucide/vue";
 import { StatePanel } from "@myz/dashboard-ui";
 import ConfirmHost from "@myz/shared/components/ConfirmHost";
 import ThemeToggle from "@myz/shared/components/ThemeToggle";
-import { IconFileText, IconSettings } from "@myz/shared/icons";
+import { IconSettings } from "@myz/shared/icons";
 import { defineComponent } from "vue";
 import HighlightItem from "./components/HighlightItem.jsx";
 import { usePopup } from "./usePopup.js";
@@ -28,26 +28,26 @@ export default defineComponent({
             </div>
             <button
               class={ICON_BUTTON}
-              aria-label="打开 PDF 阅读器"
-              title="打开 PDF 阅读器"
+              aria-label="打开文库"
+              title="打开文库"
               type="button"
-              onClick={popup.openPdfReader}
+              onClick={popup.openLibrary}
             >
-              <IconFileText size={20} aria-hidden="true" />
+              <Library size={18} aria-hidden="true" />
             </button>
             <button
               class={ICON_BUTTON}
-              aria-label="打开 EPUB 阅读器"
-              title="打开 EPUB 阅读器"
+              aria-label="打开阅读"
+              title="打开阅读（当前页是 PDF 时直接打开该文档）"
               type="button"
-              onClick={popup.openEpubReader}
+              onClick={() => void popup.openReading()}
             >
               <BookOpen size={18} aria-hidden="true" />
             </button>
             <button
               class={ICON_BUTTON}
-              aria-label="打开图片合成"
-              title="打开图片合成"
+              aria-label="打开拼图"
+              title="打开拼图"
               type="button"
               onClick={popup.openStitch}
             >
@@ -55,9 +55,10 @@ export default defineComponent({
             </button>
             <button
               class={ICON_BUTTON}
-              aria-label="打开 Dashboard"
+              aria-label="打开设置"
+              title="打开设置"
               type="button"
-              onClick={popup.openDashboard}
+              onClick={popup.openSettings}
             >
               <IconSettings size={20} aria-hidden="true" />
             </button>

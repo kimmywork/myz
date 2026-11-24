@@ -1,20 +1,23 @@
 import { StatePanel } from "@myz/dashboard-ui";
-import { computed, defineComponent, ref, watch } from "vue";
+import { computed, defineComponent, ref } from "vue";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
 import DeleteConfirmPopover from "../components/DeleteConfirmPopover.jsx";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
 import { useHighlightViewer } from "./highlight-viewer/useHighlightViewer.js";
 import ViewerEditPanel from "./highlight-viewer/ViewerEditPanel.jsx";
-import ViewerFooter from "./highlight-viewer/ViewerFooter.jsx";
 import ViewerHeader from "./highlight-viewer/ViewerHeader.jsx";
-import ViewerRecordCard from "./highlight-viewer/ViewerRecordCard.jsx";
 import { ViewerSnapshotView } from "./highlight-viewer/ViewerSnapshotView.jsx";
 
 /**
- * 划线详情 on the workspace shell (§4.27): main area carries the reader
- * stack or the snapshot view; the right panel is the 记录列 (§3.4) that stays
- * beside the snapshot so records can be jumped between.
+ * 划线详情 — snapshot center + record-column navigation (2026-11-23).
+ *
+ * Entering a record shows its page's snapshot directly: no record cards, no
+ * 记录/快照 toggle. The right-hand 记录列 is the navigation (which record of
+ * this page you are on) and stays; records also switch by clicking their
+ * marks in the snapshot. PDF/EPUB records never land here —
+ * `useHighlightViewer` routes them to the embedded reader instead (a
+ * document is its own snapshot).
  */
 export default defineComponent({
   name: "HighlightViewerPage",
@@ -22,19 +25,7 @@ export default defineComponent({
     const highlightsStore = useHighlightsStore();
     const uiStore = useUIStore();
     const a = useHighlightViewer();
-    /** Second view (§I8): the captured page body, read-only. */
-    const view = ref<"records" | "snapshot">("records");
-    const recordsPanelOpen = ref(false);
-
-    // The record column belongs to the snapshot view (§3.4). Below 1200 the
-    // shell turns the panel into an overlay, so it only auto-opens where it
-    // can stay beside the content instead of covering it.
-    watch(view, (next) => {
-      if (next === "snapshot" && window.innerWidth >= 1200) {
-        recordsPanelOpen.value = true;
-      }
-    });
-
+    const recordsPanelOpen = ref(window.innerWidth >= 1200);
     const activeRow = computed(() => a.recordId.value);
 
     return () => {
@@ -55,78 +46,26 @@ export default defineComponent({
         }
         return (
           <div class="flex min-h-0 flex-col gap-3 p-4">
-            <ViewerHeader api={a} />
-            <div class="flex flex-wrap items-center gap-3">
-              <div
-                class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted"
-                role="group"
-                aria-label="查看方式"
-              >
-                <button
-                  type="button"
-                  class={[
-                    "h-7 rounded-full px-3 transition",
-                    view.value === "records" ? "bg-accent text-on-accent" : "",
-                  ].join(" ")}
-                  aria-pressed={view.value === "records"}
-                  onClick={() => (view.value = "records")}
-                >
-                  记录
-                </button>
-                <button
-                  type="button"
-                  class={[
-                    "h-7 rounded-full px-3 transition",
-                    view.value === "snapshot" ? "bg-accent text-on-accent" : "",
-                  ].join(" ")}
-                  aria-pressed={view.value === "snapshot"}
-                  data-testid="view-snapshot"
-                  onClick={() => (view.value = "snapshot")}
-                >
-                  快照
-                </button>
-              </div>
-              <button
-                type="button"
-                class="rounded-control border border-line px-3 py-1.5 text-caption text-muted hover:text-text"
-                aria-pressed={recordsPanelOpen.value}
-                data-testid="toggle-records-panel"
-                onClick={() => {
-                  recordsPanelOpen.value = !recordsPanelOpen.value;
-                }}
-              >
-                记录列
-              </button>
+            {/* 顶部条固定：快照滚动不影响；编辑面板也贴在这里（2026-11-23）。 */}
+            <div
+              class="sticky top-0 z-10 -mx-4 -mt-4 flex flex-col gap-3 bg-bg px-4 pt-4"
+              data-testid="viewer-sticky-bar"
+            >
+              <ViewerHeader api={a} />
+              {a.editing.value ? <ViewerEditPanel api={a} /> : null}
             </div>
-            {a.editing.value ? <ViewerEditPanel api={a} /> : null}
-
-            {view.value === "snapshot" ? (
-              <ViewerSnapshotView
-                pageUrl={a.record.value?.sourceUrl || a.record.value?.url || ""}
-                records={a.pageRecords.value.map((item) => ({
-                  id: item.id,
-                  text: item.text,
-                }))}
-                activeId={a.recordId.value}
-              />
-            ) : (
-              <div
-                ref={a.scrollRef}
-                class="mt-2 max-h-[70vh] space-y-4 overflow-y-auto pr-1"
-                onScroll={a.handleScroll}
-              >
-                {a.pageRecords.value.map((item) => (
-                  <ViewerRecordCard
-                    key={item.id}
-                    api={a}
-                    item={item}
-                    isActive={item.id === a.recordId.value}
-                  />
-                ))}
-              </div>
-            )}
-
-            <ViewerFooter api={a} />
+            <ViewerSnapshotView
+              pageUrl={a.record.value?.sourceUrl || a.record.value?.url || ""}
+              records={a.pageRecords.value.map((item) => ({
+                id: item.id,
+                text: item.text,
+                note: item.note,
+                color: item.color,
+                style: item.style,
+              }))}
+              activeId={a.recordId.value}
+              onSelectRecord={a.navigateToRecord}
+            />
             <DeleteConfirmPopover />
           </div>
         );
@@ -139,6 +78,7 @@ export default defineComponent({
         >
           {{
             default: body,
+            // 记录列 = 导航：这一页的记录清单，点选即切换（2026-11-23 用户更正）。
             panel: () => (
               <nav
                 class="flex min-h-0 flex-col gap-1 overflow-y-auto p-2"

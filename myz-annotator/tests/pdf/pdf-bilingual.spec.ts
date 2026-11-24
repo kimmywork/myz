@@ -29,9 +29,12 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await context?.close();
-  await new Promise<void>((resolve, reject) =>
-    server.close((err) => (err ? reject(err) : resolve())),
-  );
+  // A failed launch leaves the server unassigned.
+  if (server) {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+  }
 });
 
 /** Serializable so it can run both now and on every later navigation. */
@@ -108,6 +111,23 @@ async function bilingualState(page: Page) {
   return page.evaluate(() => (window as any).__MYZ_PDF__.getBilingualState());
 }
 
+/**
+ * The engine asks for a batch of blocks and answers them in one burst; a state
+ * read taken mid-burst describes blocks that have not been painted yet, which
+ * is what made the "fully visible" assertions flaky under CI load. Wait until
+ * the completed count stops moving before comparing geometry.
+ */
+async function settledDoneBlocks(page: Page): Promise<number> {
+  let previous = -1;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const current = (await bilingualState(page)).doneBlocks;
+    if (current === previous) return current;
+    previous = current;
+    await page.waitForTimeout(50);
+  }
+  return previous;
+}
+
 async function enableFromMenu(page: Page, label = "简体中文") {
   await page.locator(".myz-bilingual-control__toggle").click();
   await expect(page.locator(".myz-bilingual-menu")).toBeVisible();
@@ -160,6 +180,8 @@ test("pdf_bilingual_translates_only_fully_visible_blocks", async () => {
     undefined,
     { timeout: 10000 },
   );
+  // Let the first batch finish painting before reading geometry.
+  await settledDoneBlocks(page);
 
   const state = await bilingualState(page);
   expect(state.enabled).toBe(true);
@@ -203,6 +225,7 @@ test("pdf_bilingual_translates_only_fully_visible_blocks", async () => {
     before,
     { timeout: 10000 },
   );
+  await settledDoneBlocks(page);
 
   const after = await bilingualState(page);
   expect(after.doneBlocks).toBeGreaterThan(before);

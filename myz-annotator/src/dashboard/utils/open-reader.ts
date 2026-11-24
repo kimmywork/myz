@@ -6,6 +6,8 @@ import {
 
 type PdfRecordRef = Parameters<typeof preparePdfRecordForReader>[0];
 type EpubRecordRef = Parameters<typeof prepareEpubRecordInReader>[0];
+/** The detail page needs the id; readers only need the locator fields. */
+type WithId<T> = T & { id?: string };
 
 /** Which viewer entrypoint a built reader URL points at. */
 export function readerKindOf(targetUrl: string): "pdf" | "epub" {
@@ -15,32 +17,107 @@ export function readerKindOf(targetUrl: string): "pdf" | "epub" {
   return pathname.endsWith("epub-viewer.html") ? "epub" : "pdf";
 }
 
+export interface OpenReaderOptions {
+  /**
+   * Replace the current history entry instead of pushing. Automatic
+   * redirects (a PDF/EPUB record arriving at the snapshot detail) must
+   * replace, or Back re-enters the detail and redirects again, trapping the
+   * user (CodeRabbit #136).
+   */
+  replace?: boolean;
+  /**
+   * Re-checked after the permission await, before anything navigates: a
+   * browser permission prompt can outlive the user's stay on the page, and
+   * navigating then would yank them into a reader they never asked for
+   * (CodeRabbit #136). Returning false stops the whole open, fallbacks
+   * included.
+   */
+  stillWanted?: () => boolean;
+}
+
 /**
  * Embeds a built reader URL in the workspace (`/read` host page) instead of
  * opening a tab: the whole workspace stays in one browser tab (§3.6 — the
  * reader keeps its own chrome, the workspace supplies the rail).
  */
-export function openReaderInWorkspace(router: Router, targetUrl: string): void {
+export function openReaderInWorkspace(
+  router: Router,
+  targetUrl: string,
+  options: OpenReaderOptions = {},
+): void {
   const queryIndex = targetUrl.indexOf("?");
   const src = queryIndex >= 0 ? targetUrl.slice(queryIndex + 1) : "";
   const kind = readerKindOf(targetUrl);
-  void router.push({ path: "/read", query: { kind, src } });
+  const navigate = options.replace
+    ? router.replace.bind(router)
+    : router.push.bind(router);
+  void navigate({ path: "/read", query: { kind, src } });
+}
+
+/**
+ * Last resort when no reader target can be built (a record may carry a
+ * locator but no fingerprint/source the viewer can open): open the record's
+ * original document in a tab rather than leaving the click dead
+ * (CodeRabbit #136). Returns false when the record has no address at all.
+ */
+function openRecordSource(record: {
+  url?: string;
+  sourceUrl?: string;
+}): boolean {
+  const candidate = [record.sourceUrl, record.url].find(
+    (value) => typeof value === "string" && /^https?:/i.test(value),
+  );
+  if (!candidate) return false;
+  chrome.tabs.create({ url: candidate });
+  return true;
+}
+
+/**
+ * The record's own detail page — the one destination that always exists, so a
+ * click never ends in silence (an imported or locator-only record can have
+ * neither a readable source nor a stored copy). Skipped when we are already
+ * there: re-navigating to the current route would only reject as duplicated.
+ */
+function openRecordDetail(
+  router: Router,
+  record: { id?: string },
+  options: OpenReaderOptions,
+): void {
+  if (!record.id) return;
+  const path = `/highlights/${record.id}`;
+  if (router.currentRoute.value.path === path) return;
+  const navigate = options.replace
+    ? router.replace.bind(router)
+    : router.push.bind(router);
+  void navigate({ path });
 }
 
 /** Prepares the reader URL (permission first) and embeds it in the workspace. */
 export async function openPdfInWorkspace(
   router: Router,
-  record: PdfRecordRef,
+  record: WithId<PdfRecordRef>,
+  options: OpenReaderOptions = {},
 ): Promise<void> {
   const target = await preparePdfRecordForReader(record);
-  if (target) openReaderInWorkspace(router, target);
+  if (options.stillWanted && !options.stillWanted()) return;
+  if (!target) {
+    if (!openRecordSource(record)) openRecordDetail(router, record, options);
+    return;
+  }
+  openReaderInWorkspace(router, target, options);
 }
 
 /** EPUB twin of {@link openPdfInWorkspace}. */
 export async function openEpubInWorkspace(
   router: Router,
-  record: EpubRecordRef,
+  record: WithId<EpubRecordRef>,
+  options: OpenReaderOptions = {},
 ): Promise<void> {
   const target = await prepareEpubRecordInReader(record);
-  if (target) openReaderInWorkspace(router, target);
+  if (options.stillWanted && !options.stillWanted()) return;
+  if (!target) {
+    if (!openRecordSource(record)) openRecordDetail(router, record, options);
+    return;
+  }
+  openReaderInWorkspace(router, target, options);
 }

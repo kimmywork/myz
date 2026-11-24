@@ -289,7 +289,8 @@
   }
 }
 
-@media (max-width: 639px) {
+/* 639.98 leaves no gap below the 640 breakpoint (PARKING_LOT H). */
+@media (max-width: 639.98px) {
   .myz-workspace,
   .myz-workspace.is-panel-open,
   .myz-workspace.is-navless,

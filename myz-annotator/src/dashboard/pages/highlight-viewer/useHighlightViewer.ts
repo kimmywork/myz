@@ -1,27 +1,31 @@
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from "vue";
+import { resolveReaderLocator } from "@myz/core/source";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useHighlightsStore } from "../../stores/highlights.js";
 import { useUIStore } from "../../stores/ui.js";
+import {
+  openEpubInWorkspace,
+  openPdfInWorkspace,
+} from "@/dashboard/utils/open-reader.js";
 import {
   groupRecordsByPage,
   sortRecordsForPage,
 } from "@/dashboard/utils/records.js";
 
-/** State/navigation/logic for the highlight reader page. */
+/**
+ * State/navigation/logic for the highlight detail page.
+ *
+ * The detail page shows the page's snapshot only (2026-11-23): no record
+ * cards, no record column. Records are switched by clicking their marks in
+ * the snapshot. Page view always sorts in document order — the old
+ * 「时间/文中顺序」 toggle is gone; the list sorts by collection time unless a
+ * page filter is on (see `stores/ui.ts`).
+ */
 export function useHighlightViewer() {
   const route = useRoute();
   const router = useRouter();
   const highlightsStore = useHighlightsStore();
   const uiStore = useUIStore();
-  const scrollRef = ref<HTMLElement | null>(null);
-  const autoAdvanceLock = ref(false);
 
   const recordId = computed(() => String(route.params.id || ""));
   const record = computed(() =>
@@ -81,6 +85,35 @@ export function useHighlightViewer() {
     if (current && route.query.edit === "1") startEditing();
   });
 
+  // PDF/EPUB 划线不是「页面」，没有快照：详情入口一律改为打开原文档
+  // （2026-11-23）。直连详情地址也归到阅读器，不落在快照页上。
+  // 用 replace：Back 不会再落回详情、被再次重定向（CodeRabbit #136）。
+  // `?edit=1` 留在详情页——编辑面板就在详情页顶条里，重定向到阅读器会把
+  // 编辑意图整个丢掉（CodeRabbit #136）。
+  watch(
+    record,
+    (current) => {
+      if (!current || route.query.edit === "1") return;
+      const locator = resolveReaderLocator(current);
+      if (!locator) return;
+      // 权限询问可能在这期间一直挂着；用户已经离开这条记录时不要再导航。
+      const detailPath = `/highlights/${current.id}`;
+      const stillWanted = () => router.currentRoute.value.path === detailPath;
+      if (locator.kind === "epub") {
+        void openEpubInWorkspace(router, current, {
+          replace: true,
+          stillWanted,
+        });
+      } else if (locator.kind === "pdf-page-rect") {
+        void openPdfInWorkspace(router, current, {
+          replace: true,
+          stillWanted,
+        });
+      }
+    },
+    { immediate: true },
+  );
+
   const pageGroups = computed(() =>
     groupRecordsByPage(highlightsStore.highlights),
   );
@@ -91,11 +124,9 @@ export function useHighlightViewer() {
     return pageGroups.value.find((group) => group.url === key) || null;
   });
 
+  // 页面视图永远按页面顺序（文中顺序）。
   const pageRecords = computed(() =>
-    sortRecordsForPage(
-      currentPageGroup.value?.records || [],
-      uiStore.pageSortMode,
-    ),
+    sortRecordsForPage(currentPageGroup.value?.records || [], "range"),
   );
 
   const pageTitle = computed(
@@ -112,20 +143,6 @@ export function useHighlightViewer() {
     if (!title) return "";
     return title.length > 10 ? `${title.slice(0, 10)}…` : title;
   });
-
-  const activeIndex = computed(() =>
-    pageRecords.value.findIndex((item) => item.id === recordId.value),
-  );
-
-  const previousRecord = computed(() =>
-    activeIndex.value > 0 ? pageRecords.value[activeIndex.value - 1] : null,
-  );
-
-  const nextRecord = computed(() =>
-    activeIndex.value >= 0 && activeIndex.value + 1 < pageRecords.value.length
-      ? pageRecords.value[activeIndex.value + 1]
-      : null,
-  );
 
   const currentPageIndex = computed(() => {
     if (!currentPageGroup.value) return -1;
@@ -152,71 +169,14 @@ export function useHighlightViewer() {
     router.push(`/highlights/${targetId}`);
   }
 
-  function goToNextRecord(): boolean {
-    if (nextRecord.value) {
-      navigateToRecord(nextRecord.value.id);
-      return true;
-    }
-    if (nextPage.value) {
-      const records = sortRecordsForPage(
-        nextPage.value.records,
-        uiStore.pageSortMode,
-      );
-      if (records.length) {
-        navigateToRecord(records[0].id);
-        return true;
-      }
-    }
-    return false;
-  }
-
   function goToPage(page: (typeof pageGroups.value)[number] | null) {
     if (!page) return;
-    const records = sortRecordsForPage(page.records, uiStore.pageSortMode);
+    const records = sortRecordsForPage(page.records, "range");
     if (records.length) navigateToRecord(records[0].id);
   }
 
   const goToPreviousPage = () => goToPage(previousPage.value);
   const goToNextPage = () => goToPage(nextPage.value);
-
-  function handleScroll() {
-    const el = scrollRef.value;
-    if (!el || autoAdvanceLock.value) return;
-    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distance < 80) {
-      autoAdvanceLock.value = true;
-      const didNavigate = goToNextRecord();
-      if (!didNavigate) {
-        setTimeout(() => {
-          autoAdvanceLock.value = false;
-        }, 300);
-      }
-    }
-  }
-
-  async function focusActiveRecord() {
-    autoAdvanceLock.value = true;
-    await nextTick();
-    const el = scrollRef.value?.querySelector(
-      `[data-record-id="${recordId.value}"]`,
-    ) as HTMLElement | null;
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    setTimeout(() => {
-      autoAdvanceLock.value = false;
-    }, 400);
-  }
-
-  onMounted(() => focusActiveRecord());
-  onBeforeUnmount(() => {
-    autoAdvanceLock.value = false;
-  });
-  watch(recordId, () => focusActiveRecord());
-  watch(
-    () => uiStore.pageSortMode,
-    () => focusActiveRecord(),
-  );
 
   const backToList = () => router.push("/highlights");
 
@@ -233,19 +193,14 @@ export function useHighlightViewer() {
     pageTitle,
     pageTitleShort,
     currentPageGroup,
-    activeIndex,
-    previousRecord,
-    nextRecord,
     previousPage,
     nextPage,
-    scrollRef,
     startEditing,
     stopEditing,
     saveEditing,
     navigateToRecord,
     goToPreviousPage,
     goToNextPage,
-    handleScroll,
     backToList,
   };
 }

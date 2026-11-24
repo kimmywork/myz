@@ -220,7 +220,7 @@ export function useInboxActions(data: InboxData) {
         status: next,
       });
     }
-    data.selected.value = new Set();
+    data.clearSelection();
     await data.load();
     data.status.value = `${label}（${chosen.length}）`;
   }
@@ -234,7 +234,7 @@ export function useInboxActions(data: InboxData) {
       chosen.map((item) => item.record),
       { reload: () => data.load() },
     );
-    data.selected.value = new Set();
+    data.clearSelection();
     data.status.value = `已删除（${chosen.length}）`;
   }
 

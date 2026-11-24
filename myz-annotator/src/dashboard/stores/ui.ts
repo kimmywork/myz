@@ -24,7 +24,6 @@ import {
   groupRecordsByPage,
   renderHighlightContent,
   sortRecordsForPage,
-  type PageSortMode,
 } from "@/dashboard/utils/records.js";
 import { invoke } from "@/messaging/invoke";
 
@@ -39,7 +38,6 @@ export const useUIStore = defineStore("ui", () => {
   const settingsOpen = ref(false);
   const settingsSection = ref<SettingsSectionKey>(DEFAULT_SETTINGS_SECTION);
   const pageFilter = ref("");
-  const pageSortMode: Ref<PageSortMode> = ref("time");
   const quickSearch = ref("");
   const renderedCount = ref(0);
   const filters: SearchFilters = reactive({
@@ -64,17 +62,16 @@ export const useUIStore = defineStore("ui", () => {
   );
 
   const filteredHighlights = computed(() => {
-    let items = filteredHighlightsBase.value;
+    // 排序规则（2026-11-23，取代「时间/文中顺序」切换）：选中页面 = 页面顺序
+    // （文中顺序）；没有页面筛选 = 采集时间倒序。进入详情（页面视图）同理
+    // 走页面顺序，见 useHighlightViewer。
     if (pageFilter.value) {
-      items = items.filter(
+      const items = filteredHighlightsBase.value.filter(
         (item) => (item.url || item.sourceUrl || "") === pageFilter.value,
       );
-      items = sortRecordsForPage(
-        items,
-        pageSortMode.value === "range" ? "range" : "time",
-      );
+      return sortRecordsForPage(items, "range");
     }
-    return items;
+    return sortRecordsForPage(filteredHighlightsBase.value, "time");
   });
 
   const hasMoreHighlights = computed(
@@ -194,12 +191,6 @@ export const useUIStore = defineStore("ui", () => {
     updateRenderedCount();
   }
 
-  function setPageSortMode(nextMode: PageSortMode) {
-    if (nextMode && pageSortMode.value !== nextMode) {
-      pageSortMode.value = nextMode;
-    }
-  }
-
   /** Opens the settings modal at one section (rail footer / deep link). */
   function openSettings(
     section: SettingsSectionKey = DEFAULT_SETTINGS_SECTION,
@@ -252,7 +243,6 @@ export const useUIStore = defineStore("ui", () => {
     view,
     filters,
     pageFilter,
-    pageSortMode,
     quickSearch,
     settingsOpen,
     settingsSection,
@@ -272,7 +262,6 @@ export const useUIStore = defineStore("ui", () => {
     restoreView,
     setPageFilter,
     clearPageFilter,
-    setPageSortMode,
     loadMore,
     updateRecord,
     renderHighlight: (record: MyZRecord) =>

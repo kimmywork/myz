@@ -123,8 +123,10 @@
 }
 
 /* Touch / narrow screens keep actions visible (§4.20); they collapse to
-   icon-only buttons so the title still has room. */
-@media (hover: none), (max-width: 639px) {
+   icon-only buttons so the title still has room. 639.98 leaves no gap below
+   the 640 breakpoint: fractional widths (639.5px) used to match neither side
+   (PARKING_LOT H). */
+@media (hover: none), (max-width: 639.98px) {
   .myz-list-row__actions {
     opacity: 1;
   }
@@ -136,7 +138,7 @@
   }
 }
 
-@media (max-width: 639px) {
+@media (max-width: 639.98px) {
   .myz-list-row {
     min-height: var(--myz-row-h-touch);
   }

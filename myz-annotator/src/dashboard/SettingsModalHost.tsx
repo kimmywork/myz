@@ -66,10 +66,18 @@ export default defineComponent({
         open={uiStore.settingsOpen}
         title="设置"
         width={880}
+        height={640}
         onClose={close}
       >
-        <div class="flex min-h-0 flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start">
-          <div class="w-full min-[900px]:w-52 min-[900px]:shrink-0 min-[900px]:border-r min-[900px]:border-line min-[900px]:pr-4">
+        {/* Fixed frame (§4.17): swapping sections must not resize the modal.
+            The group nav and the section detail are two blocks that scroll
+            relative to the modal independently — a long section (AI 解读)
+            scrolls without dragging the nav along. */}
+        <div class="flex h-full min-h-0 flex-col gap-4 overflow-y-auto min-[900px]:flex-row min-[900px]:overflow-hidden">
+          <div
+            class="w-full min-[900px]:w-52 min-[900px]:shrink-0 min-[900px]:overflow-y-auto min-[900px]:border-r min-[900px]:border-line min-[900px]:pr-4"
+            data-testid="settings-nav-pane"
+          >
             <SettingsSidebar
               active={uiStore.settingsSection}
               onSelect={(key: SettingsSectionKey) => {
@@ -77,7 +85,10 @@ export default defineComponent({
               }}
             />
           </div>
-          <div class="min-w-0 flex-1">
+          <div
+            class="min-w-0 flex-1 min-[900px]:overflow-y-auto"
+            data-testid="settings-detail-pane"
+          >
             {settingsStore.settingsStatus ? (
               <p
                 class="mb-2 text-caption text-muted"

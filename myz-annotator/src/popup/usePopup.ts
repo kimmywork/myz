@@ -165,28 +165,46 @@ export function usePopup() {
     if (action === "downgrade") await downgradeHighlight(record.id);
   }
 
-  function openDashboard() {
-    chrome.runtime.openOptionsPage();
+  /**
+   * Opens (or focuses) the one workspace tab at `hash` — everything lives in
+   * the same browser tab (2026-11-23).
+   */
+  async function openWorkspace(hash: string) {
+    const url = chrome.runtime.getURL(`src/dashboard/index.html${hash}`);
+    const base = chrome.runtime.getURL("src/dashboard/index.html");
+    const tabs = await chrome.tabs.query({});
+    const existing = tabs.find((tab) => (tab.url || "").startsWith(base));
+    // The stitch route renders its editor in an iframe: navigating that tab
+    // away destroys the editor document (an unfinished composition). Leave it
+    // alone and open the target in a new tab instead (CodeRabbit #136).
+    const editingStitch = (existing?.url || "").includes("#/stitch");
+    if (existing?.id != null && !editingStitch) {
+      await chrome.tabs.update(existing.id, { url, active: true });
+      if (existing.windowId != null) {
+        await chrome.windows.update(existing.windowId, { focused: true });
+      }
+      return;
+    }
+    chrome.tabs.create({ url });
   }
 
-  async function openPdfReader() {
+  const openLibrary = () => void openWorkspace("#/highlights");
+
+  /** 阅读：当前标签是 PDF 就直接内嵌打开该文档，否则打开阅读页。 */
+  async function openReading() {
     const target = await resolvePdfTargetUrl(rawPageUrl.value);
-    const base = chrome.runtime.getURL("src/pdf/pdf-viewer.html");
-    const suffix = target ? `?url=${encodeURIComponent(target)}` : "";
-    chrome.tabs.create({ url: `${base}${suffix}` });
+    if (target) {
+      await openWorkspace(
+        `#/read?kind=pdf&src=${encodeURIComponent(`url=${encodeURIComponent(target)}`)}`,
+      );
+      return;
+    }
+    await openWorkspace("#/readers");
   }
 
-  function openEpubReader() {
-    chrome.tabs.create({
-      url: chrome.runtime.getURL("src/epub/epub-viewer.html"),
-    });
-  }
+  const openStitch = () => void openWorkspace("#/stitch");
 
-  function openStitch() {
-    chrome.tabs.create({
-      url: chrome.runtime.getURL("src/stitch/stitch.html"),
-    });
-  }
+  const openSettings = () => void openWorkspace("#/settings");
 
   let unsubscribe: (() => void) | null = null;
 
@@ -228,9 +246,9 @@ export function usePopup() {
     loadHighlights,
     handleSearch,
     handleItemAction,
-    openDashboard,
-    openPdfReader,
-    openEpubReader,
+    openLibrary,
+    openReading,
     openStitch,
+    openSettings,
   };
 }
