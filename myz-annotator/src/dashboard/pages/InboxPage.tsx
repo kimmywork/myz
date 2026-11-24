@@ -114,7 +114,7 @@ export default defineComponent({
                   </p>
                 ) : null}
 
-                {a.selected.value.size > 0 ? (
+                {a.selected.value.size > 0 && !a.focusMode.value ? (
                   <SelectionBar
                     count={a.selected.value.size}
                     total={a.tabItems.value.length}

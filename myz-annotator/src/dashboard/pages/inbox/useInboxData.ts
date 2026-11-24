@@ -159,6 +159,12 @@ export function useInboxData() {
     selected.value = new Set();
   }
 
+  // 专注模式只显示一条记录：批量条在那里会作用到用户看不见的行，进入时
+  // 清掉选择（CodeRabbit #136）。
+  watch(focusMode, (on) => {
+    if (on) clearSelection();
+  });
+
   watch([activeTab, activeTag, query], () => {
     visibleCount.value = LIST_PAGE_SIZE;
   });
