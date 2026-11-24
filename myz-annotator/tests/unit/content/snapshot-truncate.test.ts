@@ -1,12 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import {
-  SNAPSHOT_MAX_SIBLINGS_PER_SIDE,
-  SNAPSHOT_TRUNCATION_RUN,
-  childContaining,
+  SNAPSHOT_CONTEXT_BLOCKS,
   hitsRecord,
-  siblingWindow,
-  truncateAround,
+  recordSpan,
+  spanAround,
 } from "@/content/snapshot/truncate";
 
 /** Builds `<article>` with one child per entry; `null` = promo block. */
@@ -30,78 +28,81 @@ function slotIn(clone: Element): number[] {
   );
 }
 
-describe("snapshot truncation", () => {
-  it("stops after a run of record-less siblings", () => {
+describe("snapshot span", () => {
+  it("covers the record plus the context blocks on each side", () => {
     const doc = page([
-      "far away paragraph",
-      null,
-      null,
-      null,
-      "middle paragraph that holds the record",
-      null,
-      null,
-      null,
-      "another far paragraph",
+      "far away paragraph", // 0
+      null, // 1
+      null, // 2
+      null, // 3
+      "middle paragraph that holds the record", // 4
+      null, // 5
+      null, // 6
+      null, // 7
+      "another far paragraph", // 8
     ]);
     const root = doc.querySelector("article")!;
-    const anchor = root.querySelector('[data-slot="4"]')!;
-    const needles = ["middle paragraph that holds the record"];
 
-    const clone = truncateAround(root, anchor, needles);
-    // Two record-less siblings are kept on each side; the third ends the walk
-    // without being included, so the far paragraphs never make it in.
+    const clone = spanAround(root, ["middle paragraph that holds the record"]);
+    // The record ± two context blocks: the far paragraphs stay out.
     expect(slotIn(clone)).toEqual([2, 3, 4, 5, 6]);
   });
 
-  it("keeps the neighbours across a single record-less element", () => {
+  it("is one contiguous region covering every record", () => {
+    // 划线之间的内容全在 span 里（显示端折叠它们），两块划线之外的噪音
+    // 被 span 挡住——没有 run 计数，首末命中即边界。
     const doc = page([
-      "one paragraph",
-      null,
-      "two paragraph",
-      "three paragraph",
+      "first record paragraph", // 0
+      "middle filler paragraph", // 1
+      "second record paragraph", // 2
+      "tail filler one", // 3
+      "tail filler two", // 4
+      "unrelated tail paragraph", // 5
     ]);
     const root = doc.querySelector("article")!;
-    const anchor = root.querySelector('[data-slot="2"]')!;
 
-    const clone = truncateAround(root, anchor, ["two paragraph"]);
-    expect(slotIn(clone)).toEqual([0, 1, 2, 3]);
+    const clone = spanAround(root, [
+      "first record paragraph",
+      "second record paragraph",
+    ]);
+    expect(slotIn(clone)).toEqual([0, 1, 2, 3, 4]);
   });
 
-  it("extends through every element that hits a record", () => {
-    // All elements hit some record: the run never breaks, so only the
-    // per-side cap bounds the window.
-    const doc = page(
-      Array.from({ length: 30 }, (_, index) => `paragraph number ${index}`),
-    );
-    const root = doc.querySelector("article")!;
-    const anchor = root.querySelector('[data-slot="15"]')!;
-
-    const { first, last } = siblingWindow(root, anchor, ["paragraph"], {
-      maxPerSide: 4,
-    });
-    expect(first).toBe(11);
-    expect(last).toBe(19);
-  });
-
-  it("keeps the whole container when there is no anchor", () => {
+  it("falls back to the whole container when nothing hits", () => {
+    // 没有可锚定的划线时「足够完整」优先：整根兜底，尺寸上限是极端情况的
+    // 兜底。
     const doc = page(["one paragraph", null, "two paragraph"]);
     const root = doc.querySelector("article")!;
 
-    expect(slotIn(truncateAround(root, null, ["two paragraph"]))).toEqual([
+    expect(slotIn(spanAround(root, ["text that is not on the page"]))).toEqual([
       0, 1, 2,
     ]);
   });
 
-  it("is bounded per side even when every element hits a record", () => {
-    const doc = page(
-      Array.from({ length: 60 }, (_, index) => `paragraph ${index}`),
+  it("keeps direct text nodes of the container inside the span", () => {
+    // An article can hold bare text next to its blocks: `<article>Opening
+    // text<p>…</p></article>`. Slicing `children` would drop those sentences.
+    const doc = new DOMParser().parseFromString(
+      `<html><body><article>Opening sentence<p id="anchor">the record lives here</p>Closing sentence</article></body></html>`,
+      "text/html",
     );
     const root = doc.querySelector("article")!;
-    const anchor = root.querySelector('[data-slot="30"]')!;
 
-    const { first, last } = siblingWindow(root, anchor, ["paragraph"]);
-    expect(30 - first).toBeLessThanOrEqual(SNAPSHOT_MAX_SIBLINGS_PER_SIDE);
-    expect(last - 30).toBeLessThanOrEqual(SNAPSHOT_MAX_SIBLINGS_PER_SIDE);
+    const clone = spanAround(root, ["the record lives here"]);
+    expect(clone.textContent).toContain("Opening sentence");
+    expect(clone.textContent).toContain("the record lives here");
+    expect(clone.textContent).toContain("Closing sentence");
+  });
+
+  it("reports the hit span before the context extension", () => {
+    const doc = page(Array.from({ length: 10 }, (_, i) => `p${i}`));
+    const root = doc.querySelector("article")!;
+
+    expect(recordSpan(root, ["p3", "p7"])).toEqual({ first: 1, last: 9 });
+  });
+
+  it("documents the context constant", () => {
+    expect(SNAPSHOT_CONTEXT_BLOCKS).toBe(2);
   });
 
   it("hits only elements carrying one of the record texts", () => {
@@ -117,36 +118,5 @@ describe("snapshot truncation", () => {
     expect(hitsRecord(doc.querySelector("#quoted")!, needles)).toBe(true);
     expect(hitsRecord(doc.querySelector("#other")!, needles)).toBe(false);
     expect(hitsRecord(doc.querySelector("#empty")!, needles)).toBe(false);
-  });
-
-  it("resolves the container child that holds a nested anchor", () => {
-    const doc = new DOMParser().parseFromString(
-      `<html><body><article><section><span><em id="deep">text</em></span></section></article></body></html>`,
-      "text/html",
-    );
-    const root = doc.querySelector("article")!;
-    const deep = doc.querySelector("#deep")!;
-    expect((childContaining(root, deep) as Element)?.tagName).toBe("SECTION");
-    expect(childContaining(root, root)).toBeNull();
-  });
-
-  it("documents a run of three", () => {
-    expect(SNAPSHOT_TRUNCATION_RUN).toBe(3);
-  });
-
-  it("keeps direct text nodes of the container inside the window", () => {
-    // An article can hold bare text next to its blocks: `<article>Opening
-    // text<p>…</p></article>`. Slicing `children` would drop those sentences.
-    const doc = new DOMParser().parseFromString(
-      `<html><body><article>Opening sentence<p id="anchor">the record lives here</p>Closing sentence</article></body></html>`,
-      "text/html",
-    );
-    const root = doc.querySelector("article")!;
-    const anchor = doc.querySelector("#anchor")!;
-
-    const clone = truncateAround(root, anchor, ["the record lives here"]);
-    expect(clone.textContent).toContain("Opening sentence");
-    expect(clone.textContent).toContain("the record lives here");
-    expect(clone.textContent).toContain("Closing sentence");
   });
 });

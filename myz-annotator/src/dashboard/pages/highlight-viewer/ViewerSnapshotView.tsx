@@ -56,10 +56,8 @@ export const ViewerSnapshotView = defineComponent({
   },
   setup(props) {
     const snapshot = ref<PageSnapshot | null>(null);
-    /** Other captures of the same page, newest first (§I9). */
+    /** The page's copy, newest first — at most one: a save replaces (§I9). */
     const versions = ref<PageSnapshot[]>([]);
-    /** Which version is on screen; the newest by default. */
-    const selectedVersion = ref(0);
     const statusLine = ref("");
     const loading = ref(true);
     const error = ref("");
@@ -85,7 +83,6 @@ export const ViewerSnapshotView = defineComponent({
         versions.value = found;
         snapshot.value = found[0] ?? null;
         statusLine.value = usage?.statusLine ?? "";
-        selectedVersion.value = 0;
         gaps = [];
         loadedFor.value = pageUrl;
       } catch (loadError) {
@@ -408,15 +405,6 @@ export const ViewerSnapshotView = defineComponent({
       }
     }
 
-    /** Switches to another capture of the same page. */
-    function selectVersion(index: number) {
-      const chosen = versions.value[index];
-      if (!chosen) return;
-      selectedVersion.value = index;
-      snapshot.value = chosen;
-      gaps = [];
-    }
-
     /** Brings the active record's mark into view (the region it lives in). */
     async function focusActiveMark() {
       await nextTick();
@@ -452,33 +440,6 @@ export const ViewerSnapshotView = defineComponent({
             >
               打开原页
             </a>
-          </div>
-        ) : null}
-        {versions.value.length > 1 ? (
-          <div
-            class="flex flex-wrap items-center gap-2 text-caption"
-            role="group"
-            aria-label="快照版本"
-            data-testid="snapshot-versions"
-          >
-            <span class="text-muted">共 {versions.value.length} 个版本：</span>
-            {versions.value.map((version, index) => (
-              <button
-                key={version.id}
-                type="button"
-                class={[
-                  "rounded-tag border border-line px-2 py-0.5",
-                  index === selectedVersion.value
-                    ? "bg-accent text-on-accent"
-                    : "text-muted",
-                ].join(" ")}
-                aria-pressed={index === selectedVersion.value}
-                data-testid={`snapshot-version-${index}`}
-                onClick={() => selectVersion(index)}
-              >
-                {snapshotHeaderLine(version.createdAt).replace("快照 ", "")}
-              </button>
-            ))}
           </div>
         ) : null}
         <p class="text-caption text-muted" data-testid="snapshot-status">

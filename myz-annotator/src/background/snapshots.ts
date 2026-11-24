@@ -79,12 +79,16 @@ export async function getSnapshot(
 }
 
 /**
- * Every snapshot of the page at `url` — the page's version list, newest first.
+ * Every snapshot of the page at `url`, newest first.
  *
  * Snapshots are page-bound (2026-11-23): all records of a page anchor onto the
- * same copies. Uses the canonical URL so `?utm_source=…`, a fragment or a video
+ * same copy. Uses the canonical URL so `?utm_source=…`, a fragment or a video
  * timestamp does not look like a different page. All snapshots are scanned:
  * grouping is rare (only when the viewer opens) and needs the whole set anyway.
+ *
+ * Since 2026-11-24 a page keeps exactly one copy — saving replaces — so in
+ * practice this list has a single entry; the shape stays for the read-side
+ * pruning of pre-replacement stores.
  */
 export async function getSnapshotVersions(
   url: string,
@@ -98,6 +102,16 @@ export async function getSnapshotVersions(
 
 export async function snapshotUsageBytes(): Promise<number> {
   return usedBytes(await listSnapshotIndex());
+}
+
+/** Deletes snapshots by id (one transaction). */
+export async function deleteSnapshots(ids: readonly string[]): Promise<void> {
+  if (!ids.length) return;
+  const db = await getDB();
+  await inTransaction(db, STORE, "readwrite", (tx) => {
+    const store = tx.objectStore(STORE);
+    ids.forEach((id) => store.delete(id));
+  });
 }
 
 /**
@@ -153,7 +167,20 @@ export async function saveSnapshot(
   }
 
   const index = await listSnapshotIndex();
-  const others = index.filter((entry) => entry.id !== input.id);
+  // 2026-11-24：一页只保留最新版本——同页旧版本随本次保存一起替换，它们
+  // 释放的额度算进本次保存的可用空间（不占 LRU 驱逐名额）。
+  const pageKey = canonicalSnapshotUrl(input.url);
+  const replacedIds = new Set(
+    index
+      .filter(
+        (entry) =>
+          entry.id !== input.id && canonicalSnapshotUrl(entry.url) === pageKey,
+      )
+      .map((entry) => entry.id),
+  );
+  const others = index.filter(
+    (entry) => entry.id !== input.id && !replacedIds.has(entry.id),
+  );
   const plan = planEviction(others, bytes, quota);
   if (!plan.fits) {
     throw new SnapshotWriteError("no-room", "空间不足，无法保存快照");
@@ -169,11 +196,12 @@ export async function saveSnapshot(
 
   try {
     const db = await getDB();
-    // Eviction and the new record share one transaction: if the write fails,
-    // the evictions roll back too, so nothing is lost for a snapshot that was
-    // never stored. (A failed put must not cost the user the old pages.)
+    // Replacement, eviction and the new record share one transaction: if the
+    // write fails, nothing is lost — no half snapshot, and the previous
+    // version stays.
     await inTransaction(db, STORE, "readwrite", (tx) => {
       const store = tx.objectStore(STORE);
+      replacedIds.forEach((id) => store.delete(id));
       plan.evict.forEach((id) => store.delete(id));
       store.put(snapshot);
     });

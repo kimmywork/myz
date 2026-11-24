@@ -40,9 +40,7 @@ describe("snapshot extraction", () => {
 
   it("keeps the text of a long code article", () => {
     const doc = loadFixture("zen-code.html");
-    const snapshot = extractSnapshot(doc, "https://example.com/code", {
-      mode: "full",
-    })!;
+    const snapshot = extractSnapshot(doc, "https://example.com/code", {})!;
     expect(snapshot.html).toContain("<pre");
     expect(snapshot.bytes).toBeGreaterThan(0);
   });
@@ -57,9 +55,7 @@ describe("snapshot extraction", () => {
 
   it("never returns an empty body for a normal page", () => {
     const doc = loadFixture("complex-highlight-test.html");
-    const snapshot = extractSnapshot(doc, "https://example.com/x", {
-      mode: "full",
-    })!;
+    const snapshot = extractSnapshot(doc, "https://example.com/x", {})!;
     expect(snapshot.html.length).toBeGreaterThan(20);
     expect(snapshot.title).toBeTruthy();
   });
@@ -92,54 +88,33 @@ describe("snapshot extraction", () => {
     expect(snapshot.html).not.toContain("<div><span>");
   });
 
-  it("captures the whole body in full mode, whatever the anchor", () => {
-    // Long enough that the extractor picks <article> rather than <body>.
+  it("captures the span around the records, not the whole page", () => {
+    // 首末划线命中即边界：边界之外的远端段落不进快照（显示端本来就折叠
+    // 非划线区，采集不需要为了「可展开」多存整页）。
     const padding = "padding sentence to make this a real article body. ";
     const html = `<html><body><article>
-      <p>${padding.repeat(3)}far away paragraph</p>
+      <p>${padding.repeat(3)}far away paragraph before</p>
+      <div>promo</div><div>promo</div>
       <p>${padding.repeat(2)}the paragraph that holds the record</p>
-      <p>${padding.repeat(3)}another far paragraph</p>
+      <p>${padding.repeat(2)}neighbour one</p>
+      <p>${padding.repeat(2)}neighbour two</p>
+      <div>promo</div><div>promo</div>
+      <p>${padding.repeat(3)}far away paragraph after</p>
     </article></body></html>`;
     const doc = new DOMParser().parseFromString(html, "text/html");
 
-    const full = extractSnapshot(doc, "https://example.com/a", {
-      mode: "full",
-    })!;
-    expect(full.html).toContain("far away paragraph");
-    expect(full.html).toContain("another far paragraph");
-    // The display folds this down; the copy itself is complete (2026-11-23).
-  });
-
-  it("windows around the anchor on endless surfaces", () => {
-    const padding = "padding sentence to make this a real article body. ";
-    const html = `<html><body><article>
-      <p>${padding.repeat(3)}far away paragraph</p>
-      <div>promo</div><div>promo</div><div>promo</div>
-      <p>${padding.repeat(2)}the paragraph that holds the record</p>
-      <div>promo</div><div>promo</div><div>promo</div>
-      <p>${padding.repeat(3)}another far paragraph</p>
-    </article></body></html>`;
-    const doc = new DOMParser().parseFromString(html, "text/html");
-
-    const wide = extractSnapshot(doc, "https://example.com/a", {
-      mode: "full",
-    })!;
-    const narrow = extractSnapshot(doc, "https://example.com/a", {
-      mode: "windowed",
+    const snapshot = extractSnapshot(doc, "https://example.com/a", {
       anchorText: "the paragraph that holds the record",
       recordTexts: ["the paragraph that holds the record"],
     })!;
-
-    expect(wide.html).toContain("far away paragraph");
-    expect(wide.html).toContain("another far paragraph");
-    // Three record-less siblings in a row end the window (§3.4 stop rule).
-    expect(narrow.html).toContain("the paragraph that holds the record");
-    expect(narrow.html).not.toContain("far away paragraph");
-    expect(narrow.html).not.toContain("another far paragraph");
-    expect(narrow.bytes).toBeLessThan(wide.bytes);
+    expect(snapshot.html).toContain("the paragraph that holds the record");
+    expect(snapshot.html).toContain("neighbour one");
+    expect(snapshot.html).toContain("neighbour two");
+    expect(snapshot.html).not.toContain("far away paragraph before");
+    expect(snapshot.html).not.toContain("far away paragraph after");
   });
 
-  it("extends the window through neighbouring records", () => {
+  it("keeps one contiguous region covering several records", () => {
     const padding = "padding sentence to make this a real article body. ";
     const html = `<html><body><article>
       <p>${padding.repeat(2)}first record paragraph</p>
@@ -151,29 +126,27 @@ describe("snapshot extraction", () => {
     </article></body></html>`;
     const doc = new DOMParser().parseFromString(html, "text/html");
 
-    const windowed = extractSnapshot(doc, "https://example.com/a", {
-      mode: "windowed",
+    const snapshot = extractSnapshot(doc, "https://example.com/a", {
       anchorText: "first record paragraph",
       recordTexts: ["first record paragraph", "second record paragraph"],
     })!;
-    // The neighbour's hit resets the run, so both records land in one window;
-    // past the last record the run rule keeps a little air (two elements) and
-    // stops at the third (§3.4: N consecutive record-less elements end it).
-    expect(windowed.html).toContain("first record paragraph");
-    expect(windowed.html).toContain("second record paragraph");
-    expect(windowed.html).toContain("tail filler one");
-    expect(windowed.html).not.toContain("unrelated tail paragraph");
+    // 首末划线命中即边界：两块划线之间的一切都在，边界之外只留两块气垫。
+    expect(snapshot.html).toContain("first record paragraph");
+    expect(snapshot.html).toContain("second record paragraph");
+    expect(snapshot.html).toContain("tail filler one");
+    expect(snapshot.html).toContain("tail filler two");
+    expect(snapshot.html).not.toContain("unrelated tail paragraph");
   });
 
-  it("returns null in windowed mode when the anchor cannot be placed", () => {
-    // Never fall back to "capture everything": that is how a feed would be
-    // stored whole behind the user's back.
+  it("falls back to the whole container when no record text lands", () => {
+    // 没有可锚定的划线时「足够完整」优先：整根兜底，尺寸上限是极端情况的
+    // 兜底。
     const doc = loadFixture("article-page.html");
     const missing = extractSnapshot(doc, "https://example.com/x", {
-      mode: "windowed",
       anchorText: "text that is not on this page",
-    });
-    expect(missing).toBeNull();
+      recordTexts: ["also not on this page"],
+    })!;
+    expect(missing.html.length).toBeGreaterThan(20);
   });
 
   it("normalizes record needles the same way the window compares", () => {
@@ -197,5 +170,62 @@ describe("snapshot extraction", () => {
     const container = containerAround(doc, "alpha beta gamma");
     expect(container).not.toBeNull();
     expect(container?.tagName).toBe("P");
+  });
+});
+
+describe("highlighted content survives the capture", () => {
+  const parse = (html: string): Document =>
+    new DOMParser().parseFromString(html, "text/html");
+
+  it("keeps a highlighted title that lives in the article's header", () => {
+    // 2026-11-24, engineering.zalando.com: the post title and lead live in the
+    // article's own <header>; the chrome drop deleted them wholesale, so the
+    // user's highlights were missing from the snapshot.
+    const doc = parse(`
+      <main><article class="content-post">
+        <header class="post-header">
+          <h1>Running an Engineering Papers Reading Guild at Zalando</h1>
+          <div class="summary"><p>In September 2024, we started an Engineering Papers guild.</p></div>
+          <div class="byline"><span>Danilo Veljovic</span></div>
+        </header>
+        <p>Body paragraph one.</p>
+      </article></main>`);
+    const snapshot = extractSnapshot(doc, "https://example.com/post", {
+      recordTexts: [
+        "Running an Engineering Papers Reading Guild at Zalando",
+        "In September 2024, we started an Engineering Papers guild.",
+      ],
+    })!;
+    expect(snapshot.html).toContain("<h1>");
+    expect(snapshot.html).toContain(
+      "In September 2024, we started an Engineering Papers guild.",
+    );
+    expect(snapshot.html).toContain("Body paragraph one.");
+  });
+
+  it("still drops the article header when nothing in it is highlighted", () => {
+    const doc = parse(`
+      <main><article>
+        <header class="post-header"><h1>Standing title</h1></header>
+        <p>Body paragraph one.</p>
+      </article></main>`);
+    const snapshot = extractSnapshot(doc, "https://example.com/post", {})!;
+    expect(snapshot.html).not.toContain("<h1>");
+    expect(snapshot.html).toContain("Body paragraph one.");
+  });
+
+  it("expands the capture root when a highlight lives outside it", () => {
+    // A title placed beside the <article> must not be silently missing:
+    // the root grows to their common ancestor (never the whole body).
+    const doc = parse(`
+      <main>
+        <header class="post-header"><h1>Standing title</h1></header>
+        <article><p>${"Body paragraph. ".repeat(20)}</p></article>
+      </main>`);
+    const snapshot = extractSnapshot(doc, "https://example.com/post", {
+      recordTexts: ["Standing title"],
+    })!;
+    expect(snapshot.html).toContain("Standing title");
+    expect(snapshot.html).toContain("Body paragraph");
   });
 });

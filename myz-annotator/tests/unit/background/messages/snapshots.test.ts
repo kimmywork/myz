@@ -104,4 +104,25 @@ describe("snapshot message handlers", () => {
     expect(usage.statusLine).toContain("本机快照 · 占用");
     expect(usage.statusLine).toContain("最旧的会被清理");
   });
+
+  it("prunes legacy duplicates on read, keeping the newest copy", async () => {
+    // 2026-11-24：一页只保留最新版本。替换制之前遗留的多版本在读取时收敛。
+    await handleMessage("myz:saveSnapshot", payload("first"), ctx);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await handleMessage(
+      "myz:saveSnapshot",
+      { ...payload("second"), url: "https://example.com/first" },
+      ctx,
+    );
+
+    const found = (await handleMessage(
+      "myz:getSnapshotsForPage",
+      { url: "https://example.com/first" },
+      ctx,
+    )) as Array<{ title?: string }>;
+    expect(found).toHaveLength(1);
+    expect(found[0]?.title).toBe("Page second");
+    // 读取即清理：存储里也只剩这一条。
+    expect(await listSnapshotIndex()).toHaveLength(1);
+  });
 });

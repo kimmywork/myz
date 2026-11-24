@@ -1,36 +1,19 @@
 /**
- * Snapshot truncation (§3.4, revised 2026-11-23).
+ * Snapshot span (§3.4, 2026-11-24 定稿：包含这页所有划线的最小连续区域).
  *
- * Only endless-scroll pages are truncated at all: article pages capture the
- * whole readable body. A feed has no "whole", so the capture extends from the
- * record's anchor to both sides and stops after `run` consecutive elements
- * that hit **no record of this page** (§3.4: 「以 record 为锚向两侧扩展，
- * 连续 N 个元素都没有命中相邻 record 时停止」). That keeps the cluster of the
- * user's highlights plus a little air, without dragging an endless tail in.
+ * 划线区块之间的一切都进快照（显示端把非划线部分折叠掉），两侧各留几个
+ * 上下文块，其余一概不收。范围由划线直接定义，所以：
  *
- * N is `SNAPSHOT_TRUNCATION_RUN` (3). The value follows the prose-gap probe
- * (`scripts/measure/truncation-threshold.mjs`, widest observed gap + 1); the
- * record-hit variant still owes its own probe on a real feed (§6-2), so treat
- * 3 as the conservative starting point, not a tuned constant.
+ * - 「高亮一定在快照里」是结构性的——不需要任何容器保真补丁；
+ * - 无限滚动页自动被 span 约束：首末划线之外的尾部/头部噪音进不来；
+ * - 没有 run 计数、没有 site 表、没有整页 vs 窗口两种模式。
+ *
+ * 找不到任何划线落点时退回整个可读根：那时「足够完整」优先，10 MB 的
+ * 单快照上限是极端情况的兜底。
  */
 
-/** Consecutive record-less siblings that end the capture. */
-export const SNAPSHOT_TRUNCATION_RUN = 3;
-
-/**
- * Hard cap on how many siblings one side may add, whatever the runs look like.
- *
- * A dense cluster of highlights would otherwise extend without a limit, so
- * this bounds the work regardless of the stop rule.
- */
-export const SNAPSHOT_MAX_SIBLINGS_PER_SIDE = 200;
-
-export interface TruncationOptions {
-  /** Record-less run that ends the capture. */
-  run?: number;
-  /** Per-side sibling cap. */
-  maxPerSide?: number;
-}
+/** Context blocks captured beyond the outermost record on each side. */
+export const SNAPSHOT_CONTEXT_BLOCKS = 2;
 
 /** Collapses whitespace so needles compare like the page text does. */
 export function normalizeWindowText(value: string | null | undefined): string {
@@ -38,18 +21,10 @@ export function normalizeWindowText(value: string | null | undefined): string {
 }
 
 /**
- * Whitespace between blocks is layout, not content: it must neither hit a
- * record nor consume the record-less run budget.
- */
-function isBlankLayout(node: Node): boolean {
-  return node.nodeType === Node.TEXT_NODE && !(node.textContent || "").trim();
-}
-
-/**
  * Whether one sibling hits any of the page's record texts.
  *
  * The needle is compared collapsed and truncated to 120 chars — the same
- * comparison `containerAround` resolves the anchor with — so inline markup or
+ * comparison `containerAround` resolves records with — so inline markup or
  * line breaks inside the quote do not hide the hit.
  */
 export function hitsRecord(node: Node, needles: readonly string[]): boolean {
@@ -58,95 +33,72 @@ export function hitsRecord(node: Node, needles: readonly string[]): boolean {
   return needles.some((needle) => needle && text.includes(needle));
 }
 
-/**
- * The direct child of `root` that contains `node`, or `null`.
- *
- * The anchor can sit anywhere inside a paragraph, so walk up until the parent
- * is the container itself.
- */
-export function childContaining(root: Element, node: Node | null): Node | null {
-  let current: Node | null = node;
-  while (current && current.parentNode !== root) {
-    current = current.parentNode;
-  }
-  return current;
+/** Whitespace between blocks is layout, not content. */
+function isBlankLayout(node: Node): boolean {
+  return node.nodeType === Node.TEXT_NODE && !(node.textContent || "").trim();
 }
 
 /**
- * Indexes to keep when extending from `anchor` inside `root`.
+ * The root-level child span holding every record hit, extended by the
+ * context blocks on each side.
  *
- * Walks outward one sibling at a time and stops after `run` consecutive
- * siblings that hit no record of this page.
+ * Hits are compared at the root-child level: a record's block may sit deeper
+ * (inside a section), and the section carries it — the fold display splits
+ * containers back into blocks, so capture granularity here is not a loss.
+ *
+ * @returns `null` when no child hits any record.
  */
-export function siblingWindow(
+export function recordSpan(
   root: Element,
-  anchor: Node,
   needles: readonly string[],
-  options: TruncationOptions = {},
-): { first: number; last: number } {
-  const run = options.run ?? SNAPSHOT_TRUNCATION_RUN;
-  const maxPerSide = options.maxPerSide ?? SNAPSHOT_MAX_SIBLINGS_PER_SIDE;
-  // `childNodes`, not `children`: an article's opening and closing sentences can
-  // be direct text nodes of the container, and slicing elements only would
-  // silently drop them.
-  const children = Array.from(root.childNodes) as Node[];
-  const start = children.indexOf(anchor);
-  if (start < 0) return { first: 0, last: Math.max(0, children.length - 1) };
-
-  let first = start;
-  let misses = 0;
-  let added = 0;
-  for (let index = start - 1; index >= 0; index -= 1) {
-    const node = children[index];
-    if (isBlankLayout(node)) {
-      first = index;
-      continue;
-    }
-    if (hitsRecord(node, needles)) misses = 0;
-    else misses += 1;
-    if (misses >= run || added >= maxPerSide) break;
-    first = index;
-    added += 1;
-  }
-
-  let last = start;
-  misses = 0;
-  added = 0;
-  for (let index = start + 1; index < children.length; index += 1) {
-    const node = children[index];
-    if (isBlankLayout(node)) {
-      last = index;
-      continue;
-    }
-    if (hitsRecord(node, needles)) misses = 0;
-    else misses += 1;
-    if (misses >= run || added >= maxPerSide) break;
+): { first: number; last: number } | null {
+  const children = Array.from(root.childNodes);
+  let first = -1;
+  let last = -1;
+  children.forEach((node, index) => {
+    if (isBlankLayout(node)) return;
+    if (!hitsRecord(node, needles)) return;
+    if (first < 0) first = index;
     last = index;
-    added += 1;
+  });
+  if (first < 0) return null;
+  // Extend by context blocks; whitespace rides free — it is layout between
+  // blocks, not a block, and must not eat the context budget.
+  let added = 0;
+  for (
+    let index = first - 1;
+    index >= 0 && added < SNAPSHOT_CONTEXT_BLOCKS;
+    index -= 1
+  ) {
+    first = index;
+    if (!isBlankLayout(children[index])) added += 1;
   }
-
+  added = 0;
+  for (
+    let index = last + 1;
+    index < children.length && added < SNAPSHOT_CONTEXT_BLOCKS;
+    index += 1
+  ) {
+    last = index;
+    if (!isBlankLayout(children[index])) added += 1;
+  }
   return { first, last };
 }
 
 /**
- * A clone of `root` containing only the window around `anchor`.
+ * A clone of `root` containing the record span.
  *
- * When no anchor is given, the whole root is cloned: not every capture knows
- * where the record sat (a snapshot taken from the page without a record).
+ * Falls back to the whole root when no record text lands in it: with nothing
+ * to anchor, 「足够完整」 beats an empty capture — the per-snapshot size cap
+ * is the backstop for a feed stored behind a failed match.
  */
-export function truncateAround(
-  root: Element,
-  anchor: Node | null,
-  needles: readonly string[],
-  options: TruncationOptions = {},
-): Element {
-  if (!anchor || !root.contains(anchor)) return root.cloneNode(true) as Element;
-
-  const { first, last } = siblingWindow(root, anchor, needles, options);
+export function spanAround(root: Element, needles: readonly string[]): Element {
+  const span = recordSpan(root, needles);
+  if (!span) return root.cloneNode(true) as Element;
   const clone = root.cloneNode(false) as Element;
   // Node slice, so direct text nodes ride along with their siblings.
   Array.from(root.childNodes)
-    .slice(first, last + 1)
+    .slice(span.first, span.last + 1)
     .forEach((child) => clone.appendChild(child.cloneNode(true)));
   return clone;
 }

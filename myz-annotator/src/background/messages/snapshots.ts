@@ -12,6 +12,7 @@
 import { snapshotStatusLine } from "@myz/core/page-snapshot";
 import {
   SnapshotWriteError,
+  deleteSnapshots,
   getSnapshotVersions,
   saveSnapshot,
   shouldAnnounceEviction,
@@ -52,9 +53,14 @@ export function initializeSnapshotMessageHandlers() {
   registerMessageHandler("myz:getSnapshotsForPage", async (payload) => {
     if (!payload?.url) return [];
     const versions = await getSnapshotVersions(payload.url);
-    // Reading the version list is a use, so LRU keeps what the user opens.
+    // 2026-11-24：一页只保留最新版本。保存端已改为替换制，这里把升级前
+    // 遗留的多版本在读取时收敛掉。
+    if (versions.length > 1) {
+      await deleteSnapshots(versions.slice(1).map((entry) => entry.id));
+    }
+    // Reading the page's copy is a use, so LRU keeps what the user opens.
     if (versions[0]) await touchSnapshot(versions[0].id);
-    return versions;
+    return versions.slice(0, 1);
   });
 
   registerMessageHandler("myz:getSnapshotUsage", async () => {

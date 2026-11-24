@@ -55,9 +55,8 @@ describe("snapshot store", () => {
     expect(stored?.createdAt).toBeTruthy();
   });
 
-  it("lists a page's versions newest first, regardless of record", async () => {
-    // Snapshots are page-bound (2026-11-23): the two captures of one page are
-    // its version list; a capture of another page must not leak in.
+  it("replaces the page's older versions when saving again", async () => {
+    // 2026-11-24：一页只保留最新版本——再次保存即替换，而不是追加一个版本。
     await saveSnapshot({
       ...input("old", "https://example.com/shared"),
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -71,16 +70,24 @@ describe("snapshot store", () => {
     await saveSnapshot(input("other"));
 
     const versions = await getSnapshotVersions("https://example.com/shared");
-    expect(versions.map((entry) => entry.id)).toEqual(["new", "old"]);
+    expect(versions.map((entry) => entry.id)).toEqual(["new"]);
+    // 被替换的旧版本真的从存储里删掉了。
+    expect(await getSnapshot("old")).toBeUndefined();
+    // 其他页不受影响。
+    expect(await getSnapshot("other")).toBeDefined();
   });
 
-  it("groups versions by canonical URL", async () => {
-    // Tracking parameters must not make the page look like another page.
+  it("groups versions by canonical URL when replacing", async () => {
+    // Tracking parameters must not make the page look like another page:
+    // saving the same page under a noisy URL replaces the canonical page's
+    // copy, whatever the URL looked like.
     await saveSnapshot(
       input("tracked", "https://example.com/shared?utm_source=x#frag"),
     );
+    await saveSnapshot(input("plain", "https://example.com/shared"));
+
     const versions = await getSnapshotVersions("https://example.com/shared");
-    expect(versions.map((entry) => entry.id)).toEqual(["tracked"]);
+    expect(versions.map((entry) => entry.id)).toEqual(["plain"]);
   });
 
   it("evicts the least recently used when over quota", async () => {
