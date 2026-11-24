@@ -22,10 +22,12 @@
  * ```
  *
  * 揭示从两侧划线向中间推进（B→C→…、F→E→…）；池空则缝消失；点「…」全展开。
- * Every unit carries stable ids (`data-myz-unit`, regions `data-region`, gaps
- * `data-up-region`/`data-down-region`) so the view can keep its visual anchor
- * screen-fixed across re-renders. Annotated blocks carry
- * `.myz-snapshot-region` (page-margin comment icons live inside them).
+ * Hidden middle blocks stay in the DOM (`display: none`), so a reveal is an
+ * in-place repaint (`repaintGap`) — same nodes, no innerHTML rebuild, no
+ * animation replay on untouched blocks (2026-11-24 抖动修复). Every unit
+ * carries stable ids (`data-myz-unit`, runs `data-myz-run`, regions
+ * `data-region`, gaps `data-up-region`/`data-down-region`) so the view keeps
+ * its visual anchor screen-fixed across repaints.
  */
 
 /** Block tags that form the body's units. */
@@ -122,6 +124,176 @@ export interface SnapshotGapState {
   expanded: boolean;
 }
 
+/** A run block's display role — exactly one per block per state. */
+type RunRole =
+  | "revealed-up"
+  | "revealed-down"
+  | "revealed-all"
+  | "hint-up"
+  | "hint-down"
+  | "hidden";
+
+function runRoles(
+  state: SnapshotGapState | undefined,
+  total: number,
+): RunRole[] {
+  const roles: RunRole[] = new Array<RunRole>(total).fill("hidden");
+  if (state?.expanded) {
+    for (let i = 0; i < total; i += 1) roles[i] = "revealed-all";
+    return roles;
+  }
+  const upRev = Math.min(Math.max(state?.upRev ?? 0, 0), total);
+  const downRev = Math.min(Math.max(state?.downRev ?? 0, 0), total - upRev);
+  for (let i = 0; i < upRev; i += 1) roles[i] = "revealed-up";
+  for (let i = total - downRev; i < total; i += 1) roles[i] = "revealed-down";
+  const start = upRev;
+  const end = total - downRev;
+  const pool = end - start;
+  if (pool === 1) {
+    roles[start] = "hint-up";
+  } else if (pool >= 2) {
+    roles[start] = "hint-up";
+    roles[end - 1] = "hint-down";
+  }
+  return roles;
+}
+
+/** The 「…」 seam: halves unfold one block each, the glyph unfolds all. */
+function tearElement(
+  doc: Document,
+  gap: number,
+  upRegion: number,
+  downRegion: number,
+): HTMLElement {
+  const el = doc.createElement("div");
+  el.className = "myz-snapshot-tear";
+  el.setAttribute("data-gap", String(gap));
+  el.setAttribute("data-tear", `gap-${gap}`);
+  el.setAttribute("data-up-region", String(upRegion));
+  el.setAttribute("data-down-region", String(downRegion));
+  el.innerHTML =
+    `<button type="button" class="myz-snapshot-tear-half" data-gap="${gap}" ` +
+    `data-side="up" aria-label="向上展开一段" title="向上展开一段"></button>` +
+    `<button type="button" class="myz-snapshot-tear-half" data-gap="${gap}" ` +
+    `data-side="down" aria-label="向下展开一段" title="向下展开一段"></button>` +
+    `<span class="myz-snapshot-tear-glyph" role="button" tabindex="0" ` +
+    `data-gap="${gap}" aria-label="展开全部" title="展开全部">…</span>`;
+  return el;
+}
+
+/**
+ * Paints one hidden run's blocks in place — the single source of truth for
+ * hint / revealed / hidden / seam state. Works on existing nodes (reveals
+ * never rebuild the DOM); `fresh` marks blocks that just appeared so only
+ * they play the entrance fade (2026-11-24 抖动修复).
+ */
+export function paintRun(
+  root: HTMLElement,
+  run: HTMLElement[],
+  gap: number,
+  upRegion: number,
+  downRegion: number,
+  state: SnapshotGapState | undefined,
+  fresh = false,
+): void {
+  const doc = root.ownerDocument ?? document;
+  const total = run.length;
+  const roles = runRoles(state, total);
+
+  run.forEach((unit, index) => {
+    const role = roles[index];
+    const wasHidden = unit.hasAttribute("data-myz-hidden");
+    const wasHint = unit.classList.contains("myz-snapshot-fold-hint");
+    unit.classList.remove(
+      "myz-snapshot-fold-hint",
+      "myz-snapshot-revealed",
+      "myz-snapshot-fold-hidden",
+    );
+    unit.removeAttribute("data-myz-hidden");
+    unit.removeAttribute("data-revealed");
+    // Only hint-owned attributes are cleaned, and only from blocks that were
+    // hints — source markup keeps its own title/role untouched.
+    if (wasHint) {
+      unit.removeAttribute("data-gap");
+      unit.removeAttribute("data-side");
+      unit.removeAttribute("role");
+      unit.removeAttribute("tabindex");
+      unit.removeAttribute("aria-expanded");
+      unit.removeAttribute("aria-label");
+      unit.removeAttribute("title");
+    }
+    if (role === "hidden") {
+      unit.classList.add("myz-snapshot-fold-hidden");
+      unit.setAttribute("data-myz-hidden", "1");
+    } else if (role === "hint-up" || role === "hint-down") {
+      const side = role === "hint-up" ? "up" : "down";
+      unit.classList.add("myz-snapshot-fold-hint");
+      unit.setAttribute("data-gap", String(gap));
+      unit.setAttribute("data-side", side);
+      unit.setAttribute("tabindex", "0");
+      unit.setAttribute("role", "button");
+      unit.setAttribute("aria-expanded", "false");
+      const label = side === "up" ? "向上展开一段" : "向下展开一段";
+      unit.setAttribute("aria-label", label);
+      unit.setAttribute("title", label);
+    } else {
+      unit.classList.add("myz-snapshot-revealed");
+      unit.setAttribute(
+        "data-revealed",
+        role === "revealed-all"
+          ? `gap-${gap}`
+          : `gap-${gap}-${role === "revealed-up" ? "up" : "down"}`,
+      );
+    }
+    // Entrance fade only where content just appeared (hidden → visible);
+    // hint → revealed keeps the smooth unblur transition instead. Set-only:
+    // removing the attr mid-flight would cancel a running fade on rapid
+    // clicks.
+    if (fresh && wasHidden && role !== "hidden") {
+      unit.setAttribute("data-myz-fresh", "1");
+    }
+  });
+
+  // The seam lives between the two hints; one per gap, gone when the pool
+  // has fewer than two blocks left.
+  const hintDownIndex = roles.indexOf("hint-down");
+  const existing = root.querySelector(
+    `[data-tear="gap-${gap}"]`,
+  ) as HTMLElement | null;
+  if (hintDownIndex < 0) {
+    existing?.remove();
+    return;
+  }
+  const anchor = run[hintDownIndex];
+  const seam = existing ?? tearElement(doc, gap, upRegion, downRegion);
+  if (
+    seam.parentNode !== anchor.parentNode ||
+    seam.nextElementSibling !== anchor
+  ) {
+    anchor.parentNode?.insertBefore(seam, anchor);
+  }
+}
+
+/**
+ * Re-paints one gap's run in place after a reveal. `root` is the snapshot
+ * body; the run is found by its stable `data-myz-run` tag and the flank
+ * region ids are read off its blocks. Same nodes, zero rebuild.
+ */
+export function repaintGap(
+  root: HTMLElement,
+  gap: number,
+  state: SnapshotGapState,
+  fresh = true,
+): void {
+  const run = Array.from(
+    root.querySelectorAll<HTMLElement>(`[data-myz-run="${gap}"]`),
+  );
+  if (!run.length) return;
+  const upRegion = Number(run[0].getAttribute("data-up-region") ?? "-1");
+  const downRegion = Number(run[0].getAttribute("data-down-region") ?? "-1");
+  paintRun(root, run, gap, upRegion, downRegion, state, fresh);
+}
+
 /**
  * Rewrites marked-up snapshot html into the fold display.
  *
@@ -142,9 +314,8 @@ export function buildSnapshotDisplay(
   container.innerHTML = withActive;
 
   const units = collectUnits(container);
-  const doc = container.ownerDocument ?? document;
   // Stable per-unit id in document order — the anchor the view re-finds
-  // after a re-render (hint and revealed are the same unit).
+  // after a repaint (hint and revealed are the same unit).
   units.forEach((unit, index) =>
     unit.setAttribute("data-myz-unit", String(index)),
   );
@@ -168,88 +339,10 @@ export function buildSnapshotDisplay(
     });
     if (!icons.length) return;
     // span: valid inside <p>/<li> and absolutely positioned (no layout).
-    const holder = doc.createElement("span");
+    const holder = unit.ownerDocument.createElement("span");
     holder.className = "myz-snapshot-note-icons";
     holder.innerHTML = icons.join("");
     unit.appendChild(holder);
-  };
-
-  const markHint = (
-    unit: HTMLElement,
-    side: "up" | "down",
-    gap: number,
-    upRegion: number,
-    downRegion: number,
-  ) => {
-    unit.classList.add("myz-snapshot-fold-hint");
-    unit.setAttribute("data-gap", String(gap));
-    unit.setAttribute("data-side", side);
-    unit.setAttribute("data-up-region", String(upRegion));
-    unit.setAttribute("data-down-region", String(downRegion));
-    unit.setAttribute("tabindex", "0");
-    unit.setAttribute("role", "button");
-    unit.setAttribute("aria-expanded", "false");
-    const label = side === "up" ? "向上展开一段" : "向下展开一段";
-    unit.setAttribute("aria-label", label);
-    unit.setAttribute("title", label);
-  };
-
-  const tear = (gap: number, upRegion: number, downRegion: number) => {
-    const el = doc.createElement("div");
-    el.className = "myz-snapshot-tear";
-    el.setAttribute("data-gap", String(gap));
-    el.setAttribute("data-tear", `gap-${gap}`);
-    el.setAttribute("data-up-region", String(upRegion));
-    el.setAttribute("data-down-region", String(downRegion));
-    el.innerHTML =
-      `<button type="button" class="myz-snapshot-tear-half" data-gap="${gap}" ` +
-      `data-side="up" aria-label="向上展开一段" title="向上展开一段"></button>` +
-      `<button type="button" class="myz-snapshot-tear-half" data-gap="${gap}" ` +
-      `data-side="down" aria-label="向下展开一段" title="向下展开一段"></button>` +
-      `<span class="myz-snapshot-tear-glyph" role="button" tabindex="0" ` +
-      `data-gap="${gap}" aria-label="展开全部" title="展开全部">…</span>`;
-    return el;
-  };
-
-  /** One hidden run: hints at both ends of the pool, middle collapsed. */
-  const renderRun = (
-    run: HTMLElement[],
-    upRegion: number,
-    downRegion: number,
-  ) => {
-    const state = gaps[gapIndex];
-    const gap = gapIndex;
-    gapIndex += 1;
-    const total = run.length;
-    const upRev = Math.min(state?.upRev ?? 0, total);
-    const downRev = Math.min(state?.downRev ?? 0, total - upRev);
-    if (state?.expanded) {
-      run.forEach((unit) => {
-        unit.classList.add("myz-snapshot-revealed");
-        unit.setAttribute("data-revealed", `gap-${gap}`);
-      });
-      return;
-    }
-    run.slice(0, upRev).forEach((unit) => {
-      unit.classList.add("myz-snapshot-revealed");
-      unit.setAttribute("data-revealed", `gap-${gap}-up`);
-    });
-    run.slice(total - downRev).forEach((unit) => {
-      unit.classList.add("myz-snapshot-revealed");
-      unit.setAttribute("data-revealed", `gap-${gap}-down`);
-    });
-    const pool = run.slice(upRev, total - downRev);
-    if (!pool.length) return;
-    if (pool.length === 1) {
-      markHint(pool[0], "up", gap, upRegion, downRegion);
-      return;
-    }
-    markHint(pool[0], "up", gap, upRegion, downRegion);
-    markHint(pool[pool.length - 1], "down", gap, upRegion, downRegion);
-    // The middle stays out of the layout entirely; the seam marks it.
-    pool.slice(1, -1).forEach((unit) => unit.remove());
-    const last = pool[pool.length - 1];
-    last.parentNode?.insertBefore(tear(gap, upRegion, downRegion), last);
   };
 
   let i = 0;
@@ -275,7 +368,14 @@ export function buildSnapshotDisplay(
       j < units.length && hasMark(units[j])
         ? Number(units[j].getAttribute("data-region") ?? "-1")
         : -1;
-    renderRun(units.slice(i, j), upRegion, downRegion);
+    const run = units.slice(i, j);
+    run.forEach((block) => {
+      block.setAttribute("data-myz-run", String(gapIndex));
+      block.setAttribute("data-up-region", String(upRegion));
+      block.setAttribute("data-down-region", String(downRegion));
+    });
+    paintRun(container, run, gapIndex, upRegion, downRegion, gaps[gapIndex]);
+    gapIndex += 1;
     i = j;
   }
 

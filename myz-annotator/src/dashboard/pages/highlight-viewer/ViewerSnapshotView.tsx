@@ -10,6 +10,7 @@ import {
 } from "./snapshot-body.js";
 import {
   buildSnapshotDisplay,
+  repaintGap,
   type SnapshotGapState,
 } from "./snapshot-collapse.js";
 import { invoke } from "@/messaging/invoke.js";
@@ -85,7 +86,7 @@ export const ViewerSnapshotView = defineComponent({
         snapshot.value = found[0] ?? null;
         statusLine.value = usage?.statusLine ?? "";
         selectedVersion.value = 0;
-        gaps.value = [];
+        gaps = [];
         loadedFor.value = pageUrl;
       } catch (loadError) {
         if (request !== requestId) return;
@@ -176,57 +177,57 @@ export const ViewerSnapshotView = defineComponent({
 
     /**
      * Fold state per hidden run (2026-11-23 定稿): one 「…」 seam per run;
-     * its halves unfold a block at a time outward, the glyph unfolds all.
+     * its halves unfold a block at a time, the glyph unfolds all. Plain on
+     * purpose (not a ref): reveals repaint the DOM in place and must NOT
+     * trigger a Vue re-render — an innerHTML rebuild replays every entrance
+     * animation and re-creates every node, which is the jitter the user saw
+     * (2026-11-24). The body is only rebuilt when the content changes
+     * (snapshot / records / active record), picking up this state as-is.
      */
-    const gaps = ref<SnapshotGapState[]>([]);
+    let gaps: SnapshotGapState[] = [];
 
     /** Marked body in the fold form: sharp highlights, folded context. */
     const body = computed(() => {
       if (!snapshot.value) return "";
       const marked = renderSnapshotBody(snapshot.value, locatedMarks.value);
-      return buildSnapshotDisplay(
-        marked,
-        props.activeId,
-        notes.value,
-        gaps.value,
-      );
+      return buildSnapshotDisplay(marked, props.activeId, notes.value, gaps);
     });
 
     /** Ensures the state array reaches index `gap` (a click may lead). */
-    function ensureGap(gap: number): SnapshotGapState[] {
-      const next = gaps.value.slice();
-      while (next.length <= gap) {
-        next.push({ upRev: 0, downRev: 0, expanded: false });
+    function ensureGap(gap: number) {
+      while (gaps.length <= gap) {
+        gaps.push({ upRev: 0, downRev: 0, expanded: false });
       }
-      return next;
     }
 
     /**
-     * Keeps an anchor at its exact screen position across a re-render
-     * (2026-11-24 定位规则): the clicked spot stays put while the content
-     * unfolds away from it. Compensates the workspace scroll container.
+     * Applies one reveal and re-pins its anchor — all in the SAME frame
+     * (2026-11-24 抖动修复): repaint is an in-place class swap on existing
+     * nodes (no innerHTML rebuild → no entrance-animation replay anywhere),
+     * and the scroll compensation runs right after the layout shift, before
+     * the browser paints. The anchor therefore never visibly moves.
      */
-    async function keepAnchor(
-      before: number | null,
-      afterSelector: string,
-      apply: () => void,
+    function revealWithAnchor(
+      gap: number,
+      state: SnapshotGapState,
+      anchorEl: HTMLElement | null,
     ) {
-      const container = bodyRef.value?.closest(
-        ".myz-workspace__body",
+      const root = bodyRef.value;
+      if (!root) return;
+      const before = anchorEl?.getBoundingClientRect().top ?? null;
+      const unitId = anchorEl?.getAttribute("data-myz-unit") ?? "";
+      gaps[gap] = state;
+      repaintGap(root, gap, state);
+      if (before === null || !unitId) return;
+      const after = root.querySelector(
+        `[data-myz-unit="${unitId}"]`,
       ) as HTMLElement | null;
-      apply();
-      await nextTick();
-      if (before === null || !container || !afterSelector) return;
-      const after = bodyRef.value?.querySelector(
-        afterSelector,
-      ) as HTMLElement | null;
-      if (!after) return;
-      const delta = after.getBoundingClientRect().top - before;
+      const delta = (after?.getBoundingClientRect().top ?? before) - before;
       if (Math.abs(delta) > 1) {
-        // Instant: a smooth glide would move the anchor mid-flight, violating
-        // 「点击部分的位置始终保持不变」 (2026-11-24). The reveal itself fades
-        // in — that is where the motion lives.
-        container.scrollBy({ top: delta });
+        // Instant compensation, same frame: a smooth glide would move the
+        // anchor mid-flight, violating 「点击部分的位置始终保持不变」.
+        const container = root.closest(".myz-workspace__body");
+        (container as HTMLElement | null)?.scrollBy({ top: delta });
       }
     }
 
@@ -276,28 +277,28 @@ export const ViewerSnapshotView = defineComponent({
         return rect.bottom > 0 && rect.top < window.innerHeight;
       })();
       // Rule 4 (2026-11-24): A/G off-screen → the clicked element is the
-      // anchor (a hint is a whole block; a seam-half anchors its seam).
-      const clickedAnchor = (clicked?.closest(".myz-snapshot-tear") ??
-        clicked) as HTMLElement | null;
-      const anchorEl = regionVisible ? region : clickedAnchor;
-      const before = anchorEl?.getBoundingClientRect().top ?? null;
-      // Hint and revealed are the same DOM node (one block, unblurred): the
-      // stable unit id re-finds it after the re-render; the seam uses its
-      // `data-tear` id.
-      const unitId = anchorEl?.getAttribute("data-myz-unit") ?? "";
-      const anchorSelector = unitId
-        ? `[data-myz-unit="${unitId}"]`
-        : `[data-tear="gap-${gap}"]`;
-      const next = ensureGap(gap);
-      const state = next[gap];
-      next[gap] = {
-        ...state,
-        upRev: side === "up" ? state.upRev + 1 : state.upRev,
-        downRev: side === "down" ? state.downRev + 1 : state.downRev,
-      };
-      void keepAnchor(before, anchorSelector, () => {
-        gaps.value = next;
-      });
+      // anchor. A hint is a whole block (`data-myz-unit`); a seam-half has
+      // no unit id, so it anchors the block on its side — the one being
+      // revealed, which never moves (pure unblur).
+      const clickedUnit = clicked?.closest(
+        "[data-myz-unit]",
+      ) as HTMLElement | null;
+      const sideHint =
+        (bodyRef.value?.querySelector(
+          `.myz-snapshot-fold-hint[data-gap="${gap}"][data-side="${side}"]`,
+        ) as HTMLElement | null) ?? null;
+      const anchorEl = regionVisible ? region : (clickedUnit ?? sideHint);
+      ensureGap(gap);
+      const state = gaps[gap];
+      revealWithAnchor(
+        gap,
+        {
+          ...state,
+          upRev: side === "up" ? state.upRev + 1 : state.upRev,
+          downRev: side === "down" ? state.downRev + 1 : state.downRev,
+        },
+        anchorEl,
+      );
     }
 
     /**
@@ -315,20 +316,11 @@ export const ViewerSnapshotView = defineComponent({
         return rect.bottom > 0 && rect.top < viewportBottom;
       };
       const anchorEl = visible(up) ? up : visible(down) ? down : (up ?? down);
-      const before = anchorEl?.getBoundingClientRect().top ?? null;
-      const unitId = anchorEl?.getAttribute("data-myz-unit") ?? "";
-      const next = ensureGap(gap);
-      next[gap] = {
-        upRev: next[gap].upRev,
-        downRev: next[gap].downRev,
-        expanded: true,
-      };
-      void keepAnchor(
-        before,
-        unitId ? `[data-myz-unit="${unitId}"]` : "",
-        () => {
-          gaps.value = next;
-        },
+      ensureGap(gap);
+      revealWithAnchor(
+        gap,
+        { ...gaps[gap], expanded: true },
+        anchorEl as HTMLElement | null,
       );
     }
 
@@ -422,7 +414,7 @@ export const ViewerSnapshotView = defineComponent({
       if (!chosen) return;
       selectedVersion.value = index;
       snapshot.value = chosen;
-      gaps.value = [];
+      gaps = [];
     }
 
     /** Brings the active record's mark into view (the region it lives in). */

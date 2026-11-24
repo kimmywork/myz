@@ -236,7 +236,11 @@ test("long_hidden_content_folds_behind_one_seam_and_unfolds_stepwise", async () 
   await expect(view.locator(".myz-snapshot-fold-hint").last()).toContainText(
     "filler paragraph 11",
   );
-  await expect(view).not.toContainText("filler paragraph 6");
+  // Hidden middle blocks stay in the DOM (display:none) so reveals repaint in
+  // place — 「折叠」 is visibility, not absence (2026-11-24 抖动修复).
+  await expect(
+    view.locator("p", { hasText: "filler paragraph 6" }),
+  ).toBeHidden();
 
   const regionTop = (index: number) =>
     dash
@@ -273,11 +277,13 @@ test("long_hidden_content_folds_behind_one_seam_and_unfolds_stepwise", async () 
   await dash.waitForTimeout(150);
   expect(Math.abs((await regionTop(0)) - aBefore)).toBeLessThan(5);
 
-  // 点「…」本体 → 整段完整展开；全部展开后不再有折叠线。
+  // 点「…」本体 → 整段完整展开；全部展开后不再有折叠线，中段块可见。
   await dash.locator(".myz-snapshot-tear-glyph").click();
   await dash.waitForTimeout(100);
   await expect(dash.locator(".myz-snapshot-tear")).toHaveCount(0);
-  await expect(view).toContainText("filler paragraph 6");
+  await expect(
+    view.locator("p", { hasText: "filler paragraph 6" }),
+  ).toBeVisible();
 });
 
 test("the_header_bar_stays_pinned_while_the_snapshot_scrolls", async () => {

@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSnapshotDisplay,
+  repaintGap,
   withActiveAnchor,
 } from "@/dashboard/pages/highlight-viewer/snapshot-collapse";
 
@@ -118,6 +119,26 @@ describe("folded runs unfold from the highlight edges inward", () => {
       <p>the ${mark("rec-1", "marked")} paragraph</p>
     </article>`;
 
+  /**
+   * Hidden blocks stay in the DOM (`display: none`) so a reveal repaints in
+   * place — 「不在布局里」 is asserted as data-myz-hidden, not as absence
+   * (2026-11-24 抖动修复).
+   */
+  const hiddenTexts = (html: string): string[] => {
+    const root = document.createElement("div");
+    root.innerHTML = html;
+    return Array.from(root.querySelectorAll("[data-myz-hidden]")).map(
+      (node) => node.textContent ?? "",
+    );
+  };
+  const visibleTexts = (html: string): string[] => {
+    const root = document.createElement("div");
+    root.innerHTML = html;
+    return Array.from(
+      root.querySelectorAll(".myz-snapshot-revealed, .myz-snapshot-fold-hint"),
+    ).map((node) => node.textContent ?? "");
+  };
+
   it("shows one seam per run with a hint at each edge", () => {
     const out = buildSnapshotDisplay(sixBlocks, "", {}, [
       { upRev: 0, downRev: 0, expanded: false },
@@ -128,8 +149,12 @@ describe("folded runs unfold from the highlight edges inward", () => {
     // middle (用户示例 A…G：上侧提示 B、下侧提示 F)。
     expect(out).toContain("block one");
     expect(out).toContain("block six");
-    expect(out).not.toContain("block three");
-    expect(out).not.toContain("block four");
+    expect(hiddenTexts(out)).toEqual([
+      "block two",
+      "block three",
+      "block four",
+      "block five",
+    ]);
   });
 
   it("unfolds upward from the upper highlight, one block at a time", () => {
@@ -139,8 +164,9 @@ describe("folded runs unfold from the highlight edges inward", () => {
     expect(out).toContain('data-revealed="gap-0-up"');
     expect(out).toContain("block one");
     // The hint advances to the next hidden block on that side.
-    expect(out).toContain("block two");
-    expect(out).not.toContain("block three");
+    expect(visibleTexts(out)).toContain("block two");
+    expect(hiddenTexts(out)).not.toContain("block two");
+    expect(hiddenTexts(out)).toContain("block three");
   });
 
   it("unfolds downward from the lower highlight, one block at a time", () => {
@@ -149,8 +175,8 @@ describe("folded runs unfold from the highlight edges inward", () => {
     ]);
     expect(out).toContain('data-revealed="gap-0-down"');
     expect(out).toContain("block six");
-    expect(out).toContain("block five");
-    expect(out).not.toContain("block four");
+    expect(visibleTexts(out)).toContain("block five");
+    expect(hiddenTexts(out)).toContain("block four");
   });
 
   it("drops the seam once nothing is left in the middle", () => {
@@ -161,6 +187,7 @@ describe("folded runs unfold from the highlight edges inward", () => {
     expect(out).toContain("block six");
     expect(out).not.toContain("myz-snapshot-tear");
     expect(out).not.toContain("myz-snapshot-fold-hint");
+    expect(hiddenTexts(out)).toEqual([]);
   });
 
   it("unfolds the whole run when the glyph is clicked", () => {
@@ -171,6 +198,7 @@ describe("folded runs unfold from the highlight edges inward", () => {
     expect(out).toContain('data-revealed="gap-0"');
     expect(out).toContain("block one");
     expect(out).toContain("block six");
+    expect(hiddenTexts(out)).toEqual([]);
   });
 
   it("escapes text nodes so entities cannot become live markup", () => {
@@ -213,5 +241,54 @@ describe("withActiveAnchor", () => {
     // Only the second mark is emphasised.
     expect(out.match(/is-active/g)).toHaveLength(1);
     expect(out).toContain('data-myz-anchor="rec-2" class="is-active"');
+  });
+});
+
+describe("repaintGap repaints in place (no rebuild — no jitter)", () => {
+  const fixture = `
+    <article>
+      <p>block one</p><p>block two</p><p>block three</p>
+      <p>the ${mark("rec-1", "marked")} paragraph</p>
+    </article>`;
+
+  function mount(): HTMLElement {
+    const root = document.createElement("div");
+    root.innerHTML = buildSnapshotDisplay(fixture);
+    return root;
+  }
+
+  it("keeps every existing node identical across a reveal", () => {
+    const root = mount();
+    const before = Array.from(root.querySelectorAll("[data-myz-run]"));
+    expect(before.length).toBe(3);
+    repaintGap(root, 0, { upRev: 1, downRev: 0, expanded: false });
+    const after = Array.from(root.querySelectorAll("[data-myz-run]"));
+    // Same nodes, same order — the reveal only swapped classes on them.
+    expect(after.length).toBe(before.length);
+    after.forEach((node, index) => expect(node).toBe(before[index]));
+  });
+
+  it("marks only newly-appeared blocks with the entrance fade", () => {
+    const root = mount();
+    // Initial build: hidden blocks carry no entrance mark (nothing "appeared").
+    expect(root.querySelector("[data-myz-fresh]")).toBeNull();
+    repaintGap(root, 0, { upRev: 1, downRev: 0, expanded: false });
+    // The block that just left the fold gets the fade; the already-visible
+    // hint-turned-revealed block does not (its transition is the motion).
+    const fresh = Array.from(root.querySelectorAll("[data-myz-fresh]"));
+    expect(fresh.length).toBe(1);
+    expect(fresh[0].textContent).toContain("block two");
+  });
+
+  it("advances the hint and keeps the seam while hidden blocks remain", () => {
+    const root = mount();
+    repaintGap(root, 0, { upRev: 1, downRev: 0, expanded: false });
+    const hints = Array.from(root.querySelectorAll(".myz-snapshot-fold-hint"));
+    // Pool of 2 after the reveal → a hint at each edge, seam between.
+    expect(hints.map((node) => node.textContent)).toEqual([
+      "block two",
+      "block three",
+    ]);
+    expect(root.querySelectorAll(".myz-snapshot-tear").length).toBe(1);
   });
 });

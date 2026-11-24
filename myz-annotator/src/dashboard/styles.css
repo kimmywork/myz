@@ -367,10 +367,20 @@
     }
   }
 
-  /* 渐入：展开的内容淡入（对应模糊的渐出）。块就是块——揭示=同一元素去
-     模糊，无 wrapper、无盒子改写（探针 2026-11-24：filter 不改盒型，
-     blurred 与清晰块几何完全一致）。 */
+  /* 揭示=同一节点去模糊（2026-11-24 抖动修复）：hint 与 revealed 是同一个
+     元素的两个状态，切换类名即触发 filter/opacity 过渡——不重建 DOM、
+     不重播动画，几何完全一致（探针：filter 不改盒型）。 */
   .myz-snapshot-revealed {
+    filter: none;
+    opacity: 1;
+    transition:
+      filter var(--myz-motion-med) var(--myz-ease-out),
+      opacity var(--myz-motion-med) var(--myz-ease-out);
+  }
+
+  /* 只有刚从隐藏里出现的块播一次淡入（data-myz-fresh）；未动的块不再
+     重播任何动画——整页抖动的根源（2026-11-24）。 */
+  [data-myz-fresh] {
     animation: myz-snapshot-fade-in var(--myz-motion-med) var(--myz-ease-out);
   }
 
@@ -379,11 +389,12 @@
       opacity: 0;
       filter: blur(4px);
     }
+  }
 
-    to {
-      opacity: 1;
-      filter: none;
-    }
+  /* 折叠池的中段块：留在 DOM、display:none 出布局——揭示=原地换类，
+     不需要 innerHTML 重建（2026-11-24）。 */
+  .myz-snapshot-fold-hidden {
+    display: none;
   }
 
   /* 「…」撕裂缝：两个划线之间唯一的分割线。上半区向上展开一段、下半区向
