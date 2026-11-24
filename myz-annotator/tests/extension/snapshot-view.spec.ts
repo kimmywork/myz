@@ -80,51 +80,28 @@ test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", asyn
   // 点剩余提示继续揭（before）；单块段 gap1 同样点提示（after）。
   // data-revealed 挂在每个揭示块上，二次揭示后匹配 2 个 → 取最后一个。
   // 三段（上带 / 「…」行 / 下带）不重叠：上半区中点必须命中半区本身。
-  // 2026-11-24 之前「…」压在两带交界处，中点距它只有 1px，CI 的字体度量
-  // 差一点就让「展开一段」静默变成「整段展开」。
-  const upCenter = await view
-    .locator('.myz-snapshot-tear-half[data-side="up"]')
-    .evaluate((el) => {
+  // 2026-11-24 之前「…」压在两带交界处，中点距它只有 1px——CI 上从「展开
+  // 一段」静默变成「整段展开」。命中测试读的是绘制后的层树，布局刚变完的
+  // 那一帧可能还指向旧位置，所以用 poll 等一帧，正常情况第一轮就过。
+  const probeBand = () =>
+    view.locator('.myz-snapshot-tear-half[data-side="up"]').evaluate((el) => {
       const rect = el.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
-      const tear = el.closest(".myz-snapshot-tear") as HTMLElement | null;
-      const glyph = tear?.querySelector(
-        ".myz-snapshot-tear-glyph",
-      ) as HTMLElement | null;
-      const box = (target: Element | null | undefined) => {
-        const r = target?.getBoundingClientRect();
-        return r
-          ? { top: +r.top.toFixed(1), height: +r.height.toFixed(1) }
-          : null;
-      };
-      const style = (target: Element | null | undefined) => {
-        if (!target) return null;
-        const cs = getComputedStyle(target);
-        return {
-          display: cs.display,
-          rows: cs.gridTemplateRows,
-          alignSelf: cs.alignSelf,
-          position: cs.position,
-          zIndex: cs.zIndex,
-          height: cs.height,
-          lineHeight: cs.lineHeight,
-        };
-      };
-      return {
-        hit: document.elementFromPoint(x, y)?.className ?? "",
-        stack: document.elementsFromPoint(x, y).map((e) => e.className),
-        tear: { box: box(tear), style: style(tear) },
-        band: { box: box(el), style: style(el) },
-        glyph: { box: box(glyph), style: style(glyph) },
-        point: { x, y },
-      };
+      const glyph = el
+        .closest(".myz-snapshot-tear")
+        ?.querySelector(".myz-snapshot-tear-glyph");
+      const glyphRect = glyph?.getBoundingClientRect();
+      const hit = document.elementFromPoint(x, y)?.className ?? "";
+      // Numbers ride along so a layout difference reports itself.
+      return (
+        `${hit} [band ${rect.top.toFixed(1)}+${rect.height.toFixed(1)}, ` +
+        `glyph ${glyphRect ? `${glyphRect.top.toFixed(1)}+${glyphRect.height.toFixed(1)}` : "-"}]`
+      );
     });
-  // The rect rides along in the failure message so a CI-only layout difference
-  // reports its own numbers instead of just the class it hit.
-  expect(upCenter.hit, JSON.stringify(upCenter)).toContain(
-    "myz-snapshot-tear-half",
-  );
+  await expect
+    .poll(probeBand, { message: "上半区中点应命中半区本身" })
+    .toContain("myz-snapshot-tear-half");
   await view.locator('.myz-snapshot-tear-half[data-side="up"]').click();
   await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
     "Title",
