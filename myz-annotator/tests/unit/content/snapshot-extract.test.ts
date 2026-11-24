@@ -21,9 +21,7 @@ function loadFixture(name: string): Document {
 describe("snapshot extraction", () => {
   it("keeps the article text and drops scripts, media and site CSS", () => {
     const doc = loadFixture("article-page.html");
-    const snapshot = extractSnapshot(doc, "https://example.com/article", {
-      mode: "full",
-    })!;
+    const snapshot = extractSnapshot(doc, "https://example.com/article", {})!;
 
     expect(snapshot.html).toContain("<p");
     expect(snapshot.html).not.toContain("<script");

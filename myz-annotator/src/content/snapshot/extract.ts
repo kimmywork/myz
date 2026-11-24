@@ -1,13 +1,11 @@
 /**
- * Turning a live page into a snapshot (§I8 / §3.4, revised 2026-11-23).
+ * Turning a live page into a snapshot (§I8 / §3.4, revised 2026-11-24).
  *
  * What ships here is *structure* — no scripts, no image payloads, no site CSS.
- * How much structure depends on the page (see `page-eligibility.ts`):
- *
- * - `full` — an article page keeps its **whole readable body** (正文边界内
- *   整篇). The viewer folds the display down to the annotated regions.
- * - `windowed` — an endless-scroll page gets a record-anchored window: the
- *   cluster of the page's records plus a little air (`truncate.ts`).
+ * How much structure is the page's **span around its records** (see
+ * `truncate.ts`): the readable body is located first (site rules → semantic
+ * tags → density), expanded to cover a record that lives outside it, and then
+ * trimmed to the first/last highlighted block plus a little context.
  *
  * The extractor is written as pure functions over a `Document` so it can be
  * tested against fixtures without a running content script.
