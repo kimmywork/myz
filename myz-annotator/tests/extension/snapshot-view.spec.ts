@@ -78,12 +78,13 @@ test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", asyn
 
   // 上半区从上侧划线处向内揭（先 Title）；gap0 只剩单块后不再有缝，
   // 点剩余提示继续揭（before）；单块段 gap1 同样点提示（after）。
+  // data-revealed 挂在每个揭示块上，二次揭示后匹配 2 个 → 取最后一个。
   await view.locator('.myz-snapshot-tear-half[data-side="up"]').click();
   await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
     "Title",
   );
   await view.locator('.myz-snapshot-fold-hint[data-gap="0"]').click();
-  await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
+  await expect(view.locator('[data-revealed="gap-0-up"]').last()).toContainText(
     "before",
   );
   await view.locator('.myz-snapshot-fold-hint[data-gap="1"]').click();

@@ -74,6 +74,40 @@ describe("buildSnapshotDisplay", () => {
     expect(out).toContain("</em>");
     expect(out).toContain('data-myz-anchor="rec-1"');
   });
+
+  it("never splits a figcaption's inline run into blocks", () => {
+    // Real markup from thinkingmachines.ai (2026-11-24 bug report): a
+    // <figure> whose <figcaption> is pure inline content. The old splitter
+    // cut `<i>is</i>` out as its own "block".
+    const html = `
+      <article>
+        <figure><img src="x.png"><figcaption>From the perspective of the
+        inference server, it <i>is</i> deterministic.</figcaption></figure>
+        <p>the ${mark("rec-1", "marked")} paragraph</p>
+      </article>`;
+    const out = buildSnapshotDisplay(html);
+    // The figure is one unit: the inline run stays whole inside its hint.
+    expect(out.match(/myz-snapshot-fold-hint/g) ?? []).toHaveLength(1);
+    const hint = out.match(
+      /<figure[^>]*class="[^"]*myz-snapshot-fold-hint[^"]*"[^>]*>([\s\S]*?)<\/figure>/,
+    );
+    expect(hint?.[1]).toContain("<i>is</i>");
+    expect(hint?.[1]).toContain("it <i>is</i> deterministic");
+  });
+
+  it("keeps a bold lead-in inline within its figcaption unit", () => {
+    // Second real case: <figcaption><b>Data Parallel RMSNorm</b> Ideally…
+    const html = `
+      <article>
+        <figure><img src="y.png"><figcaption><b>Data Parallel RMSNorm</b>
+        Ideally, we\u2019d like to avoid communication between cores.</figcaption></figure>
+        <p>the ${mark("rec-1", "marked")} paragraph</p>
+      </article>`;
+    const out = buildSnapshotDisplay(html);
+    expect(out.match(/myz-snapshot-fold-hint/g) ?? []).toHaveLength(1);
+    expect(out).toContain("<b>Data Parallel RMSNorm</b>");
+    expect(out.match(/<b>/g)).toHaveLength(1);
+  });
 });
 
 describe("folded runs unfold from the highlight edges inward", () => {

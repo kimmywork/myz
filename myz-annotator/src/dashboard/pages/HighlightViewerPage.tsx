@@ -46,14 +46,14 @@ export default defineComponent({
         }
         return (
           <div class="flex min-h-0 flex-col gap-3 p-4">
-            {/* 顶部条固定：快照滚动不影响（2026-11-23）。 */}
+            {/* 顶部条固定：快照滚动不影响；编辑面板也贴在这里（2026-11-23）。 */}
             <div
-              class="sticky top-0 z-10 -mx-4 -mt-4 bg-bg px-4 pt-4"
+              class="sticky top-0 z-10 -mx-4 -mt-4 flex flex-col gap-3 bg-bg px-4 pt-4"
               data-testid="viewer-sticky-bar"
             >
               <ViewerHeader api={a} />
+              {a.editing.value ? <ViewerEditPanel api={a} /> : null}
             </div>
-            {a.editing.value ? <ViewerEditPanel api={a} /> : null}
             <ViewerSnapshotView
               pageUrl={a.record.value?.sourceUrl || a.record.value?.url || ""}
               records={a.pageRecords.value.map((item) => ({

@@ -231,23 +231,28 @@ export const ViewerSnapshotView = defineComponent({
     }
 
     /**
-     * The gap's outer visual anchor on one side: the nearest highlight
-     * region above (up) or below (down). That is the reader's reference
-     * point — it must not move (2026-11-24).
+     * The gap's outer visual anchor on one side: the highlight region above
+     * (up, A) or below (down, G). The fold display records each gap's two
+     * region ids (`data-up-region`/`data-down-region`), so this is a lookup —
+     * no sibling walking. That anchor is the reader's reference point and
+     * must not move (2026-11-24).
      */
     function outerRegion(gap: number, side: "up" | "down"): HTMLElement | null {
-      const inner =
+      const holder =
         bodyRef.value?.querySelector(
-          `[data-tear="gap-${gap}"], [data-gap="${gap}"]`,
+          `[data-tear="gap-${gap}"], .myz-snapshot-fold-hint[data-gap="${gap}"]`,
         ) ?? null;
-      let el: Element | null = inner;
-      while (el) {
-        el = side === "up" ? el.previousElementSibling : el.nextElementSibling;
-        if (el?.classList.contains("myz-snapshot-region")) {
-          return el as HTMLElement;
-        }
+      const id = holder?.getAttribute(
+        side === "up" ? "data-up-region" : "data-down-region",
+      );
+      if (id === null || id === undefined || id === "" || id === "-1") {
+        return null;
       }
-      return null;
+      return (
+        (bodyRef.value?.querySelector(
+          `[data-region="${id}"]`,
+        ) as HTMLElement | null) ?? null
+      );
     }
 
     /**
@@ -270,16 +275,19 @@ export const ViewerSnapshotView = defineComponent({
         const rect = region.getBoundingClientRect();
         return rect.bottom > 0 && rect.top < window.innerHeight;
       })();
-      const anchorEl = regionVisible ? region : clicked;
+      // Rule 4 (2026-11-24): A/G off-screen → the clicked element is the
+      // anchor (a hint is a whole block; a seam-half anchors its seam).
+      const clickedAnchor = (clicked?.closest(".myz-snapshot-tear") ??
+        clicked) as HTMLElement | null;
+      const anchorEl = regionVisible ? region : clickedAnchor;
       const before = anchorEl?.getBoundingClientRect().top ?? null;
-      const isHint = Boolean(clicked?.closest(".myz-snapshot-fold-hint"));
-      const anchorSelector = regionVisible
-        ? `[data-region="${region?.getAttribute("data-region") ?? ""}"]`
-        : isHint
-          ? side === "up"
-            ? `[data-revealed="gap-${gap}-up"] > :last-child`
-            : `[data-revealed="gap-${gap}-down"] > :first-child`
-          : `[data-tear="gap-${gap}"]`;
+      // Hint and revealed are the same DOM node (one block, unblurred): the
+      // stable unit id re-finds it after the re-render; the seam uses its
+      // `data-tear` id.
+      const unitId = anchorEl?.getAttribute("data-myz-unit") ?? "";
+      const anchorSelector = unitId
+        ? `[data-myz-unit="${unitId}"]`
+        : `[data-tear="gap-${gap}"]`;
       const next = ensureGap(gap);
       const state = next[gap];
       next[gap] = {
@@ -294,34 +302,21 @@ export const ViewerSnapshotView = defineComponent({
 
     /**
      * Full unfold (the 「…」 glyph): anchor on the visible highlight record —
-     * the one above preferred, else the one below — so the records show how
-     * far the snapshot has opened (2026-11-24).
+     * the one above preferred (the earlier record), else the one below — so
+     * the records show how far the snapshot has opened (2026-11-24).
      */
-    function revealAll(gap: number, clicked: HTMLElement | null) {
-      const tearEl = clicked?.closest(
-        ".myz-snapshot-tear",
-      ) as HTMLElement | null;
-      let anchorEl: Element | null = null;
-      if (tearEl) {
-        let prev: Element | null = tearEl.previousElementSibling;
-        while (prev && !prev.classList.contains("myz-snapshot-region")) {
-          prev = prev.previousElementSibling;
-        }
-        let next: Element | null = tearEl.nextElementSibling;
-        while (next && !next.classList.contains("myz-snapshot-region")) {
-          next = next.nextElementSibling;
-        }
-        const viewportBottom = window.innerHeight;
-        const visible = (el: Element | null) => {
-          if (!el) return false;
-          const rect = el.getBoundingClientRect();
-          return rect.bottom > 0 && rect.top < viewportBottom;
-        };
-        anchorEl = visible(prev) ? prev : visible(next) ? next : (prev ?? next);
-      }
-      const before = (anchorEl as HTMLElement | null)?.getBoundingClientRect()
-        .top;
-      const regionId = anchorEl?.getAttribute("data-region") ?? "";
+    function revealAll(gap: number) {
+      const up = outerRegion(gap, "up");
+      const down = outerRegion(gap, "down");
+      const viewportBottom = window.innerHeight;
+      const visible = (el: Element | null) => {
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.bottom > 0 && rect.top < viewportBottom;
+      };
+      const anchorEl = visible(up) ? up : visible(down) ? down : (up ?? down);
+      const before = anchorEl?.getBoundingClientRect().top ?? null;
+      const unitId = anchorEl?.getAttribute("data-myz-unit") ?? "";
       const next = ensureGap(gap);
       next[gap] = {
         upRev: next[gap].upRev,
@@ -329,8 +324,8 @@ export const ViewerSnapshotView = defineComponent({
         expanded: true,
       };
       void keepAnchor(
-        before ?? null,
-        regionId ? `[data-region="${regionId}"]` : "",
+        before,
+        unitId ? `[data-myz-unit="${unitId}"]` : "",
         () => {
           gaps.value = next;
         },
@@ -417,7 +412,7 @@ export const ViewerSnapshotView = defineComponent({
         ".myz-snapshot-tear-glyph",
       ) as HTMLElement | null;
       if (glyph && bodyRef.value?.contains(glyph)) {
-        revealAll(Number(glyph.getAttribute("data-gap") || "-1"), glyph);
+        revealAll(Number(glyph.getAttribute("data-gap") || "-1"));
       }
     }
 

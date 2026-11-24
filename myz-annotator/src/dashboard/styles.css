@@ -260,12 +260,11 @@
   }
 
   /* 正文纸面：排版取 read token；宽度/字号在文件末尾的无层块里接管
-     （Tailwind typography 的 .prose 在 utilities 层，会压过 components）。 */
+     （Tailwind typography 的 .prose 在 utilities 层，会压过 components）。
+     块是纸面的直接子元素、正常文档流：margin 自然折叠，间距就是排版
+     间距——不做任何特殊处理（2026-11-24「都按排版的高度来展示」）。 */
   .myz-snapshot-body {
     position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
     margin-inline: auto;
     padding: 32px 48px;
     background: var(--myz-surface);
@@ -368,16 +367,9 @@
     }
   }
 
-  /* 渐入：展开的内容淡入；折叠残留侧留渐出边缘（遮起来并且模糊）。 */
-  /* 三种包裹层统一 flow-root：内部段落 margin 一律收在盒内。否则提示块的
-     filter 会建立格式化上下文、把 margin 关进盒子，而揭示后 filter 消失
-     margin 又折出去——文字会向上跳一段（2026-11-24）。 */
-  .myz-snapshot-region,
-  .myz-snapshot-fold-hint,
-  .myz-snapshot-revealed {
-    display: flow-root;
-  }
-
+  /* 渐入：展开的内容淡入（对应模糊的渐出）。块就是块——揭示=同一元素去
+     模糊，无 wrapper、无盒子改写（探针 2026-11-24：filter 不改盒型，
+     blurred 与清晰块几何完全一致）。 */
   .myz-snapshot-revealed {
     animation: myz-snapshot-fade-in var(--myz-motion-med) var(--myz-ease-out);
   }

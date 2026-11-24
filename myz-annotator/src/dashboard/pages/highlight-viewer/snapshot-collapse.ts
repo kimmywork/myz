@@ -1,34 +1,50 @@
 /**
- * The fold display (2026-11-24 定稿，用户示例：A…G 划了 A/G):
+ * The fold display (2026-11-24 定稿):
+ *
+ * 「高亮的段落、普通的段落、blurred 部分都不做特殊处理，按排版高度展示」.
+ *
+ * Units are **real block elements only** — inline runs (`it <i>is</i>
+ * deterministic…` in a `<figcaption>`, `<b>Data Parallel RMSNorm</b> Ideally…`)
+ * stay one unit and are never split into pieces. Nothing is wrapped: the
+ * display classes land directly on the blocks themselves, so a hint and its
+ * revealed form are the same element at the same height — revealing is a
+ * pure unblur with zero displacement (probe 2026-11-24: `filter` alone does
+ * not change the box, so blurred and sharp blocks are geometrically equal).
+ *
+ * Hidden runs (blocks between two annotated regions) fold as:
  *
  * ```
- * A                     ← 划线（清晰）
- * blurred B             ← 上侧提示：这一侧下一个要揭开的块
- * …… fold               ← 唯一的分割线（中间没有剩余内容时消失）
- * blurred F             ← 下侧提示
- * G                     ← 划线（清晰）
+ * A                       ← 划线（清晰）
+ * blurred B               ← 上侧提示：该侧下一个揭开的块（整块、按原高度）
+ * …… fold                 ← 唯一的分割线（池 ≥2 才有）
+ * blurred F               ← 下侧提示
+ * G                       ← 划线（清晰）
  * ```
  *
- * 点击提示或缝的对应半区 → 揭开**该侧紧邻划线处的下一个块**（上侧 B→C→…
- * 向中间推进，下侧 F→E→… 反向推进），提示随之前进；点「…」本体全部揭开。
- * 提示块本身模糊（遮起来并且模糊），揭开的内容渐入显示。
- *
- * Annotated units stay sharp in `.myz-snapshot-region` (tagged with a stable
- * `data-region` index for the scroll anchoring); a record's note lives on a
- * page-margin comment icon (popover on click).
+ * 揭示从两侧划线向中间推进（B→C→…、F→E→…）；池空则缝消失；点「…」全展开。
+ * Every unit carries stable ids (`data-myz-unit`, regions `data-region`, gaps
+ * `data-up-region`/`data-down-region`) so the view can keep its visual anchor
+ * screen-fixed across re-renders. Annotated blocks carry
+ * `.myz-snapshot-region` (page-margin comment icons live inside them).
  */
 
-/** Container tags that exist only to group blocks and may be split through. */
-const WRAPPER_SELECTOR =
-  "div, section, article, main, ul, ol, dl, table, tbody, thead, tfoot, figure";
-
-/** Block tags that make up the body's units. */
+/** Block tags that form the body's units. */
 const BLOCK_SELECTOR =
-  "p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th, dd, dt, figure, hr, div, section, article, main, ul, ol, dl, table, tbody, thead, tfoot, tr, header, footer, nav, aside";
+  "p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th, dd, dt, figure, figcaption, caption, hr, div, section, article, main, ul, ol, dl, table, tbody, thead, tfoot, tr, header, footer, nav, aside";
 
-interface Unit {
-  node: Node;
-  marked: boolean;
+/** Containers that only group blocks and may be split through. */
+const SPLITTABLE_SELECTOR = "div, section, article, main";
+
+function isBlockNode(node: Node): node is HTMLElement {
+  return (
+    node.nodeType === Node.ELEMENT_NODE &&
+    node instanceof HTMLElement &&
+    node.matches(BLOCK_SELECTOR)
+  );
+}
+
+function isBlankText(node: Node): boolean {
+  return node.nodeType === Node.TEXT_NODE && !(node.textContent || "").trim();
 }
 
 function hasMark(node: Node): boolean {
@@ -46,15 +62,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function serialize(node: Node): string {
-  return node.nodeType === Node.ELEMENT_NODE
-    ? (node as Element).outerHTML
-    : // A text node can legally hold `<` or `&` (the sanitizer keeps them as
-      // entities). Emitting them raw would decode them into markup once the
-      // joined string is re-parsed via `innerHTML` (CodeRabbit #135).
-      escapeHtml(node.textContent || "");
-}
-
 /** Lucide-style message-square glyph for the 页边 comment icon. */
 const COMMENT_SVG =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" ' +
@@ -63,30 +70,46 @@ const COMMENT_SVG =
   '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
 
 /**
- * Flattens the body into units: leaf blocks that contain a mark stay sharp,
- * unmarked subtrees stay whole as fold units. A wrapper is split through only
- * when its children are blocks themselves — inline content (`<p><em>…`) must
- * never be taken apart.
+ * Collects display units: real blocks one by one, and each maximal run of
+ * loose inline/text siblings as one span unit. Inline elements are never
+ * units of their own (2026-11-24: `<i>is</i>` must stay inside its
+ * `<figcaption>`, not become a "block").
  */
-function unitsOf(node: Node): Unit[] {
-  // Whitespace between blocks is layout, not content.
-  if (node.nodeType === Node.TEXT_NODE) {
-    return (node.textContent || "").trim() ? [{ node, marked: false }] : [];
-  }
-  if (node.nodeType !== Node.ELEMENT_NODE) {
-    return [{ node, marked: false }];
-  }
-  const element = node as Element;
-  const marked = hasMark(element);
-  if (!marked) return [{ node, marked: false }];
-
-  const elementChildren = Array.from(element.children);
-  const splittable =
-    elementChildren.length > 0 &&
-    element.matches(WRAPPER_SELECTOR) &&
-    elementChildren.every((child) => child.matches(BLOCK_SELECTOR));
-  if (!splittable) return [{ node, marked: true }];
-  return Array.from(element.childNodes).flatMap(unitsOf);
+function collectUnits(root: HTMLElement): HTMLElement[] {
+  const doc = root.ownerDocument ?? document;
+  const units: HTMLElement[] = [];
+  const walk = (container: Node) => {
+    let loose: Node[] = [];
+    /** Wraps the pending loose run into one unit at its own DOM position. */
+    const flushLoose = (before: Node | null) => {
+      // Edge whitespace separates blocks; only inner whitespace separates
+      // words — trim the edges, keep the middle.
+      while (loose.length && isBlankText(loose[0])) loose.shift();
+      while (loose.length && isBlankText(loose[loose.length - 1])) loose.pop();
+      if (!loose.length) return;
+      const span = doc.createElement("span");
+      const host = loose[0].parentNode ?? container;
+      host.insertBefore(span, before);
+      loose.forEach((node) => span.appendChild(node));
+      units.push(span);
+      loose = [];
+    };
+    for (const child of Array.from(container.childNodes)) {
+      if (isBlockNode(child)) {
+        flushLoose(child);
+        const splittable =
+          child.matches(SPLITTABLE_SELECTOR) &&
+          Array.from(child.children).some((c) => c.matches(BLOCK_SELECTOR));
+        if (splittable) walk(child);
+        else units.push(child);
+      } else {
+        loose.push(child);
+      }
+    }
+    flushLoose(null);
+  };
+  walk(root);
+  return units;
 }
 
 /** One hidden run's unfold state (2026-11-24 边到中推进). */
@@ -116,21 +139,23 @@ export function buildSnapshotDisplay(
   container.innerHTML = html;
   const withActive = withActiveAnchor(container.innerHTML, activeRecordId);
   if (!container.querySelector("mark")) return withActive;
-
   container.innerHTML = withActive;
-  // The stored body is one root element (the content container); its children
-  // are the units. Wrapper chains around the body are split through as well.
-  const units =
-    container.children.length === 1
-      ? unitsOf(container.firstElementChild as Element)
-      : Array.from(container.childNodes).flatMap(unitsOf);
 
-  /** Page-margin comment icons for the marks inside one region. */
-  const noteCards = (node: Node): string => {
-    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+  const units = collectUnits(container);
+  const doc = container.ownerDocument ?? document;
+  // Stable per-unit id in document order — the anchor the view re-finds
+  // after a re-render (hint and revealed are the same unit).
+  units.forEach((unit, index) =>
+    unit.setAttribute("data-myz-unit", String(index)),
+  );
+  let gapIndex = 0;
+  let regionIndex = 0;
+
+  /** Page-margin comment icons appended inside an annotated block. */
+  const noteIcons = (unit: HTMLElement) => {
     const icons: string[] = [];
     const seen = new Set<string>();
-    (node as Element).querySelectorAll("mark[data-myz-anchor]").forEach((m) => {
+    unit.querySelectorAll("mark[data-myz-anchor]").forEach((m) => {
       const id = m.getAttribute("data-myz-anchor") || "";
       const note = notes[id];
       if (!note || seen.has(id)) return;
@@ -141,95 +166,120 @@ export function buildSnapshotDisplay(
           `aria-label="查看批注">${COMMENT_SVG}</button>`,
       );
     });
-    return icons.length
-      ? `<div class="myz-snapshot-note-icons">${icons.join("")}</div>`
-      : "";
+    if (!icons.length) return;
+    // span: valid inside <p>/<li> and absolutely positioned (no layout).
+    const holder = doc.createElement("span");
+    holder.className = "myz-snapshot-note-icons";
+    holder.innerHTML = icons.join("");
+    unit.appendChild(holder);
   };
 
-  /** One unfolded stretch, fading in (渐入); tagged for the scroll anchor. */
-  const revealed = (html: string, gap: number, side?: "up" | "down") =>
-    html
-      ? `<div class="myz-snapshot-revealed" data-revealed="gap-${gap}${
-          side ? `-${side}` : ""
-        }">${html}</div>`
-      : "";
+  const markHint = (
+    unit: HTMLElement,
+    side: "up" | "down",
+    gap: number,
+    upRegion: number,
+    downRegion: number,
+  ) => {
+    unit.classList.add("myz-snapshot-fold-hint");
+    unit.setAttribute("data-gap", String(gap));
+    unit.setAttribute("data-side", side);
+    unit.setAttribute("data-up-region", String(upRegion));
+    unit.setAttribute("data-down-region", String(downRegion));
+    unit.setAttribute("tabindex", "0");
+    unit.setAttribute("role", "button");
+    unit.setAttribute("aria-expanded", "false");
+    const label = side === "up" ? "向上展开一段" : "向下展开一段";
+    unit.setAttribute("aria-label", label);
+    unit.setAttribute("title", label);
+  };
 
-  /**
-   * A short blurred preview of the block this side will reveal next — so the
-   * reader can see content is still hidden there. Clicking it reveals exactly
-   * that block (same action as the seam half).
-   */
-  const foldHint = (blockHtml: string, gap: number, side: "up" | "down") =>
-    `<div class="myz-snapshot-fold-hint" data-gap="${gap}" data-side="${side}" ` +
-    `tabindex="0" role="button" aria-label="${
-      side === "up" ? "向上展开一段" : "向下展开一段"
-    }" title="${side === "up" ? "向上展开一段" : "向下展开一段"}">` +
-    `${blockHtml}</div>`;
+  const tear = (gap: number, upRegion: number, downRegion: number) => {
+    const el = doc.createElement("div");
+    el.className = "myz-snapshot-tear";
+    el.setAttribute("data-gap", String(gap));
+    el.setAttribute("data-tear", `gap-${gap}`);
+    el.setAttribute("data-up-region", String(upRegion));
+    el.setAttribute("data-down-region", String(downRegion));
+    el.innerHTML =
+      `<button type="button" class="myz-snapshot-tear-half" data-gap="${gap}" ` +
+      `data-side="up" aria-label="向上展开一段" title="向上展开一段"></button>` +
+      `<button type="button" class="myz-snapshot-tear-half" data-gap="${gap}" ` +
+      `data-side="down" aria-label="向下展开一段" title="向下展开一段"></button>` +
+      `<span class="myz-snapshot-tear-glyph" role="button" tabindex="0" ` +
+      `data-gap="${gap}" aria-label="展开全部" title="展开全部">…</span>`;
+    return el;
+  };
 
-  /**
-   * The single 「…」 seam of a hidden run: upper half unfolds upward, lower
-   * half downward, the glyph unfolds everything. Hidden once nothing remains
-   * in the middle (2026-11-24).
-   */
-  const tear = (gap: number) =>
-    `<div class="myz-snapshot-tear" data-gap="${gap}" data-tear="gap-${gap}">` +
-    `<button type="button" class="myz-snapshot-tear-half" data-gap="${gap}" ` +
-    `data-side="up" aria-label="向上展开一段" title="向上展开一段"></button>` +
-    `<button type="button" class="myz-snapshot-tear-half" data-gap="${gap}" ` +
-    `data-side="down" aria-label="向下展开一段" title="向下展开一段"></button>` +
-    `<span class="myz-snapshot-tear-glyph" role="button" tabindex="0" ` +
-    `data-gap="${gap}" aria-label="展开全部" title="展开全部">…</span>` +
-    `</div>`;
-
-  /**
-   * Renders one hidden run. Unfold grows from the two highlight edges inward:
-   * the up side reveals the pool's top block first (B, then C…), the down
-   * side its bottom block first (F, then E…); each side's hint is exactly the
-   * block it will reveal next.
-   */
-  const renderGap = (blocks: Node[], gap: number): string => {
-    const state = gaps[gap];
-    const serialized = blocks.map(serialize);
-    const total = serialized.length;
-    if (state?.expanded) return revealed(serialized.join(""), gap);
+  /** One hidden run: hints at both ends of the pool, middle collapsed. */
+  const renderRun = (
+    run: HTMLElement[],
+    upRegion: number,
+    downRegion: number,
+  ) => {
+    const state = gaps[gapIndex];
+    const gap = gapIndex;
+    gapIndex += 1;
+    const total = run.length;
     const upRev = Math.min(state?.upRev ?? 0, total);
     const downRev = Math.min(state?.downRev ?? 0, total - upRev);
-    const pool = serialized.slice(upRev, total - downRev);
-    return [
-      revealed(serialized.slice(0, upRev).join(""), gap, "up"),
-      pool.length ? foldHint(pool[0], gap, "up") : "",
-      pool.length > 1 ? tear(gap) : "",
-      pool.length > 1 ? foldHint(pool[pool.length - 1], gap, "down") : "",
-      revealed(serialized.slice(total - downRev).join(""), gap, "down"),
-    ]
-      .filter(Boolean)
-      .join("");
+    if (state?.expanded) {
+      run.forEach((unit) => {
+        unit.classList.add("myz-snapshot-revealed");
+        unit.setAttribute("data-revealed", `gap-${gap}`);
+      });
+      return;
+    }
+    run.slice(0, upRev).forEach((unit) => {
+      unit.classList.add("myz-snapshot-revealed");
+      unit.setAttribute("data-revealed", `gap-${gap}-up`);
+    });
+    run.slice(total - downRev).forEach((unit) => {
+      unit.classList.add("myz-snapshot-revealed");
+      unit.setAttribute("data-revealed", `gap-${gap}-down`);
+    });
+    const pool = run.slice(upRev, total - downRev);
+    if (!pool.length) return;
+    if (pool.length === 1) {
+      markHint(pool[0], "up", gap, upRegion, downRegion);
+      return;
+    }
+    markHint(pool[0], "up", gap, upRegion, downRegion);
+    markHint(pool[pool.length - 1], "down", gap, upRegion, downRegion);
+    // The middle stays out of the layout entirely; the seam marks it.
+    pool.slice(1, -1).forEach((unit) => unit.remove());
+    const last = pool[pool.length - 1];
+    last.parentNode?.insertBefore(tear(gap, upRegion, downRegion), last);
   };
 
-  const out: string[] = [];
-  let pending: Node[] = [];
-  let gapIndex = 0;
-  let regionIndex = 0;
-  const flush = () => {
-    if (!pending.length) return;
-    out.push(renderGap(pending, gapIndex));
-    gapIndex += 1;
-    pending = [];
-  };
-  for (const unit of units) {
-    if (!unit.marked) {
-      pending.push(unit.node);
+  let i = 0;
+  while (i < units.length) {
+    const unit = units[i];
+    if (hasMark(unit)) {
+      unit.classList.add("myz-snapshot-region");
+      unit.setAttribute("data-region", String(regionIndex));
+      regionIndex += 1;
+      noteIcons(unit);
+      i += 1;
       continue;
     }
-    flush();
-    out.push(
-      `<div class="myz-snapshot-region" data-region="${regionIndex}">` +
-        `${serialize(unit.node)}${noteCards(unit.node)}</div>`,
-    );
-    regionIndex += 1;
+    let j = i;
+    while (j < units.length && !hasMark(units[j])) j += 1;
+    // Runs sit between annotated regions; each side's region is the visual
+    // anchor for unfolding from that side (A above / G below).
+    const upRegion =
+      i > 0 && hasMark(units[i - 1])
+        ? Number(units[i - 1].getAttribute("data-region") ?? "-1")
+        : -1;
+    const downRegion =
+      j < units.length && hasMark(units[j])
+        ? Number(units[j].getAttribute("data-region") ?? "-1")
+        : -1;
+    renderRun(units.slice(i, j), upRegion, downRegion);
+    i = j;
   }
-  flush();
-  return out.join("");
+
+  return container.innerHTML;
 }
 
 /**
