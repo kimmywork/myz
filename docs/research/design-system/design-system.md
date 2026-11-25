@@ -1520,7 +1520,7 @@ Inbox 是新采集内容的处理队列，不是文库副本，也不是按时�
 6. **视觉回归未跑**：14 个新 token 已进 `tokens.css`，但还没有实现消费它们；8 套主题（4 方案 × 深浅）与对比度要等壳落地后实测。
 7. **已落地（I4）**：删除统一——`packages/core` 的 undoable delete session + background 删除意图表（先落盘再移出 UI，启动/闹钟补提交，读取时过滤未到期 id）；Inbox / 文库 / 查看器 / 阅读器同构；单条无批注 6 秒撤销、带批注确认、批量原子；业务代码 `window.confirm` 为 0——宿主根上挂 `ConfirmHost`，原生框只作未注册兜底。
 8. **漂移检查未扩到实现层**：`check:design-tokens` 只比对 `tokens.css` 与本文档，不读实现，所以「实现里出现裸 hex」查不出来。0.7 计划 §3.1 与验收第 6 条要求扩到实现层，本轮没做，待范围拍板（半天量级）。
-9. **素材页预览的收口点（I10 验收）**：`myz-annotator/src/dashboard/pages/assets/AssetPreview.tsx` 的图片预览是纯展示弹窗，原先带一个页脚文字「关闭」按钮。收口方式：**关闭移标题栏 `X`，页脚删除**；但底部那条里的 `名称 · 宽×高` 与「原图读取失败，显示缩略图」提示**必须保留**（挪到标题栏或图片下方一行），它们不是纯退出，不能连带删。按这三句验收：关闭在标题栏、无页脚、元数据与失败提示仍在。
+9. **已落地（I10）**：素材页预览（`myz-annotator/src/dashboard/pages/assets/AssetPreview.tsx`）的纯展示弹窗收口——改用共享 `Dialog`：**关闭在标题栏 `X`、无页脚**；`名称 · 宽×高` 与「原图读取失败，显示缩略图」保留在图片下方一行（它们不是纯退出，不连带删）。初始落点见 §4.8「聚焦」行，实现是 `Dialog.resolveInitialFocus`（可用输入框 → 标题栏 X → 页脚非提交动作 → 容器，`tests/unit/dashboard/dialog-focus.test.ts` 钉住）。
 
 **待确认（0.7 设计修订）**
 
