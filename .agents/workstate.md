@@ -5,8 +5,8 @@
 
 ## 当前焦点
 
-- master 工作区（未建分支/PR）：2026-11-27 完成 8 项收尾脏活，改动仍在工作区未提交。
-- 文库改为**列表唯一视图**（卡片/切换/`dashboardView` 全删）；Inbox 详情改为半屏快照视图；快照定位用 `anchorText`（块/行内标签区别剥离）+ Markdown 兜底，已修 `<li>` 采集；首尾无划线内容默认全隐藏但保留可展开的「…」缝。
+- 分支 `fix/inbox-library-snapshot-closeout`（`69e8ba0`）已推送，PR #137 已开（https://github.com/kimmywork/myz/pull/137），CI 运行中。
+- 文库改为**列表唯一视图**（卡片/切换/`dashboardView` 全删）；Inbox 详情改为半屏快照视图；快照定位用 `anchorText`（块/行内标签区别剥离）+ Markdown 兜底，已修 `<li>` 采集；首尾无划线内容只隐藏边界之后的块，保留模糊 hint + 可展开的「…」缝。
 
 ## 状态
 
@@ -21,7 +21,7 @@
 
 ## 下一步
 
-- 用户复核 8 项效果；如需提交，从 master 起分支并显式列文件提交（当前直接改在 master 工作区）。
+- 等 PR #137 的 CI / CodeRabbit 结果并处理反馈；合并后删除远端分支。
 - `PARKING_LOT.md` 剩 3 条：混合标签名排序、采集缓存变更广播、缓存区总量上限。
 
 ## 参考
