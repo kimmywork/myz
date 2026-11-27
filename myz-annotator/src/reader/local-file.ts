@@ -4,6 +4,9 @@
  * fingerprinting and picker plumbing stay in one place.
  */
 
+/** Why a stored local handle cannot be used for reading. */
+export type PermissionState = "granted" | "denied" | "missing";
+
 export interface PermissionCapableHandle {
   name?: string;
   queryPermission?(desc: {
@@ -39,6 +42,31 @@ export function localFilePermissionError(): Error {
 
 export function isPermissionError(err: unknown): boolean {
   return err instanceof Error && err.name === "LocalFilePermissionError";
+}
+
+/**
+ * Raised when a record points at a local file whose stored handle is gone (or
+ * can no longer be granted). Navigating to a reader in that state only shows a
+ * generic error, so callers should stop and explain instead.
+ */
+export function localFileAccessError(): Error {
+  const err = new Error(
+    "该本地文件的访问授权已失效，请从阅读页重新打开本地文件",
+  );
+  err.name = "LocalFileAccessError";
+  return err;
+}
+
+export function isLocalFileAccessError(err: unknown): boolean {
+  return err instanceof Error && err.name === "LocalFileAccessError";
+}
+
+/**
+ * True when the native file picker was dismissed by the user (Cancel / Esc).
+ * Such a rejection is a normal outcome, not an error worth showing.
+ */
+export function isAbortError(err: unknown): boolean {
+  return (err as { name?: string } | null)?.name === "AbortError";
 }
 
 export async function readHandle(

@@ -43,6 +43,7 @@ export default defineComponent({
           selected={props.selected}
           onOpen={() => props.onAction?.("view", record)}
           data-id={record.id}
+          data-kind={kind.value}
         >
           {{
             leading: () =>

@@ -30,27 +30,30 @@ function pageUrl(name: string): string {
   return `https://example.com/${name}`;
 }
 
-test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", async () => {
+test("viewer_hides_edge_runs_and_folds_only_the_interior", async () => {
   const dash = await harness.open("/highlights");
   const url = pageUrl("article");
-  const record = await save(dash, "snapshot anchor sentence", url);
+  const first = await save(dash, "snapshot anchor sentence", url);
+  await save(dash, "second anchor sentence", url);
 
   // Store a snapshot for that page the way the content script would.
   const saved = await send<{ ok: boolean }>(dash, "myz:saveSnapshot", {
     url,
     title: "Article",
-    html: "<article><h1>Title</h1><p>before</p><p>snapshot anchor sentence</p><p>after</p></article>",
+    html:
+      "<article><h1>Title</h1><p>before</p>" +
+      "<p>snapshot anchor sentence</p><p>middle one</p><p>middle two</p>" +
+      "<p>second anchor sentence</p><p>after</p></article>",
     css: "body{}",
     bytes: 200,
   });
   expect(saved.ok).toBe(true);
 
-  await harness.navigate(dash, `/highlights/${record.id}`);
+  await harness.navigate(dash, `/highlights/${first.id}`);
   await dash.waitForSelector('[data-testid="snapshot-view"]');
 
   const view = dash.getByTestId("snapshot-view");
   await expect(view).toBeVisible();
-  // Header wording is fixed by the contract, date = when this copy was taken.
   const header = dash.getByTestId("snapshot-header");
   await expect(header).toContainText("快照 ");
   await expect(header).toContainText("· 原页可能已更新");
@@ -58,61 +61,78 @@ test("viewer_folds_context_behind_seams_and_keeps_annotated_regions_sharp", asyn
     "href",
     url,
   );
-  // The fixed status wording from the contract.
   await expect(dash.getByTestId("snapshot-status")).toContainText(
     "本机快照 · 占用",
   );
-  await expect(dash.getByTestId("snapshot-status")).toContainText(
-    "空间不足时最旧的会被清理",
-  );
-  // Fold display (2026-11-24): the marked sentence is sharp; the rest folds
-  // behind one 「…」 seam per hidden run, keeping a blurred hint of the next
-  // block each side will reveal (there is still content here).
-  await expect(view.locator("mark")).toContainText("snapshot anchor sentence");
-  await expect(view.locator(".myz-snapshot-tear")).toHaveCount(1);
-  const hints = view.locator(".myz-snapshot-fold-hint");
-  await expect(hints).toHaveCount(3);
-  await expect(hints.nth(0)).toContainText("Title");
-  await expect(hints.nth(1)).toContainText("before");
-  await expect(hints.nth(2)).toContainText("after");
 
-  // 上半区从上侧划线处向内揭（先 Title）；gap0 只剩单块后不再有缝，
-  // 点剩余提示继续揭（before）；单块段 gap1 同样点提示（after）。
-  // data-revealed 挂在每个揭示块上，二次揭示后匹配 2 个 → 取最后一个。
-  // 三段（上带 / 「…」行 / 下带）在**布局**上不重叠：2026-11-24 之前上下
-  // 半区各占 50%、「…」压在两带交界，中点距它只有 1px——CI 上「展开一段」
-  // 会静默变成「整段展开」（点的是半区中点，命中的是「…」）。
-  // 这里量盒子而不是 elementFromPoint：命中测试读的是绘制后的层树，CI 的
-  // 窗口不可见时字体换完也不重绘，层树停在旧位置（同一坐标上位 351+13、
-  // 「…」364+14，却报命中「…」）。
-  const seam = await view.locator(".myz-snapshot-tear").evaluate((tear) => {
-    const box = (selector: string) => {
-      const rect = tear.querySelector(selector)?.getBoundingClientRect();
-      return rect ? { top: rect.top, bottom: rect.bottom } : null;
-    };
-    return {
-      up: box('.myz-snapshot-tear-half[data-side="up"]'),
-      glyph: box(".myz-snapshot-tear-glyph"),
-      down: box('.myz-snapshot-tear-half[data-side="down"]'),
-    };
-  });
+  // Both marked sentences are sharp. Each edge keeps one blurred frontier
+  // hint (the seam's shadow); only the bulk beyond it is out of layout, and a
+  // 「…」 seam stays so it can be unfolded (2026-11-27). The interior run has
+  // its usual two hints.
+  await expect(view.locator("mark")).toHaveCount(2);
+  await expect(view.locator(".myz-snapshot-tear")).toHaveCount(3);
+  const hints = view.locator(".myz-snapshot-fold-hint");
+  await expect(hints).toHaveCount(4);
+  expect(await hints.allTextContents()).toEqual([
+    "before",
+    "middle one",
+    "middle two",
+    "after",
+  ]);
+  expect(await view.locator("[data-myz-hidden]").allTextContents()).toEqual([
+    "Title",
+  ]);
+
+  // The three seam bands must not overlap in layout (2026-11-24 fix).
+  const seam = await view
+    .locator('.myz-snapshot-tear[data-gap="1"]')
+    .evaluate((tear) => {
+      const box = (selector: string) => {
+        const rect = tear.querySelector(selector)?.getBoundingClientRect();
+        return rect ? { top: rect.top, bottom: rect.bottom } : null;
+      };
+      return {
+        up: box('.myz-snapshot-tear-half[data-side="up"]'),
+        glyph: box(".myz-snapshot-tear-glyph"),
+        down: box('.myz-snapshot-tear-half[data-side="down"]'),
+      };
+    });
   expect(seam.up && seam.glyph && seam.down).toBeTruthy();
   expect(seam.up!.bottom).toBeLessThanOrEqual(seam.glyph!.top + 0.5);
   expect(seam.glyph!.bottom).toBeLessThanOrEqual(seam.down!.top + 0.5);
-  expect(seam.up!.bottom - seam.up!.top).toBeGreaterThan(0);
 
+  // The leading seam opens the hidden head/nav from the mark upwards.
   await view
-    .locator('.myz-snapshot-fold-hint[data-gap="0"][data-side="up"]')
+    .locator(
+      '.myz-snapshot-tear[data-gap="0"] .myz-snapshot-tear-half[data-side="down"]',
+    )
     .click();
-  await expect(view.locator('[data-revealed="gap-0-up"]')).toContainText(
-    "Title",
-  );
-  await view.locator('.myz-snapshot-fold-hint[data-gap="0"]').click();
-  await expect(view.locator('[data-revealed="gap-0-up"]').last()).toContainText(
+  await expect(view.locator('[data-revealed="gap-0-down"]')).toContainText(
     "before",
   );
+
+  // The interior seam (gap 1) still unfolds one block per click.
+  await view
+    .locator('.myz-snapshot-fold-hint[data-gap="1"][data-side="up"]')
+    .click();
+  await expect(view.locator('[data-revealed="gap-1-up"]')).toContainText(
+    "middle one",
+  );
   await view.locator('.myz-snapshot-fold-hint[data-gap="1"]').click();
-  await expect(view).toContainText("after");
+  await expect(view.locator('[data-revealed="gap-1-up"]').last()).toContainText(
+    "middle two",
+  );
+
+  // The trailing seam opens the footer from the mark downwards; the revealed
+  // block lands above the seam, not below it.
+  await view
+    .locator(
+      '.myz-snapshot-tear[data-gap="2"] .myz-snapshot-tear-half[data-side="up"]',
+    )
+    .click();
+  await expect(view.locator('[data-revealed="gap-2-up"]')).toContainText(
+    "after",
+  );
 });
 
 test("viewer_says_when_a_page_has_no_snapshot", async () => {

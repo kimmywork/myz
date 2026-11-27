@@ -6,7 +6,6 @@ import type { AiSettings } from "@/ai/settings.js";
 export type { SyncS3Settings, SyncSettings };
 
 export interface Settings {
-  dashboardView: "cards" | "list";
   colorScheme: COLOR_SCHEMES;
   colorPalette: string[];
   lastUsedStyle: HIGHLIGHT_STYLES;

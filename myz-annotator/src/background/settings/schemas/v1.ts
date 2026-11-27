@@ -7,7 +7,6 @@ import { AiSettingsSchema } from "@/ai/settings.js";
 export const SettingsSchemaVersionV1 = SETTINGS_SCHEMA_VERSION;
 
 export const SettingsSchemaV1 = z.object({
-  dashboardView: z.enum(["cards", "list"]),
   colorScheme: z.nativeEnum(COLOR_SCHEMES),
   colorPalette: z.array(z.string()),
   lastUsedStyle: z.nativeEnum(HIGHLIGHT_STYLES),

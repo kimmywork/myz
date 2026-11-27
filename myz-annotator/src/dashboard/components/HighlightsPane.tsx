@@ -7,6 +7,7 @@ import {
   type HighlightItemAction,
 } from "@myz/dashboard-ui";
 import type { MyZRecord } from "@myz/shared/types";
+import { storeToRefs } from "pinia";
 import { computed, defineComponent, nextTick, watch } from "vue";
 import type { PropType } from "vue";
 import { useRouter } from "vue-router";
@@ -16,7 +17,6 @@ import {
   libraryViewKey,
   useLibrarySelection,
 } from "../composables/useLibrarySelection.js";
-import { useRecordAttachments } from "../composables/useRecordAttachments.js";
 import { useDeleteStore } from "../stores/delete.js";
 import { useHighlightsStore } from "../stores/highlights.js";
 import { useUIStore } from "../stores/ui.js";
@@ -24,6 +24,7 @@ import {
   openEpubInWorkspace,
   openPdfInWorkspace,
 } from "@/dashboard/utils/open-reader.js";
+import { setTimedStatus } from "@/dashboard/utils/setTimedStatus.js";
 
 export default defineComponent({
   name: "HighlightsPane",
@@ -33,6 +34,7 @@ export default defineComponent({
   },
   setup(props) {
     const highlightsStore = useHighlightsStore();
+    const { operationStatus } = storeToRefs(highlightsStore);
     const deleteStore = useDeleteStore();
     const uiStore = useUIStore();
     const router = useRouter();
@@ -42,7 +44,6 @@ export default defineComponent({
     });
 
     // Selection belongs to the view: filters / search / page filter clear it.
-    // Cards↔list is not part of the key — same records, different paint.
     const viewKey = computed(() =>
       libraryViewKey({
         quickSearch: uiStore.quickSearch,
@@ -83,14 +84,6 @@ export default defineComponent({
       },
     );
 
-    // Attachment thumbnails live in the capture cache, not in the record.
-    const attachments = useRecordAttachments();
-    watch(
-      () => uiStore.visibleHighlights,
-      (records) => void attachments.ensure(records),
-      { immediate: true },
-    );
-
     const selectedRecords = computed(() =>
       highlightsStore.highlights.filter(
         (record) =>
@@ -126,20 +119,19 @@ export default defineComponent({
     );
 
     watch(
-      () => uiStore.view,
-      async () => {
-        await nextTick();
-        restart();
-      },
-    );
-
-    watch(
       () => uiStore.visibleHighlights.length,
       async () => {
         await nextTick();
         restart();
       },
     );
+
+    // A removed local-file handle is reported in the page status instead of
+    // navigating into a reader that can only show a generic auth error.
+    const readOptions = {
+      onError: (message: string) =>
+        setTimedStatus(operationStatus, message, 5000),
+    };
 
     function handleAction(
       action: HighlightItemAction,
@@ -161,9 +153,9 @@ export default defineComponent({
           {
             const locator = resolveReaderLocator(record);
             if (locator?.kind === "epub") {
-              void openEpubInWorkspace(router, record);
+              void openEpubInWorkspace(router, record, readOptions);
             } else if (locator?.kind === "pdf-page-rect") {
-              void openPdfInWorkspace(router, record);
+              void openPdfInWorkspace(router, record, readOptions);
             } else {
               router.push(`/highlights/${record.id}`);
             }
@@ -179,10 +171,10 @@ export default defineComponent({
           void highlightsStore.downgradeHighlight(record.id);
           break;
         case "openPdf":
-          void openPdfInWorkspace(router, record);
+          void openPdfInWorkspace(router, record, readOptions);
           break;
         case "openEpub":
-          void openEpubInWorkspace(router, record);
+          void openEpubInWorkspace(router, record, readOptions);
           break;
       }
     }
@@ -192,8 +184,6 @@ export default defineComponent({
         summaryText={uiStore.summaryText}
         pageFilter={uiStore.pageFilter}
         currentPageLabel={currentPageLabel.value}
-        view={uiStore.view}
-        onSetView={uiStore.setView}
         onTogglePageSidebar={props.onOpenNav}
         onClearPageFilter={uiStore.clearPageFilter}
         onExport={(format) => {
@@ -287,7 +277,6 @@ export default defineComponent({
               ) : null}
               <HighlightGroups
                 loading={highlightsStore.loadingHighlights}
-                view={uiStore.view}
                 groups={uiStore.groupedHighlights.map((group) => ({
                   ...group,
                   items: group.items.filter(
@@ -305,7 +294,6 @@ export default defineComponent({
                 onAction={handleAction}
                 selectedIds={selection.selectedIds.value}
                 onToggleSelect={(record) => selection.toggle(record.id)}
-                attachmentViews={attachments.views.value}
               />
             </div>
           ),

@@ -12,6 +12,7 @@
  * exists when it does not.
  */
 import { createLogger } from "@myz/shared/logger";
+import { recordAnchorText } from "@myz/shared/recordDisplay";
 import { ref } from "vue";
 import { useNotificationStore } from "../stores/notification-store.js";
 import type { ExtractedSnapshot } from "./extract.js";
@@ -42,7 +43,11 @@ export function useSnapshotCapture() {
       try {
         const records = await invoke("myz:getHighlightsForUrl", { url });
         recordTexts = (records ?? []).map(
-          (record: { text?: string }) => record.text,
+          (record: { text?: string; anchorText?: string }) =>
+            recordAnchorText({
+              text: record.text || "",
+              anchorText: record.anchorText,
+            }),
         );
       } catch (error) {
         // 查询失败不等于「这页没有划线」：只按起始那条定范围会把同页其他

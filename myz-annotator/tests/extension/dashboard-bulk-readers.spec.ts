@@ -180,6 +180,10 @@ test("epub_record_shows_chapter_and_open_action", async () => {
     style: "paint",
     epubLocator: { spineIndex: 2, progression: 0, textQuote: "epub snippet" },
   });
+  await send(dash, "myz:inboxSetStatus", {
+    targetId: `h:${id}`,
+    status: "kept",
+  });
 
   await dash.reload();
   await dash.waitForSelector(".app-shell", { timeout: 5000 });

@@ -19,6 +19,11 @@
  * visible rather than assumed.
  */
 
+import {
+  markdownToPlainText,
+  recordAnchorText,
+} from "@myz/shared/recordDisplay";
+
 export type AnchorBasis = "range" | "text" | "none";
 
 export interface SnapshotAnchor {
@@ -94,4 +99,34 @@ export function resolveSnapshotAnchor(
     matches,
     reason: `快照里这段文字出现了 ${matches} 次，无法确定是哪一处`,
   };
+}
+
+export interface RecordAnchorResult {
+  /** The text that should be marked in the snapshot. */
+  text: string;
+  anchor: SnapshotAnchor;
+}
+
+/**
+ * Tries the stored plain anchor first, then the Markdown-derived one. Records
+ * written before the plain-text strip was fixed carry an `anchorText` with
+ * artificial spaces around inline markup; they must still locate.
+ */
+export function resolveRecordAnchor(
+  record: { text?: string; anchorText?: string },
+  snapshotText: string,
+): RecordAnchorResult {
+  const plain = recordAnchorText({
+    text: record.text || "",
+    anchorText: record.anchorText,
+  });
+  const first = resolveSnapshotAnchor(plain, snapshotText);
+  if (first.status === "located") return { text: plain, anchor: first };
+
+  const fallback = markdownToPlainText(record.text || "");
+  if (fallback && fallback !== plain) {
+    const second = resolveSnapshotAnchor(fallback, snapshotText);
+    if (second.status === "located") return { text: fallback, anchor: second };
+  }
+  return { text: plain, anchor: first };
 }

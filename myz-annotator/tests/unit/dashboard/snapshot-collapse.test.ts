@@ -10,7 +10,7 @@ const mark = (id: string, text: string) =>
   `<mark data-myz-anchor="${id}">${text}</mark>`;
 
 describe("buildSnapshotDisplay", () => {
-  it("keeps annotated regions sharp and folds each hidden run", () => {
+  it("hides edge runs outright and keeps annotated regions sharp", () => {
     const html = `
       <article>
         <p>intro paragraph one</p>
@@ -19,19 +19,27 @@ describe("buildSnapshotDisplay", () => {
         <p>outro paragraph one</p>
       </article>`;
     const out = buildSnapshotDisplay(html);
+    const root = document.createElement("div");
+    root.innerHTML = out;
 
     expect(out).toContain('class="myz-snapshot-region"');
     expect(out).toContain('data-myz-anchor="rec-1"');
-    // Hidden runs keep their frontier blocks as blurred hints (content is
-    // still here) and — while both sides hide something — one seam each.
-    // The single-block outro run has no middle left, so no seam.
-    expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(1);
-    expect(out.match(/myz-snapshot-fold-hint/g)).toHaveLength(3);
-    expect(out).toContain("intro paragraph one");
-    expect(out).toContain("outro paragraph one");
+    // Each edge keeps its frontier block as a blurred hint (the seam's
+    // shadow); only the bulk beyond it is out of layout (2026-11-27).
+    expect(root.querySelectorAll(".myz-snapshot-tear")).toHaveLength(2);
+    expect(
+      Array.from(root.querySelectorAll(".myz-snapshot-fold-hint")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["intro paragraph two", "outro paragraph one"]);
+    expect(
+      Array.from(root.querySelectorAll("[data-myz-hidden]")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["intro paragraph one"]);
   });
 
-  it("keeps every annotated region sharp and folds the interior", () => {
+  it("folds only the interior between two annotated regions", () => {
     const html = `
       <article>
         <p>head</p>
@@ -44,9 +52,9 @@ describe("buildSnapshotDisplay", () => {
     const out = buildSnapshotDisplay(html);
 
     expect(out.match(/myz-snapshot-region/g)).toHaveLength(2);
-    // head / tail are one-block runs (hint only); the middle run has two
-    // hidden blocks → its middle still exists → one seam there.
-    expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(1);
+    // head / tail are edge runs with one frontier hint each; the middle run
+    // has a hint on each side. One seam per run.
+    expect(out.match(/class="myz-snapshot-tear"/g)).toHaveLength(3);
     expect(out.match(/myz-snapshot-fold-hint/g)).toHaveLength(4);
   });
 
@@ -66,10 +74,9 @@ describe("buildSnapshotDisplay", () => {
         </div>
       </article>`;
     const out = buildSnapshotDisplay(html);
-    // The div splits into its block children: plain → folded (a one-block run
-    // keeps its hint but has no middle to seam), marked → sharp, and the
-    // region keeps its inline `<em>` wrapper intact.
-    expect(out.match(/class="myz-snapshot-tear"/g) ?? []).toHaveLength(0);
+    // The div splits into its block children: the plain leading block is an
+    // edge run (blurred frontier hint + seam), marked → sharp, inline intact.
+    expect(out.match(/class="myz-snapshot-tear"/g) ?? []).toHaveLength(1);
     expect(out.match(/myz-snapshot-fold-hint/g) ?? []).toHaveLength(1);
     expect(out).toContain("<em>");
     expect(out).toContain("</em>");
@@ -87,8 +94,9 @@ describe("buildSnapshotDisplay", () => {
         <p>the ${mark("rec-1", "marked")} paragraph</p>
       </article>`;
     const out = buildSnapshotDisplay(html);
-    // The figure is one unit: the inline run stays whole inside its hint.
+    // The figure is one edge unit: its blurred hint keeps the inline run.
     expect(out.match(/myz-snapshot-fold-hint/g) ?? []).toHaveLength(1);
+    expect(out.match(/class="myz-snapshot-tear"/g) ?? []).toHaveLength(1);
     const hint = out.match(
       /<figure[^>]*class="[^"]*myz-snapshot-fold-hint[^"]*"[^>]*>([\s\S]*?)<\/figure>/,
     );
@@ -106,17 +114,21 @@ describe("buildSnapshotDisplay", () => {
       </article>`;
     const out = buildSnapshotDisplay(html);
     expect(out.match(/myz-snapshot-fold-hint/g) ?? []).toHaveLength(1);
+    expect(out.match(/class="myz-snapshot-tear"/g) ?? []).toHaveLength(1);
     expect(out).toContain("<b>Data Parallel RMSNorm</b>");
     expect(out.match(/<b>/g)).toHaveLength(1);
   });
 });
 
 describe("folded runs unfold from the highlight edges inward", () => {
+  // Two annotated regions so the six blocks sit in an *interior* run (edge
+  // runs are hidden outright now and have no seam to unfold).
   const sixBlocks = `
     <article>
+      <p>the ${mark("rec-1", "marked")} top paragraph</p>
       <p>block one</p><p>block two</p><p>block three</p>
       <p>block four</p><p>block five</p><p>block six</p>
-      <p>the ${mark("rec-1", "marked")} paragraph</p>
+      <p>the ${mark("rec-2", "marked")} bottom paragraph</p>
     </article>`;
 
   /**
@@ -315,8 +327,9 @@ describe("withActiveAnchor", () => {
 describe("repaintGap repaints in place (no rebuild — no jitter)", () => {
   const fixture = `
     <article>
+      <p>the ${mark("rec-1", "marked")} top paragraph</p>
       <p>block one</p><p>block two</p><p>block three</p>
-      <p>the ${mark("rec-1", "marked")} paragraph</p>
+      <p>the ${mark("rec-2", "marked")} bottom paragraph</p>
     </article>`;
 
   function mount(): HTMLElement {
@@ -366,8 +379,9 @@ describe("repaintGap repaints in place (no rebuild — no jitter)", () => {
     const root = document.createElement("div");
     root.innerHTML = buildSnapshotDisplay(`
       <article>
+        <p>the ${mark("rec-1", "marked")} top paragraph</p>
         <p title="Image credit">photo caption</p>
-        <p>the ${mark("rec-1", "marked")} paragraph</p>
+        <p>the ${mark("rec-2", "marked")} bottom paragraph</p>
       </article>`);
     const hint = root.querySelector<HTMLElement>(".myz-snapshot-fold-hint");
     expect(hint?.getAttribute("title")).toBe("向上展开一段");
@@ -377,6 +391,62 @@ describe("repaintGap repaints in place (no rebuild — no jitter)", () => {
     expect(hint?.hasAttribute("role")).toBe(false);
     expect(hint?.hasAttribute("tabindex")).toBe(false);
     expect(hint?.hasAttribute("aria-label")).toBe(false);
+  });
+
+  it("unfolds an edge run from its only highlighted neighbour", () => {
+    const root = document.createElement("div");
+    root.innerHTML = buildSnapshotDisplay(`
+      <article>
+        <p>page nav</p><p>context before</p>
+        <p>the ${mark("rec-1", "marked")} paragraph</p>
+      </article>`);
+    // Only the far block is out of layout; the frontier one is the seam's
+    // blurred shadow, and a seam remains so both can be opened.
+    expect(root.querySelector('[data-tear="gap-0"]')).not.toBeNull();
+    expect(
+      Array.from(root.querySelectorAll(".myz-snapshot-fold-hint")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["context before"]);
+    expect(
+      Array.from(root.querySelectorAll("[data-myz-hidden]")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["page nav"]);
+
+    // The block nearest the highlight comes back first (down side), and the
+    // hint advances to the next one up.
+    repaintGap(root, 0, { upRev: 0, downRev: 1, expanded: false });
+    expect(
+      root.querySelector('[data-revealed="gap-0-down"]')?.textContent,
+    ).toContain("context before");
+    expect(
+      Array.from(root.querySelectorAll(".myz-snapshot-fold-hint")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["page nav"]);
+    expect(root.querySelectorAll("[data-myz-hidden]")).toHaveLength(0);
+  });
+
+  it("keeps trailing reveals above the seam, not below it", () => {
+    const root = document.createElement("div");
+    root.innerHTML = buildSnapshotDisplay(`
+      <article>
+        <p>the ${mark("rec-1", "marked")} paragraph</p>
+        <p>context after one</p><p>context after two</p><p>page footer</p>
+      </article>`);
+    repaintGap(root, 0, { upRev: 1, downRev: 0, expanded: false });
+
+    const revealed = root.querySelector('[data-revealed="gap-0-up"]')!;
+    const seam = root.querySelector('[data-tear="gap-0"]')!;
+    expect(seam).not.toBeNull();
+    // The revealed block sits before (above) the seam; the hint and the
+    // remaining hidden bulk stay after it.
+    expect(
+      revealed.compareDocumentPosition(seam) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // The seam now fronts the still-hidden bulk (the footer).
+    expect(seam.nextElementSibling?.textContent).toContain("page footer");
   });
 
   it("removes borrowed attributes when the source had none", () => {

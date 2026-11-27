@@ -28,18 +28,6 @@ interface HighlightItemProps {
   /** Batch selection (§4.31): checked state and its toggle handler. */
   selected?: boolean
   onToggleSelect?: (record: MyZRecord) => void
-  /**
-   * Attachment metadata for the card (§I7). Only the first attachment is ever
-   * shown; `undefined` means this device does not have the bytes.
-   */
-  attachment?: RecordAttachmentView
-}
-
-/** What the card can draw for a record's attachment. */
-export interface RecordAttachmentView {
-  thumb: string
-  kindLabel: string
-  timeLabel: string
 }
 
 export const highlightItemProps = {
@@ -68,10 +56,6 @@ export const highlightItemProps = {
     >,
   selected: { type: Boolean, default: false },
   onToggleSelect: Function as PropType<(record: MyZRecord) => void>,
-  attachment: {
-    type: Object as PropType<RecordAttachmentView>,
-    default: undefined,
-  },
 }
 
 export function useHighlightItem(props: HighlightItemProps) {
@@ -89,12 +73,23 @@ export function useHighlightItem(props: HighlightItemProps) {
   )
 
   const kindIcon = KIND_ICON[kind.value] || Highlighter
-  const sourceLabel = computed(() => {
-    const source = record().hostname || record().url || ""
-    const points = Array.from(source)
-    return points.length > 20 ? `${points.slice(0, 20).join("")}...` : source
+  /**
+   * PDF/EPUB records are documents, not web pages: their `title` is the file
+   * name / work name, while `hostname` is at best "本地文件" or the host that
+   * served an online PDF (§4.20). Prefer the title for those records; web
+   * records keep showing their host.
+   */
+  const isDocument = computed(
+    () => Boolean(record().pdfLocator || record().epubLocator),
+  )
+  const sourceTitle = computed(() => {
+    if (isDocument.value && record().title) return record().title!
+    return record().hostname || record().url || ""
   })
-  const sourceTitle = computed(() => record().hostname || record().url || "")
+  const sourceLabel = computed(() => {
+    const points = Array.from(sourceTitle.value)
+    return points.length > 20 ? `${points.slice(0, 20).join("")}...` : sourceTitle.value
+  })
 
   const isPdf = computed(() => Boolean(record().pdfLocator))
   const isEpub = computed(() => Boolean(record().epubLocator))

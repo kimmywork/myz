@@ -96,7 +96,12 @@ export const useHighlightsStore = defineStore("highlights", () => {
   function subscribeToChanges() {
     if (changeUnsubscribe) return;
     changeUnsubscribe = changeBus.subscribe((event) => {
-      if (event.domain === "records" || event.domain === "sync") {
+      // An Inbox keep/archive changes which records belong to the library.
+      if (
+        event.domain === "records" ||
+        event.domain === "sync" ||
+        event.domain === "inbox"
+      ) {
         void loadHighlights();
       }
     });

@@ -1,6 +1,7 @@
 import type { MyZRecord } from "@myz/shared/types";
 import { epubFingerprintFromSourceUrl } from "@myz/shared/url";
-import { ensureLocalEpubPermission } from "./source.js";
+import { localFileAccessError } from "../reader/local-file.js";
+import { epubLocalPermissionState } from "./source.js";
 
 type EpubRecordRef = Pick<MyZRecord, "url" | "sourceUrl" | "epubLocator">;
 
@@ -46,7 +47,11 @@ export async function prepareEpubRecordInReader(
   }
   const fingerprint = fingerprintOf(record);
   if (fingerprint) {
-    await ensureLocalEpubPermission(fingerprint);
+    // A record can outlive its stored handle (e.g. "清空阅读历史"). Stop here
+    // instead of landing in a reader that only shows a generic auth error.
+    if ((await epubLocalPermissionState(fingerprint)) !== "granted") {
+      throw localFileAccessError();
+    }
   }
   return target;
 }

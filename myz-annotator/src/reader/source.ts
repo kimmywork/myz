@@ -10,9 +10,11 @@ import { SOURCE_TYPES } from "@myz/shared/types";
 import {
   ensureReadPermission,
   fingerprintBytes,
+  isAbortError,
   isPermissionError as isLocalFilePermissionError,
   localFilePermissionError,
   readHandle,
+  type PermissionState,
   supportsFileSystemAccess as supportsLocalFileSystemAccess,
   type FilePicker,
   type PermissionCapableHandle,
@@ -38,6 +40,8 @@ export interface ReaderSource<Ref> {
   localPermissionError(): Error;
   isPermissionError(err: unknown): boolean;
   ensurePermission(fingerprint: string): Promise<boolean>;
+  /** Distinguishes a removed handle from one that merely needs a re-grant. */
+  permissionState(fingerprint: string): Promise<PermissionState>;
 }
 
 /**
@@ -70,11 +74,17 @@ export function createReaderSource<Ref>(
     return isLocalFilePermissionError(err);
   }
 
-  async function ensurePermission(fingerprint: string): Promise<boolean> {
+  async function permissionState(
+    fingerprint: string,
+  ): Promise<PermissionState> {
     const handle =
       await options.getFileHandle<PermissionCapableHandle>(fingerprint);
-    if (!handle) return false;
-    return ensureReadPermission(handle);
+    if (!handle) return "missing";
+    return (await ensureReadPermission(handle)) ? "granted" : "denied";
+  }
+
+  async function ensurePermission(fingerprint: string): Promise<boolean> {
+    return (await permissionState(fingerprint)) === "granted";
   }
 
   return {
@@ -84,6 +94,7 @@ export function createReaderSource<Ref>(
     localPermissionError,
     isPermissionError,
     ensurePermission,
+    permissionState,
   };
 }
 
@@ -133,9 +144,18 @@ export function createLocalFileSource<Ref>(
     if (!picker) {
       throw new Error("当前浏览器不支持打开本地文件");
     }
-    const [handle] = await picker({
-      types: [{ description, accept }],
-    });
+    let picked: PermissionCapableHandle[];
+    try {
+      picked = await picker({
+        types: [{ description, accept }],
+      });
+    } catch (err) {
+      // Cancelling / closing the native picker rejects with AbortError. Treat
+      // it exactly like picking nothing: no file, no error message.
+      if (isAbortError(err)) return null;
+      throw err;
+    }
+    const [handle] = picked;
     if (!handle) {
       return null;
     }

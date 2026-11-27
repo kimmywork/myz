@@ -1,3 +1,4 @@
+import { resolveReaderLocator } from "@myz/core/source";
 import { StatusPill } from "@myz/dashboard-ui";
 import { IconClose } from "@myz/shared/icons";
 import {
@@ -7,17 +8,45 @@ import {
 } from "@myz/shared/recordDisplay";
 import { defineComponent } from "vue";
 import type { PropType } from "vue";
+import { useRouter } from "vue-router";
+import { ViewerSnapshotView } from "../highlight-viewer/ViewerSnapshotView.jsx";
 import { inboxStatusPill } from "./inbox-utils.js";
 import type { InboxQueueItem } from "@/background/messages/inbox";
+import {
+  openEpubInWorkspace,
+  openPdfInWorkspace,
+} from "@/dashboard/utils/open-reader.js";
+import { formatNote } from "@/dashboard/utils/records.js";
+
+/** The record fields the snapshot view needs to place every mark on the page. */
+export interface DetailPageRecord {
+  id: string;
+  text?: string;
+  anchorText?: string;
+  note?: string;
+  color?: string;
+  style?: unknown;
+}
 
 /**
- * Right-side detail panel for the selected Inbox row (§4.25): excerpt, note,
- * tags and source. Editing stays in the viewer; this only reads.
+ * Inbox right panel (§4.25, revised 2026-11-27): the same read-only detail the
+ * library shows — the page snapshot with every record of the page marked — so
+ * the quote is seen in context instead of as raw Markdown. PDF/EPUB records
+ * have no web snapshot and open in the embedded reader instead.
  */
 export default defineComponent({
   name: "InboxDetailPanel",
   props: {
     item: { type: Object as PropType<InboxQueueItem>, required: true },
+    /** Other records on the same page, so all of them anchor onto the copy. */
+    pageRecords: {
+      type: Array as PropType<DetailPageRecord[]>,
+      default: () => [],
+    },
+    onSelectRecord: {
+      type: Function as PropType<(recordId: string) => void>,
+      default: undefined,
+    },
     onClose: { type: Function as PropType<() => void>, default: undefined },
     /** Removes one tag from the record (the row no longer carries per-tag X). */
     onRemoveTag: {
@@ -26,11 +55,15 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const router = useRouter();
+
     return () => {
       const record = props.item.record;
       const pill = inboxStatusPill(props.item);
       const tags = record.tags ?? [];
       const url = record.url || record.sourceUrl || "";
+      const pageUrl = record.sourceUrl || record.url || "";
+      const locator = resolveReaderLocator(record);
 
       return (
         <div class="flex h-full min-h-0 flex-col" data-testid="inbox-detail">
@@ -56,14 +89,35 @@ export default defineComponent({
           <div class="flex-1 space-y-4 overflow-y-auto p-3">
             <section>
               <h3 class="mb-1 text-tag font-semibold uppercase tracking-wide text-muted">
-                原文
+                {locator ? "原文文档" : "原文快照与上下文"}
               </h3>
-              <p
-                class="whitespace-pre-wrap text-compact text-text"
-                style="font-family: var(--myz-read); line-height: 1.55"
-              >
-                {record.text || record.note || "（无正文）"}
-              </p>
+              {locator ? (
+                <div class="space-y-2">
+                  <p class="text-compact text-muted">
+                    PDF / EPUB 划线没有网页快照，请在阅读器中查看原文位置。
+                  </p>
+                  <button
+                    class="inline-flex h-8 items-center rounded-control border border-line px-3 text-compact font-semibold text-muted transition hover:border-accent hover:text-accent-text"
+                    type="button"
+                    onClick={() => {
+                      if (locator.kind === "epub") {
+                        void openEpubInWorkspace(router, record);
+                      } else if (locator.kind === "pdf-page-rect") {
+                        void openPdfInWorkspace(router, record);
+                      }
+                    }}
+                  >
+                    打开文档
+                  </button>
+                </div>
+              ) : (
+                <ViewerSnapshotView
+                  pageUrl={pageUrl}
+                  records={props.pageRecords}
+                  activeId={record.id}
+                  onSelectRecord={(id) => props.onSelectRecord?.(id)}
+                />
+              )}
             </section>
 
             <section>
@@ -71,9 +125,10 @@ export default defineComponent({
                 批注
               </h3>
               {record.note ? (
-                <p class="border-l-2 border-line pl-2 text-compact text-text">
-                  {record.note}
-                </p>
+                <div
+                  class="prose prose-sm max-w-none border-l-2 border-line pl-2 font-read text-compact text-text"
+                  innerHTML={formatNote(record.note, [])}
+                ></div>
               ) : (
                 <p class="text-caption text-muted">没有批注</p>
               )}

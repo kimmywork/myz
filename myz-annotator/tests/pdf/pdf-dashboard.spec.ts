@@ -52,6 +52,41 @@ async function createPdfAnnotation(pdfUrl: string): Promise<void> {
   await reader.close();
 }
 
+/** Library rows only show kept records; a fresh capture starts out pending. */
+async function keepPending(dashboard: Page): Promise<void> {
+  await dashboard.evaluate(async () => {
+    const envelope = await new Promise<{
+      data?: { pending?: Array<{ targetId: string }> };
+    }>((resolve, reject) => {
+      chrome.runtime.sendMessage({ type: "myz:inboxQueue" }, (result) => {
+        if (chrome.runtime.lastError) {
+          return reject(new Error(chrome.runtime.lastError.message));
+        }
+        resolve(result);
+      });
+    });
+    await Promise.all(
+      (envelope.data?.pending ?? []).map(
+        (item) =>
+          new Promise<void>((resolve, reject) => {
+            chrome.runtime.sendMessage(
+              {
+                type: "myz:inboxSetStatus",
+                payload: { targetId: item.targetId, status: "kept" },
+              },
+              () => {
+                if (chrome.runtime.lastError) {
+                  return reject(new Error(chrome.runtime.lastError.message));
+                }
+                resolve();
+              },
+            );
+          }),
+      ),
+    );
+  });
+}
+
 test("dashboard_shows_pdf_page_and_opens_reader_at_page", async () => {
   const pdfUrl = `${serverUrl}/myz-pdf-reader.pdf`;
   await createPdfAnnotation(pdfUrl);
@@ -60,6 +95,8 @@ test("dashboard_shows_pdf_page_and_opens_reader_at_page", async () => {
   await dashboard.goto(
     `chrome-extension://${extensionId}/src/dashboard/index.html`,
   );
+  await keepPending(dashboard);
+  await dashboard.reload();
   await dashboard.waitForSelector("[data-id]");
 
   await expect(dashboard.getByText("第 1 页").first()).toBeVisible();
@@ -97,6 +134,8 @@ test("pdf_record_detail_opens_the_document_instead", async () => {
   await dashboard.goto(
     `chrome-extension://${extensionId}/src/dashboard/index.html`,
   );
+  await keepPending(dashboard);
+  await dashboard.reload();
   await dashboard.waitForSelector("[data-id]");
   const recordId = await dashboard
     .locator("[data-id]")

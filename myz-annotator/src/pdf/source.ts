@@ -27,6 +27,7 @@ export const isPermissionError = source.isPermissionError;
  * the handle without prompting. Returns whether permission is granted.
  */
 export const ensureLocalPdfPermission = source.ensurePermission;
+export const pdfLocalPermissionState = source.permissionState;
 
 export function titleFromPdfUrl(url: string): string {
   try {

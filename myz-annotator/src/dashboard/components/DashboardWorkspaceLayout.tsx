@@ -20,6 +20,7 @@ export default defineComponent({
   props: {
     /** Right detail panel; the page fills `slots.panel`. */
     panelOpen: { type: Boolean, default: false },
+    panelWide: { type: Boolean, default: false },
     onClosePanel: {
       type: Function as PropType<() => void>,
       default: undefined,
@@ -39,6 +40,7 @@ export default defineComponent({
         navOpen={navOpen.value}
         onCloseNav={controls.closeNav}
         panelOpen={props.panelOpen}
+        panelWide={props.panelWide}
         onClosePanel={props.onClosePanel}
       >
         {{

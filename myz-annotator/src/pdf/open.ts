@@ -1,6 +1,7 @@
 import type { MyZRecord } from "@myz/shared/types";
 import { isPdfSourceUrl, pdfFingerprintFromSourceUrl } from "@myz/shared/url";
-import { ensureLocalPdfPermission } from "./source.js";
+import { localFileAccessError } from "../reader/local-file.js";
+import { pdfLocalPermissionState } from "./source.js";
 
 type PdfRecordRef = Pick<MyZRecord, "url" | "sourceUrl" | "pdfLocator">;
 
@@ -53,7 +54,11 @@ export async function preparePdfRecordForReader(
   }
   const fingerprint = fingerprintOf(record);
   if (fingerprint) {
-    await ensureLocalPdfPermission(fingerprint);
+    // A record can outlive its stored handle (e.g. "清空阅读历史"). Do not
+    // navigate into a reader that will only show a generic re-auth error.
+    if ((await pdfLocalPermissionState(fingerprint)) !== "granted") {
+      throw localFileAccessError();
+    }
   }
   return target;
 }

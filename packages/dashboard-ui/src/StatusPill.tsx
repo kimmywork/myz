@@ -36,7 +36,9 @@ export default defineComponent({
     return () => (
       <span
         class={[
-          "inline-flex items-center gap-1 rounded-tag font-medium",
+          // A pill must never squeeze into a vertical stack of characters
+          // when its flex slot is narrow (Inbox rows, §4.29).
+          "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-tag font-medium",
           TONE_CLASSES[props.tone],
           SIZE_CLASSES[props.size],
         ].join(" ")}

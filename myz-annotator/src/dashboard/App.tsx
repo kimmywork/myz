@@ -28,9 +28,8 @@ export default defineComponent({
         await Promise.all([
           highlightsStore.initialize(),
           settingsStore.initialize(),
+          uiStore.initializeInboxStatus(),
         ]);
-        // The cards/list toggle is a stored preference: honour it on load.
-        uiStore.restoreView(settingsStore.settings.dashboardView);
       } catch (error) {
         console.error("Dashboard init failed", error);
       }

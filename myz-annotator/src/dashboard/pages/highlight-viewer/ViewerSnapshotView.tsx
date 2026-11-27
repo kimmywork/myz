@@ -2,7 +2,7 @@ import type { PageSnapshot } from "@myz/core/page-snapshot";
 import { snapshotHeaderLine } from "@myz/core/page-snapshot";
 import { computed, defineComponent, nextTick, ref, watch } from "vue";
 import type { PropType } from "vue";
-import { resolveSnapshotAnchor } from "./snapshot-anchor.js";
+import { resolveRecordAnchor } from "./snapshot-anchor.js";
 import {
   renderSnapshotBody,
   snapshotTextOf,
@@ -19,6 +19,7 @@ import { invoke } from "@/messaging/invoke.js";
 type PageRecordRef = {
   id: string;
   text?: string;
+  anchorText?: string;
   note?: string;
   color?: string;
   style?: unknown;
@@ -109,12 +110,13 @@ export const ViewerSnapshotView = defineComponent({
      */
     const placements = computed(() => {
       if (!snapshot.value) return [];
-      const text = snapshotTextOf(snapshot.value.html);
-      return props.records.map((record) => ({
-        id: record.id,
-        text: record.text || "",
-        anchor: resolveSnapshotAnchor(record.text, text),
-      }));
+      const haystack = snapshotTextOf(snapshot.value.html);
+      return props.records.map((record) => {
+        // Snapshots hold flattened DOM text; record.text is Markdown. Compare
+        // plain text, falling back across both representations (2026-11-27).
+        const { text: needle, anchor } = resolveRecordAnchor(record, haystack);
+        return { id: record.id, text: needle, anchor };
+      });
     });
 
     const locatedMarks = computed<SnapshotMark[]>(() =>
@@ -447,7 +449,20 @@ export const ViewerSnapshotView = defineComponent({
       ) as HTMLElement | null;
       if (target && bodyRef.value?.contains(target)) {
         const gap = Number(target.getAttribute("data-gap") || "-1");
-        const side = target.getAttribute("data-side");
+        const seam = target.closest(".myz-snapshot-tear") as HTMLElement | null;
+        // An edge seam has only one annotated neighbour; both halves open
+        // toward that neighbour (below the leading run, above the trailing).
+        const upRegion = Number(seam?.getAttribute("data-up-region") ?? "-1");
+        const downRegion = Number(
+          seam?.getAttribute("data-down-region") ?? "-1",
+        );
+        const edgeSide =
+          seam && (upRegion === -1 || downRegion === -1)
+            ? upRegion === -1
+              ? "down"
+              : "up"
+            : null;
+        const side = edgeSide ?? target.getAttribute("data-side");
         if (gap >= 0 && (side === "up" || side === "down")) {
           revealStep(gap, side, target);
         }

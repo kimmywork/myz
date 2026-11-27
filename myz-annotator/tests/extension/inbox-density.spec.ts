@@ -42,17 +42,17 @@ type SeedRecord = ReturnType<typeof seedRecords>[number];
 async function saveSeed(
   dash: import("@playwright/test").Page,
   record: SeedRecord,
-) {
-  await dash.evaluate(
+): Promise<string | undefined> {
+  return dash.evaluate(
     (payload) =>
-      new Promise((resolve, reject) => {
+      new Promise<string | undefined>((resolve, reject) => {
         chrome.runtime.sendMessage(
           { type: "myz:saveHighlight", payload },
-          (resp) => {
+          (resp: { data?: { id?: string }; id?: string }) => {
             if (chrome.runtime.lastError) {
               return reject(new Error(chrome.runtime.lastError.message));
             }
-            resolve(resp);
+            resolve(resp?.data?.id ?? resp?.id);
           },
         );
       }),
@@ -67,6 +67,36 @@ async function saveSeed(
       hostname: record.hostname,
       kind: record.kind,
     },
+  );
+}
+
+/** New clips are pending; keep them before checking the library view. */
+async function keepIds(
+  dash: import("@playwright/test").Page,
+  ids: (string | undefined)[],
+) {
+  await dash.evaluate(
+    (targetIds) =>
+      Promise.all(
+        targetIds.map(
+          (targetId) =>
+            new Promise<void>((resolve, reject) => {
+              chrome.runtime.sendMessage(
+                {
+                  type: "myz:inboxSetStatus",
+                  payload: { targetId, status: "kept" },
+                },
+                () => {
+                  if (chrome.runtime.lastError) {
+                    return reject(new Error(chrome.runtime.lastError.message));
+                  }
+                  resolve();
+                },
+              );
+            }),
+        ),
+      ),
+    ids.filter((id): id is string => Boolean(id)).map((id) => `h:${id}`),
   );
 }
 
@@ -107,8 +137,9 @@ async function density(dash: import("@playwright/test").Page) {
 test("capture_inbox_density", async () => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const dash = await harness.open("/inbox");
+  const savedIds: (string | undefined)[] = [];
   for (const record of seedRecords(20)) {
-    await saveSeed(dash, record);
+    savedIds.push(await saveSeed(dash, record));
   }
   await dash.reload();
   await dash.waitForSelector('[data-testid="inbox-row"]', { timeout: 10000 });
@@ -151,11 +182,11 @@ test("capture_inbox_density", async () => {
     path: path.join(OUT_DIR, `i3-inbox-${PREFIX}-dark.png`),
   });
 
-  // Library list view: same flush rows as the Inbox.
+  // Library rows: same flush rows as the Inbox (cards were removed).
+  await keepIds(dash, savedIds);
+  await dash.reload();
   await dash.locator('[data-testid="rail-highlights"]').click();
-  await dash.waitForSelector("article[data-id]", { timeout: 10000 });
-  await dash.getByRole("button", { name: "列表" }).click();
-  await dash.waitForTimeout(200);
+  await dash.waitForSelector(".myz-list-row", { timeout: 10000 });
   const listRows = await dash.$$eval(".myz-list-row", (rows) => {
     const heights = rows.map((row) => row.getBoundingClientRect().height);
     return {
@@ -170,7 +201,7 @@ test("capture_inbox_density", async () => {
     path: path.join(OUT_DIR, `i3-library-${PREFIX}-list.png`),
   });
 
-  // The cards/list toggle is stored: a reload keeps the list view.
+  // The list is the only view: a reload keeps the same rows.
   await dash.reload();
   await dash.waitForSelector(".myz-list-row", { timeout: 10000 });
   expect(await dash.locator(".myz-list-row").count()).toBe(20);

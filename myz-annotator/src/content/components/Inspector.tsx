@@ -2,6 +2,7 @@ import { TagInput } from "@myz/dashboard-ui";
 import ConfirmPopover from "@myz/shared/components/ConfirmPopover";
 import { createFocusTrap, type FocusTrap } from "@myz/shared/focusTrap";
 import { IconCamera, IconClose, IconEdit, IconTrash } from "@myz/shared/icons";
+import { recordAnchorText } from "@myz/shared/recordDisplay";
 import { storeToRefs } from "pinia";
 import {
   defineComponent,
@@ -217,7 +218,14 @@ export default defineComponent({
                 aria-label="保存快照"
                 title="保存快照"
                 disabled={snapshot.saving.value}
-                onClick={() => void snapshot.save(record.value.text)}
+                onClick={() =>
+                  void snapshot.save(
+                    recordAnchorText({
+                      text: record.value.text || "",
+                      anchorText: record.value.anchorText,
+                    }),
+                  )
+                }
               >
                 <IconCamera size={16} aria-hidden="true" />
               </button>

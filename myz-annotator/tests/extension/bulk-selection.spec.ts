@@ -96,28 +96,6 @@ test("switching_tab_clears_the_selection", async () => {
   ).toHaveCount(0);
 });
 
-test("switching_cards_and_list_keeps_the_selection", async () => {
-  const dash = await harness.open("/highlights");
-  await openLibrary(dash, 10);
-
-  const checkboxes = dash.locator('[data-testid="select-record"]');
-  await checkboxes.nth(0).check();
-  await checkboxes.nth(1).check();
-
-  await dash.getByRole("button", { name: "列表" }).click();
-  await expect(dash.getByTestId("selection-bar")).toContainText(
-    "已选 2（共 10）",
-  );
-  await expect(
-    dash.locator('[data-testid="select-record"]:checked'),
-  ).toHaveCount(2);
-
-  await dash.getByRole("button", { name: "卡片" }).click();
-  await expect(dash.getByTestId("selection-bar")).toContainText(
-    "已选 2（共 10）",
-  );
-});
-
 function record(id: string, ageMs: number, note = "") {
   const text = `record ${id}`;
   const url = `https://example.com/${id}`;
@@ -156,7 +134,7 @@ test("bulk_delete_undoes_the_batch_in_place", async () => {
   });
   await dash.reload();
 
-  const rows = dash.locator('[data-view="cards"] article[data-id]');
+  const rows = dash.locator(".myz-list-row[data-id]");
   await expect(rows).toHaveCount(8);
   const orderBefore = await rows.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute("data-id")),
