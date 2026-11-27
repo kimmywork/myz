@@ -1,3 +1,5 @@
+import { recordIdForHighlight } from "@myz/core/identity";
+import { parseInboxRecordId } from "@myz/shared/inbox";
 import {
   DEFAULT_COLOR,
   MyZRecord,
@@ -6,7 +8,6 @@ import {
 } from "@myz/shared/types";
 import { defineStore } from "pinia";
 import { computed, reactive, ref, watch } from "vue";
-import type { Ref } from "vue";
 import { PAGINATION_BATCH } from "../constants.js";
 import {
   DEFAULT_SETTINGS_SECTION,
@@ -25,6 +26,7 @@ import {
   renderHighlightContent,
   sortRecordsForPage,
 } from "@/dashboard/utils/records.js";
+import { changeBus } from "@/messaging/changes";
 import { invoke } from "@/messaging/invoke";
 
 export type { SearchFilters } from "./ui/filters.js";
@@ -32,7 +34,6 @@ export type { SearchFilters } from "./ui/filters.js";
 export const useUIStore = defineStore("ui", () => {
   const highlightsStore = useHighlightsStore();
 
-  const view: Ref<"cards" | "list"> = ref("cards");
   // The settings surface is a modal opened from the rail footer (§4.17), not
   // a route: the current workspace page stays mounted underneath it.
   const settingsOpen = ref(false);
@@ -51,9 +52,45 @@ export const useUIStore = defineStore("ui", () => {
   const searchNeedle = computed(() => filters.search.trim().toLowerCase());
   const searchTerms = computed(() => getSearchTerms(filters.search));
 
+  /**
+   * Inbox workflow status lives in `inbox_state`, not on the record. The
+   * library only shows kept records (a missing status row counts as kept), but
+   * the store keeps every record so direct detail/viewer links still work.
+   */
+  const nonKeptTargets = ref<ReadonlySet<string>>(new Set());
+  async function loadInboxStatuses() {
+    try {
+      const states = await invoke("myz:inboxListStates");
+      const targets = new Set<string>();
+      for (const row of states ?? []) {
+        const parsed = parseInboxRecordId(row.recordId);
+        if (parsed?.kind !== "status") continue;
+        const status = (row.payload as { status?: unknown } | null)?.status;
+        if (typeof status === "string" && status !== "kept") {
+          targets.add(parsed.targetId);
+        }
+      }
+      nonKeptTargets.value = targets;
+    } catch {
+      nonKeptTargets.value = new Set();
+    }
+  }
+  let inboxUnsubscribe: (() => void) | null = null;
+  function initializeInboxStatus() {
+    void loadInboxStatuses();
+    if (inboxUnsubscribe) return;
+    inboxUnsubscribe = changeBus.subscribe((event) => {
+      if (event.domain === "inbox" || event.domain === "sync") {
+        void loadInboxStatuses();
+      }
+    });
+  }
+
   const filteredHighlightsBase = computed(() =>
-    highlightsStore.highlights.filter((item) =>
-      matchesFilters(item, filters, searchNeedle.value),
+    highlightsStore.highlights.filter(
+      (item) =>
+        !nonKeptTargets.value.has(recordIdForHighlight(item.id)) &&
+        matchesFilters(item, filters, searchNeedle.value),
     ),
   );
 
@@ -160,27 +197,6 @@ export const useUIStore = defineStore("ui", () => {
     updateRenderedCount();
   }
 
-  async function persistDashboardView(nextView: "cards" | "list") {
-    try {
-      await invoke("myz:updateSettings", { dashboardView: nextView });
-    } catch (error) {
-      console.warn("Failed to persist dashboard view", error);
-    }
-  }
-
-  /** Apply the persisted cards/list preference without writing it back. */
-  function restoreView(nextView: unknown) {
-    if (nextView === "cards" || nextView === "list") {
-      view.value = nextView;
-    }
-  }
-
-  function setView(nextView: "cards" | "list", { persist = true } = {}) {
-    if (!nextView || view.value === nextView) return;
-    view.value = nextView;
-    if (persist) persistDashboardView(nextView);
-  }
-
   function setPageFilter(nextUrl: string) {
     pageFilter.value = nextUrl;
     updateRenderedCount();
@@ -240,7 +256,6 @@ export const useUIStore = defineStore("ui", () => {
   }
 
   return {
-    view,
     filters,
     pageFilter,
     quickSearch,
@@ -258,8 +273,7 @@ export const useUIStore = defineStore("ui", () => {
     setFilter,
     resetFilters,
     applyQuickSearch,
-    setView,
-    restoreView,
+    initializeInboxStatus,
     setPageFilter,
     clearPageFilter,
     loadMore,

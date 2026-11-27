@@ -74,6 +74,57 @@ export function recordToMarkdown(record: MyZRecord): string {
 }
 
 /**
+ * Best-effort plain text for a Markdown record. Used only to locate a quote in
+ * a saved snapshot (whose body is flattened DOM text) — display still renders
+ * the original Markdown. This is deliberately a small syntax-stripper, not a
+ * Markdown parser: it only needs to remove characters that cannot occur in the
+ * flattened DOM text (emphasis, code ticks, link syntax, list/quote markers).
+ */
+export function markdownToPlainText(value: string): string {
+  return value
+    .replace(/```[\s\S]*?```/g, (block) => block.slice(3, -3))
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1$2")
+    .replace(/(^|[\s(])_([^_\n]+)_/g, "$1$2")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/^\s{0,3}([-*+]|\d+\.)\s+/gm, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    // Defuddle inserts spaces around inline markup: "**高效** ：" and
+    // "相比， `code`". The snapshot's DOM text has none of those. Drop the
+    // spaces before CJK punctuation and after 、/， before Latin text, but
+    // keep the list-item separators (newlines -> spaces) that the snapshot
+    // also inserts after each block.
+    .replace(/\s+([，。：；！？、）】》」』])/g, "$1")
+    .replace(/([，、])\s+(?=[A-Za-z0-9])/g, "$1")
+    // Defuddle also puts a space around inline <a>/<strong> between CJK
+    // characters (公开<a>原生</a> → "公开 原生"); the DOM text has none.
+    .replace(/([\u3400-\u9fff])\s+(?=[\u3400-\u9fff])/g, "$1")
+}
+
+/**
+ * The text to compare against a snapshot. New records carry an explicit plain
+ * `anchorText` captured from the selection HTML; older ones only have the
+ * Markdown `text` and are normalized on the fly.
+ */
+export function recordAnchorText(
+  record: Pick<MyZRecord, "text"> & { anchorText?: string },
+): string {
+  const explicit = record.anchorText
+  return explicit && explicit.trim() ? explicit : markdownToPlainText(record.text || "")
+}
+
+/**
  * Local-time `YYYY-MM-DD` key for a timestamp, or `""` when it is missing or
  * unparseable (so an invalid date never silently buckets into 1970).
  *

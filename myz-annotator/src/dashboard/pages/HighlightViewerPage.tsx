@@ -59,6 +59,7 @@ export default defineComponent({
               records={a.pageRecords.value.map((item) => ({
                 id: item.id,
                 text: item.text,
+                anchorText: item.anchorText,
                 note: item.note,
                 color: item.color,
                 style: item.style,

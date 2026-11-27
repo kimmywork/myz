@@ -22,6 +22,13 @@ export const MyZRecordSchemaV1 = z
     pdfLocator: PdfLocatorSchema.optional(),
     epubLocator: EpubLocatorSchema.optional(),
     text: z.string(),
+    /**
+     * Plain-text form of the selected HTML, kept solely for locating the quote
+     * in a saved snapshot. `text` is Markdown (Defuddle) and cannot be compared
+     * against flattened DOM text. Optional and additive: older records fall
+     * back to a best-effort Markdown stripper in `recordAnchorText`.
+     */
+    anchorText: z.string().optional(),
     html: z.string().optional(),
     contentType: z.nativeEnum(CONTENT_TYPES).optional(),
     note: z.string().optional(),

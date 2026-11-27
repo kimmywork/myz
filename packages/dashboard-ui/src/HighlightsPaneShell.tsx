@@ -15,11 +15,6 @@ export default defineComponent({
     summaryText: { type: String, required: true },
     pageFilter: { type: String, default: "" },
     currentPageLabel: { type: String, default: "" },
-    view: {
-      type: String as PropType<"cards" | "list">,
-      required: true,
-    },
-    onSetView: Function as PropType<(value: "cards" | "list") => void>,
     onTogglePageSidebar: Function as PropType<() => void>,
     onClearPageFilter: Function as PropType<() => void>,
     onExport: Function as PropType<(format: "json" | "markdown") => void>,
@@ -142,37 +137,6 @@ export default defineComponent({
           </div>
 
           <div class="flex flex-nowrap items-center gap-3 overflow-x-auto lg:overflow-visible">
-            <div
-              class="inline-flex rounded-full border border-line bg-surface p-1 text-caption font-semibold text-muted dark:border-line dark:bg-surface dark:text-text"
-              role="group"
-              aria-label="视图切换"
-            >
-              <button
-                type="button"
-                class={[
-                  "h-8 rounded-full px-4 transition",
-                  props.view === "cards"
-                    ? "bg-accent text-on-accent "
-                    : "text-muted dark:text-muted",
-                ].join(" ")}
-                onClick={() => props.onSetView?.("cards")}
-              >
-                卡片
-              </button>
-              <button
-                type="button"
-                class={[
-                  "h-8 rounded-full px-4 transition",
-                  props.view === "list"
-                    ? "bg-accent text-on-accent "
-                    : "text-muted dark:text-muted",
-                ].join(" ")}
-                onClick={() => props.onSetView?.("list")}
-              >
-                列表
-              </button>
-            </div>
-
             {props.pageFilter ? (
               <div class="text-caption text-muted" data-testid="page-sort-note">
                 页面顺序

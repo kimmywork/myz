@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { recordAnchorText } from "@myz/shared/recordDisplay";
 import { describe, expect, it } from "vitest";
 import {
   countOccurrences,
@@ -69,5 +70,27 @@ describe("snapshot anchor resolution", () => {
   it("normalizes both sides the same way", () => {
     expect(normalizeAnchorText("  a\n b\t ")).toBe("a b");
     expect(normalizeAnchorText(undefined)).toBe("");
+  });
+
+  it("locates a Markdown record in the snapshot's plain DOM text", () => {
+    // The actual regression: record.text is Markdown (Defuddle), while a
+    // snapshot holds flattened page text. 2026-11-27.
+    const record = {
+      text: "与轮询相比，`clipboardchange` 事件具有多项优势：\n\n- **高效**：仅在实际发生变化时触发事件。",
+    };
+    const snapshot =
+      "与轮询相比，clipboardchange 事件具有多项优势： 高效：仅在实际发生变化时触发事件。";
+    const anchor = resolveSnapshotAnchor(recordAnchorText(record), snapshot);
+    expect(anchor.status).toBe("located");
+    expect(anchor.matches).toBe(1);
+  });
+
+  it("prefers the stored plain anchor over a Markdown strip", () => {
+    expect(
+      recordAnchorText({
+        text: "alpha **beta** gamma",
+        anchorText: "alpha beta gamma",
+      }),
+    ).toBe("alpha beta gamma");
   });
 });

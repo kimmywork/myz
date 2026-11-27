@@ -42,12 +42,15 @@ export default defineComponent({
           {props.message}
         </span>
         <button
-          class={
+          class={toast ? undefined : "btn h-7 rounded-control px-2 text-caption"}
+          style={
             toast
-              ? "rounded-tag px-1 font-semibold underline-offset-2 hover:underline"
-              : "btn h-7 rounded-control px-2 text-caption"
+              ? // Reader pages do not load Tailwind preflight, so reset the
+                // native button chrome inline; the text action must blend into
+                // the dark overlay in both the dashboard and the readers.
+                "appearance: none; background: transparent; border: 0; padding: 0; margin: 0; color: var(--myz-overlay-text); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer"
+              : undefined
           }
-          style={toast ? "color: var(--myz-overlay-text)" : undefined}
           type="button"
           onClick={() => props.onUndo?.()}
           onMouseenter={() => props.onPause?.()}

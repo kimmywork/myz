@@ -43,6 +43,8 @@ export default defineComponent({
     /** Right detail panel (§4.27); below 1200 it becomes an overlay. */
     panelOpen: { type: Boolean, default: false },
     onClosePanel: Function as PropType<() => void>,
+    /** Snapshot/context panels need room; use half the workspace instead of 280px. */
+    panelWide: { type: Boolean, default: false },
   },
   setup(props, { slots }) {
     const storage = browserWidthStorage()
@@ -114,7 +116,10 @@ export default defineComponent({
       "--ws-nav-w": navCollapsed.value
         ? "0px"
         : `${Math.round(navWidth.value)}px`,
-      "--ws-panel-w": `${Math.round(panelWidth.value)}px`,
+      // A wide panel is page-owned (not a user resize preference).
+      "--ws-panel-w": props.panelWide
+        ? "max(50vw, 480px)"
+        : `${Math.round(panelWidth.value)}px`,
     }))
 
     function onKeydown(event: KeyboardEvent) {
@@ -208,29 +213,31 @@ export default defineComponent({
           </main>
           {hasPanel.value ? (
             <>
-              <div class="myz-workspace__panel-handle">
-                <ResizeHandle
-                  width={panelWidth.value}
-                  min={PANEL_WIDTH_MIN}
-                  max={PANEL_WIDTH_MAX}
-                  defaultValue={PANEL_WIDTH_DEFAULT}
-                  label="右栏宽度"
-                  invert
-                  testId="workspace-panel-handle"
-                  onResize={(next: number) => {
-                    panelWidth.value = next
-                  }}
-                  onReset={() => {
-                    panelWidth.value = PANEL_WIDTH_DEFAULT
-                  }}
-                  onToggleCollapse={() => {
-                    panelWidth.value = toggleCollapsed(
-                      panelWidth.value,
-                      PANEL_WIDTH_DEFAULT,
-                    )
-                  }}
-                />
-              </div>
+              {!props.panelWide ? (
+                <div class="myz-workspace__panel-handle">
+                  <ResizeHandle
+                    width={panelWidth.value}
+                    min={PANEL_WIDTH_MIN}
+                    max={PANEL_WIDTH_MAX}
+                    defaultValue={PANEL_WIDTH_DEFAULT}
+                    label="右栏宽度"
+                    invert
+                    testId="workspace-panel-handle"
+                    onResize={(next: number) => {
+                      panelWidth.value = next
+                    }}
+                    onReset={() => {
+                      panelWidth.value = PANEL_WIDTH_DEFAULT
+                    }}
+                    onToggleCollapse={() => {
+                      panelWidth.value = toggleCollapsed(
+                        panelWidth.value,
+                        PANEL_WIDTH_DEFAULT,
+                      )
+                    }}
+                  />
+                </div>
+              ) : null}
               <aside
                 ref={panelRef}
                 class="myz-workspace__panel"

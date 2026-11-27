@@ -1,25 +1,59 @@
 import { Button, SelectionBar, UndoBar } from "@myz/dashboard-ui";
 import { IconSearch } from "@myz/shared/icons";
 import { formatDateTime } from "@myz/shared/recordDisplay";
-import { defineComponent } from "vue";
+import { computed, defineComponent } from "vue";
 import DashboardWorkspaceLayout from "../components/DashboardWorkspaceLayout.jsx";
 import type { WorkspacePageControls } from "../components/DashboardWorkspaceLayout.jsx";
 import DeleteConfirmPopover from "../components/DeleteConfirmPopover.jsx";
 import { useDeleteStore } from "../stores/delete.js";
+import { useHighlightsStore } from "../stores/highlights.js";
 import InboxDetailPanel from "./inbox/InboxDetailPanel.jsx";
 import InboxList from "./inbox/InboxList.jsx";
 import InboxSidebar from "./inbox/InboxSidebar.jsx";
 import { useInboxQueue } from "./inbox/useInboxQueue.js";
+import { sortRecordsForPage } from "@/dashboard/utils/records.js";
 
 export default defineComponent({
   name: "InboxPage",
   setup() {
     const a = useInboxQueue();
     const deleteStore = useDeleteStore();
+    const highlightsStore = useHighlightsStore();
+
+    // The whole page's records are marked on the snapshot, not just the one
+    // being read — exactly like the library's 详情 view. The active item may
+    // still be pending (and therefore absent from the library projection), so
+    // add it explicitly when needed.
+    const detailPageKey = computed(
+      () =>
+        a.detailItem.value?.record.sourceUrl ||
+        a.detailItem.value?.record.url ||
+        "",
+    );
+    const detailPageRecords = computed(() => {
+      const active = a.detailItem.value?.record;
+      if (!active || !detailPageKey.value) return [];
+      const samePage = highlightsStore.highlights.filter(
+        (record) =>
+          (record.sourceUrl || record.url || "") === detailPageKey.value,
+      );
+      const records = samePage.some((record) => record.id === active.id)
+        ? samePage
+        : [active, ...samePage];
+      return sortRecordsForPage(records, "range").map((record) => ({
+        id: record.id,
+        text: record.text,
+        anchorText: record.anchorText,
+        note: record.note,
+        color: record.color,
+        style: record.style,
+      }));
+    });
 
     return () => (
       <DashboardWorkspaceLayout
         panelOpen={Boolean(a.detailItem.value)}
+        panelWide
         onClosePanel={a.closeDetail}
       >
         {{
@@ -30,6 +64,13 @@ export default defineComponent({
             a.detailItem.value ? (
               <InboxDetailPanel
                 item={a.detailItem.value}
+                pageRecords={detailPageRecords.value}
+                onSelectRecord={(recordId) => {
+                  const item = a.tabItems.value.find(
+                    (candidate) => candidate.record.id === recordId,
+                  );
+                  if (item) a.openDetail(item);
+                }}
                 onClose={a.closeDetail}
                 onRemoveTag={(tag) => {
                   const item = a.detailItem.value;

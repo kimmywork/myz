@@ -24,6 +24,7 @@ interface InspectorRecord {
   tags: string[];
   html: string;
   text: string;
+  anchorText: string;
   note: string;
   style: HIGHLIGHT_STYLES | null;
   styleIconKey: string;
@@ -39,6 +40,7 @@ const DEFAULT_RECORD: InspectorRecord = {
   tags: [],
   html: "",
   text: "",
+  anchorText: "",
   note: "",
   style: null,
   styleIconKey: "",
@@ -107,6 +109,7 @@ export const useInspectorStore = defineStore("inspector", () => {
       tags: Array.isArray(rawRecord.tags) ? rawRecord.tags.filter(Boolean) : [],
       html: rawRecord.html || "",
       text: rawRecord.text || "",
+      anchorText: rawRecord.anchorText || "",
       note: typeof rawRecord.note === "string" ? rawRecord.note : "",
       style,
       styleIconKey: styleIconKeyValue,

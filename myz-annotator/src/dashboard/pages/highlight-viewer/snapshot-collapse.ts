@@ -22,6 +22,8 @@
  * ```
  *
  * 揭示从两侧划线向中间推进（B→C→…、F→E→…）；池空则缝消失；点「…」全展开。
+ * 首尾没有划线锚点的运行（页头导航 / 页尾）：整段先 `display:none`（不模糊、
+ * 不占位），但保留「…」缝——点缝仍可把前文/后文一块块展开（2026-11-27）。
  * Hidden middle blocks stay in the DOM (`display: none`), so a reveal is an
  * in-place repaint (`repaintGap`) — same nodes, no innerHTML rebuild, no
  * animation replay on untouched blocks (2026-11-24 抖动修复). Every unit
@@ -160,6 +162,35 @@ function runRoles(
   return roles;
 }
 
+/**
+ * Edge runs reveal from the one annotated neighbour only: everything past the
+ * next block stays fully hidden (no nav-menu bulk), while the frontier block
+ * remains a blurred hint — the seam's shadow — so the reader can open it.
+ */
+function edgeRoles(
+  state: SnapshotGapState | undefined,
+  total: number,
+  side: "up" | "down",
+): RunRole[] {
+  const roles: RunRole[] = new Array<RunRole>(total).fill("hidden");
+  if (state?.expanded) {
+    roles.fill("revealed-all");
+    return roles;
+  }
+  if (side === "down") {
+    const revealed = Math.min(Math.max(state?.downRev ?? 0, 0), total);
+    for (let i = total - revealed; i < total; i += 1)
+      roles[i] = "revealed-down";
+    const hint = total - revealed - 1;
+    if (hint >= 0) roles[hint] = "hint-down";
+  } else {
+    const revealed = Math.min(Math.max(state?.upRev ?? 0, 0), total);
+    for (let i = 0; i < revealed; i += 1) roles[i] = "revealed-up";
+    if (revealed < total) roles[revealed] = "hint-up";
+  }
+  return roles;
+}
+
 /** The 「…」 seam: halves unfold one block each, the glyph unfolds all. */
 function tearElement(
   doc: Document,
@@ -225,6 +256,31 @@ function restoreAttributes(unit: Element): void {
   }
 }
 
+/** Inserts (or moves) a gap's seam immediately before its anchor block. */
+function placeSeam(
+  root: HTMLElement,
+  doc: Document,
+  gap: number,
+  upRegion: number,
+  downRegion: number,
+  anchor: HTMLElement,
+  after = false,
+): void {
+  const existing = root.querySelector(
+    `[data-tear="gap-${gap}"]`,
+  ) as HTMLElement | null;
+  const seam = existing ?? tearElement(doc, gap, upRegion, downRegion);
+  const reference = after ? anchor.nextSibling : anchor;
+  if (
+    seam.parentNode !== anchor.parentNode ||
+    (after
+      ? seam.nextSibling !== reference
+      : seam.nextElementSibling !== anchor)
+  ) {
+    anchor.parentNode?.insertBefore(seam, reference);
+  }
+}
+
 /**
  * Paints one hidden run's blocks in place — the single source of truth for
  * hint / revealed / hidden / seam state. Works on existing nodes (reveals
@@ -239,10 +295,17 @@ export function paintRun(
   downRegion: number,
   state: SnapshotGapState | undefined,
   fresh = false,
+  edge = false,
 ): void {
   const doc = root.ownerDocument ?? document;
   const total = run.length;
-  const roles = runRoles(state, total);
+  // An edge run has no annotated block on one side (page nav before the first
+  // highlight, footer after the last). Its copy starts fully hidden, but the
+  // seam stays so the reader can still unfold it (2026-11-27).
+  const edgeSide: "up" | "down" = upRegion === -1 ? "down" : "up";
+  const roles = edge
+    ? edgeRoles(state, total, edgeSide)
+    : runRoles(state, total);
 
   run.forEach((unit, index) => {
     const role = roles[index];
@@ -295,24 +358,35 @@ export function paintRun(
     }
   });
 
+  // Edge seam sits at the frontier: just before the blurred hint on the
+  // leading side, or just after it (before the hidden bulk) on the trailing
+  // side. Revealed blocks therefore land on the highlight side of the seam.
+  if (edge) {
+    const hiddenIndex = roles.indexOf("hidden");
+    const hintDownIndex = roles.indexOf("hint-down");
+    const hintUpIndex = roles.indexOf("hint-up");
+    if (edgeSide === "down" && hintDownIndex >= 0) {
+      placeSeam(root, doc, gap, upRegion, downRegion, run[hintDownIndex]);
+    } else if (hiddenIndex >= 0) {
+      placeSeam(root, doc, gap, upRegion, downRegion, run[hiddenIndex]);
+    } else if (hintUpIndex >= 0) {
+      // Trailing run with nothing left to hide: the seam stays just below its
+      // last hint so the reader can still open that final block.
+      placeSeam(root, doc, gap, upRegion, downRegion, run[hintUpIndex], true);
+    } else {
+      root.querySelector(`[data-tear="gap-${gap}"]`)?.remove();
+    }
+    return;
+  }
+
   // The seam lives between the two hints; one per gap, gone when the pool
   // has fewer than two blocks left.
   const hintDownIndex = roles.indexOf("hint-down");
-  const existing = root.querySelector(
-    `[data-tear="gap-${gap}"]`,
-  ) as HTMLElement | null;
   if (hintDownIndex < 0) {
-    existing?.remove();
+    root.querySelector(`[data-tear="gap-${gap}"]`)?.remove();
     return;
   }
-  const anchor = run[hintDownIndex];
-  const seam = existing ?? tearElement(doc, gap, upRegion, downRegion);
-  if (
-    seam.parentNode !== anchor.parentNode ||
-    seam.nextElementSibling !== anchor
-  ) {
-    anchor.parentNode?.insertBefore(seam, anchor);
-  }
+  placeSeam(root, doc, gap, upRegion, downRegion, run[hintDownIndex]);
 }
 
 /**
@@ -332,7 +406,16 @@ export function repaintGap(
   if (!run.length) return;
   const upRegion = Number(run[0].getAttribute("data-up-region") ?? "-1");
   const downRegion = Number(run[0].getAttribute("data-down-region") ?? "-1");
-  paintRun(root, run, gap, upRegion, downRegion, state, fresh);
+  paintRun(
+    root,
+    run,
+    gap,
+    upRegion,
+    downRegion,
+    state,
+    fresh,
+    upRegion === -1 || downRegion === -1,
+  );
 }
 
 /**
@@ -424,7 +507,16 @@ export function buildSnapshotDisplay(
       block.setAttribute("data-up-region", String(upRegion));
       block.setAttribute("data-down-region", String(downRegion));
     });
-    paintRun(container, run, gapIndex, upRegion, downRegion, gaps[gapIndex]);
+    paintRun(
+      container,
+      run,
+      gapIndex,
+      upRegion,
+      downRegion,
+      gaps[gapIndex],
+      false,
+      upRegion === -1 || downRegion === -1,
+    );
     gapIndex += 1;
     i = j;
   }

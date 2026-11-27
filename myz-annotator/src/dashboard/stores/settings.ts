@@ -36,7 +36,6 @@ export const useSettingsStore = defineStore("settings", () => {
         return;
       }
       Object.assign(settings, {
-        dashboardView: result.dashboardView || settings.dashboardView,
         ai: normalizeAiSettings(result.ai),
         colorScheme: Object.values(COLOR_SCHEMES).includes(
           result.colorScheme as COLOR_SCHEMES,

@@ -1,4 +1,5 @@
 import type { Router } from "vue-router";
+import { isLocalFileAccessError } from "@/reader/local-file.js";
 import {
   prepareEpubRecordInReader,
   preparePdfRecordForReader,
@@ -33,6 +34,27 @@ export interface OpenReaderOptions {
    * included.
    */
   stillWanted?: () => boolean;
+  /** Where to explain a blocked local-file open instead of navigating. */
+  onError?: (message: string) => void;
+}
+
+/**
+ * Runs the permission-first prepare step. A removed/denied local handle is a
+ * user-facing outcome, not a navigation: report it and return `undefined`.
+ */
+async function prepare(
+  prepareFn: () => Promise<string | null>,
+  options: OpenReaderOptions,
+): Promise<string | null | undefined> {
+  try {
+    return await prepareFn();
+  } catch (error) {
+    if (isLocalFileAccessError(error)) {
+      options.onError?.((error as Error).message);
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -92,13 +114,15 @@ function openRecordDetail(
   void navigate({ path });
 }
 
-/** Prepares the reader URL (permission first) and embeds it in the workspace. */
-export async function openPdfInWorkspace(
+/** Shared prepare → guard → navigate flow for both document kinds. */
+async function openInWorkspace(
   router: Router,
-  record: WithId<PdfRecordRef>,
-  options: OpenReaderOptions = {},
+  record: WithId<PdfRecordRef> | WithId<EpubRecordRef>,
+  prepareFn: () => Promise<string | null>,
+  options: OpenReaderOptions,
 ): Promise<void> {
-  const target = await preparePdfRecordForReader(record);
+  const target = await prepare(prepareFn, options);
+  if (target === undefined) return;
   if (options.stillWanted && !options.stillWanted()) return;
   if (!target) {
     if (!openRecordSource(record)) openRecordDetail(router, record, options);
@@ -107,17 +131,30 @@ export async function openPdfInWorkspace(
   openReaderInWorkspace(router, target, options);
 }
 
+/** Prepares the reader URL (permission first) and embeds it in the workspace. */
+export function openPdfInWorkspace(
+  router: Router,
+  record: WithId<PdfRecordRef>,
+  options: OpenReaderOptions = {},
+): Promise<void> {
+  return openInWorkspace(
+    router,
+    record,
+    () => preparePdfRecordForReader(record),
+    options,
+  );
+}
+
 /** EPUB twin of {@link openPdfInWorkspace}. */
-export async function openEpubInWorkspace(
+export function openEpubInWorkspace(
   router: Router,
   record: WithId<EpubRecordRef>,
   options: OpenReaderOptions = {},
 ): Promise<void> {
-  const target = await prepareEpubRecordInReader(record);
-  if (options.stillWanted && !options.stillWanted()) return;
-  if (!target) {
-    if (!openRecordSource(record)) openRecordDetail(router, record, options);
-    return;
-  }
-  openReaderInWorkspace(router, target, options);
+  return openInWorkspace(
+    router,
+    record,
+    () => prepareEpubRecordInReader(record),
+    options,
+  );
 }

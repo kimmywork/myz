@@ -56,18 +56,6 @@ describe("useLibrarySelection", () => {
     expect(selection.has("a")).toBe(true);
   });
 
-  it("keeps the selection when cards/list changes", async () => {
-    const viewMode = ref<"cards" | "list">("cards");
-    // Cards↔list is not part of the view key on purpose.
-    const viewKey = computed(() => libraryViewKey(baseView));
-    const selection = useLibrarySelection(viewKey);
-    selection.toggle("a");
-
-    viewMode.value = "list";
-    await nextTick();
-    expect(selection.has("a")).toBe(true);
-  });
-
   it("select-all covers the visible page and toggles off", () => {
     const key = ref("view");
     const selection = useLibrarySelection(key);

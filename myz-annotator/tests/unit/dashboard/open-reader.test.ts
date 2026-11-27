@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Router } from "vue-router";
+import { localFileAccessError } from "@/reader/local-file";
 
 const preparePdf = vi.fn();
 const prepareEpub = vi.fn();
@@ -128,6 +129,19 @@ describe("opening a record with no readable target", () => {
 
     expect(router.push).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("reports a removed local handle instead of navigating to a doomed reader", async () => {
+    preparePdf.mockRejectedValue(localFileAccessError());
+    const router = fakeRouter();
+    const onError = vi.fn();
+    await openPdfInWorkspace(router as unknown as Router, record, { onError });
+
+    expect(onError).toHaveBeenCalledWith(
+      "该本地文件的访问授权已失效，请从阅读页重新打开本地文件",
+    );
+    expect(router.push).not.toHaveBeenCalled();
+    expect(createTab).not.toHaveBeenCalled();
   });
 
   it("stops when the user left while the permission prompt was open", async () => {

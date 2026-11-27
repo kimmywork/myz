@@ -84,9 +84,26 @@ export function applyKindShape(record: MyZRecord): MyZRecord {
   return record;
 }
 
+/**
+ * Tags that separate text in the snapshot's flattened DOM text (see
+ * `snapshot-body.ts`: a space is inserted after each of these). Inline tags
+ * must NOT become a space — Defuddle adds artificial spaces around inline
+ * markup, which is exactly what broke snapshot anchoring for `li` captures.
+ */
+const BLOCK_TAG =
+  /^(p|div|li|ul|ol|br|h[1-6]|blockquote|pre|td|th|tr|table|section|article|header|footer|main|hr|figure|figcaption)$/i;
+
 function stripHtml(html: string): string {
   return html
-    .replace(/<[^>]+>/g, " ")
+    .replace(/<\/?([a-zA-Z][\w-]*)\b[^>]*>/g, (_match, tag: string) =>
+      BLOCK_TAG.test(tag) ? " " : "",
+    )
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -102,12 +119,15 @@ async function resolveRecordText(
   if (typeof record.html !== "string" || record.html.trim().length === 0) {
     return;
   }
+  // Keep a plain-text anchor before the HTML is dropped: snapshots store DOM
+  // text, so markdown emphasis/link syntax in `text` would never match.
+  record.anchorText = stripHtml(record.html);
   try {
     if (!ctx.htmlToMarkdown) throw new Error("no htmlToMarkdown port");
     record.text = await ctx.htmlToMarkdown(record.html, ctx.tabId);
     record.contentType = CONTENT_TYPES.MARKDOWN;
   } catch {
-    const fallbackText = stripHtml(record.html);
+    const fallbackText = record.anchorText;
     record.text = fallbackText;
     if (fallbackText) record.contentType = CONTENT_TYPES.MARKDOWN;
   }

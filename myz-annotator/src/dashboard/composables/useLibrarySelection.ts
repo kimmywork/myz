@@ -12,10 +12,7 @@ export interface LibraryViewState {
   pageFilter: string;
 }
 
-/**
- * Identity of the current library view. Filters, search and the page filter
- * belong here; cards↔list does not — it only repaints the same records.
- */
+/** Identity of the current library view: filters, search and page filter. */
 export function libraryViewKey(state: LibraryViewState): string {
   return JSON.stringify([
     state.quickSearch,
@@ -44,9 +41,6 @@ export interface LibrarySelection {
  * Batch selection for the library (§4.31). The selection belongs to the view,
  * not to the app: it lives in the page instance (unmounting clears it), and any
  * change to `viewKey` — filters, search, page filter — clears it as well.
- *
- * Cards↔list is deliberately *not* part of `viewKey`: it only changes how the
- * same records are painted, so the selection must survive it.
  */
 export function useLibrarySelection(
   viewKey: Ref<string> | ComputedRef<string>,

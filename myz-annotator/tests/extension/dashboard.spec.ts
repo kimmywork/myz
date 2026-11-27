@@ -6,6 +6,15 @@ import { dirnameFromImportMeta } from "../helpers/runtime.js";
 const __dirname = dirnameFromImportMeta(import.meta.url);
 const harness = setupDashboardHarness();
 
+/** Library rows only show kept records; a fresh capture starts out pending. */
+async function keep(dash: import("@playwright/test").Page, id?: string | null) {
+  if (!id) return;
+  await send(dash, "myz:inboxSetStatus", {
+    targetId: `h:${id}`,
+    status: "kept",
+  });
+}
+
 test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
   const dash = await harness.open();
   const canonical = `${harness.serverUrl()}/myz-test.html`;
@@ -21,6 +30,7 @@ test("dashboard_lists_and_deletes_highlight_and_exports", async () => {
     kind: "clip",
   });
   const savedId = saved?.id || null;
+  await keep(dash, savedId);
 
   await dash.reload();
   await dash.waitForSelector(`article[data-id]`, { timeout: 5000 });
@@ -65,6 +75,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     kind: "clip",
   });
   const clipId = savedClip?.id || null;
+  await keep(dash, clipId);
   await dash.reload();
   await dash.waitForSelector(`article[data-id]`, { timeout: 5000 });
   const clipSelector = clipId ? `article[data-id="${clipId}"]` : "article.card";
@@ -95,18 +106,14 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
 
   await dash.goto(`${dashboardUrl}#/highlights`);
   await dash.waitForSelector(clipSelector, { timeout: 5000 });
-  const noteText = await dash.evaluate((sel) => {
-    const card = document.querySelector(sel);
-    if (!card) return "";
-    for (const section of Array.from(card.querySelectorAll("section"))) {
-      const h4 = section.querySelector("h4");
-      if (h4?.textContent?.includes("批注")) {
-        return section.querySelector("p")?.textContent || "";
-      }
-    }
-    return "";
-  }, clipSelector);
-  expect(noteText).toContain("edited note via test");
+  // List rows show the excerpt, not the note: read the persisted record.
+  const records = await send<Array<{ id: string; note?: string }>>(
+    dash,
+    "myz:getAllHighlights",
+  );
+  expect(records.find((record) => record.id === clipId)?.note || "").toContain(
+    "edited note via test",
+  );
 
   // 2) Downgrade flow: create a highlight then downgrade it to a clip.
   const savedHl = await send<{ id?: string }>(dash, "myz:saveHighlight", {
@@ -123,6 +130,7 @@ test("dashboard_edit_downgrade_and_import_flows", async () => {
     style: "paint",
   });
   const hlId = savedHl?.id || null;
+  await keep(dash, hlId);
   await dash.reload();
   const hlSelector = hlId ? `article[data-id="${hlId}"]` : "article.card";
   await dash.waitForSelector(hlSelector, { timeout: 5000 });
@@ -188,6 +196,7 @@ test("viewer_tag_edit_checks", async () => {
     style: "paint",
   });
   const recId = saved?.id || null;
+  await keep(dash, recId);
   await dash.reload();
   await dash.waitForSelector(`article[data-id]`, { timeout: 5000 });
   const selector = recId ? `article[data-id="${recId}"]` : "article.card";

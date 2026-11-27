@@ -25,7 +25,6 @@ export const DEFAULT_SETTINGS: Settings = {
   ],
   lastUsedColor: "#b58900",
   lastUsedStyle: HIGHLIGHT_STYLES.PAINT,
-  dashboardView: "cards",
   syncSetupSeen: false,
   inboxEnabled: true,
   inboxReminderEnabled: true,

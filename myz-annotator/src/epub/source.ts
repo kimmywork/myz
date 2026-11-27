@@ -30,6 +30,7 @@ export const supportsFileSystemAccess = source.supportsFileSystemAccess;
  * user activation, so the reader tab can read the handle without prompting.
  */
 export const ensureLocalEpubPermission = source.ensurePermission;
+export const epubLocalPermissionState = source.permissionState;
 
 const localFiles = createLocalFileSource<EpubSourceRef>({
   description: "EPUB",

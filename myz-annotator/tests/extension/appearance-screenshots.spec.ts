@@ -52,8 +52,12 @@ test("capture_dashboard_appearance_matrix", async () => {
         tags: ["原则"],
       },
     ];
+    const savedIds: string[] = [];
     for (const record of records) {
-      await new Promise((resolve, reject) => {
+      const saved = await new Promise<{
+        data?: { id?: string };
+        id?: string;
+      }>((resolve, reject) => {
         chrome.runtime.sendMessage(
           {
             type: "myz:saveHighlight",
@@ -71,6 +75,25 @@ test("capture_dashboard_appearance_matrix", async () => {
               return;
             }
             resolve(response);
+          },
+        );
+      });
+      const savedId = saved?.data?.id ?? saved?.id;
+      if (savedId) savedIds.push(savedId);
+    }
+    // Fresh captures start pending in the Inbox; keep them for library shots.
+    for (const id of savedIds) {
+      await new Promise<void>((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          {
+            type: "myz:inboxSetStatus",
+            payload: { targetId: `h:${id}`, status: "kept" },
+          },
+          () => {
+            if (chrome.runtime.lastError) {
+              return reject(new Error(chrome.runtime.lastError.message));
+            }
+            resolve();
           },
         );
       });
